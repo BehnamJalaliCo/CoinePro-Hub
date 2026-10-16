@@ -102,7 +102,7 @@ Company {
 ```
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/companies` | `?status&q` — holding first, then by code. Designed for 40+ rows. |
+| GET | `/companies` | `?status&q` — holding first, then by code. No fixed company count: always paginated and searchable. |
 | GET | `/companies/{code}` | |
 | POST | `/companies` 🔏 | `{code, name_fa, name_en, color_index?, template}` → creates departments and leadership positions **from the template file**, all in one transaction. |
 | PATCH | `/companies/{code}` | `name_*`, `color_index`, `status` (`archived` only with 🔏). Code never changes. |
@@ -350,7 +350,7 @@ Behaviour (§1.7):
 - Envelope: `event: <type>` and `data: {id, type, at, company, ref, data}`; `id:` is the JetStream sequence so `Last-Event-ID` resumes without loss.
 - Types: `work.created|updated|delegated|completed`, `decision.created|decided`, `deliverable.created|rated`, `message.created`, `notification.created`, `presence.changed`, `control.changed`, `employee.updated`, `activity.changed` (runtime), `llm.call.started|finished` (from llm-router, metadata only), `budget.alert`.
 - Backed by NATS JetStream subjects `hq.core.<company>.<type>`; the API is a filtered, tenant-checked bridge. Heartbeat comment every 15 s.
-- Scales to 40+ companies: the client subscribes to the holding summary (`company=*` returns only counters and `activity.changed`, never full payloads).
+- Scales to any number of companies: the client subscribes to the holding summary (`company=*` returns only counters and `activity.changed`, never full payloads).
 
 ---
 
