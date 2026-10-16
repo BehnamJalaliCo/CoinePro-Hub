@@ -458,8 +458,8 @@ async def decide(
     await tx.exec(
         """UPDATE cartable.decisions SET status = :st, decided_at = now(), decided_by_kind = :k,
                decided_by_code = :c, note = :note, reason_code = :rc, amendments = CAST(:am AS jsonb),
-               seal_at = CASE WHEN :su IS NULL THEN NULL ELSE now() END,
-               seal_method = CASE WHEN :su IS NULL THEN NULL ELSE 'passkey_uv' END,
+               seal_at = CASE WHEN CAST(:su AS uuid) IS NULL THEN NULL ELSE now() END,
+               seal_method = CASE WHEN CAST(:su AS uuid) IS NULL THEN NULL ELSE 'passkey_uv' END,
                seal_step_up_id = :su, effect_status = :eff
            WHERE id = :id""",
         id=d["id"],

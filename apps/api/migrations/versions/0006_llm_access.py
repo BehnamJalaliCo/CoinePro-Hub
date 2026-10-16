@@ -32,8 +32,24 @@ def upgrade() -> None:
             ON llm.connections TO hq_api;
         GRANT INSERT, UPDATE (connection_id, model, effort, note, updated_at)
             ON llm.assignments TO hq_api, hq_worker;
+        -- budget_change decisions are applied by the worker
+        GRANT INSERT, UPDATE (token_limit, usd_limit, enabled, updated_at) ON llm.budgets TO hq_worker;
         GRANT INSERT, UPDATE (token_limit, usd_limit, enabled, updated_at)
             ON llm.budgets TO hq_api;
+
+        -- llm-router's policies name only its own roles: the same company
+        -- scope (app.company_ids) for the api and worker roles.
+        CREATE POLICY calls_api_select ON llm.calls FOR SELECT TO hq_api, hq_worker
+            USING (company_id = ANY (llm.allowed_company_ids()));
+        CREATE POLICY usage_api_select ON llm.usage FOR SELECT TO hq_api, hq_worker
+            USING (company_id = ANY (llm.allowed_company_ids()));
+        CREATE POLICY budgets_api_select ON llm.budgets FOR SELECT TO hq_api, hq_worker
+            USING (company_id = ANY (llm.allowed_company_ids()));
+        CREATE POLICY budgets_api_insert ON llm.budgets FOR INSERT TO hq_api, hq_worker
+            WITH CHECK (company_id = ANY (llm.allowed_company_ids()));
+        CREATE POLICY budgets_api_update ON llm.budgets FOR UPDATE TO hq_api, hq_worker
+            USING (company_id = ANY (llm.allowed_company_ids()))
+            WITH CHECK (company_id = ANY (llm.allowed_company_ids()));
         """
     )
 
@@ -41,6 +57,11 @@ def upgrade() -> None:
 def downgrade() -> None:
     execute_script(
         """
+        DROP POLICY calls_api_select ON llm.calls;
+        DROP POLICY usage_api_select ON llm.usage;
+        DROP POLICY budgets_api_select ON llm.budgets;
+        DROP POLICY budgets_api_insert ON llm.budgets;
+        DROP POLICY budgets_api_update ON llm.budgets;
         REVOKE ALL ON llm.connections, llm.task_classes, llm.assignments, llm.calls, llm.usage,
             llm.budgets, llm.v_usage_daily, llm.v_usage_monthly, llm.v_top_actors_30d
             FROM hq_api, hq_worker;

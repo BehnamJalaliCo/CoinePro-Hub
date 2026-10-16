@@ -167,7 +167,9 @@ async def rate_deliverable(
         if idem and idem.replay:
             return idem.replay
         dl = await tx.one(DELIVERABLE_SQL + " WHERE dl.ref = :ref", ref=ref)
-        await tx.exec("SELECT 1 FROM cartable.deliverables WHERE id = :id FOR UPDATE", id=dl["id"])
+        # Deliverables are append-only (no UPDATE right, so no FOR UPDATE):
+        # serialise ratings of one deliverable with a transaction-level lock.
+        await tx.exec("SELECT pg_advisory_xact_lock(hashtextextended(:id, 0))", id=str(dl["id"]))
         if dl["r_first"] is not None:
             open_ = await tx.scalar(
                 "SELECT :first > now() - make_interval(days => :days)",

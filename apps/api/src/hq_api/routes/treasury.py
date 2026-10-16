@@ -347,7 +347,10 @@ async def treasury_breakdown(
                 LEFT JOIN llm.connections cn ON cn.id = c.connection_id
                 WHERE c.started_at >= :s AND c.started_at < :e
                   AND (CAST(:co AS uuid) IS NULL OR c.company_id = :co)
-                GROUP BY 1 ORDER BY equiv_cost_usd + cost_usd DESC, calls DESC LIMIT 500""",  # noqa: S608
+                GROUP BY 1
+                ORDER BY COALESCE(sum(c.equiv_cost_usd), 0) + COALESCE(sum(c.cost_usd), 0) DESC,
+                         count(*) DESC
+                LIMIT 500""",  # noqa: S608
             s=start,
             e=end,
             co=co.id if co else None,

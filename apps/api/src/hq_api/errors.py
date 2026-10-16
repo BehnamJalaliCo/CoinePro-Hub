@@ -154,7 +154,7 @@ def from_db_error(exc: DBAPIError) -> ApiError:
     if state == "23505":
         return ApiError(409, "validation_failed", "duplicate value")
     if state in ("23503", "23514", "23502", "23P01") or state.startswith("22"):
-        return ApiError(422, "validation_failed", "the data breaks a database rule")
+        return ApiError(422, "validation_failed", f"the data breaks a database rule ({state})")
     if state == "42501":
         return ApiError(403, "forbidden", "row-level security denied the change")
     if state in ("40001", "40P01", "55P03"):
@@ -194,7 +194,11 @@ def install(app: FastAPI) -> None:
     async def _db(request: Request, exc: DBAPIError) -> JSONResponse:
         err = from_db_error(exc)
         if err.status >= 500:
-            log.error("database error", extra={"sqlstate": sqlstate_of(exc)})
+            # SQLSTATE and the statement's first words only: values never reach a log.
+            stmt = str(getattr(exc, "statement", "") or "").split()[:4]
+            log.error(
+                "database error", extra={"sqlstate": sqlstate_of(exc), "statement": " ".join(stmt)}
+            )
         return problem_response(request, err)
 
     @app.exception_handler(Exception)

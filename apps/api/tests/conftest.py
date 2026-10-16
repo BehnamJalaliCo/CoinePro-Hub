@@ -237,3 +237,18 @@ async def owner_session(hub: Hub) -> dict[str, Any]:
     """Headers plus the session id (for step-up tokens)."""
     token, sid = await owner_token(hub)
     return {"headers": {"Authorization": f"Bearer {token}"}, "session_id": sid}
+
+
+@pytest.fixture(scope="session")
+async def relay(hub: Hub) -> AsyncIterator[None]:
+    """The outbox relay (as in the api process), so events reach NATS."""
+    import asyncio
+    import contextlib
+
+    from hq_api.events import OutboxRelay
+
+    task = asyncio.create_task(OutboxRelay(hub.settings, hub.db, hub.bus).run())  # type: ignore[arg-type]
+    yield
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task

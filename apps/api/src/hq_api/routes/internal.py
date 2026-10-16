@@ -402,7 +402,12 @@ async def request_work(
         await allow(
             ctx,
             "work.create",
-            {"company": company.code, "to_role": to_role, "to_department": to_dept},
+            {
+                "company": company.code,
+                "kind": body.kind,
+                "to_role": to_role,
+                "to_department": to_dept,
+            },
         )
         assert ctx.who.company_id is not None
         await ctx.ensure_unlocked(tx, ctx.who.company_id)
