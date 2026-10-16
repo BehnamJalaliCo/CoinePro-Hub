@@ -7,7 +7,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ensure_env
 
-JOBS='["hq-tools","temporal-schema","temporal-namespace"]'
+JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate"]'
 failed=0
 for profile in "${PROFILES[@]}"; do
   problems="$(jq -r --argjson jobs "$JOBS" '

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Sum of all container memory limits <= 60% of RAM, per profile.
+# Sum of all container memory limits <= 80% of RAM, per profile (prompt 03;
+# 60% held for the platform alone in prompt 02).
 # Each profile is checked against its reference RAM (profiles/<p>.env:
 # HQ_BUDGET_REF_RAM_MB); on the server the active profile is also checked
 # against the real MemTotal.
@@ -8,7 +9,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ensure_env
 
-PERCENT=60
+PERCENT=80
 failed=0
 
 limit_sum_mb() {

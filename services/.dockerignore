@@ -1,0 +1,9 @@
+**/tests
+**/testing
+**/__pycache__
+**/*.pyc
+.cache
+Dockerfile.test
+requirements-test.lock
+requirements-dev.in
+scripts
