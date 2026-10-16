@@ -1,0 +1,12 @@
+# Dashboards shipped with the repo (read-only in Grafana).
+apiVersion: 1
+
+providers:
+  - name: coinepro-hq
+    folder: CoinePro HQ
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /var/lib/grafana-dashboards

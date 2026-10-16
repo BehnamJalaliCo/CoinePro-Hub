@@ -1,0 +1,11 @@
+# CoinePro HQ — Prometheus. Scrape jobs live in scrape/ (every profile) and
+# scrape-profile/<profile>/ (mounted per profile by compose).
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    hq: coinepro-hq
+
+scrape_config_files:
+  - /etc/prometheus/scrape/*.yml
+  - /etc/prometheus/scrape-profile/*.yml

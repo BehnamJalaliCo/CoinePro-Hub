@@ -1,0 +1,55 @@
+// CoinePro HQ — Alloy: ships every container's log to Loki.
+// Reads Docker's json-file logs read-only; the Docker socket is deliberately
+// not mounted. Compose writes the service name into each log line ("attrs"),
+// which becomes the `service` label.
+
+local.file_match "containers" {
+  path_targets = [{"__path__" = "/var/lib/docker/containers/*/*-json.log"}]
+  sync_period  = "10s"
+}
+
+loki.source.file "containers" {
+  targets    = local.file_match.containers.targets
+  forward_to = [loki.process.containers.receiver]
+}
+
+loki.process "containers" {
+  stage.json {
+    expressions = {
+      output  = "log",
+      stream  = "stream",
+      time    = "time",
+      service = "attrs.\"com.docker.compose.service\"",
+      project = "attrs.\"com.docker.compose.project\"",
+    }
+  }
+
+  stage.timestamp {
+    source = "time"
+    format = "RFC3339Nano"
+  }
+
+  stage.labels {
+    values = {
+      service = "",
+      project = "",
+      stream  = "",
+    }
+  }
+
+  stage.label_drop {
+    values = ["filename"]
+  }
+
+  stage.output {
+    source = "output"
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
