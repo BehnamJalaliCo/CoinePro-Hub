@@ -1,0 +1,37 @@
+# CoinePro HQ — public edge. Caddy is the only service on 0.0.0.0 (80/443).
+#
+# No domain yet: HQ_SITE_ADDRESS defaults to ":80" (plain HTTP).
+# To switch on automatic HTTPS (Let's Encrypt), set ONE line in
+# infra/compose/.env:   HQ_SITE_ADDRESS=hq.example.com
+# then `make up`. Caddy obtains and renews the certificate itself.
+
+{
+	metrics
+}
+
+{$HQ_SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+	}
+
+	handle /health {
+		header Content-Type application/json
+		respond `{"status":"ok","service":"coinepro-hq"}` 200
+	}
+
+	handle {
+		root * /srv/site
+		file_server
+	}
+}
+
+# Internal only (not published): container healthcheck and Prometheus metrics.
+:2020 {
+	metrics /metrics
+	respond /health "ok" 200
+}
