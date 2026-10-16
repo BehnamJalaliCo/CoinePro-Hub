@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>D0 · جهت بصری «دیوان»</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"IRANYekanXVF";src:url("/_blob/9172fd7cad232bfd03d4cf5a930ad8cb") format("woff2");font-weight:100 1000;font-display:swap}
+@font-face{font-family:"IRANYekanXFaNumVF";src:url("/_blob/00bf1c2f101b27198e8f56fd16ce2176") format("woff2");font-weight:100 1000;font-display:swap}
+body{margin:0;background:#0B0D14}
+a{color:#D8A848}a:hover{color:#F0CC60}
+button{font-family:inherit}
+@keyframes hqBand{0%{background-position:200% 0}100%{background-position:0 0}}
+@keyframes hqBreath{0%,100%{transform:scale(1);opacity:.92}50%{transform:scale(1.04);opacity:1}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div dir="rtl" style="width: 1600px; min-height: 1760px; box-sizing: border-box; font-family: 'IRANYekanXFaNumVF', 'IRANYekanXVF', Tahoma, sans-serif; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0;">
+
+  <!-- ====================== شب ====================== -->
+  <section aria-label="تم شب" style="box-sizing: border-box; padding: 56px 56px 64px; background: #0B0D14; color: #F2EEE4; display: flex; flex-direction: column; gap: 36px;">
+
+    <header style="display: flex; flex-direction: column; gap: 18px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <svg role="img" aria-label="شمسه، نشان دیوان" width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#D8A848" stroke-width="1.1" stroke-linecap="round">
+            <circle cx="32" cy="32" r="9"></circle><circle cx="32" cy="32" r="14.5" stroke-opacity=".55"></circle><circle cx="32" cy="32" r="27" stroke-opacity=".35"></circle>
+            <g stroke-opacity=".9"><line x1="32" y1="2" x2="32" y2="12"></line><line x1="32" y1="52" x2="32" y2="62"></line><line x1="2" y1="32" x2="12" y2="32"></line><line x1="52" y1="32" x2="62" y2="32"></line><line x1="10.8" y1="10.8" x2="17.9" y2="17.9"></line><line x1="46.1" y1="46.1" x2="53.2" y2="53.2"></line><line x1="53.2" y1="10.8" x2="46.1" y2="17.9"></line><line x1="17.9" y1="46.1" x2="10.8" y2="53.2"></line></g>
+            <g stroke-opacity=".5"><line x1="20.5" y1="4.1" x2="24.3" y2="13.3"></line><line x1="43.5" y1="59.9" x2="39.7" y2="50.7"></line><line x1="4.1" y1="43.5" x2="13.3" y2="39.7"></line><line x1="59.9" y1="20.5" x2="50.7" y2="24.3"></line><line x1="4.1" y1="20.5" x2="13.3" y2="24.3"></line><line x1="59.9" y1="43.5" x2="50.7" y2="39.7"></line><line x1="20.5" y1="59.9" x2="24.3" y2="50.7"></line><line x1="43.5" y1="4.1" x2="39.7" y2="13.3"></line></g>
+            <circle cx="32" cy="32" r="2.2" fill="#D8A848" stroke="none"></circle>
+          </svg>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: 30px; line-height: 38px; font-weight: 600; font-variation-settings: 'dots' 2;">دیوان</span>
+            <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 12px; letter-spacing: .18em; color: #B9B4A6; text-align: right;">COINEPRO HQ · DESIGN LANGUAGE</span>
+          </div>
+        </div>
+        <span style="font-size: 12px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(216,168,72,.34); color: #D8A848;">شب</span>
+      </div>
+      <div aria-hidden="true" style="height: 1px; background: rgba(216,168,72,.28);"></div>
+      <p style="margin: 0; font-size: 15px; line-height: 26px; color: #B9B4A6; max-width: 620px;">اتاق فرمانِ آرام و لوکس، با زبان دیوان ایرانی: زمینه‌ی لاجوردی‌سیاه، نوشته‌ی عاجی، خطِ طلاییِ ظریف (تحریر)، نشانِ شمسه و هندسه‌ی هشت‌ضلعی. تذهیب فقط در لحظه‌های تشریفاتی.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px;">
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 500; color: #B9B4A6; letter-spacing: .02em;">نردبان سطوح</h2>
+        <div style="display: flex; gap: 8px;">
+          <sc-for list="{{nightSurfaces}}" as="s" hint-placeholder-count="5">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <div style="height: 56px; border-radius: 10px; background: {{s.hex}}; border: 1px solid rgba(242,238,228,.08);"></div>
+              <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 11px; color: #857F72; text-align: right;">{{s.hex}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 500; color: #B9B4A6;">رنگ‌های معنادار</h2>
+        <div style="display: flex; gap: 8px;">
+          <sc-for list="{{nightSemantic}}" as="c" hint-placeholder-count="5">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <div style="height: 56px; border-radius: 10px; background: {{c.hex}};"></div>
+              <span style="font-size: 11px; color: #B9B4A6;">{{c.name}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: start;">
+      <article aria-label="کارت تصمیم تشریفاتی" style="position: relative; padding: 24px 24px 22px; background: #10131C; border: 1px solid rgba(216,168,72,.28); clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px); display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 12px; font-weight: 600; color: #F0B90B; display: flex; align-items: center; gap: 8px;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: #F0B90B;"></span>تصمیم · پیشنهاد استخدام</span>
+          <span style="font-size: 11px; color: #857F72;">TradeYar · مدیر مارکتینگ (CMO)</span>
+        </div>
+        <h3 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">استخدام «متخصص SEO/GEO» برای trade-future.ir</h3>
+        <p style="margin: 0; font-size: 14px; line-height: 24px; color: #B9B4A6;">ترافیک ارگانیک ۱۲٪ نسبت به هفته‌ی قبل افت کرده. یک کارمند با Sonnet 5.5 (effort: high) برای ممیزی و پیش‌نویس هفتگی لازم است. دسترسی: فقط خواندنی به Search Console.</p>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
+          <div style="padding: 10px 12px; background: #161A25; border-radius: 10px; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 11px; color: #857F72;">سهمیه‌ی برآوردی</span><span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 16px; font-weight: 700; text-align: right;">≈ 40K/day</span></div>
+          <div style="padding: 10px 12px; background: #161A25; border-radius: 10px; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 11px; color: #857F72;">ریسک</span><span style="font-size: 16px; font-weight: 700; color: #22AB94;">کم</span></div>
+          <div style="padding: 10px 12px; background: #161A25; border-radius: 10px; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 11px; color: #857F72;">برگشت‌پذیر</span><span style="font-size: 16px; font-weight: 700;">بله</span></div>
+        </div>
+        <div aria-hidden="true" style="height: 1px; background: rgba(216,168,72,.22);"></div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button type="button" aria-label="مُهر کردن: فشار دهید و نگه دارید" style="width: 72px; height: 72px; border-radius: 999px; background: #0B0D14; border: 1.5px solid #D8A848; box-shadow: inset 0 0 0 5px #0B0D14, inset 0 0 0 6px rgba(216,168,72,.55); color: #D8A848; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;">
+            <span style="font-size: 20px; font-weight: 700; line-height: 22px;">م‌ک</span>
+            <span style="font-size: 9px; letter-spacing: .05em;">مُهر</span>
+          </button>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 13px; font-weight: 600;">برای تأیید، مُهر را فشار بده و نگه دار</span>
+            <span style="font-size: 12px; color: #857F72;">۶۰۰ میلی‌ثانیه · با اثر انگشت · تاریخ شمسی زیر مهر حک میشود</span>
+          </div>
+          <button type="button" style="height: 44px; padding: 0 14px; border-radius: 10px; background: transparent; border: 1px solid rgba(242,238,228,.18); color: #F2EEE4; font-size: 13px;">برگشت با یادداشت</button>
+          <button type="button" style="height: 44px; padding: 0 14px; border-radius: 10px; background: transparent; border: 1px solid rgba(246,70,93,.4); color: #F6465D; font-size: 13px;">رد</button>
+        </div>
+      </article>
+
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div style="padding: 18px; background: #10131C; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 500; color: #B9B4A6;">نشان شرکت‌ها: هشت‌ضلعی</h2>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <sc-for list="{{sigils}}" as="g" hint-placeholder-count="6">
+              <span dir="ltr" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; background: {{g.hex}}; color: #0B0D14; font-family: 'IRANYekanXVF', sans-serif; font-size: 13px; font-weight: 700; clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);">{{g.code}}</span>
+            </sc-for>
+          </div>
+          <span style="font-size: 12px; color: #857F72; line-height: 18px;">کد دو حرفی شناسه‌ی اصلی است؛ رنگ از پالت ۱۰تایی و از شرکت یازدهم تکرار میشود.</span>
+        </div>
+        <div style="padding: 18px; background: #10131C; border-radius: 14px; display: flex; align-items: center; gap: 16px;">
+          <span aria-hidden="true" style="width: 56px; height: 56px; border-radius: 999px; background: radial-gradient(circle at 35% 30%, #F0CC60 0%, #D8A848 48%, #966A1F 100%); animation: hqBreath 3.2s ease-in-out infinite;"></span>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 15px; font-weight: 600;">گوی مشاور کل</span>
+            <span style="font-size: 12px; color: #857F72; line-height: 18px;">تنها گرادیان مجاز در کنار نشان؛ در حال گوش دادن آرام میدمد</span>
+          </div>
+        </div>
+        <div style="padding: 18px; background: #10131C; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <span style="font-size: 13px; color: #B9B4A6;">کاربر رفرال‌شده‌ی این هفته</span>
+            <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums;">+128</span>
+          </div>
+          <div aria-hidden="true" style="height: 1px; background: rgba(216,168,72,.3);"></div>
+          <span style="font-size: 11px; color: #857F72;">منبع: API افیلیت · ۱۲ دقیقه پیش — «تحریر» زیر هر رقم مهم</span>
+          <div aria-hidden="true" style="height: 4px; border-radius: 999px; background: linear-gradient(90deg, rgba(216,168,72,0) 0%, #D8A848 50%, rgba(216,168,72,0) 100%); background-size: 200% 100%; animation: hqBand 1.8s linear infinite;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <h2 style="margin: 0; font-size: 13px; font-weight: 500; color: #B9B4A6;">تایپوگرافی · IRANYekanX Pro (متغیر)</h2>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 20px 22px; background: #10131C; border-radius: 14px;">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <span style="font-size: 32px; line-height: 40px; font-weight: 600;">فرمانِ امروز صادر شد</span>
+          <span style="font-size: 20px; line-height: 28px; font-weight: 600;">کارتابل تصمیم · ۳ مورد</span>
+          <span style="font-size: 15px; line-height: 24px; font-weight: 400; color: #B9B4A6;">مدیرعامل TradeYar گزارش هفتگی را با ۲ پیشنهاد رشد فرستاد.</span>
+          <span style="font-size: 12px; line-height: 18px; font-weight: 500; color: #857F72;">کپشن ۱۲ · شنبه ۲۵ مهر ۱۴۰۵</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px; border-right: 1px solid rgba(216,168,72,.2); padding-right: 24px;">
+          <span style="font-size: 12px; color: #857F72;">محور dots (امضای تایپوگرافیک، فقط در نشان‌نوشته)</span>
+          <div style="display: flex; gap: 18px; align-items: baseline;">
+            <span style="font-size: 26px; font-weight: 600; font-variation-settings: 'dots' 0;">دیوان</span>
+            <span style="font-size: 26px; font-weight: 600; font-variation-settings: 'dots' 2;">دیوان</span>
+            <span style="font-size: 26px; font-weight: 600; font-variation-settings: 'dots' 4;">دیوان</span>
+          </div>
+          <span style="font-size: 12px; color: #857F72;">ارقام بازار، لاتین و جدولی:</span>
+          <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right;">1,284,500.00 <span style="color: #22AB94; font-size: 14px;">+2.4%</span></span>
+          <span style="font-size: 12px; color: #857F72;">شمارش در متن، فارسی: «۱۲۸ کاربر تازه»</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== روز ====================== -->
+  <section aria-label="تم روز" style="box-sizing: border-box; padding: 56px 56px 64px; background: #F3EEE3; color: #1C1A17; display: flex; flex-direction: column; gap: 36px;">
+
+    <header style="display: flex; flex-direction: column; gap: 18px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <svg role="img" aria-label="شمسه، نشان دیوان" width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#8A6318" stroke-width="1.1" stroke-linecap="round">
+            <circle cx="32" cy="32" r="9"></circle><circle cx="32" cy="32" r="14.5" stroke-opacity=".55"></circle><circle cx="32" cy="32" r="27" stroke-opacity=".35"></circle>
+            <g stroke-opacity=".9"><line x1="32" y1="2" x2="32" y2="12"></line><line x1="32" y1="52" x2="32" y2="62"></line><line x1="2" y1="32" x2="12" y2="32"></line><line x1="52" y1="32" x2="62" y2="32"></line><line x1="10.8" y1="10.8" x2="17.9" y2="17.9"></line><line x1="46.1" y1="46.1" x2="53.2" y2="53.2"></line><line x1="53.2" y1="10.8" x2="46.1" y2="17.9"></line><line x1="17.9" y1="46.1" x2="10.8" y2="53.2"></line></g>
+            <g stroke-opacity=".5"><line x1="20.5" y1="4.1" x2="24.3" y2="13.3"></line><line x1="43.5" y1="59.9" x2="39.7" y2="50.7"></line><line x1="4.1" y1="43.5" x2="13.3" y2="39.7"></line><line x1="59.9" y1="20.5" x2="50.7" y2="24.3"></line><line x1="4.1" y1="20.5" x2="13.3" y2="24.3"></line><line x1="59.9" y1="43.5" x2="50.7" y2="39.7"></line><line x1="20.5" y1="59.9" x2="24.3" y2="50.7"></line><line x1="43.5" y1="4.1" x2="39.7" y2="13.3"></line></g>
+            <circle cx="32" cy="32" r="2.2" fill="#8A6318" stroke="none"></circle>
+          </svg>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: 30px; line-height: 38px; font-weight: 500; font-variation-settings: 'dots' 2;">دیوان</span>
+            <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 12px; letter-spacing: .18em; color: #5A554B; text-align: right;">COINEPRO HQ · DESIGN LANGUAGE</span>
+          </div>
+        </div>
+        <span style="font-size: 12px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(138,99,24,.4); color: #8A6318;">روز</span>
+      </div>
+      <div aria-hidden="true" style="height: 1px; background: rgba(138,99,24,.3);"></div>
+      <p style="margin: 0; font-size: 15px; line-height: 26px; color: #5A554B; max-width: 620px;">همان دیوان در روز: کاغذ عاجی، مرکب قهوه‌ای‌سیاه، طلای مرکبی برای خط و متن، و طلای برند فقط روی یک اقدام اصلی. هیچ سفیدِ خالصی وجود ندارد.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px;">
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 500; color: #5A554B;">نردبان سطوح</h2>
+        <div style="display: flex; gap: 8px;">
+          <sc-for list="{{daySurfaces}}" as="s" hint-placeholder-count="5">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <div style="height: 56px; border-radius: 10px; background: {{s.hex}}; border: 1px solid rgba(28,26,23,.1);"></div>
+              <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 11px; color: #857F72; text-align: right;">{{s.hex}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 500; color: #5A554B;">رنگ‌های معنادار</h2>
+        <div style="display: flex; gap: 8px;">
+          <sc-for list="{{daySemantic}}" as="c" hint-placeholder-count="5">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <div style="height: 56px; border-radius: 10px; background: {{c.hex}};"></div>
+              <span style="font-size: 11px; color: #5A554B;">{{c.name}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: start;">
+      <article aria-label="کارت تصمیم تشریفاتی، تم روز" style="position: relative; padding: 24px 24px 22px; background: #FAF7F0; border: 1px solid rgba(138,99,24,.35); clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px); display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 12px; font-weight: 600; color: #9A6B00; display: flex; align-items: center; gap: 8px;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: #9A6B00;"></span>تصمیم · پیشنهاد استخدام</span>
+          <span style="font-size: 11px; color: #857F72;">TradeYar · مدیر مارکتینگ (CMO)</span>
+        </div>
+        <h3 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">استخدام «متخصص SEO/GEO» برای trade-future.ir</h3>
+        <p style="margin: 0; font-size: 14px; line-height: 24px; color: #5A554B;">ترافیک ارگانیک ۱۲٪ نسبت به هفته‌ی قبل افت کرده. یک کارمند با Sonnet 5.5 (effort: high) برای ممیزی و پیش‌نویس هفتگی لازم است. دسترسی: فقط خواندنی به Search Console.</p>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
+          <div style="padding: 10px 12px; background: #EFE9DC; border-radius: 10px; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 11px; color: #857F72;">سهمیه‌ی برآوردی</span><span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 16px; font-weight: 700; text-align: right;">≈ 40K/day</span></div>
+          <div style="padding: 10px 12px; background: #EFE9DC; border-radius: 10px; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 11px; color: #857F72;">ریسک</span><span style="font-size: 16px; font-weight: 700; color: #117A68;">کم</span></div>
+          <div style="padding: 10px 12px; background: #EFE9DC; border-radius: 10px; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 11px; color: #857F72;">برگشت‌پذیر</span><span style="font-size: 16px; font-weight: 700;">بله</span></div>
+        </div>
+        <div aria-hidden="true" style="height: 1px; background: rgba(138,99,24,.28);"></div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button type="button" aria-label="مُهر کردن: فشار دهید و نگه دارید" style="width: 72px; height: 72px; border-radius: 999px; background: #FAF7F0; border: 1.5px solid #8A6318; box-shadow: inset 0 0 0 5px #FAF7F0, inset 0 0 0 6px rgba(138,99,24,.6); color: #8A6318; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;">
+            <span style="font-size: 20px; font-weight: 700; line-height: 22px;">م‌ک</span>
+            <span style="font-size: 9px; letter-spacing: .05em;">مُهر</span>
+          </button>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 13px; font-weight: 600;">برای تأیید، مُهر را فشار بده و نگه دار</span>
+            <span style="font-size: 12px; color: #857F72;">۶۰۰ میلی‌ثانیه · با اثر انگشت · تاریخ شمسی زیر مهر حک میشود</span>
+          </div>
+          <button type="button" style="height: 44px; padding: 0 14px; border-radius: 10px; background: transparent; border: 1px solid rgba(28,26,23,.2); color: #1C1A17; font-size: 13px;">برگشت با یادداشت</button>
+          <button type="button" style="height: 44px; padding: 0 14px; border-radius: 10px; background: transparent; border: 1px solid rgba(200,50,63,.45); color: #C8323F; font-size: 13px;">رد</button>
+        </div>
+      </article>
+
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div style="padding: 18px; background: #FAF7F0; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 500; color: #5A554B;">نشان شرکت‌ها: هشت‌ضلعی</h2>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <sc-for list="{{sigils}}" as="g" hint-placeholder-count="6">
+              <span dir="ltr" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; background: {{g.hex}}; color: #1C1A17; font-family: 'IRANYekanXVF', sans-serif; font-size: 13px; font-weight: 700; clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);">{{g.code}}</span>
+            </sc-for>
+          </div>
+          <span style="font-size: 12px; color: #857F72; line-height: 18px;">همان پالت در روز؛ متن تیره روی رنگ شناسه.</span>
+        </div>
+        <div style="padding: 18px; background: #FAF7F0; border-radius: 14px; display: flex; align-items: center; gap: 16px;">
+          <span aria-hidden="true" style="width: 56px; height: 56px; border-radius: 999px; background: radial-gradient(circle at 35% 30%, #F0CC60 0%, #D8A848 48%, #966A1F 100%); animation: hqBreath 3.2s ease-in-out infinite;"></span>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 15px; font-weight: 600;">گوی مشاور کل</span>
+            <span style="font-size: 12px; color: #857F72; line-height: 18px;">در هر دو تم یک گوی؛ طلا همان طلاست</span>
+          </div>
+        </div>
+        <div style="padding: 18px; background: #FAF7F0; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <span style="font-size: 13px; color: #5A554B;">کاربر رفرال‌شده‌ی این هفته</span>
+            <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums;">+128</span>
+          </div>
+          <div aria-hidden="true" style="height: 1px; background: rgba(138,99,24,.35);"></div>
+          <span style="font-size: 11px; color: #857F72;">منبع: API افیلیت · ۱۲ دقیقه پیش</span>
+          <button type="button" style="align-self: flex-start; height: 40px; padding: 0 16px; border-radius: 10px; background: #D8A848; border: none; color: #1C1A17; font-size: 13px; font-weight: 700;">تنها اقدام طلایی صفحه</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <h2 style="margin: 0; font-size: 13px; font-weight: 500; color: #5A554B;">حرکت، صدا و تشریفات</h2>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+        <sc-for list="{{motion}}" as="m" hint-placeholder-count="4">
+          <div style="padding: 14px 16px; background: #FAF7F0; border-radius: 12px; display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 14px; font-weight: 600;">{{m.name}}</span>
+            <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 18px; font-weight: 700; color: #8A6318; text-align: right;">{{m.ms}}</span>
+            <span style="font-size: 12px; color: #857F72; line-height: 18px;">{{m.use}}</span>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin: 0; font-size: 13px; line-height: 22px; color: #5A554B;">هیچ‌چیز نمی‌پرد؛ چیزها «مینشینند». بدون blur، بدون سایه‌ی رنگی، گرادیان فقط روی نشان، گوی مشاور و نوار کار در جریان. صدا: یک زنگ بم برای فوری، صدای کاغذ برای مُهر، بقیه سکوت.</p>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":1760}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      nightSurfaces: [{hex:'#0B0D14'},{hex:'#10131C'},{hex:'#161A25'},{hex:'#1E2330'},{hex:'#2A3142'}],
+      daySurfaces: [{hex:'#F3EEE3'},{hex:'#FAF7F0'},{hex:'#EFE9DC'},{hex:'#E6DFCF'},{hex:'#DAD2BF'}],
+      nightSemantic: [{name:'طلای برند',hex:'#D8A848'},{name:'لاجورد',hex:'#6E95FF'},{name:'مثبت',hex:'#22AB94'},{name:'منفی',hex:'#F6465D'},{name:'هشدار',hex:'#F0B90B'}],
+      daySemantic: [{name:'طلای مرکبی',hex:'#8A6318'},{name:'لاجورد',hex:'#2E4A9E'},{name:'مثبت',hex:'#117A68'},{name:'منفی',hex:'#C8323F'},{name:'هشدار',hex:'#9A6B00'}],
+      sigils: [{code:'TY',hex:'#8FB4FF'},{code:'FX',hex:'#F0B37E'},{code:'PC',hex:'#8CD3DE'},{code:'04',hex:'#F0A3C4'},{code:'05',hex:'#C3D98A'},{code:'06',hex:'#CDB5E6'}],
+      motion: [
+        {name:'ریز',ms:'120ms',use:'بازخورد لمس'},
+        {name:'وضعیت',ms:'200ms',use:'تغییر حالت'},
+        {name:'گذار',ms:'320ms',use:'ورود و خروج کارت و صفحه'},
+        {name:'تشریفات',ms:'480ms',use:'مُهر، صدور فرمان، بارِ عام'}
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
