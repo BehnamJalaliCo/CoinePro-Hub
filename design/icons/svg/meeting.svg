@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <path class="stroke" d="M5.12 5.8H6.88L8.2 7.12V8.88L6.88 10.2H5.12L3.8 8.88V7.12ZM11.12 2.8H12.88L14.2 4.12V5.88L12.88 7.2H11.12L9.8 5.88V4.12ZM17.12 5.8H18.88L20.2 7.12V8.88L18.88 10.2H17.12L15.8 8.88V7.12ZM3 13.5H21M6 13.5V20M18 13.5V20"/>
+  <path class="heart" d="M11.12 2.8H12.88L14.2 4.12V5.88L12.88 7.2H11.12L9.8 5.88V4.12Z" fill="none" stroke="none"/>
+</svg>
