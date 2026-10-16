@@ -17,8 +17,12 @@ die() { printf 'claude-token: %s\n' "$*" >&2; exit 1; }
 [[ -t 0 ]] || die "run this in an interactive terminal"
 [[ -s "$ADMIN_FILE" ]] || die "no OpenBao admin token yet; run 'make up' first"
 
-printf 'Paste the token printed by "claude setup-token" (input is hidden), then press Enter:\n> '
+printf 'Paste the whole token printed by "claude setup-token" (all of it, even if it\n'
+printf 'spans two lines; input is hidden), then press Enter:\n> '
 IFS= read -rs token
+# A narrow terminal wraps the token onto several lines; one paste delivers
+# them all at once, so collect whatever follows within a moment.
+while IFS= read -rs -t 1 more; do token+="$more"; done
 printf '\n'
 token="${token//[[:space:]]/}"
 [[ -n "$token" ]] || die "nothing was pasted"
@@ -27,7 +31,7 @@ token="${token//[[:space:]]/}"
 [[ "$token" != *'#'* ]] || die "that is the login code from the browser, not the token: paste it into the 'claude setup-token' window, then paste the sk-ant-oat... line it prints here; nothing was saved"
 [[ "$token" =~ ^[A-Za-z0-9_-]+$ ]] || die "a token has only letters, digits, '-' and '_'; nothing was saved"
 [[ "$token" == sk-ant-oat* ]] || die "a subscription token starts with sk-ant-oat; nothing was saved"
-((${#token} >= 40)) || die "that is too short to be a Claude token; nothing was saved"
+((${#token} >= 100)) || die "that looks cut off (${#token} characters; a setup-token token is about 108). Copy every line of it; nothing was saved"
 
 umask 077
 work="$(mktemp -d)"
