@@ -1,0 +1,10 @@
+# Only what the runtime image needs
+*
+!requirements.lock
+!requirements-test.lock
+!alembic.ini
+!migrations
+!seed
+!openapi
+!src
+**/__pycache__
