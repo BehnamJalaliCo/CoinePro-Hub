@@ -1,0 +1,48 @@
+# Tooling config for every Python service under services/ (not a package).
+# Each service ships its own requirements.lock; tests use requirements-test.lock.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["hq-common/src", "llm-router/src", "claude-runtime/src"]
+extend-exclude = ["llm-router/migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "S", "BLE", "ASYNC", "RUF", "SIM", "PT", "C4", "PIE", "RET"]
+ignore = [
+    "S104",  # services bind 0.0.0.0 inside their container; never published
+    "S101",  # asserts narrow types for mypy; images never run with -O
+]
+
+[tool.ruff.lint.per-file-ignores]
+"*/tests/*" = ["S105", "S106", "S108", "S311", "S603", "S608", "BLE001", "E501", "C408", "PT011", "PT012", "PT018", "PT022"]
+"*/testing/*" = ["S311"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["hq_common", "llm_router", "claude_runtime"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+mypy_path = "hq-common/src:llm-router/src:claude-runtime/src"
+explicit_package_bases = true
+cache_dir = "/tmp/mypy-cache"
+
+[[tool.mypy.overrides]]
+module = ["litellm", "litellm.*", "nats", "nats.*", "asyncpg", "asyncpg.*", "prometheus_client.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-p no:cacheprovider -q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+branch = true
+data_file = "/tmp/.coverage"
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = false

@@ -1,0 +1,16 @@
+# Test/lint image for services/: every runtime and dev dependency, hash-pinned.
+# Source is mounted at /w at run time (scripts/quality/services.sh).
+FROM python:3.12.15-slim-trixie
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/w/hq-common/src:/w/llm-router/src:/w/claude-runtime/src
+
+COPY requirements-test.lock /tmp/requirements-test.lock
+RUN pip install --require-hashes --no-deps -r /tmp/requirements-test.lock \
+    && useradd --uid 10001 --create-home tester
+
+USER 10001
+WORKDIR /w
