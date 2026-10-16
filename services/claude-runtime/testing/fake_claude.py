@@ -9,6 +9,7 @@ chosen by a marker in the prompt:
     [[fake:error]]    error result
     [[fake:refusal]]  refusal stop reason
     [[fake:auth]]     authentication_failed
+    [[fake:auth401]]  API error 401 only (no assistant error)
     [[fake:sleep]]    never answers (timeouts)
     anything else     "OK" with usage and total_cost_usd
 If FAKE_CLAUDE_RECORD is set, argv and selected env go to that JSON file.
@@ -29,6 +30,10 @@ SESSION = str(uuid.uuid4())
 def emit(obj: dict[str, object]) -> None:
     sys.stdout.write(json.dumps(obj) + "\n")
     sys.stdout.flush()
+    if obj.get("type") == "result" and obj.get("is_error"):
+        # Like the real CLI: a failed run ends with an error result, then exit 1
+        # (the SDK turns that into ResultError after yielding the result).
+        sys.exit(1)
 
 
 def record() -> None:
@@ -133,6 +138,16 @@ def answer(prompt: str) -> None:
             }
         )
         emit(result(is_error=True, result="Invalid token"))
+        return
+    if "[[fake:auth401]]" in prompt:
+        emit(
+            result(
+                is_error=True,
+                api_error_status=401,
+                result="API Error: 401 authentication_error",
+                terminal_reason="api_error",
+            )
+        )
         return
     if "[[fake:error]]" in prompt:
         emit(result(subtype="error_during_execution", is_error=True))

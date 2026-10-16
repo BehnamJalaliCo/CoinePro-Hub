@@ -101,6 +101,7 @@ async def test_stream_and_structured_output(runner: ClaudeRunner) -> None:
         ("[[fake:error]]", "error", "error_during_execution"),
         ("[[fake:refusal]]", "refusal", "refusal"),
         ("[[fake:auth]]", "error", "auth_failed"),
+        ("[[fake:auth401]]", "error", "auth_failed"),
     ],
 )
 async def test_failure_modes(

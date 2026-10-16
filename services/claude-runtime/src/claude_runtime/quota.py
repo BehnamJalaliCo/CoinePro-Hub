@@ -59,7 +59,7 @@ def classify(s: Signals) -> Verdict:
         if limit_words:
             return Verdict(QUOTA, "usage_limit", _reset_from_text(s.text))
         return Verdict(RATE_LIMITED, "rate_limit")
-    if "authentication_failed" in s.assistant_errors:
+    if "authentication_failed" in s.assistant_errors or s.api_error_status in (401, 403):
         return Verdict(ERROR, "auth_failed")
     if s.stop_reason == "refusal":
         return Verdict(REFUSAL, "refusal")

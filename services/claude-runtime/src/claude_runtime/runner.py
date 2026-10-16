@@ -29,6 +29,7 @@ from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
     RateLimitEvent,
+    ResultError,
     ResultMessage,
     StreamEvent,
     TextBlock,
@@ -201,6 +202,7 @@ class ClaudeRunner:
         texts: list[str] = []
         model: str | None = None
         result: ResultMessage | None = None
+        error_text = ""
         options = self._options(spec, run_dir, token, stream=partial)
         prompt = render(spec.messages)
         try:
@@ -228,6 +230,26 @@ class ClaudeRunner:
         except TimeoutError:
             yield Outcome(TIMEOUT, error_class="timeout", model=spec.model)
             return
+        except ResultError as exc:
+            # A failed run ends with an error result and a non-zero exit: the
+            # SDK yields that result, then raises. Classify it like any other
+            # result so the reason (auth, quota, API status) is not lost.
+            log.warning(
+                "cli reported an error result",
+                extra={
+                    "call_id": spec.call_id,
+                    "subtype": exc.subtype,
+                    "terminal_reason": exc.terminal_reason,
+                    "api_error_status": exc.api_error_status,
+                    "assistant_errors": signals.assistant_errors,
+                },
+            )
+            if result is None:
+                signals.result_seen = True
+                signals.is_error = True
+                signals.subtype = exc.subtype
+                signals.api_error_status = exc.api_error_status
+                error_text = exc.result or ""
         except Exception as exc:  # noqa: BLE001 - CLI/SDK failures become an error result
             log.warning(
                 "sdk run failed", extra={"call_id": spec.call_id, "error_type": type(exc).__name__}
@@ -244,7 +266,7 @@ class ClaudeRunner:
             signals.api_error_status = result.api_error_status
             if result.model_usage:
                 model = next(iter(result.model_usage), model)
-        signals.text = text or ""
+        signals.text = text or error_text
         verdict: Verdict = classify(signals)
         yield Outcome(
             status=verdict.status,
