@@ -7,8 +7,10 @@
 #   healthcheck, a memory limit, named volumes, network hq-internal, and
 #   ports published on 127.0.0.1 only. The single exception is Caddy (80/443).
 # Documented exceptions:
-#   - hq-tools, temporal-schema, temporal-namespace are one-shot jobs
-#     (restart "no", no healthcheck).
+#   - hq-tools, temporal-schema, temporal-namespace, db-provision and
+#     llm-migrate are one-shot jobs (restart "no", no healthcheck).
+#   - claude-runtime sits only on hq-llm (llm-router, OpenBao, Prometheus):
+#     it can reach the internet for the Claude API but not the data services.
 #   - node-exporter uses the host network (to see the host's real NICs) and
 #     listens only on the hq-internal gateway 172.30.0.1, never on 0.0.0.0.
 
@@ -264,6 +266,7 @@ services:
   openbao:
     <<: *service
     image: openbao/openbao:2.7.1
+    networks: [hq-internal, hq-llm]
     command: ["server"]
     environment:
       BAO_ADDR: http://127.0.0.1:8200
@@ -285,6 +288,130 @@ services:
       resources:
         limits:
           memory: ${MEM_OPENBAO:?}
+
+  # ------------------------------------------------------------- llm layer --
+  db-provision:
+    # Superuser role provisioning (idempotent): hq_llm_writer/reader, llm_router.
+    <<: *job
+    image: pgvector/pgvector:0.8.7-pg17
+    networks: [hq-internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:?run make env}
+      LLM_ROUTER_DB_PASSWORD: ${LLM_ROUTER_DB_PASSWORD:?run make env}
+    entrypoint: ["bash", "/hq/provision.sh"]
+    volumes:
+      - ../postgres/provision.sh:/hq/provision.sh:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_DB_PROVISION:?}
+
+  llm-migrate:
+    # Alembic upgrade + seed + monthly partitions, as the database owner (hq).
+    <<: *job
+    image: coinepro-hq/llm-router:0.1.0
+    build:
+      context: ../../services
+      dockerfile: llm-router/Dockerfile
+    networks: [hq-internal]
+    depends_on:
+      db-provision:
+        condition: service_completed_successfully
+    environment:
+      DB_HOST: postgres
+      DB_USER: hq
+      DB_PASSWORD: ${HQ_DB_PASSWORD:?run make env}
+    command: ["python", "-m", "llm_router.migrate"]
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LLM_MIGRATE:?}
+
+  llm-router:
+    # The single path for every model call. Internal only: no published port.
+    <<: *service
+    image: coinepro-hq/llm-router:0.1.0
+    build:
+      context: ../../services
+      dockerfile: llm-router/Dockerfile
+    networks: [hq-internal, hq-llm]
+    depends_on:
+      llm-migrate:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+      openbao:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_USER: llm_router
+      DB_PASSWORD: ${LLM_ROUTER_DB_PASSWORD:?run make env}
+      NATS_URL: nats://nats:4222
+      NATS_USER: hq
+      NATS_PASSWORD: ${NATS_PASSWORD:?run make env}
+      OPENBAO_ADDR: http://openbao:8200
+      OPENBAO_APPROLE_FILE: /run/secrets/hq/approle.json
+      RUNTIME_URL: http://claude-runtime:8100
+      LLM_MAX_CONCURRENCY: ${LLM_MAX_CONCURRENCY:?}
+      LLM_RESERVED_HIGH: "1"
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/llm-router:/run/secrets/hq:ro
+    healthcheck:
+      test: ["CMD", "python", "-m", "hq_common.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LLM_ROUTER:?}
+
+  claude-runtime:
+    # Claude subscription via the Agent SDK. Reachable only from llm-router.
+    <<: *service
+    image: coinepro-hq/claude-runtime:0.1.0
+    build:
+      context: ../../services
+      dockerfile: claude-runtime/Dockerfile
+    networks: [hq-llm]
+    depends_on:
+      openbao:
+        condition: service_healthy
+    environment:
+      OPENBAO_ADDR: http://openbao:8200
+      OPENBAO_APPROLE_FILE: /run/secrets/hq/approle.json
+      RUNTIME_MAX_CONCURRENCY: ${RUNTIME_MAX_CONCURRENCY:?}
+    user: "10001:10001"
+    read_only: true
+    # Per-run work dirs and the CLI's HOME live here and are wiped after each run.
+    tmpfs: ["/tmp:size=256m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/claude-runtime:/run/secrets/hq:ro
+    healthcheck:
+      test: ["CMD", "python", "-m", "hq_common.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_CLAUDE_RUNTIME:?}
 
   # ------------------------------------------------------------------- edge --
   caddy:
@@ -317,6 +444,7 @@ services:
   prometheus:
     <<: *service
     image: prom/prometheus:v3.15.0
+    networks: [hq-internal, hq-llm]
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -330,6 +458,8 @@ services:
       - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ../observability/prometheus/scrape:/etc/prometheus/scrape:ro
       - ../observability/prometheus/scrape-profile/${HQ_PROFILE:?use hq.sh}:/etc/prometheus/scrape-profile:ro
+      # Bearer token for the llm-router / claude-runtime /metrics endpoints.
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/prometheus:/etc/prometheus/secrets:ro
       - prometheus-data:/prometheus
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/-/healthy"]
@@ -554,6 +684,15 @@ networks:
         # Fixed so node-exporter can listen on the gateway (172.30.0.1) only.
         - subnet: 172.30.0.0/24
           gateway: 172.30.0.1
+  hq-llm:
+    # llm-router <-> claude-runtime (+ OpenBao, Prometheus). Fixed subnet: the
+    # AppRole credentials are bound to it.
+    name: hq-llm
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.1.0/24
+          gateway: 172.30.1.1
 
 volumes:
   hq-tools:

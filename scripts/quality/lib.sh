@@ -9,6 +9,7 @@ GITLEAKS_IMAGE="zricethezav/gitleaks:v8.30.1"
 SHELLCHECK_IMAGE="koalaman/shellcheck:v0.11.0"
 PYTHON_IMAGE="python:3.13.16-alpine"
 YAMLLINT_VERSION="1.38.0"
+HADOLINT_IMAGE="hadolint/hadolint:v2.15.1"
 
 # Compose needs a secrets file to render. Outside the server (CI, a laptop)
 # use a throwaway one with random values.

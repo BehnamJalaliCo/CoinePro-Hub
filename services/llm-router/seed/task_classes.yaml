@@ -1,0 +1,15 @@
+# Task classes. transferable = may run on an alternative provider when the
+# Claude quota is exhausted (OPERATING_MODEL §1.6): low-risk, well-defined,
+# checkable work only. Unknown task classes are rejected by the router.
+task_classes:
+  - {key: general, transferable: false, description: Default class when nothing more specific applies}
+  - {key: advisor, transferable: false, description: General advisor (never on an alternative)}
+  - {key: coding, transferable: false, description: Code and deploy work}
+  - {key: decision, transferable: false, description: Decisions and resolutions}
+  - {key: customer_message, transferable: false, description: Direct customer messages}
+  - {key: ops_alert, transferable: false, description: Alert analysis and incident work}
+  - {key: translate, transferable: true, description: Translation}
+  - {key: summarize, transferable: true, description: Summaries}
+  - {key: classify, transferable: true, description: Classification and tagging}
+  - {key: extract, transferable: true, description: Structured extraction}
+  - {key: draft, transferable: true, description: Drafts that are reviewed later}

@@ -1,0 +1,8 @@
+# Default assignments. holding = the company with kind "holding" (its code).
+# The whole holding runs on the Claude subscription (OPERATING_MODEL §1.6);
+# the general advisor stays on Opus 5.5 with effort xhigh (§1.1, §1.13).
+assignments:
+  - {scope_type: holding, scope_ref: HQ, connection: claude-max, model: claude-sonnet-5-5, effort: medium,
+     note: Default for the whole holding}
+  - {scope_type: role, scope_ref: advisor, model: claude-opus-5-5, effort: xhigh,
+     note: General advisor (§1.1)}

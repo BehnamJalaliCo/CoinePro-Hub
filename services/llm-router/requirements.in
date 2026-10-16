@@ -1,0 +1,14 @@
+# llm-router runtime dependencies (exact pins; resolved + hashed in requirements.lock)
+fastapi==0.142.2
+uvicorn==0.54.0
+asyncpg==0.31.0
+sqlalchemy[asyncio]==2.1.2
+alembic==1.20.0
+nats-py==2.16.0
+prometheus-client==0.26.0
+httpx==0.28.1
+pydantic==2.13.5
+pyyaml==6.0.3
+# MIT open-source part only, used as an in-process library (never the proxy).
+# 1.104.2: clean in OSV; earlier lines carry the 2026-09/10 proxy advisories.
+litellm==1.104.2

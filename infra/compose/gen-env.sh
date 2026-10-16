@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Creates infra/compose/.env from .env.example: every *_PASSWORD gets a fresh
 # 256-bit random value, everything else stays empty (compose defaults apply).
-# Never prints a value and never overwrites an existing file.
+# On an existing file it only appends keys that are missing (new prompts).
+# Never prints a value and never changes an existing line.
 #
 # Usage: gen-env.sh [--output PATH]
 set -euo pipefail
@@ -18,7 +19,22 @@ while (($#)); do
 done
 
 if [[ -e "$OUTPUT" ]]; then
-  echo "env: $OUTPUT already exists; leaving it untouched"
+  # Add keys introduced by later prompts; existing lines are never changed.
+  added=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^([A-Z0-9_]+)=$ ]] || continue
+    key="${BASH_REMATCH[1]}"
+    grep -q "^${key}=" "$OUTPUT" && continue
+    if [[ "$key" == *_PASSWORD ]]; then
+      printf '%s=%s\n' "$key" "$(openssl rand -hex 32)" >>"$OUTPUT"
+    else
+      printf '%s=\n' "$key" >>"$OUTPUT"
+    fi
+    added+=("$key")
+  done <"$EXAMPLE"
+  if ((${#added[@]})); then
+    echo "env: added ${added[*]} to $OUTPUT (values not shown)"
+  fi
   exit 0
 fi
 

@@ -1,0 +1,7 @@
+# Initial companies (OPERATING_MODEL §0, §1.2). Data, not code: the seed only
+# inserts missing codes and never overwrites rows edited later.
+companies:
+  - {code: HQ, name: CoinePro HQ, kind: holding}
+  - {code: TY, name: TradeYar, kind: company}
+  - {code: FX, name: CoinePro FX, kind: company}
+  - {code: PC, name: Pro-Chart, kind: company}

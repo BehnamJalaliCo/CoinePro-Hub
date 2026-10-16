@@ -7,7 +7,8 @@ SHELL := /usr/bin/env bash
 HQ       := infra/compose/hq.sh
 ENV_FILE := infra/compose/.env
 
-.PHONY: help env profile up down ps logs backup restore-test check openbao-init unseal install-systemd
+.PHONY: help env profile up down ps logs backup restore-test check openbao-init unseal install-systemd \
+	llm-provision claude-token llm-smoke test-services lock
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -21,11 +22,13 @@ profile: ## Print the active memory profile (lean/full)
 	@$(HQ) --print-profile
 
 up: $(ENV_FILE) ## Start every service of the active profile and wait until healthy
+	@infra/compose/gen-env.sh
 	@echo "profile: $$($(HQ) --print-profile)"
-	$(HQ) up -d --remove-orphans
+	$(HQ) up -d openbao
 	@infra/openbao/init.sh
 	@infra/openbao/unseal.sh
-	$(HQ) up -d --wait --wait-timeout 300
+	@infra/openbao/provision.sh
+	$(HQ) up -d --build --remove-orphans --wait --wait-timeout 300
 
 down: ## Stop and remove the containers of every profile (volumes are kept)
 	HQ_ALL_PROFILES=1 $(HQ) down
@@ -53,3 +56,18 @@ unseal: ## Unseal OpenBao with the stored key
 
 install-systemd: ## Install/refresh the backup and unseal timers (needs sudo)
 	@infra/systemd/install.sh
+
+llm-provision: ## OpenBao: KV, policies, AppRoles, service tokens (idempotent)
+	@infra/openbao/provision.sh
+
+claude-token: ## OWNER: store the token from `claude setup-token` in OpenBao (hidden input)
+	@infra/openbao/claude-token.sh
+
+llm-smoke: ## One tiny real call (Haiku, "OK") + ledger row + NATS event
+	@services/scripts/llm-smoke.sh
+
+test-services: ## Python services: lint, types, tests (throwaway Postgres/NATS)
+	@scripts/quality/services.sh
+
+lock: ## Re-resolve the hash-pinned Python lock files
+	@services/scripts/lock.sh
