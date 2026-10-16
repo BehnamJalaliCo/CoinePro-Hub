@@ -20,6 +20,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+import asyncpg
+
 from llm_router import anomaly, events, ledger
 from llm_router.assignment import AssignmentError, apply_request, resolve, scope_chain
 from llm_router.backends.base import (
@@ -133,7 +135,25 @@ class RouterService:
         self.breakers: dict[str, CircuitBreaker] = {}
         self._anomaly_seen: set[tuple[str, str]] = set()
         self.cost_ratio = CostRatioWatch(now=now)
+        self._locks: dict[str, tuple[str | None, float]] = {}
         metrics.capacity.set(scheduler.capacity)
+
+    # --------------------------------------------------------- kill switch --
+    async def lock_state(self, company_id: str) -> str | None:
+        """'holding' | 'company' | 'deploy_freeze' | None (control.lock_state,
+        apps/api migration 0005), cached for 2 s. Without the control schema
+        (a router-only database) nothing is locked."""
+        now = time.monotonic()
+        hit = self._locks.get(company_id)
+        if hit is not None and now - hit[1] < 2.0:
+            return hit[0]
+        try:
+            async with self.db.scoped({company_id}) as conn:
+                state = await conn.fetchval("SELECT control.lock_state($1::uuid)", company_id)
+        except (asyncpg.UndefinedFunctionError, asyncpg.InvalidSchemaNameError):
+            state = None
+        self._locks[company_id] = (state, now)
+        return None if state is None else str(state)
 
     # ------------------------------------------------------------ breakers --
     def breaker_for(self, conn: Connection) -> CircuitBreaker:
@@ -158,6 +178,12 @@ class RouterService:
         company = snap.companies.get(req.company_code)
         if company is None or company.status != "active":
             raise RouterError(422, "unknown_company", f"no active company {req.company_code!r}")
+        # Kill switch (contract §9): while the holding's or the company's switch
+        # is engaged only P0 (war room / SEV1) runs. A deploy freeze stops write
+        # actions, not thinking, so it does not block calls.
+        if req.priority > 0 and await self.lock_state(company.id) in ("holding", "company"):
+            self.metrics.queue_rejections.labels(f"P{req.priority}", "kill_switch").inc()
+            raise RouterError(423, "company_locked", "the kill switch is engaged; only P0 runs")
         task = snap.task_classes.get(req.task_class)
         if task is None:
             raise RouterError(422, "unknown_task_class", f"no task class {req.task_class!r}")
