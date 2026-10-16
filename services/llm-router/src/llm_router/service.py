@@ -36,6 +36,7 @@ from llm_router.backends.base import (
 from llm_router.breaker import STATE_VALUE, CircuitBreaker, Permit, State
 from llm_router.budget import Check, Consumption, check, decide, period_start
 from llm_router.config import Settings
+from llm_router.cost_ratio import CostRatioWatch
 from llm_router.db import Database
 from llm_router.events import Events
 from llm_router.metrics import Metrics
@@ -131,6 +132,7 @@ class RouterService:
         self.now = now
         self.breakers: dict[str, CircuitBreaker] = {}
         self._anomaly_seen: set[tuple[str, str]] = set()
+        self.cost_ratio = CostRatioWatch(now=now)
         metrics.capacity.set(scheduler.capacity)
 
     # ------------------------------------------------------------ breakers --
@@ -453,16 +455,21 @@ class RouterService:
         latency_ms = int((time.monotonic() - plan.started_mono) * 1000)
         conn = plan.connection
         usage = result.usage
-        cost = equiv = None
+        cost = equiv = priced = None
         if usage is not None:
-            priced = cost_usd(conn.pricing, result.model or plan.model, usage) or cost_usd(
-                conn.pricing, plan.model, usage
-            )
+            # Our price table is the only cost source (owner decision, prompt 04 §9).
+            priced = cost_usd(conn.pricing, result.model or plan.model, usage)
+            if priced is None:
+                priced = cost_usd(conn.pricing, plan.model, usage)
             if conn.kind == "api":
                 cost = priced
             else:
-                equiv = result.sdk_cost_usd if result.sdk_cost_usd is not None else priced
+                equiv = priced
         meta: dict[str, Any] = {}
+        if result.sdk_cost_usd is not None:
+            meta["sdk_cost_usd"] = str(result.sdk_cost_usd)
+        if usage is not None and usage.cache_write_1h_tokens is not None:
+            meta["cache_write_1h_tokens"] = usage.cache_write_1h_tokens
         if result.stop_reason:
             meta["stop_reason"] = result.stop_reason
         if result.effort_applied is not None:
@@ -525,6 +532,8 @@ class RouterService:
             self.metrics.cost.labels(code, conn.key, "real").inc(float(cost))
         if equiv:
             self.metrics.cost.labels(code, conn.key, "equiv").inc(float(equiv))
+        if result.sdk_cost_usd is not None and priced:
+            await self._watch_cost_ratio(conn.key, model, result.sdk_cost_usd, priced)
 
         response = RunResponse(
             call_id=plan.row.id,
@@ -676,6 +685,19 @@ class RouterService:
     async def close_stale(self) -> int:
         async with self.db.scoped(await self._all_companies()) as conn:
             return await ledger.close_stale_running(conn, older_than_s=self.s.max_timeout_s + 300)
+
+    async def _watch_cost_ratio(
+        self, connection: str, model: str, sdk_cost: Decimal, priced: Decimal
+    ) -> None:
+        self.metrics.sdk_cost.labels(connection, model).inc(float(sdk_cost))
+        self.metrics.priced_cost.labels(connection, model).inc(float(priced))
+        ratio, alert = self.cost_ratio.observe(connection, model, sdk_cost, priced)
+        if ratio is not None:
+            self.metrics.sdk_cost_ratio.labels(connection, model).set(float(ratio))
+        if alert is not None:
+            self.metrics.cost_ratio_alerts.inc()
+            log.warning("sdk cost estimate drifts from the price table", extra=alert)
+            await self.events.publish(events.COST_RATIO_SUBJECT, alert)
 
     async def anomaly_scan(self) -> list[dict[str, Any]]:
         snap = await self.registry.get()

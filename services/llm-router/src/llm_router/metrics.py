@@ -66,3 +66,25 @@ class Metrics:
         self.event_failures = Counter(
             "llm_event_publish_failures_total", "NATS publish failures", registry=r
         )
+        # Our price table vs the SDK's own estimate (subscription calls).
+        self.sdk_cost_ratio = Gauge(
+            "llm_sdk_cost_ratio",
+            "SDK cost estimate / our priced cost, rolling 1 h",
+            ["connection", "model"],
+            registry=r,
+        )
+        self.sdk_cost = Counter(
+            "llm_sdk_cost_usd_total",
+            "SDK's own cost estimate (comparison only)",
+            ["connection", "model"],
+            registry=r,
+        )
+        self.priced_cost = Counter(
+            "llm_priced_cost_usd_total",
+            "Our priced cost for the calls that also carry an SDK estimate",
+            ["connection", "model"],
+            registry=r,
+        )
+        self.cost_ratio_alerts = Counter(
+            "llm_cost_ratio_alerts_total", "SDK/price-table drift alerts", registry=r
+        )

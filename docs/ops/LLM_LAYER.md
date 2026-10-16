@@ -9,7 +9,7 @@
 (فراخواننده‌های بعدی: ایجنت‌ها، مشاور، n8n، محصولات)
         │  HTTP داخلی + توکن سرویس (Bearer)
         ▼
-  llm-router ──► claude-runtime ──► اشتراک Claude (Claude Agent SDK / Claude Code CLI 2.1.286)
+  llm-router ──► claude-runtime ──► اشتراک Claude (Claude Agent SDK / Claude Code CLI 2.1.294)
      │   └─────► LiteLLM (کتابخانه، داخل خود router) ──► APIها (فعلاً همه خاموش)
      ├──► Postgres: جدول‌های llm.* (خزانه‌ی توکن)
      └──► NATS JetStream: رویدادهای hq.llm.* و hq.alerts.*
@@ -18,7 +18,7 @@
 | سرویس | شبکه | کاربر و فایل‌سیستم | اسرار |
 |---|---|---|---|
 | `llm-router` (Python 3.12، FastAPI) | `hq-internal` + `hq-llm` | uid 10001؛ rootfs فقط‌خواندنی؛ tmpfs ۳۲MB؛ `cap_drop: ALL` | AppRole ‏`llm-router` |
-| `claude-runtime` (Python 3.12، `claude-agent-sdk==0.2.163`) | **فقط** `hq-llm` | uid 10001؛ rootfs فقط‌خواندنی؛ tmpfs ۲۵۶MB؛ `cap_drop: ALL` | AppRole ‏`claude-runtime` |
+| `claude-runtime` (Python 3.12، `claude-agent-sdk==0.2.165`) | **فقط** `hq-llm` | uid 10001؛ rootfs فقط‌خواندنی؛ tmpfs ۲۵۶MB؛ `cap_drop: ALL` | AppRole ‏`claude-runtime` |
 
 - شبکه‌ی **`hq-llm`** (`172.30.1.0/24`) فقط این‌ها را دارد: router، runtime، OpenBao و Prometheus. پس runtime به اینترنت (API ‏Anthropic) میرسد، ولی **به Postgres، Valkey، NATS، Temporal و Grafana دسترسی ندارد.** این را آزمایش هم کرده‌ایم.
 - **فقط router میتواند runtime را صدا بزند:** شبکه‌ی جدا، به‌علاوه‌ی یک توکن مشترک که فقط در OpenBao است.
@@ -108,13 +108,28 @@
   - در ۱۰۰٪: **P4 رد میشود** (`rejected_budget`، `429`، و `Retry-After` تا شروع دوره‌ی بعد). P0 تا P3 انجام میشوند و هشدار ۱۰۰٪ میدهند.
 - **توکن‌های بودجه** = ورودی + خروجی + خواندن cache + نوشتن cache.
 - **دلار بودجه** = هزینه‌ی واقعی API، به‌علاوه‌ی `equiv_cost_usd` برای اشتراک (به‌عنوان شاخص مصرف سهمیه).
+- **منبع هزینه (تصمیم مالک، پرامپت ۴):** `cost_usd` (API) و `equiv_cost_usd` (اشتراک) **فقط از جدول قیمت خود ما** (`llm.connections.pricing`) حساب میشوند. عدد خود SDK (`total_cost_usd`) فقط برای مقایسه در `meta.sdk_cost_usd` ردیف دفتر میماند.
+- **قیمت‌ها** از صفحه‌ی رسمی Anthropic برداشته شده‌اند و روی هر مدل `source_url` و `as_of` دارند (migration `0005` و `seed/connections.yaml`):
+  | مدل | ورودی | خروجی | خواندن cache | نوشتن cache ۵ دقیقه | نوشتن cache ۱ ساعت |
+  |---|---|---|---|---|---|
+  | `claude-opus-5-5` | 4.00 | 20.00 | 0.20 | 5.00 | 8.00 |
+  | `claude-sonnet-5-5` | 2.00 | 10.00 | 0.10 | 2.50 | 4.00 |
+  | `claude-haiku-5-5` (prompt تا ۱۰۰٬۰۰۰ توکن) | 0.10 | 0.50 | 0.01 | 0.125 | 0.20 |
+  | `claude-haiku-5-5` (prompt بیشتر از ۱۰۰٬۰۰۰ توکن) | 0.50 | 2.50 | 0.05 | 0.625 | 1.00 |
+  | `claude-fable-5-1` | 10.00 | 50.00 | 0.25 | 12.50 | 20.00 |
+
+  دلار به ازای هر یک میلیون توکن؛ منبع: https://platform.claude.com/docs/en/about-claude/pricing (as_of: 2026-10-16).
+  - **طول prompt** برای پله‌ی Haiku = ورودی + خواندن cache + نوشتن cache (قاعده‌ی Anthropic). برای اشتراک، usage یک اجرا جمع همه‌ی turnهای آن است، پس پله روی جمع اجرا حساب میشود.
+  - **نوشتن cache یک‌ساعته:** CLI تفکیک ۵ دقیقه / ۱ ساعت را در `usage.cache_creation` میدهد. runtime آن را به‌صورت `cache_write_1h_tokens` میفرستد و با نرخ خودش قیمت میخورد (در `meta.cache_write_1h_tokens` هم ثبت میشود). اگر مدلی نرخ ۱ ساعته نداشته باشد، با نرخ ۵ دقیقه قیمت میخورد.
+  - **توکن فکر:** اگر CLI در `usage.output_tokens_details.thinking_tokens` عددی بدهد، ثبت میشود؛ وگرنه NULL میماند (جزو خروجی است).
+- **مقایسه با SDK:** متریک `llm_sdk_cost_ratio{connection,model}` (نسبت SDK به جدول ما در پنجره‌ی ۱ ساعته)، به‌علاوه‌ی `llm_sdk_cost_usd_total` و `llm_priced_cost_usd_total`. اگر نسبت **یک ساعت پشت هم بیشتر از ۲ برابر** بماند، یک رویداد `hq.alerts.llm.cost_ratio` با فقط متادیتا (`type`، `connection`، `model`، `ratio`، `since`، `window_minutes`، `at`) فرستاده میشود (هسته آن را به اعلان 🔵 تبدیل میکند). هشدار بعدی فقط بعد از برگشتن نسبت به ۲ یا کمتر ممکن است.
 - **ناهنجاری:** هر ۵ دقیقه چک میشود. اگر تعداد فراخوانی یک `actor_ref` در ساعت جاری بیشتر از ۳ برابر میانه‌ی ساعتی ۷ روز گذشته باشد (ساعت‌های بی‌فراخوانی صفر حساب میشوند)، و حداقل ۳۰ باشد، رویداد `hq.alerts.llm.anomaly` ارسال میشود.
 
 ## ۸. جدول‌ها (دیتابیس `hq`)
 | جدول | چه چیزی | RLS |
 |---|---|---|
 | `core.companies` | شرکت‌ها از seed (`HQ` هلدینگ، `TY`، `FX`، `PC`). **هیچ فهرست ثابتی در کد نیست.** | — |
-| `llm.connections` | هر حساب اشتراک یا کلید API. `secret_ref` = **فقط مسیر OpenBao**. قیمت‌ها برای هر مدل به دلار به ازای هر یک میلیون توکن. `fallback_priority` | — |
+| `llm.connections` | هر حساب اشتراک یا کلید API. `secret_ref` = **فقط مسیر OpenBao**. قیمت‌ها برای هر مدل به دلار به ازای هر یک میلیون توکن، با `source_url` و `as_of` (§۷). `fallback_priority` | — |
 | `llm.task_classes` | کلاس کار و قابل انتقال بودن | — |
 | `llm.assignments` | تخصیص‌ها | — |
 | `llm.calls` | **دفتر خزانه‌ی توکن:** یک ردیف برای هر فراخوانی، با پارتیشن ماهانه. ایندکس `(company_id, started_at)`. وضعیت‌ها: `running`، `ok`، `error`، `refusal`، `timeout`، `rate_limited`، `quota_exhausted`، `rejected_budget` | ✅ |
@@ -163,7 +178,7 @@
      --data-binary @- http://127.0.0.1:8200/v1/kv/data/llm-connections/<key> >/dev/null; unset KEY
    ```
    (UI این کار در پرامپت‌های بعد میاید.)
-3. در `llm.connections` این‌ها را تنظیم کن: `models`، `default_model`، `pricing` (دلار به ازای هر یک میلیون توکن)، `api_base` (برای OpenAI-compatible) و `fallback_priority`. بعد `status='enabled'`.
+3. در `llm.connections` این‌ها را تنظیم کن: `models`، `default_model`، `pricing` (دلار به ازای هر یک میلیون توکن: `input`، `output`، `cache_read`، `cache_write`، در صورت وجود `cache_write_1h` و `long_prompt`، و همیشه `source_url` و `as_of` از صفحه‌ی رسمی همان ارائه‌دهنده)، `api_base` (برای OpenAI-compatible) و `fallback_priority`. بعد `status='enabled'`.
 4. **اتصال جدید:** یک ردیف جدید با `secret_ref='kv/llm-connections/<key>'` بساز. providerهای پشتیبانی‌شده: `anthropic`، `openai`، `gemini`، `openai_compatible`. router بعد از حداکثر ۳۰ ثانیه آن را میبیند.
 5. **تخصیص:** یک ردیف در `llm.assignments` در سطح دلخواه (مثلاً `company`/`TY`).
 

@@ -65,6 +65,7 @@ class UsageOut(BaseModel):
     cache_read_tokens: int
     cache_write_tokens: int
     thinking_tokens: int | None
+    cache_write_1h_tokens: int | None = None  # part of cache_write_tokens, when reported
 
 
 class RunResponse(BaseModel):
