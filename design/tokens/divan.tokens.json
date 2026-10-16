@@ -8,7 +8,7 @@
    },
    "version": {
     "$type": "string",
-    "$value": "1.0.0-d1"
+    "$value": "1.1.0-d2"
    },
    "themes": {
     "$type": "string",
@@ -454,103 +454,133 @@
      "$value": "{divan.color.primitive.learning.night}"
     }
    },
-   "company": {
-    "01": {
-     "$type": "color",
-     "$value": "#8FB4FF"
-    },
-    "02": {
-     "$type": "color",
-     "$value": "#F0B37E"
-    },
-    "03": {
-     "$type": "color",
-     "$value": "#8CD3DE"
-    },
-    "04": {
-     "$type": "color",
-     "$value": "#F0A3C4"
-    },
-    "05": {
-     "$type": "color",
-     "$value": "#C3D98A"
-    },
-    "06": {
-     "$type": "color",
-     "$value": "#CDB5E6"
-    },
-    "07": {
-     "$type": "color",
-     "$value": "#F2B8A6"
-    },
-    "08": {
-     "$type": "color",
-     "$value": "#9AD2F2"
-    },
-    "09": {
-     "$type": "color",
-     "$value": "#D9C58A"
-    },
-    "10": {
-     "$type": "color",
-     "$value": "#A7D4B8"
-    }
-   },
    "chart": {
     "categorical": {
-     "1": {
-      "$type": "color",
-      "$value": "#6E95FF"
+     "note": {
+      "$type": "string",
+      "$value": "Palette v2, validated (dataviz six checks). Fixed order, never cycled; a 9th series folds into \"Other\". Colour follows the entity (chart slot stored on the company record), never its rank. Night passes all checks; day has a CVD warn (adjacent pair 7.1) so every day chart carries a legend and direct labels."
      },
-     "2": {
-      "$type": "color",
-      "$value": "#D8A848"
+     "night": {
+      "1": {
+       "$type": "color",
+       "$value": "#6591E1"
+      },
+      "2": {
+       "$type": "color",
+       "$value": "#A97416"
+      },
+      "3": {
+       "$type": "color",
+       "$value": "#00AB8E"
+      },
+      "4": {
+       "$type": "color",
+       "$value": "#AB517F"
+      },
+      "5": {
+       "$type": "color",
+       "$value": "#00A2CE"
+      },
+      "6": {
+       "$type": "color",
+       "$value": "#B3543C"
+      },
+      "7": {
+       "$type": "color",
+       "$value": "#9F7ED6"
+      },
+      "8": {
+       "$type": "color",
+       "$value": "#668F33"
+      }
      },
-     "3": {
-      "$type": "color",
-      "$value": "#22AB94"
-     },
-     "4": {
-      "$type": "color",
-      "$value": "#B07CC6"
-     },
-     "5": {
-      "$type": "color",
-      "$value": "#E38B4F"
-     },
-     "6": {
-      "$type": "color",
-      "$value": "#8DB89A"
-     },
-     "7": {
-      "$type": "color",
-      "$value": "#6EC1F0"
-     },
-     "8": {
-      "$type": "color",
-      "$value": "#E06C9F"
+     "day": {
+      "1": {
+       "$type": "color",
+       "$value": "#3B63AF"
+      },
+      "2": {
+       "$type": "color",
+       "$value": "#9C6800"
+      },
+      "3": {
+       "$type": "color",
+       "$value": "#00775C"
+      },
+      "4": {
+       "$type": "color",
+       "$value": "#AE5382"
+      },
+      "5": {
+       "$type": "color",
+       "$value": "#007CA7"
+      },
+      "6": {
+       "$type": "color",
+       "$value": "#C4634B"
+      },
+      "7": {
+       "$type": "color",
+       "$value": "#7251A4"
+      },
+      "8": {
+       "$type": "color",
+       "$value": "#6A9438"
+      }
      }
     },
     "sequentialGold": {
-     "1": {
-      "$type": "color",
-      "$value": "#3A2F18"
+     "night": {
+      "1": {
+       "$type": "color",
+       "$value": "#1E2330"
+      },
+      "2": {
+       "$type": "color",
+       "$value": "#3A2F18"
+      },
+      "3": {
+       "$type": "color",
+       "$value": "#6E5323"
+      },
+      "4": {
+       "$type": "color",
+       "$value": "#A37A2F"
+      },
+      "5": {
+       "$type": "color",
+       "$value": "#D8A848"
+      },
+      "6": {
+       "$type": "color",
+       "$value": "#F0CC60"
+      }
      },
-     "2": {
-      "$type": "color",
-      "$value": "#6E5323"
-     },
-     "3": {
-      "$type": "color",
-      "$value": "#A37A2F"
-     },
-     "4": {
-      "$type": "color",
-      "$value": "#D8A848"
-     },
-     "5": {
-      "$type": "color",
-      "$value": "#F0CC60"
+     "day": {
+      "1": {
+       "$type": "color",
+       "$value": "#EFE9DC"
+      },
+      "2": {
+       "$type": "color",
+       "$value": "#E8D9B5"
+      },
+      "3": {
+       "$type": "color",
+       "$value": "#D9BC7E"
+      },
+      "4": {
+       "$type": "color",
+       "$value": "#C29A4E"
+      },
+      "5": {
+       "$type": "color",
+       "$value": "#A37A2F"
+      },
+      "6": {
+       "$type": "color",
+       "$value": "#7A5A1E"
+      }
      }
     },
     "diverging": {
@@ -565,6 +595,27 @@
      "positive": {
       "$type": "color",
       "$value": "#22AB94"
+     }
+    },
+    "slots": {
+     "$description": "Default slot assignment. Companies get their slot when created and keep it; any number of companies is allowed, and beyond 8 the chart shows the top 7 plus \"Other\".",
+     "tokenType": {
+      "input": {
+       "$type": "number",
+       "$value": 1
+      },
+      "output": {
+       "$type": "number",
+       "$value": 2
+      },
+      "cache": {
+       "$type": "number",
+       "$value": 3
+      },
+      "thinking": {
+       "$type": "number",
+       "$value": 4
+      }
      }
     }
    }
