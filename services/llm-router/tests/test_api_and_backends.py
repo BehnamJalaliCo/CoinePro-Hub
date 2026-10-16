@@ -29,7 +29,7 @@ from .conftest import Captured, FakeBackend, ok_result
 
 CALLER_TOKEN = tokens.new_token()
 METRICS_TOKEN = tokens.new_token()
-SECRET_MARKER = "ZEBRA-PROMPT-4471"  # must never appear in logs, events or the ledger
+TEXT_MARKER = "ZEBRA-PROMPT-4471"  # must never appear in logs, events or the ledger
 
 
 def make_state(settings: Any, service: Any, rpm: int = 1000) -> State:
@@ -121,9 +121,9 @@ async def test_api_run_health_connections_and_limits(
         big = await c.post("/v1/run", headers=auth(), content=b"x" * (settings.max_body_bytes + 1))
         assert big.status_code == 413
         bad = await c.post(
-            "/v1/run", headers=auth(), json={**BODY, "prompt": SECRET_MARKER, "priority": 9}
+            "/v1/run", headers=auth(), json={**BODY, "prompt": TEXT_MARKER, "priority": 9}
         )
-        assert bad.status_code == 422 and SECRET_MARKER not in bad.text  # input is never echoed
+        assert bad.status_code == 422 and TEXT_MARKER not in bad.text  # input is never echoed
     limited_state = make_state(settings, make_service(), rpm=2)
     async with client(limited_state) as c:
         assert (
@@ -152,15 +152,15 @@ async def test_prompt_text_never_reaches_logs_events_or_ledger(
     root.setLevel(logging.DEBUG)
     try:
         backend = FakeBackend(
-            ok_result(text=f"answer {SECRET_MARKER}"),
+            ok_result(text=f"answer {TEXT_MARKER}"),
             BackendResult("error", error_class="server_error"),
-            ok_result(text=f"streamed {SECRET_MARKER}"),
+            ok_result(text=f"streamed {TEXT_MARKER}"),
         )
         state = make_state(settings, make_service(subscription=backend))
         payload = {
             **BODY,
-            "system": f"system {SECRET_MARKER}",
-            "messages": [{"role": "user", "content": f"user {SECRET_MARKER}"}],
+            "system": f"system {TEXT_MARKER}",
+            "messages": [{"role": "user", "content": f"user {TEXT_MARKER}"}],
         }
         payload.pop("prompt")
         async with client(state) as c:
@@ -177,10 +177,10 @@ async def test_prompt_text_never_reaches_logs_events_or_ledger(
         root.setLevel(old_level)
     log_text = buf.getvalue()
     assert "call finished" in log_text  # metadata is logged ...
-    assert SECRET_MARKER not in log_text  # ... text is not
-    assert captured.messages and SECRET_MARKER not in captured.raw()
+    assert TEXT_MARKER not in log_text  # ... text is not
+    assert captured.messages and TEXT_MARKER not in captured.raw()
     rows = await su.fetch("SELECT row_to_json(c)::text AS j FROM llm.calls c")
-    assert len(rows) == 3 and not any(SECRET_MARKER in r["j"] for r in rows)
+    assert len(rows) == 3 and not any(TEXT_MARKER in r["j"] for r in rows)
     assert await su.fetchval("SELECT count(*) FROM llm.transcripts") == 0  # opt-in only
 
 

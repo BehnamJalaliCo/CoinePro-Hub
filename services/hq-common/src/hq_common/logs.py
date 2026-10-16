@@ -17,7 +17,11 @@ from typing import Any
 CONTENT_FIELDS = frozenset(
     {"prompt", "messages", "system", "text", "content", "response", "result", "completion"}
 )
-_STANDARD = frozenset(vars(logging.makeLogRecord({})).keys()) | {"message", "asctime"}
+_STANDARD = frozenset(vars(logging.makeLogRecord({})).keys()) | {
+    "message",
+    "asctime",
+    "color_message",
+}
 
 
 class JsonFormatter(logging.Formatter):

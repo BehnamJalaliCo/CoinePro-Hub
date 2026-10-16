@@ -4,11 +4,13 @@
 set -uo pipefail
 QUALITY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-GATES=(gitleaks compose-config ports compose-rules memory-budget shellcheck yamllint)
+GATES=(gitleaks compose-config ports compose-rules memory-budget shellcheck yamllint hadolint
+  "python lint" "python test" "python audit")
 failed=()
 for gate in "${GATES[@]}"; do
   echo "--- $gate"
-  if "$QUALITY_DIR/$gate.sh"; then
+  read -ra cmd <<<"$gate"
+  if "$QUALITY_DIR/${cmd[0]}.sh" "${cmd[@]:1}"; then
     echo "PASS $gate"
   else
     echo "FAIL $gate"
