@@ -1,0 +1,570 @@
+# CoinePro HQ — platform foundation (prompt 02).
+# Always run through infra/compose/hq.sh (or make): it selects the memory
+# profile and loads profiles/<profile>.env + .env.
+#
+# House rules for every long-running service:
+#   official image with a pinned version, restart unless-stopped, a
+#   healthcheck, a memory limit, named volumes, network hq-internal, and
+#   ports published on 127.0.0.1 only. The single exception is Caddy (80/443).
+# Documented exceptions:
+#   - hq-tools, temporal-schema, temporal-namespace are one-shot jobs
+#     (restart "no", no healthcheck).
+#   - node-exporter uses the host network (to see the host's real NICs) and
+#     listens only on the hq-internal gateway 172.30.0.1, never on 0.0.0.0.
+
+name: coinepro-hq
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    # Written into every log line so Alloy can label logs without the Docker socket.
+    labels: "com.docker.compose.service,com.docker.compose.project"
+
+x-service: &service
+  restart: unless-stopped
+  logging: *logging
+  networks: [hq-internal]
+  security_opt: ["no-new-privileges:true"]
+
+x-job: &job
+  restart: "no"
+  logging: *logging
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  # ---------------------------------------------------------------- helpers --
+  hq-tools:
+    # Copies a static busybox into a volume so distroless images (Loki,
+    # Tempo, otel-collector) and Alloy can run an HTTP healthcheck.
+    <<: *job
+    image: busybox:1.38.0-musl
+    network_mode: none
+    command: ["cp", "/bin/busybox", "/hq-tools/busybox"]
+    volumes:
+      - hq-tools:/hq-tools
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_HQ_TOOLS:?}
+
+  # ------------------------------------------------------------------- data --
+  postgres:
+    <<: *service
+    image: pgvector/pgvector:0.8.7-pg17
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run make env}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+      # Read once by initdb/10-databases.sh on first start (empty volume).
+      HQ_DB_PASSWORD: ${HQ_DB_PASSWORD:?run make env}
+      TEMPORAL_DB_PASSWORD: ${TEMPORAL_DB_PASSWORD:?run make env}
+      TEMPORAL_VISIBILITY_DB_PASSWORD: ${TEMPORAL_VISIBILITY_DB_PASSWORD:?run make env}
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:?}
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:?}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:?}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:?}
+      - -c
+      - work_mem=${PG_WORK_MEM:?}
+      - -c
+      - log_min_duration_statement=1000
+    shm_size: 256mb
+    stop_grace_period: 60s
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ../postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres -q"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_POSTGRES:?}
+
+  valkey:
+    <<: *service
+    image: valkey/valkey:8.1.10-alpine
+    user: valkey
+    environment:
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD:?run make env}
+      VALKEY_MAXMEMORY: ${VALKEY_MAXMEMORY:?}
+      REDISCLI_AUTH: ${VALKEY_PASSWORD:?run make env}
+    # requirepass and maxmemory are fed on stdin so they never appear in argv.
+    command:
+      - sh
+      - -c
+      - |
+        exec valkey-server /usr/local/etc/valkey/valkey.conf - <<EOF
+        requirepass $${VALKEY_PASSWORD}
+        maxmemory $${VALKEY_MAXMEMORY}
+        EOF
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - ../valkey/valkey.conf:/usr/local/etc/valkey/valkey.conf:ro
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_VALKEY:?}
+
+  nats:
+    <<: *service
+    image: nats:2.15.1-alpine
+    environment:
+      NATS_PASSWORD: ${NATS_PASSWORD:?run make env}
+      GOMEMLIMIT: ${GOMEMLIMIT_NATS:?}
+    command: ["--config", "/etc/nats/nats-server.conf"]
+    ports:
+      - "127.0.0.1:4222:4222"
+      - "127.0.0.1:8222:8222"
+    volumes:
+      - ../nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null 'http://127.0.0.1:8222/healthz?js-enabled-only=true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_NATS:?}
+
+  # --------------------------------------------------------------- temporal --
+  temporal-schema:
+    # Official production path: temporal-sql-tool setup-schema + update-schema.
+    # Idempotent, so it runs on every `up` and also applies schema upgrades.
+    <<: *job
+    image: temporalio/admin-tools:1.32.1
+    networks: [hq-internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SQL_PLUGIN: postgres12
+      SQL_HOST: postgres
+      SQL_PORT: "5432"
+      TEMPORAL_DB_PASSWORD: ${TEMPORAL_DB_PASSWORD:?run make env}
+      TEMPORAL_VISIBILITY_DB_PASSWORD: ${TEMPORAL_VISIBILITY_DB_PASSWORD:?run make env}
+    entrypoint: ["/bin/sh", "/hq/schema-setup.sh"]
+    volumes:
+      - ../temporal/schema-setup.sh:/hq/schema-setup.sh:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_TEMPORAL_SCHEMA:?}
+
+  temporal:
+    <<: *service
+    image: temporalio/server:1.32.1
+    depends_on:
+      temporal-schema:
+        condition: service_completed_successfully
+    environment:
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_SEEDS: postgres
+      DBNAME: temporal
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:?run make env}
+      VISIBILITY_DBNAME: temporal_visibility
+      VISIBILITY_POSTGRES_USER: temporal_visibility
+      VISIBILITY_POSTGRES_PWD: ${TEMPORAL_VISIBILITY_DB_PASSWORD:?run make env}
+      # Fixed for the life of the cluster; 512 is Temporal's usual production size.
+      NUM_HISTORY_SHARDS: "512"
+      BIND_ON_IP: 0.0.0.0
+      PROMETHEUS_ENDPOINT: 0.0.0.0:9090
+      DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/config/dynamicconfig/hq.yaml
+      LOG_LEVEL: warn
+      GOMEMLIMIT: ${GOMEMLIMIT_TEMPORAL:?}
+    ports:
+      - "127.0.0.1:7233:7233"
+    volumes:
+      - ../temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:7243/api/v1/cluster-info"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_TEMPORAL:?}
+
+  temporal-namespace:
+    # Registers the "default" namespace once (no-op when it exists).
+    <<: *job
+    image: temporalio/admin-tools:1.32.1
+    networks: [hq-internal]
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        temporal operator namespace describe --namespace default >/dev/null 2>&1
+        || temporal operator namespace create --namespace default --retention 72h
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_TEMPORAL_NAMESPACE:?}
+
+  temporal-ui:
+    <<: *service
+    image: temporalio/ui:2.56.0
+    depends_on:
+      temporal:
+        condition: service_healthy
+      temporal-namespace:
+        condition: service_completed_successfully
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_UI_PORT: "8080"
+      TEMPORAL_DEFAULT_NAMESPACE: default
+    ports:
+      - "127.0.0.1:8233:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_TEMPORAL_UI:?}
+
+  # ---------------------------------------------------------------- secrets --
+  openbao:
+    <<: *service
+    image: openbao/openbao:2.7.1
+    command: ["server"]
+    environment:
+      BAO_ADDR: http://127.0.0.1:8200
+      SKIP_CHOWN: "true"
+      SKIP_SETCAP: "true"
+    ports:
+      - "127.0.0.1:8200:8200"
+    volumes:
+      - ../openbao/config.hcl:/openbao/config/config.hcl:ro
+      - openbao-data:/openbao/file
+    # Healthy = initialised AND unsealed (`bao status` exits 2 while sealed).
+    healthcheck:
+      test: ["CMD", "bao", "status"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_OPENBAO:?}
+
+  # ------------------------------------------------------------------- edge --
+  caddy:
+    <<: *service
+    image: caddy:2.11.7-alpine
+    environment:
+      # Empty -> ":80" (plain HTTP). A domain here switches on automatic HTTPS.
+      HQ_SITE_ADDRESS: ${HQ_SITE_ADDRESS:-:80}
+    ports:
+      # The only ports published on all interfaces.
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../caddy/site:/srv/site:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2020/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_CADDY:?}
+
+  # ---------------------------------------------------------- observability --
+  prometheus:
+    <<: *service
+    image: prom/prometheus:v3.15.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROM_RETENTION_TIME:?}
+      - --storage.tsdb.retention.size=${PROM_RETENTION_SIZE:?}
+      - --web.enable-remote-write-receiver
+      - --web.enable-otlp-receiver
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../observability/prometheus/scrape:/etc/prometheus/scrape:ro
+      - ../observability/prometheus/scrape-profile/${HQ_PROFILE:?use hq.sh}:/etc/prometheus/scrape-profile:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_PROMETHEUS:?}
+
+  loki:
+    <<: *service
+    image: grafana/loki:3.7.8
+    depends_on:
+      hq-tools:
+        condition: service_completed_successfully
+    command: ["-config.file=/etc/loki/loki.yaml", "-config.expand-env=true"]
+    environment:
+      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:?}
+      GOMEMLIMIT: ${GOMEMLIMIT_LOKI:?}
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ../observability/loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki-data:/loki
+      - hq-tools:/hq-tools:ro
+    healthcheck:
+      test: ["CMD", "/hq-tools/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3100/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LOKI:?}
+
+  alloy:
+    # Ships container logs to Loki by reading the json-file logs read-only
+    # (no Docker socket).
+    <<: *service
+    image: grafana/alloy:v1.20.1
+    depends_on:
+      hq-tools:
+        condition: service_completed_successfully
+      loki:
+        condition: service_healthy
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+      - /etc/alloy/config.alloy
+    environment:
+      GOMEMLIMIT: ${GOMEMLIMIT_ALLOY:?}
+    volumes:
+      - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - hq-tools:/hq-tools:ro
+    healthcheck:
+      test: ["CMD", "/hq-tools/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:12345/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_ALLOY:?}
+
+  grafana:
+    <<: *service
+    image: grafana/grafana:13.2.4
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?run make env}
+      GF_SERVER_ROOT_URL: http://localhost:3000/
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../observability/grafana/provisioning/datasources/${HQ_PROFILE:?use hq.sh}:/etc/grafana/provisioning/datasources:ro
+      - ../observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../observability/grafana/dashboards:/var/lib/grafana-dashboards:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_GRAFANA:?}
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    restart: unless-stopped
+    logging: *logging
+    security_opt: ["no-new-privileges:true"]
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=172.30.0.1:9100
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|var/lib/docker/.+|var/lib/containerd/.+)($$|/)
+    volumes:
+      - /:/host:ro,rslave
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://172.30.0.1:9100/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_NODE_EXPORTER:?}
+
+  # -------------------------------------------------- full profile only --
+  tempo:
+    <<: *service
+    profiles: [full]
+    image: grafana/tempo:3.1.0
+    depends_on:
+      hq-tools:
+        condition: service_completed_successfully
+    command: ["-target=all", "-config.file=/etc/tempo/tempo.yaml"]
+    ports:
+      - "127.0.0.1:3200:3200"
+    volumes:
+      - ../observability/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+      - hq-tools:/hq-tools:ro
+    healthcheck:
+      test: ["CMD", "/hq-tools/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3200/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_TEMPO:?}
+
+  otel-collector:
+    <<: *service
+    profiles: [full]
+    image: otel/opentelemetry-collector-contrib:0.162.0
+    depends_on:
+      hq-tools:
+        condition: service_completed_successfully
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    volumes:
+      - ../observability/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+      - hq-tools:/hq-tools:ro
+    healthcheck:
+      test: ["CMD", "/hq-tools/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:13133/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_OTEL_COLLECTOR:?}
+
+  cadvisor:
+    <<: *service
+    profiles: [full]
+    image: ghcr.io/google/cadvisor:v0.60.6
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.service,com.docker.compose.project
+      - --disable_metrics=advtcp,cpu_topology,cpuset,disk,diskIO,hugetlb,percpu,perf_event,process,referenced_memory,resctrl,sched,tcp,udp
+    volumes:
+      - /:/rootfs:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # cAdvisor's Docker factory talks to Docker's containerd.
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+    devices:
+      - /dev/kmsg
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_CADVISOR:?}
+
+networks:
+  hq-internal:
+    name: hq-internal
+    driver: bridge
+    ipam:
+      config:
+        # Fixed so node-exporter can listen on the gateway (172.30.0.1) only.
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
+
+volumes:
+  hq-tools:
+  pg-data:
+  valkey-data:
+  nats-data:
+  openbao-data:
+  caddy-data:
+  caddy-config:
+  prometheus-data:
+  loki-data:
+  alloy-data:
+  grafana-data:
+  tempo-data:
