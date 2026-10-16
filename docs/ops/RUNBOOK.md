@@ -25,6 +25,11 @@
 | `make openbao-init` | مقداردهی اولیه‌ی OpenBao (فقط یک بار) |
 | `make unseal` | unseal کردن OpenBao |
 | `make install-systemd` | نصب یا تازه‌سازی تایمرهای backup و unseal (sudo لازم است) |
+| `make llm-provision` | OpenBao: ‏KV، policyها، AppRoleها و توکن‌های سرویس (idempotent؛ جزو `make up` هم هست) |
+| `make claude-token` | **فقط مالک:** ثبت توکن `claude setup-token` در OpenBao (ورودی پنهان) |
+| `make llm-smoke` | یک فراخوانی واقعی خیلی کوچک (Haiku، «OK»)، همراه ردیف ledger و رویداد NATS |
+| `make test-services` | سرویس‌های Python: hadolint، ruff، mypy، pytest و pip-audit |
+| `make lock` | ساختن دوباره‌ی lock فایل‌های Python (با hash) |
 
 ## ۲. بالا آوردن و پایین آوردن
 
@@ -37,17 +42,20 @@ make check
 ```
 
 **`make up` به این ترتیب کار میکند:**
-1. `up -d`. ترتیب وابستگی‌ها: `postgres` ← `temporal-schema` ← `temporal` ← `temporal-namespace` ← `temporal-ui`. `hq-tools` قبل از Loki و Alloy اجرا میشود.
-2. اگر OpenBao هنوز init نشده باشد، `init.sh` آن را init میکند.
-3. اگر sealed باشد، `unseal.sh` آن را unseal میکند.
-4. `up -d --wait`: صبر تا همه healthy شوند (حداکثر ۵ دقیقه).
+1. `gen-env.sh`: کلیدهایی که پرامپت‌های جدید اضافه کرده‌اند به `.env` اضافه میشوند. رمزها تصادفی‌اند، خط‌های موجود دست نمیخورند و هیچ مقداری چاپ نمیشود.
+2. فقط `openbao` بالا میاید. بعد، اگر لازم باشد: `init.sh`، ‏`unseal.sh`، و در هر حال `provision.sh` (idempotent). این مرحله فایل‌های AppRole و توکن metrics را **قبل** از بالا آمدن سرویس‌ها میسازد. sudo لازم است، چون مالک این فایل‌ها uid کانتینرهاست.
+3. `up -d --build --wait`: ایمیج‌های خودمان (`coinepro-hq/llm-router` و `coinepro-hq/claude-runtime`) ساخته میشوند و همه‌چیز بالا میاید. ترتیب وابستگی‌ها:
+   - `postgres` ← `temporal-schema` ← `temporal` ← `temporal-namespace` ← `temporal-ui`
+   - `postgres` ← `db-provision` ← `llm-migrate` ← `llm-router`
+   - `hq-tools` قبل از Loki و Alloy
+   صبر تا همه healthy شوند، حداکثر ۵ دقیقه.
 
 **پایین آوردن:** `make down`. کانتینرهای همه‌ی پروفایل‌ها حذف میشوند و داده‌ها در volumeها میمانند.
 **هرگز `down -v` نزن.** این دستور همه‌ی داده‌ها را پاک میکند و فقط با اجازه‌ی صریح مالک اجرا میشود.
 
 **یک سرویس:** `infra/compose/hq.sh restart <service>` یا `infra/compose/hq.sh up -d <service>`.
 
-**کارهای یک‌باره** (`hq-tools`، `temporal-schema`، `temporal-namespace`) اجرا میشوند و با کد 0 خارج میشوند. این وضعیت طبیعی است. برای دیدنشان: `infra/compose/hq.sh ps -a`.
+**کارهای یک‌باره** (`hq-tools`، `temporal-schema`، `temporal-namespace`، `db-provision`، `llm-migrate`) اجرا میشوند و با کد 0 خارج میشوند. این وضعیت طبیعی است. برای دیدنشان: `infra/compose/hq.sh ps -a`.
 
 **بعد از ریبوت:** Docker کانتینرها را خودش بالا میاورد (`restart: unless-stopped`). تایمر `coinepro-hq-openbao-unseal.timer` یک دقیقه بعد از boot، و بعد هر ۵ دقیقه، OpenBao را unseal میکند. چک کن: `make ps`.
 
@@ -102,6 +110,17 @@ infra/compose/hq.sh up -d
 - **Unseal خودکار:** `coinepro-hq-openbao-unseal.timer`، یک دقیقه بعد از boot و بعد هر ۵ دقیقه. اگر OpenBao unseal باشد، کاری نمیکند. ری‌استارت کانتینر هم خودبه‌خود ترمیم میشود.
 - **وضعیت:** `infra/compose/hq.sh exec -T openbao bao status`. Healthcheck فقط وقتی سالم است که OpenBao init و unseal شده باشد.
 
+### Policyها، AppRoleها و توکن ادمین (پرامپت ۳)
+- **`make llm-provision`** (جزو `make up`):
+  - KV v2 در `kv/` و AppRole
+  - policyهای `llm-router`، `claude-runtime` و `hq-admin` (`infra/openbao/policies/`)
+  - AppRole هر سرویس
+  - توکن router↔runtime، توکن metrics، و اولین فراخواننده‌ی API ‏(`hq-ops`)
+  - هیچ مقداری چاپ نمیشود.
+- **توکن ادمین غیر root:** `/home/Hub/.secrets/openbao-admin.token` (`600`)، با policy ‏`hq-admin` و دوره‌ی ۳۲ روز. در هر `make up` تمدید میشود. اگر ۳۲ روز `make up` اجرا نشود منقضی میشود و `provision.sh` یک بار دیگر با root token یک توکن ادمین تازه میسازد.
+- **root token هنوز معتبر است.** باطل کردنش تصمیم مالک است. بعد از باطل شدن، فقط توکن ادمین کار میکند و اگر منقضی شود، ساختن root تازه کلید unseal لازم دارد (`bao operator generate-root`).
+- **فایل‌های سرویس‌ها** در `/home/Hub/.secrets/services/<service>/` هستند و مالکشان uid کانتینر است (10001؛ و 65534 برای Prometheus). برای دیدن یا عوض کردنشان sudo لازم است. برای ساختن دوباره‌ی secret_id، فایل را با sudo پاک کن و `make llm-provision` بزن.
+
 ### ⚠️ ریسک‌ها (آگاهانه پذیرفته شده برای این مرحله)
 1. **کلید unseal و root token کنار داده‌ها، روی همین دیسک‌اند.** هر کس به root یا کاربر `Hub` دسترسی داشته باشد، یا یک کپی از دیسک داشته باشد (snapshot یا backup هتزنر)، میتواند OpenBao را باز کند و همه‌ی رمزها را بخواند. در عمل، unseal خودکار ارزش «sealed بودن» را از بین میبرد. محافظت اصلی، محدود بودن دسترسی به سرور است.
 2. **۱ key share** یعنی یک کلید واحد. اگر فایل گم شود و OpenBao sealed باشد، داده‌ها برای همیشه از دست میروند. **مالک باید یک کپی امن از فایل خارج از سرور نگه دارد** (مثلاً password manager).
@@ -114,7 +133,7 @@ infra/compose/hq.sh up -d
 - **خودکار:** اگر `HQ_PROFILE` در `.env` خالی باشد، `hq.sh` از روی RAM انتخاب میکند: `MemTotal` کمتر از 11GiB (یعنی سرور کمتر از ۱۲GB اسمی) → `lean`، وگرنه `full`.
 - **دستی:** `HQ_PROFILE=lean` یا `HQ_PROFILE=full` در `.env`.
 - **فرق پروفایل‌ها:** `full` به‌علاوه‌ی Tempo، otel-collector و cAdvisor است، با سقف‌های حافظه‌ی بیشتر (`infra/compose/profiles/*.env`).
-- **قانون:** جمع سقف حافظه‌ی همه‌ی کانتینرها ≤ ۶۰٪ RAM. `make check` آن را چک میکند.
+- **قانون:** جمع سقف حافظه‌ی همه‌ی کانتینرها ≤ **۸۰٪** RAM. این عدد در پرامپت ۳ از ۶۰٪ بالا رفت، چون سرویس‌های لایه‌ی مدل اضافه شدند. `make check` آن را چک میکند.
 
 **بعد از ارتقای RAM سرور** (مثلاً به ۱۶GB):
 ```bash
@@ -145,6 +164,8 @@ make check
 | Tempo | `127.0.0.1:3200` | `tempo:3200`، OTLP: `tempo:4317`/`4318` | full |
 | otel-collector (OTLP) | `127.0.0.1:4317` (gRPC)، `127.0.0.1:4318` (HTTP) | `otel-collector:4317`/`4318` | full |
 | cAdvisor | — | `cadvisor:8080` | full |
+| llm-router | — (**بدون پورت منتشرشده**) | `llm-router:8000` (شبکه‌های `hq-internal` و `hq-llm`) | همه |
+| claude-runtime | — (**بدون پورت منتشرشده**) | `claude-runtime:8100` (**فقط** شبکه‌ی `hq-llm`) | همه |
 | SSH (مال مالک) | `0.0.0.0:1367` | — | — |
 
 **دسترسی از لپ‌تاپ مالک** با تونل SSH، بدون باز کردن پورت:
@@ -165,6 +186,8 @@ ssh -p 1367 -L 3000:127.0.0.1:3000 -L 8233:127.0.0.1:8233 -L 9090:127.0.0.1:9090
 | Valkey | (پیش‌فرض) | `VALKEY_PASSWORD` |
 | NATS | `hq` | `NATS_PASSWORD` |
 | Grafana | `admin` | `GRAFANA_ADMIN_PASSWORD` |
+| دیتابیس `hq` برای llm-router | `llm_router` | `LLM_ROUTER_DB_PASSWORD` |
+| API ‏llm-router | فراخواننده‌ی `hq-ops` | فایل `/home/Hub/.secrets/llm-router-caller-hq-ops.token` |
 
 ## ۸. عیب‌یابی سریع
 
@@ -176,7 +199,23 @@ ssh -p 1367 -L 3000:127.0.0.1:3000 -L 8233:127.0.0.1:8233 -L 9090:127.0.0.1:9090
 | حافظه پر است | `docker stats --no-stream` و قانون ۶۰٪ (`make check`) |
 | backup اجرا نشد | `journalctl -u coinepro-hq-backup.service` |
 
-## ۹. ملاحظات امنیتی این مرحله
+## ۹. لایه‌ی مدل‌ها (پرامپت ۳)
+- **مستندات کامل:** `docs/ops/LLM_LAYER.md` (معماری، جدول‌ها، اولویت‌ها، و افزودن اتصال).
+- **توکن Claude (فقط مالک):** در یک ترمینال جدا، با کاربر `Hub`:
+  1. `claude setup-token`
+  2. `make claude-token` و paste توکن. ورودی پنهان است، توکن مستقیم به OpenBao میرود و runtime restart میشود.
+- **وضعیت:**
+  - `infra/compose/hq.sh exec -T claude-runtime cat /tmp/hq-health.json` (فیلد `oauth`)
+  - داشبورد «Token Treasury — Ops»
+- **وقتی سهمیه تمام میشود:**
+  - اتصال `claude-max` در `llm.connections` به `quota_exhausted` میرود، با `quota_reset_at`.
+  - P4 با `429` رد میشود؛ P0 تا P3 خطای `quota_exhausted` میگیرند، چون همه‌ی جایگزین‌ها خاموش‌اند.
+  - بعد از ریست، خودکار برمیگردد.
+- **ledger:** `llm.calls`. خواندنش فقط با نقش‌های RLS ممکن است. viewها: `llm.v_usage_daily` و `llm.v_top_actors_30d`.
+
+## ۱۰. ملاحظات امنیتی این مرحله
 - **Alloy** پوشه‌ی `/var/lib/docker/containers` را فقط‌خواندنی میخواند. این پوشه env کانتینرها را هم دارد، پس دسترسی Alloy عملاً در حد خواندن رمزهاست. به Docker socket دسترسی ندارد.
 - **cAdvisor** (فقط `full`) به Docker socket و socket containerd دسترسی دارد، که عملاً هم‌ارز root است. این روش رسمی خود cAdvisor است.
+- **claude-runtime** فقط روی شبکه‌ی `hq-llm` است. به Postgres، Valkey، NATS، Temporal و Grafana دسترسی ندارد (آزمایش شده). اینترنت برای API ‏Anthropic باز است.
+- **llm-router و claude-runtime:** کاربر 10001، rootfs فقط‌خواندنی، `cap_drop: ALL`، بدون پورت منتشرشده، بدون سوکت Docker و بدون mount از ریپوها.
 - **Docker** قوانین iptables خودش را میسازد و از ufw رد میشود. برای همین، هر پورت فقط روی `127.0.0.1` منتشر میشود. مرجع فایروال فقط فایروال هتزنر است.
