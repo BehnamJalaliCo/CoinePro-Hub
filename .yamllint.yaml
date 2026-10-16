@@ -1,0 +1,14 @@
+# yamllint rules for the repo (run by scripts/quality/yamllint.sh).
+extends: default
+
+rules:
+  document-start: disable
+  line-length:
+    max: 160
+  truthy:
+    check-keys: false # GitHub Actions uses `on:` as a key
+  comments:
+    min-spaces-from-content: 1
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
