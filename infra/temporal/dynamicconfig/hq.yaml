@@ -1,0 +1,5 @@
+# Temporal dynamic config (re-read every 60s).
+# SQL visibility stores IDs in varchar(255).
+limit.maxIDLength:
+  - value: 255
+    constraints: {}
