@@ -22,8 +22,12 @@ IFS= read -rs token
 printf '\n'
 token="${token//[[:space:]]/}"
 [[ -n "$token" ]] || die "nothing was pasted"
+# The browser login code ("code#state") is pasted into the setup-token window,
+# not here; only the sk-ant-oat... line that window prints afterwards is the token.
+[[ "$token" != *'#'* ]] || die "that is the login code from the browser, not the token: paste it into the 'claude setup-token' window, then paste the sk-ant-oat... line it prints here; nothing was saved"
+[[ "$token" =~ ^[A-Za-z0-9_-]+$ ]] || die "a token has only letters, digits, '-' and '_'; nothing was saved"
+[[ "$token" == sk-ant-oat* ]] || die "a subscription token starts with sk-ant-oat; nothing was saved"
 ((${#token} >= 40)) || die "that is too short to be a Claude token; nothing was saved"
-[[ "$token" == sk-ant-oat* ]] || printf 'note: the token does not start with "sk-ant-oat"; saving it anyway\n'
 
 umask 077
 work="$(mktemp -d)"
