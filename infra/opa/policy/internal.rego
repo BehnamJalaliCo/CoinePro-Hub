@@ -172,6 +172,16 @@ work_create_ok if {
 	tv("to_department") != p.department
 }
 
+# A manager may also propose RECURRING work inside its own department: it
+# stays inactive until a recurring_approval decision (owner, or the CEO
+# within the company's quota) activates it (OPERATING_MODEL §1.4).
+work_create_ok if {
+	p.role == "manager"
+	same_company(tv("company"))
+	tv("kind") == "recurring"
+	tv("to_department") == p.department
+}
+
 # A CEO hands work to a manager of its own company ...
 work_create_ok if {
 	p.role == "ceo"

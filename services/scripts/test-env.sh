@@ -72,7 +72,7 @@ start_api_deps() {
     --log-level error --namespace default >/dev/null
   docker run -d --name "$NAME-opa" --network "$NET" --network-alias opa \
     -v "$REPO_DIR/infra/opa/policy:/policy:ro" "$OPA_IMAGE" \
-    run --server --addr 0.0.0.0:8181 --log-level error /policy >/dev/null
+    run --server --watch --addr 0.0.0.0:8181 --log-level error /policy >/dev/null
 }
 
 run() {

@@ -28,7 +28,7 @@ API درخواست `POST /v1/data/hq/<package>` را با بدنه‌ی `{"input
 | `context.read`، `activity.set` | خود کارمند؛ سرویس برای هر کارمند | `{employee}` |
 | `work.accept`، `work.progress`، `work.deliver`، `work.fail` | فقط مسئول همان کار، در شرکت خودش | `{assignee, company}` |
 | `work.delegate` | مسئول فعلی کار. مدیرعامل ← مدیر؛ مدیر ← کارمند **دپارتمان خودش** | `{assignee, company, to_role, to_department}` |
-| `work.create` | مدیر ← مدیر **دپارتمان دیگر** همان شرکت؛ مدیرعامل ← مدیر همان شرکت، یا ← **مدیرعامل شرکت دیگر** (تنها مسیر بین شرکت‌ها) | `{company, to_role, to_department}` |
+| `work.create` | مدیر ← مدیر **دپارتمان دیگر** همان شرکت، یا پیشنهاد کار **دائمی** در دپارتمان خودش (تا تأیید `recurring_approval` غیرفعال میماند)؛ مدیرعامل ← مدیر همان شرکت، یا ← **مدیرعامل شرکت دیگر** (تنها مسیر بین شرکت‌ها) | `{company, kind, to_role, to_department}` |
 | `decision.propose` | ایجنت همان شرکت؛ نوع‌های مجاز هر نقش در `propose_kinds` (ارزیابی و برکناری فقط مدیر HR) | `{company, kind}` |
 | `decision.approve` | همان قاعده‌ی `hq.decisions` | `{decision, context}` |
 | `message.post` | thread خودش؛ گروه دپارتمان خودش؛ مشاور در thread مشاور؛ مدیرعامل در threadهای `ceo` شرکت خودش | `{thread_code, thread_kind, thread_company, thread_department}` |

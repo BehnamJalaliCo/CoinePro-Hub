@@ -77,6 +77,13 @@ test_manager_requests_another_department if {
 	reasons(f.ty_growth_mgr, "work.create", {"company": "FX", "to_role": "manager", "to_department": "TECH"}) == {"work.create_not_permitted"}
 }
 
+test_manager_proposes_recurring_work_in_its_own_department if {
+	allowed(f.ty_growth_mgr, "work.create", {"company": "TY", "kind": "recurring", "to_role": "manager", "to_department": "GROWTH"})
+	not allowed(f.ty_growth_mgr, "work.create", {"company": "TY", "kind": "one_off", "to_role": "manager", "to_department": "GROWTH"})
+	not allowed(f.ty_growth_mgr, "work.create", {"company": "FX", "kind": "recurring", "to_role": "manager", "to_department": "GROWTH"})
+	not allowed(f.ty_growth_01, "work.create", {"company": "TY", "kind": "recurring", "to_role": "employee", "to_department": "GROWTH"})
+}
+
 test_ceo_creates_work_for_its_managers if {
 	allowed(f.ty_ceo, "work.create", {"company": "TY", "to_role": "manager", "to_department": "SALES"})
 }
