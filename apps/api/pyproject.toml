@@ -19,6 +19,10 @@ ignore = [
 "tests/*" = ["S105", "S106", "S108", "S311", "S603", "S608", "BLE001", "E501", "C408", "PT011", "PT012", "PT018", "PT022", "RUF001"]
 "src/hq_api/**" = ["RUF001", "RUF002", "RUF003"]  # Persian text in messages and comments
 
+[tool.ruff.lint.pycodestyle]
+# The formatter keeps code at 100; embedded SQL may run to 120 before wrapping.
+max-line-length = 120
+
 [tool.ruff.lint.isort]
 known-first-party = ["hq_common", "hq_api"]
 

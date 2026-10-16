@@ -57,6 +57,13 @@ class Tx:
         result = await self.conn.execute(text(sql), params)
         return int(result.rowcount)
 
+    async def rescope(self, company_ids: Iterable[UUID | str]) -> None:
+        """Change the transaction's company scope (e.g. after creating a company)."""
+        await self.conn.execute(
+            text("SELECT set_config('app.company_ids', :ids, true)"),
+            {"ids": company_ids_literal(company_ids)},
+        )
+
 
 class Database:
     def __init__(self, engine: AsyncEngine) -> None:

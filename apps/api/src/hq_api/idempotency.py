@@ -21,8 +21,6 @@ from hq_api.db import Tx
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 
-WINDOW = "24 hours"
-
 
 @dataclass
 class Idem:
@@ -77,14 +75,13 @@ async def claim(tx: Tx, request: Request, who: Principal, *, required: bool = Fa
                SET method = EXCLUDED.method, path = EXCLUDED.path,
                    body_sha256 = EXCLUDED.body_sha256, status_code = NULL, response = NULL,
                    created_at = now()
-               WHERE core.idempotency_keys.created_at < now() - CAST(:window AS interval)
+               WHERE core.idempotency_keys.created_at < now() - make_interval(hours => 24)
            RETURNING key""",
         p=idem.principal,
         k=key,
         m=idem.method,
         path=idem.path,
         b=idem.body_sha256,
-        window=WINDOW,
     )
     if inserted is not None:
         return idem

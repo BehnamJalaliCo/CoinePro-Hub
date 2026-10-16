@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import base64
 import json
+from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from hq_api.errors import ApiError
 
@@ -38,3 +40,14 @@ def page(
     items = rows[:limit]
     last = items[-1]
     return items, encode([last[k] for k in keys])
+
+
+def time_id(cursor: str | None) -> tuple[datetime | None, UUID | None]:
+    """A (timestamp, id) cursor as typed values (asyncpg binds by type)."""
+    after = decode(cursor, 2)
+    if after is None:
+        return None, None
+    try:
+        return datetime.fromisoformat(str(after[0])), UUID(str(after[1]))
+    except ValueError as exc:
+        raise ApiError(422, "validation_failed", fields={"cursor": "invalid"}) from exc
