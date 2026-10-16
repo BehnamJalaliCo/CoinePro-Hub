@@ -1,4 +1,4 @@
-# Coine HQ — جمع‌بندی کامل و نقشه‌ی راه اجرایی (v1)
+# CoinePro HQ — جمع‌بندی کامل و نقشه‌ی راه اجرایی (v1)
 
 > **تاریخ:** ۲۰۲۶-۱۰-۱۶
 > **مبنا:** کل جلسه‌ی مشورت از نقطه‌ی صفر، `COINE_HQ_CONSULTATION_v1.md`، `CHATGPT_REVIEW_v1.md`، `COINE_HQ_MASTER_PLAN_v1.md`، بررسی فقط‌خواندنی ریپوهای TradeYar، CoinePro-FX و CoinePro-App، و تحقیق قیمت هتزنر.
@@ -53,7 +53,7 @@
 |---|---|---|
 | D-01 | فقط Hub نوشتنی است؛ بقیه فقط با Change Request و اجازه‌ی صریح برای هر مورد | ✅ |
 | D-02 | مسائل حقوقی با مالک است | ✅ |
-| D-03 | نام: **Coine Holding** (مادر) و **Coine HQ** (پلتفرم) | ✅ |
+| D-03 | نام: **CoinePro HQ** (فارسی: «ستاد کوینه‌پرو»؛ شناسه‌ی فنی: `coinepro-hq`). این نام همه جا به کار میرود (تصمیم مالک، ۲۰۲۶-۱۰-۱۶). | ✅ |
 | D-04 | بودجه‌ی ماه ۱: سقف $500، با هشدار در $350 و $450 (عملاً خیلی کمتر خرج میشود؛ §۹) | ✅ |
 | D-05 | سرورها Hetzner Cloud روی یک Cloud Network هستند (FX طبق ریپو Cloud است؛ TradeYar باید در کنسول تأیید شود) | ✅ با شرط |
 | D-06 | مالک سرور هاب را میخرد و به همان شبکه وصل میکند | ✅ |
@@ -149,7 +149,7 @@
                      Passkey + MFA                              │
                           │ HTTPS                               │
  ┌────────────────────────▼─────────────────────────────────────▼──────────┐
- │                     COINE HQ  (Hetzner, CPX42)                          │
+ │                  COINEPRO HQ  (Hetzner, CPX42)                          │
  │  API/BFF · Identity · Cartable · Messenger · Meetings · Reports         │
  │  Policy Engine · Decision Log · Audit · Cost & Quota Ledger             │
  │  WorkflowEngine (Postgres jobs) · Postgres+pgvector · Redis            │
