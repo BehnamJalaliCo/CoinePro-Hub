@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>اپ اندروید — مرکز فرمان</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"IRANYekanX";src:url("/_blob/f91f7bb82563538ae2f7b0fe28203ed6") format("truetype");font-weight:400;font-display:swap}
+@font-face{font-family:"IRANYekanX";src:url("/_blob/1397e7ac3e62c20d6a9162af84dfb2df") format("truetype");font-weight:500;font-display:swap}
+@font-face{font-family:"IRANYekanX";src:url("/_blob/0b4dccdc237d3fe80170315d9b1c60cc") format("truetype");font-weight:600;font-display:swap}
+@font-face{font-family:"IRANYekanX";src:url("/_blob/20c08a50de2fba89ec14a72226ee6f0a") format("truetype");font-weight:700;font-display:swap}
+body{margin:0}
+a{color:#D8A848}a:hover{color:#F0CC60}
+button{font-family:inherit}
+@keyframes hqBand{0%{background-position:200% 0}100%{background-position:0 0}}
+@keyframes hqPulse{0%{box-shadow:0 0 0 0 rgba(34,171,148,.45)}70%{box-shadow:0 0 0 8px rgba(34,171,148,0)}100%{box-shadow:0 0 0 0 rgba(34,171,148,0)}}
+@keyframes hqNode{0%{box-shadow:0 0 0 0 rgba(216,168,72,.35)}70%{box-shadow:0 0 0 10px rgba(216,168,72,0)}100%{box-shadow:0 0 0 0 rgba(216,168,72,0)}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div dir="rtl" style="width: 390px; height: 1960px; box-sizing: border-box; background: #0F0F0F; color: #F0F1F2; font-family: IRANYekanX, Tahoma, sans-serif; display: flex; flex-direction: column; opacity: {{dim}};">
+
+  <header style="height: 64px; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.08);">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div aria-hidden="true" style="width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #F0CC60 0%, #D8A848 45%, #966A1F 100%);"></div>
+      <span style="font-size: 17px; font-weight: 700;">ستاد کوینه‌پرو</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button type="button" aria-label="خلوت" style="width: 44px; height: 44px; border-radius: 999px; background: {{moonBg}}; border: 1px solid {{moonBorder}}; color: {{moonInk}}; display: flex; align-items: center; justify-content: center;">
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"></path></svg>
+      </button>
+      <button type="button" aria-label="اعلان‌ها، ۳ مورد تازه" style="position: relative; width: 44px; height: 44px; border-radius: 999px; background: #171C24; border: 1px solid rgba(255,255,255,.10); color: #B7BDC6; display: flex; align-items: center; justify-content: center;">
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+        <span style="position: absolute; top: 6px; left: 6px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 999px; background: #F6465D; color: #FFFFFF; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center;">۳</span>
+      </button>
+    </div>
+  </header>
+
+  <sc-if value="{{khalvat}}" hint-placeholder-val="{{false}}">
+    <div style="margin: 12px 16px 0; padding: 12px 14px; border-radius: 12px; background: #2A2416; border: 1px solid #6B5418; display: flex; align-items: center; gap: 10px;">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="#D8A848"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"></path></svg>
+      <span style="font-size: 13px; line-height: 20px;">در خلوت هستی · فقط اعلان‌های فوری میرسد. مدیرعامل‌ها کارهای غیرفوری را برای بعد صف کرده‌اند.</span>
+    </div>
+  </sc-if>
+
+  <main style="flex: 1; padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 20px;">
+
+    <section style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 style="margin: 0; font-size: 24px; line-height: 32px; font-weight: 700;">صبح بخیر، مدیر کل</h1>
+      <div style="font-size: 13px; color: #B7BDC6;">شنبه ۲۵ مهر ۱۴۰۵ · <span dir="ltr">Oct 17, 2026</span></div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px;">
+        <span style="font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #171C24; border: 1px solid rgba(255,255,255,.08); color: #B7BDC6;">هیئت‌مدیره‌ی امروز · ساعت ۱۰</span>
+        <span style="font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #171C24; border: 1px solid rgba(255,255,255,.08); color: #848E9C;">داده‌ها نمونه است</span>
+      </div>
+    </section>
+
+    <section aria-label="گزارش صبحگاهی" style="padding: 16px; border-radius: 16px; background: #10141B; border: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span style="font-size: 16px; font-weight: 600;">گزارش صبحگاهی</span>
+          <span style="font-size: 12px; color: #848E9C;">ساعت ۸ · متنی و صوتی</span>
+        </div>
+        <button type="button" aria-label="پخش گزارش صوتی، ۳ دقیقه و ۱۲ ثانیه" style="height: 44px; padding: 0 14px 0 16px; border-radius: 999px; background: #D8A848; border: none; color: #0B0E11; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg>
+          <span dir="ltr">3:12</span>
+        </button>
+      </div>
+      <ul style="margin: 0; padding: 0 18px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 22px; color: #B7BDC6;">
+        <li>هر سه شرکت پایدار؛ یک هشدار زرد در CoinePro FX.</li>
+        <li>مدیرعامل TradeYar دو پیشنهاد رشد فرستاده است.</li>
+        <li>دو پیشنهاد استخدام منتظر تصمیم توست.</li>
+      </ul>
+    </section>
+
+    <section aria-label="وضعیت هلدینگ" style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 16px; font-weight: 600;">وضعیت هلدینگ</h2>
+      <sc-for list="{{pillars}}" as="p" hint-placeholder-count="3">
+        <div style="padding: 14px 16px; border-radius: 14px; background: #10141B; border: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 14px; font-weight: 600;">{{p.title}}</span>
+            <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: {{p.tint}}; border: 1px solid {{p.border}}; color: {{p.ink}}; display: flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 999px; background: {{p.ink}};"></span>{{p.state}}</span>
+          </div>
+          <div dir="ltr" style="font-size: 18px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums;">{{p.figure}}</div>
+          <div style="font-size: 12px; color: #B7BDC6;">{{p.caption}}</div>
+          <div style="font-size: 11px; color: #848E9C;">منبع: {{p.source}}</div>
+        </div>
+      </sc-for>
+    </section>
+
+    <section aria-label="کارتابل‌ها" style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+        <a href="#" style="text-decoration: none; color: inherit; padding: 14px; border-radius: 14px; background: #2A2416; border: 1px solid #6B5418; display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 13px; color: #F0B90B; font-weight: 600;">کارتابل تصمیم</span>
+          <span style="font-size: 28px; font-weight: 700;">۳</span>
+          <span style="font-size: 12px; color: #B7BDC6;">۲ استخدام · ۱ deploy</span>
+        </a>
+        <a href="#" style="text-decoration: none; color: inherit; padding: 14px; border-radius: 14px; background: #13241F; border: 1px solid #1E5A4F; display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 13px; color: #22AB94; font-weight: 600;">کارتابل خروجی</span>
+          <span style="font-size: 28px; font-weight: 700;">۷</span>
+          <span style="font-size: 12px; color: #B7BDC6;">منتظر امتیاز تو</span>
+        </a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #B7BDC6;"><span>زمان کارتابل امروز</span><span>۴ از ۱۰ دقیقه</span></div>
+        <div style="height: 6px; border-radius: 999px; background: #222831;"><div style="width: 40%; height: 6px; border-radius: 999px; background: #D8A848;"></div></div>
+      </div>
+    </section>
+
+    <section aria-label="استریم زنده‌ی هلدینگ" style="padding: 16px; border-radius: 16px; background: #10141B; border: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 16px; font-weight: 600;">استریم زنده‌ی هلدینگ</span>
+        <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #22AB94;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: #22AB94; animation: hqPulse 2s ease-out infinite;"></span>زنده</span>
+      </div>
+      <div role="img" aria-label="نمای بالای هلدینگ: ستاد در مرکز و سه شرکت دور آن؛ ۵ کارمند در حال کار" style="position: relative; height: 200px; border-radius: 12px; background: #0B0E11; border: 1px solid rgba(255,255,255,.06);">
+        <svg aria-hidden="true" width="326" height="200" viewBox="0 0 326 200" style="position: absolute; inset: 0;"><g stroke="rgba(255,255,255,.14)" stroke-width="1.2" fill="none"><line x1="163" y1="100" x2="62" y2="48"></line><line x1="163" y1="100" x2="264" y2="48"></line><line x1="163" y1="100" x2="163" y2="170"></line></g></svg>
+        <div style="position: absolute; left: 141px; top: 78px; width: 44px; height: 44px; border-radius: 14px; background: linear-gradient(135deg, #F0CC60 0%, #D8A848 45%, #966A1F 100%); color: #0B0E11; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;">HQ</div>
+        <div style="position: absolute; left: 242px; top: 26px; width: 44px; height: 44px; border-radius: 14px; background: #171C24; border: 2px solid #4F8EF7; color: #F0F1F2; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; animation: hqNode 2.4s ease-out infinite;">TY</div>
+        <div style="position: absolute; left: 40px; top: 26px; width: 44px; height: 44px; border-radius: 14px; background: #171C24; border: 2px solid #E38B4F; color: #F0F1F2; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; animation: hqNode 2.4s ease-out .8s infinite;">FX</div>
+        <div style="position: absolute; left: 141px; top: 148px; width: 44px; height: 44px; border-radius: 14px; background: #171C24; border: 2px solid #3FB6C6; color: #F0F1F2; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;">PC</div>
+        <span style="position: absolute; left: 280px; top: 18px; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: #22AB94; color: #0B0E11; font-weight: 700;">۲</span>
+        <span style="position: absolute; left: 78px; top: 18px; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: #22AB94; color: #0B0E11; font-weight: 700;">۲</span>
+        <span style="position: absolute; left: 179px; top: 140px; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: #22AB94; color: #0B0E11; font-weight: 700;">۱</span>
+      </div>
+      <div aria-hidden="true" style="height: 4px; border-radius: 999px; background: linear-gradient(90deg, rgba(216,168,72,0) 0%, #D8A848 50%, rgba(216,168,72,0) 100%); background-size: 200% 100%; animation: hqBand 1.6s linear infinite;"></div>
+      <div style="font-size: 12px; color: #B7BDC6;">۵ کارمند در حال کار · ۲ کار در صف</div>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px;">
+        <sc-for list="{{events}}" as="e" hint-placeholder-count="3">
+          <li style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #171C24;">
+            <span dir="ltr" style="font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: #222831; color: {{e.hue}};">{{e.who}}</span>
+            <span style="flex: 1; font-size: 13px; line-height: 20px;">{{e.what}}</span>
+            <span style="font-size: 11px; color: {{e.stateInk}};">{{e.state}}</span>
+          </li>
+        </sc-for>
+      </ul>
+    </section>
+
+    <section aria-label="شرکت‌ها" style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 600;">شرکت‌ها <span style="font-size: 12px; color: #848E9C; font-weight: 500;">(۳)</span></h2>
+        <button type="button" aria-label="جستجوی شرکت" style="width: 44px; height: 44px; border-radius: 999px; background: #171C24; border: 1px solid rgba(255,255,255,.10); color: #B7BDC6; display: flex; align-items: center; justify-content: center;">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+        </button>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" style="height: 32px; padding: 0 12px; border-radius: 999px; background: #D8A848; border: none; color: #0B0E11; font-size: 12px; font-weight: 700;">همه</button>
+        <button type="button" style="height: 32px; padding: 0 12px; border-radius: 999px; background: #171C24; border: 1px solid rgba(255,255,255,.10); color: #B7BDC6; font-size: 12px;">با هشدار</button>
+        <button type="button" style="height: 32px; padding: 0 12px; border-radius: 999px; background: #171C24; border: 1px solid rgba(255,255,255,.10); color: #B7BDC6; font-size: 12px;">در حال کار</button>
+      </div>
+      <sc-for list="{{companies}}" as="c" hint-placeholder-count="3">
+        <a href="#" style="text-decoration: none; color: inherit; padding: 12px 14px; border-radius: 14px; background: #10141B; border: 1px solid rgba(255,255,255,.08); display: flex; align-items: center; gap: 12px; min-height: 64px; box-sizing: border-box;">
+          <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 12px; background: #171C24; border: 2px solid {{c.hue}}; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;">{{c.code}}</span>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: 15px; font-weight: 600;">{{c.name}}</span>
+            <span style="font-size: 12px; color: #B7BDC6;">{{c.sub}}</span>
+          </span>
+          <span style="font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: {{c.tint}}; border: 1px solid {{c.border}}; color: {{c.ink}};">{{c.state}}</span>
+        </a>
+      </sc-for>
+      <button type="button" style="height: 48px; border-radius: 14px; background: transparent; border: 1px dashed rgba(255,255,255,.18); color: #B7BDC6; font-size: 13px;">+ افزودن شرکت</button>
+    </section>
+
+    <section aria-label="خزانه‌ی توکن" style="padding: 16px; border-radius: 16px; background: #10141B; border: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 16px; font-weight: 600;">خزانه‌ی توکن · امروز</span>
+        <a href="#" style="font-size: 12px;">جزئیات</a>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+        <div style="padding: 12px; border-radius: 12px; background: #171C24; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 12px; color: #B7BDC6;">ورودی</span><span dir="ltr" style="font-size: 20px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums;">1.24M</span></div>
+        <div style="padding: 12px; border-radius: 12px; background: #171C24; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 12px; color: #B7BDC6;">خروجی</span><span dir="ltr" style="font-size: 20px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums;">186K</span></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #B7BDC6;"><span>سهمیه‌ی ۵ ساعته‌ی اشتراک 20x</span><span dir="ltr">38%</span></div>
+        <div style="height: 6px; border-radius: 999px; background: #222831;"><div style="width: 38%; height: 6px; border-radius: 999px; background: #22AB94;"></div></div>
+      </div>
+    </section>
+
+    <section aria-label="پلنر امروز" style="padding: 16px; border-radius: 16px; background: #10141B; border: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 16px; font-weight: 600;">پلنر امروز</span>
+      <label style="display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; color: #848E9C; text-decoration: line-through;"><input type="checkbox" checked style="width: 20px; height: 20px; accent-color: #D8A848;">تأیید گزارش هفتگی CoinePro FX</label>
+      <label style="display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px;"><input type="checkbox" style="width: 20px; height: 20px; accent-color: #D8A848;">هیئت‌مدیره‌ی هلدینگ · ساعت ۱۰</label>
+      <label style="display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px;"><input type="checkbox" style="width: 20px; height: 20px; accent-color: #D8A848;">بررسی پیشنهاد استخدام SEO برای Pro-Chart</label>
+    </section>
+
+  </main>
+
+  <nav aria-label="ناوبری اصلی" style="height: 84px; box-sizing: border-box; padding: 6px 8px 14px; border-top: 1px solid rgba(255,255,255,.08); background: #10141B; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: end;">
+    <a href="#" aria-current="page" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #D8A848; font-size: 11px; font-weight: 600;">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>فرمان</a>
+    <a href="#" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #848E9C; font-size: 11px;">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"></path></svg>کارتابل</a>
+    <a href="#" aria-label="مشاور کل" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #F0F1F2; font-size: 11px; font-weight: 600;">
+      <span style="width: 56px; height: 56px; margin-top: -26px; border-radius: 999px; background: radial-gradient(circle at 35% 30%, #F0CC60 0%, #D8A848 45%, #966A1F 100%); border: 3px solid #0F0F0F; color: #0B0E11; display: flex; align-items: center; justify-content: center;">
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg>
+      </span>مشاور</a>
+    <a href="#" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #848E9C; font-size: 11px;">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"></circle><path d="M2 21a7 7 0 0 1 14 0"></path><path d="M16 4a4 4 0 0 1 0 8"></path><path d="M22 21a7 7 0 0 0-4-6.3"></path></svg>کارمندها</a>
+    <a href="#" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #848E9C; font-size: 11px;">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg>پیام‌ها</a>
+  </nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"khalvat":{"editor":"boolean","default":false},"$preview":{"width":390,"height":1960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const khalvat = this.props.khalvat ?? false;
+    return {
+      khalvat: khalvat,
+      dim: khalvat ? '0.82' : '1',
+      moonBg: khalvat ? '#D8A848' : '#171C24',
+      moonBorder: khalvat ? '#D8A848' : 'rgba(255,255,255,.10)',
+      moonInk: khalvat ? '#0B0E11' : '#B7BDC6',
+      pillars: [
+        { title: 'پایداری محصول', state: 'سالم', ink: '#22AB94', tint: '#13241F', border: '#1E5A4F', figure: '41/41', caption: 'سرویس سالم در ۳ شرکت', source: 'Prometheus · ۱ دقیقه پیش' },
+        { title: 'رشد و درآمد', state: 'در حال سنجش', ink: '#5B86FF', tint: '#151C30', border: '#2C3F80', figure: '+128', caption: 'کاربر رفرال‌شده‌ی تازه در این هفته', source: 'API افیلیت · ۱۲ دقیقه پیش' },
+        { title: 'ایمنی و هزینه‌ی ایجنت‌ها', state: 'در محدوده', ink: '#22AB94', tint: '#13241F', border: '#1E5A4F', figure: '0 · 38%', caption: 'نقض سیاست · مصرف بودجه‌ی امروز', source: 'خزانه‌ی توکن · زنده' }
+      ],
+      events: [
+        { who: 'TY-TECH-02', hue: '#4F8EF7', what: 'بررسی هشدار CPU سرور TradeYar', state: 'در حال اجرا', stateInk: '#D8A848' },
+        { who: 'FX-MKT-01', hue: '#E38B4F', what: 'پیش‌نویس مقاله‌ی هفتگی', state: '۷۲٪', stateInk: '#D8A848' },
+        { who: 'PC-SUP-01', hue: '#3FB6C6', what: 'پاسخ به ۴ پیام پشتیبانی', state: 'انجام شد', stateInk: '#22AB94' }
+      ],
+      companies: [
+        { code: 'TY', hue: '#4F8EF7', name: 'TradeYar', sub: 'مدیرعامل بیدار · ۲ کارمند در حال کار', state: 'سالم', ink: '#22AB94', tint: '#13241F', border: '#1E5A4F' },
+        { code: 'FX', hue: '#E38B4F', name: 'CoinePro FX', sub: 'مدیرعامل بیدار · ۲ کارمند در حال کار', state: '۱ هشدار', ink: '#F0B90B', tint: '#2A2416', border: '#6B5418' },
+        { code: 'PC', hue: '#3FB6C6', name: 'Pro-Chart', sub: 'مدیرعامل خواب · ۱ کارمند در حال کار', state: 'سالم', ink: '#22AB94', tint: '#13241F', border: '#1E5A4F' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

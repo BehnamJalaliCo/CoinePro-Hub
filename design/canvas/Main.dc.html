@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>پایه‌ی طراحی CoinePro HQ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"IRANYekanX";src:url("/_blob/f91f7bb82563538ae2f7b0fe28203ed6") format("truetype");font-weight:400;font-display:swap}
+@font-face{font-family:"IRANYekanX";src:url("/_blob/1397e7ac3e62c20d6a9162af84dfb2df") format("truetype");font-weight:500;font-display:swap}
+@font-face{font-family:"IRANYekanX";src:url("/_blob/0b4dccdc237d3fe80170315d9b1c60cc") format("truetype");font-weight:600;font-display:swap}
+@font-face{font-family:"IRANYekanX";src:url("/_blob/20c08a50de2fba89ec14a72226ee6f0a") format("truetype");font-weight:700;font-display:swap}
+body{margin:0}
+a{color:#D8A848}a:hover{color:#F0CC60}
+@keyframes hqBand{0%{background-position:200% 0}100%{background-position:0 0}}
+@keyframes hqPulse{0%{box-shadow:0 0 0 0 rgba(34,171,148,.45)}70%{box-shadow:0 0 0 8px rgba(34,171,148,0)}100%{box-shadow:0 0 0 0 rgba(34,171,148,0)}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div dir="rtl" style="width: 1200px; min-height: 1560px; box-sizing: border-box; padding: 56px 64px; background: #0F0F0F; color: #F0F1F2; font-family: IRANYekanX, Tahoma, sans-serif; display: flex; flex-direction: column; gap: 40px;">
+
+  <header style="display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div aria-hidden="true" style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #F0CC60 0%, #D8A848 45%, #966A1F 100%);"></div>
+      <h1 style="margin: 0; font-size: 28px; line-height: 36px; font-weight: 700;">CoinePro HQ · ستاد کوینه‌پرو</h1>
+    </div>
+    <p style="margin: 0; font-size: 15px; line-height: 24px; color: #B7BDC6;">پایه‌ی طراحی — پیشنهاد ۱ برای تأیید مالک. هم‌خانواده با Pro-Chart: همان فونت IRANYekanX، همان نردبان سطوح، همان طلایی برند <span dir="ltr">#D8A848</span>، و همان قوانین انضباط بصری.</p>
+  </header>
+
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">۱. نردبان سطوح (تم تیره)</h2>
+    <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px;">
+      <sc-for list="{{surfaces}}" as="s" hint-placeholder-count="7">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="height: 88px; border-radius: 12px; border: 1px solid rgba(255,255,255,.10); background: {{s.hex}};"></div>
+          <div style="font-size: 13px; font-weight: 600;">{{s.name}}</div>
+          <div dir="ltr" style="font-size: 12px; color: #848E9C; text-align: right;">{{s.hex}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px;">
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">۲. متن و خطوط</h2>
+      <div style="display: flex; flex-direction: column; gap: 10px; padding: 20px; background: #10141B; border-radius: 16px; border: 1px solid rgba(255,255,255,.08);">
+        <div style="font-size: 15px; color: #F0F1F2;">متن اصلی <span dir="ltr" style="color: #848E9C; font-size: 12px;">#F0F1F2</span></div>
+        <div style="font-size: 15px; color: #B7BDC6;">متن دوم <span dir="ltr" style="color: #848E9C; font-size: 12px;">#B7BDC6</span></div>
+        <div style="font-size: 15px; color: #848E9C;">متن کم‌رنگ <span dir="ltr" style="font-size: 12px;">#848E9C</span></div>
+        <div style="font-size: 15px; color: #6B7482;">غیرفعال <span dir="ltr" style="font-size: 12px;">#6B7482</span></div>
+        <div style="height: 1px; background: rgba(255,255,255,.08);"></div>
+        <div style="font-size: 13px; color: #B7BDC6;">خط ظریف ۸٪ · خط عادی ۱۰٪ · خط پررنگ ۱۸٪ سفید</div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">۳. رنگ‌های معنادار</h2>
+      <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px;">
+        <sc-for list="{{semantic}}" as="c" hint-placeholder-count="5">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="height: 64px; border-radius: 12px; background: {{c.hex}};"></div>
+            <div style="font-size: 13px; font-weight: 600;">{{c.name}}</div>
+            <div style="font-size: 12px; color: #848E9C; line-height: 18px;">{{c.use}}</div>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin: 0; font-size: 13px; line-height: 20px; color: #B7BDC6;">طلایی فقط برای اقدام اصلی، حالت انتخاب‌شده و برند. صفحه‌ای که بیش از یک‌دهم آن طلایی باشد، معنای طلایی را از دست داده است.</p>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">۴. پنج سطح اعلان (همیشه با آیکون و برچسب، هرگز فقط رنگ)</h2>
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px;">
+      <sc-for list="{{levels}}" as="l" hint-placeholder-count="5">
+        <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 12px; background: {{l.tint}}; border: 1px solid {{l.border}};">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span aria-hidden="true" style="width: 10px; height: 10px; border-radius: 999px; background: {{l.hex}};"></span>
+            <span style="font-size: 15px; font-weight: 600;">{{l.name}}</span>
+          </div>
+          <div style="font-size: 12px; line-height: 18px; color: #B7BDC6;">{{l.use}}</div>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin: 0; font-size: 13px; color: #848E9C;">رنگ کارت‌های معنادار: پایه‌ی سطح، ۸٪ به سمت رنگ معنا؛ خط دور، ۳۴٪ (همان فرمول Pro-Chart، نه شفافیت).</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">۵. رنگ شناسه‌ی شرکت‌ها (داده، نه کد؛ برای ۴۰ شرکت و بیشتر)</h2>
+    <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+      <sc-for list="{{companyHues}}" as="h" hint-placeholder-count="10">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: #171C24; border: 1px solid rgba(255,255,255,.08);">
+          <span aria-hidden="true" style="width: 22px; height: 22px; border-radius: 7px; background: {{h.hex}}; color: #0B0E11; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;">{{h.code}}</span>
+          <span dir="ltr" style="font-size: 12px; color: #B7BDC6;">{{h.hex}}</span>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin: 0; font-size: 13px; line-height: 20px; color: #848E9C;">هر شرکت یک رنگ از این پالت ۱۰تایی و یک کد دو حرفی میگیرد. از شرکت یازدهم، رنگ‌ها تکرار میشوند و کد، شناسه‌ی اصلی است. رنگ شرکت هرگز معنای وضعیت ندارد.</p>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px;">
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">۶. تایپوگرافی: IRANYekanX</h2>
+      <div style="display: flex; flex-direction: column; gap: 14px; padding: 20px; background: #10141B; border-radius: 16px; border: 1px solid rgba(255,255,255,.08);">
+        <div style="font-size: 28px; line-height: 36px; font-weight: 700;">نمایش ۲۸ · ستاد کوینه‌پرو</div>
+        <div style="font-size: 20px; line-height: 28px; font-weight: 600;">عنوان ۲۰ · کارتابل تصمیم</div>
+        <div style="font-size: 15px; line-height: 24px; font-weight: 400;">متن ۱۵ · مدیرعامل TradeYar گزارش هفتگی را فرستاد.</div>
+        <div style="font-size: 12px; line-height: 18px; font-weight: 500; color: #B7BDC6;">کپشن ۱۲ · منبع: Prometheus · ۲ دقیقه پیش</div>
+        <div style="height: 1px; background: rgba(255,255,255,.08);"></div>
+        <div style="font-size: 13px; line-height: 20px; color: #B7BDC6;">عدد و آمار با ارقام لاتین، جدولی و جدا از جهت متن: <span dir="ltr" style="font-variant-numeric: tabular-nums; color: #F0F1F2;">1,284,500</span> — شمارش در متن با ارقام فارسی: «۳ تصمیم».</div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">۷. شکل، فاصله و حرکت</h2>
+      <div style="display: flex; flex-direction: column; gap: 14px; padding: 20px; background: #10141B; border-radius: 16px; border: 1px solid rgba(255,255,255,.08);">
+        <div style="display: flex; align-items: flex-end; gap: 12px;">
+          <sc-for list="{{radii}}" as="r" hint-placeholder-count="6">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+              <div style="width: 48px; height: 48px; background: #222831; border: 1px solid rgba(255,255,255,.18); border-radius: {{r.px}};"></div>
+              <span style="font-size: 11px; color: #848E9C;">{{r.name}}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size: 13px; line-height: 20px; color: #B7BDC6;">شبکه‌ی ۸ با نیم‌گام ۴ · هدف لمسی حداقل ۴۸ · حرکت: <span dir="ltr">100 / 160 / 240ms</span> روی <span dir="ltr">cubic-bezier(.2, 0, 0, 1)</span></div>
+        <div style="font-size: 13px; line-height: 20px; color: #B7BDC6;">قوانین: بدون blur · بدون سایه‌ی رنگی · گرادیان فقط برای لوگو، گوی مشاور و نوار «کار در جریان» · هر انیمیشن یعنی یک تغییر واقعی · احترام به «کاهش حرکت» سیستم</div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">۸. نشانه‌های ویژه‌ی HQ</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; background: #10141B; border-radius: 16px; border: 1px solid rgba(255,255,255,.08);">
+        <div aria-hidden="true" style="width: 64px; height: 64px; border-radius: 999px; background: radial-gradient(circle at 35% 30%, #F0CC60 0%, #D8A848 45%, #966A1F 100%);"></div>
+        <div style="font-size: 15px; font-weight: 600;">گوی مشاور کل</div>
+        <div style="font-size: 12px; color: #848E9C; text-align: center;">همیشه در دسترس؛ با لمس، چت و صدا</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; background: #10141B; border-radius: 16px; border: 1px solid rgba(255,255,255,.08);">
+        <div style="display: flex; gap: 10px;">
+          <button type="button" aria-label="خلوت خاموش" style="width: 48px; height: 48px; border-radius: 999px; background: #171C24; border: 1px solid rgba(255,255,255,.18); color: #B7BDC6; display: flex; align-items: center; justify-content: center;">
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"></path></svg>
+          </button>
+          <button type="button" aria-label="خلوت روشن" style="width: 48px; height: 48px; border-radius: 999px; background: #D8A848; border: 1px solid #D8A848; color: #0B0E11; display: flex; align-items: center; justify-content: center;">
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"></path></svg>
+          </button>
+        </div>
+        <div style="font-size: 15px; font-weight: 600;">دکمه‌ی «خلوت»</div>
+        <div style="font-size: 12px; color: #848E9C; text-align: center;">خاموش · روشن (فقط اعلان فوری)</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 24px; background: #10141B; border-radius: 16px; border: 1px solid rgba(255,255,255,.08);">
+        <div aria-hidden="true" style="height: 6px; border-radius: 999px; background: linear-gradient(90deg, rgba(216,168,72,0) 0%, #D8A848 50%, rgba(216,168,72,0) 100%); background-size: 200% 100%; animation: hqBand 1.6s linear infinite;"></div>
+        <div style="font-size: 15px; font-weight: 600; text-align: center;">نوار «کار در جریان»</div>
+        <div style="font-size: 12px; color: #848E9C; text-align: center;">فقط وقتی کاری واقعاً در حال اجراست</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; background: #10141B; border-radius: 16px; border: 1px solid rgba(255,255,255,.08);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span aria-hidden="true" style="width: 10px; height: 10px; border-radius: 999px; background: #22AB94; animation: hqPulse 2s ease-out infinite;"></span>
+          <span style="font-size: 13px; font-weight: 600; color: #22AB94;">زنده</span>
+        </div>
+        <div style="font-size: 15px; font-weight: 600;">نشانه‌ی «زنده»</div>
+        <div style="font-size: 12px; color: #848E9C; text-align: center;">فقط روی داده‌ای که واقعاً زنده است</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1560}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      surfaces: [
+        { name: 'صفحه', hex: '#0F0F0F' },
+        { name: 'کارت', hex: '#10141B' },
+        { name: 'کاشی', hex: '#171C24' },
+        { name: 'برجسته', hex: '#222831' },
+        { name: 'پوشش', hex: '#1E2329' },
+        { name: 'هاور', hex: '#252A31' },
+        { name: 'فشرده', hex: '#2B3139' }
+      ],
+      semantic: [
+        { name: 'طلایی برند', hex: '#D8A848', use: 'اقدام اصلی، انتخاب، برند' },
+        { name: 'آبی تحلیل', hex: '#2962FF', use: 'گزارش، داده، تحلیل' },
+        { name: 'مثبت', hex: '#22AB94', use: 'سالم، موفق، رشد' },
+        { name: 'منفی', hex: '#F6465D', use: 'خطا، خطر، افت' },
+        { name: 'هشدار', hex: '#F0B90B', use: 'نیاز به توجه' }
+      ],
+      levels: [
+        { name: 'فوری', hex: '#F6465D', tint: '#2A1A20', border: '#6B2C37', use: 'خرابی، امنیت، پول. حتی در «خلوت» میرسد.' },
+        { name: 'تصمیم', hex: '#F0B90B', tint: '#2A2416', border: '#6B5418', use: 'کارتابل تصمیم؛ دسته‌ای و آرام' },
+        { name: 'گزارش', hex: '#2962FF', tint: '#151C30', border: '#2C3F80', use: 'گزارش و پیشنهاد مدیرعامل‌ها' },
+        { name: 'اطلاع', hex: '#22AB94', tint: '#13241F', border: '#1E5A4F', use: 'خروجی‌ها و پیشرفت؛ بی‌صدا' },
+        { name: 'یادگیری', hex: '#8B7CF6', tint: '#1D1B2E', border: '#45407A', use: 'سؤال یک‌لمسی سیستم از مالک' }
+      ],
+      companyHues: [
+        { code: 'TY', hex: '#4F8EF7' }, { code: 'FX', hex: '#E38B4F' }, { code: 'PC', hex: '#3FB6C6' },
+        { code: '04', hex: '#E06C9F' }, { code: '05', hex: '#A3C94F' }, { code: '06', hex: '#8FA3BF' },
+        { code: '07', hex: '#F08C7A' }, { code: '08', hex: '#6EC1F0' }, { code: '09', hex: '#B07CC6' },
+        { code: '10', hex: '#8DB89A' }
+      ],
+      radii: [
+        { name: '4', px: '4px' }, { name: '8', px: '8px' }, { name: '12', px: '12px' },
+        { name: '16', px: '16px' }, { name: '24', px: '24px' }, { name: 'گرد', px: '999px' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
