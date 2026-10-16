@@ -76,7 +76,12 @@ async def test_heartbeat_writes_and_removes(tmp_path: Path) -> None:
     assert not heartbeat.is_fresh(tmp_path / "missing.json")
 
 
-def _bao_transport(calls: list[str], kv_status: int = 200) -> httpx.MockTransport:
+def _bao_transport(
+    calls: list[str], kv_status: int = 200, writes: list[dict[str, object]] | None = None
+) -> httpx.MockTransport:
+    if writes is None:
+        writes = []
+
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(f"{request.method} {request.url.path}")
         if request.url.path == "/v1/auth/approle/login":
@@ -88,6 +93,9 @@ def _bao_transport(calls: list[str], kv_status: int = 200) -> httpx.MockTranspor
             return httpx.Response(403)
         if kv_status != 200:
             return httpx.Response(kv_status)
+        if request.method == "POST":
+            writes.append(json.loads(request.content))
+            return httpx.Response(200, json={"data": {"version": 2}})
         return httpx.Response(200, json={"data": {"data": {"k": "v"}}})
 
     return httpx.MockTransport(handler)
@@ -114,3 +122,20 @@ async def test_openbao_errors(tmp_path: Path) -> None:
     with pytest.raises(OpenBaoError):
         await missing.read_kv("x")
     assert time.time() > 0
+
+
+async def test_openbao_write(tmp_path: Path) -> None:
+    creds = tmp_path / "approle.json"
+    creds.write_text(json.dumps({"role_id": "r", "secret_id": "s"}))
+    calls: list[str] = []
+    writes: list[dict[str, object]] = []
+    client = OpenBaoClient("http://bao", creds, transport=_bao_transport(calls, writes=writes))
+    await client.write_kv("llm-connections/openai", {"api_key": "k-secret"})
+    assert calls[-1] == "POST /v1/kv/data/llm-connections/openai"
+    assert writes == [{"data": {"api_key": "k-secret"}}]
+    failing = OpenBaoClient("http://bao", creds, transport=_bao_transport([], kv_status=500))
+    with pytest.raises(OpenBaoError) as info:
+        await failing.write_kv("llm-connections/openai", {"api_key": "k-secret"})
+    assert "k-secret" not in str(info.value)
+    await client.aclose()
+    await failing.aclose()
