@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>D1 · توکن‌های دیوان</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"IRANYekanXVF";src:url("/_blob/9172fd7cad232bfd03d4cf5a930ad8cb") format("woff2");font-weight:100 1000;font-display:swap}
+@font-face{font-family:"IRANYekanXFaNumVF";src:url("/_blob/00bf1c2f101b27198e8f56fd16ce2176") format("woff2");font-weight:100 1000;font-display:swap}
+body{margin:0;background:#0B0D14}
+a{color:#D8A848}a:hover{color:#F0CC60}
+@media (prefers-reduced-motion: reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div dir="rtl" style="width: 1600px; min-height: 2360px; box-sizing: border-box; padding: 56px 56px 64px; background: #0B0D14; color: #F2EEE4; font-family: 'IRANYekanXFaNumVF', 'IRANYekanXVF', Tahoma, sans-serif; display: flex; flex-direction: column; gap: 36px;">
+
+  <header style="display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; align-items: baseline; justify-content: space-between;">
+      <h1 style="margin: 0; font-size: 30px; line-height: 38px; font-weight: 600;">D1 · توکن‌های دیوان <span style="font-size: 14px; font-weight: 500; color: #B9B4A6;">نسخه‌ی 1.0.0-d1</span></h1>
+      <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 12px; letter-spacing: .14em; color: #857F72;">design/tokens/divan.tokens.json</span>
+    </div>
+    <div aria-hidden="true" style="height: 1px; background: rgba(216,168,72,.28);"></div>
+    <p style="margin: 0; font-size: 14px; line-height: 24px; color: #B9B4A6;">منبع واحد حقیقت برای وب و اندروید. عددهای کنتراست همین‌جا و زنده محاسبه میشوند؛ هر رنگ متن باید روی کاشی هم دست‌کم ۴٫۵:۱ باشد.</p>
+  </header>
+
+  <!-- A. surfaces + text, both themes -->
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px;">
+    <sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+      <div style="padding: 22px; border-radius: 16px; background: {{t.page}}; color: {{t.text}}; border: 1px solid {{t.border}}; display: flex; flex-direction: column; gap: 18px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 18px; font-weight: 600;">{{t.name}}</span>
+          <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 11px; color: {{t.muted}};">{{t.key}}</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 12px; color: {{t.muted}};">نردبان سطوح</span>
+          <div style="display: flex; gap: 6px;">
+            <sc-for list="{{t.ladder}}" as="s" hint-placeholder-count="7">
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                <div style="height: 44px; border-radius: 8px; background: {{s.hex}}; border: 1px solid {{t.border}};"></div>
+                <span style="font-size: 10px; color: {{t.muted}};">{{s.name}}</span>
+                <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 10px; color: {{t.muted}}; text-align: right;">{{s.hex}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 12px; color: {{t.muted}};">متن و رنگ‌های نقش‌دار · کنتراست روی صفحه / کاشی</span>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px;">
+            <sc-for list="{{t.roles}}" as="r" hint-placeholder-count="10">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; background: {{t.tile}};">
+                <span aria-hidden="true" style="width: 18px; height: 18px; border-radius: 5px; background: {{r.hex}}; flex: none;"></span>
+                <span style="flex: 1; font-size: 12px; color: {{r.hex}}; font-weight: 600;">{{r.name}}</span>
+                <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 11px; color: {{t.muted}};">{{r.hex}}</span>
+                <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 11px; font-weight: 700; color: {{r.ok}}; min-width: 72px; text-align: right;">{{r.cPage}} / {{r.cTile}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 12px; color: {{t.muted}};">خطوط</span>
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
+            <sc-for list="{{t.lines}}" as="l" hint-placeholder-count="4">
+              <div style="display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 8px; background: {{t.card}};">
+                <div style="height: 1px; background: {{l.css}};"></div>
+                <span style="font-size: 11px; color: {{t.muted}};">{{l.name}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-for>
+  </section>
+
+  <!-- B. metals, levels, companies -->
+  <section style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px;">
+    <div style="padding: 20px; border-radius: 16px; background: #10131C; display: flex; flex-direction: column; gap: 12px;">
+      <span style="font-size: 15px; font-weight: 600;">دو فلز و لاجورد</span>
+      <sc-for list="{{metals}}" as="m" hint-placeholder-count="8">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 8px; background: {{m.hex}}; flex: none;"></span>
+          <span style="flex: 1; font-size: 13px;">{{m.name}}</span>
+          <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 11px; color: #857F72;">{{m.hex}}</span>
+        </div>
+      </sc-for>
+      <p style="margin: 4px 0 0; font-size: 12px; line-height: 19px; color: #857F72;">طلا = اقتدار مالک. نقره = ایجنت‌ها و سیستم. لاجورد = تحلیل و گزارش.</p>
+    </div>
+    <div style="padding: 20px; border-radius: 16px; background: #10131C; display: flex; flex-direction: column; gap: 12px;">
+      <span style="font-size: 15px; font-weight: 600;">پنج سطح اعلان</span>
+      <sc-for list="{{levels}}" as="l" hint-placeholder-count="5">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: {{l.tint}}; border: 1px solid {{l.border}};">
+          <span aria-hidden="true" style="width: 10px; height: 10px; border-radius: 999px; background: {{l.hex}}; flex: none;"></span>
+          <span style="flex: 1; font-size: 13px; font-weight: 600;">{{l.name}}</span>
+          <span style="font-size: 11px; color: #B9B4A6;">{{l.use}}</span>
+        </div>
+      </sc-for>
+      <p style="margin: 4px 0 0; font-size: 12px; line-height: 19px; color: #857F72;">کارت معنادار: پایه‌ی سطح ۸٪ به سمت رنگ، خط دور ۳۴٪. همیشه آیکون و برچسب.</p>
+    </div>
+    <div style="padding: 20px; border-radius: 16px; background: #10131C; display: flex; flex-direction: column; gap: 12px;">
+      <span style="font-size: 15px; font-weight: 600;">رنگ شناسه‌ی شرکت‌ها (۱۰، چرخشی)</span>
+      <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;">
+        <sc-for list="{{companies}}" as="c" hint-placeholder-count="10">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+            <span dir="ltr" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: {{c.hex}}; color: #0B0D14; font-family: 'IRANYekanXVF', sans-serif; font-size: 12px; font-weight: 700; clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);">{{c.code}}</span>
+            <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 10px; color: #857F72;">{{c.hex}}</span>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin: 4px 0 0; font-size: 12px; line-height: 19px; color: #857F72;">هم‌روشنایی، تا هیچ شرکتی «مهم‌تر» دیده نشود. رنگ شرکت هرگز معنای وضعیت ندارد.</p>
+    </div>
+  </section>
+
+  <!-- C. chart palettes -->
+  <section style="padding: 20px; border-radius: 16px; background: #10131C; display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 24px;">
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 15px; font-weight: 600;">نمودار · دسته‌ای (۸)</span>
+      <div style="display: flex; gap: 6px;">
+        <sc-for list="{{chartCat}}" as="c" hint-placeholder-count="8"><div style="flex: 1; height: 40px; border-radius: 8px; background: {{c.hex}};"></div></sc-for>
+      </div>
+      <span style="font-size: 12px; color: #857F72;">اول لاجورد، بعد طلا؛ قرمز فقط برای منفی و هرگز به‌عنوان دسته.</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 15px; font-weight: 600;">ترتیبی طلایی (۵)</span>
+      <div style="display: flex; gap: 6px;">
+        <sc-for list="{{chartSeq}}" as="c" hint-placeholder-count="5"><div style="flex: 1; height: 40px; border-radius: 8px; background: {{c.hex}};"></div></sc-for>
+      </div>
+      <span style="font-size: 12px; color: #857F72;">شدت مصرف، تراکم کار، گرمای سهمیه.</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 15px; font-weight: 600;">واگرا</span>
+      <div style="display: flex; gap: 6px;">
+        <div style="flex: 1; height: 40px; border-radius: 8px; background: #F6465D;"></div><div style="flex: 1; height: 40px; border-radius: 8px; background: #888275;"></div><div style="flex: 1; height: 40px; border-radius: 8px; background: #22AB94;"></div>
+      </div>
+      <span style="font-size: 12px; color: #857F72;">افت / خنثی / رشد؛ همیشه با علامت.</span>
+    </div>
+  </section>
+
+  <!-- D. typography -->
+  <section style="padding: 22px; border-radius: 16px; background: #10131C; display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px;">
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <span style="font-size: 15px; font-weight: 600;">تایپوگرافی · IRANYekanX Pro، متغیر</span>
+      <sc-for list="{{type}}" as="t" hint-placeholder-count="7">
+        <div style="display: flex; align-items: baseline; gap: 16px; border-bottom: 1px solid rgba(216,168,72,.12); padding-bottom: 8px;">
+          <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 11px; color: #857F72; min-width: 96px; text-align: right;">{{t.spec}}</span>
+          <span style="font-size: {{t.size}}; line-height: {{t.lh}}; font-weight: {{t.weight}};">{{t.sample}}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <span style="font-size: 15px; font-weight: 600;">قواعد ارقام و وزن</span>
+      <div style="padding: 14px; border-radius: 10px; background: #161A25; display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 12px; color: #857F72;">ارقام بازار: واریانت لاتین، جدولی، ltr</span>
+        <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right;">68,420.50 <span style="font-size: 14px; color: #22AB94;">+1.8%</span></span>
+        <div aria-hidden="true" style="height: 1px; background: rgba(216,168,72,.3);"></div>
+        <span style="font-size: 12px; color: #857F72;">شمارش در متن: واریانت ارقام فارسی</span>
+        <span style="font-size: 15px;">۱۲۸ کاربر تازه · ۳ تصمیم · ۷ خروجی</span>
+      </div>
+      <div style="padding: 14px; border-radius: 10px; background: #161A25; display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 12px; color: #857F72;">وزن‌ها</span>
+        <div style="display: flex; gap: 14px; flex-wrap: wrap; font-size: 15px;"><span style="font-weight: 400;">۴۰۰ متن</span><span style="font-weight: 500;">۵۰۰ برچسب</span><span style="font-weight: 600;">۶۰۰ عنوان</span><span style="font-weight: 700;">۷۰۰ رقم مهم</span></div>
+        <span style="font-size: 12px; color: #857F72;">محور dots: نشان‌نوشته ۲، عنوان تشریفاتی ۱، متن ۰</span>
+        <div style="display: flex; gap: 18px; align-items: baseline;"><span style="font-size: 22px; font-weight: 600; font-variation-settings: 'dots' 0;">فرمان</span><span style="font-size: 22px; font-weight: 600; font-variation-settings: 'dots' 1;">فرمان</span><span style="font-size: 22px; font-weight: 600; font-variation-settings: 'dots' 2;">فرمان</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- E. space, radius, size, motion -->
+  <section style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 24px;">
+    <div style="padding: 20px; border-radius: 16px; background: #10131C; display: flex; flex-direction: column; gap: 12px;">
+      <span style="font-size: 15px; font-weight: 600;">فاصله (شبکه‌ی ۸ با نیم‌گام ۴)</span>
+      <div style="display: flex; align-items: flex-end; gap: 8px;">
+        <sc-for list="{{space}}" as="s" hint-placeholder-count="10">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+            <div style="width: {{s.px}}; height: {{s.px}}; background: rgba(216,168,72,.35); border: 1px solid #D8A848; border-radius: 3px;"></div>
+            <span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; font-size: 10px; color: #857F72;">{{s.n}}</span>
+          </div>
+        </sc-for>
+      </div>
+      <span style="font-size: 15px; font-weight: 600; margin-top: 8px;">شعاع و هندسه</span>
+      <div style="display: flex; align-items: flex-end; gap: 12px;">
+        <sc-for list="{{radii}}" as="r" hint-placeholder-count="5">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+            <div style="width: 48px; height: 48px; background: #1E2330; border: 1px solid rgba(242,238,228,.18); border-radius: {{r.px}};"></div>
+            <span style="font-size: 10px; color: #857F72;">{{r.name}}</span>
+          </div>
+        </sc-for>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;"><div style="width: 48px; height: 48px; background: #1E2330; border: 1px solid rgba(242,238,228,.18); clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);"></div><span style="font-size: 10px; color: #857F72;">هشت‌ضلعی</span></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;"><div style="width: 64px; height: 48px; background: #1E2330; border: 1px solid rgba(216,168,72,.4); clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);"></div><span style="font-size: 10px; color: #857F72;">کتیبه</span></div>
+      </div>
+    </div>
+    <div style="padding: 20px; border-radius: 16px; background: #10131C; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 15px; font-weight: 600;">اندازه‌ها و خط</span>
+      <sc-for list="{{sizes}}" as="s" hint-placeholder-count="7">
+        <div style="display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px solid rgba(242,238,228,.06); padding-bottom: 6px;"><span>{{s.name}}</span><span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; color: #B9B4A6;">{{s.val}}</span></div>
+      </sc-for>
+    </div>
+    <div style="padding: 20px; border-radius: 16px; background: #10131C; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 15px; font-weight: 600;">حرکت، ارتفاع، صدا</span>
+      <sc-for list="{{motion}}" as="m" hint-placeholder-count="6">
+        <div style="display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px solid rgba(242,238,228,.06); padding-bottom: 6px;"><span>{{m.name}}</span><span dir="ltr" style="font-family: 'IRANYekanXVF', sans-serif; color: #B9B4A6;">{{m.val}}</span></div>
+      </sc-for>
+      <p style="margin: 6px 0 0; font-size: 12px; line-height: 19px; color: #857F72;">عمق با نردبان و فاصله، نه سایه. حداکثر یک سایه‌ی سیاه نرم، فقط روی پوشش. بدون blur، بدون سایه‌ی رنگی. صدا: زنگ بم برای فوری، کاغذ برای مُهر، بقیه سکوت.</p>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":2360}}'>
+class Component extends DCLogic {
+  lum(hex) {
+    const h = hex.replace('#', '');
+    const c = [0, 2, 4].map((i) => parseInt(h.substr(i, 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  cr(a, b) { const la = this.lum(a), lb = this.lum(b); const hi = Math.max(la, lb), lo = Math.min(la, lb); return ((hi + 0.05) / (lo + 0.05)); }
+  renderVals() {
+    const mk = (t) => t.roles.map((r) => {
+      const cp = this.cr(r.hex, t.page), ct = this.cr(r.hex, t.tile);
+      return { ...r, cPage: cp.toFixed(2), cTile: ct.toFixed(2), ok: ct >= 4.5 ? (t.key === 'night' ? '#22AB94' : '#0E7765') : '#F6465D' };
+    });
+    const night = { key: 'night', name: 'شب', page: '#0B0D14', card: '#10131C', tile: '#161A25', text: '#F2EEE4', muted: '#888275', border: 'rgba(242,238,228,.08)',
+      ladder: [{name:'صفحه',hex:'#0B0D14'},{name:'کارت',hex:'#10131C'},{name:'کاشی',hex:'#161A25'},{name:'برجسته',hex:'#1E2330'},{name:'پوشش',hex:'#1A1F2B'},{name:'هاور',hex:'#232938'},{name:'فشرده',hex:'#2A3142'}],
+      roles: [{name:'متن اصلی',hex:'#F2EEE4'},{name:'متن دوم',hex:'#B9B4A6'},{name:'متن کم‌رنگ',hex:'#888275'},{name:'طلا',hex:'#D8A848'},{name:'نقره',hex:'#AEB8C7'},{name:'لاجورد',hex:'#6E95FF'},{name:'مثبت',hex:'#22AB94'},{name:'منفی',hex:'#F6465D'},{name:'هشدار',hex:'#F0B90B'},{name:'یادگیری',hex:'#8B7CF6'}],
+      lines: [{name:'ظریف · طلایی ۱۲٪',css:'rgba(216,168,72,.12)'},{name:'جداکننده · عاجی ۱۰٪',css:'rgba(242,238,228,.10)'},{name:'پررنگ · عاجی ۱۸٪',css:'rgba(242,238,228,.18)'},{name:'تحریر · طلایی ۳۰٪',css:'rgba(216,168,72,.30)'}] };
+    const day = { key: 'day', name: 'روز', page: '#F3EEE3', card: '#FAF7F0', tile: '#EFE9DC', text: '#1C1A17', muted: '#6F695C', border: 'rgba(28,26,23,.10)',
+      ladder: [{name:'صفحه',hex:'#F3EEE3'},{name:'کارت',hex:'#FAF7F0'},{name:'کاشی',hex:'#EFE9DC'},{name:'برجسته',hex:'#E6DFCF'},{name:'پوشش',hex:'#ECE5D6'},{name:'هاور',hex:'#E9E2D2'},{name:'فشرده',hex:'#DFD7C5'}],
+      roles: [{name:'متن اصلی',hex:'#1C1A17'},{name:'متن دوم',hex:'#5A554B'},{name:'متن کم‌رنگ',hex:'#6F695C'},{name:'طلای مرکبی',hex:'#896217'},{name:'نقره (گرافیت)',hex:'#5A5F66'},{name:'لاجورد',hex:'#2E4A9E'},{name:'مثبت',hex:'#0E7765'},{name:'منفی',hex:'#C52F3C'},{name:'هشدار',hex:'#8F6000'},{name:'یادگیری',hex:'#5B4BC4'}],
+      lines: [{name:'ظریف · طلایی ۱۶٪',css:'rgba(138,99,24,.16)'},{name:'جداکننده · مرکب ۱۰٪',css:'rgba(28,26,23,.10)'},{name:'پررنگ · مرکب ۲۰٪',css:'rgba(28,26,23,.20)'},{name:'تحریر · طلایی ۳۵٪',css:'rgba(138,99,24,.35)'}] };
+    night.roles = mk(night); day.roles = mk(day);
+    return {
+      themes: [night, day],
+      metals: [{name:'طلا · fill و ink شب',hex:'#D8A848'},{name:'طلا · روشن',hex:'#F0CC60'},{name:'طلا · تیره',hex:'#966A1F'},{name:'طلا · مرکبی (روز)',hex:'#896217'},{name:'نقره · fill شب',hex:'#DBDBDB'},{name:'نقره · ink شب',hex:'#AEB8C7'},{name:'نقره · گرافیت (روز)',hex:'#5A5F66'},{name:'لاجورد شب / روز',hex:'#6E95FF'}],
+      levels: [{name:'فوری',hex:'#F6465D',tint:'#2A1A20',border:'#6B2C37',use:'حتی در خلوت'},{name:'تصمیم',hex:'#F0B90B',tint:'#2A2416',border:'#6B5418',use:'دسته‌ای'},{name:'گزارش',hex:'#6E95FF',tint:'#151C30',border:'#2C3F80',use:'ریتم ثابت'},{name:'اطلاع',hex:'#22AB94',tint:'#13241F',border:'#1E5A4F',use:'بی‌صدا'},{name:'یادگیری',hex:'#8B7CF6',tint:'#1D1B2E',border:'#45407A',use:'یک‌لمسی'}],
+      companies: [{code:'01',hex:'#8FB4FF'},{code:'02',hex:'#F0B37E'},{code:'03',hex:'#8CD3DE'},{code:'04',hex:'#F0A3C4'},{code:'05',hex:'#C3D98A'},{code:'06',hex:'#CDB5E6'},{code:'07',hex:'#F2B8A6'},{code:'08',hex:'#9AD2F2'},{code:'09',hex:'#D9C58A'},{code:'10',hex:'#A7D4B8'}],
+      chartCat: ['#6E95FF','#D8A848','#22AB94','#B07CC6','#E38B4F','#8DB89A','#6EC1F0','#E06C9F'].map((hex) => ({ hex })),
+      chartSeq: ['#3A2F18','#6E5323','#A37A2F','#D8A848','#F0CC60'].map((hex) => ({ hex })),
+      type: [
+        {spec:'display 32/40 · 600',size:'32px',lh:'40px',weight:'600',sample:'ستاد کوینه‌پرو'},
+        {spec:'h1 26/34 · 600',size:'26px',lh:'34px',weight:'600',sample:'صبح بخیر، مدیر کل'},
+        {spec:'h2 20/28 · 600',size:'20px',lh:'28px',weight:'600',sample:'کارتابل تصمیم'},
+        {spec:'h3 17/26 · 600',size:'17px',lh:'26px',weight:'600',sample:'پیشنهاد استخدام متخصص SEO'},
+        {spec:'body 15/24 · 400',size:'15px',lh:'24px',weight:'400',sample:'مدیرعامل TradeYar گزارش هفتگی را فرستاد.'},
+        {spec:'caption 12/18 · 500',size:'12px',lh:'18px',weight:'500',sample:'منبع: Prometheus · ۲ دقیقه پیش'},
+        {spec:'micro 11/16 · 500',size:'11px',lh:'16px',weight:'500',sample:'TY-MKT-01 · در حال اجرا'}
+      ],
+      space: [4,8,12,16,20,24,32,40,48,64].map((n) => ({ n: String(n), px: n + 'px' })),
+      radii: [{name:'xs 6',px:'6px'},{name:'sm 10',px:'10px'},{name:'md 14',px:'14px'},{name:'lg 20',px:'20px'},{name:'گرد',px:'999px'}],
+      sizes: [{name:'هدف لمسی',val:'48px'},{name:'آیکون',val:'18 / 22px'},{name:'نشان شرکت و کارمند',val:'40px'},{name:'مُهر',val:'72px · hold 600ms'},{name:'گوی مشاور',val:'56px'},{name:'خط ظریف و تحریر',val:'1px'},{name:'خط نشان',val:'2px'}],
+      motion: [{name:'ریز',val:'120ms'},{name:'وضعیت',val:'200ms'},{name:'گذار',val:'320ms'},{name:'تشریفات',val:'480ms'},{name:'منحنی عادی',val:'cubic-bezier(.2,0,0,1)'},{name:'منحنی تشریفات',val:'cubic-bezier(.3,0,.1,1)'}]
+    };
+  }
+}
+</script>
+</body>
+</html>

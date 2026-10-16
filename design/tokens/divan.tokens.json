@@ -1,0 +1,879 @@
+{
+ "$schema": "https://design-tokens.github.io/community-group/format/",
+ "divan": {
+  "meta": {
+   "name": {
+    "$type": "string",
+    "$value": "Divan — CoinePro HQ design tokens"
+   },
+   "version": {
+    "$type": "string",
+    "$value": "1.0.0-d1"
+   },
+   "themes": {
+    "$type": "string",
+    "$value": "night,day"
+   },
+   "note": {
+    "$type": "string",
+    "$value": "Single source of truth. CSS variables (web) and Compose theme (Android) are generated from this file; never hand-edit the outputs."
+   }
+  },
+  "color": {
+   "primitive": {
+    "gold": {
+     "500": {
+      "$type": "color",
+      "$value": "#D8A848"
+     },
+     "300": {
+      "$type": "color",
+      "$value": "#F0CC60"
+     },
+     "700": {
+      "$type": "color",
+      "$value": "#966A1F"
+     },
+     "ink": {
+      "$type": "color",
+      "$value": "#896217"
+     }
+    },
+    "silver": {
+     "300": {
+      "$type": "color",
+      "$value": "#DBDBDB"
+     },
+     "500": {
+      "$type": "color",
+      "$value": "#AEB8C7"
+     },
+     "graphite": {
+      "$type": "color",
+      "$value": "#5A5F66"
+     }
+    },
+    "lapis": {
+     "night": {
+      "$type": "color",
+      "$value": "#6E95FF"
+     },
+     "day": {
+      "$type": "color",
+      "$value": "#2E4A9E"
+     }
+    },
+    "ivory": {
+     "100": {
+      "$type": "color",
+      "$value": "#F2EEE4"
+     },
+     "300": {
+      "$type": "color",
+      "$value": "#B9B4A6"
+     },
+     "500": {
+      "$type": "color",
+      "$value": "#888275"
+     }
+    },
+    "ink": {
+     "900": {
+      "$type": "color",
+      "$value": "#1C1A17"
+     },
+     "700": {
+      "$type": "color",
+      "$value": "#5A554B"
+     },
+     "500": {
+      "$type": "color",
+      "$value": "#6F695C"
+     }
+    },
+    "night": {
+     "page": {
+      "$type": "color",
+      "$value": "#0B0D14"
+     },
+     "card": {
+      "$type": "color",
+      "$value": "#10131C"
+     },
+     "tile": {
+      "$type": "color",
+      "$value": "#161A25"
+     },
+     "raised": {
+      "$type": "color",
+      "$value": "#1E2330"
+     },
+     "overlay": {
+      "$type": "color",
+      "$value": "#1A1F2B"
+     },
+     "hover": {
+      "$type": "color",
+      "$value": "#232938"
+     },
+     "pressed": {
+      "$type": "color",
+      "$value": "#2A3142"
+     }
+    },
+    "day": {
+     "page": {
+      "$type": "color",
+      "$value": "#F3EEE3"
+     },
+     "card": {
+      "$type": "color",
+      "$value": "#FAF7F0"
+     },
+     "tile": {
+      "$type": "color",
+      "$value": "#EFE9DC"
+     },
+     "raised": {
+      "$type": "color",
+      "$value": "#E6DFCF"
+     },
+     "overlay": {
+      "$type": "color",
+      "$value": "#ECE5D6"
+     },
+     "hover": {
+      "$type": "color",
+      "$value": "#E9E2D2"
+     },
+     "pressed": {
+      "$type": "color",
+      "$value": "#DFD7C5"
+     }
+    },
+    "positive": {
+     "night": {
+      "$type": "color",
+      "$value": "#22AB94"
+     },
+     "day": {
+      "$type": "color",
+      "$value": "#0E7765"
+     }
+    },
+    "negative": {
+     "night": {
+      "$type": "color",
+      "$value": "#F6465D"
+     },
+     "day": {
+      "$type": "color",
+      "$value": "#C52F3C"
+     }
+    },
+    "warning": {
+     "night": {
+      "$type": "color",
+      "$value": "#F0B90B"
+     },
+     "day": {
+      "$type": "color",
+      "$value": "#8F6000"
+     }
+    },
+    "learning": {
+     "night": {
+      "$type": "color",
+      "$value": "#8B7CF6"
+     },
+     "day": {
+      "$type": "color",
+      "$value": "#5B4BC4"
+     }
+    }
+   },
+   "night": {
+    "surface": {
+     "page": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.night.page}"
+     },
+     "card": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.night.card}"
+     },
+     "tile": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.night.tile}"
+     },
+     "raised": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.night.raised}"
+     },
+     "overlay": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.night.overlay}"
+     },
+     "hover": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.night.hover}"
+     },
+     "pressed": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.night.pressed}"
+     }
+    },
+    "text": {
+     "primary": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.ivory.100}"
+     },
+     "secondary": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.ivory.300}"
+     },
+     "muted": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.ivory.500}"
+     },
+     "onGold": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.night.page}"
+     },
+     "onSilver": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.night.page}"
+     }
+    },
+    "line": {
+     "hairline": {
+      "$type": "color",
+      "$value": "rgba(216,168,72,0.12)"
+     },
+     "divider": {
+      "$type": "color",
+      "$value": "rgba(242,238,228,0.10)"
+     },
+     "strong": {
+      "$type": "color",
+      "$value": "rgba(242,238,228,0.18)"
+     },
+     "tahrir": {
+      "$type": "color",
+      "$value": "rgba(216,168,72,0.30)"
+     }
+    },
+    "gold": {
+     "fill": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.gold.500}"
+     },
+     "ink": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.gold.500}"
+     },
+     "bright": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.gold.300}"
+     },
+     "deep": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.gold.700}"
+     }
+    },
+    "silver": {
+     "fill": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.silver.300}"
+     },
+     "ink": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.silver.500}"
+     }
+    },
+    "lapis": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.lapis.night}"
+    },
+    "positive": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.positive.night}"
+    },
+    "negative": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.negative.night}"
+    },
+    "warning": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.warning.night}"
+    },
+    "learning": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.learning.night}"
+    }
+   },
+   "day": {
+    "surface": {
+     "page": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.day.page}"
+     },
+     "card": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.day.card}"
+     },
+     "tile": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.day.tile}"
+     },
+     "raised": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.day.raised}"
+     },
+     "overlay": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.day.overlay}"
+     },
+     "hover": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.day.hover}"
+     },
+     "pressed": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.day.pressed}"
+     }
+    },
+    "text": {
+     "primary": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.ink.900}"
+     },
+     "secondary": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.ink.700}"
+     },
+     "muted": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.ink.500}"
+     },
+     "onGold": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.ink.900}"
+     },
+     "onSilver": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.day.card}"
+     }
+    },
+    "line": {
+     "hairline": {
+      "$type": "color",
+      "$value": "rgba(138,99,24,0.16)"
+     },
+     "divider": {
+      "$type": "color",
+      "$value": "rgba(28,26,23,0.10)"
+     },
+     "strong": {
+      "$type": "color",
+      "$value": "rgba(28,26,23,0.20)"
+     },
+     "tahrir": {
+      "$type": "color",
+      "$value": "rgba(138,99,24,0.35)"
+     }
+    },
+    "gold": {
+     "fill": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.gold.500}"
+     },
+     "ink": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.gold.ink}"
+     },
+     "bright": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.gold.300}"
+     },
+     "deep": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.gold.700}"
+     }
+    },
+    "silver": {
+     "fill": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.silver.graphite}"
+     },
+     "ink": {
+      "$type": "color",
+      "$value": "{divan.color.primitive.silver.graphite}"
+     }
+    },
+    "lapis": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.lapis.day}"
+    },
+    "positive": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.positive.day}"
+    },
+    "negative": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.negative.day}"
+    },
+    "warning": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.warning.day}"
+    },
+    "learning": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.learning.day}"
+    }
+   },
+   "level": {
+    "urgent": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.negative.night}"
+    },
+    "decision": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.warning.night}"
+    },
+    "report": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.lapis.night}"
+    },
+    "info": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.positive.night}"
+    },
+    "learning": {
+     "$type": "color",
+     "$value": "{divan.color.primitive.learning.night}"
+    }
+   },
+   "company": {
+    "01": {
+     "$type": "color",
+     "$value": "#8FB4FF"
+    },
+    "02": {
+     "$type": "color",
+     "$value": "#F0B37E"
+    },
+    "03": {
+     "$type": "color",
+     "$value": "#8CD3DE"
+    },
+    "04": {
+     "$type": "color",
+     "$value": "#F0A3C4"
+    },
+    "05": {
+     "$type": "color",
+     "$value": "#C3D98A"
+    },
+    "06": {
+     "$type": "color",
+     "$value": "#CDB5E6"
+    },
+    "07": {
+     "$type": "color",
+     "$value": "#F2B8A6"
+    },
+    "08": {
+     "$type": "color",
+     "$value": "#9AD2F2"
+    },
+    "09": {
+     "$type": "color",
+     "$value": "#D9C58A"
+    },
+    "10": {
+     "$type": "color",
+     "$value": "#A7D4B8"
+    }
+   },
+   "chart": {
+    "categorical": {
+     "1": {
+      "$type": "color",
+      "$value": "#6E95FF"
+     },
+     "2": {
+      "$type": "color",
+      "$value": "#D8A848"
+     },
+     "3": {
+      "$type": "color",
+      "$value": "#22AB94"
+     },
+     "4": {
+      "$type": "color",
+      "$value": "#B07CC6"
+     },
+     "5": {
+      "$type": "color",
+      "$value": "#E38B4F"
+     },
+     "6": {
+      "$type": "color",
+      "$value": "#8DB89A"
+     },
+     "7": {
+      "$type": "color",
+      "$value": "#6EC1F0"
+     },
+     "8": {
+      "$type": "color",
+      "$value": "#E06C9F"
+     }
+    },
+    "sequentialGold": {
+     "1": {
+      "$type": "color",
+      "$value": "#3A2F18"
+     },
+     "2": {
+      "$type": "color",
+      "$value": "#6E5323"
+     },
+     "3": {
+      "$type": "color",
+      "$value": "#A37A2F"
+     },
+     "4": {
+      "$type": "color",
+      "$value": "#D8A848"
+     },
+     "5": {
+      "$type": "color",
+      "$value": "#F0CC60"
+     }
+    },
+    "diverging": {
+     "negative": {
+      "$type": "color",
+      "$value": "#F6465D"
+     },
+     "neutral": {
+      "$type": "color",
+      "$value": "#857F72"
+     },
+     "positive": {
+      "$type": "color",
+      "$value": "#22AB94"
+     }
+    }
+   }
+  },
+  "font": {
+   "family": {
+    "text": {
+     "$type": "fontFamily",
+     "$value": [
+      "IRANYekanXFaNum",
+      "IRANYekanX",
+      "Tahoma",
+      "sans-serif"
+     ]
+    },
+    "figures": {
+     "$type": "fontFamily",
+     "$value": [
+      "IRANYekanX",
+      "IRANYekanXFaNum",
+      "Tahoma",
+      "sans-serif"
+     ]
+    }
+   },
+   "weight": {
+    "regular": {
+     "$type": "fontWeight",
+     "$value": 400
+    },
+    "medium": {
+     "$type": "fontWeight",
+     "$value": 500
+    },
+    "semibold": {
+     "$type": "fontWeight",
+     "$value": 600
+    },
+    "bold": {
+     "$type": "fontWeight",
+     "$value": 700
+    }
+   },
+   "size": {
+    "display": {
+     "$type": "dimension",
+     "$value": "32px"
+    },
+    "h1": {
+     "$type": "dimension",
+     "$value": "26px"
+    },
+    "h2": {
+     "$type": "dimension",
+     "$value": "20px"
+    },
+    "h3": {
+     "$type": "dimension",
+     "$value": "17px"
+    },
+    "body": {
+     "$type": "dimension",
+     "$value": "15px"
+    },
+    "caption": {
+     "$type": "dimension",
+     "$value": "12px"
+    },
+    "micro": {
+     "$type": "dimension",
+     "$value": "11px"
+    },
+    "figureL": {
+     "$type": "dimension",
+     "$value": "28px"
+    },
+    "figureM": {
+     "$type": "dimension",
+     "$value": "20px"
+    }
+   },
+   "lineHeight": {
+    "display": {
+     "$type": "dimension",
+     "$value": "40px"
+    },
+    "h1": {
+     "$type": "dimension",
+     "$value": "34px"
+    },
+    "h2": {
+     "$type": "dimension",
+     "$value": "28px"
+    },
+    "h3": {
+     "$type": "dimension",
+     "$value": "26px"
+    },
+    "body": {
+     "$type": "dimension",
+     "$value": "24px"
+    },
+    "caption": {
+     "$type": "dimension",
+     "$value": "18px"
+    },
+    "micro": {
+     "$type": "dimension",
+     "$value": "16px"
+    }
+   },
+   "feature": {
+    "figures": {
+     "$type": "string",
+     "$value": "tnum"
+    },
+    "dotsWordmark": {
+     "$type": "number",
+     "$value": 2
+    },
+    "dotsCeremonial": {
+     "$type": "number",
+     "$value": 1
+    },
+    "dotsText": {
+     "$type": "number",
+     "$value": 0
+    }
+   }
+  },
+  "space": {
+   "0": {
+    "$type": "dimension",
+    "$value": "0px"
+   },
+   "1": {
+    "$type": "dimension",
+    "$value": "4px"
+   },
+   "2": {
+    "$type": "dimension",
+    "$value": "8px"
+   },
+   "3": {
+    "$type": "dimension",
+    "$value": "12px"
+   },
+   "4": {
+    "$type": "dimension",
+    "$value": "16px"
+   },
+   "5": {
+    "$type": "dimension",
+    "$value": "20px"
+   },
+   "6": {
+    "$type": "dimension",
+    "$value": "24px"
+   },
+   "7": {
+    "$type": "dimension",
+    "$value": "32px"
+   },
+   "8": {
+    "$type": "dimension",
+    "$value": "40px"
+   },
+   "9": {
+    "$type": "dimension",
+    "$value": "48px"
+   },
+   "10": {
+    "$type": "dimension",
+    "$value": "64px"
+   }
+  },
+  "radius": {
+   "xs": {
+    "$type": "dimension",
+    "$value": "6px"
+   },
+   "sm": {
+    "$type": "dimension",
+    "$value": "10px"
+   },
+   "md": {
+    "$type": "dimension",
+    "$value": "14px"
+   },
+   "lg": {
+    "$type": "dimension",
+    "$value": "20px"
+   },
+   "pill": {
+    "$type": "dimension",
+    "$value": "999px"
+   },
+   "octagonCut": {
+    "$type": "string",
+    "$value": "30%"
+   },
+   "cartoucheCut": {
+    "$type": "dimension",
+    "$value": "14px"
+   }
+  },
+  "size": {
+   "touchMin": {
+    "$type": "dimension",
+    "$value": "48px"
+   },
+   "iconS": {
+    "$type": "dimension",
+    "$value": "18px"
+   },
+   "iconM": {
+    "$type": "dimension",
+    "$value": "22px"
+   },
+   "sigil": {
+    "$type": "dimension",
+    "$value": "40px"
+   },
+   "seal": {
+    "$type": "dimension",
+    "$value": "72px"
+   },
+   "orb": {
+    "$type": "dimension",
+    "$value": "56px"
+   }
+  },
+  "border": {
+   "hairline": {
+    "$type": "dimension",
+    "$value": "1px"
+   },
+   "tahrir": {
+    "$type": "dimension",
+    "$value": "1px"
+   },
+   "sigil": {
+    "$type": "dimension",
+    "$value": "2px"
+   }
+  },
+  "elevation": {
+   "rule": {
+    "$type": "string",
+    "$value": "Depth by surface ladder and gap, not by shadow. One soft black shadow at most (overlay only): 0 8px 24px rgba(0,0,0,0.35) night / rgba(28,26,23,0.14) day. No blur filters. No coloured shadows."
+   }
+  },
+  "motion": {
+   "duration": {
+    "micro": {
+     "$type": "duration",
+     "$value": "120ms"
+    },
+    "state": {
+     "$type": "duration",
+     "$value": "200ms"
+    },
+    "transition": {
+     "$type": "duration",
+     "$value": "320ms"
+    },
+    "ceremony": {
+     "$type": "duration",
+     "$value": "480ms"
+    },
+    "sealHold": {
+     "$type": "duration",
+     "$value": "600ms"
+    }
+   },
+   "easing": {
+    "standard": {
+     "$type": "cubicBezier",
+     "$value": [
+      0.2,
+      0,
+      0,
+      1
+     ]
+    },
+    "ceremony": {
+     "$type": "cubicBezier",
+     "$value": [
+      0.3,
+      0,
+      0.1,
+      1
+     ]
+    }
+   }
+  },
+  "sound": {
+   "urgent": {
+    "$type": "string",
+    "$value": "single low bell"
+   },
+   "seal": {
+    "$type": "string",
+    "$value": "paper press, optional"
+   },
+   "default": {
+    "$type": "string",
+    "$value": "silence"
+   }
+  }
+ }
+}
