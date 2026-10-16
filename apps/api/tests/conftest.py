@@ -211,3 +211,29 @@ def service_headers() -> dict[str, str]:
 
 def idem() -> dict[str, str]:
     return {"Idempotency-Key": str(uuid.uuid4())}
+
+
+async def step_up(hub: Hub, session_id: uuid.UUID, action: str, target: str) -> dict[str, str]:
+    """A verified step-up token for (session, action, target), as the passkey flow
+    would issue it (the full WebAuthn flow is covered by test_identity.py)."""
+    token = secrets.token_urlsafe(32)
+    async with hub.db.raw() as tx:
+        await tx.exec(
+            """INSERT INTO auth.step_ups (session_id, action, target, challenge, challenge_expires_at,
+                   token_sha256, verified_at, expires_at)
+               VALUES (:s, :a, :t, :c, now() + interval '5 minutes', :h, now(),
+                       now() + interval '120 seconds')""",
+            s=session_id,
+            a=action,
+            t=target,
+            c=secrets.token_bytes(32),
+            h=digest(token),
+        )
+    return {"X-Step-Up": token}
+
+
+@pytest.fixture
+async def owner_session(hub: Hub) -> dict[str, Any]:
+    """Headers plus the session id (for step-up tokens)."""
+    token, sid = await owner_token(hub)
+    return {"headers": {"Authorization": f"Bearer {token}"}, "session_id": sid}
