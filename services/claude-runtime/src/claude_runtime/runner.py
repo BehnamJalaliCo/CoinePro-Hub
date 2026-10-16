@@ -106,14 +106,20 @@ class Delta:
 def usage_from(raw: dict[str, Any] | None) -> dict[str, int | None] | None:
     if not raw:
         return None
+    by_ttl = raw.get("cache_creation")
+    written_1h = by_ttl.get("ephemeral_1h_input_tokens") if isinstance(by_ttl, dict) else None
+    details = raw.get("output_tokens_details")
+    thinking = details.get("thinking_tokens") if isinstance(details, dict) else None
     return {
         "input_tokens": int(raw.get("input_tokens") or 0),
         "output_tokens": int(raw.get("output_tokens") or 0),
         "cache_read_tokens": int(raw.get("cache_read_input_tokens") or 0),
         "cache_write_tokens": int(raw.get("cache_creation_input_tokens") or 0),
-        # Claude Code does not report thinking tokens separately: they are
-        # part of output_tokens. The ledger stores NULL.
-        "thinking_tokens": None,
+        # Part of cache_write_tokens written with the 1-hour TTL (priced higher).
+        "cache_write_1h_tokens": int(written_1h) if written_1h is not None else None,
+        # Thinking tokens are part of output_tokens; reported separately only
+        # when the CLI gives output_tokens_details (else NULL in the ledger).
+        "thinking_tokens": int(thinking) if thinking else None,
     }
 
 

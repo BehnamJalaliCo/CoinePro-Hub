@@ -192,6 +192,8 @@ def answer(prompt: str) -> None:
         "output_tokens": 3,
         "cache_read_input_tokens": 5,
         "cache_creation_input_tokens": 7,
+        "cache_creation": {"ephemeral_1h_input_tokens": 4, "ephemeral_5m_input_tokens": 3},
+        "output_tokens_details": {"thinking_tokens": 2},
     }
     structured = {"answer": "OK"} if arg("--json-schema") else None
     emit(
