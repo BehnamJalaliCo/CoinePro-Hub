@@ -1,0 +1,13 @@
+[Unit]
+Description=CoinePro HQ: nightly Postgres backup (pg_dump -Fc, 7-day retention)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+ExecStart=/home/Hub/CoinePro-Hub/infra/backup/backup.sh
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=idle

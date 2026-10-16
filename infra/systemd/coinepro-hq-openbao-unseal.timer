@@ -1,0 +1,9 @@
+[Unit]
+Description=CoinePro HQ: unseal OpenBao after boot and re-check every 5 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
