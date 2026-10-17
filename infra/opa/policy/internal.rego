@@ -20,6 +20,8 @@ ops := {
 	"run.reserve", "run.record", "thread.live",
 	# prompt 06: file.view (an owner file attached in the agent's own company)
 	"file.read",
+	# prompt 06: the Code Workshop, for the driver of a grant
+	"workshop.read", "workshop.session", "workshop.message",
 }
 
 # Reads of the gateway's tools: an agent reads its own company; a holding-scope
@@ -30,17 +32,23 @@ read_ops := {"work.read", "company.read", "health.read", "treasury.read", "knowl
 work_ops := {"work.accept", "work.progress", "work.deliver", "work.fail"}
 
 # Ops whose target must be in the agent's own company.
-own_company_ops := work_ops | {"work.delegate", "decision.propose", "notification.raise", "file.upload"}
+own_company_ops := work_ops | {
+	"work.delegate", "decision.propose", "notification.raise", "file.upload",
+	"workshop.read", "workshop.session", "workshop.message",
+}
+
+# Workshop ops on a grant or a session: its driver only (contract §17.3).
+driver_ops := {"workshop.session", "workshop.message"}
 
 # Decision kinds each role may propose (table-driven; change here, not in code).
 propose_kinds := {
 	"ceo": {
 		"hire", "dismissal", "recurring_approval", "deploy",
-		"a3_action", "proposal", "budget_change", "evaluation",
+		"a3_action", "proposal", "budget_change", "evaluation", "code_session",
 	},
-	"manager": {"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal"},
-	"employee": {"a3_action", "deploy", "recurring_approval"},
-	"advisor": {"proposal"},
+	"manager": {"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session"},
+	"employee": {"a3_action", "deploy", "recurring_approval", "code_session"},
+	"advisor": {"proposal", "code_session"},
 	"inspector": {"proposal", "hire"},
 }
 
@@ -254,6 +262,21 @@ grant if {
 	op == "thread.live"
 	agent
 	message_ok
+}
+
+# The Code Workshop: an agent reads its own company's sessions; only the
+# grant's driver opens a session under it or steers one.
+grant if {
+	op == "workshop.read"
+	agent
+	same_company(tv("company"))
+}
+
+grant if {
+	op in driver_ops
+	agent
+	same_company(tv("company"))
+	tv("driver") == p.code
 }
 
 # ------------------------------------------------------------ helpers ----
@@ -498,6 +521,12 @@ deny_reasons contains "unknown_level" if {
 	op == "notification.raise"
 	agent
 	not tv("level") in levels
+}
+
+deny_reasons contains "not_driver" if {
+	agent
+	op in driver_ops
+	tv("driver") != p.code
 }
 
 deny_reasons contains "scope_outside_company" if {
