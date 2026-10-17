@@ -8,7 +8,12 @@
 - **پروژه‌ی Compose:** `coinepro-hq`. فایل اصلی: `infra/compose/compose.yaml`.
 - **همیشه از `make` استفاده کن** (یا `infra/compose/hq.sh`). `hq.sh` پروفایل حافظه را انتخاب میکند و `profiles/<profile>.env` و `.env` را بار میکند. `docker compose` خالی، پروفایل و سقف‌های حافظه را نمیشناسد.
 - **رمزها:** `infra/compose/.env` (دسترسی `600`، در gitignore). کلیدهای OpenBao: `/home/Hub/.secrets/openbao-init.json` (دسترسی `600`).
-- **شبکه:** همه‌ی سرویس‌ها روی شبکه‌ی `hq-internal` (`172.30.0.0/24`) هستند. هر پورت فقط روی `127.0.0.1` منتشر میشود. تنها استثنا Caddy روی 80 و 443 است.
+- **شبکه:** سرویس‌ها روی شبکه‌ی `hq-internal` (`172.30.0.0/24`) هستند، جز آن‌هایی که عمداً جدا شده‌اند (§۷):
+  - Temporal روی `hq-core` است.
+  - OPA و Tool Gateway روی `hq-agent` هستند.
+  - وب روی `hq-edge` است.
+  - claude-runtime روی `hq-llm` است.
+  - هر پورت فقط روی `127.0.0.1` منتشر میشود. تنها استثنا Caddy روی 80 و 443 است.
 - **سرور (از ۲۰۲۶-۱۰-۱۷، پرامپت ۴.۲):** هتزنر Cloud ‏CPX42، با Rescale «فقط CPU و RAM»:
   - ۸ vCPU ‏AMD EPYC Genoa، **16GB RAM** (`MemTotal` حدود 15608 MiB)، swap ‏8GB
   - دیسک همان ۱۵۰GB قبلی است، تا برگشت به پلن کوچک‌تر ممکن بماند.
@@ -38,8 +43,8 @@
 | `make lock` | ساختن دوباره‌ی lock فایل‌های Python (با hash)، شامل `apps/api` |
 | `make owner-enroll` | **فقط مالک، در ترمینال خودش:** لینک یک‌بارمصرف ثبت کلید عبور (۱۵ دقیقه). همین دستور مسیر بازیابی هم هست. بدون دامنه کار نمیکند |
 | `make openapi` | ساختن دوباره‌ی `apps/api/openapi/hq-api.v1.json` از روی کد (CI بررسی میکند که با کد بخواند) |
-| `make verify-live` | تست‌های زنده روی stack در حال اجرا: جدا بودن شبکه‌ها (کانتینر موقت روی `hq-internal` به OPA و Temporal نمیرسد) و نبودن مقدار پارامتر در لاگ Postgres |
-| `make audit-reanchor reason="..."` | فقط بعد از restore دیتابیس: لنگر تازه‌ی زنجیره‌ی Audit، با تأیید تایپی و ردیف audit (§۳) |
+| `make verify-live` | تست‌های زنده روی stack در حال اجرا: جدا بودن شبکه‌ها و نبودن مقدار پارامتر در لاگ Postgres. کانتینر موقت روی `hq-internal` به OPA، Temporal و gateway نمیرسد. از داخل `web` فقط Caddy جواب میدهد. از داخل `gateway` فقط api و OPA جواب میدهند (§۷) |
+| `make audit-reanchor reason="..."` | فقط بعد از restore دیتابیس، **فقط در ترمینال**: لنگر تازه‌ی زنجیره‌ی Audit، با تأیید تایپی و ردیف audit (§۳) |
 | `make prompt-check role=<role>` | یک فراخوانی **واقعی** با prompt یک منشور (پیش‌فرض مشاور) از راه `hq-ops`؛ schema و پاسخ سنجیده میشوند؛ هیچ چیزی جز ledger ذخیره نمیشود |
 | `make bootstrap-month1` | کارهای راه‌اندازی ماه ۱ (`apps/api/seed/bootstrap/month1.yaml`) به نام سرویس `bootstrap`؛ **اجرای واقعی مدل بیدار میکند** (`docs/ops/AGENTS.md`) |
 
@@ -114,6 +119,8 @@ infra/compose/hq.sh up -d
 ```bash
 make audit-reanchor reason="restore of backup <stamp>"   # باید عبارت re-anchor را تایپ کنی
 ```
+- **فقط در ترمینال** (پرامپت ۵.۱ §۳). بدون ترمینال، مثل pipe، cron یا اجرای یک ایجنت، اسکریپت پیش از هر کاری متوقف میشود.
+- `HQ_REANCHOR_CONFIRM=re-anchor` فقط تایپ کردن را در همان ترمینال حذف میکند، نه شرط ترمینال را.
 - زنجیره‌ی بازیابی‌شده باید خودش سالم باشد، وگرنه کاری انجام نمیشود.
 - یک ردیف audit ‏`audit.reanchor` (A3) با دلیل و هر دو سر زنجیره ثبت میشود.
 - یک خط لنگر تازه اضافه میشود که لنگر قبلی را در فیلد `previous` نگه میدارد. **هیچ خطی از فایل لنگر پاک نمیشود.**
@@ -182,11 +189,20 @@ make audit-reanchor reason="restore of backup <stamp>"   # باید عبارت r
   - سرور 16GB است.
   - با `full`، سقف سرویس‌هایی که در ۴.۱ تنگ شده بودند به اندازه‌ی سالم برمیگردد (Valkey، Alloy، Grafana، Loki، Prometheus، OpenBao).
   - claude-runtime ظرفیت ۵ اجرای همزمان دارد (`LLM_MAX_CONCURRENCY=5`). اندازه‌گیری: هر پروسه‌ی CLI حدود 180MB بیکار و 250 تا 300MB هنگام پاسخ.
+    - از پرامپت ۵.۱ سقفش `2304m` است، در برابر `1600m` قبلی: ۵ × 300 به‌علاوه‌ی خود سرویس، با جای اضافه.
   - Tempo و otel-collector، tracing را برای اجراهای ایجنت‌ها میدهند.
   - cAdvisor (سوکت Docker) بیرون است.
-- **عددها:**
-  - جمع سقف‌های `full` برابر 10384 MiB است، در برابر 12486 MiB (۸۰٪ رم 15608 MiB).
-  - `lean` هم برای برگشت به سرور کوچک‌تر آماده است: 6192 MiB در برابر ۸۰٪ رم 7.6GiB قدیمی. postgres، temporal و claude-runtime (۳ اجرای همزمان) در آن کوچک‌تر شده‌اند تا `gateway` و `web` جا شوند.
+- **عددها** (پرامپت ۵.۱ §۲.۱۰؛ `scripts/quality/memory-budget.sh`):
+  - **قاعده‌ی گیت:**
+    - هر پروفایل ≤ ۸۰٪ RAM مرجعش، با دست‌کم ۵٪ از این بودجه آزاد.
+    - هر پروفایل همراه هر پروفایل opt-in (`cadvisor`) هم ≤ ۸۰٪.
+    - RAM مرجع `full` همان آستانه‌ی انتخاب `full` در `hq.sh` است (15360 MiB)، نه `MemTotal` یک سرور.
+  - **`full`:** 11216 MiB در برابر 11673 MiB (۸۰٪ از 15360 منهای ۵٪). با cAdvisor: 11408 از 12288. روی همین سرور: 11216 از 12486 (۸۰٪ رم 15608 MiB).
+    - otel-collector از 256m به 384m رفت: ۲۰۲۶-۱۰-۱۷ با 231 MiB بالای مرز ۸۰٪ ‏memory_limiter خودش بود.
+  - **`lean`** (برای برگشت به سرور کوچک‌تر): 5792 MiB در برابر 5886 MiB (۸۰٪ از 7745 منهای ۵٪). با cAdvisor: 5984 از 6196.
+    - برای این جا، claude-runtime در `lean` دو اجرای همزمان دارد (`768m`).
+    - postgres، Prometheus، Loki و Temporal UI به اندازه‌ی مصرف واقعی‌شان کوچک شدند.
+    - tmpfsهای وب جزو سقف خود کانتینر حساب میشوند، پس کوچک شدند: `/tmp` 16m و `.next/cache` 32m، از 224m (`WEB_TMPFS_*` در پروفایل).
 - `.env` حالا `HQ_PROFILE=full` دارد.
 
 **رفتن به `full`** (فقط وقتی تصمیمش گرفته شد):
@@ -215,22 +231,35 @@ make check
 | NATS (monitoring) | `127.0.0.1:8222` | `nats:8222` | همه |
 | Temporal (gRPC) | `127.0.0.1:7233` | **فقط شبکه‌ی `hq-core`:** `temporal:7233` (HTTP: 7243، metrics: 9090) | همه |
 | Temporal UI | `127.0.0.1:8233` | `temporal-ui:8080` (`hq-core`) | همه |
-| OPA | — (**بدون پورت منتشرشده**) | **فقط `hq-core`:** `opa:8181` (فقط `POST /v1/data/hq/...` و `GET /health`) | همه |
-| api / worker | — (**بدون پورت منتشرشده**) | `api:8000` (`hq-internal` و `hq-core`) | همه |
+| OPA | — (**بدون پورت منتشرشده**) | **فقط `hq-agent`:** `opa:8181` (فقط `POST /v1/data/hq/...` و `GET /health`) | همه |
+| api / worker | — (**بدون پورت منتشرشده**) | `api:8000` (`hq-internal`، `hq-core` و `hq-agent`) | همه |
 | OpenBao | `127.0.0.1:8200` | `openbao:8200` | همه |
 | Tempo | `127.0.0.1:3200` | `tempo:3200`، OTLP: `tempo:4317`/`4318` | full |
 | otel-collector (OTLP) | `127.0.0.1:4317` (gRPC)، `127.0.0.1:4318` (HTTP) | `otel-collector:4317`/`4318` | full |
 | cAdvisor | — | `cadvisor:8080` | فقط پروفایل `cadvisor` (opt-in) |
-| gateway (Tool Gateway) | — (**بدون پورت منتشرشده**) | **فقط `hq-core`:** `gateway:8080` (فقط worker صدایش میزند) | همه |
-| web (پنل Next.js) | — (**بدون پورت منتشرشده**) | `web:3000` (`hq-internal`)؛ Caddy هر مسیر جز `/api` را به آن میدهد | پروفایل `web` (وقتی `apps/web/Dockerfile` هست) |
+| gateway (Tool Gateway) | — (**بدون پورت منتشرشده**) | **فقط `hq-agent`:** `gateway:8080` (فقط worker صدایش میزند) | همه |
+| web (پنل Next.js) | — (**بدون پورت منتشرشده**) | **فقط `hq-edge`:** `web:3000`؛ Caddy هر مسیر جز `/api` را به آن میدهد | پروفایل `web` (وقتی `apps/web/Dockerfile` هست) |
 | llm-router | — (**بدون پورت منتشرشده**) | `llm-router:8000` (شبکه‌های `hq-internal` و `hq-llm`) | همه |
 | claude-runtime | — (**بدون پورت منتشرشده**) | `claude-runtime:8100` (**فقط** شبکه‌ی `hq-llm`) | همه |
 | SSH (مال مالک) | `0.0.0.0:1367` | — | — |
 
 **شبکه‌ی `hq-core` (`172.30.2.0/24`، پرامپت ۴.۱):**
-- Temporal (بی‌احراز روی 7233) و OPA فقط اینجا هستند و **روی `hq-internal` نیستند.**
-- اعضای مجاز: `temporal`، `temporal-namespace`، `temporal-ui`، `opa`، `api`، `worker`، `postgres` (دیتابیس Temporal)، `prometheus` (متریک Temporal) و `gateway` (پرامپت ۵؛ **فقط** روی `hq-core`، مثل Temporal و OPA).
-- `scripts/quality/compose-rules.sh` هر عضو دیگر را رد میکند.
+- Temporal (بی‌احراز روی 7233) فقط اینجاست و **روی `hq-internal` نیست.**
+- اعضای مجاز: `temporal`، `temporal-namespace`، `temporal-ui`، `api`، `worker`، `postgres` (دیتابیس Temporal) و `prometheus` (متریک Temporal).
+
+**شبکه‌ی `hq-agent` (`172.30.3.0/24`، internal، پرامپت ۵.۱ §۲.۹):**
+- مسیر ابزار ایجنت‌ها: worker ← gateway ← api (`/internal/v1`)، و OPA برای هر سه.
+- اعضای مجاز: `worker`، `gateway`، `api` و `opa`.
+- `gateway` و `opa` **فقط** اینجا هستند. پس gateway به Temporal، Postgres، NATS، Valkey و OpenBao نمیرسد و به اینترنت هم راهی ندارد.
+
+**شبکه‌ی `hq-edge` (`172.30.4.0/24`، internal، پرامپت ۵.۱ §۲.۹):**
+- فقط `caddy` و `web`.
+- وب (Next.js، رو به اینترنت) **فقط** اینجاست. پس جز Caddy به هیچ چیز نمیرسد: نه دیتابیس، نه api، نه OpenBao، نه Prometheus و Loki، نه node-exporter، نه اینترنت.
+- Caddy راه بیرون (ACME) و api را از `hq-internal` دارد.
+
+**جدا بودن شبکه‌ها دو بار بررسی میشود:**
+- `scripts/quality/compose-rules.sh` هر عضو دیگر و هر شبکه‌ی اضافه را رد میکند، و internal بودن `hq-agent` و `hq-edge` را میسنجد.
+- `make verify-live` همین را روی stack زنده از داخل `web` و `gateway` آزمایش میکند.
 - Valkey فقط cache است و **هیچ persistence ندارد** (نه AOF، نه RDB). پس fork بازنویسی هرگز حافظه را دو برابر نمیکند.
 - Postgres مقدار پارامترهای کوئری را هرگز لاگ نمیکند (`log_parameter_max_length=0`، و همین برای خطاها).
 
@@ -304,8 +333,14 @@ ssh -p 1367 -L 3000:127.0.0.1:3000 -L 8233:127.0.0.1:8233 -L 9090:127.0.0.1:9090
 ## ۱۱. ملاحظات امنیتی این مرحله
 - **Alloy** پوشه‌ی `/var/lib/docker/containers` را فقط‌خواندنی میخواند. این پوشه env کانتینرها را هم دارد، پس دسترسی Alloy عملاً در حد خواندن رمزهاست. به Docker socket دسترسی ندارد.
 - **cAdvisor** به Docker socket و socket containerd دسترسی دارد، که عملاً هم‌ارز root است. از پرامپت ۵ در هیچ پروفایل پیش‌فرضی نیست (فقط `--profile cadvisor`). متریک کانتینرها بی‌سوکت از host میاید (§۶).
-- **gateway** فقط روی `hq-core` است، با کاربر 10001، rootfs فقط‌خواندنی و `cap_drop: ALL`. فقط hash توکن worker را دارد، نه خود توکن را. به دیتابیس، NATS، Valkey و OpenBao نمیرسد.
-- **web** کاربر 10001 دارد، rootfs فقط‌خواندنی (tmpfs برای `/tmp` و کش Next) و `cap_drop: ALL`. هیچ رمزی ندارد.
+- **gateway** فقط روی `hq-agent` است (internal)، با کاربر 10001، rootfs فقط‌خواندنی و `cap_drop: ALL`. فقط hash توکن worker را دارد، نه خود توکن را. به Temporal، دیتابیس، NATS، Valkey، OpenBao و اینترنت نمیرسد.
+- **web** فقط روی `hq-edge` است (internal). کاربر 10001 دارد، rootfs فقط‌خواندنی (tmpfs برای `/tmp` و کش Next) و `cap_drop: ALL`. هیچ رمزی ندارد و جز Caddy به هیچ چیز نمیرسد.
+  - Caddy هدر `X-Middleware-Subrequest` را پیش از رسیدن به وب حذف میکند (CVE-2025-29927).
+  - بدنه‌ی درخواست به وب را 1MB محدود میکند.
+- **واحد systemd متریک کانتینرها** sandbox دارد (پرامپت ۵.۱ §۳):
+  - `NoNewPrivileges`، `ProtectSystem=strict` و `PrivateTmp`.
+  - فقط پوشه‌ی textfile نوشتنی است.
+  - تغییر واحد با `make install-systemd` (sudo) نصب میشود.
 - **claude-runtime** فقط روی شبکه‌ی `hq-llm` است. به Postgres، Valkey، NATS، Temporal و Grafana دسترسی ندارد (آزمایش شده). اینترنت برای API ‏Anthropic باز است.
 - **llm-router و claude-runtime:** کاربر 10001، rootfs فقط‌خواندنی، `cap_drop: ALL`، بدون پورت منتشرشده، بدون سوکت Docker و بدون mount از ریپوها.
 - **Docker** قوانین iptables خودش را میسازد و از ufw رد میشود. برای همین، هر پورت فقط روی `127.0.0.1` منتشر میشود. مرجع فایروال فقط فایروال هتزنر است.
@@ -339,7 +374,7 @@ curl -s -o /dev/null -w '%{http_code}\n' $H/internal/v1/health     # 404
 curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://hq.coinepro.com/   # 308 -> https
 curl -s -D - -o /dev/null $H/api/v1/health | grep -i -E 'strict-transport|content-security|x-frame'
 curl -s -D - -o /dev/null $H/ | grep -i -c alt-svc                   # 0 (HTTP/3 خاموش)
-curl -s -o /dev/null -w '%{http_code}\n' $H/__canary              # 503 (قناری پایش سایت)
+curl -s -o /dev/null -w '%{http_code}\n' $H/__canary              # 404 (قناری خاموش؛ 503 فقط وقتی روشن است)
 echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com 2>/dev/null | openssl x509 -noout -issuer -enddate
 ```
 - **HTTP/3 خاموش است** (پرامپت ۵ §۱.۹): `servers { protocols h1 h2 }` در Caddyfile، پس هدر `alt-svc` هم نیست. هیچ تغییری در فایروال لازم نبود. روشن کردنش (UDP 443) تصمیم مالک است.
@@ -349,7 +384,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 
 ## ۱۳. ایجنت‌ها، پایش سایت‌ها و سهمیه (پرامپت ۵)
 - **مستندات کامل:** `docs/ops/AGENTS.md` (چرخه‌ی اجرا، Tool Gateway، مشاور، پایش سایت‌ها، Quota Controller، افزودن نقش و ابزار).
-- **سرویس‌ها:** `gateway` (فقط `hq-core`) و `web` (پروفایل `web`). هیچ‌کدام پورت منتشرشده ندارند. اجراها داخل `worker` هستند. هیچ پروسه‌ای برای نقش‌ها همیشه روشن نیست.
+- **سرویس‌ها:** `gateway` (فقط `hq-agent`) و `web` (پروفایل `web`، فقط `hq-edge`). هیچ‌کدام پورت منتشرشده ندارند. اجراها داخل `worker` هستند. هیچ پروسه‌ای برای نقش‌ها همیشه روشن نیست.
 - **Caddy و وب:**
   - `/api/*` ← `api`. هر مسیر دیگر ← `web` (`infra/caddy/web-on.caddy`) وقتی `apps/web/Dockerfile` هست (`HQ_WEB=on` در `hq.sh`).
   - وگرنه یک صفحه‌ی ثابت «ستاد کوینه‌پرو» (`web-off.caddy`).
