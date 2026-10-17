@@ -13,6 +13,7 @@ short Persian explanation (`hint_fa`) so the model knows what to do instead.
 
 from __future__ import annotations
 
+import os
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -155,9 +156,19 @@ class AuditIn(CompanyIn):
 
 
 class GithubIn(In):
-    repo: str = Field(min_length=1, max_length=200)
+    repo: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
     what: Literal["commits", "issues", "pulls", "file"]
     path: str | None = Field(default=None, max_length=500)
+
+    @field_validator("path")
+    @classmethod
+    def _relative_path(cls, v: str | None) -> str | None:
+        # A file inside the repo only: no "..", no absolute path, no tricks.
+        if v is not None and (
+            v.startswith("/") or "\\" in v or "\x00" in v or ".." in v.split("/")
+        ):
+            raise ValueError("a relative path inside the repository")
+        return v
 
 
 class EvidenceIn(In):
@@ -378,7 +389,17 @@ async def memory_read(api: Api, call: Call, a: Empty) -> Result:
     return from_response(await api.request("GET", "/internal/v1/memory", call.token), None)
 
 
+def github_repos() -> frozenset[str]:
+    """The repositories github.read may read (GITHUB_READ_REPOS, comma list)."""
+    raw = os.environ.get("GITHUB_READ_REPOS", "")
+    return frozenset(r.strip().lower() for r in raw.split(",") if r.strip())
+
+
 async def github_read(api: Api, call: Call, a: GithubIn) -> Result:
+    # Before it is switched on (prompt 5.1 §3): only an allowed repository, a
+    # path inside it (GithubIn), and the token from OpenBao (the owner's call).
+    if a.repo.lower() not in github_repos():
+        return Result("denied", code="repo_not_allowed")
     # Off until the owner provides a read-only token (agents/tools.md).
     return Result("error", code="channel_not_configured")
 
@@ -513,6 +534,7 @@ async def memory_write(api: Api, call: Call, a: MemoryIn) -> Result:
         "/internal/v1/memory",
         call.token,
         json={"note": await _text(a.note_md), "tags": await _text(a.tags)},
+        idem=call.idem("memory.write"),
     )
     r = from_response(resp, None)
     if r.outcome == "ok" and isinstance(r.data, dict):

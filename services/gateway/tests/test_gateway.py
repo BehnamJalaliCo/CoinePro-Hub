@@ -316,10 +316,23 @@ async def test_work_get_and_api_errors(mock: respx.MockRouter, gw: Gateway) -> N
     assert (await call(gw, "work.get", {"ref": "W-000103"}))["code"] == "api_unreachable"
 
 
-async def test_github_read_is_off(mock: respx.MockRouter, gw: Gateway) -> None:
+async def test_github_read_is_off_and_guarded(
+    mock: respx.MockRouter, gw: Gateway, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Off until the owner decides on a token; before that it already reads
+    only an allowed repository and only a path inside it (prompt 5.1 §3)."""
     Stub(mock)
-    out = await call(gw, "github.read", {"repo": "BehnamJalaliCo/CoinePro-Hub", "what": "commits"})
+    repo = "BehnamJalaliCo/CoinePro-Hub"
+    out = await call(gw, "github.read", {"repo": repo, "what": "commits"})
+    assert (out["outcome"], out["code"]) == ("denied", "repo_not_allowed")
+    monkeypatch.setenv("GITHUB_READ_REPOS", f"{repo.lower()}, other/repo")
+    out = await call(gw, "github.read", {"repo": repo, "what": "commits"})
     assert (out["outcome"], out["code"]) == ("error", "channel_not_configured")
+    for path in ("../secrets", "a/../../b", "/etc/passwd", "a\\b", "x\x00y"):
+        out = await call(gw, "github.read", {"repo": repo, "what": "file", "path": path})
+        assert (out["outcome"], out["code"]) == ("error", "invalid_args"), path
+    out = await call(gw, "github.read", {"repo": "not a repo", "what": "commits"})
+    assert out["code"] == "invalid_args"
 
 
 # ---------------------------------------------------------------- writes --
