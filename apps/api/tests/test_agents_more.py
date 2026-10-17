@@ -392,7 +392,7 @@ async def test_checker_results() -> None:
 
 async def _public(host: str) -> list[str]:
     """A resolver for the checker's tests: every test name is a public address."""
-    return ["203.0.113.10"] if host.endswith(".test") else []
+    return ["93.184.216.34"] if host.endswith(".test") else []  # a global address
 
 
 async def test_the_checker_never_reaches_a_private_network() -> None:

@@ -28,7 +28,7 @@ async def test_a_missing_and_a_forbidden_company_answer_the_same(
         "/internal/v1/company/state?company={c}",
         "/internal/v1/health/sites?company={c}",
         "/internal/v1/treasury/usage?scope={c}",
-        "/internal/v1/knowledge/search?q=x&company={c}",
+        "/internal/v1/knowledge/search?q=xy&company={c}",
     ):
         got = {}
         for c in (other, "NOPE" + co[:3]):
