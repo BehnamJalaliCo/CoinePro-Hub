@@ -12,6 +12,9 @@ import { Button } from '@/components/ui/button';
 import { Bar, Card, Empty, ErrorState, Pill, SectionTitle, Skeleton, StatTile, budgetTone } from '@/components/ui/primitives';
 import { useAway, useCompanies, useDecisions, useInbox, usePlanner, usePresence, useTreasury } from '@/lib/api/hooks';
 import { useGrants, useSessions, useWorkspaces } from '@/lib/api/v13';
+import { useOversight } from '@/lib/api/v14';
+import { Sentinel } from '@/components/brand/avatar';
+import { MdInline } from '@/components/ui/md';
 import { useLive } from '@/lib/live';
 import { useScope } from '@/lib/scope';
 import { WORK_STATUS } from '@/lib/labels';
@@ -112,6 +115,27 @@ function Live() {
   );
 }
 
+/** The Chief Overseer at a glance: what is held for the owner, critical findings, and the last "while you were away". */
+function Overseer() {
+  const router = useRouter();
+  const { data } = useOversight();
+  if (!data) return null;
+  const crit = data.findings_open.critical + data.findings_open.high;
+  return (
+    <Card className={cx('flex flex-col gap-3 p-4', data.holds_waiting ? 'ring-1 ring-[var(--hq-gold-ink)]' : undefined)}>
+      <div className="flex items-center gap-3">
+        <Sentinel size={36} state={data.watch.on ? 'working' : 'idle'} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="text-[14px] font-semibold">ناظر کل</span>
+          <span className="text-caption text-muted">{data.holds_waiting ? <span className="text-gold-ink">{data.holds_waiting} اقدام نگه‌داشته منتظر تو</span> : 'چیزی منتظر تو نیست'}{crit ? <> · <span className="text-neg">{crit} یافته‌ی جدی</span></> : null}</span>
+        </div>
+        <Button variant="text" size="sm" iconEnd="next" onClick={() => router.push('/oversight')}>ناظر</Button>
+      </div>
+      {data.watch.summary_md ? <p className="line-clamp-3 text-[13px] leading-6 text-sec"><MdInline text={data.watch.summary_md} /></p> : null}
+    </Card>
+  );
+}
+
 /** Code Workshop sessions that are moving or waiting for the owner; hidden when nothing is. */
 function Workshop() {
   const router = useRouter();
@@ -185,7 +209,7 @@ export default function CommandCenter() {
       <Stats />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-4"><Cartable /><Live /></div>
-        <div className="flex min-w-0 flex-col gap-4"><Workshop /><Today /><Budgets /></div>
+        <div className="flex min-w-0 flex-col gap-4"><Overseer /><Workshop /><Today /><Budgets /></div>
       </div>
     </>
   );

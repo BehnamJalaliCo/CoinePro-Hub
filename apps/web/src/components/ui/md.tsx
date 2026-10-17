@@ -1,9 +1,10 @@
 import { Fragment, type ReactNode } from 'react';
 
 /** A small, safe Markdown subset for agent-written text: paragraphs, ### headings, - lists,
- *  **bold**, `code` and refs (D-…, M-…, O-…, W-…, A-…, and ⟨1.3⟩ F-…, S-…, G-…, AP-…) as Latin figures. No raw HTML, ever.
+ *  **bold**, `code` and refs (D-…, M-…, O-…, W-…, A-…; ⟨1.3⟩ F-…, S-…, G-…, AP-…; ⟨1.4⟩ FI-…, PR-…, CH-…, SO-…, H-…, Q-…, E-…,
+ *  SK-…, EV-…, TE-…, L-…, C-…, PV-…, N-…, P-…) as Latin figures. No raw HTML, ever.
  *  A ref inside a path (`hq/S-0004`) stays part of that path. */
-const REF = /(?<![/\w-])([DMOWIFSG]-\d{3,6}|A-\d{4}|AP-\d{4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\d{2,3}|MGR|CEO|ADV|SYS)(?:-\d{4})?)\b/;
+const REF = /(?<![/\w-])([DMOWIFSGNPHQELC]-\d{3,6}|A-\d{4}|(?:AP|FI|PR|CH|SO|SK|EV|TE|PV)-\d{3,4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\d{2,3}|MGR|CEO|ADV|OVR|PA|SYS)(?:-\d{4})?)\b/;
 
 function inline(text: string, key: string): ReactNode[] {
   const out: ReactNode[] = [];

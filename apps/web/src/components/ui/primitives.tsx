@@ -90,7 +90,7 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
             role="radio"
             aria-checked={on}
             onClick={() => onChange(o.value)}
-            className={cx('flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[8px] px-3 text-[13px] transition-colors', on ? 'bg-raised font-semibold text-ink shadow-[inset_0_-2px_0_var(--hq-gold-ink)]' : 'text-sec hover:text-ink')}
+            className={cx('flex h-8 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] px-3 text-[13px] transition-colors', on ? 'bg-raised font-semibold text-ink shadow-[inset_0_-2px_0_var(--hq-gold-ink)]' : 'text-sec hover:text-ink')}
           >
             {o.icon ? <Icon name={o.icon} size={16} /> : null}
             {o.label}

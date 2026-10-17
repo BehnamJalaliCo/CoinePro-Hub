@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/overlay';
 import { Card, ErrorState, PageHeader, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
+import { BackupsCard } from '@/components/v14/backups';
 import { ApiError } from '@/lib/api/client';
 import { useCompanies, useControl, useKillSwitch } from '@/lib/api/hooks';
 import { stepUp } from '@/lib/auth';
@@ -72,6 +73,7 @@ export default function ControlPage() {
           </div>
         </>
       )}
+      <BackupsCard />
       <Dialog open={!!t} onOpenChange={(v) => !v && setT(null)} title={t?.engaged ? `آزاد کردن ${t?.name}` : `توقف ${t?.name}`} actions={<>
         <Button variant={t?.engaged ? 'primary' : 'danger'} loading={ks.isPending} onClick={run}>{t?.engaged ? 'آزاد کن' : 'متوقف کن'}</Button>
         <Button variant="secondary" onClick={() => setT(null)}>انصراف</Button>

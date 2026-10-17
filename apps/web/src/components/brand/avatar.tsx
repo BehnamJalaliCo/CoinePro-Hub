@@ -3,7 +3,7 @@ import { DEPT_ICON } from '@/lib/labels';
 import type { IconName } from '@/generated/icons';
 import { Monogram } from './marks';
 
-export type AgentKind = 'owner' | 'ceo' | 'manager' | 'employee' | 'advisor' | 'inspector' | 'system';
+export type AgentKind = 'owner' | 'ceo' | 'manager' | 'employee' | 'advisor' | 'overseer' | 'assistant' | 'inspector' | 'system';
 export type AgentState = 'idle' | 'working' | 'sleeping' | 'waiting' | 'error';
 
 /** The agent medallion (owner decision 2026-10-17): the ring says rank (1 ring employee, 2 manager,
@@ -12,6 +12,7 @@ export type AgentState = 'idle' | 'working' | 'sleeping' | 'waiting' | 'error';
 export function Avatar({ kind = 'employee', dept, size = 40, state = 'idle', number, label }: { kind?: AgentKind | string; dept?: string | null; size?: number; state?: AgentState | string; number?: string; label?: string }) {
   const s = size;
   if (kind === 'advisor') return <Orb size={s} label={label} />;
+  if (kind === 'overseer') return <Sentinel size={s} state={state} label={label} />;
   if (kind === 'owner') {
     return (
       <span role="img" aria-label={label ?? 'مدیر کل'} className="flex flex-none items-center justify-center rounded-full bg-gold" style={{ width: s, height: s, boxShadow: `inset 0 0 0 ${Math.max(2, Math.floor(s / 16))}px var(--hq-gold-fill), inset 0 0 0 ${Math.max(3, Math.floor(s / 12))}px rgba(11,13,20,.35)` }}>
@@ -23,7 +24,7 @@ export function Avatar({ kind = 'employee', dept, size = 40, state = 'idle', num
   const ringOp = state === 'sleeping' ? 0.45 : 1;
   const sw = s < 56 ? 1.5 : 1.8;
   const r = s / 2 - sw / 2;
-  const glyph: IconName = kind === 'ceo' ? 'holding' : kind === 'inspector' ? 'search' : (dept && DEPT_ICON[dept]) || 'agent';
+  const glyph: IconName = kind === 'ceo' ? 'holding' : kind === 'inspector' ? 'search' : kind === 'assistant' ? 'assistant' : (dept && DEPT_ICON[dept]) || 'agent';
   const ticks = kind === 'ceo' && s >= 30
     ? Array.from({ length: 8 }, (_, k) => {
         const a = (Math.PI / 4) * k + Math.PI / 8;
@@ -37,7 +38,7 @@ export function Avatar({ kind = 'employee', dept, size = 40, state = 'idle', num
     <span role="img" aria-label={label ?? 'ایجنت'} className="relative block flex-none" style={{ width: s, height: s }}>
       <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} className="absolute inset-0 overflow-visible" aria-hidden>
         <circle cx={s / 2} cy={s / 2} r={r} fill="var(--hq-surface-tile)" stroke={ringColor} strokeOpacity={ringOp} strokeWidth={sw} />
-        {(kind === 'manager' || kind === 'ceo' || kind === 'inspector') && (
+        {(kind === 'manager' || kind === 'ceo' || kind === 'inspector' || kind === 'assistant') && (
           <circle cx={s / 2} cy={s / 2} r={r - Math.max(3, s * 0.1)} fill="none" stroke={ringColor} strokeOpacity={0.5 * ringOp} strokeWidth={1} />
         )}
         {ticks}
@@ -55,6 +56,27 @@ export function Avatar({ kind = 'employee', dept, size = 40, state = 'idle', num
           <Icon name={glyph} size={Math.round(s * (kind === 'ceo' ? 0.4 : 0.42))} strokeWidth={s < 56 ? 1.6 : 1.4} />
         )}
       </span>
+    </span>
+  );
+}
+
+/** The Chief Overseer's sentinel (rank two, beside the advisor's orb): a silver sphere with a gold rim and the eye.
+ *  It turns its gaze (a slow pulse of the rim) while working, and dims when the holding sleeps. */
+export function Sentinel({ size = 56, state = 'idle', label }: { size?: number; state?: AgentState | string; label?: string }) {
+  const watching = state === 'working' || state === 'waiting';
+  return (
+    <span
+      role="img"
+      aria-label={label ?? 'ناظر کل'}
+      className="flex flex-none items-center justify-center rounded-full"
+      style={{
+        width: size, height: size, opacity: state === 'sleeping' ? 0.7 : 1,
+        background: 'radial-gradient(circle at 35% 30%, #F1F3F6 0%, #B9C2CE 46%, #5B6573 100%)',
+        boxShadow: `0 0 0 ${Math.max(1.5, size / 28)}px var(--hq-gold-fill)${watching ? ', 0 0 18px rgba(216,168,72,.35)' : ''}`,
+        animation: watching ? 'hq-breath 2.2s ease-in-out infinite' : undefined,
+      }}
+    >
+      <Icon name="overseer" size={Math.round(size * 0.52)} strokeWidth={size < 40 ? 1.8 : 1.6} className="text-[#141821]" />
     </span>
   );
 }

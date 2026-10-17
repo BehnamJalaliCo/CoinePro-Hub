@@ -16,10 +16,10 @@ function MessagesInner() {
   const params = useSearchParams();
   const { company } = useScope();
   const q = useThreads();
-  const threads = (q.data ?? []).filter((t) => !company || t.company === company || t.kind === 'advisor');
+  const threads = (q.data ?? []).filter((t) => !company || t.company === company || ['advisor', 'overseer', 'assistant'].includes(t.kind));
   const sel = params.get('thread');
   const current = threads.find((t) => t.code === sel);
-  const agentKind = (k: string) => (k === 'advisor' ? 'advisor' : k === 'ceo' ? 'ceo' : k === 'manager' ? 'manager' : 'employee');
+  const agentKind = (k: string) => (['advisor', 'overseer', 'assistant', 'ceo', 'manager'].includes(k) ? k : 'employee');
 
   return (
     <>

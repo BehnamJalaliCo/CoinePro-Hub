@@ -2,6 +2,7 @@
 // the client imports this module only when NEXT_PUBLIC_HQ_MOCK=1.
 
 import { DEMO_CHART, DEMO_SKETCH, DEMO_VOICE } from './mock-media';
+import { handle14 } from './mock-v14';
 
 const now = Date.now();
 const iso = (minAgo: number) => new Date(now - minAgo * 60_000).toISOString();
@@ -77,6 +78,8 @@ const employees: any[] = [
   { code: 'HQ-OVS-MGR', company: 'HQ', kind: 'inspector', department: 'OVS', title_fa: 'بازرس کل', title_en: 'Inspector General', activity: 'sleeping' },
   { code: 'HQ-AIOPS-MGR', company: 'HQ', kind: 'manager', department: 'AIOPS', title_fa: 'مدیر عملیات هوش مصنوعی', title_en: 'Head of AI Ops', activity: 'idle' },
   { code: 'HQ-ADV', company: 'HQ', kind: 'advisor', department: null, title_fa: 'مشاور کل', title_en: 'Chief Advisor', activity: 'idle' },
+  { code: 'HQ-OVR', company: 'HQ', kind: 'overseer', department: 'OVS', title_fa: 'ناظر کل', title_en: 'Chief Overseer', activity: 'working' },
+  { code: 'HQ-PA', company: 'HQ', kind: 'assistant', department: null, title_fa: 'دستیار شخصی', title_en: 'Personal Assistant', activity: 'working' },
 ].map((e, i) => ({
   id: `e${i}`, status: 'active', display_name: null, duties: [], permissions: [], hired_at: iso(60 * 24 * 2), hired_by_decision: null, dismissed_at: null,
   activity_at: iso(i * 7), activity_note: e.activity === 'working' ? 'خواندن Search Console' : null, reports_to: null, version: 1,
@@ -100,6 +103,8 @@ const work: any[] = [
 
 const threads: any[] = [
   { code: 'A', kind: 'advisor', company: 'HQ', title_fa: 'مشاور کل', unread: 0, last_message_at: iso(25), last_ref: 'A-0004', participants: [owner, actor('HQ-ADV', 'مشاور کل')] },
+  { code: 'N', kind: 'overseer', company: 'HQ', title_fa: 'ناظر کل', unread: 1, last_message_at: iso(18), last_ref: 'N-0004', participants: [owner, actor('HQ-OVR', 'ناظر کل', 'overseer')] },
+  { code: 'P', kind: 'assistant', company: 'HQ', title_fa: 'دستیار شخصی', unread: 0, last_message_at: iso(14), last_ref: 'P-0003', participants: [owner, actor('HQ-PA', 'دستیار شخصی', 'assistant')] },
   { code: 'FX-CEO', kind: 'ceo', company: 'FX', title_fa: 'مدیرعامل FX', unread: 1, last_message_at: iso(12), last_ref: 'FX-CEO-0010', participants: [owner, actor('FX-CEO', 'مدیرعامل FX')] },
   { code: 'TY-TECH-MGR', kind: 'manager', company: 'TY', title_fa: 'مدیر فنی تریدیار', unread: 1, last_message_at: iso(42), last_ref: 'TY-TECH-MGR-0002', participants: [owner, actor('TY-TECH-MGR', 'مدیر فنی تریدیار')] },
 ].map((t, i) => ({ id: `t${i}`, ...t }));
@@ -121,6 +126,17 @@ const messages: Record<string, any[]> = {
     { ref: 'A-0003', author: owner, body: 'استخدام SRE برای هر سه شرکت لازم است؟', created_at: iso(30) },
     { ref: 'A-0004', author: actor('HQ-ADV', 'مشاور کل'), body: 'برای تریدیار و FX شاهد دارد (دو حادثه‌ی کندی در تریدیار: I-0002، I-0005). برای پرو-چارت هنوز پیشنهادی نیامده. هزینه‌ی هر SRE با Haiku 5.5 حدود `$6–7` در ماه برآورد شده؛ برگشت‌پذیر است.\n\n**توصیه:** دو استخدام اول را مُهر کن؛ سومی را بعد از دیدن پیشنهاد پرو-چارت.', created_at: iso(25), links: { decision: 'D-000014' } },
   ].map((m, i) => ({ id: `m${i}`, thread: 'A', kind: 'text', attachments: [], links: {}, ...m })),
+  N: [
+    { ref: 'N-0001', author: owner, kind: 'voice_transcript', body: 'از این به بعد هر شرکتی که دو هفته پشت سر هم چالش را از دست داد، با مدیرعاملش جلسه بگذار و برنامه‌ی جبران با تاریخ بخواه.', created_at: iso(40), attachments: [] },
+    { ref: 'N-0002', author: actor('HQ-OVR', 'ناظر کل', 'overseer'), body: 'دریافت شد. این را به قاعده‌ی دقیق تبدیل کردم و برای آزمون آکادمی فرستادم (`TE-0002`؛ نمره 93 در برابر خط پایه 90). با مُهر تو در منشورم میاید.', created_at: iso(36), links: { teaching: 'TE-0002' } },
+    { ref: 'N-0003', author: actor('HQ-OVR', 'ناظر کل', 'overseer'), body: '**گزارش «در نبودت»:** یک انتشار پرریسک پرو-چارت را نگه داشتم (`H-0002`)، یک یافته‌ی critical باز شد (`FI-0009`: تغییر پیکربندی بی‌مُهر) و یک high (`FI-0008`: دقت گزارش‌شده‌ی FX). منتظر تو: آزاد یا رد `H-0002`.', created_at: iso(60) },
+    { ref: 'N-0004', author: actor('HQ-OVR', 'ناظر کل', 'overseer'), body: 'از مدیرعامل پرو-چارت پرسش رسمی کردم که تغییر 03:12 را چه کسی و بر اساس کدام تصمیم اعمال کرد (`Q-0005`، مهلت ۲ ساعت).', created_at: iso(18) },
+  ].map((m, i) => ({ id: `mn${i}`, thread: 'N', kind: 'text', attachments: [], links: {}, ...m })),
+  P: [
+    { ref: 'P-0001', author: owner, kind: 'voice_transcript', body: 'سه سرویس ایمیل تراکنشی برای تریدیار پیدا کن، برای حدود دویست هزار ایمیل در ماه، و قیمت‌ها را مقایسه کن.', created_at: iso(16), attachments: [] },
+    { ref: 'P-0002', author: actor('HQ-PA', 'دستیار شخصی', 'assistant'), body: 'شروع کردم (`E-0003`). صفحه‌ی قیمت رسمی هر سه را میخوانم و تا یک ساعت دیگر جدول مقایسه با تاریخ میدهم.', created_at: iso(15), links: { errand: 'E-0003' } },
+    { ref: 'P-0003', author: actor('HQ-PA', 'دستیار شخصی', 'assistant'), body: 'رزرو هتل استانبول آماده است؛ گزینه‌ی اول با لغو رایگان تا ۴۸ ساعت قبل. پرداخت با مُهر توست (`D-000021`).', created_at: iso(14), links: { errand: 'E-0002', decision: 'D-000021' } },
+  ].map((m, i) => ({ id: `mp${i}`, thread: 'P', kind: 'text', attachments: [], links: {}, ...m })),
   'FX-CEO': [
     { ref: 'FX-CEO-0006', author: owner, body: 'این افت را ببین. دلیلش چه بود و سیگنال ما همان موقع چه گفت؟', created_at: iso(60 * 5), attachments: [CHART] },
     { ref: 'FX-CEO-0007', author: actor('FX-CEO', 'مدیرعامل FX'), body: '**خلاصه:** افت ۹ دلاری طلا درست بعد از داده‌ی اشتغال آمریکا بود. سیگنال ما ۲۰ دقیقه قبلش «فروش» داده بود و حد سود اول خورد.\n\nافت دقت این هفته (۶۱٪) از همین خبرهاست؛ تحلیل کامل در `O-000029` آمده.', created_at: iso(60 * 5 - 3) },
@@ -323,6 +339,8 @@ export async function handle(req: Request): Promise<Response> {
   const p = u.pathname.replace(/^\/api\/v1/, '');
   const m = req.method;
   await new Promise((r) => setTimeout(r, 120 + Math.random() * 180));
+  const v14 = await handle14(req, p, u);
+  if (v14) return v14;
   if (m !== 'GET') {
     if (p.startsWith('/auth/passkey/') && p.endsWith('/options')) return json({ challenge: 'mock', rpId: 'localhost', timeout: 60000, userVerification: 'required' });
     if (p === '/auth/step-up/options') return json({ challenge: 'mock' });
@@ -446,7 +464,7 @@ export async function handle(req: Request): Promise<Response> {
   }
   if (p === '/orders') return json(page(orders));
   if (p === '/auth/session') return json({ principal: { kind: 'owner', code: 'owner' }, device: { id: 'dev1', name: 'Chrome · Android', kind: 'session', created_at: iso(600), last_used_at: iso(0), current: true }, expires_at: ahead(60 * 24 * 30) });
-  if (p === '/meta') return json({ api_version: '1.3', service_version: 'mock', login_configured: true, public_origin: u.origin, stream_retention_days: 30, channels: { in_app: true, web_push: true, fcm: false, telegram: false }, workshop: { runtime: 'managed' } });
+  if (p === '/meta') return json({ api_version: '1.4', service_version: 'mock', login_configured: true, public_origin: u.origin, stream_retention_days: 30, channels: { in_app: true, web_push: true, fcm: false, telegram: false }, workshop: { runtime: 'managed' }, precedence: [{ rank: 1, kinds: ['owner'], note_fa: 'مدیر کل' }, { rank: 2, kinds: ['overseer', 'advisor'], note_fa: 'ناظر کل و مشاور کل' }, { rank: 3, kinds: ['ceo', 'inspector'], note_fa: 'مدیرعامل‌ها، بازرس کل (QC)' }, { rank: 4, kinds: ['manager'], note_fa: 'مدیرها' }, { rank: 5, kinds: ['employee'], note_fa: 'کارمندها' }] });
   if (p === '/inbox/summary') return json({ decisions_pending: decisions.filter((d) => d.status === 'pending').length, decisions_by_risk: { low: 2, medium: 1, high: 1 }, deliverables_unrated: deliverables.filter((d) => !d.rating).length, messages_unread: 3, khalvat: presence.khalvat, notifications: { urgent: 0, decision: 1, report: 0, info: 2, learning: 1 } });
   if (p === '/owner/presence') return json(presence);
   if (p === '/owner/away-summary') return json({ since: iso(60 * 9), until: iso(0), companies: CO.map((c, i) => ({ company: c.code, decisions_new: [1, 1, 1, 1][i], deliverables_new: [1, 1, 1, 0][i], messages_new: [0, 1, 2, 0][i], notifications_new: [1, 1, 0, 1][i] })), decisions: { new: 4, pending: 4, top: decisions.filter((d) => d.status === 'pending').map((d) => ({ ref: d.ref, company: d.company, kind: d.kind, risk: d.risk, status: d.status, title: d.title, created_at: d.created_at })) }, deliverables: { new: 3, unrated: 2, top: deliverables.map((d) => ({ ref: d.ref, company: d.company, title: d.title, created_at: d.created_at })) }, messages: { new: 3, unread: 3, top_threads: threads.map((t) => ({ thread: t.code, company: t.company, new_messages: t.unread, last_at: t.last_message_at })) }, notifications: { by_level: { decision: 1, report: 1, learning: 1 }, held: 2, top: [] } });

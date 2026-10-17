@@ -73,5 +73,16 @@ export const DEPT_ICON: Record<string, IconName> = {
   QUANT: 'budget', AIOPS: 'model', HR: 'department', OVS: 'search',
 };
 
-export const ACTOR_FA = (a: { kind: string; code: string; display_fa?: string | null } | null | undefined): string =>
+export const DEPT_FA: Record<string, string> = {
+  TECH: 'فنی', GROWTH: 'رشد', SALES: 'فروش', PRODUCT: 'محصول', FIN: 'مالی', QUANT: 'کوانت', AIOPS: 'عملیات AI', HR: 'منابع انسانی', OVS: 'نظارت',
+};
+
+/** Charter role keys (agents/roles/*.md) as the owner reads them. */
+export const ROLE_FA: Record<string, string> = {
+  ceo: 'مدیرعامل', manager: 'مدیر', cto: 'مدیر فنی', sre: 'مهندس پایداری', growth: 'مدیر رشد', sales: 'فروش', support: 'پشتیبانی', quant: 'کوانت',
+  advisor: 'مشاور کل', overseer: 'ناظر کل', assistant: 'دستیار', inspector: 'بازرس کیفیت', fact_checker: 'راستی‌آزما', security_analyst: 'تحلیلگر امنیت',
+  aiops_head: 'مدیر عملیات AI', ai_safety: 'ایمنی AI', hub_platform_sre: 'پایداری پلتفرم هاب',
+};
+
+export const ACTOR_FA =(a: { kind: string; code: string; display_fa?: string | null } | null | undefined): string =>
   !a ? '—' : a.display_fa ?? (a.kind === 'owner' ? 'مدیر کل' : a.kind === 'system' ? 'سیستم' : a.code);

@@ -786,7 +786,8 @@ Founding   { id, ref: "C-0001", name_fa, name_en, code, source: {kind: "repo"|"i
              decision_ref|null, plan|null, company|null, created_at, updated_at }
 ServerPlan { id, ref: "PV-0001", founding|null, company, name, type, location, image: "ubuntu-24.04", private_network: bool,
              firewall: [{direction: "in", protocol, port, sources: [cidr], note_fa}], software: [key], work_user, repo|null,
-             monthly_eur, state: "proposed"|"sealed"|"running"|"done"|"failed", decision_ref|null, run|null }
+             monthly_eur, digest, state: "proposed"|"sealed"|"running"|"done"|"failed", decision_ref|null, run|null }
+             // digest = sha256 of the plan's canonical JSON (sorted keys, no spaces) without digest, state, decision_ref and run
 ProvisionRun { id, plan, state: "running"|"done"|"failed",
              steps: [{key, title_fa, state: "pending"|"running"|"done"|"failed", started_at|null, finished_at|null, log_tail}],
              server: {name, ipv4, ipv6, private_ip}|null, login: {ssh, then: [cmd]}|null }
@@ -795,7 +796,7 @@ ProvisionRun { id, plan, state: "running"|"done"|"failed",
 | GET | `/foundings/{ref}` | |
 | POST | `/foundings/{ref}/cancel` · `/activate` 🔏 | activate after the owner has logged in on the new server (target = ref) |
 | GET | `/provisioning/plans` · `/provisioning/plans/{ref}` | |
-| POST | `/provisioning/plans/{ref}/seal` 🔏 | target = sha256 of the plan JSON as served; the A3 seal that spends money |
+| POST | `/provisioning/plans/{ref}/seal` 🔏 | target = the plan's `digest`; the server recomputes it, so any change after the owner saw it voids the seal. The A3 seal that spends money |
 | GET | `/provisioning/runs/{id}` · `/provisioning/runs/{id}/live` (SSE) | |
 | GET | `/infra/servers` | servers the provisioner made; **no delete** (owner, Hetzner console) |
 - **Software keys** (fixed list, reviewed templates): `system-upgrade`, `unattended-upgrades`, `work-user`, `ssh-hardening` (keys only, no root login),
@@ -819,4 +820,4 @@ BackupStatus { hourly: {last_at, next_at, ok, snapshot, size_bytes}, wal: {last_
   `errand.updated` (`errands`) · `stars.rollup` (`stars`) · `skill.updated` (`skills`) · `academy.eval` (`academy`) ·
   `founding.updated`, `provision.step` (`founding`) · `backup.done`, `backup.failed` (`backups`).
 - **Step-up targets:** `oversight.protocol` (body hash), `oversight.order` (ref), `oversight.release` (ref), `skill.activate` (`ref@version`),
-  `academy.approve` (ref), `mcp.add` (body hash), `mcp.enable` (key), `provision.seal` (plan digest), `founding.activate` (ref).
+  `academy.approve` (ref), `mcp.add` (body hash), `mcp.enable` (key), `provision.seal` (the plan's `digest`), `founding.activate` (ref).

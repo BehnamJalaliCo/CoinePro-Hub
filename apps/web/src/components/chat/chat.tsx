@@ -17,8 +17,12 @@ import { cx, jDateTime, jTime } from '@/lib/format';
 
 type Msg = Schemas['Message'];
 
+const LINKS: Record<string, (ref: string) => string> = {
+  decision: (r) => `/cartable?ref=${r}`, work: (r) => `/work/${r}`, resolution: () => '/audit',
+  errand: () => '/assistant', teaching: () => '/academy', inquiry: () => '/advisor', finding: () => '/oversight', session: (r) => `/workshop/${r}`,
+};
 function linkHref(kind: string, ref: string) {
-  return kind === 'decision' ? `/cartable?ref=${ref}` : kind === 'work' ? `/work/${ref}` : kind === 'resolution' ? '/audit' : '#';
+  return LINKS[kind]?.(ref) ?? '#';
 }
 
 function Bubble({ m, agentKind }: { m: Msg; agentKind: string }) {
