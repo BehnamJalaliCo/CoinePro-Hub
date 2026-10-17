@@ -25,7 +25,7 @@
 ## ۱. کارهای کوچک (اول این‌ها)
 1. **`by=day` در `/treasury/breakdown`** طبق §۱۰ قرارداد (⟨1.3⟩): یک ردیف برای هر روز در منطقه‌ی زمانی مالک، روزهای بی‌مصرف با صفر. وب و اندروید نمودار تجمعی ماه را از همین میسازند.
 2. **passkey در اپ اندروید:** کلید امضای اپ ساخته شد (مالک، ۲۰۲۶-۱۰-۱۷). مقدار **عمومی** زیر را در env سرویس api بگذار (رمز نیست):
-   `HQ_ANDROID_ORIGINS=android:apk-key-hash:1tQVb38OrpVK9BS6qItq6MaEJwNfYnG0xe2XDzkqFb8`
+   `HQ_ANDROID_ORIGINS=android:apk-key-hash:1tQVb38OrpVK9BS6qItq6MaEJwNfYnG0xe2XDzkqFb8` <!-- gitleaks:allow (public certificate hash, not a secret) -->
    فایل `/.well-known/assetlinks.json` را خود وب میسازد (پیش‌فرضش همین کلید است). تست: `curl https://hq.coinepro.com/.well-known/assetlinks.json` اثر انگشت `D6:D4:…:15:BF` را نشان میدهد و `Content-Type: application/json` است.
 3. **تصمیم‌های مالک روی سه سؤال ۴.۱:** نقش NOLOGIN بعداً؛ سقف ۵ فوری در ساعت میماند؛ Valkey بدون persistence میماند. کاری لازم نیست جز ثبت در RUNBOOK.
 4. **وب:** اگر در پرامپت ۵ سرویس `web` بالا نیامده، طبق §۱۰ پرامپت ۵ بالا بیاور (Caddy: `/api/*` ← api، بقیه ← web؛ CSP را خود web میگذارد).

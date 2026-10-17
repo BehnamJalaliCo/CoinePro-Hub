@@ -70,7 +70,7 @@ repository secrets below). Its public identity, which the hub needs:
 
 - SHA-256: `D6:D4:15:6F:7F:0E:AE:95:4A:F4:14:BA:A8:8B:6A:E8:C6:84:27:03:5F:62:71:B4:C5:ED:97:0F:39:2A:15:BF`
   (the web's `assetlinks.json` default, for `com.coinepro.hq` and `com.coinepro.hq.debug`)
-- WebAuthn origin: `android:apk-key-hash:1tQVb38OrpVK9BS6qItq6MaEJwNfYnG0xe2XDzkqFb8` (the API's `HQ_ANDROID_ORIGINS`)
+- WebAuthn origin: `android:apk-key-hash:1tQVb38OrpVK9BS6qItq6MaEJwNfYnG0xe2XDzkqFb8` (the API's `HQ_ANDROID_ORIGINS`) <!-- gitleaks:allow (public certificate hash, not a secret) -->
 
 Both the release and the debug build are signed with it when the secrets are present.
 

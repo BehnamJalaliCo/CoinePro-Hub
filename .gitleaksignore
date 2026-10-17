@@ -1,3 +1,6 @@
 # gitleaks false positives (one fingerprint per line: commit:file:rule:line).
 # test marker string "ZEBRA-PROMPT-4471", not a secret (renamed in a later commit)
 032259b8440c26c8ef84557ef00073565084f4aa:services/llm-router/tests/test_api_and_backends.py:generic-api-key:32
+# the Android signing certificate's public SHA-256 as a WebAuthn origin (android:apk-key-hash:…), not a secret
+6bfa423e220441b414fa80b44296d88f73ee59dd:apps/android/README.md:generic-api-key:73
+688702d7522a1259a90245db708d5efdc5da1d38:docs/server-prompts/PROMPT_06_MEDIA_VOICE_WORKSHOP.md:generic-api-key:28
