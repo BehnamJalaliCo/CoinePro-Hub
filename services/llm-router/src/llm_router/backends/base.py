@@ -37,6 +37,7 @@ class BackendCall:
     messages: tuple[ChatMessage, ...]
     json_schema: dict[str, Any] | None
     timeout_s: int
+    actor_ref: str | None = None  # who calls (the fake backend's scripts use it)
 
 
 @dataclass
@@ -52,6 +53,8 @@ class BackendResult:
     quota_resets_at: float | None = None
     stop_reason: str | None = None
     effort_applied: bool | None = None
+    # Subscription only: the run's latest rate-limit state (Quota Controller source).
+    rate_limit: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

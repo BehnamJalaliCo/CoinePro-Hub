@@ -6,7 +6,8 @@ by field (a level may set only the effort, for example):
     holding -> company -> department -> role -> task_class
 
 Role and task_class accept a global ref ("advisor") and a company-qualified
-ref ("TY:advisor"); the qualified one is more specific. Refs:
+ref ("TY:advisor"); the qualified one is more specific. After the role comes
+the employee (its code, e.g. "TY:TY-TECH-01" written by a hire). Refs:
     holding     the holding company's code, e.g. "HQ"
     company     the company code, e.g. "TY"
     department  "<COMPANY>-<DEPT>", e.g. "TY-TECH"
@@ -49,13 +50,18 @@ def scope_chain(
     department: str | None,
     role: str | None,
     task_class: str,
+    employee: str | None = None,
 ) -> list[tuple[str, str]]:
-    """(scope_type, scope_ref) pairs from the most general to the most specific."""
+    """(scope_type, scope_ref) pairs from the most general to the most specific.
+    An employee's own assignment (`<employee code>`, `<CO>:<code>`) is more
+    specific than its role's."""
     chain: list[tuple[str, str]] = [("holding", holding), ("company", company)]
     if department:
         chain.append(("department", f"{company}-{department}"))
     if role:
         chain += [("role", role), ("role", f"{company}:{role}")]
+    if employee:
+        chain += [("role", employee), ("role", f"{company}:{employee}")]
     chain += [("task_class", task_class), ("task_class", f"{company}:{task_class}")]
     return chain
 

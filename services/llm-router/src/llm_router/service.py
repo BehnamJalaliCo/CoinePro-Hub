@@ -43,6 +43,7 @@ from llm_router.db import Database
 from llm_router.events import Events
 from llm_router.metrics import Metrics
 from llm_router.pricing import cost_usd
+from llm_router.quota import QuotaController, Thresholds, Throttled
 from llm_router.registry import Company, Connection, Registry, Snapshot, TaskClass
 from llm_router.scheduler import PriorityScheduler, QueueRejected, QueueTimeout
 from llm_router.schemas import RunRequest, RunResponse, UsageOut
@@ -123,6 +124,7 @@ class RouterService:
         scheduler: PriorityScheduler,
         backends: Mapping[str, Backend],
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
+        quota: QuotaController | None = None,
     ) -> None:
         self.s = settings
         self.db = db
@@ -136,6 +138,17 @@ class RouterService:
         self._anomaly_seen: set[tuple[str, str]] = set()
         self.cost_ratio = CostRatioWatch(now=now)
         self._locks: dict[str, tuple[str | None, float]] = {}
+        self.quota = quota or QuotaController(
+            db,
+            events_,
+            thresholds=Thresholds(
+                warn_5h=settings.quota_warn_5h,
+                limit_5h=settings.quota_limit_5h,
+                warn_7d=settings.quota_warn_7d,
+                limit_7d=settings.quota_limit_7d,
+            ),
+            now=now,
+        )
         metrics.capacity.set(scheduler.capacity)
 
     # --------------------------------------------------------- kill switch --
@@ -203,6 +216,7 @@ class RouterService:
             department=req.department,
             role=req.role,
             task_class=task.key,
+            employee=req.employee,
         )
         try:
             resolved = resolve(snap.assignments, chain)
@@ -232,10 +246,28 @@ class RouterService:
             provider=connection.provider,
             model=model,
             effort=effort,
-            meta={"assignment": list(resolved.trail)},
+            meta={"assignment": list(resolved.trail), **(req.meta or {})},
         )
         scopes = _usage_scopes(chain, company, holding)
         rls = {company.id, holding.id}
+
+        # Quota Controller (prompt 05 §8): at `warning` P4 waits, at `limited` P3-P4.
+        # While the quota guard has the connection open (usage limit hit), the
+        # breaker path below decides instead (alternatives, quota_exhausted).
+        try:
+            if self.breaker_for(connection).state is State.CLOSED:
+                self.quota.check(connection.id, connection.kind, req.priority)
+        except Throttled as exc:
+            self.metrics.queue_rejections.labels(f"P{req.priority}", f"quota_{exc.status}").inc()
+            async with self.db.scoped(rls) as conn:
+                await ledger.record_decision(conn, row, "rate_limited", f"quota_{exc.status}")
+            raise RouterError(
+                429 if req.priority >= 4 else 503,
+                "quota_throttled",
+                f"the subscription quota is {exc.status}: P{req.priority} waits",
+                retry_after=exc.retry_after,
+                call_id=row.id,
+            ) from exc
 
         await self._check_budgets(snap, req, company, chain, row, rls, now)
 
@@ -435,6 +467,7 @@ class RouterService:
             messages=tuple(ChatMessage(m.role, m.content) for m in plan.req.as_messages()),
             json_schema=plan.req.json_schema,
             timeout_s=plan.req.timeout_s,
+            actor_ref=plan.req.actor_ref,
         )
 
     def _backend(self, plan: Plan) -> Backend:
@@ -475,8 +508,31 @@ class RouterService:
         except Exception:
             log.exception("connection status not saved", extra={"connection": conn.key})
 
+    async def _observe_quota(self, conn: Connection, result: BackendResult) -> None:
+        if conn.kind != "claude_subscription":
+            return
+        try:
+            if result.rate_limit:
+                await self.quota.observe(conn.id, conn.key, result.rate_limit)
+            if result.status == QUOTA:
+                resets = (
+                    datetime.fromtimestamp(result.quota_resets_at, UTC)
+                    if result.quota_resets_at
+                    else None
+                )
+                await self.quota.on_quota_guard(conn.id, conn.key, resets)
+        except Exception:
+            log.exception("quota state not updated", extra={"connection": conn.key})
+
+    async def quota_scan(self) -> int:
+        """Periodic Quota Controller pass (resets, ledger windows)."""
+        snap = await self.registry.get()
+        subs = {c.id: c.key for c in snap.connections.values() if c.kind == "claude_subscription"}
+        return len(await self.quota.scan(subs, set(snap.companies_by_id)))
+
     async def complete(self, plan: Plan, result: BackendResult) -> RunResponse:
         await self._verdict(plan, result)
+        await self._observe_quota(plan.connection, result)
         now = self.now()
         latency_ms = int((time.monotonic() - plan.started_mono) * 1000)
         conn = plan.connection
@@ -502,6 +558,10 @@ class RouterService:
             meta["effort_applied"] = result.effort_applied
         if result.compare_cost_usd is not None:
             meta["litellm_cost_usd"] = str(result.compare_cost_usd)
+        if result.rate_limit:
+            meta["rate_limit"] = {
+                k: result.rate_limit.get(k) for k in ("status", "window", "utilization")
+            }
         fin = ledger.Finish(
             status=result.status,
             finished_at=now,

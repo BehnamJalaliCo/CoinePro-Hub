@@ -53,6 +53,7 @@ def result_from_json(d: dict[str, Any]) -> BackendResult:
         quota_resets_at=d.get("quota_resets_at"),
         stop_reason=d.get("stop_reason"),
         effort_applied=d.get("effort_applied"),
+        rate_limit=d.get("rate_limit") if isinstance(d.get("rate_limit"), dict) else None,
     )
 
 

@@ -25,6 +25,7 @@ from llm_router import __version__
 from llm_router.auth import Caller, CallerDirectory, RateLimiter
 from llm_router.backends.base import Backend
 from llm_router.backends.claude_runtime import ClaudeRuntimeBackend
+from llm_router.backends.fake import FakeBackend
 from llm_router.backends.litellm_backend import LiteLLMBackend
 from llm_router.config import Settings
 from llm_router.db import Database
@@ -302,6 +303,9 @@ async def _start(state: State) -> None:
         "claude_subscription": ClaudeRuntimeBackend(s.runtime_url, lambda: state.runtime_token),
         "api": LiteLLMBackend(bao.read_kv),
     }
+    if s.fake_backend:  # test environments only (prompt 05 §2); never in production
+        backends["fake"] = FakeBackend()
+        log.warning("fake model backend is on (test environment)")
     db = state.db
     assert db is not None
     service = RouterService(
@@ -319,6 +323,7 @@ async def _start(state: State) -> None:
         ),
         backends,
     )
+    await _retry("quota", service.quota.load)
     closed = await _retry("ledger", service.close_stale)
     done = await _retry("maintenance", service.maintenance)
     log.info("router ready", extra={"stale_closed": closed, **done})
@@ -327,6 +332,7 @@ async def _start(state: State) -> None:
         asyncio.create_task(_every(60, lambda: _load_secrets(state), "callers")),
         asyncio.create_task(_every(6 * 3600, service.maintenance, "maintenance")),
         asyncio.create_task(_every(s.anomaly_interval_s, service.anomaly_scan, "anomaly")),
+        asyncio.create_task(_every(s.quota_interval_s, service.quota_scan, "quota")),
     ]
 
 

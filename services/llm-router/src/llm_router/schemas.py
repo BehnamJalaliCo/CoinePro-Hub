@@ -7,6 +7,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
+# Ledger metadata an agent call may carry (never content).
+META_KEYS = frozenset({"charter", "run_id", "step", "trigger", "purpose"})
 
 
 class Message(BaseModel):
@@ -33,6 +35,26 @@ class RunRequest(BaseModel):
     json_schema: dict[str, Any] | None = None
     timeout_s: int = Field(default=120, ge=1)
     store_transcript: bool = False
+    # The employee behind an agent call (its code): assignments by employee
+    # (`<CO>:<code>`, written by a hire) apply after the role's (prompt 05 §2).
+    employee: str | None = Field(
+        default=None, pattern=r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
+    )
+    # Ledger metadata of an agent call (allow-listed keys, short values).
+    meta: dict[str, str | int] | None = None
+
+    @field_validator("meta")
+    @classmethod
+    def _meta(cls, v: dict[str, str | int] | None) -> dict[str, str | int] | None:
+        if v is None:
+            return v
+        unknown = set(v) - META_KEYS
+        if unknown:
+            raise ValueError(f"unknown meta keys: {sorted(unknown)}")
+        for value in v.values():
+            if isinstance(value, str) and len(value) > 64:
+                raise ValueError("meta values are at most 64 characters")
+        return v
 
     @field_validator("priority", mode="before")
     @classmethod
