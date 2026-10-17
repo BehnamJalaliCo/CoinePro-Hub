@@ -463,3 +463,76 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - پیامی که فایل صدای `purpose=message` را پیوست دارد `kind: voice_transcript` است.
   - وقتی پروفایل `stt` خاموش است: `503 channel_not_configured`.
 - **ffmpeg** نسخه‌ی `7:7.1.5-0+deb13u1` (Debian trixie) است. **Pillow** ‏12.3.0 (MIT-CMU) و **pillow-heif** ‏1.8.0 (BSD-3) در image مشترک api و worker هستند.
+## ۱۶. گفتار به متن فارسی، STT (پرامپت ۶ §۳، قرارداد §۱۷.۲)
+- **سرویس `stt`** (`services/stt`):
+  - faster-whisper ‏1.2.1 روی CTranslate2 ‏4.8.2، با int8 روی CPU، زبان `fa`، beam 5 و VAD ‏Silero.
+  - مدل پیش‌فرض `large-v3-turbo` است.
+  - **هیچ صدایی از هاب بیرون نمیرود:** سرویس آفلاین است (`HF_HUB_OFFLINE=1`) و مدل را فقط‌خواندنی از volume ‏`stt-models` میخواند.
+- **شبکه:**
+  - `hq-stt` شبکه‌ی internal است و فقط `worker` و `stt` رویش هستند (`compose-rules`). `stt` پورت منتشرشده ندارد.
+  - API فقط از worker صدایش میزند، با یک activity ‏Temporal و `STT_URL=http://stt:8000`.
+  - تنها بخشی که اینترنت دارد job یک‌باره‌ی `stt-fetch` است، روی شبکه‌ی جدای `hq-fetch`.
+- **امنیت کانتینر:** کاربر 10001، rootfs فقط‌خواندنی، tmpfs روی `/tmp`، ‏`cap_drop: ALL` و healthcheck روی `/health`.
+- **پروفایل:**
+  - `stt` اختیاری است و پیش‌فرض خاموش است.
+  - روشن کردن: `HQ_STT=on` در `.env`، بعد `make stt-fetch` و `make up`.
+  - `hq.sh` فقط وقتی روشن است `--profile stt` و `STT_URL` را میدهد؛ وگرنه `STT_URL` خالی است.
+  - **تا وقتی پروفایل فعال به‌علاوه‌ی stt از بودجه‌ی حافظه بیشتر است**، `up`، `run`، `create`، `start` و `restart` با `HQ_STT=on` رد میشوند (exit 3، با عددها). بقیه‌ی فرمان‌ها (`exec` پشتیبان و unseal، `ps`، `logs`) با یک هشدار و بدون stt اجرا میشوند.
+  - گیت `memory-budget` هر ترکیب را چاپ میکند. ترکیب روشن باید جا شود. ترکیب خاموشی که بیشتر است فقط با `OVER by … (not enabled …)` گزارش میشود.
+
+### مدل و پین
+- `services/stt/model.lock.json` برای هر مدل (`large-v3-turbo`، `medium`، `small`؛ همه MIT) این‌ها را دارد: repo، ‏revision (commit) و اندازه و sha256 **هر فایل**.
+  - `make stt-fetch [model=…]` فقط همان بایت‌ها را میگیرد. فایل درست موجود رد میشود. هر بایت اضافه یا hash نادرست ← خطا.
+  - سرویس موقع بالا آمدن همه را دوباره میسنجد. اگر چیزی جور نباشد، **سرویس نمیدهد:** `stt: refusing to start: …` با exit 2 و کانتینر unhealthy. راه حل: `make stt-fetch` دوباره.
+- **عوض کردن مدل:** `STT_MODEL=medium` (یا `small`) در `.env`، بعد `make stt-fetch model=medium` و `make up`.
+- **مدل تازه:** یک ورودی تازه در `model.lock.json` لازم است. revision یک commit است، نه شاخه. sha256 هر فایل همان `lfs.oid` است در `https://huggingface.co/api/models/<repo>/tree/<revision>`. بعد از fetch، `sha256sum` باید همان را بدهد.
+
+### API (فقط از worker)
+- **`POST /v1/transcribe`:**
+  - بدنه‌ی خام `audio/*` یا `video/*`.
+  - حداکثر ۲۵ MiB، شمرده‌شده هنگام خواندن: بیشتر ← `413 too_large`.
+  - حداکثر ۱۵ دقیقه: بیشتر ← `413 too_long`.
+  - نوع اشتباه ← `415`. صدای خراب ← `422 undecodable`.
+  - پاسخ: `{text_raw, text, language: "fa", duration_s, confidence, segments[{start_s, end_s, text}], engine{name, model, version}, timing{load_s, transcribe_s}}`.
+  - `text` همان `hq_common.persian.normalise(text_raw)` است. سکوت ← `""`.
+- **همزمانی:** هر بار یک رونویسی. حداکثر `STT_MAX_WAITING` (۴) درخواست صبر میکنند؛ بیشتر ← `503 busy`.
+- **`GET /health`** مدل را بار نمیکند. **`GET /metrics`** ‏Prometheus است: `stt_requests_total{outcome}`، `stt_transcribe_seconds`، `stt_audio_seconds_total`، `stt_model_loaded`، `stt_model_load_seconds`. Prometheus روی `hq-stt` نیست و scrape نمیکند. برای دیدن: `infra/compose/hq.sh exec stt python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8000/metrics').read().decode())"`.
+- **بار شدن مدل:** با اولین درخواست. بعد از `STT_IDLE_UNLOAD_S` (۳۰۰) ثانیه بیکاری آزاد میشود (`malloc_trim`).
+- **نرمال‌ساز** (`hq_common.persian`، قطعی):
+  - `normalise(text)`: ی و ک عربی به فارسی، ZWNJ برای می/نمی و پسوندها، نشانه‌های فارسی و فاصله. هیچ کلمه و عددی عوض نمیشود.
+  - `words`، ‏`word_edit_distance` و `wer(reference, hypothesis)`.
+
+### عددهای اندازه‌گیری‌شده (۲۰۲۶-۱۰-۱۷، همین CPX42، int8، beam 5، ‏۴ thread، MiB)
+| | large-v3-turbo | medium | small |
+|---|---:|---:|---:|
+| زمان بار شدن | 2.3 s | 2.7 s | 0.9 s |
+| RSS بعد از بار شدن | 961 | 894 | 344 |
+| اوج هنگام بار شدن (fp16 ← int8) | 1644 | 1581 | 610 |
+| ۳۰ ثانیه صدا: زمان / اوج | 8.8 s / 1301 | 11.9 s / 1561 | 4.2 s / 648 |
+| ۵ دقیقه صدا: زمان / اوج | 57.7 s / 1460 | 91.6 s / 1773 | 38.6 s / 1225 |
+| بعد از آزاد شدن | 177 | 137 | 157 |
+| WER روی ۵ نمونه‌ی مصنوعی | 82.9% | 63.4% | 92.7% |
+
+- `MEM_STT=2048m` اوج turbo به‌علاوه‌ی ۲۵٪ است. `MEM_STT_FETCH=128m`.
+- **WER بالا مال صدای رباتیک espeak-ng است، نه گفتار واقعی.** نمونه‌های `services/stt/tests/samples` برای تست‌اند و دقت واقعی را نشان نمیدهند. هدف (دقت کلمه ≥ ۹۵٪) را فقط با صدای واقعی میشود سنجید:
+  - `make stt-eval dir=<پوشه>` با `<name>.ogg` و متن درستش در `<name>.txt`.
+  - `model=…` مدل را عوض میکند. `write=1` گزارش را در `docs/ops/reports/stt-eval-<تاریخ>.md` مینویسد.
+  - اجرا بدون شبکه است (`--network none`).
+
+### تصمیم حافظه (با مالک)
+`full` + stt برابر **13392 MiB** است، **1104 MiB** بیشتر از بودجه‌ی 12288 MiB (۸۰٪ از 15360). `lean` + stt برابر 7968 است، 1772 بیشتر از 6196. تا مالک تصمیم نگیرد stt خاموش میماند. سه راه:
+
+1. **مدل کوچک‌تر.** `small` با سقف حدود 1536m (اوج ۵ دقیقه 1225) ← 12880، هنوز 592 بیشتر. `medium` (اوج 1773) کمکی نمیکند. پس `small` تنها، بدون راه ۲ یا کوتاه‌تر کردن سقف ۱۵ دقیقه، جا نمیشود.
+2. **سقف‌های دیگر پایین‌تر** (مصرف زنده‌ی `docker stats` در ۲۰۲۶-۱۰-۱۷ / سقف فعلی):
+   - postgres ‏174/1536 ← 1024 (‏`shared_buffers` 384MB میماند)
+   - prometheus ‏159/768 ← 512
+   - tempo ‏115/384 ← 256
+   - loki ‏72/512 ← 384
+   - otel-collector ‏40/384 ← 256
+   - جمع: −1152 ← 12240، فقط ۴۸ MiB جای خالی.
+   - یا claude-runtime ‏62 (بیکار)/2304 با ۳ اجرای همزمان CLI به جای ۵ ← حدود 1536 (−768).
+   - temporal (326/832) و grafana (275/512) تنگ‌اند.
+   - با `small`، فقط postgres و loki کافی‌اند (−640 ← 12240).
+3. **سرور بزرگ‌تر** (فقط عدد؛ هزینه با مالک): Hetzner ‏CPX52 (12 vCPU، 24 GB) یا CCX33 (8 vCPU اختصاصی، 32 GB).
+   - یک پروفایل تازه با `HQ_BUDGET_REF_RAM_MB` همان RAM لازم است. مثلاً 24576 ← بودجه‌ی 19660، که `full` + stt با حدود 6 GB جای خالی در آن جا میشود.
+   - vCPU اختصاصی رونویسی را هم تندتر میکند.
