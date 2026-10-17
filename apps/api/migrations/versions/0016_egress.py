@@ -10,14 +10,14 @@
   `companies` lists who may use one (NULL = every company).
 
 Revision ID: 0016
-Revises: 0014
+Revises: 0015
 Create Date: 2026-10-17
 """
 
 from hq_api.migration_sql import execute_script
 
 revision = "0016"
-down_revision = "0014"
+down_revision = "0015"
 branch_labels = None
 depends_on = None
 

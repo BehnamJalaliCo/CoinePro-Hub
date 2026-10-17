@@ -14,14 +14,14 @@
   - files.processing.text: the text of a PDF (pypdf, at upload), for files.read.
 
 Revision ID: 0017
-Revises: 0014 (re-chained after 0015/0016 when merged)
+Revises: 0016
 Create Date: 2026-10-17
 """
 
 from hq_api.migration_sql import execute_script
 
 revision = "0017"
-down_revision = "0014"
+down_revision = "0016"
 branch_labels = None
 depends_on = None
 
@@ -31,7 +31,7 @@ APP_ROLES = "hq_api, hq_worker"
 def upgrade() -> None:
     execute_script(
         rf"""
-        CREATE SCHEMA tools;
+        CREATE SCHEMA IF NOT EXISTS tools;
         GRANT USAGE ON SCHEMA tools TO {APP_ROLES};
 
         CREATE TABLE tools.mcp_servers (
@@ -103,6 +103,7 @@ def downgrade() -> None:
     execute_script(
         """
         ALTER TABLE files.processing DROP COLUMN text;
-        DROP SCHEMA tools CASCADE;
+        DROP TABLE tools.mcp_calls;
+        DROP TABLE tools.mcp_servers;  -- the schema stays: 0016's tools.accounts lives there
         """
     )

@@ -40,6 +40,12 @@ class ServerSpec:
     listing_sha256: str | None
     auth_header: str | None = None
     secret: str | None = field(default=None, repr=False)  # never printed
+    # The egress proxy's names for this call (its entries go to the egress log).
+    call_id: str = ""
+    cls: str = "A2"
+
+    def proxy_headers(self) -> dict[str, str]:
+        return {"X-HQ-Call": self.call_id, "X-HQ-Tool": "mcp.call", "X-HQ-Class": self.cls}
 
     def headers(self) -> dict[str, str]:
         if not (self.auth_header and self.secret):
@@ -143,8 +149,11 @@ class SdkOpener:
         from mcp import Client
         from mcp.client.streamable_http import streamable_http_client
 
-        url, proxy = self.target(spec)
+        url, proxy_url = self.target(spec)
         timeout = httpx2.Timeout(self.timeout_s, read=self.timeout_s)
+        # The proxy learns the call from its headers (on CONNECT, never sent on
+        # to the server); the server's own secret goes in the request headers.
+        proxy = httpx2.Proxy(proxy_url, headers=spec.proxy_headers()) if proxy_url else None
         async with (
             httpx2.AsyncClient(headers=spec.headers(), timeout=timeout, proxy=proxy) as http,
             Client(

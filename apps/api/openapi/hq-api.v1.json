@@ -195,8 +195,20 @@
         "type": "object"
       },
       "AgentFileRef": {
-        "description": "files.read: an owner file attached in the agent's own company (§17.1),\nplus the key frames of a video; the model sees images as vision input.",
+        "description": "files.read: an owner file attached in the agent's own company (§17.1),\nplus the key frames of a video; the model sees images as vision input.\n`agent`: the image copy a model sees (long edge <= 1568, no EXIF);\n`text`: a PDF's text (prompt 07 §3), masked.",
         "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent"
+          },
           "duration_s": {
             "anyOf": [
               {
@@ -268,6 +280,17 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
           },
           "transcript": {
             "anyOf": [
@@ -797,7 +820,7 @@
           },
           "resolved": {
             "items": {
-              "$ref": "#/components/schemas/Resolved"
+              "$ref": "#/components/schemas/hq_api__routes__treasury__Resolved"
             },
             "title": "Resolved",
             "type": "array"
@@ -1015,6 +1038,95 @@
           "companies"
         ],
         "title": "AwaySummary",
+        "type": "object"
+      },
+      "BackupStatus": {
+        "description": "⟨1.4⟩ §18.9 BackupStatus (+ wal.failed_count, base_backup, check,\nhourly.last_ok_at/error/stale, the destination's last ok/error).",
+        "properties": {
+          "base_backup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BaseBackup"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Check"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destinations": {
+            "items": {
+              "$ref": "#/components/schemas/DestinationStatus"
+            },
+            "title": "Destinations",
+            "type": "array"
+          },
+          "encryption": {
+            "title": "Encryption",
+            "type": "string"
+          },
+          "hourly": {
+            "$ref": "#/components/schemas/Hourly"
+          },
+          "openbao_snapshot": {
+            "$ref": "#/components/schemas/OpenbaoSnapshot"
+          },
+          "restore_test": {
+            "$ref": "#/components/schemas/RestoreTest"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/Retention"
+          },
+          "wal": {
+            "$ref": "#/components/schemas/Wal"
+          }
+        },
+        "required": [
+          "hourly",
+          "wal",
+          "base_backup",
+          "destinations",
+          "retention",
+          "restore_test",
+          "openbao_snapshot",
+          "check",
+          "encryption"
+        ],
+        "title": "BackupStatus",
+        "type": "object"
+      },
+      "BaseBackup": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          }
+        },
+        "required": [
+          "last_at",
+          "count"
+        ],
+        "title": "BaseBackup",
         "type": "object"
       },
       "BreakdownRow": {
@@ -1636,6 +1748,79 @@
         "title": "Call",
         "type": "object"
       },
+      "CatalogTool": {
+        "properties": {
+          "class": {
+            "title": "Class",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "input": {
+            "title": "Input",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "per_call": {
+            "title": "Per Call",
+            "type": "boolean"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server"
+          },
+          "source": {
+            "enum": [
+              "internal",
+              "web",
+              "mcp"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "live",
+              "off",
+              "channel_not_configured",
+              "pending"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source",
+          "class",
+          "per_call",
+          "input",
+          "description",
+          "roles",
+          "status"
+        ],
+        "title": "CatalogTool",
+        "type": "object"
+      },
       "ChainItem": {
         "properties": {
           "assignee": {
@@ -1870,6 +2055,38 @@
           "version"
         ],
         "title": "CharterRef",
+        "type": "object"
+      },
+      "Check": {
+        "properties": {
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          }
+        },
+        "required": [
+          "last_at",
+          "ok"
+        ],
+        "title": "Check",
         "type": "object"
       },
       "Choice": {
@@ -3680,6 +3897,87 @@
           }
         },
         "title": "DepartmentPatch",
+        "type": "object"
+      },
+      "DestinationStatus": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "key": {
+            "enum": [
+              "local",
+              "gdrive",
+              "hetzner"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "last_ok_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ok At"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          },
+          "quota_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quota Bytes"
+          },
+          "used_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used Bytes"
+          }
+        },
+        "required": [
+          "key",
+          "configured",
+          "last_ok_at",
+          "used_bytes",
+          "quota_bytes"
+        ],
+        "title": "DestinationStatus",
         "type": "object"
       },
       "DeviceList": {
@@ -5578,6 +5876,101 @@
         "title": "HoldingState",
         "type": "object"
       },
+      "Hourly": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "last_ok_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ok At"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot"
+          },
+          "stale": {
+            "default": true,
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "last_at",
+          "next_at",
+          "ok",
+          "snapshot",
+          "size_bytes"
+        ],
+        "title": "Hourly",
+        "type": "object"
+      },
       "HubHealth": {
         "properties": {
           "at": {
@@ -6140,6 +6533,47 @@
         "title": "Links",
         "type": "object"
       },
+      "ListingIn": {
+        "additionalProperties": false,
+        "properties": {
+          "listing_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Listing Sha256",
+            "type": "string"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "title": "Tools",
+            "type": "array"
+          }
+        },
+        "required": [
+          "listing_sha256"
+        ],
+        "title": "ListingIn",
+        "type": "object"
+      },
+      "ListingOut": {
+        "properties": {
+          "status": {
+            "enum": [
+              "pending",
+              "enabled",
+              "disabled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ListingOut",
+        "type": "object"
+      },
       "LogEntryIn": {
         "additionalProperties": false,
         "properties": {
@@ -6306,6 +6740,320 @@
           "credential"
         ],
         "title": "LoginVerifyIn",
+        "type": "object"
+      },
+      "McpServer": {
+        "properties": {
+          "added_at": {
+            "format": "date-time",
+            "title": "Added At",
+            "type": "string"
+          },
+          "auth_header": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Header"
+          },
+          "companies": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Companies"
+          },
+          "enabled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled At"
+          },
+          "has_secret": {
+            "title": "Has Secret",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "listed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listed At"
+          },
+          "listed_tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listed Tools"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "enabled",
+              "disabled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/McpToolOut"
+            },
+            "title": "Tools",
+            "type": "array"
+          },
+          "transport": {
+            "enum": [
+              "http",
+              "container"
+            ],
+            "title": "Transport",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "title_fa",
+          "transport",
+          "url",
+          "image",
+          "tools",
+          "companies",
+          "status",
+          "status_reason",
+          "has_secret",
+          "auth_header",
+          "listed_tools",
+          "listed_at",
+          "added_at",
+          "enabled_at",
+          "version"
+        ],
+        "title": "McpServer",
+        "type": "object"
+      },
+      "McpServerIn": {
+        "additionalProperties": false,
+        "description": "A registration, sealed as it is (🔏 `mcp.add` = SHA-256 of the body).",
+        "properties": {
+          "auth_header": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9-]{0,60}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Header"
+          },
+          "companies": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "default": "all",
+            "title": "Companies"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "key": {
+            "pattern": "^[a-z][a-z0-9-]{1,39}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "title_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/McpToolIn"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Tools",
+            "type": "array"
+          },
+          "transport": {
+            "enum": [
+              "http",
+              "container"
+            ],
+            "title": "Transport",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 500,
+            "minLength": 8,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "transport",
+          "url",
+          "tools"
+        ],
+        "title": "McpServerIn",
+        "type": "object"
+      },
+      "McpToolIn": {
+        "additionalProperties": false,
+        "properties": {
+          "class": {
+            "enum": [
+              "A0",
+              "A1",
+              "A2",
+              "A3"
+            ],
+            "title": "Class",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "name": {
+            "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,127}$",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "class"
+        ],
+        "title": "McpToolIn",
+        "type": "object"
+      },
+      "McpToolOut": {
+        "properties": {
+          "class": {
+            "enum": [
+              "A0",
+              "A1",
+              "A2",
+              "A3"
+            ],
+            "title": "Class",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "class",
+          "enabled"
+        ],
+        "title": "McpToolOut",
         "type": "object"
       },
       "MemoryIn": {
@@ -6982,6 +7730,43 @@
           "top"
         ],
         "title": "NotificationsBox",
+        "type": "object"
+      },
+      "OpenbaoSnapshot": {
+        "properties": {
+          "configured": {
+            "default": false,
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          }
+        },
+        "required": [
+          "last_at",
+          "ok"
+        ],
+        "title": "OpenbaoSnapshot",
         "type": "object"
       },
       "OrderIn": {
@@ -7710,6 +8495,33 @@
           "items"
         ],
         "title": "Page[SessionEvent]",
+        "type": "object"
+      },
+      "Page_Snapshot_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Snapshot"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Snapshot]",
         "type": "object"
       },
       "Page_WorkEvent_": {
@@ -8809,65 +9621,216 @@
         "title": "ResolutionIn",
         "type": "object"
       },
-      "Resolved": {
+      "ResolveIn": {
+        "additionalProperties": false,
         "properties": {
-          "company": {
-            "title": "Company",
+          "args_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Args Sha256",
             "type": "string"
           },
-          "connection": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Connection"
+          "preview": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Preview",
+            "type": "string"
           },
-          "department": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Department"
+          "server": {
+            "pattern": "^[a-z][a-z0-9-]{1,39}$",
+            "title": "Server",
+            "type": "string"
           },
-          "effort": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Effort"
-          },
-          "model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model"
+          "tool": {
+            "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,127}$",
+            "title": "Tool",
+            "type": "string"
           }
         },
         "required": [
-          "company",
-          "department",
-          "connection",
-          "model",
-          "effort"
+          "server",
+          "tool",
+          "args_sha256"
         ],
-        "title": "Resolved",
+        "title": "ResolveIn",
+        "type": "object"
+      },
+      "ResolvedServer": {
+        "properties": {
+          "auth_header": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Header"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "listing_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Sha256"
+          },
+          "secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "for this one call; never logged",
+            "title": "Secret"
+          },
+          "transport": {
+            "enum": [
+              "http",
+              "container"
+            ],
+            "title": "Transport",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "transport",
+          "url",
+          "auth_header",
+          "listing_sha256"
+        ],
+        "title": "ResolvedServer",
+        "type": "object"
+      },
+      "RestoreTest": {
+        "properties": {
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          },
+          "pitr_target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitr Target"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "local",
+                  "gdrive",
+                  "hetzner"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "last_at",
+          "ok",
+          "duration_s",
+          "notes"
+        ],
+        "title": "RestoreTest",
+        "type": "object"
+      },
+      "Retention": {
+        "properties": {
+          "daily": {
+            "title": "Daily",
+            "type": "integer"
+          },
+          "hourly": {
+            "title": "Hourly",
+            "type": "integer"
+          },
+          "monthly": {
+            "title": "Monthly",
+            "type": "integer"
+          },
+          "weekly": {
+            "title": "Weekly",
+            "type": "integer"
+          },
+          "yearly": {
+            "title": "Yearly",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hourly",
+          "daily",
+          "weekly",
+          "monthly",
+          "yearly"
+        ],
+        "title": "Retention",
         "type": "object"
       },
       "Return": {
@@ -10248,6 +11211,55 @@
         "title": "SitesPut",
         "type": "object"
       },
+      "Snapshot": {
+        "properties": {
+          "destination": {
+            "enum": [
+              "local",
+              "gdrive",
+              "hetzner"
+            ],
+            "title": "Destination",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "time": {
+            "format": "date-time",
+            "title": "Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "destination",
+          "time",
+          "size_bytes",
+          "tags"
+        ],
+        "title": "Snapshot",
+        "type": "object"
+      },
       "Step": {
         "properties": {
           "actions": {
@@ -11193,6 +12205,49 @@
           "verified_at"
         ],
         "title": "Verify",
+        "type": "object"
+      },
+      "Wal": {
+        "properties": {
+          "failed_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed Count"
+          },
+          "lag_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lag S"
+          },
+          "last_archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Archived At"
+          }
+        },
+        "required": [
+          "last_archived_at",
+          "lag_s"
+        ],
+        "title": "Wal",
         "type": "object"
       },
       "WebPushKeys": {
@@ -12625,6 +13680,62 @@
         "title": "Device",
         "type": "object"
       },
+      "hq_api__routes__tools__Resolved": {
+        "properties": {
+          "class": {
+            "enum": [
+              "A0",
+              "A1",
+              "A2",
+              "A3"
+            ],
+            "title": "Class",
+            "type": "string"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "message_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Fa"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResolvedServer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tool": {
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": [
+          "class",
+          "tool"
+        ],
+        "title": "Resolved",
+        "type": "object"
+      },
       "hq_api__routes__treasury__BudgetIn": {
         "additionalProperties": false,
         "properties": {
@@ -12699,6 +13810,67 @@
           "period"
         ],
         "title": "BudgetIn",
+        "type": "object"
+      },
+      "hq_api__routes__treasury__Resolved": {
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "connection": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "required": [
+          "company",
+          "department",
+          "connection",
+          "model",
+          "effort"
+        ],
+        "title": "Resolved",
         "type": "object"
       },
       "hq_api__workshop__domain__Usage": {
@@ -14057,6 +15229,210 @@
         "summary": "Step Up Verify",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/backups/snapshots": {
+      "get": {
+        "description": "The snapshots each repository lists now, newest first.",
+        "operationId": "backup_snapshots",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "destination",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "local",
+                    "gdrive",
+                    "hetzner"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Destination"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "destination": "local",
+                      "id": "x",
+                      "size_bytes": 1,
+                      "tags": [
+                        "x"
+                      ],
+                      "time": "2026-10-17T05:42:00Z"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Snapshot_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Backup Snapshots",
+        "tags": [
+          "backups"
+        ]
+      }
+    },
+    "/api/v1/backups/status": {
+      "get": {
+        "description": "The hourly backup, the WAL archive, each destination, the retention, the\nlast restore test and the OpenBao snapshot (metadata only).",
+        "operationId": "backup_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "base_backup": {
+                    "count": 1,
+                    "last_at": "x"
+                  },
+                  "check": {
+                    "last_at": "x",
+                    "ok": false
+                  },
+                  "destinations": [
+                    {
+                      "configured": false,
+                      "error": "x",
+                      "key": "local",
+                      "last_ok_at": "x",
+                      "ok": false,
+                      "quota_bytes": 1,
+                      "used_bytes": 1
+                    }
+                  ],
+                  "encryption": "x",
+                  "hourly": {
+                    "error": "x",
+                    "last_at": "x",
+                    "last_ok_at": "x",
+                    "next_at": "x",
+                    "ok": false,
+                    "size_bytes": 1,
+                    "snapshot": "x",
+                    "stale": false
+                  },
+                  "openbao_snapshot": {
+                    "configured": false,
+                    "last_at": "x",
+                    "ok": false
+                  },
+                  "restore_test": {
+                    "duration_s": 1,
+                    "last_at": "x",
+                    "notes": "x",
+                    "ok": false,
+                    "pitr_target": "x",
+                    "source": "local"
+                  },
+                  "retention": {
+                    "daily": 1,
+                    "hourly": 1,
+                    "monthly": 1,
+                    "weekly": 1,
+                    "yearly": 1
+                  },
+                  "wal": {
+                    "failed_count": 1,
+                    "lag_s": 1,
+                    "last_archived_at": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/BackupStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Backup Status",
+        "tags": [
+          "backups"
         ]
       }
     },
@@ -24067,6 +25443,570 @@
         ]
       }
     },
+    "/api/v1/tools/catalog": {
+      "get": {
+        "description": "Every tool the agents may be given (agents/tools.md, and each sealed\nMCP tool): class (`A0/A2` = decided per call; `per tool` = the server's\nregistration), the roles whose charters grant it, and its status in this\nbuild (`live`, `off`, `channel_not_configured`, `pending`).",
+        "operationId": "tool_catalog",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "class": "x",
+                    "description": "x",
+                    "input": "x",
+                    "name": "report.pdf",
+                    "per_call": false,
+                    "roles": [
+                      "x"
+                    ],
+                    "server": "x",
+                    "source": "internal",
+                    "status": "live"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogTool"
+                  },
+                  "title": "Response Tool Catalog",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Catalog",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/tools/mcp": {
+      "get": {
+        "description": "Every registered MCP server (none is enabled without the owner's seals);\n`has_secret` only says whether OpenBao holds one, never what it is.",
+        "operationId": "list_mcp",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "added_at": "2026-10-17T05:42:00Z",
+                    "auth_header": "x",
+                    "companies": "all",
+                    "enabled_at": "2026-10-17T05:42:00Z",
+                    "has_secret": false,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "image": "x",
+                    "key": "x",
+                    "listed_at": "2026-10-17T05:42:00Z",
+                    "listed_tools": [
+                      "x"
+                    ],
+                    "status": "pending",
+                    "status_reason": "x",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "tools": [
+                      {
+                        "class": "A0",
+                        "enabled": false,
+                        "name": "report.pdf"
+                      }
+                    ],
+                    "transport": "http",
+                    "url": "x",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/McpServer"
+                  },
+                  "title": "Response List Mcp",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Mcp",
+        "tags": [
+          "tools"
+        ]
+      },
+      "post": {
+        "description": "🔏 (`mcp.add`, target = SHA-256 of the exact body). Registers a server,\nor a new version of it: its transport (`http` through the egress proxy;\n`container` on the internal network hq-mcp), the tools with their class\nand the companies that may call it. Pending until `/enable`. The secret is\nwritten on the server (`make mcp-secret KEY=…`), never through the API.",
+        "operationId": "add_mcp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "auth_header": "x",
+                "companies": "all",
+                "image": "x",
+                "key": "x",
+                "title_fa": "گزارش هفتگی رشد",
+                "tools": [
+                  {
+                    "class": "A0",
+                    "enabled": false,
+                    "name": "report.pdf"
+                  }
+                ],
+                "transport": "http",
+                "url": "xxxxxxxx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/McpServerIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "added_at": "2026-10-17T05:42:00Z",
+                  "auth_header": "x",
+                  "companies": "all",
+                  "enabled_at": "2026-10-17T05:42:00Z",
+                  "has_secret": false,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "image": "x",
+                  "key": "x",
+                  "listed_at": "2026-10-17T05:42:00Z",
+                  "listed_tools": [
+                    "x"
+                  ],
+                  "status": "pending",
+                  "status_reason": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "tools": [
+                    {
+                      "class": "A0",
+                      "enabled": false,
+                      "name": "report.pdf"
+                    }
+                  ],
+                  "transport": "http",
+                  "url": "x",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/McpServer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Add Mcp",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/tools/mcp/{key}/disable": {
+      "post": {
+        "description": "Switches a server off at once (no step-up: stopping is always allowed).",
+        "operationId": "disable_mcp",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "added_at": "2026-10-17T05:42:00Z",
+                  "auth_header": "x",
+                  "companies": "all",
+                  "enabled_at": "2026-10-17T05:42:00Z",
+                  "has_secret": false,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "image": "x",
+                  "key": "x",
+                  "listed_at": "2026-10-17T05:42:00Z",
+                  "listed_tools": [
+                    "x"
+                  ],
+                  "status": "pending",
+                  "status_reason": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "tools": [
+                    {
+                      "class": "A0",
+                      "enabled": false,
+                      "name": "report.pdf"
+                    }
+                  ],
+                  "transport": "http",
+                  "url": "x",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/McpServer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Disable Mcp",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/tools/mcp/{key}/enable": {
+      "post": {
+        "description": "🔏 (`mcp.enable`, target = the key). The gateway pins the server's tool\nlisting on its next call; a later change switches it off again.",
+        "operationId": "enable_mcp",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "added_at": "2026-10-17T05:42:00Z",
+                  "auth_header": "x",
+                  "companies": "all",
+                  "enabled_at": "2026-10-17T05:42:00Z",
+                  "has_secret": false,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "image": "x",
+                  "key": "x",
+                  "listed_at": "2026-10-17T05:42:00Z",
+                  "listed_tools": [
+                    "x"
+                  ],
+                  "status": "pending",
+                  "status_reason": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "tools": [
+                    {
+                      "class": "A0",
+                      "enabled": false,
+                      "name": "report.pdf"
+                    }
+                  ],
+                  "transport": "http",
+                  "url": "x",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/McpServer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Enable Mcp",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
     "/api/v1/transcribe": {
       "post": {
         "description": "Owner only. Raw audio (types and limits as for uploads: ≤ 25 MB, ≤ 15 min)\n-> exact Persian text: self-hosted Whisper (nothing leaves the hub), the\ndeterministic normaliser, and the light model's punctuation pass when it\nchanges no more than 8% of the words. The audio is kept as a file\n(`file_id`); attach it to a message and the message is a voice transcript.",
@@ -28647,6 +30587,162 @@
         ]
       }
     },
+    "/internal/v1/backups/status": {
+      "get": {
+        "description": "backups.status: the backup status of §18.9 (holding-scope roles: the\noverseer, the platform SRE); metadata only, never a restore.",
+        "operationId": "tool_backups_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "base_backup": {
+                    "count": 1,
+                    "last_at": "x"
+                  },
+                  "check": {
+                    "last_at": "x",
+                    "ok": false
+                  },
+                  "destinations": [
+                    {
+                      "configured": false,
+                      "error": "x",
+                      "key": "local",
+                      "last_ok_at": "x",
+                      "ok": false,
+                      "quota_bytes": 1,
+                      "used_bytes": 1
+                    }
+                  ],
+                  "encryption": "x",
+                  "hourly": {
+                    "error": "x",
+                    "last_at": "x",
+                    "last_ok_at": "x",
+                    "next_at": "x",
+                    "ok": false,
+                    "size_bytes": 1,
+                    "snapshot": "x",
+                    "stale": false
+                  },
+                  "openbao_snapshot": {
+                    "configured": false,
+                    "last_at": "x",
+                    "ok": false
+                  },
+                  "restore_test": {
+                    "duration_s": 1,
+                    "last_at": "x",
+                    "notes": "x",
+                    "ok": false,
+                    "pitr_target": "x",
+                    "source": "local"
+                  },
+                  "retention": {
+                    "daily": 1,
+                    "hourly": 1,
+                    "monthly": 1,
+                    "weekly": 1,
+                    "yearly": 1
+                  },
+                  "wal": {
+                    "failed_count": 1,
+                    "lag_s": 1,
+                    "last_archived_at": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/BackupStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Backups Status",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/company/state": {
       "get": {
         "description": "company.state: departments, active employees, open work by status, pending\ndecisions, kill switch, deploy freeze, budget use. A holding-scope role\nwithout `company` gets every company.",
@@ -30341,6 +32437,7 @@
             "content": {
               "application/json": {
                 "example": {
+                  "agent": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "duration_s": 1.0,
                   "frames": [
                     "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -30353,6 +32450,7 @@
                   "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
                   "size": 1,
                   "status": "processing",
+                  "text": "x",
                   "transcript": "x",
                   "variants": {
                     "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -31750,6 +33848,286 @@
           }
         },
         "summary": "Agent Message",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/tools/mcp/resolve": {
+      "post": {
+        "description": "The gateway's question before one mcp.call. Refused: an unknown server\nor tool (always: a tool outside the sealed registration), a company the\nserver is not for, a server not enabled, the caps. An A3 tool never runs:\nan `a3_action` decision for the owner is made (once per run and arguments).",
+        "operationId": "resolve_mcp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "args_sha256": "x",
+                "preview": "x",
+                "server": "x",
+                "tool": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ResolveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "class": "A0",
+                  "decision": "D-000123",
+                  "message_fa": "پیدا نشد.",
+                  "server": {
+                    "auth_header": "x",
+                    "key": "x",
+                    "listing_sha256": "x",
+                    "secret": "x",
+                    "transport": "http",
+                    "url": "x"
+                  },
+                  "tool": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__routes__tools__Resolved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Resolve Mcp",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/tools/mcp/{key}/listing": {
+      "post": {
+        "description": "What the server listed on a call. The first listing after an enable is\npinned; any other one switches the server off (`tools changed`) and tells\nthe owner, who seals it again (`POST /tools/mcp`, then `/enable`).",
+        "operationId": "mcp_listing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "listing_sha256": "x",
+                "tools": [
+                  "x"
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ListingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "pending"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ListingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Mcp Listing",
         "tags": [
           "internal"
         ]

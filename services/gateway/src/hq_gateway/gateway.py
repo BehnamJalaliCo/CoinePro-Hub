@@ -30,6 +30,7 @@ import json
 import logging
 import re
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Any
 
@@ -321,6 +322,8 @@ class Gateway:
             listing_sha256=srv.get("listing_sha256"),
             auth_header=srv.get("auth_header"),
             secret=srv.get("secret"),
+            call_id=uuid.uuid4().hex,
+            cls=cls,
         )
         del d, srv, r, resp  # the secret lives in `spec` only
         if self.mcp_opener is None:
@@ -337,6 +340,8 @@ class Gateway:
         except Exception:  # noqa: BLE001 - a server's failure: never its details or the secret
             log.warning("mcp call failed", extra={"server": spec.key, "tool": parsed.tool})
             return Outcome("error", cls, "mcp_unreachable", ref, None, {})
+        finally:
+            await self._mcp_egress_log(token, spec)
         ms = int((time.monotonic() - started) * 1000)
         log.info("mcp call", extra={"server": spec.key, "tool": parsed.tool, "ms": ms})
         if isinstance(out, str):
@@ -352,6 +357,25 @@ class Gateway:
             {},
             truncated,
         )
+
+    async def _mcp_egress_log(self, token: str, spec: M.ServerSpec) -> None:
+        """The proxied connections of one MCP call, from egress to the egress
+        log (an http server only; a failure here never fails the call)."""
+        egress = getattr(self.api, "egress", None)
+        if spec.transport != "http" or egress is None:
+            return
+        try:
+            out = await egress.post("/v1/proxy/drain", {"call_id": spec.call_id})
+            entries = out.get("entries") if isinstance(out, dict) else None
+            if isinstance(entries, list) and entries:
+                await self.api.request(
+                    "POST",
+                    "/internal/v1/egress/log",
+                    token,
+                    json={"tool": "mcp.call", "class": spec.cls, "entries": entries[:200]},
+                )
+        except Exception:  # noqa: BLE001 - logged as missing, the call stands
+            log.warning("mcp egress entries not logged", extra={"server": spec.key})
 
     async def _mcp_session(
         self, token: str, spec: M.ServerSpec, tool: str, args: dict[str, Any]

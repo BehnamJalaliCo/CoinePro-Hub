@@ -32,6 +32,13 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "activity.set",
         "notify",
         "mcp.call",
+        "backups.status",
+        # the internet tools (prompt 07 §2): live once egress runs
+        "web.search",
+        "web.read",
+        "web.browse",
+        "http.request",
+        "egress.recent",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

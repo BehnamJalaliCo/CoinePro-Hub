@@ -278,3 +278,49 @@ def test_listing_digest_and_render() -> None:
 def test_the_gateway_table_is_the_build_list() -> None:
     """hq_common.tool_status tells the api's catalog what this gateway runs."""
     assert set(T.TOOLS) == tool_status.GATEWAY_TOOLS
+
+
+async def test_an_http_server_names_its_call_to_the_proxy_and_its_traffic_is_logged(
+    mock: respx.MockRouter,
+) -> None:
+    """The egress proxy only carries a connection that names its tool call
+    (X-HQ-Call/-Tool/-Class on CONNECT); after the call the gateway drains that
+    call's entries from egress into the egress log."""
+    from hq_gateway.web import Egress
+
+    Stub(mock)
+    hub = Hub(mock, fake_server())
+    drained: list[dict[str, Any]] = []
+    logged: list[dict[str, Any]] = []
+    entry = {"method": "CONNECT", "host": "crm.example.com", "status": 200, "kind": "connect"}
+
+    def drain(request: httpx.Request) -> httpx.Response:
+        drained.append(json.loads(request.content))
+        return httpx.Response(200, json={"outcome": "ok", "data": {}, "entries": [entry]})
+
+    def log_entries(request: httpx.Request) -> httpx.Response:
+        logged.append(json.loads(request.content))
+        return httpx.Response(204)
+
+    mock.post("http://egress.test/v1/proxy/drain").mock(side_effect=drain)
+    mock.post(f"{API}/internal/v1/egress/log").mock(side_effect=log_entries)
+    api = T.Api(API, 5, egress=Egress("http://egress.test", 5))
+    gw = Gateway(
+        LIB, api, Opa(OPA), max_result_chars=4000, tool_timeout_s=10, mcp_opener=hub.opener
+    )
+    out = (
+        await gw.call(
+            TOKEN, 1, 0, "mcp.call", {"server": "crm", "tool": "lookup", "args": {"name": "Sara"}}
+        )
+    ).as_json()
+    assert out["outcome"] == "ok", out
+    spec = hub.opened[-1]
+    assert len(spec.call_id) == 32 and spec.proxy_headers() == {
+        "X-HQ-Call": spec.call_id, "X-HQ-Tool": "mcp.call", "X-HQ-Class": "A0",
+    }  # fmt: skip
+    assert drained == [{"call_id": spec.call_id}]
+    assert logged == [{"tool": "mcp.call", "class": "A0", "entries": [entry]}]
+    assert SECRET not in json.dumps(logged) and SECRET not in json.dumps(spec.proxy_headers())
+    # The real opener puts those headers on the proxy, never on the server's request.
+    opener = M.SdkOpener("http://egress:3129", 5)
+    assert opener.target(spec) == (spec.url, "http://egress:3129")
