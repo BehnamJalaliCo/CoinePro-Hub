@@ -345,7 +345,7 @@ async def work_get(api: Api, call: Call, a: WorkRef) -> Result:
     return from_response(await api.request("GET", f"/internal/v1/work/ref/{a.ref}", call.token))
 
 
-# What file.view shows of a FileRef (contract §17.1): never its name or hash
+# What files.read shows of a FileRef (contract §17.1): never its name or hash
 # (a model sees no file name it did not need), nor a variant it cannot use.
 FILE_FIELDS = (
     "id",
@@ -361,7 +361,7 @@ FILE_FIELDS = (
 MAX_VIEW_IMAGES = 13  # a video's poster and its (up to 12) key frames
 
 
-async def file_view(api: Api, call: Call, a: FileIn) -> Result:
+async def files_read(api: Api, call: Call, a: FileIn) -> Result:
     """A file of the agent's own company (the api checks the tenant): its
     metadata and transcript, and `view.image_file_ids`, the pictures the runner
     attaches to the next step as vision input (an image itself; a video's key
@@ -738,7 +738,7 @@ TOOLS: dict[str, tuple[type[In], Handler]] = {
     "knowledge.search": (SearchIn, knowledge_search),
     "audit.recent": (AuditIn, audit_recent),
     "memory.read": (Empty, memory_read),
-    "file.view": (FileIn, file_view),
+    "files.read": (FileIn, files_read),
     "github.read": (GithubIn, github_read),
     "deliver": (DeliverIn, deliver),
     "propose": (ProposeIn, propose),

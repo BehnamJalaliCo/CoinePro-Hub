@@ -18,7 +18,7 @@ ops := {
 	"work.read", "company.read", "health.read", "hub.read", "treasury.read",
 	"knowledge.read", "audit.read", "memory.read", "memory.write",
 	"run.reserve", "run.record", "thread.live",
-	# prompt 06: file.view (an owner file attached in the agent's own company)
+	# prompt 06: files.read (an owner file attached in the agent's own company)
 	"file.read",
 	# prompt 06: the Code Workshop, for the driver of a grant
 	"workshop.read", "workshop.session", "workshop.message",
@@ -237,7 +237,7 @@ grant if {
 	holding_reader
 }
 
-# A file of the agent's own company only (prompt 06 §2: file.view), never
+# A file of the agent's own company only (prompt 06 §2: files.read), never
 # another company's, whatever the agent's charter scope.
 grant if {
 	op == "file.read"

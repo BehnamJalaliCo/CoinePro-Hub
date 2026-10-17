@@ -884,9 +884,9 @@ def _publish_line(live: Any, thread: str, run_id: str | None, line: bytes) -> No
     live.publish(thread, ev["type"], data)
 
 
-# --------------------------------------------------------------- file.view --
+# -------------------------------------------------------------- files.read --
 class AgentFileRef(FileRef):
-    """file.view: an owner file attached in the agent's own company (§17.1),
+    """files.read: an owner file attached in the agent's own company (§17.1),
     plus the key frames of a video; the model sees images as vision input."""
 
     frames: list[UUID] = Field(default_factory=list)
@@ -894,7 +894,7 @@ class AgentFileRef(FileRef):
 
 @router.get("/files/{id}/meta", response_model=AgentFileRef, responses=E)
 async def tool_file_meta(id: UUID, ctx: Ctx = Depends(internal_ctx)) -> AgentFileRef:
-    """file.view: own company only (never another's, whatever the charter's
+    """files.read: own company only (never another's, whatever the charter's
     scope); the policy is decided before the lookup, so a missing and a
     forbidden file answer the same 403."""
     _agent(ctx)

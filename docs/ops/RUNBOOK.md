@@ -456,7 +456,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
     - فیلم به‌صورت فریم‌های کلیدی و متن صدا میرسد.
     - صدا فقط به‌صورت متن میرسد.
     - نام فایل و EXIF هیچ‌وقت به مدل نمیرسد.
-  - ابزار `file.view` (A0، فقط شرکت خود ایجنت) تا وقتی Claude سشن مشورت آن را به `agents/tools.md` اضافه نکند، `unknown_tool` میگیرد.
+  - ابزار `files.read` (A0، فقط شرکت خود ایجنت؛ در پرامپت ۶ با نام `file.view` ساخته شد و طبق `agents/tools.md` تغییر نام داد).
 - **صدا به متن:** `POST /api/v1/transcribe?purpose=message|order|note`، فقط صدا.
   - مسیر کار: Whisper روی خود هاب (سرویس `stt`، پروفایل opt-in، فقط روی شبکه‌ی `hq-stt` با worker)، بعد نرمال‌ساز قطعی فارسی (`hq_common.persian`)، بعد نقطه‌گذاری با مدل سبک (`stt_punctuation`، P1). خروجی مدل اگر بیش از ۸٪ کلمه‌ها را عوض کند رد میشود و متن نرمال‌شده میماند. هر دو متن در `files.processing` نگه داشته میشوند.
   - اگر متن ماسک‌شدنی داشته باشد (رمزی بلند خوانده شده)، گذر مدل اصلاً انجام نمیشود.

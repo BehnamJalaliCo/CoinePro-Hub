@@ -70,11 +70,11 @@ MAX_IMAGES = 20  # per request (the router's limit), so per run
 
 
 def viewed_images(results: list[dict[str, Any]]) -> list[UUID]:
-    """The images file.view asked to show (the gateway checked the tenant; the
+    """The images files.read asked to show (the gateway checked the tenant; the
     runner reads them again under its own scope)."""
     out: list[UUID] = []
     for r in results:
-        if r.get("tool") != "file.view" or r.get("outcome") != "ok":
+        if r.get("tool") != "files.read" or r.get("outcome") != "ok":
             continue
         view = (r.get("result") or {}).get("view") or {}
         for raw in view.get("image_file_ids") or []:

@@ -958,30 +958,13 @@ async def test_infinite_or_nan_money_is_invalid_args(
     assert (out["outcome"], out["code"]) == ("error", "invalid_args")
 
 
-# ----------------------------------------------------------- file.view --
-def _lib_with_file_view() -> Any:
-    """The real charters, with file.view in the catalog and the CTO's tools (as
-    agents/tools.md will list it; until then the gateway answers unknown_tool)."""
-    import dataclasses
-
-    from hq_common.charters import Library, Tool
-
-    cto = LIB.roles["cto"]
-    return Library(
-        root=LIB.root,
-        common=LIB.common,
-        common_version=LIB.common_version,
-        roles={**LIB.roles, "cto": dataclasses.replace(cto, tools=(*cto.tools, "file.view"))},
-        tools={**LIB.tools, "file.view": Tool("file.view", "A0", "{file_id}", "a file")},
-    )
-
-
+# ---------------------------------------------------------- files.read --
 FILE_ID = "0193e7a1-0000-7000-8000-00000000f11e"
 
 
-async def test_file_view_shows_a_file_and_the_pictures_to_attach(mock: respx.MockRouter) -> None:
+async def test_files_read_shows_a_file_and_the_pictures_to_attach(mock: respx.MockRouter) -> None:
     s = Stub(mock)
-    gw = Gateway(_lib_with_file_view(), T.Api(API, 5), Opa(OPA), max_result_chars=4000)
+    gw = Gateway(LIB, T.Api(API, 5), Opa(OPA), max_result_chars=4000)  # the real charters
     secret_phone = "0912" + "345" + "6789"
     frames = [f"0193e7a1-0000-7000-8000-0000000000{i:02d}" for i in range(14)]
     route = mock.get(f"{API}/internal/v1/files/{FILE_ID}/meta")
@@ -1003,13 +986,13 @@ async def test_file_view_shows_a_file_and_the_pictures_to_attach(mock: respx.Moc
             },
         )
     )
-    out = await call(gw, "file.view", {"file_id": FILE_ID})
+    out = await call(gw, "files.read", {"file_id": FILE_ID})
     assert out["outcome"] == "ok" and out["ref"] == f"file:{FILE_ID}" and out["class"] == "A0"
     r = out["result"]
     assert "name" not in r and "sha256" not in r  # no file name or hash for the model
     assert secret_phone not in json.dumps(r, ensure_ascii=False)  # the transcript is masked
     assert r["view"] == {"image_file_ids": frames[:13]}
-    assert s.records[-1]["tool"] == "file.view" and s.records[-1]["outcome"] == "ok"
+    assert s.records[-1]["tool"] == "files.read" and s.records[-1]["outcome"] == "ok"
     # An image: itself; still processing: nothing to look at yet; no frames: the poster.
     for meta, want in (
         ({"kind": "image", "status": "ready", "mime": "image/png"}, [FILE_ID]),
@@ -1018,23 +1001,23 @@ async def test_file_view_shows_a_file_and_the_pictures_to_attach(mock: respx.Moc
         ({"kind": "audio", "status": "ready", "transcript": "سلام"}, []),
     ):
         route.mock(return_value=httpx.Response(200, json={"id": FILE_ID, **meta}))
-        got = await call(gw, "file.view", {"file_id": FILE_ID})
+        got = await call(gw, "files.read", {"file_id": FILE_ID})
         assert got["result"]["view"] == {"image_file_ids": want}, meta
     # Another company's file: the api's 403 passes through as denied.
     route.mock(return_value=httpx.Response(403, json={"code": "policy_denied"}))
-    out = await call(gw, "file.view", {"file_id": FILE_ID})
+    out = await call(gw, "files.read", {"file_id": FILE_ID})
     assert (out["outcome"], out["code"]) == ("denied", "policy_denied")
     route.mock(return_value=httpx.Response(200, json=["not", "an", "object"]))
-    assert (await call(gw, "file.view", {"file_id": FILE_ID}))["code"] == "api_bad_answer"
-    bad = await call(gw, "file.view", {"file_id": "../../etc/passwd"})
+    assert (await call(gw, "files.read", {"file_id": FILE_ID}))["code"] == "api_bad_answer"
+    bad = await call(gw, "files.read", {"file_id": "../../etc/passwd"})
     assert (bad["outcome"], bad["code"]) == ("error", "invalid_args")
 
 
-async def test_file_view_waits_for_the_catalog(mock: respx.MockRouter, gw: Gateway) -> None:
-    """Until agents/tools.md lists file.view (the consultation session), no
-    charter can use it: the gateway refuses it before the api is asked."""
+async def test_the_old_file_view_name_is_unknown(mock: respx.MockRouter, gw: Gateway) -> None:
+    """Prompt 6 built it as file.view; the tool is files.read (agents/tools.md,
+    review of 6): the old name is refused before the api is asked."""
     Stub(mock)
     route = mock.get(f"{API}/internal/v1/files/{FILE_ID}/meta")
     out = await call(gw, "file.view", {"file_id": FILE_ID})
-    assert out["outcome"] == "denied" and out["code"] in ("unknown_tool", "tool_not_in_charter")
+    assert out["outcome"] == "denied" and out["code"] == "unknown_tool"
     assert not route.called

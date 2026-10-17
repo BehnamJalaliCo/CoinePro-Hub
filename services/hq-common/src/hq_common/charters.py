@@ -48,10 +48,29 @@ IMPLICIT_TOOLS = ("done",)
 
 @dataclass(frozen=True)
 class Tool:
+    """One catalog row. `cls` is the class the gateway assumes when it cannot
+    tell better: for a per-call class (`A0/A2`: the HTTP method or browser
+    step decides) the highest one; for `per tool` (mcp.call) A2, the real
+    class coming from the MCP server's registration at call time."""
+
     name: str
     cls: str
     input: str
     description: str
+    classes: tuple[str, ...] = ()  # `A0/A2`: the classes a call may have
+    per_tool: bool = False  # `per tool`: the registration decides
+
+
+def _classes(cell: str) -> tuple[str, tuple[str, ...], bool] | None:
+    """(cls, classes, per_tool) of a catalog class cell, or None if unknown."""
+    if cell in CLASSES:
+        return cell, (), False
+    if cell.lower() == "per tool":
+        return "A2", (), True
+    parts = tuple(c.strip() for c in cell.split("/"))
+    if len(parts) > 1 and all(c in CLASSES for c in parts):
+        return max(parts), parts, False
+    return None
 
 
 @dataclass(frozen=True)
@@ -138,10 +157,11 @@ def parse_tools(text: str) -> dict[str, Tool]:
         if len(cells) < 4:
             continue
         names = [_cell(n) for n in cells[0].split("·")]
-        cls = cells[1].strip()
+        parsed = _classes(cells[1].strip())
         inputs = [_cell(i) for i in cells[2].split("·")]
-        if cls not in CLASSES:
+        if parsed is None:
             continue
+        cls, classes, per_tool = parsed
         for i, name in enumerate(names):
             if re.match(r"^[a-z][a-z_]*\.[a-z_]+$|^[a-z]+$", name):
                 out[name] = Tool(
@@ -149,6 +169,8 @@ def parse_tools(text: str) -> dict[str, Tool]:
                     cls=cls,
                     input=inputs[i] if i < len(inputs) else inputs[-1],
                     description=cells[3].strip(),
+                    classes=classes,
+                    per_tool=per_tool,
                 )
     return out
 

@@ -112,7 +112,7 @@
         "type": "object"
       },
       "AgentFileRef": {
-        "description": "file.view: an owner file attached in the agent's own company (§17.1),\nplus the key frames of a video; the model sees images as vision input.",
+        "description": "files.read: an owner file attached in the agent's own company (§17.1),\nplus the key frames of a video; the model sees images as vision input.",
         "properties": {
           "duration_s": {
             "anyOf": [
@@ -28642,7 +28642,7 @@
     },
     "/internal/v1/files/{id}/meta": {
       "get": {
-        "description": "file.view: own company only (never another's, whatever the charter's\nscope); the policy is decided before the lookup, so a missing and a\nforbidden file answer the same 403.",
+        "description": "files.read: own company only (never another's, whatever the charter's\nscope); the policy is decided before the lookup, so a missing and a\nforbidden file answer the same 403.",
         "operationId": "tool_file_meta",
         "parameters": [
           {
