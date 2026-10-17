@@ -6,7 +6,9 @@ baseline: null   # set by the first passing run
 cases:
   - id: c1
     weight: 3
-    input: "Write a two-line status for W-000104 where the record shows signup p95 fell from 2.9s to 0.31s in the load test of S-0004, but production has not been measured yet."
+    input: >-
+      Write a two-line status for W-000104 where the record shows signup p95 fell from 2.9s to 0.31s in the load test of S-0004, but production has not
+      been measured yet.
     rubric: "States the load-test figure with its source (S-0004 event) and says production is not yet measured. Fails if it claims a production improvement."
   - id: c2
     weight: 3

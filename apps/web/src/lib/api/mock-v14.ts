@@ -235,12 +235,12 @@ const foundings: any[] = [
   { ref: 'C-0002', name_fa: 'سیگنال‌بات', name_en: 'Signal Bot', code: 'SB', source: { kind: 'repo', repo: 'behnamjalalico/signal-bot', brief_md: 'ربات تلگرام سیگنال با اشتراک ماهانه' }, state: 'proposed',
     audit: { session_ref: 'S-0005', scores: { architecture: 72, quality: 64, security: 58, tests: 41, debt: 55 },
       report_md: '**خلاصه:** معماری ساده و قابل رشد است؛ تست‌ها کم‌اند (۴۱٪ پوشش) و دو کلید در تاریخچه‌ی git لو رفته‌اند که باید باطل شوند. پیش از انتشار عمومی: تست‌های پرداخت، محدودیت نرخ ربات، و انتقال رمزها به vault.' },
-    proposal: { departments: ['TECH', 'GROWTH', 'SALES', 'FIN'], kpis: [{ name_fa: 'مشترک فعال', target: '500 در ۹۰ روز' }, { name_fa: 'نرخ ماندگاری ماهانه', target: '≥ 80%' }, { name_fa: 'دقت سیگنال', target: '≥ 65%' }],
+    proposal: { departments: ['TECH', 'GROWTH', 'SALES', 'FIN'], kpis: [{ name_fa: 'مشترک فعال', target: '500 در 90 روز' }, { name_fa: 'نرخ ماندگاری ماهانه', target: '≥ 80%' }, { name_fa: 'دقت سیگنال', target: '≥ 65%' }],
       team: [{ role: 'ceo', model: 'claude-sonnet-5-5', monthly_usd: 18 }, { role: 'cto', model: 'claude-sonnet-5-5', monthly_usd: 22 }, { role: 'sre', model: 'claude-haiku-5-5', monthly_usd: 6 }, { role: 'growth', model: 'claude-sonnet-5-5', monthly_usd: 14 }],
       roadmap_md: '**ماه ۱:** امن‌سازی و تست پرداخت. **ماه ۲:** انتشار بتا برای ۵۰ نفر. **ماه ۳:** رشد تا ۵۰۰ مشترک.', monthly_usd: 60 },
     decision_ref: 'D-000024', plan: 'PV-0002', company: null, created_at: iso(60 * 6), updated_at: iso(40) },
   { ref: 'C-0001', name_fa: 'کوینه‌پرو آکادمی', name_en: 'CoinePro Academy', code: 'AC', source: { kind: 'idea', repo: null, brief_md: 'آموزش ترید برای کاربران تریدیار' }, state: 'ready_for_login',
-    audit: null, proposal: { departments: ['TECH', 'GROWTH', 'PRODUCT', 'SALES'], kpis: [{ name_fa: 'دانشجوی فعال', target: '300 در ۹۰ روز' }], team: [{ role: 'ceo', model: 'claude-sonnet-5-5', monthly_usd: 18 }, { role: 'cto', model: 'claude-sonnet-5-5', monthly_usd: 20 }], roadmap_md: '', monthly_usd: 38 },
+    audit: null, proposal: { departments: ['TECH', 'GROWTH', 'PRODUCT', 'SALES'], kpis: [{ name_fa: 'دانشجوی فعال', target: '300 در 90 روز' }], team: [{ role: 'ceo', model: 'claude-sonnet-5-5', monthly_usd: 18 }, { role: 'cto', model: 'claude-sonnet-5-5', monthly_usd: 20 }], roadmap_md: '', monthly_usd: 38 },
     decision_ref: 'D-000023', plan: 'PV-0001', company: 'AC', created_at: iso(60 * 30), updated_at: iso(60 * 3) },
 ].map((f, i) => ({ id: `fo${i}`, ...f }));
 

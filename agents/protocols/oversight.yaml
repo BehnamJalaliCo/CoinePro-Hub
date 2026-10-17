@@ -11,7 +11,9 @@ protocols:
     severity: high
     answerable: manager
     title_fa: "هر عدد در خروجی منبع دارد"
-    check: "Sample 5 deliverables per company from the last day. For every figure, trace it to its source (metric, query, treasury line, audit row, commit). A figure with no source, a different value, or a stale source fails."
+    check: >-
+      Sample 5 deliverables per company from the last day. For every figure, trace it to its source (metric, query, treasury line, audit row, commit). A
+      figure with no source, a different value, or a stale source fails.
     evidence: "deliverable refs + the source refs found or missing"
   - ref: PR-002
     area: truth
@@ -41,7 +43,9 @@ protocols:
     severity: high
     answerable: ceo
     title_fa: "شاهد کارت‌های تصمیم واقعی است"
-    check: "For every new decision card, open each piece of evidence it cites and confirm it exists and says what the card claims. Estimates must show arithmetic."
+    check: >-
+      For every new decision card, open each piece of evidence it cites and confirm it exists and says what the card claims. Estimates must show
+      arithmetic.
     evidence: "D-… refs, evidence refs, verdict per item"
   - ref: PR-005
     area: truth
@@ -51,7 +55,9 @@ protocols:
     severity: medium
     answerable: ceo
     title_fa: "گفته‌های شرکت‌ها درباره‌ی یک موضوع با هم میخواند"
-    check: "Put side by side what different companies or departments claimed this week about the same fact, market, customer or plan. Contradictions without an explanation fail."
+    check: >-
+      Put side by side what different companies or departments claimed this week about the same fact, market, customer or plan. Contradictions without
+      an explanation fail.
     evidence: "message, deliverable and decision refs on both sides"
   - ref: PR-006
     area: truth
@@ -71,7 +77,9 @@ protocols:
     severity: critical
     answerable: ceo
     title_fa: "هیچ A3 بدون مُهر اجرا نشده"
-    check: "Scan the audit trail of the last day for every A3 effect (deploy, restart, publish, customer message, price change, external commitment) and match each to a sealed decision."
+    check: >-
+      Scan the audit trail of the last day for every A3 effect (deploy, restart, publish, customer message, price change, external commitment) and match
+      each to a sealed decision.
     evidence: "audit seq of each A3 effect + D-… seal"
   - ref: PR-011
     area: authority
@@ -181,7 +189,9 @@ protocols:
     severity: critical
     answerable: ai_safety
     title_fa: "هیچ رمزی در prompt، خروجی، لاگ یا رویداد نیست"
-    check: "Scan new prompts, outputs, messages, events and logs for secret patterns (keys, tokens, passwords, private keys). Any hit is critical; name only where, never the value."
+    check: >-
+      Scan new prompts, outputs, messages, events and logs for secret patterns (keys, tokens, passwords, private keys). Any hit is critical; name only
+      where, never the value.
     evidence: "object refs and pattern names"
   - ref: PR-031
     area: safety
@@ -201,7 +211,9 @@ protocols:
     severity: high
     answerable: security_analyst
     title_fa: "فعالیت وب امن است"
-    check: "Review the egress log: internal data in queries or URLs, logins to unknown accounts, unusual destinations, unused downloads, and any agent action that follows instructions found on a web page."
+    check: >-
+      Review the egress log: internal data in queries or URLs, logins to unknown accounts, unusual destinations, unused downloads, and any agent action
+      that follows instructions found on a web page.
     evidence: "egress entries, run ids"
   - ref: PR-033
     area: safety
@@ -261,7 +273,9 @@ protocols:
     severity: high
     answerable: ceo
     title_fa: "مشتری ناشناس پشتیبانی"
-    check: "With the owner's standing permission, ask support an ordinary question as a customer. Measure time, correctness, tone and use of the approved knowledge base only."
+    check: >-
+      With the owner's standing permission, ask support an ordinary question as a customer. Measure time, correctness, tone and use of the approved
+      knowledge base only.
     evidence: "the exchange transcript, KB refs"
   - ref: PR-050
     area: delivery

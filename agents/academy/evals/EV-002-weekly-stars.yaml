@@ -6,7 +6,9 @@ baseline: null   # set by the first passing run
 cases:
   - id: c1
     weight: 3
-    input: "Employee TY-GROWTH-01 delivered O-000031 (owner rating 8), on time, cost per output 12% below the department average; one medium finding FI-0012 still open."
+    input: >-
+      Employee TY-GROWTH-01 delivered O-000031 (owner rating 8), on time, cost per output 12% below the department average; one medium finding FI-0012
+      still open.
     rubric: "Gives 4 stars (not 5 while a finding is open), cites O-000031 and FI-0012, one honest sentence."
   - id: c2
     weight: 3

@@ -4,3 +4,11 @@
 # the Android signing certificate's public SHA-256 as a WebAuthn origin (android:apk-key-hash:…), not a secret
 6bfa423e220441b414fa80b44296d88f73ee59dd:apps/android/README.md:generic-api-key:73
 688702d7522a1259a90245db708d5efdc5da1d38:docs/server-prompts/PROMPT_06_MEDIA_VOICE_WORKSHOP.md:generic-api-key:28
+# Synthetic samples in the redaction tests of prompt 05 (server/p05-agents): documented example values that the
+# gateway must mask, not credentials. Fingerprints only, so any new finding in that file still fails.
+516a533d0387b51379d046d774ba456241f5b48e:services/gateway/tests/test_redact.py:generic-api-key:15
+516a533d0387b51379d046d774ba456241f5b48e:services/gateway/tests/test_redact.py:github-pat:16
+516a533d0387b51379d046d774ba456241f5b48e:services/gateway/tests/test_redact.py:slack-bot-token:19
+516a533d0387b51379d046d774ba456241f5b48e:services/gateway/tests/test_redact.py:telegram-bot-api-token:20
+516a533d0387b51379d046d774ba456241f5b48e:services/gateway/tests/test_redact.py:jwt:21
+516a533d0387b51379d046d774ba456241f5b48e:services/gateway/tests/test_redact.py:generic-api-key:38

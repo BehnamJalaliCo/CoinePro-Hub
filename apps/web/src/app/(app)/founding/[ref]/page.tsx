@@ -8,7 +8,7 @@ import { Md } from '@/components/ui/md';
 import { Dialog } from '@/components/ui/overlay';
 import { Card, ErrorState, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
-import { FOUNDING_STATE, Score } from '@/components/v14/bits';
+import { FOUNDING_STATE, Figs, Score } from '@/components/v14/bits';
 import { ApiError } from '@/lib/api/client';
 import { useFounding, useFoundingAction, usePlan, useRun, type Founding } from '@/lib/api/v14';
 import { cx, jTime, modelLabel, usd } from '@/lib/format';
@@ -62,8 +62,8 @@ function Plan({ f }: { f: Founding }) {
   return (
     <Card className="flex flex-col gap-4 p-4">
       <SectionTitle title="سرور" note={<><span className="fig">{p.ref}</span> · <span className="fig">{p.name}</span></>} action={<span className="fig text-[18px] font-semibold">€{p.monthly_eur.toFixed(2)}<span className="text-[12px] font-normal text-muted"> / ماه</span></span>} />
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {[['نوع', p.type], ['محل', p.location], ['سیستم', p.image]].map(([k, v]) => <div key={k} className="flex flex-col rounded-[10px] bg-tile px-3 py-2"><span className="text-[11px] text-muted">{k}</span><span className="fig text-[14px]">{v}</span></div>)}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        {[['نوع', p.type], ['محل', p.location], ['سیستم', p.image]].map(([k, v]) => <div key={k} className="flex min-w-0 flex-col rounded-[10px] bg-tile px-2.5 py-2 sm:px-3"><span className="text-[11px] text-muted">{k}</span><span className="fig truncate text-[13px] sm:text-[14px]">{v}</span></div>)}
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-[12px] font-semibold text-sec">فایروال هتزنر (ورودی)</span>
@@ -158,7 +158,7 @@ export default function FoundingDetail({ params }: { params: Promise<{ ref: stri
             <Card className="flex flex-col gap-3 p-4">
               <SectionTitle title="پیشنهاد" note="ساختار، هدف‌ها، تیم و نقشه‌ی راه" action={f.decision_ref && f.state === 'proposed' ? <Link href={`/cartable?ref=${f.decision_ref}`} className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-gold px-3 text-[12px] font-bold text-on-gold"><Icon name="seal" size={14} />مُهر در کارتابل</Link> : undefined} />
               <div className="flex flex-wrap gap-1.5">{f.proposal.departments.map((d) => <span key={d} className="rounded-full bg-tile px-2.5 py-1 text-[12px] text-sec">{DEPT_FA[d] ?? d}</span>)}</div>
-              <ul className="flex flex-col gap-1">{f.proposal.kpis.map((k) => <li key={k.name_fa} className="flex items-center gap-2 text-[13px]"><Icon name="chart" size={14} className="text-muted" /><span className="flex-1">{k.name_fa}</span><span className="fig text-sec">{k.target}</span></li>)}</ul>
+              <ul className="flex flex-col gap-1">{f.proposal.kpis.map((k) => <li key={k.name_fa} className="flex items-center gap-2 text-[13px]"><Icon name="chart" size={14} className="text-muted" /><span className="flex-1">{k.name_fa}</span><span className="text-[12px] text-sec"><Figs text={k.target} /></span></li>)}</ul>
               <div className="flex flex-col gap-1 border-t border-div pt-2">
                 {f.proposal.team.map((t) => <span key={t.role} className="flex items-center gap-3 text-[12px]"><span className="flex-1 text-ink">{ROLE_FA[t.role] ?? t.role}</span><span className="fig text-muted">{modelLabel(t.model)}</span><span className="fig w-14 text-left text-sec">{usd(t.monthly_usd, 0)}</span></span>)}
                 <span className="flex items-center gap-3 text-[13px] font-semibold"><span className="flex-1">جمع ماهانه‌ی تیم</span><span className="fig">{usd(f.proposal.monthly_usd, 0)}</span></span>

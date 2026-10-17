@@ -52,7 +52,7 @@ export default function AcademyPage() {
                   {t.eval_run ? <span className={cx('text-[12px]', t.eval_run.passed ? 'text-pos' : 'text-neg')}>آزمون: <span className="fig">{t.eval_run.score}</span> در برابر خط پایه <span className="fig">{t.eval_run.baseline}</span> · {t.eval_run.passed ? 'قبول' : 'رد'}</span> : null}
                   {t.status === 'proposed' ? (
                     <div className="flex gap-2">
-                      <Button size="sm" variant="primary" icon="seal" loading={act.approve.isPending} onClick={() => act.approve.mutateAsync(t.ref).then(() => toast({ tone: 'ok', text: 'تأیید شد؛ نسخه‌ی تازه فعال شد.' })).catch(err)}>تأیید کن</Button>
+                      <Button size="sm" variant="primary" icon="seal" disabled={t.eval_run?.passed === false} loading={act.approve.isPending} onClick={() => act.approve.mutateAsync(t.ref).then(() => toast({ tone: 'ok', text: 'تأیید شد؛ نسخه‌ی تازه فعال شد.' })).catch(err)}>تأیید کن</Button>
                       <Button size="sm" variant="ghost" onClick={() => act.reject.mutateAsync(t.ref).catch(err)}>رد کن</Button>
                     </div>
                   ) : null}
