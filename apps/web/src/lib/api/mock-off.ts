@@ -2,3 +2,4 @@
 export async function handle(): Promise<Response> {
   throw new Error('mock mode is not part of this build');
 }
+export function register(): void {}

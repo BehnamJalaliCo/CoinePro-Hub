@@ -14,7 +14,7 @@ const itemCls = 'flex h-11 cursor-pointer items-center gap-3 rounded-[10px] px-3
 const groupCls = '[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:text-muted';
 
 /** Command palette (D1): Ctrl/⌘ K — go anywhere, find a company, an employee or a decision. */
-export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+export function CommandPalette({ open, onOpenChange, onVoice }: { open: boolean; onOpenChange: (v: boolean) => void; onVoice?: () => void }) {
   const router = useRouter();
   const [, setTheme] = useTheme();
   const { data: companies } = useCompanies();
@@ -44,6 +44,13 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
             </div>
             <Command.List className="max-h-[60vh] overflow-y-auto p-2">
               <Command.Empty className="px-3 py-8 text-center text-[13px] text-muted">چیزی پیدا نشد.</Command.Empty>
+              {onVoice ? (
+                <Command.Group heading="فرمان" className={groupCls}>
+                  <Command.Item value="voice order فرمان صوتی ویس" onSelect={() => { onOpenChange(false); onVoice(); }} className={itemCls}>
+                    <span className="text-gold-ink"><Icon name="mic" size={18} /></span>فرمان صوتی
+                  </Command.Item>
+                </Command.Group>
+              ) : null}
               <Command.Group heading="صفحه‌ها" className={groupCls}>
                 {[...NAV_MAIN, ...NAV_TOOLS].map((n) => (
                   <Command.Item key={n.href} value={`page ${n.label}`} onSelect={() => go(n.href)} className={itemCls}>

@@ -63,7 +63,18 @@ CI (`.github/workflows/clients.yml`) runs the tests and publishes both APKs to t
 **android-latest**: `coinepro-hq.apk` is the app, `coinepro-hq-debug.apk` the development build with
 **«نمایش آزمایشی»** on the sign-in screen (the demo holding, no server, no passkey).
 
-## Passkeys on Android: three steps, all the owner's
+## Passkeys on Android
+
+The owner's signing key exists (alias `coinepro-hq`, created 2026-10-17; kept by the owner and in the four
+repository secrets below). Its public identity, which the hub needs:
+
+- SHA-256: `D6:D4:15:6F:7F:0E:AE:95:4A:F4:14:BA:A8:8B:6A:E8:C6:84:27:03:5F:62:71:B4:C5:ED:97:0F:39:2A:15:BF`
+  (the web's `assetlinks.json` default, for `com.coinepro.hq` and `com.coinepro.hq.debug`)
+- WebAuthn origin: `android:apk-key-hash:1tQVb38OrpVK9BS6qItq6MaEJwNfYnG0xe2XDzkqFb8` (the API's `HQ_ANDROID_ORIGINS`)
+
+Both the release and the debug build are signed with it when the secrets are present.
+
+### How it was set up (for a future key)
 
 Credential Manager only lets an app use the hub's passkeys when the domain vouches for the app. That needs the
 app's signing key, which is the owner's alone.

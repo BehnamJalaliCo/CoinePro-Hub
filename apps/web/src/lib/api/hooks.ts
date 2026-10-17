@@ -97,7 +97,9 @@ export const useMessages = (code: string | null) =>
 export function useSend(code: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: string) => ok(api.POST('/api/v1/threads/{code}/messages', { params: { path: { code } }, body: { body } })),
+    // ⟨1.3⟩ attachments: owner file ids (contract §17.1); the generated types catch up when the server regenerates them.
+    mutationFn: (v: { body: string; attachments?: string[] }) =>
+      ok(api.POST('/api/v1/threads/{code}/messages', { params: { path: { code } }, body: (v.attachments?.length ? v : { body: v.body }) as Schemas['MessageIn'] })),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['messages', code] }); void qc.invalidateQueries({ queryKey: ['threads'] }); },
   });
 }

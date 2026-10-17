@@ -6,9 +6,12 @@ import { Icon } from '@/components/icon';
 import { CompanyMark } from '@/components/brand/marks';
 import { Orbit } from '@/components/live/orbit';
 import { DecisionRow } from '@/components/cartable/decision-row';
+import { SessionRow, isOpen } from '@/components/workshop/parts';
+import { useVoiceOrder } from '@/components/work/voice-order';
 import { Button } from '@/components/ui/button';
 import { Bar, Card, Empty, ErrorState, Pill, SectionTitle, Skeleton, StatTile, budgetTone } from '@/components/ui/primitives';
 import { useAway, useCompanies, useDecisions, useInbox, usePlanner, usePresence, useTreasury } from '@/lib/api/hooks';
+import { useGrants, useSessions, useWorkspaces } from '@/lib/api/v13';
 import { useLive } from '@/lib/live';
 import { useScope } from '@/lib/scope';
 import { WORK_STATUS } from '@/lib/labels';
@@ -16,6 +19,7 @@ import { ago, cx, jTime, jWeekday, tokens, usd } from '@/lib/format';
 
 function Greeting() {
   const { data: presence } = usePresence();
+  const voice = useVoiceOrder();
   const today = new Date();
   const g = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(today);
   const h = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Asia/Tehran' }).format(today));
@@ -23,10 +27,11 @@ function Greeting() {
   return (
     <header className="flex flex-wrap items-end gap-x-4 gap-y-2">
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="text-caption text-muted">{jWeekday(today.toISOString())} <span className="fig">· {g}</span></span>
+        <span className="text-caption text-muted">{jWeekday(today.toISOString())} · <span className="fig">{g}</span></span>
         <h1 className="text-display font-semibold">{hello}، مدیر کل</h1>
       </div>
       {presence?.khalvat ? <Pill tone="learn" icon="khalvat">خلوت روشن؛ فقط فوری میرسد</Pill> : null}
+      <Button variant="primary" icon="mic" onClick={voice} className="max-sm:w-full">فرمان صوتی</Button>
     </header>
   );
 }
@@ -39,7 +44,7 @@ function AwayBanner() {
   return (
     <Card className="flex flex-wrap items-center gap-4 p-4">
       <span className="flex size-10 items-center justify-center rounded-full bg-gold-soft text-gold-ink"><Icon name="khalvat" size={20} /></span>
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-[1_1_12rem] flex-col">
         <span className="text-[14px] font-semibold">در نبودت چه گذشت</span>
         <span className="text-caption text-sec">از {ago(data.since)}: {data.decisions.new} تصمیم تازه، {data.deliverables.new} خروجی، {data.messages.new} پیام</span>
       </div>
@@ -107,6 +112,23 @@ function Live() {
   );
 }
 
+/** Code Workshop sessions that are moving or waiting for the owner; hidden when nothing is. */
+function Workshop() {
+  const router = useRouter();
+  const { data } = useSessions();
+  const { data: workspaces } = useWorkspaces();
+  const { data: grants } = useGrants();
+  const open = (data?.items ?? []).filter((s) => isOpen(s.state)).sort((a, b) => Number(b.state === 'waiting_approval') - Number(a.state === 'waiting_approval'));
+  if (!open.length) return null;
+  const waiting = open.filter((s) => s.state === 'waiting_approval').length;
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <SectionTitle title="کارگاه کد" note={waiting ? <span className="text-gold-ink">{waiting} جلسه منتظر اجازه‌ی تو</span> : `${open.length} جلسه در جریان`} action={<Button variant="text" size="sm" iconEnd="next" onClick={() => router.push('/workshop')}>کارگاه</Button>} />
+      <div className="flex flex-col gap-2">{open.slice(0, 3).map((s) => <SessionRow key={s.ref} s={s} workspaces={workspaces} grant={grants?.find((g) => g.ref === s.grant)} />)}</div>
+    </Card>
+  );
+}
+
 function Today() {
   const router = useRouter();
   const { company } = useScope();
@@ -163,7 +185,7 @@ export default function CommandCenter() {
       <Stats />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-4"><Cartable /><Live /></div>
-        <div className="flex min-w-0 flex-col gap-4"><Today /><Budgets /></div>
+        <div className="flex min-w-0 flex-col gap-4"><Workshop /><Today /><Budgets /></div>
       </div>
     </>
   );

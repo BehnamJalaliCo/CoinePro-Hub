@@ -13,6 +13,8 @@ const EVENT_TYPES = [
   'message.created', 'notification.created', 'presence.changed', 'control.changed',
   'employee.updated', 'activity.changed', 'llm.call.started', 'llm.call.finished',
   'budget.alert', 'run.started', 'run.step', 'run.finished',
+  // ⟨1.3⟩ §17.6
+  'file.ready', 'file.failed', 'workshop.session', 'workshop.approval', 'order.routed',
 ] as const;
 
 // Event type prefix -> query keys to refresh (contract §7, §16).
@@ -28,6 +30,9 @@ const INVALIDATE: Array<[string, string[]]> = [
   ['budget.', ['treasury']],
   ['llm.', ['treasury']],
   ['run.', ['runs']],
+  ['file.', ['messages']],
+  ['workshop.', ['workshop']],
+  ['order.', ['orders', 'planner', 'work']],
 ];
 
 export type StreamState = 'connecting' | 'live' | 'offline';
@@ -53,7 +58,7 @@ export function useHoldingStream(onEvent?: (e: StreamEvent) => void): StreamStat
     let timer: ReturnType<typeof setTimeout> | undefined;
     let closed = false;
     const open = () => {
-      es = new EventSource('/api/v1/stream?topics=work,decisions,deliverables,messages,notifications,activity,llm,control', { withCredentials: true });
+      es = new EventSource('/api/v1/stream?topics=work,decisions,deliverables,messages,notifications,activity,llm,control,files,workshop,orders', { withCredentials: true });
       es.onopen = () => { retry = 0; setState('live'); };
       es.onerror = () => {
         setState('offline');

@@ -24,5 +24,5 @@ Next.js 16 (App Router) + React 19 + Tailwind 4 + TypeScript strict، روی س�
 ### متغیرهای سرویس web
 | نام | کار |
 |---|---|
-| `HQ_ANDROID_PACKAGES` | بسته‌های اپ اندروید در `/.well-known/assetlinks.json`؛ پیش‌فرض `com.coinepro.hq` |
-| `HQ_ANDROID_CERT_SHA256` | اثر انگشت SHA-256 کلید امضای اپ (`AA:BB:…`، چندتا با کاما). تا خالی است فایل `[]` است و passkey روی اندروید کار نمیکند. مقدار را اپ در «تنظیمات ← این اپ» نشان میدهد. |
+| `HQ_ANDROID_PACKAGES` | بسته‌های اپ اندروید در `/.well-known/assetlinks.json`؛ پیش‌فرض `com.coinepro.hq,com.coinepro.hq.debug` |
+| `HQ_ANDROID_CERT_SHA256` | اثر انگشت SHA-256 کلید امضای اپ (`AA:BB:…`، چندتا با کاما). پیش‌فرض: اثر انگشت کلید مالک (ساخته‌شده ۲۰۲۶-۱۰-۱۷)؛ فقط برای کلید دیگر لازم است. |

@@ -6,6 +6,8 @@
 > بدنه‌ی فنی به انگلیسی است تا نام فیلدها و رفتارها دقیق و بی‌ابهام باشد.
 >
 > **v1.1 (۲۰۲۶-۱۰-۱۷):** «Contract notes» گزارش پرامپت ۴ و نتیجه‌ی بازبینی وارد شد. تغییرها با ⟨1.1⟩ علامت خورده‌اند؛ آن‌هایی که هنوز پیاده نشده‌اند در `docs/server-prompts/PROMPT_04_1_HARDENING.md` هستند.
+>
+> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶).
 
 ---
 
@@ -403,7 +405,7 @@ Engaged holding kill switch: the router refuses every call except P0, the worker
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/treasury/summary` | `?period=day\|month&company` → totals (input, output, cache read/write, thinking tokens; `cost_usd`, `equiv_cost_usd`), budget use % with 70/90/100 thresholds, top 5 consumers |
-| GET | `/treasury/breakdown` | `?by=company\|department\|actor\|model\|connection\|task_class\|priority&from&to&company` |
+| GET | `/treasury/breakdown` | `?by=company\|department\|actor\|model\|connection\|task_class\|priority\|day&from&to&company` — ⟨1.3⟩ `day`: one row per calendar day **in the owner's time zone**, `key` = ISO date, ascending, days without calls included with zeros, inside `[from, to]` |
 | GET | `/treasury/calls` | metadata only, paged; never prompt or response text |
 | GET | `/treasury/what-if` | `?from&to&company&model=` → "what would this have cost on model X" from our price table (design list #22) |
 | GET | `/connections` | registry without secrets |
@@ -509,3 +511,124 @@ No model runs for a healthy check. N consecutive failures open an incident and *
 
 ### 16.5 Quota
 `GET /treasury/quota` → `{ subscription: { status: "ok"|"warning"|"limited", window, resets_at|null, source }, throttle: { paused_priorities: ["P4", …] } }`. The Quota Controller is code (no model): at `warning` it pauses P4, at `limited` it lets only P0–P2 through, and it says so on the stream (`budget.alert`).
+
+---
+
+## 17. v1.3 — media, voice, the Code Workshop and voice orders (prompt 6)
+
+> **v1.3 (2026-10-17).** Owner requests of 2026-10-17: send photos and videos to managers and employees; voice turned into
+> exact Persian text; a Claude Code workspace inside the app, driven by managers and the advisor under the owner's grant;
+> and orders given by voice that reach the right place. Everything above still holds.
+
+### 17.1 Owner uploads and attachments
+```
+FileRef ⟨1.3⟩ { id, name, mime, size, sha256,
+                kind: "image"|"video"|"audio"|"document",
+                status: "processing"|"ready"|"failed",
+                width?, height?, duration_s?,
+                variants: { thumb?: file_id, poster?: file_id },
+                transcript?: string }            // audio, and the sound of a video, when ready
+```
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/files` | Owner only. **Raw body** (no multipart), `Content-Type` = the file's type, `X-File-Name` = UTF-8 name, percent-encoded; `Idempotency-Key` as every POST. Allowed: images `jpeg`, `png`, `webp`, `heic` (≤ 20 MB); video `mp4`, `webm`, `quicktime` (≤ 200 MB, ≤ 10 min); audio `m4a/aac`, `ogg/opus`, `webm`, `wav`, `mpeg` (≤ 25 MB, ≤ 15 min); `pdf` (≤ 30 MB). The size limit is enforced **while streaming**, the type is checked by content (magic bytes), not by the header. → `201 FileRef` (`status: "processing"` for video and audio). |
+| GET | `/files/{id}` | `?variant=original\|thumb\|poster` (default original); supports `Range`; tenant-checked. |
+| GET | `/files/{id}/meta` | the `FileRef` (poll while `processing`; the stream also sends `file.ready`). |
+
+- **Processing** (a worker, no model): images lose EXIF and GPS, get a 512 px WebP `thumb`; videos get a `poster` frame, up to 12 key frames (scene change, at most one per 5 s) for agents, and their sound track transcribed (§17.2); audio is transcribed.
+- `MessageIn` ⟨1.3⟩ `{ body, links?, attachments?: [file_id] }` — up to 10 owner files. `body` may be empty when there is an attachment. Agents
+  receive **images as vision input** (long edge ≤ 1568 px), **video as its key frames plus transcript**, **audio as transcript** — never raw
+  video or audio. A model never sees EXIF, file names it did not need, or another company's files.
+- Files are company-scoped like everything else: a file attached in an `FX-…` thread is readable by FX agents only (and the owner).
+
+### 17.2 Voice to exact Persian text
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/transcribe` | Owner only. Raw audio body (types and limits as §17.1 audio). `?purpose=message\|order\|note`. → `{ text, language: "fa", duration_s, confidence: 0..1, segments: [{start_s, end_s, text}], file_id, engine: {name, model, version} }` |
+
+- Engine: **self-hosted Whisper** (`faster-whisper`, model `large-v3-turbo`, int8 on CPU; MIT licence) with `language="fa"`, beam 5, VAD.
+  Nothing leaves the hub for speech recognition.
+- Then a **deterministic Persian normaliser**: Arabic ي/ك → ی/ک, ZWNJ for «می»/«نمی» prefixes and «ها»/«های»/«تر»/«ترین»/«ام»/«ای» suffixes,
+  Persian punctuation (، ؛ ؟), numbers kept as spoken, no translation, no paraphrase.
+- Then an optional **punctuation pass** with the light model (A0, owner-zone budget): it may add punctuation and paragraph breaks and fix
+  obvious ASR splits only; the server rejects its output when the word-level edit distance from the normalised text exceeds 8% and keeps
+  the normalised text instead. Both texts are kept for the quality log.
+- **Quality protocol (roadmap month 3, pulled forward):** a 100-sample Persian test set of the owner's own voice (with exact transcripts the owner
+  confirms) measures word error rate per engine version; target ≥ 95% word accuracy. Results in `docs/ops/reports/`.
+- A message sent from voice is stored as `kind: "voice_transcript"` with the audio as an attachment, so the owner can always replay what was said.
+
+### 17.3 The Code Workshop (کارگاه کد)
+A place inside the app where Claude Code works on the companies' repositories: sessions are opened under an owner **grant**, driven by an
+agent (a CTO, Lead Developer, the hub's own platform SRE) or by the owner directly, watched live, and stopped at any time.
+```
+Workspace { id, code: "FX-APP", company, repo: "<owner>/<name>", default_branch, title_fa,
+            policy: { branch_prefix: "hq/", may_open_pr: true, merge: "owner_seal", deploy: "owner_seal" }, status: "active"|"paused" }
+Grant     { id, ref: "G-0001", workspace, actions: ["read","edit","run","push_branch","open_pr"], driver: Actor|null,
+            budget_usd, expires_at, granted_by: Actor, decision_ref|null, revoked_at|null }
+CodeSession { id, ref: "S-0001", workspace, grant, title, brief, opened_by: Actor, driver: Actor,
+              runtime: "managed"|"self_hosted", model, effort,
+              state: "starting"|"working"|"waiting_approval"|"idle"|"done"|"failed"|"stopped",
+              branch|null, pr_url|null, usage: { usd, input_tokens, output_tokens }, created_at, updated_at }
+SessionEvent { seq, at, type: "message"|"progress"|"command"|"file_change"|"approval_request"|"approval_result"|"state"|"error",
+               actor: Actor, summary_fa, data }   // data: {cmd, exit_code} | {path, added, removed} | {approval_id, action, detail} …
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/workshop/workspaces` | `?company` |
+| PUT | `/workshop/workspaces` 🔏 | owner edits the list (data, not code) |
+| GET | `/workshop/grants` | `?workspace&active` |
+| POST | `/workshop/grants` 🔏 | owner grants `{workspace, actions, driver?, budget_usd, expires_at}`; agents ask through a decision of kind `code_session` (A1), whose seal creates the grant |
+| POST | `/workshop/grants/{ref}/revoke` | immediate; running sessions under it stop |
+| GET | `/workshop/sessions` | `?workspace&state&driver` |
+| POST | `/workshop/sessions` | `{grant, title, brief, attachments?, model?, effort?}` — owner, or the grant's driver through the internal API |
+| GET | `/workshop/sessions/{ref}` | |
+| GET | `/workshop/sessions/{ref}/events` | `?after` (seq) |
+| GET | `/workshop/sessions/{ref}/live` | SSE of `SessionEvent` (`event:` = its `type`); resumes with `Last-Event-ID` = seq |
+| POST | `/workshop/sessions/{ref}/messages` | `{body, attachments?}` — the owner steers a session in words or voice |
+| POST | `/workshop/sessions/{ref}/approvals/{id}` 🔏 | `{allow, note?}` — answers an `approval_request` (push, opening a PR, any command outside the allow-list) |
+| POST | `/workshop/sessions/{ref}/stop` | immediate; the branch stays |
+
+**Rules (non-negotiable):**
+1. The workshop **never touches production**: no SSH, no deploy keys, no server credentials, no database URLs. Its only write is a git push to
+   `hq/<session-ref>` branches and opening a PR. Merge and deploy stay decisions with the owner's seal (§5.1, OPERATING_MODEL §1.1).
+2. **Credentials never enter the sandbox.** The GitHub credential is per workspace, fine-grained (contents and pull requests on that one
+   repository), kept by the hub (or the managed runtime's vault, substituted at egress), never printed, never shown to a model.
+3. Each session runs in **its own sandbox** with a fresh clone, no access to the hub's network or other sessions, outbound limited to GitHub and
+   package registries. A session's CLAUDE.md is the repository's own; the repository's rules bind the session.
+4. **Budget:** every session has a USD cap from its grant; at the cap it stops and asks. Usage enters the Token Treasury like every call.
+5. **Kill switch and deploy freeze:** engaging either for the workspace's company pauses its sessions.
+6. **Work lock** (OPERATING_MODEL §1.5): one writing session per repository area at a time; others queue.
+7. **Everything is recorded:** events carry summaries and metadata; the full session transcript is stored in object storage, owner-readable,
+   retained with the audit set.
+
+**Runtime.** `managed` = Claude Managed Agents (Anthropic hosts the loop and a per-session container; its permission policy `always_ask` for
+pushes and PRs maps to `approval_request`; the GitHub credential lives in its vault). `self_hosted` = the Claude Agent SDK in disposable
+containers on a separate builder host. The contract is the same for both; the choice is an owner decision recorded in prompt 6.
+
+### 17.4 Voice orders (فرمان صوتی)
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/orders` | `{text, source: "voice"\|"text", file_id?, company?}` → `{ ref: "F-0001", routes: [{company, to, kind: "work"\|"code"\|"meeting"\|"question", work_ref?, session_ref?, decision_ref?}], summary_fa }` |
+| GET | `/orders` | `?from&to` — the owner's orders and where each went |
+
+- Routing is **rules first** (named company, named role, known keywords), then the light model, then the advisor only when the order is
+  ambiguous; the depth-2 rule of §4 still holds.
+- `code` orders go to the workshop: into a running session the order fits, else a new session under an existing grant, else a
+  `code_session` decision for the owner's seal. `question` orders go to the advisor (thread `A`).
+- The order, its audio and its routes are kept; the order appears in the owner's planner.
+
+### 17.5 Not in the API
+The owner's own claude.ai / Claude Code sessions stay in the owner's Claude account. The apps open them (`https://claude.ai/code`) with the
+owner's own sign-in; the hub never stores, proxies or reads them.
+
+### 17.6 Stream types added
+`file.ready`, `file.failed`, `workshop.session` (state changes), `workshop.approval` (a new approval request), `order.routed`.
+Their `/stream` topics: `files`, `workshop`, `orders` (added to the `topics` list of §7).
+
+### 17.7 Step-up targets and discovery
+- Step-up actions (🔏 above): `workshop.grant` and `workshop.workspaces` are bound to the SHA-256 of the request body (like
+  `/budgets`); `workshop.approval` is bound to `"{session_ref}/{approval_id}"` (e.g. `S-0004/AP-0007`) and is needed only to
+  **allow** — a denial (`allow: false`) needs no step-up, like engaging a kill switch.
+- `GET /meta` gains `workshop: { runtime: "managed"|"self_hosted"|null }` — `null` until the owner chooses (then `POST /workshop/sessions`
+  answers `503 runtime_not_configured`), so the apps can say so before the owner tries.
+

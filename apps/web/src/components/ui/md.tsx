@@ -1,8 +1,9 @@
 import { Fragment, type ReactNode } from 'react';
 
 /** A small, safe Markdown subset for agent-written text: paragraphs, ### headings, - lists,
- *  **bold**, `code` and refs (D-…, M-…, O-…, W-…, A-…) as Latin figures. No raw HTML, ever. */
-const REF = /\b([DMOWI]-\d{3,6}|A-\d{4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\d{2,3}|MGR|CEO|ADV|SYS)(?:-\d{4})?)\b/;
+ *  **bold**, `code` and refs (D-…, M-…, O-…, W-…, A-…, and ⟨1.3⟩ F-…, S-…, G-…, AP-…) as Latin figures. No raw HTML, ever.
+ *  A ref inside a path (`hq/S-0004`) stays part of that path. */
+const REF = /(?<![/\w-])([DMOWIFSG]-\d{3,6}|A-\d{4}|AP-\d{4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\d{2,3}|MGR|CEO|ADV|SYS)(?:-\d{4})?)\b/;
 
 function inline(text: string, key: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -13,7 +14,7 @@ function inline(text: string, key: string): ReactNode[] {
     if (m.index! > last) out.push(...refs(text.slice(last, m.index), `${key}t${i}`));
     const t = m[0];
     if (t.startsWith('**')) out.push(<strong key={`${key}b${i}`} className="font-semibold text-ink">{refs(t.slice(2, -2), `${key}bb${i}`)}</strong>);
-    else out.push(<code key={`${key}c${i}`} className="fig rounded-[5px] bg-tile px-1 py-px text-[0.92em] text-ink">{t.slice(1, -1)}</code>);
+    else out.push(<code key={`${key}c${i}`} className="fig whitespace-nowrap rounded-[5px] bg-tile px-1 py-px text-[0.92em] text-ink">{t.slice(1, -1)}</code>);
     last = m.index! + t.length;
     i++;
   }
@@ -52,6 +53,11 @@ function Block({ b, bi }: { b: string; bi: string }): ReactNode {
     return <ol key={bi} className="flex list-decimal flex-col gap-1 pr-5 marker:text-muted">{lines.map((l, li) => <li key={li}>{inline(l.replace(/^\s*\d+[.)]\s+/, ''), `${bi}-${li}`)}</li>)}</ol>;
   }
   return <p key={bi}>{inline(lines.join(' '), bi)}</p>;
+}
+
+/** One line of agent text (event summaries, briefs): bold, code and refs, no blocks. */
+export function MdInline({ text }: { text: string | null | undefined }) {
+  return text ? <>{inline(text.replace(/\s*\n+\s*/g, ' '), 'i')}</> : null;
 }
 
 export function Md({ text, className }: { text: string | null | undefined; className?: string }) {

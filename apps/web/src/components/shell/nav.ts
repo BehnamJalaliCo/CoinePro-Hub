@@ -9,6 +9,7 @@ export const NAV_MAIN: NavItem[] = [
   { href: '/advisor', label: 'مشاور کل', icon: 'advisor' },
   { href: '/companies', label: 'شرکت‌ها', icon: 'companies' },
   { href: '/messages', label: 'پیام‌ها', icon: 'messages', badge: 'messages' },
+  { href: '/workshop', label: 'کارگاه کد', icon: 'code' },
 ];
 
 export const NAV_TOOLS: NavItem[] = [
