@@ -153,17 +153,17 @@ async def test_no_table_leaks_between_companies(
     populated = []
     for row in tables:
         name = f"{row['s']}.{row['t']}"
-        in_b = await su.fetchval(f"SELECT count(*) FROM {name} WHERE company_id = $1", b["id"])  # noqa: S608
+        in_b = await su.fetchval(f"SELECT count(*) FROM {name} WHERE company_id = $1", b["id"])
         if in_b:
             populated.append(name)
         async with hub.db.tx([a["id"]]) as tx:
-            seen = await tx.scalar(f"SELECT count(*) FROM {name} WHERE company_id = :b", b=b["id"])  # noqa: S608
+            seen = await tx.scalar(f"SELECT count(*) FROM {name} WHERE company_id = :b", b=b["id"])
         assert seen == 0, f"{name}: {seen} row(s) of another company visible"
         async with hub.db.tx([b["id"]]) as tx:
             assert (
                 await tx.scalar(f"SELECT count(*) FROM {name} WHERE company_id = :b", b=b["id"])
                 == in_b
-            ), name  # noqa: S608
+            ), name
     # Nearly every tenant table really held rows of B during the check.
     assert len(populated) >= len(tables) - 2, sorted(
         {f"{r['s']}.{r['t']}" for r in tables} - set(populated)
