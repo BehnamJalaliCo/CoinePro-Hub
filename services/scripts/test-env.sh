@@ -24,9 +24,12 @@ TEMPORAL_IMAGE="temporalio/admin-tools:1.32.1"
 OPA_IMAGE="$(cat "$REPO_DIR/infra/opa/IMAGE" 2>/dev/null || true)"
 STATE="${TMPDIR:-/tmp}/$NAME.env"
 
+# HQ_TEST_IMAGE_TAG: a tag of its own for each checkout that tests at the same
+# time (parallel worktrees), so one never runs the other's freshly built image.
+TAG="${HQ_TEST_IMAGE_TAG:-dev}"
 case "$TARGET" in
-  services) TEST_IMAGE="coinepro-hq/services-test:dev" ;;
-  api) TEST_IMAGE="coinepro-hq/api-test:dev" ;;
+  services) TEST_IMAGE="coinepro-hq/services-test:$TAG" ;;
+  api) TEST_IMAGE="coinepro-hq/api-test:$TAG" ;;
   *) echo "HQ_TEST_TARGET must be services or api" >&2; exit 2 ;;
 esac
 

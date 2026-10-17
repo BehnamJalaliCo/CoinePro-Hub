@@ -15,7 +15,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 TE="$REPO_DIR/services/scripts/test-env.sh"
 API_DIR="$REPO_DIR/apps/api"
-API_IMAGE="coinepro-hq/api-test:dev"
+API_IMAGE="coinepro-hq/api-test:${HQ_TEST_IMAGE_TAG:-dev}"
 export HQ_TEST_NAME="hq-check-$$"
 trap '"$TE" down' EXIT
 
