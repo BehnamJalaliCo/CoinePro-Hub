@@ -547,7 +547,7 @@ async def set_connection_secret(
     """🔏 step-up `connection.secret` (target = the id). Write-only: the key goes
     to OpenBao at the connection's secret_ref; it is never returned, logged or
     audited (the audit records only that it changed)."""
-    bao = getattr(ctx.hub, "bao", None)
+    bao = ctx.hub.bao
     async with ctx.tx() as tx:
         cur = await tx.one("SELECT key, secret_ref FROM llm.connections WHERE id = :id", id=id)
         await stepup.consume(tx, request, ctx.who, "connection.secret", str(id))

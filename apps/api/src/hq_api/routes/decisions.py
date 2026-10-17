@@ -97,6 +97,7 @@ async def list_decisions(
 
 @router.get("/decisions/{ref}", response_model=D.Decision, responses=E)
 async def get_decision(ref: str, ctx: Ctx = Depends(owner_ctx)) -> D.Decision:
+    """One decision card: what, why, quota, risk, reversibility, payload and its seal."""
     async with ctx.tx() as tx:
         return D.render(await D.load(tx, ref))
 

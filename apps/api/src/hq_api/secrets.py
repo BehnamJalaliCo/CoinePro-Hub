@@ -49,9 +49,11 @@ async def _read(bao: OpenBaoClient, path: str) -> dict[str, Any]:
         return {}
 
 
-async def load(bao: OpenBaoClient) -> Secrets:
+async def load(bao: OpenBaoClient, *, api_config: bool = True) -> Secrets:
+    """`api_config=False` for the worker: it needs only the push channels and its
+    OpenBao policy (hq-worker) does not grant kv/hq-api/config."""
     try:
-        cfg = await _read(bao, "hq-api/config")
+        cfg = await _read(bao, "hq-api/config") if api_config else {}
         push = await _read(bao, "hq-api/webpush")
         fcm = await _read(bao, "hq-api/channels/fcm")
         tg = await _read(bao, "hq-api/channels/telegram")

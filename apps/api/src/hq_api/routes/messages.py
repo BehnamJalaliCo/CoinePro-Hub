@@ -316,6 +316,7 @@ async def send_message(
 
 @router.post("/threads/{code}/read", response_model=Thread, responses=E)
 async def mark_read(code: str, body: ReadIn, ctx: Ctx = Depends(owner_ctx)) -> Thread:
+    """Marks the thread read up to (and including) a message ref."""
     async with ctx.tx() as tx:
         t = await tx.one("SELECT id FROM msg.threads WHERE code = :c", c=code)
         seq = await tx.scalar(
@@ -432,6 +433,7 @@ async def list_resolutions(
 
 @router.get("/resolutions/{ref}", response_model=Resolution, responses=E)
 async def get_resolution(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Resolution:
+    """One resolution of the ledger (append-only)."""
     async with ctx.tx() as tx:
         return _resolution(await tx.one(RESOLUTION_SQL + " WHERE r.ref = :ref", ref=ref))
 

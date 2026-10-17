@@ -221,6 +221,7 @@ async def list_companies(
 
 @router.get("/companies/{code}", response_model=Company, responses=E)
 async def get_company(code: str, ctx: Ctx = Depends(owner_ctx)) -> Company:
+    """One company with its counters, kill switch and deploy freeze."""
     async with ctx.tx() as tx:
         return _company(await tx.one(COMPANY_SQL + " WHERE c.code = :code", code=code))
 
@@ -379,6 +380,7 @@ def _dept(r: dict[str, Any]) -> Department:
 
 @router.get("/companies/{code}/departments", response_model=list[Department], responses=E)
 async def list_departments(code: str, ctx: Ctx = Depends(owner_ctx)) -> list[Department]:
+    """The company's departments with their managers, in display order."""
     co = await ctx.hub.companies.by_code(code)
     async with ctx.tx() as tx:
         rows = await tx.all(
@@ -670,6 +672,7 @@ async def pause_employee(code: str, ctx: Ctx = Depends(owner_ctx)) -> org.Employ
 
 @router.post("/employees/{code}/resume", response_model=org.Employee, responses=E)
 async def resume_employee(code: str, ctx: Ctx = Depends(owner_ctx)) -> org.Employee:
+    """Routes new work to the employee again."""
     return await _set_status(ctx, code, "active")
 
 

@@ -20,6 +20,7 @@ from fastapi.routing import APIRoute
 from hq_api import __version__, errors
 from hq_api.errors import ApiError, problem_response
 from hq_api.hub import Hub
+from hq_api.openapi_examples import add_examples
 from hq_api.routes import (
     audit_control,
     auth,
@@ -49,6 +50,8 @@ def _operation_id(route: APIRoute) -> str:
 def create_app(
     hub: Hub | None = None,
     lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
+    *,
+    openapi_url: str | None = "/api/v1/openapi.json",
 ) -> FastAPI:
     app = FastAPI(
         title="CoinePro HQ Core API",
@@ -64,7 +67,7 @@ def create_app(
         lifespan=lifespan,
         docs_url=None,
         redoc_url=None,
-        openapi_url="/api/v1/openapi.json",
+        openapi_url=openapi_url,
         servers=[{"url": "/"}],
     )
     if hub is not None:
@@ -122,6 +125,15 @@ def create_app(
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
     app.state.version = __version__
+
+    plain_openapi = app.openapi
+
+    def openapi_with_examples() -> dict[str, Any]:
+        if app.openapi_schema is None:
+            app.openapi_schema = add_examples(plain_openapi())
+        return app.openapi_schema
+
+    app.openapi = openapi_with_examples  # type: ignore[method-assign]
     return app
 
 

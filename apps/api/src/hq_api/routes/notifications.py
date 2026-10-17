@@ -223,6 +223,7 @@ async def _get(ctx: Ctx, tx: Any, nid: UUID, *, lock: bool = False) -> dict[str,
     responses=responses(401, 404),
 )
 async def read_notification(notification_id: UUID, ctx: Ctx = Depends(owner_ctx)) -> Notification:
+    """Marks one notification read."""
     async with ctx.tx() as tx:
         row = await _get(ctx, tx, notification_id, lock=True)
         if row["read_at"] is None:
@@ -252,6 +253,7 @@ async def read_notification(notification_id: UUID, ctx: Ctx = Depends(owner_ctx)
 
 @router.post("/notifications/read-all", response_model=Count, responses=responses(401, 422))
 async def read_all_notifications(body: ReadAllIn, ctx: Ctx = Depends(owner_ctx)) -> Count:
+    """Marks every notification read (optionally only before a time or of one level)."""
     holding = await ctx.hub.companies.holding()
     async with ctx.tx() as tx:
         n = await tx.exec(
@@ -356,6 +358,7 @@ async def put_notification_settings(
     response: Response,
     ctx: Ctx = Depends(owner_ctx),
 ) -> NotificationSettings:
+    """Replaces the per-company, per-level matrix. Requires `If-Match: <version>`."""
     version = if_match(request)
     for scope in body.matrix:
         if scope != "*" and await ctx.hub.companies.find(scope) is None:
@@ -397,6 +400,7 @@ async def put_notification_settings(
 
 @router.get("/push/vapid-public-key", response_model=VapidKey, responses=responses(401, 503))
 async def get_vapid_public_key(ctx: Ctx = Depends(owner_ctx)) -> VapidKey:
+    """The VAPID public key for Web Push subscriptions (503 channel_not_configured without keys)."""
     if not ctx.hub.secrets.vapid_public_key:
         raise ApiError(503, "channel_not_configured", "web push has no VAPID key yet")
     return VapidKey(public_key=ctx.hub.secrets.vapid_public_key)
@@ -448,6 +452,7 @@ async def create_web_subscription(body: WebSubscriptionIn, ctx: Ctx = Depends(ow
     responses=responses(401, 404),
 )
 async def revoke_web_subscription(subscription_id: UUID, ctx: Ctx = Depends(owner_ctx)) -> Response:
+    """Stops pushing to a browser (revocation is a state; the row stays)."""
     async with ctx.tx() as tx:
         n = await tx.exec(
             """UPDATE notify.web_push_subscriptions SET revoked_at = COALESCE(revoked_at, now())
@@ -464,6 +469,7 @@ async def revoke_web_subscription(subscription_id: UUID, ctx: Ctx = Depends(owne
     "/push/fcm-tokens", response_model=Device, status_code=201, responses=responses(401, 422)
 )
 async def create_fcm_token(body: FcmTokenIn, ctx: Ctx = Depends(owner_ctx)) -> Device:
+    """Registers this Android device for FCM push (off until FCM has credentials)."""
     async with ctx.tx() as tx:
         row = await tx.one(
             """INSERT INTO notify.fcm_tokens (token, device_name) VALUES (:t, :n)
@@ -478,6 +484,7 @@ async def create_fcm_token(body: FcmTokenIn, ctx: Ctx = Depends(owner_ctx)) -> D
 
 @router.post("/push/fcm-tokens/{token_id}/revoke", status_code=204, responses=responses(401, 404))
 async def revoke_fcm_token(token_id: UUID, ctx: Ctx = Depends(owner_ctx)) -> Response:
+    """Stops pushing to an Android device (revocation is a state; the row stays)."""
     async with ctx.tx() as tx:
         n = await tx.exec(
             "UPDATE notify.fcm_tokens SET revoked_at = COALESCE(revoked_at, now()) WHERE id = :id",

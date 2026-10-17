@@ -191,6 +191,7 @@ async def _audit_work(
 # -------------------------------------------------------------------- work --
 @router.post("/work/{id}/accept", response_model=W.Work, responses=E)
 async def accept_work(id: UUID, ctx: Ctx = Depends(internal_ctx)) -> W.Work:
+    """The assignee takes the work (queued or waiting -> in_progress)."""
     async with ctx.tx() as tx:
         w = await work_for(ctx, tx, id, "work.accept")
         if w["status"] not in ("queued", "waiting"):
@@ -204,6 +205,7 @@ async def accept_work(id: UUID, ctx: Ctx = Depends(internal_ctx)) -> W.Work:
 
 @router.post("/work/{id}/progress", response_model=W.Work, responses=E)
 async def progress_work(id: UUID, body: Progress, ctx: Ctx = Depends(internal_ctx)) -> W.Work:
+    """A progress note (and optional percentage) on the assignee's work."""
     async with ctx.tx() as tx:
         w = await work_for(ctx, tx, id, "work.progress")
         if w["status"] in W.CLOSED:

@@ -149,6 +149,7 @@ async def list_deliverables(
 
 @router.get("/deliverables/{ref}", response_model=Deliverable, responses=E)
 async def get_deliverable(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Deliverable:
+    """One deliverable with its attachments, usage, model label and latest rating."""
     async with ctx.tx() as tx:
         return (
             await render(tx, [await tx.one(DELIVERABLE_SQL + " WHERE dl.ref = :ref", ref=ref)])

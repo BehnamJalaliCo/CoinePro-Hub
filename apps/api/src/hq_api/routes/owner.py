@@ -183,6 +183,7 @@ async def _presence(tx: Any) -> dict[str, Any]:
 
 @router.get("/owner/presence", response_model=Presence, responses=responses(401))
 async def get_presence(ctx: Ctx = Depends(owner_ctx)) -> Presence:
+    """Khalvat state: on/off, since when and until when."""
     async with ctx.tx() as tx:
         p = await _presence(tx)
     return Presence(khalvat=p["khalvat"], since=p["since"], until=p["until"])
@@ -282,6 +283,7 @@ SETTINGS_COLS = (
 
 @router.get("/owner/settings", response_model=OwnerSettings, responses=responses(401))
 async def get_owner_settings(response: Response, ctx: Ctx = Depends(owner_ctx)) -> OwnerSettings:
+    """Time zone, morning report time, digest window, CEO attention quota, learning cap, calendars."""
     async with ctx.tx() as tx:
         row = await tx.one(f"SELECT {SETTINGS_COLS} FROM owner.settings WHERE id = 1")  # noqa: S608 - constant column list
     response.headers["ETag"] = f'"{row["version"]}"'
@@ -294,6 +296,7 @@ async def get_owner_settings(response: Response, ctx: Ctx = Depends(owner_ctx)) 
 async def put_owner_settings(
     body: OwnerSettingsIn, request: Request, response: Response, ctx: Ctx = Depends(owner_ctx)
 ) -> OwnerSettings:
+    """Updates the owner's settings (partial body). Requires `If-Match: <version>`."""
     version = if_match(request)
     holding = await ctx.hub.companies.holding()
     changes = body.model_dump(exclude_none=True)

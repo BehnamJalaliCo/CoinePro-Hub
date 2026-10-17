@@ -41,7 +41,7 @@ async def load_secrets(bao: OpenBaoClient | None) -> Secrets:
     if bao is None:
         return Secrets()
     try:
-        return await secret_store.load(bao)
+        return await secret_store.load(bao, api_config=False)
     except OpenBaoError:
         log.warning("openbao unavailable; push channels stay off until the next refresh")
         return Secrets()
@@ -57,7 +57,7 @@ async def refresh_secrets(hub: Hub, bao: OpenBaoClient | None) -> None:
     while True:
         await asyncio.sleep(SECRETS_REFRESH_S)
         try:
-            hub.secrets = await secret_store.load(bao)
+            hub.secrets = await secret_store.load(bao, api_config=False)
         except OpenBaoError:
             continue
         hub.channels = None  # rebuilt lazily with the new credentials

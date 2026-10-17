@@ -29,6 +29,7 @@ class Hub:
     limiter: RateLimiter = field(default_factory=RateLimiter)
     temporal: Any = None  # hq_api.workflows_client.Workflows, optional (best effort)
     channels: Any = None  # hq_api.channels.Channels
+    bao: Any = None  # hq_common.openbao.OpenBaoClient (write-only connection keys)
 
 
 def get_hub(request: Request) -> Hub:
