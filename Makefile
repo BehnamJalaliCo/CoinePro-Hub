@@ -10,7 +10,7 @@ ENV_FILE := infra/compose/.env
 .PHONY: help env bootstrap profile up down ps logs backup restore-test check openbao-init unseal \
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval \
-	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret
+	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -120,6 +120,9 @@ claude-token: ## OWNER: store the token from `claude setup-token` in OpenBao (hi
 
 mcp-secret: ## OWNER: the secret of one MCP server, KEY=<server key> (hidden input -> OpenBao)
 	@infra/openbao/mcp-secret.sh "$(KEY)"
+
+account-secret: ## OWNER: the secret of one holding service account (KEY=<key>; hidden input)
+	@infra/openbao/account-secret.sh "$(KEY)"
 
 llm-smoke: ## One tiny real call (Haiku, "OK") + ledger row + NATS event
 	@services/scripts/llm-smoke.sh

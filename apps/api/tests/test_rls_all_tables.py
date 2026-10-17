@@ -33,6 +33,7 @@ SCHEMAS = (
     "ops",
     "workshop",
     "backup",
+    "egress",
 )
 
 
@@ -158,6 +159,13 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     )
     await su.execute(
         "INSERT INTO backup.restore_tests (company_id, at, ok) VALUES ($1, now(), true)", co["id"]
+    )
+    # Prompt 07: one request of an agent's web tool.
+    await su.execute(
+        """INSERT INTO egress.log (company_id, actor, tool, class, method, host)
+           VALUES ($1, $2, 'web.read', 'A0', 'GET', 'example.com')""",
+        co["id"],
+        f"{co['code']}-CEO",
     )
     # Prompt 06: the processing state of an upload.
     await su.execute(

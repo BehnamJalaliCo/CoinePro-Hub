@@ -641,6 +641,100 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 
 ### راه‌اندازی بعد از merge (Claude سرور)
 `make bootstrap` (پوشه‌های wal و restic، با sudo)، بعد `make up` (image تازه‌ی Postgres؛ **ری‌استارت Postgres** برای `archive_mode`؛ AppRole ‏`hq-backup` و رمز restic)، بعد `make install-systemd` (دو timer تازه).
+## ۱۹. اینترنت ایجنت‌ها: egress، SearXNG و مرورگر (پرامپت ۷ §۲، قرارداد §۱۸.۷)
+- **اصل:** ایجنت‌ها همچنان shell و شبکه‌ی مستقیم ندارند. اینترنت فقط از ابزار میرسد. این ابزارها در Tool Gateway هستند و از سرویس `egress` بیرون میروند:
+  - `web.search`: SearXNG خود هلدینگ
+  - `web.read`: یک صفحه، به‌صورت HTML یا PDF به متن
+  - `web.browse`: مرورگر واقعی
+  - `http.request`
+  - `egress.recent`
+- **مسیر هر فراخوانی:**
+  1. gateway در api رزرو میکند (`/internal/v1/egress/reserve`). این گام سه چیز را بررسی میکند:
+     - **محافظ داده:** کد کارمند یک شرکت واقعی، ارجاع داخلی (`W-`، `D-`، `O-`، `I-`، `S-`…)، ایمیل، تلفن، رمز یا توکن ← `403 internal_data`.
+     - **سقف‌ها** ← `429 egress_limit`.
+     - **حساب سرویس**، اگر خواسته شده باشد.
+  2. egress درخواست را بیرون میبرد.
+  3. هر درخواست یک ردیف در `egress.log` و یک ردیف Audit با کلاس خودش میگیرد.
+  4. نتیجه با `source: "web"`، نشانی نهایی، زمان و `suspected_injection` به مدل میرسد. متن‌های دستوری مشکوک فقط علامت میخورند و حذف نمیشوند.
+- **کلاس هر فراخوانی:**
+  - خواندن A0 است.
+  - استفاده از حساب سرویس، یا هر روشی جز GET/HEAD در `http.request`، A2 است. A2 فقط وقتی مجاز است که policy حساب، آن مسیر را «بی‌تعهد» اعلام کرده باشد.
+  - **تعهد بیرونی** (پرداخت، خرید، انتشار، پیام به آدم بیرونی، ساخت حساب، تغییر امنیت حساب) ← `needs_owner`، و ایجنت باید `propose` کند.
+  - در مرورگر، پیش از هر click، type یا select، عنصر هدف و فرم و صفحه‌اش بررسی میشود. در حالت شک (submit یک فرم غیر جستجو) رد میشود.
+- **محافظ SSRF (در egress):** egress خودش DNS را حل میکند و **همان IP بررسی‌شده** را وصل میکند، پس DNS rebinding ممکن نیست. هر redirect دوباره بررسی میشود.
+  - **مسدود:**
+    - loopback
+    - link-local، از جمله metadata ‏`169.254.169.254`
+    - RFC 1918، از جمله `10.10.1.0/24` و همسایه‌های production
+    - CGNAT
+    - IPv6 خصوصی، ULA و link-local
+    - IPv4 جاسازی‌شده در IPv6
+    - نام‌های تک‌بخشی و داخلی (`postgres`، `api`، `*.internal`…)
+    - `/internal` هاب، با هر املایی
+  - پورت‌ها فقط 80 و 443 هستند، مگر حساب سرویس پورت خودش را بدهد.
+  - مرورگر هاب (`hq.coinepro.com`) را اصلاً باز نمیکند.
+- **شبکه‌ها** (`compose-rules` و `make verify-live` اثباتشان میکنند):
+
+  | شبکه | اعضا | نوع |
+  |---|---|---|
+  | `hq-egress` | egress، searxng | تنها شبکه‌ی ایجنت‌ها با راه به بیرون |
+  | `hq-egress-api` | gateway، egress | internal |
+  | `hq-browser` | egress، browser | internal؛ مرورگر فقط از proxy ‏egress بیرون میرود |
+
+  egress به Postgres، Valkey، NATS، OpenBao، api و Temporal هیچ راهی ندارد. هیچ‌کدام از این سه سرویس پورت منتشرشده ندارد.
+- **proxy ‏egress:**
+  - `:3128` برای مرورگر، با credential جدا برای هر فراخوانی.
+  - `:3129` برای gateway (MCP روی HTTP، با `EGRESS_PROXY_URL`). سربرگ‌های `X-HQ-Call`، `X-HQ-Tool` و `X-HQ-Class` میگیرد و entryها با `POST /v1/proxy/drain` جمع میشوند.
+  - داخل tunnel‌های TLS باز نمیشود؛ فقط host، پورت، حجم و زمان ثبت میشود.
+- **مرورگر:**
+  - Chromium با Playwright 1.63.0. ایمیج رسمی با digest pin شده است.
+  - برای هر فراخوانی یک context تازه (پروفایل خالی) ساخته میشود و بعد بسته میشود.
+  - همزمانی: `BROWSER_MAX_SESSIONS` (full ‏۲، lean ‏۱).
+  - سقف زمان هر فراخوانی ۱۵ ثانیه است (`EGRESS_BROWSE_S`؛ egress حداکثر ۲۰)، تا زیر مهلت ۳۰ ثانیه‌ی gateway بماند. کار بلندتر چند فراخوانی میشود.
+  - اسکرین‌شات و دانلود فایل‌های شرکت خود ایجنت میشوند (`files.read`).
+  - `--no-sandbox` درون یک کانتینر بدون capability، فقط‌خواندنی و غیر root اجرا میشود. برای sandbox خود Chromium هیچ capability‌ای اضافه نشده است.
+- **SearXNG:** موتورهای عمومی پیش‌فرض، بدون لاگ query، بدون metrics، limiter خاموش (تنها مشتری egress است). `server.secret_key` از `SEARXNG_PASSWORD` در `.env` میاید (`make env` آن را میسازد).
+- **سقف‌ها** (env سرویس api):
+
+  | دامنه | متغیر | پیش‌فرض |
+  |---|---|---|
+  | هر اجرا | `EGRESS_RUN_REQUESTS` | 150 |
+  | هر اجرا | `EGRESS_RUN_BYTES` | 64 MB |
+  | هر اجرا | `EGRESS_RUN_BROWSER_S` | 300 ثانیه |
+  | هر شرکت در روز مالک | `EGRESS_DAY_REQUESTS` | 5000 |
+  | هر شرکت در روز مالک | `EGRESS_DAY_BYTES` | 2 GB |
+  | هر فراخوانی | `EGRESS_CALL_BYTES` | 20 MB |
+
+- **حساب‌های سرویس:**
+  - متادیتا و policy تزریق در اپ ثبت میشوند (`POST /api/v1/tools/accounts`). policy تزریق یکی از این‌هاست: `bearer`، `header`، `basic` یا `cookie`، به‌علاوه‌ی روش ورود مرورگر و فهرست `allow` مسیرهای بی‌تعهد.
+  - **رمز را فقط مالک، در ترمینال خودش، میگذارد:** `make account-secret KEY=<key>`. ورودی بی‌نمایش است و مستقیم در `kv/tools/accounts/<key>` میرود.
+  - رمز برای هر فراخوانی یک بار از OpenBao خوانده میشود و از api به gateway و egress میرسد. **در لحظه‌ی خروج** و **فقط برای host خود آن حساب** گذاشته میشود.
+  - رمز در هیچ نتیجه‌ای به مدل نمیرسد: همه‌ی نتیجه‌ها از هر شکل رمز (خام، percent-encoded و base64) پاک میشوند. در اسکرین‌شات هم فیلدهای رمز ماسک میشوند. در لاگ هم نیست.
+- **دیدن:**
+  - `GET /api/v1/egress` با پارامترهای `company`، `since` و `blocked`.
+  - `GET /api/v1/egress/summary` با `period=day`، `week` یا `month`.
+  - ابزار `egress.recent` برای نقش‌های holding (ناظر، تحلیل‌گر امنیت، AI safety).
+- **حافظه (پرامپت ۷ §۲.۹):** در کانتینرهای موقت با جستجو، خواندن و دو نشست مرورگر واقعی اندازه گرفته شد:
+
+  | سرویس | بیکار | اوج |
+  |---|---|---|
+  | egress | ۵۴ MiB | ۷۳ MiB |
+  | searxng | ۱۱۰ MiB | ۱۲۴ MiB |
+  | browser | ۳۲۰ MiB | ۴۳۵ MiB با دو نشست |
+
+  سقف‌ها:
+
+  | پروفایل | egress | searxng | browser |
+  |---|---|---|---|
+  | full | 256m | 256m | 896m |
+  | lean | 128m | 160m | 480m، یک نشست |
+
+  - برای جا شدنشان چند سقف دیگر، از روی مصرف زنده، پایین آمد (عددها در `profiles/*.env`):
+    - full: postgres ‏1536←1024، prometheus ‏768←512، loki ‏512←384، tempo ‏384←256، nats ‏256←192. این همان جایی است که گزارش ۶ برای STT نام برده بود.
+    - lean: postgres، valkey، nats، temporal، caddy، prometheus، loki، web، temporal-ui، node-exporter، llm-router، api، opa و gateway.
+  - نتیجه: full ‏11536 از 11673، lean ‏5872 از 5886.
+  - full+stt حالا 1424 MiB بیشتر از بودجه است.
+
 ## ۲۰. پل MCP و کاتالوگ ابزار (پرامپت ۷ §۳، قرارداد §۱۸.۷)
 - **اصل:** هیچ سرور MCP بدون دو مُهر مالک برای ایجنت‌ها وجود ندارد. پیش‌فرض هیچ سروری روشن نیست.
 - **چرخه‌ی روشن شدن:**
