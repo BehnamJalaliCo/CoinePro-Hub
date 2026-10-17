@@ -198,6 +198,31 @@ async def test_unknown_inputs_are_rejected(make_service: Any) -> None:
     assert exc.value.status_code == 413
 
 
+async def test_the_output_cap_reaches_the_backend_clamped(
+    su: asyncpg.Connection, make_service: Any
+) -> None:
+    """prompt 5.1 §2.6: an agent step's hard cap, at most LLM_MAX_OUTPUT_TOKENS."""
+    backend = FakeBackend()
+    svc = make_service(subscription=backend)
+    for cap in (1200, 900_000, None):
+        await svc.run(req(max_output_tokens=cap), "t", 10_000)
+    assert [c.max_output_tokens for c in backend.calls] == [1200, svc.s.max_output_tokens, None]
+
+
+def test_the_fake_model_stops_at_the_output_cap() -> None:
+    from llm_router.backends.base import BackendCall
+    from llm_router.backends.fake import FakeBackend as Fake
+
+    fake = Fake()
+    fake.enqueue("TY-CEO", "x" * 400)
+    conn: Any = None
+    out = fake._result(
+        BackendCall("c", conn, "m", None, None, (), None, 10, "TY-CEO", max_output_tokens=10)
+    )
+    assert out.stop_reason == "max_tokens" and out.usage is not None
+    assert out.usage.output_tokens <= 10
+
+
 async def test_advisor_role_inherits_opus_xhigh(su: asyncpg.Connection, make_service: Any) -> None:
     backend = FakeBackend()
     svc = make_service(subscription=backend)

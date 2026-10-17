@@ -56,6 +56,8 @@ class RunBody(BaseModel):
     messages: list[RunMessage] = Field(min_length=1)
     json_schema: dict[str, Any] | None = None
     timeout_s: int = Field(ge=1, le=3600)
+    # The call's hard output cap (prompt 5.1 §2.6), given to the CLI.
+    max_output_tokens: int | None = Field(default=None, ge=1, le=1_000_000)
 
     def spec(self) -> RunSpec:
         return RunSpec(
@@ -66,6 +68,7 @@ class RunBody(BaseModel):
             tuple(Message(m.role, m.content) for m in self.messages),
             self.json_schema,
             self.timeout_s,
+            self.max_output_tokens,
         )
 
 

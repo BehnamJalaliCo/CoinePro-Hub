@@ -43,6 +43,8 @@ class Settings:
     # Request limits (per caller overrides live in OpenBao)
     max_body_bytes: int = field(default_factory=lambda: _int("LLM_MAX_BODY_BYTES", 512 * 1024))
     max_timeout_s: int = field(default_factory=lambda: _int("LLM_MAX_TIMEOUT_S", 600))
+    # Ceiling of a request's max_output_tokens (what the models accept everywhere).
+    max_output_tokens: int = field(default_factory=lambda: _int("LLM_MAX_OUTPUT_TOKENS", 32_000))
     default_rpm: int = field(default_factory=lambda: _int("LLM_DEFAULT_RPM", 60))
     default_max_input_chars: int = field(
         default_factory=lambda: _int("LLM_DEFAULT_MAX_INPUT_CHARS", 200_000)

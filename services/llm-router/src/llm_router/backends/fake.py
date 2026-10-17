@@ -63,13 +63,17 @@ class FakeBackend:
             structured: Any = answer
         else:
             text, structured = answer, None
+        stop = "end_turn"
+        if call.max_output_tokens and tokens(text) > call.max_output_tokens:
+            # As a real model does: the output stops at the cap, unfinished.
+            text, structured, stop = text[: call.max_output_tokens * 4], None, "max_tokens"
         return BackendResult(
             OK,
             text=text,
             structured=structured,
             model=call.model,
             usage=Usage(input_tokens=tokens(prompt), output_tokens=tokens(text)),
-            stop_reason="end_turn",
+            stop_reason=stop,
             effort_applied=call.effort is not None,
         )
 

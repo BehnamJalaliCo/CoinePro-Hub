@@ -469,6 +469,9 @@ class RouterService:
             json_schema=plan.req.json_schema,
             timeout_s=plan.req.timeout_s,
             actor_ref=plan.req.actor_ref,
+            max_output_tokens=min(plan.req.max_output_tokens, self.s.max_output_tokens)
+            if plan.req.max_output_tokens
+            else None,
         )
 
     def _backend(self, plan: Plan) -> Backend:

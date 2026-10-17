@@ -24,6 +24,7 @@ def _payload(call: BackendCall) -> dict[str, Any]:
         "messages": [{"role": m.role, "content": m.content} for m in call.messages],
         "json_schema": call.json_schema,
         "timeout_s": call.timeout_s,
+        "max_output_tokens": call.max_output_tokens,
     }
 
 

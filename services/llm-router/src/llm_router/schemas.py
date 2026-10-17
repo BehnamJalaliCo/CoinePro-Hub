@@ -34,6 +34,9 @@ class RunRequest(BaseModel):
     prompt: str | None = Field(default=None, min_length=1)
     json_schema: dict[str, Any] | None = None
     timeout_s: int = Field(default=120, ge=1)
+    # The most output tokens this call may produce (prompt 5.1 §2.6: an agent
+    # step's hard cap); the router clamps it to LLM_MAX_OUTPUT_TOKENS.
+    max_output_tokens: int | None = Field(default=None, ge=1, le=1_000_000)
     store_transcript: bool = False
     # The employee behind an agent call (its code): assignments by employee
     # (`<CO>:<code>`, written by a hire) apply after the role's (prompt 05 §2).

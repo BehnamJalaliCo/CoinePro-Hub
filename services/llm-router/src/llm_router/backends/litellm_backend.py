@@ -109,6 +109,8 @@ class LiteLLMBackend:
         }
         if conn.api_base:
             kwargs["api_base"] = conn.api_base
+        if call.max_output_tokens:
+            kwargs["max_tokens"] = call.max_output_tokens
         if call.effort:
             kwargs["reasoning_effort"] = call.effort
         if call.json_schema:
