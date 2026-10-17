@@ -9,7 +9,7 @@
  مرورگر / اندروید ──HTTPS──► Caddy ──(/api/* فقط وقتی دامنه هست)──► api :8000
                                 │    (/internal/* هرگز)                │
                                 └──(هر مسیر دیگر)──► web :3000 (پروفایل web)
- ایجنت‌ها: worker ──► gateway (hq-core) ──► /internal/v1 ───────────────┤
+ ایجنت‌ها: worker ──► gateway (hq-agent) ──► /internal/v1 ──────────────┤
                                                                       ├──► Postgres (RLS FORCE)
                                                                       ├──► OPA (سیاست‌ها، fail-closed)
                                                                       ├──► NATS JetStream HQ_CORE ──► SSE /api/v1/stream
@@ -23,13 +23,14 @@
 | `api` | `/api/v1` و `/internal/v1` | uid 10001؛ rootfs فقط‌خواندنی؛ tmpfs ۳۲MB؛ `cap_drop: ALL`؛ volume ‏`hq-files` | AppRole ‏`hq-api` |
 | `worker` | گردش‌کارهای Temporal و پل NATS | مثل api | AppRole ‏`hq-worker` |
 | `opa` | سیاست‌های `infra/opa/policy` | uid 1000 (ایمیج distroless)؛ rootfs فقط‌خواندنی | — |
-| `gateway` (پرامپت ۵) | Tool Gateway: هر اقدام ایجنت، با توکن `hqa1` همان اجرا (`docs/ops/AGENTS.md`) | uid 10001؛ rootfs فقط‌خواندنی؛ `cap_drop: ALL`؛ **فقط `hq-core`** | فقط SHA-256 توکن worker |
+| `gateway` (پرامپت ۵) | Tool Gateway: هر اقدام ایجنت، با توکن `hqa1` همان اجرا (`docs/ops/AGENTS.md`) | uid 10001؛ rootfs فقط‌خواندنی؛ `cap_drop: ALL`؛ **فقط `hq-agent`** | فقط SHA-256 توکن worker |
 | `web` (پرامپت ۵) | پنل Next.js (`apps/web`، مال Claude سشن مشورت) | uid 10001؛ rootfs فقط‌خواندنی؛ tmpfs برای `/tmp` و کش | — |
 
 - **شبکه‌ها (۴.۱):**
-  - `api` و `worker` روی `hq-internal` و `hq-core` هستند.
-  - `opa`، `temporal`، `temporal-namespace` و `temporal-ui` **فقط** روی `hq-core` (`172.30.2.0/24`) هستند. Postgres و Prometheus هم به آن وصل‌اند: Temporal به Postgres نیاز دارد و Prometheus متریک Temporal را میخواند.
-  - هیچ کانتینر دیگری روی `hq-internal` به OPA یا به پورت 7233 ‏Temporal نمیرسد. یک گیت این را بررسی میکند.
+  - `api` و `worker` روی `hq-internal`، `hq-core` و `hq-agent` هستند.
+  - `temporal`، `temporal-namespace` و `temporal-ui` **فقط** روی `hq-core` (`172.30.2.0/24`) هستند. Postgres و Prometheus هم به آن وصل‌اند: Temporal به Postgres نیاز دارد و Prometheus متریک Temporal را میخواند.
+  - `opa` و `gateway` **فقط** روی `hq-agent` (`172.30.3.0/24`، internal؛ پرامپت ۵.۱ §۲.۹) هستند، با worker و api. gateway به Temporal و Postgres نمیرسد.
+  - هیچ کانتینر دیگری روی `hq-internal` به OPA، gateway یا پورت 7233 ‏Temporal نمیرسد. `compose-rules` و `make verify-live` این را بررسی میکنند.
   - هیچ‌کدام پورت عمومی ندارند؛ فقط Caddy روی 80/443 است.
 - نقش‌های دیتابیس: `hq_api` و `hq_worker`، هر دو با کمترین دسترسی (`infra/postgres/provision.sh`؛ grantها در migrationها). **هیچ نقشی حق DELETE روی داده‌ی کسب‌وکار ندارد.**
 - OpenBao: policy‌های `hq-api` (خواندن `kv/hq-api/*`؛ کلید اتصال‌ها فقط **نوشتنی**) و `hq-worker` (Web Push، کانال‌ها، `kv/hq-api/config` و از پرامپت ۵ `kv/hq-agents/runtime`: توکن فراخواننده‌ی `hq-agents` روی llm-router و توکن gateway). `make bootstrap` و `make up` آن‌ها را میسازند (`infra/openbao/provision.sh`).

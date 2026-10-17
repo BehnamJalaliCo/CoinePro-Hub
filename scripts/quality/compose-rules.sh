@@ -3,9 +3,11 @@
 # pinned image (no :latest), memory limit, and for long-running services
 # restart unless-stopped + a healthcheck. One-shot jobs are listed below.
 # Our own services also run as an explicit non-root user, on a read-only root
-# filesystem, with every capability dropped. Network isolation (prompt 04.1):
-# Temporal, OPA and the Tool Gateway are never on hq-internal, and only the
-# allow-list below may join hq-core.
+# filesystem, with every capability dropped.
+# Network isolation (prompt 04.1, 05.1 §2.9): Temporal, OPA, the Tool Gateway
+# and the web panel are never on hq-internal; some services sit on exactly one
+# network; only an allow-list may join hq-core, hq-agent and hq-edge; and
+# hq-agent and hq-edge have no route out of the host (internal).
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -13,13 +15,25 @@ ensure_env
 
 JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate"]'
 HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web"]'
-CORE_ONLY='["temporal","opa","gateway"]'
-CORE_MEMBERS='["temporal","temporal-namespace","temporal-ui","opa","api","worker","postgres","prometheus","gateway"]'
+NOT_INTERNAL='["temporal","opa","gateway","web"]'
+# Services whose networks are exactly these.
+ONLY_ON='{"gateway":["hq-agent"],"opa":["hq-agent"],"web":["hq-edge"],"claude-runtime":["hq-llm"]}'
+# Allow-list of every restricted network.
+MEMBERS='{
+  "hq-core":["temporal","temporal-namespace","temporal-ui","api","worker","postgres","prometheus"],
+  "hq-agent":["worker","gateway","api","opa"],
+  "hq-edge":["caddy","web"]}'
+INTERNAL_NETS='["hq-agent","hq-edge"]'
 failed=0
 for profile in "${PROFILES[@]}"; do
   problems="$(jq -r --argjson jobs "$JOBS" --argjson hardened "$HARDENED" \
-    --argjson core_only "$CORE_ONLY" --argjson core_members "$CORE_MEMBERS" '
-    .services | to_entries[] | .key as $svc | .value as $s
+    --argjson not_internal "$NOT_INTERNAL" --argjson only_on "$ONLY_ON" \
+    --argjson members "$MEMBERS" --argjson internal_nets "$INTERNAL_NETS" '
+    (.networks // {}) as $declared
+    | ($internal_nets[] | . as $n
+       | if ($declared[$n] // null) == null then "network \($n): not declared"
+         elif $declared[$n].internal != true then "network \($n): not internal" else empty end),
+      (.services | to_entries[] | .key as $svc | .value as $s
     | (($s.networks // {}) | keys) as $nets
     | (if ($s.image | test(":[^/]+$") | not) or ($s.image | test(":latest$")) then "\($svc): image not pinned (\($s.image))" else empty end),
       (if ($s.deploy.resources.limits.memory // null) == null then "\($svc): no memory limit" else empty end),
@@ -32,10 +46,13 @@ for profile in "${PROFILES[@]}"; do
          (if $s.read_only != true then "\($svc): root filesystem not read-only" else empty end),
          (if (($s.cap_drop // []) | index("ALL")) == null then "\($svc): capabilities not dropped" else empty end)
        else empty end),
-      (if ($core_only | index($svc)) != null and ($nets | index("hq-internal")) != null
+      (if ($not_internal | index($svc)) != null and ($nets | index("hq-internal")) != null
        then "\($svc): must not be on hq-internal" else empty end),
-      (if ($nets | index("hq-core")) != null and ($core_members | index($svc)) == null
-       then "\($svc): not allowed on hq-core" else empty end)' <<<"$(compose_json "$profile")")"
+      (if ($only_on[$svc] // null) != null and ($nets != ($only_on[$svc] | sort))
+       then "\($svc): networks are \($nets | join(",")), must be exactly \($only_on[$svc] | join(","))" else empty end),
+      ($members | to_entries[] | .key as $net
+       | if ($nets | index($net)) != null and (.value | index($svc)) == null
+         then "\($svc): not allowed on \($net)" else empty end))' <<<"$(compose_json "$profile")")"
   if [[ -n "$problems" ]]; then
     printf 'compose-rules: %s: %s\n' "$profile" "$problems" >&2
     failed=1

@@ -71,7 +71,7 @@ worker ──(توکن سرویس)──► gateway ──(توکن hqa1 هما�
 | redaction | کلید و توکن، ایمیل، تلفن (رقم لاتین و فارسی)، کارت، IBAN و فیلدهای شخصی؛ نتیجه حداکثر ۱۶٬۰۰۰ کاراکتر |
 | audit | `POST /internal/v1/runs/self/tool-calls`: یک ردیف `tool.call` برای هر فراخوانی (ابزار، کلاس، نتیجه، ref)، بدون ورودی و خروجی |
 
-- **شبکه:** فقط `hq-core`؛ بدون پورت منتشرشده؛ به Postgres، NATS، Valkey و OpenBao نمیرسد.
+- **شبکه:** فقط `hq-agent` (internal؛ پرامپت ۵.۱ §۲.۹)، با worker، api و OPA. بدون پورت منتشرشده. به Temporal، Postgres، NATS، Valkey، OpenBao و اینترنت نمیرسد.
 - **احراز:** فقط worker. gateway فقط SHA-256 توکن worker را دارد (`/home/Hub/.secrets/services/gateway/worker-token.sha256`، ۶۰۰، uid 10001). خود توکن در OpenBao است (`kv/hq-agents/runtime`).
 - **`github.read`:** ساخته و تست شده، ولی تا مالک توکن فقط‌خواندنی ندهد `channel_not_configured` برمیگرداند.
 
