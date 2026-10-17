@@ -1,9 +1,11 @@
 # Extensions of the companies seeded by llm-router (services/llm-router/seed/
 # companies.yaml). Data, not code: codes never change; these fields are only
 # filled where they are still empty, never overwriting later edits.
-# color_index: the D1 company palette (1..10, wraps beyond 10).
+# color_index: slot 1..8 of the categorical chart palette v2 (design/tokens),
+# given once and kept; the holding has none (charts draw it in neutral silver).
+# A new company takes the next free slot, or none (contract §3.1, §15 v1.1).
 companies:
-  - {code: HQ, name_fa: هلدینگ کوینه‌پرو, name_en: CoinePro HQ, color_index: 1, template: holding}
-  - {code: TY, name_fa: تریدیار, name_en: TradeYar, color_index: 2, template: standard}
-  - {code: FX, name_fa: کوینه‌پرو اف‌ایکس, name_en: CoinePro FX, color_index: 3, template: standard}
-  - {code: PC, name_fa: پروچارت, name_en: Pro-Chart, color_index: 4, template: standard}
+  - {code: HQ, name_fa: هلدینگ کوینه‌پرو, name_en: CoinePro HQ, color_index: null, template: holding}
+  - {code: TY, name_fa: تریدیار, name_en: TradeYar, color_index: 3, template: standard}
+  - {code: FX, name_fa: کوینه‌پرو اف‌ایکس, name_en: CoinePro FX, color_index: 2, template: standard}
+  - {code: PC, name_fa: پروچارت, name_en: Pro-Chart, color_index: 1, template: standard}
