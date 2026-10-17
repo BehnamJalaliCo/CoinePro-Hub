@@ -462,7 +462,7 @@ class Throttle(BaseModel):
     paused_priorities: list[str]
 
 
-class Quota(BaseModel):
+class QuotaView(BaseModel):
     subscription: Subscription
     throttle: Throttle
 
@@ -470,8 +470,8 @@ class Quota(BaseModel):
 PAUSED = {"ok": [], "warning": ["P4"], "limited": ["P3", "P4"]}
 
 
-@router.get("/treasury/quota", response_model=Quota, responses=E)
-async def treasury_quota(ctx: Ctx = Depends(owner_ctx)) -> Quota:
+@router.get("/treasury/quota", response_model=QuotaView, responses=E)
+async def treasury_quota(ctx: Ctx = Depends(owner_ctx)) -> QuotaView:
     """The subscription's quota as the Quota Controller sees it (code, no model):
     at `warning` P4 waits, at `limited` only P0-P2 run."""
     async with ctx.tx() as tx:
@@ -486,7 +486,7 @@ async def treasury_quota(ctx: Ctx = Depends(owner_ctx)) -> Quota:
     status = (row or {}).get("status") or "ok"
     if row and status != "ok" and row["resets_at"] is not None and row["resets_at"] <= now:
         status = "ok"  # its reset has passed (the controller catches up within a minute)
-    return Quota(
+    return QuotaView(
         subscription=Subscription(
             connection=row["key"] if row else None,
             status=status,

@@ -184,7 +184,23 @@ async def run_round(hub: Hub, checker: Checker, *, now: datetime | None = None) 
         opened += o
         closed += c
         failed += not r.ok
+    closed += await close_unmonitored(hub)
     return {"checked": len(results), "failed": failed, "opened": opened, "closed": closed}
+
+
+async def close_unmonitored(hub: Hub) -> int:
+    """A site switched off (by the owner, or a canary by the seed) is no longer
+    watched, so its open incident is closed: nothing could ever close it."""
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        rows = await tx.all(
+            """SELECT i.id, i.ref, i.work_id, s.company_id, s.url FROM ops.incidents i
+               JOIN ops.sites s ON s.id = i.site_id
+               WHERE i.closed_at IS NULL AND NOT s.enabled
+               FOR UPDATE OF i"""
+        )
+        for r in rows:
+            await _close(tx, r, r, why="monitoring switched off")
+    return len(rows)
 
 
 async def record(hub: Hub, site: dict[str, Any], r: Result) -> tuple[int, int]:
@@ -348,11 +364,15 @@ async def _open(hub: Hub, tx: Tx, site: dict[str, Any], r: Result, fails: int) -
         )
 
 
-async def _close(tx: Tx, site: dict[str, Any], incident: dict[str, Any]) -> None:
+async def _close(
+    tx: Tx, site: dict[str, Any], incident: dict[str, Any], *, why: str = "healthy again"
+) -> None:
     await tx.exec("UPDATE ops.incidents SET closed_at = now() WHERE id = :id", id=incident["id"])
     if incident["work_id"] is not None:
         w = await W.load(tx, incident["work_id"])
-        await W.event(tx, w, "incident_closed", SITE_CHECKS, {"incident": incident["ref"]})
+        await W.event(
+            tx, w, "incident_closed", SITE_CHECKS, {"incident": incident["ref"], "why": why}
+        )
     await audit.record(
         tx,
         audit.SYSTEM,
@@ -361,7 +381,7 @@ async def _close(tx: Tx, site: dict[str, Any], incident: dict[str, Any]) -> None
         action_class="A1",
         target_kind="incident",
         target_ref=incident["ref"],
-        summary=f"{site['url']} healthy again",
+        summary=f"{site['url']} {why}",
     )
 
 

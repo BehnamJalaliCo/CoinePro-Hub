@@ -129,6 +129,14 @@
             "title": "Body",
             "type": "string"
           },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "maxItems": 50,
+            "title": "Citations",
+            "type": "array"
+          },
           "links": {
             "anyOf": [
               {
@@ -144,6 +152,159 @@
           "body"
         ],
         "title": "AgentMessage",
+        "type": "object"
+      },
+      "AgentWorkDetail": {
+        "properties": {
+          "assignee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee"
+          },
+          "brief": {
+            "title": "Brief",
+            "type": "string"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/BudgetLeft"
+          },
+          "chain": {
+            "items": {
+              "$ref": "#/components/schemas/ChainItem"
+            },
+            "title": "Chain",
+            "type": "array"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/ChainItem"
+            },
+            "title": "Children",
+            "type": "array"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "deliverables": {
+            "items": {
+              "$ref": "#/components/schemas/DeliverableBrief"
+            },
+            "title": "Deliverables",
+            "type": "array"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
+          },
+          "depth": {
+            "title": "Depth",
+            "type": "integer"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "escrow_classes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Escrow Classes",
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "string"
+          },
+          "progress_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Note"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "company",
+          "department",
+          "kind",
+          "title",
+          "brief",
+          "priority",
+          "status",
+          "assignee",
+          "created_by",
+          "depth",
+          "due_at",
+          "budget",
+          "escrow_classes",
+          "evidence",
+          "progress_note",
+          "chain",
+          "children",
+          "deliverables"
+        ],
+        "title": "AgentWorkDetail",
         "type": "object"
       },
       "AnswerIn": {
@@ -402,6 +563,55 @@
         "title": "AssignmentsPut",
         "type": "object"
       },
+      "AuditBrief": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "action_class": {
+            "title": "Action Class",
+            "type": "string"
+          },
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "at",
+          "actor",
+          "company",
+          "action",
+          "action_class",
+          "target",
+          "summary"
+        ],
+        "title": "AuditBrief",
+        "type": "object"
+      },
       "AuditEntry": {
         "properties": {
           "action": {
@@ -640,6 +850,75 @@
           "usd_used"
         ],
         "title": "Budget",
+        "type": "object"
+      },
+      "BudgetLeft": {
+        "properties": {
+          "tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens"
+          },
+          "tokens_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Left"
+          },
+          "tokens_used": {
+            "title": "Tokens Used",
+            "type": "integer"
+          },
+          "usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd"
+          },
+          "usd_left": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd Left"
+          },
+          "usd_used": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd Used",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tokens",
+          "usd",
+          "tokens_used",
+          "usd_used",
+          "tokens_left",
+          "usd_left"
+        ],
+        "title": "BudgetLeft",
         "type": "object"
       },
       "BudgetUse": {
@@ -998,6 +1277,46 @@
         "title": "Call",
         "type": "object"
       },
+      "ChainItem": {
+        "properties": {
+          "assignee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee"
+          },
+          "depth": {
+            "title": "Depth",
+            "type": "integer"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "depth",
+          "title",
+          "assignee",
+          "status"
+        ],
+        "title": "ChainItem",
+        "type": "object"
+      },
       "ChainStep": {
         "properties": {
           "assignee": {
@@ -1168,6 +1487,32 @@
         "title": "ChartNode",
         "type": "object"
       },
+      "CharterRef": {
+        "description": "The charter an employee runs with (contract §16.1).",
+        "properties": {
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "role",
+          "version"
+        ],
+        "title": "CharterRef",
+        "type": "object"
+      },
       "Choice": {
         "properties": {
           "id": {
@@ -1188,6 +1533,36 @@
           "label_fa"
         ],
         "title": "Choice",
+        "type": "object"
+      },
+      "Citation": {
+        "additionalProperties": false,
+        "description": "A reference the author cites (contract §16.3), validated server-side.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "decision",
+              "resolution",
+              "deliverable",
+              "work",
+              "message",
+              "audit"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "title": "Citation",
         "type": "object"
       },
       "Company": {
@@ -1464,6 +1839,93 @@
           }
         },
         "title": "CompanyPatch",
+        "type": "object"
+      },
+      "CompanyState": {
+        "properties": {
+          "budgets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Budgets",
+            "type": "array"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "decisions_pending": {
+            "title": "Decisions Pending",
+            "type": "integer"
+          },
+          "departments": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
+          "deploy_freeze_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deploy Freeze Until"
+          },
+          "employees": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Employees",
+            "type": "object"
+          },
+          "kill_switch": {
+            "title": "Kill Switch",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name En"
+          },
+          "work_open": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Work Open",
+            "type": "object"
+          }
+        },
+        "required": [
+          "company",
+          "kind",
+          "name_en",
+          "kill_switch",
+          "deploy_freeze_until",
+          "departments",
+          "employees",
+          "work_open",
+          "decisions_pending",
+          "budgets"
+        ],
+        "title": "CompanyState",
         "type": "object"
       },
       "Complete": {
@@ -2396,6 +2858,40 @@
         "title": "Deliverable",
         "type": "object"
       },
+      "DeliverableBrief": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "producer": {
+            "title": "Producer",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "title",
+          "summary",
+          "producer",
+          "created_at"
+        ],
+        "title": "DeliverableBrief",
+        "type": "object"
+      },
       "DeliverablesBox": {
         "properties": {
           "new": {
@@ -2782,6 +3278,16 @@
             ],
             "title": "Activity Note"
           },
+          "charter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CharterRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "code": {
             "title": "Code",
             "type": "string"
@@ -2953,6 +3459,16 @@
               }
             ],
             "title": "Activity Note"
+          },
+          "charter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CharterRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "code": {
             "title": "Code",
@@ -3475,6 +3991,174 @@
         "title": "FreezeOut",
         "type": "object"
       },
+      "Gate": {
+        "properties": {
+          "charter_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charter Version"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "employee": {
+            "title": "Employee",
+            "type": "string"
+          },
+          "escrow_classes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Escrow Classes",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "lock": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "own_thread": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Thread"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          },
+          "step_tool_calls": {
+            "title": "Step Tool Calls",
+            "type": "integer"
+          },
+          "step_tool_calls_cap": {
+            "title": "Step Tool Calls Cap",
+            "type": "integer"
+          },
+          "tool_calls": {
+            "title": "Tool Calls",
+            "type": "integer"
+          },
+          "tool_calls_cap": {
+            "title": "Tool Calls Cap",
+            "type": "integer"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "run_id",
+          "employee",
+          "company",
+          "kind",
+          "department",
+          "role",
+          "charter_version",
+          "scope",
+          "status",
+          "lock",
+          "own_thread",
+          "work_ref",
+          "escrow_classes",
+          "model",
+          "effort",
+          "tool_calls",
+          "tool_calls_cap",
+          "step",
+          "step_tool_calls",
+          "step_tool_calls_cap"
+        ],
+        "title": "Gate",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3499,6 +4183,88 @@
           "status"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "Hit": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "company",
+          "title",
+          "snippet",
+          "at"
+        ],
+        "title": "Hit",
+        "type": "object"
+      },
+      "HoldingState": {
+        "properties": {
+          "companies": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyState"
+            },
+            "title": "Companies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "companies"
+        ],
+        "title": "HoldingState",
+        "type": "object"
+      },
+      "HubHealth": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          }
+        },
+        "required": [
+          "at",
+          "data"
+        ],
+        "title": "HubHealth",
         "type": "object"
       },
       "InboxSummary": {
@@ -3535,6 +4301,175 @@
           "khalvat"
         ],
         "title": "InboxSummary",
+        "type": "object"
+      },
+      "Incident": {
+        "properties": {
+          "checks_failed": {
+            "title": "Checks Failed",
+            "type": "integer"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Status"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "company",
+          "url",
+          "opened_at",
+          "closed_at",
+          "severity",
+          "checks_failed",
+          "last_status",
+          "last_error",
+          "work_ref"
+        ],
+        "title": "Incident",
+        "type": "object"
+      },
+      "IncidentBrief": {
+        "properties": {
+          "checks_failed": {
+            "title": "Checks Failed",
+            "type": "integer"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Status"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "ref",
+          "company",
+          "url",
+          "opened_at",
+          "severity",
+          "checks_failed",
+          "last_status",
+          "last_error",
+          "work_ref"
+        ],
+        "title": "IncidentBrief",
         "type": "object"
       },
       "Interaction": {
@@ -3861,6 +4796,74 @@
         "title": "LoginVerifyIn",
         "type": "object"
       },
+      "MemoryIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "title": "MemoryIn",
+        "type": "object"
+      },
+      "MemoryNote": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "note",
+          "tags",
+          "source",
+          "at"
+        ],
+        "title": "MemoryNote",
+        "type": "object"
+      },
       "Message": {
         "properties": {
           "attachments": {
@@ -3876,6 +4879,13 @@
           "body": {
             "title": "Body",
             "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
           },
           "created_at": {
             "format": "date-time",
@@ -3894,6 +4904,11 @@
           "links": {
             "additionalProperties": true,
             "title": "Links",
+            "type": "object"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
             "type": "object"
           },
           "ref": {
@@ -4774,6 +5789,33 @@
         "title": "Page[Resolution]",
         "type": "object"
       },
+      "Page_Run_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Run"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Run]",
+        "type": "object"
+      },
       "Page_SearchHit_": {
         "properties": {
           "items": {
@@ -5447,6 +6489,22 @@
         "title": "QuotaOut",
         "type": "object"
       },
+      "QuotaView": {
+        "properties": {
+          "subscription": {
+            "$ref": "#/components/schemas/Subscription"
+          },
+          "throttle": {
+            "$ref": "#/components/schemas/Throttle"
+          }
+        },
+        "required": [
+          "subscription",
+          "throttle"
+        ],
+        "title": "QuotaView",
+        "type": "object"
+      },
       "Rating": {
         "properties": {
           "comment": {
@@ -5678,6 +6736,52 @@
         "title": "Reject",
         "type": "object"
       },
+      "Reply": {
+        "properties": {
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "run_id"
+        ],
+        "title": "Reply",
+        "type": "object"
+      },
+      "ReserveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "step": {
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Step",
+            "type": "integer"
+          },
+          "tool": {
+            "maxLength": 40,
+            "pattern": "^[a-z][a-z_]*(\\.[a-z_]+)?$",
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool",
+          "step"
+        ],
+        "title": "ReserveIn",
+        "type": "object"
+      },
       "Resolution": {
         "properties": {
           "body": {
@@ -5876,6 +6980,524 @@
         "title": "Return",
         "type": "object"
       },
+      "Role": {
+        "properties": {
+          "department": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
+          },
+          "effort": {
+            "title": "Effort",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/RoleLimits"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "title_en": {
+            "title": "Title En",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tools",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "role",
+          "title_fa",
+          "title_en",
+          "kind",
+          "scope",
+          "department",
+          "model",
+          "effort",
+          "priority",
+          "tools",
+          "limits",
+          "version"
+        ],
+        "title": "Role",
+        "type": "object"
+      },
+      "RoleLimits": {
+        "properties": {
+          "steps_per_run": {
+            "title": "Steps Per Run",
+            "type": "integer"
+          },
+          "tokens_per_run": {
+            "title": "Tokens Per Run",
+            "type": "integer"
+          },
+          "tokens_per_step": {
+            "title": "Tokens Per Step",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "steps_per_run",
+          "tokens_per_step",
+          "tokens_per_run"
+        ],
+        "title": "RoleLimits",
+        "type": "object"
+      },
+      "Run": {
+        "properties": {
+          "charter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charter"
+          },
+          "charter_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charter Version"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Usd",
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "employee": {
+            "title": "Employee",
+            "type": "string"
+          },
+          "equiv_cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Equiv Cost Usd",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "string"
+          },
+          "queued_at": {
+            "format": "date-time",
+            "title": "Queued At",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "thread": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/RunTokens"
+          },
+          "tool_calls": {
+            "title": "Tool Calls",
+            "type": "integer"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "id",
+          "employee",
+          "company",
+          "work_ref",
+          "thread",
+          "trigger",
+          "reason",
+          "state",
+          "priority",
+          "model",
+          "effort",
+          "started_at",
+          "finished_at",
+          "queued_at",
+          "steps",
+          "tool_calls",
+          "tokens",
+          "equiv_cost_usd",
+          "cost_usd",
+          "charter_version",
+          "charter",
+          "partial",
+          "error_code"
+        ],
+        "title": "Run",
+        "type": "object"
+      },
+      "RunDetail": {
+        "properties": {
+          "charter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charter"
+          },
+          "charter_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charter Version"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Usd",
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "employee": {
+            "title": "Employee",
+            "type": "string"
+          },
+          "equiv_cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Equiv Cost Usd",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "string"
+          },
+          "queued_at": {
+            "format": "date-time",
+            "title": "Queued At",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "steps_detail": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "title": "Steps Detail",
+            "type": "array"
+          },
+          "thread": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/RunTokens"
+          },
+          "tool_calls": {
+            "title": "Tool Calls",
+            "type": "integer"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "id",
+          "employee",
+          "company",
+          "work_ref",
+          "thread",
+          "trigger",
+          "reason",
+          "state",
+          "priority",
+          "model",
+          "effort",
+          "started_at",
+          "finished_at",
+          "queued_at",
+          "steps",
+          "tool_calls",
+          "tokens",
+          "equiv_cost_usd",
+          "cost_usd",
+          "charter_version",
+          "charter",
+          "partial",
+          "error_code",
+          "steps_detail"
+        ],
+        "title": "RunDetail",
+        "type": "object"
+      },
+      "RunTokens": {
+        "properties": {
+          "cache_read": {
+            "title": "Cache Read",
+            "type": "integer"
+          },
+          "cache_write": {
+            "title": "Cache Write",
+            "type": "integer"
+          },
+          "input": {
+            "title": "Input",
+            "type": "integer"
+          },
+          "output": {
+            "title": "Output",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "input",
+          "output",
+          "cache_read",
+          "cache_write"
+        ],
+        "title": "RunTokens",
+        "type": "object"
+      },
       "Schedule": {
         "properties": {
           "next_at": {
@@ -6041,6 +7663,13 @@
             "title": "Body",
             "type": "string"
           },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -6058,6 +7687,11 @@
           "links": {
             "additionalProperties": true,
             "title": "Links",
+            "type": "object"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
             "type": "object"
           },
           "rank": {
@@ -6120,6 +7754,30 @@
           "stored"
         ],
         "title": "SecretOut",
+        "type": "object"
+      },
+      "Sent": {
+        "description": "POST /threads/{code}/messages (contract §16.3): the stored message and,\nwhen the thread's counterpart is an agent, its reply run (woken).",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/Message"
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reply"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "message",
+          "reply"
+        ],
+        "title": "Sent",
         "type": "object"
       },
       "SessionInfo": {
@@ -6190,6 +7848,338 @@
         "title": "SessionOut",
         "type": "object"
       },
+      "Site": {
+        "properties": {
+          "canary": {
+            "title": "Canary",
+            "type": "boolean"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "consecutive_failures": {
+            "title": "Consecutive Failures",
+            "type": "integer"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "expect": {
+            "additionalProperties": true,
+            "title": "Expect",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "interval_s": {
+            "title": "Interval S",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "uptime_24h": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uptime 24H"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "company",
+          "url",
+          "kind",
+          "method",
+          "expect",
+          "interval_s",
+          "enabled",
+          "canary",
+          "consecutive_failures",
+          "last",
+          "uptime_24h",
+          "version"
+        ],
+        "title": "Site",
+        "type": "object"
+      },
+      "SiteHealth": {
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "consecutive_failures": {
+            "title": "Consecutive Failures",
+            "type": "integer"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "uptime_24h": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uptime 24H"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "url",
+          "kind",
+          "enabled",
+          "consecutive_failures",
+          "last",
+          "uptime_24h"
+        ],
+        "title": "SiteHealth",
+        "type": "object"
+      },
+      "SiteIn": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "expect": {
+            "additionalProperties": true,
+            "title": "Expect",
+            "type": "object"
+          },
+          "interval_s": {
+            "default": 300,
+            "maximum": 86400.0,
+            "minimum": 60.0,
+            "title": "Interval S",
+            "type": "integer"
+          },
+          "kind": {
+            "default": "web",
+            "enum": [
+              "web",
+              "api",
+              "bot"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "method": {
+            "default": "GET",
+            "enum": [
+              "GET",
+              "HEAD"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 500,
+            "pattern": "^https?://[^\\s/$.?#][^\\s]*$",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "SiteIn",
+        "type": "object"
+      },
+      "SitesHealth": {
+        "properties": {
+          "open_incidents": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentBrief"
+            },
+            "title": "Open Incidents",
+            "type": "array"
+          },
+          "since": {
+            "format": "date-time",
+            "title": "Since",
+            "type": "string"
+          },
+          "sites": {
+            "items": {
+              "$ref": "#/components/schemas/SiteHealth"
+            },
+            "title": "Sites",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sites",
+          "open_incidents",
+          "since"
+        ],
+        "title": "SitesHealth",
+        "type": "object"
+      },
+      "SitesPut": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "sites": {
+            "items": {
+              "$ref": "#/components/schemas/SiteIn"
+            },
+            "maxItems": 50,
+            "title": "Sites",
+            "type": "array"
+          }
+        },
+        "required": [
+          "company",
+          "sites"
+        ],
+        "title": "SitesPut",
+        "type": "object"
+      },
+      "Step": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/StepAction"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "summary_fa": {
+            "title": "Summary Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "n",
+          "at",
+          "summary_fa",
+          "actions"
+        ],
+        "title": "Step",
+        "type": "object"
+      },
+      "StepAction": {
+        "properties": {
+          "class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "tool": {
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool",
+          "outcome"
+        ],
+        "title": "StepAction",
+        "type": "object"
+      },
       "StepUpOptionsIn": {
         "properties": {
           "action": {
@@ -6241,6 +8231,99 @@
           "credential"
         ],
         "title": "StepUpVerifyIn",
+        "type": "object"
+      },
+      "Subscription": {
+        "properties": {
+          "changed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed At"
+          },
+          "connection": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection"
+          },
+          "resets_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resets At"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warning",
+              "limited"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "utilization": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Utilization"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window"
+          }
+        },
+        "required": [
+          "connection",
+          "status",
+          "window",
+          "utilization",
+          "resets_at",
+          "source",
+          "changed_at"
+        ],
+        "title": "Subscription",
         "type": "object"
       },
       "Summary": {
@@ -6457,6 +8540,97 @@
         "title": "ThreadCreate",
         "type": "object"
       },
+      "Throttle": {
+        "properties": {
+          "paused_priorities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Paused Priorities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "paused_priorities"
+        ],
+        "title": "Throttle",
+        "type": "object"
+      },
+      "ToolCallIn": {
+        "additionalProperties": false,
+        "properties": {
+          "class": {
+            "anyOf": [
+              {
+                "enum": [
+                  "A0",
+                  "A1",
+                  "A2",
+                  "A3",
+                  "A4"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,60}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "outcome": {
+            "enum": [
+              "ok",
+              "denied",
+              "error"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "step": {
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Step",
+            "type": "integer"
+          },
+          "tool": {
+            "maxLength": 40,
+            "pattern": "^[a-z][a-z_]*(\\.[a-z_]+)?$",
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool",
+          "outcome",
+          "step"
+        ],
+        "title": "ToolCallIn",
+        "type": "object"
+      },
       "TopDecision": {
         "properties": {
           "company": {
@@ -6666,6 +8840,63 @@
           "equiv_cost_usd"
         ],
         "title": "Totals",
+        "type": "object"
+      },
+      "Usage": {
+        "properties": {
+          "budgets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Budgets",
+            "type": "array"
+          },
+          "by_model": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "By Model",
+            "type": "array"
+          },
+          "period": {
+            "title": "Period",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date-time",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "top_actors": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Top Actors",
+            "type": "array"
+          },
+          "totals": {
+            "additionalProperties": true,
+            "title": "Totals",
+            "type": "object"
+          }
+        },
+        "required": [
+          "scope",
+          "period",
+          "period_start",
+          "totals",
+          "by_model",
+          "top_actors",
+          "budgets"
+        ],
+        "title": "Usage",
         "type": "object"
       },
       "UsageIn": {
@@ -9294,7 +11525,7 @@
     },
     "/api/v1/auth/step-up/verify": {
       "post": {
-        "description": "Verify the assertion -> a single-use step-up token (120 s) for the action/target\nchosen at options time. Send it as `X-Step-Up`.",
+        "description": "Verify the assertion -> a single-use step-up token (120 s) for the action/target\nchosen at options time. Send it as `X-Step-Up`. On the web the session cookie\nis rotated at the same time (same session, new secret): a cookie seen before\nthe step-up is worthless after it.",
         "operationId": "step_up_verify",
         "requestBody": {
           "content": {
@@ -12835,6 +15066,10 @@
                       "activity": "working",
                       "activity_at": "2026-10-17T05:42:00Z",
                       "activity_note": "x",
+                      "charter": {
+                        "role": "x",
+                        "version": 1
+                      },
                       "code": "TY-GROWTH-01",
                       "company": "TY",
                       "department": "GROWTH",
@@ -12966,6 +15201,10 @@
                   "activity": "x",
                   "activity_at": "2026-10-17T05:42:00Z",
                   "activity_note": "x",
+                  "charter": {
+                    "role": "x",
+                    "version": 1
+                  },
                   "code": "TY-GROWTH-01",
                   "company": "TY",
                   "department": "GROWTH",
@@ -13123,6 +15362,10 @@
                   "activity": "working",
                   "activity_at": "2026-10-17T05:42:00Z",
                   "activity_note": "x",
+                  "charter": {
+                    "role": "x",
+                    "version": 1
+                  },
                   "code": "TY-GROWTH-01",
                   "company": "TY",
                   "department": "GROWTH",
@@ -13370,6 +15613,10 @@
                   "activity": "working",
                   "activity_at": "2026-10-17T05:42:00Z",
                   "activity_note": "x",
+                  "charter": {
+                    "role": "x",
+                    "version": 1
+                  },
                   "code": "TY-GROWTH-01",
                   "company": "TY",
                   "department": "GROWTH",
@@ -13498,6 +15745,10 @@
                   "activity": "working",
                   "activity_at": "2026-10-17T05:42:00Z",
                   "activity_note": "x",
+                  "charter": {
+                    "role": "x",
+                    "version": 1
+                  },
                   "code": "TY-GROWTH-01",
                   "company": "TY",
                   "department": "GROWTH",
@@ -14364,6 +16615,385 @@
         "summary": "Read Notification",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/api/v1/ops/incidents": {
+      "get": {
+        "description": "Incidents opened by the rule-based checks, newest first.",
+        "operationId": "list_incidents",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "open",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Open"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "checks_failed": 1,
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "company": "TY",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "last_error": "x",
+                    "last_status": 1,
+                    "opened_at": "2026-10-17T05:42:00Z",
+                    "ref": "W-000789",
+                    "severity": "x",
+                    "url": "x",
+                    "work_ref": "x"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Incident"
+                  },
+                  "title": "Response List Incidents",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Incidents",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/ops/sites": {
+      "get": {
+        "description": "Sites under rule-based checks with their latest check and 24 h uptime.",
+        "operationId": "list_sites",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "canary": false,
+                    "company": "TY",
+                    "consecutive_failures": 1,
+                    "enabled": false,
+                    "expect": {},
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "interval_s": 1,
+                    "kind": "one_off",
+                    "last": {},
+                    "method": "x",
+                    "uptime_24h": 1.0,
+                    "url": "x",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Site"
+                  },
+                  "title": "Response List Sites",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Sites",
+        "tags": [
+          "agents"
+        ]
+      },
+      "put": {
+        "description": "🔏 (`sites.update`, target = SHA-256 of the body) replace one company's\nlist: new URLs are added, listed ones updated, missing ones switched off\n(never deleted: their checks and incidents stay). Canaries are not touched.",
+        "operationId": "put_sites",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "sites": [
+                  {
+                    "enabled": false,
+                    "expect": {},
+                    "interval_s": 60,
+                    "kind": "web",
+                    "method": "GET",
+                    "url": "x"
+                  }
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/SitesPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "canary": false,
+                    "company": "TY",
+                    "consecutive_failures": 1,
+                    "enabled": false,
+                    "expect": {},
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "interval_s": 1,
+                    "kind": "one_off",
+                    "last": {},
+                    "method": "x",
+                    "uptime_24h": 1.0,
+                    "url": "x",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Site"
+                  },
+                  "title": "Response Put Sites",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Put Sites",
+        "tags": [
+          "agents"
         ]
       }
     },
@@ -15789,6 +18419,479 @@
         ]
       }
     },
+    "/api/v1/roles": {
+      "get": {
+        "description": "The role charters (agents/roles/*.md), read-only: what each role is, its\ndefault model and effort, its tools and limits, and the charter version.",
+        "operationId": "list_roles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "department": "GROWTH",
+                    "effort": "high",
+                    "kind": "one_off",
+                    "limits": {
+                      "steps_per_run": 1,
+                      "tokens_per_run": 1,
+                      "tokens_per_step": 1
+                    },
+                    "model": "claude-sonnet-5-5",
+                    "priority": "P2",
+                    "role": "x",
+                    "scope": "company:TY",
+                    "title_en": "Weekly growth report",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "tools": [
+                      "x"
+                    ],
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Role"
+                  },
+                  "title": "Response List Roles",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Roles",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/runs": {
+      "get": {
+        "description": "Agent runs, newest first.",
+        "operationId": "list_runs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employee",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Employee"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "queued",
+                    "running",
+                    "done",
+                    "failed",
+                    "refused"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "charter": "x",
+                      "charter_version": 1,
+                      "company": "TY",
+                      "cost_usd": "2.410000",
+                      "effort": "high",
+                      "employee": "TY-GROWTH-01",
+                      "equiv_cost_usd": "2.410000",
+                      "error_code": "x",
+                      "finished_at": "2026-10-17T05:42:00Z",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "model": "claude-sonnet-5-5",
+                      "partial": false,
+                      "priority": "P2",
+                      "queued_at": "2026-10-17T05:42:00Z",
+                      "reason": "دلیل",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "state": "x",
+                      "steps": 1,
+                      "thread": "TY-CEO",
+                      "tokens": {
+                        "cache_read": 1,
+                        "cache_write": 1,
+                        "input": 1,
+                        "output": 1
+                      },
+                      "tool_calls": 1,
+                      "trigger": "x",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Run_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Runs",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/runs/{id}": {
+      "get": {
+        "description": "One run with its steps: summaries and tool metadata only.",
+        "operationId": "get_run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "charter": "x",
+                  "charter_version": 1,
+                  "company": "TY",
+                  "cost_usd": "2.410000",
+                  "effort": "high",
+                  "employee": "TY-GROWTH-01",
+                  "equiv_cost_usd": "2.410000",
+                  "error_code": "x",
+                  "finished_at": "2026-10-17T05:42:00Z",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "model": "claude-sonnet-5-5",
+                  "partial": false,
+                  "priority": "P2",
+                  "queued_at": "2026-10-17T05:42:00Z",
+                  "reason": "دلیل",
+                  "started_at": "2026-10-17T05:42:00Z",
+                  "state": "x",
+                  "steps": 1,
+                  "steps_detail": [
+                    {
+                      "actions": [
+                        {
+                          "class": "x",
+                          "outcome": "x",
+                          "ref": "W-000789",
+                          "tool": "x"
+                        }
+                      ],
+                      "at": "2026-10-17T05:42:00Z",
+                      "n": 1,
+                      "run_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "summary_fa": "x"
+                    }
+                  ],
+                  "thread": "TY-CEO",
+                  "tokens": {
+                    "cache_read": 1,
+                    "cache_write": 1,
+                    "input": 1,
+                    "output": 1
+                  },
+                  "tool_calls": 1,
+                  "trigger": "x",
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Run",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
     "/api/v1/search/messages": {
       "get": {
         "description": "Full-text and substring search over every thread the caller may read.",
@@ -15926,10 +19029,17 @@
                         "kind": "agent"
                       },
                       "body": "متن پیام",
+                      "citations": [
+                        {
+                          "kind": "decision",
+                          "ref": "W-000789"
+                        }
+                      ],
                       "created_at": "2026-10-17T05:42:00Z",
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "kind": "one_off",
                       "links": {},
+                      "meta": {},
                       "rank": 1.0,
                       "ref": "TY-CEO-0012",
                       "thread": "TY-CEO"
@@ -16431,6 +19541,95 @@
         ]
       }
     },
+    "/api/v1/threads/{code}/live": {
+      "get": {
+        "description": "Owner only, SSE: `reply.started {run_id}`, `reply.delta {text}` (the reply\nbeing written, in Persian chunks), `reply.done {message_ref}`,\n`reply.failed {code}`. The stored message is the final text; deltas are\nnever stored. A comment line every 15 s keeps the connection open.",
+        "operationId": "thread_live",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": null,
+                "schema": {
+                  "title": "Response Thread Live"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Thread Live",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
     "/api/v1/threads/{code}/messages": {
       "get": {
         "description": "Oldest -> newest from the cursor (no cursor: the latest page).",
@@ -16496,10 +19695,17 @@
                         "kind": "agent"
                       },
                       "body": "متن پیام",
+                      "citations": [
+                        {
+                          "kind": "decision",
+                          "ref": "W-000789"
+                        }
+                      ],
                       "created_at": "2026-10-17T05:42:00Z",
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "kind": "one_off",
                       "links": {},
+                      "meta": {},
                       "ref": "TY-CEO-0012",
                       "thread": "TY-CEO"
                     }
@@ -16575,7 +19781,7 @@
         ]
       },
       "post": {
-        "description": "Messages are immutable: a correction is a new message with `links.corrects`.\nRequires `Idempotency-Key`.",
+        "description": "Messages are immutable: a correction is a new message with `links.corrects`.\nIn an agent's thread (the advisor `A`, a CEO, a manager, an employee) the\nmessage wakes that agent: `reply` is its queued run; the reply arrives as a\nmessage (and live on GET /threads/{code}/live). Requires `Idempotency-Key`.",
         "operationId": "send_message",
         "parameters": [
           {
@@ -16609,30 +19815,43 @@
             "content": {
               "application/json": {
                 "example": {
-                  "attachments": [
-                    {
-                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                      "mime": "application/pdf",
-                      "name": "report.pdf",
-                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                      "size": 1
-                    }
-                  ],
-                  "author": {
-                    "code": "TY-CEO",
-                    "display_fa": "x",
-                    "kind": "agent"
+                  "message": {
+                    "attachments": [
+                      {
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                        "size": 1
+                      }
+                    ],
+                    "author": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "body": "متن پیام",
+                    "citations": [
+                      {
+                        "kind": "decision",
+                        "ref": "W-000789"
+                      }
+                    ],
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "one_off",
+                    "links": {},
+                    "meta": {},
+                    "ref": "TY-CEO-0012",
+                    "thread": "TY-CEO"
                   },
-                  "body": "متن پیام",
-                  "created_at": "2026-10-17T05:42:00Z",
-                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                  "kind": "one_off",
-                  "links": {},
-                  "ref": "TY-CEO-0012",
-                  "thread": "TY-CEO"
+                  "reply": {
+                    "run_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "state": "queued"
+                  }
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/Message"
+                  "$ref": "#/components/schemas/Sent"
                 }
               }
             },
@@ -17168,6 +20387,99 @@
         "summary": "Treasury Calls",
         "tags": [
           "treasury"
+        ]
+      }
+    },
+    "/api/v1/treasury/quota": {
+      "get": {
+        "description": "The subscription's quota as the Quota Controller sees it (code, no model):\nat `warning` P4 waits, at `limited` only P0-P2 run.",
+        "operationId": "treasury_quota",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "subscription": {
+                    "changed_at": "2026-10-17T05:42:00Z",
+                    "connection": "claude-max",
+                    "resets_at": "2026-10-17T05:42:00Z",
+                    "source": "x",
+                    "status": "ok",
+                    "utilization": "x",
+                    "window": "x"
+                  },
+                  "throttle": {
+                    "paused_priorities": [
+                      "x"
+                    ]
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/QuotaView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Treasury Quota",
+        "tags": [
+          "agents"
         ]
       }
     },
@@ -18877,6 +22189,147 @@
         ]
       }
     },
+    "/api/v1/work/{id}/runs": {
+      "get": {
+        "description": "The runs of one work item, oldest first, with their steps.",
+        "operationId": "work_runs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "charter": "x",
+                    "charter_version": 1,
+                    "company": "TY",
+                    "cost_usd": "2.410000",
+                    "effort": "high",
+                    "employee": "TY-GROWTH-01",
+                    "equiv_cost_usd": "2.410000",
+                    "error_code": "x",
+                    "finished_at": "2026-10-17T05:42:00Z",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "model": "claude-sonnet-5-5",
+                    "partial": false,
+                    "priority": "P2",
+                    "queued_at": "2026-10-17T05:42:00Z",
+                    "reason": "دلیل",
+                    "started_at": "2026-10-17T05:42:00Z",
+                    "state": "x",
+                    "steps": 1,
+                    "steps_detail": [
+                      {
+                        "actions": [
+                          {
+                            "class": null,
+                            "outcome": "x",
+                            "ref": null,
+                            "tool": "x"
+                          }
+                        ],
+                        "at": "2026-10-17T05:42:00Z",
+                        "n": 1,
+                        "run_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "summary_fa": "x"
+                      }
+                    ],
+                    "thread": "TY-CEO",
+                    "tokens": {
+                      "cache_read": 1,
+                      "cache_write": 1,
+                      "input": 1,
+                      "output": 1
+                    },
+                    "tool_calls": 1,
+                    "trigger": "x",
+                    "work_ref": "x"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunDetail"
+                  },
+                  "title": "Response Work Runs",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Work Runs",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
     "/internal/v1/activity": {
       "post": {
         "description": "Live activity of an employee -> `activity.changed` on the stream.",
@@ -18904,6 +22357,10 @@
                   "activity": "working",
                   "activity_at": "2026-10-17T05:42:00Z",
                   "activity_note": "x",
+                  "charter": {
+                    "role": "x",
+                    "version": 1
+                  },
                   "code": "TY-GROWTH-01",
                   "company": "TY",
                   "department": "GROWTH",
@@ -19020,6 +22477,328 @@
         ]
       }
     },
+    "/internal/v1/audit/recent": {
+      "get": {
+        "description": "audit.recent: audit rows (metadata only) for oversight roles and the advisor.",
+        "operationId": "tool_audit_recent",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z_]+(\\.[a-z_]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "action": "decision.approve",
+                    "action_class": "x",
+                    "actor": "TY-GROWTH-01",
+                    "at": "2026-10-17T05:42:00Z",
+                    "company": "TY",
+                    "seq": 1,
+                    "summary": "خلاصه",
+                    "target": "D-000123"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuditBrief"
+                  },
+                  "title": "Response Tool Audit Recent",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Audit Recent",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/company/state": {
+      "get": {
+        "description": "company.state: departments, active employees, open work by status, pending\ndecisions, kill switch, deploy freeze, budget use. A holding-scope role\nwithout `company` gets every company.",
+        "operationId": "tool_company_state",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "budgets": [
+                    {}
+                  ],
+                  "company": "TY",
+                  "decisions_pending": 1,
+                  "departments": [
+                    {}
+                  ],
+                  "deploy_freeze_until": "2026-10-17T05:42:00Z",
+                  "employees": {},
+                  "kill_switch": "x",
+                  "kind": "one_off",
+                  "name_en": "TradeYar",
+                  "work_open": {}
+                },
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CompanyState"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HoldingState"
+                    }
+                  ],
+                  "title": "Response Tool Company State"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Company State",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/context/{employee}": {
       "get": {
         "description": "What the runtime needs for one step: the employee, its open work with\nbudget left and escrow, its company's lock state and the owner's presence.",
@@ -19045,6 +22824,10 @@
                     "activity": "working",
                     "activity_at": "2026-10-17T05:42:00Z",
                     "activity_note": "x",
+                    "charter": {
+                      "role": "x",
+                      "version": 1
+                    },
                     "code": "TY-GROWTH-01",
                     "company": "TY",
                     "department": "GROWTH",
@@ -20109,6 +23892,695 @@
         ]
       }
     },
+    "/internal/v1/health/hub": {
+      "get": {
+        "description": "health.hub: the hub's own latest snapshot (services, restarts, disk,\nmemory, certificate days left, backup age, restore-test result).",
+        "operationId": "tool_health_hub",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "data": {}
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/HubHealth"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Health Hub",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/health/sites": {
+      "get": {
+        "description": "health.sites: the latest rule-based check of each site (status, latency,\nTLS days left, consecutive failures), 24 h uptime, and open incidents.",
+        "operationId": "tool_health_sites",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "open_incidents": [
+                    {
+                      "checks_failed": 1,
+                      "company": "TY",
+                      "last_error": "x",
+                      "last_status": 1,
+                      "opened_at": "2026-10-17T05:42:00Z",
+                      "ref": "W-000789",
+                      "severity": "x",
+                      "url": "x",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "since": "2026-10-17T05:42:00Z",
+                  "sites": [
+                    {
+                      "company": "TY",
+                      "consecutive_failures": 1,
+                      "enabled": false,
+                      "kind": "one_off",
+                      "last": {},
+                      "uptime_24h": 1.0,
+                      "url": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SitesHealth"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Health Sites",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/knowledge/search": {
+      "get": {
+        "description": "knowledge.search: resolutions, deliverables, decisions and work the role\nmay read (message bodies: the advisor only). Refs and short snippets.",
+        "operationId": "tool_knowledge_search",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kinds",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kinds"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "at": "2026-10-17T05:42:00Z",
+                    "company": "TY",
+                    "kind": "one_off",
+                    "ref": "W-000789",
+                    "snippet": "x",
+                    "title": "گزارش هفتگی رشد"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Hit"
+                  },
+                  "title": "Response Tool Knowledge Search",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Knowledge Search",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/memory": {
+      "get": {
+        "description": "memory.read: the employee's own notes, latest first, capped in size.",
+        "operationId": "tool_memory_read",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "at": "2026-10-17T05:42:00Z",
+                    "id": 1,
+                    "note": "یادداشت",
+                    "source": "x",
+                    "tags": [
+                      "x"
+                    ]
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MemoryNote"
+                  },
+                  "title": "Response Tool Memory Read",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Memory Read",
+        "tags": [
+          "internal"
+        ]
+      },
+      "post": {
+        "description": "memory.write: append one note to the employee's own memory (append-only).",
+        "operationId": "tool_memory_write",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "note": "یادداشت",
+                "tags": [
+                  "x"
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/MemoryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "id": 1,
+                  "note": "یادداشت",
+                  "source": "x",
+                  "tags": [
+                    "x"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Memory Write",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/notifications": {
       "post": {
         "description": "Services and agents raise a notification; level rules, Khalvat and the CEO\nattention quota apply. An agent's 🔴 needs an incident `category` and is\ncapped per company per hour; otherwise it is raised as 🟡. While its company\nis locked an agent raises only 🔴 incidents.",
@@ -20219,6 +24691,356 @@
         ]
       }
     },
+    "/internal/v1/runs/self/reserve": {
+      "post": {
+        "description": "The gateway reserves one tool call of the token's run before it acts: the\ncaps per step and per run hold in the database, steps never go back. 429\nrate_limited when a cap is reached.",
+        "operationId": "run_reserve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "step": 1,
+                "tool": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ReserveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "charter_version": 1,
+                  "company": "TY",
+                  "department": "GROWTH",
+                  "effort": "high",
+                  "employee": "TY-GROWTH-01",
+                  "escrow_classes": [
+                    "x"
+                  ],
+                  "kind": "one_off",
+                  "lock": "x",
+                  "model": "claude-sonnet-5-5",
+                  "own_thread": "x",
+                  "role": "x",
+                  "run_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "scope": "company:TY",
+                  "status": "active",
+                  "step": 1,
+                  "step_tool_calls": 1,
+                  "step_tool_calls_cap": 1,
+                  "tool_calls": 1,
+                  "tool_calls_cap": 1,
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Gate"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Run Reserve",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/runs/self/tool-calls": {
+      "post": {
+        "description": "One audit row per tool call (tool, class, outcome, ref) - never its input\nor output. Written by the gateway after the call.",
+        "operationId": "run_record_tool_call",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "class": "A0",
+                "code": "TY",
+                "outcome": "ok",
+                "ref": "W-000789",
+                "step": 1,
+                "tool": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ToolCallIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Run Record Tool Call",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/threads/{code}/live": {
+      "post": {
+        "description": "The reply being written, pushed by the runtime as NDJSON lines\n{type: reply.started|reply.delta|reply.done|reply.failed, ...} and fanned\nout to the owner's GET /api/v1/threads/{code}/live. Never stored, never on\nNATS, never logged; the final text is the stored message.",
+        "operationId": "push_live",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Push Live",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/threads/{code}/messages": {
       "post": {
         "description": "An agent replies in a thread it belongs to. Requires `Idempotency-Key`.",
@@ -20270,10 +25092,17 @@
                     "kind": "agent"
                   },
                   "body": "متن پیام",
+                  "citations": [
+                    {
+                      "kind": "decision",
+                      "ref": "W-000789"
+                    }
+                  ],
                   "created_at": "2026-10-17T05:42:00Z",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "kind": "one_off",
                   "links": {},
+                  "meta": {},
                   "ref": "TY-CEO-0012",
                   "thread": "TY-CEO"
                 },
@@ -20352,6 +25181,147 @@
           }
         },
         "summary": "Agent Message",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/treasury/usage": {
+      "get": {
+        "description": "treasury.usage: tokens and equivalent cost of a company (own; another one\nor `holding` for holding-scope roles) by model and top actors, budget use %.",
+        "operationId": "tool_treasury_usage",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "company",
+              "pattern": "^(company|holding|[A-Z][A-Z0-9]{1,9})$",
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "month",
+              "enum": [
+                "day",
+                "month"
+              ],
+              "title": "Period",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "budgets": [
+                    {}
+                  ],
+                  "by_model": [
+                    {}
+                  ],
+                  "period": "x",
+                  "period_start": "2026-10-17T05:42:00Z",
+                  "scope": "company:TY",
+                  "top_actors": [
+                    {}
+                  ],
+                  "totals": {}
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Usage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Treasury Usage",
         "tags": [
           "internal"
         ]
@@ -20528,6 +25498,173 @@
           }
         },
         "summary": "Request Work",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/work/ref/{ref}": {
+      "get": {
+        "description": "work.get: one work item with its delegation chain, brief, budget left,\nevidence and deliverables (summaries).",
+        "operationId": "tool_work_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "assignee": "TY-GROWTH-01",
+                  "brief": "x",
+                  "budget": {
+                    "tokens": 1,
+                    "tokens_left": 1,
+                    "tokens_used": 1,
+                    "usd": "2.410000",
+                    "usd_left": "x",
+                    "usd_used": "2.410000"
+                  },
+                  "chain": [
+                    {
+                      "assignee": "TY-GROWTH-01",
+                      "depth": 1,
+                      "ref": "W-000789",
+                      "status": "active",
+                      "title": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "assignee": "TY-GROWTH-01",
+                      "depth": 1,
+                      "ref": "W-000789",
+                      "status": "active",
+                      "title": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "company": "TY",
+                  "created_by": "x",
+                  "deliverables": [
+                    {
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "producer": "TY-GROWTH-01",
+                      "ref": "W-000789",
+                      "summary": "خلاصه",
+                      "title": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "department": "GROWTH",
+                  "depth": 1,
+                  "due_at": "2026-10-17T05:42:00Z",
+                  "escrow_classes": [
+                    "x"
+                  ],
+                  "evidence": [
+                    {}
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "one_off",
+                  "priority": "P2",
+                  "progress_note": "x",
+                  "ref": "W-000789",
+                  "status": "active",
+                  "title": "گزارش هفتگی رشد"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/AgentWorkDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Work Get",
         "tags": [
           "internal"
         ]

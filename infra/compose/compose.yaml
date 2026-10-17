@@ -651,7 +651,8 @@ services:
     build:
       context: ../../apps/web
     environment:
-      HQ_ANDROID_PACKAGES: ${HQ_ANDROID_PACKAGES:-com.coinepro.hq}
+      # Empty = the web's own defaults (the owner's app and its signing key; apps/web/README.md).
+      HQ_ANDROID_PACKAGES: ${HQ_ANDROID_PACKAGES:-}
       HQ_ANDROID_CERT_SHA256: ${HQ_ANDROID_CERT_SHA256:-}
     user: "10001:10001"
     read_only: true

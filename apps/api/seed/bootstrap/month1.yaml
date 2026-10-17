@@ -16,7 +16,7 @@ items:
       تیم فنی ماه ۱ را پیشنهاد بده: یک SRE برای پایش سلامت سایت‌ها و سرویس‌های این شرکت.
       فقط پیشنهاد استخدام بده (ابزار propose با kind=hire و payload.role=sre)، با شرح وظایف،
       مدل و effort، دسترسی‌ها و برآورد مصرف ماهانه. هیچ چیز دیگری را تغییر نده.
-    budget_tokens: 80000
+    budget_tokens: 60000
   - for: holding
     role: inspector
     title: "پیشنهاد تیم نظارت ماه ۱"
@@ -25,11 +25,11 @@ items:
       (fact_checker) و تحلیلگر امنیت (security_analyst). برای هر کدام یک پیشنهاد استخدام
       جدا (ابزار propose با kind=hire و payload.role همان نقش)، با شرح وظایف، مدل و effort،
       دسترسی‌ها و برآورد مصرف ماهانه. فقط پیشنهاد بده.
-    budget_tokens: 100000
+    budget_tokens: 90000
   - for: holding
     role: aiops_head
     title: "پیشنهاد SRE سکوی هاب"
     brief: |
       SRE سکوی هاب را پیشنهاد بده (ابزار propose با kind=hire و payload.role=hub_platform_sre)،
       با شرح وظایف، مدل و effort، دسترسی‌ها و برآورد مصرف ماهانه. فقط پیشنهاد بده.
-    budget_tokens: 80000
+    budget_tokens: 60000

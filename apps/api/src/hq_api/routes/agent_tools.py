@@ -89,7 +89,7 @@ class BudgetLeft(BaseModel):
     usd_left: Decimal | None
 
 
-class WorkDetail(BaseModel):
+class AgentWorkDetail(BaseModel):
     id: UUID
     ref: str
     company: str
@@ -112,8 +112,8 @@ class WorkDetail(BaseModel):
     deliverables: list[DeliverableBrief]
 
 
-@router.get("/work/ref/{ref}", response_model=WorkDetail, responses=E)
-async def tool_work_get(ref: str, ctx: Ctx = Depends(internal_ctx)) -> WorkDetail:
+@router.get("/work/ref/{ref}", response_model=AgentWorkDetail, responses=E)
+async def tool_work_get(ref: str, ctx: Ctx = Depends(internal_ctx)) -> AgentWorkDetail:
     """work.get: one work item with its delegation chain, brief, budget left,
     evidence and deliverables (summaries)."""
     _agent(ctx)
@@ -155,7 +155,7 @@ async def tool_work_get(ref: str, ctx: Ctx = Depends(internal_ctx)) -> WorkDetai
         if w["budget_usd"] is not None
         else None
     )
-    return WorkDetail(
+    return AgentWorkDetail(
         id=w["id"],
         ref=w["ref"],
         company=w["company"],

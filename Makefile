@@ -9,7 +9,7 @@ ENV_FILE := infra/compose/.env
 
 .PHONY: help env bootstrap profile up down ps logs backup restore-test check openbao-init unseal \
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
-	audit-reanchor verify-live bootstrap-month1
+	audit-reanchor verify-live bootstrap-month1 prompt-check
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -56,6 +56,10 @@ restore-test: ## Restore the latest backup into a throwaway Postgres and verify 
 
 bootstrap-month1: ## Month-1 setup work (seed/bootstrap/month1.yaml) as service "bootstrap"; wakes real runs
 	$(HQ) exec -T worker python -m hq_api.bootstrap month1
+
+prompt-check: ## One REAL call with a charter's prompt (role=advisor): schema and answer checked, nothing stored
+	@infra/compose/hq.sh exec -T worker python -m hq_api.agents.check_prompt "$(or $(role),advisor)" \
+	  <"$${HQ_SECRETS_DIR:-/home/Hub/.secrets}/llm-router-caller-hq-ops.token"
 
 audit-reanchor: ## After a DB restore: re-anchor the audit chain (typed confirmation + audit row): reason="..."
 	@infra/backup/audit-reanchor.sh "$(reason)"
