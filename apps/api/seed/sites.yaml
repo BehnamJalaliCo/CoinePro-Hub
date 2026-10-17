@@ -18,5 +18,6 @@ sites:
      expect: {status: 200, contains: '"ok"'}}
   # Canary (prompt 05 §9.1): Caddy answers 503 here on purpose, so the whole
   # line (check -> incident -> work -> run -> deliverable) can be proven.
-  # Switched off once proven; set enabled: true to prove it again.
-  - {company: HQ, url: "https://hq.coinepro.com/__canary", kind: api, canary: true, enabled: true}
+  # Proven on 2026-10-17 (I-0003 -> W-000004 -> HQ-AIOPS-MGR -> O-000003) and
+  # switched off; set enabled: true to prove it again (one real run).
+  - {company: HQ, url: "https://hq.coinepro.com/__canary", kind: api, canary: true, enabled: false}
