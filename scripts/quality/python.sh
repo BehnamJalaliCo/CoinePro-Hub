@@ -27,7 +27,7 @@ API_DOMAIN="*/hq_api/domain/work.py,*/hq_api/domain/decisions.py,*/hq_api/domain
 
 api_image() { # api_image <cmd...>: apps/api's test image without the test dependencies
   docker build -q -f "$API_DIR/Dockerfile.test" -t "$API_IMAGE" "$API_DIR" >/dev/null
-  docker run --rm --user "$(id -u):$(id -g)" -v "$REPO_DIR/services:/w:ro" "$@"
+  docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$REPO_DIR/services:/w:ro" "$@"
 }
 
 case "${1:-}" in
