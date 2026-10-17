@@ -46,6 +46,8 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            // With the owner's key, debug builds keep one fingerprint too, so passkeys work in them as well.
+            signingConfigs.findByName("owner")?.let { signingConfig = it }
         }
         release {
             isMinifyEnabled = true
