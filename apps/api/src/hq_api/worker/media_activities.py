@@ -187,7 +187,9 @@ class MediaActivities:
             try:
                 sp: dict[str, Any] | None = None
                 if f["kind"] == "video":
-                    await self._store_variant(f, "poster", await M.poster(src, float(f["duration_s"] or 0)))
+                    await self._store_variant(
+                        f, "poster", await M.poster(src, float(f["duration_s"] or 0))
+                    )
                     frames = await M.key_frames(src, float(f["duration_s"] or 0))
                     for at, data in frames:
                         await self._store_variant(f, "frame", data, at)
