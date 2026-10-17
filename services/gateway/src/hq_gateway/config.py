@@ -16,6 +16,8 @@ class Settings:
         default_factory=lambda: os.environ.get("GATEWAY_API_URL", "http://api:8000")
     )
     opa_url: str = field(default_factory=lambda: os.environ.get("OPA_URL", "http://opa:8181"))
+    # The egress service (prompt 07 §2), for the internet tools; empty = not wired.
+    egress_url: str = field(default_factory=lambda: os.environ.get("EGRESS_URL", ""))
     # SHA-256 (hex) of the worker's token, installed by make up (600, uid 10001).
     worker_token_file: str = field(
         default_factory=lambda: os.environ.get(

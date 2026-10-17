@@ -39,6 +39,7 @@ from hq_common.charters import IMPLICIT_TOOLS, Library
 from hq_common.redact import fit_async, scrub_async
 from hq_gateway import mcp as M
 from hq_gateway import tools as T
+from hq_gateway import web  # noqa: F401 - registers the internet tools (web.*, http.request)
 
 log = logging.getLogger("hq_gateway")
 TOOL_NAME = re.compile(r"[a-z][a-z_]*(?:\.[a-z_]+)?")  # always fullmatch: "work.get\n" is no tool
@@ -136,8 +137,11 @@ class Gateway:
         finally:
             # Whatever happened, cancellation included, the call has its audit row
             # (shielded: a second cancel does not lose it). A per-call class (an
-            # MCP tool's sealed class) stays; otherwise the catalog's.
-            per_call = catalog is not None and catalog.per_tool and out.cls
+            # MCP tool's sealed class, an A0/A2 tool's decided class) stays;
+            # otherwise the catalog's.
+            per_call = (
+                catalog is not None and (catalog.per_tool or bool(catalog.classes)) and out.cls
+            )
             out.cls = out.cls if per_call else cls
             if out.code != "run_not_running":  # the api audits nothing for a dead run's token
                 await asyncio.shield(self._record(token, name, out, step))
@@ -197,25 +201,36 @@ class Gateway:
             return Outcome("denied", catalog.cls, "tool_not_in_charter", None, None, {})
         if catalog.per_tool:
             return await self._mcp(token, gate, step, index, name, args)
-        denied = await self._policy(gate, name, catalog.cls, args)
+        cls = catalog.cls
+        parsed: Any = None
+        if catalog.classes:
+            # A0/A2: the input decides the class (unknown = the higher one).
+            parsed, fields = T.validate(name, args)
+            if parsed is None:
+                return Outcome("error", catalog.cls, "invalid_args", None, None, fields)
+            cls = T.call_class(name, parsed, catalog.cls)
+            if cls not in catalog.classes:
+                cls = catalog.cls
+        denied = await self._policy(gate, name, cls, args)
         if denied is not None:
             return denied
-        parsed, fields = T.validate(name, args)
         if parsed is None:
-            return Outcome("error", catalog.cls, "invalid_args", None, None, fields)
+            parsed, fields = T.validate(name, args)
+            if parsed is None:
+                return Outcome("error", cls, "invalid_args", None, None, fields)
         _, handler = T.TOOLS[name]
-        call = T.Call(token=token, gate=gate, step=step, index=index)
+        call = T.Call(token=token, gate=gate, step=step, index=index, cls=cls)
         try:
             r = await asyncio.wait_for(handler(self.api, call, parsed), timeout=self.tool_timeout_s)
         except TimeoutError:
-            return Outcome("error", catalog.cls, "tool_timeout", None, None, {})
+            return Outcome("error", cls, "tool_timeout", None, None, {})
         except httpx.HTTPError:
-            return Outcome("error", catalog.cls, "api_unreachable", None, None, {})
+            return Outcome("error", cls, "api_unreachable", None, None, {})
         result, truncated = (
             await fit_async(r.data, self.max_result_chars) if r.data is not None else (None, False)
         )
         return Outcome(
-            r.outcome, catalog.cls, r.code, r.ref, result, r.fields, truncated, hint_fa=r.hint_fa
+            r.outcome, cls, r.code, r.ref, result, r.fields, truncated, hint_fa=r.hint_fa
         )
 
     async def _policy(self, gate: dict[str, Any], name: str, cls: str, args: Any) -> Outcome | None:

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -31,6 +32,7 @@ CODE = r"^[A-Z][A-Z0-9]{1,9}$"
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
 THREAD = r"^(A|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
 UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+MIME_OK = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}/[a-z0-9][a-z0-9!#$&^_.+-]{0,63}$")
 NS = uuid.UUID("6a0f1c3e-5b7d-4e21-9c3a-0d7f2b6e8a41")  # idempotency keys per action
 HINT_CHARS = 300
 
@@ -57,6 +59,7 @@ class Call:
     gate: dict[str, Any]
     step: int
     index: int
+    cls: str = "A0"  # the call's own class (per call for an `A0/A2` tool)
 
     def idem(self, tool: str) -> str:
         return str(uuid.uuid5(NS, f"{self.gate['run_id']}:{self.step}:{self.index}:{tool}"))
@@ -66,12 +69,36 @@ class Api:
     """The internal API (api:8000), always with the agent's token."""
 
     def __init__(
-        self, base_url: str, timeout: float, transport: httpx.AsyncBaseTransport | None = None
+        self,
+        base_url: str,
+        timeout: float,
+        transport: httpx.AsyncBaseTransport | None = None,
+        egress: Any = None,
     ) -> None:
         self._http = httpx.AsyncClient(base_url=base_url, timeout=timeout, transport=transport)
+        self.egress = egress  # hq_gateway.web.Egress (the internet tools); None = not wired
 
     async def aclose(self) -> None:
         await self._http.aclose()
+        if self.egress is not None:
+            await self.egress.aclose()
+
+    async def upload(
+        self,
+        path: str,
+        token: str,
+        content: bytes,
+        content_type: str,
+        *,
+        params: dict[str, Any] | None = None,
+    ) -> httpx.Response:
+        """A raw-body upload (an agent file) with the agent's token."""
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "X-Request-ID": str(uuid.uuid4()),
+            "Content-Type": content_type,
+        }
+        return await self._http.post(path, content=content, params=params, headers=headers)
 
     async def request(
         self,
@@ -798,6 +825,16 @@ TOOLS: dict[str, tuple[type[In], Handler]] = {
     "notify": (NotifyIn, notify),
     "mcp.call": (McpCallIn, mcp_call),
 }
+
+
+# The class of one call of an `A0/A2` tool, from its parsed input (web.py).
+CALL_CLASS: dict[str, Callable[[Any], str]] = {}
+
+
+def call_class(tool: str, parsed: Any, default: str) -> str:
+    """The call's class; a tool without its own rule keeps the catalog's."""
+    rule = CALL_CLASS.get(tool)
+    return rule(parsed) if rule is not None else default
 
 
 def validate(tool: str, args: Any) -> tuple[Any, dict[str, str]]:
