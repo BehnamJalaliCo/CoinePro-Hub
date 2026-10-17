@@ -9,7 +9,7 @@ ENV_FILE := infra/compose/.env
 
 .PHONY: help env bootstrap profile up down ps logs backup restore-test check openbao-init unseal \
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
-	audit-reanchor verify-live bootstrap-month1 prompt-check
+	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -60,6 +60,19 @@ bootstrap-month1: ## Month-1 setup work (seed/bootstrap/month1.yaml) as service 
 prompt-check: ## One REAL call with a charter's prompt (role=advisor): schema and answer checked, nothing stored
 	@infra/compose/hq.sh exec -T worker python -m hq_api.agents.check_prompt "$(or $(role),advisor)" \
 	  <"$${HQ_SECRETS_DIR:-/home/Hub/.secrets}/llm-router-caller-hq-ops.token"
+
+stt-fetch: ## Download the pinned speech model into the stt-models volume (sha256-checked; model=large-v3-turbo)
+	HQ_STT=off $(HQ) --profile stt build stt-fetch
+	HQ_STT=off $(HQ) --profile stt run --rm -e STT_MODEL="$(or $(model),large-v3-turbo)" stt-fetch
+
+stt-eval: ## WER of the speech model on dir=<samples> (<name>.<audio> + <name>.txt), offline; write=1 saves a report
+	@[[ -d "$(dir)" ]] || { echo "usage: make stt-eval dir=<samples folder> [model=large-v3-turbo] [write=1]" >&2; exit 2; }
+	@out="$$(docker run --rm --network none --read-only --tmpfs /tmp --cap-drop ALL --user 10001:10001 \
+	  --memory 2304m -e STT_MODEL="$(or $(model),large-v3-turbo)" -v coinepro-hq_stt-models:/models:ro \
+	  -v "$(abspath $(dir)):/samples:ro" coinepro-hq/stt:0.1.0 python -m hq_stt.eval /samples \
+	  $(if $(write),--markdown))"; printf '%s\n' "$$out"; \
+	if [[ -n "$(write)" ]]; then f="docs/ops/reports/stt-eval-$$(date -u +%Y-%m-%d).md"; \
+	  printf '%s\n' "$$out" >"$$f"; echo "stt-eval: wrote $$f"; fi
 
 audit-reanchor: ## After a DB restore: re-anchor the audit chain (typed confirmation + audit row): reason="..."
 	@infra/backup/audit-reanchor.sh "$(reason)"

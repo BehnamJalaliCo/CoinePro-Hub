@@ -13,17 +13,22 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ensure_env
 
-JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate"]'
-HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web"]'
-NOT_INTERNAL='["temporal","opa","gateway","web"]'
+JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch"]'
+HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch"]'
+NOT_INTERNAL='["temporal","opa","gateway","web","stt"]'
 # Services whose networks are exactly these.
-ONLY_ON='{"gateway":["hq-agent"],"opa":["hq-agent"],"web":["hq-edge"],"claude-runtime":["hq-llm"]}'
+ONLY_ON='{"gateway":["hq-agent"],"opa":["hq-agent"],"web":["hq-edge"],"claude-runtime":["hq-llm"],
+  "stt":["hq-stt"],"stt-fetch":["hq-fetch"]}'
 # Allow-list of every restricted network.
 MEMBERS='{
   "hq-core":["temporal","temporal-namespace","temporal-ui","api","worker","postgres","prometheus"],
   "hq-agent":["worker","gateway","api","opa"],
-  "hq-edge":["caddy","web"]}'
-INTERNAL_NETS='["hq-agent","hq-edge"]'
+  "hq-edge":["caddy","web"],
+  "hq-stt":["worker","stt"],
+  "hq-fetch":["stt-fetch"]}'
+INTERNAL_NETS='["hq-agent","hq-edge","hq-stt"]'
+# The opt-in profiles' services (cadvisor, stt) follow the same rules.
+mapfile -t OPT_IN < <(opt_in_profiles)
 failed=0
 for profile in "${PROFILES[@]}"; do
   problems="$(jq -r --argjson jobs "$JOBS" --argjson hardened "$HARDENED" \
@@ -52,7 +57,7 @@ for profile in "${PROFILES[@]}"; do
        then "\($svc): networks are \($nets | join(",")), must be exactly \($only_on[$svc] | join(","))" else empty end),
       ($members | to_entries[] | .key as $net
        | if ($nets | index($net)) != null and (.value | index($svc)) == null
-         then "\($svc): not allowed on \($net)" else empty end))' <<<"$(compose_json "$profile")")"
+         then "\($svc): not allowed on \($net)" else empty end))' <<<"$(compose_json "$profile" "${OPT_IN[@]}")")"
   if [[ -n "$problems" ]]; then
     printf 'compose-rules: %s: %s\n' "$profile" "$problems" >&2
     failed=1

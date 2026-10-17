@@ -20,6 +20,8 @@
 #     sits only here (api, worker and gateway are its only clients).
 #   - hq-edge (prompt 05.1 §2.9): Caddy and the web panel only. The web
 #     (Next.js, internet-facing) reaches nothing but Caddy.
+#   - hq-stt (prompt 06 §3): the worker and stt only, internal; stt-fetch (the
+#     one model download) alone on hq-fetch, which has the internet.
 #   - hq-agent and hq-edge are internal (no route out of the host); nothing on
 #     hq-internal reaches Temporal, OPA or the gateway
 #     (scripts/quality/compose-rules.sh and live.sh check all of it).
@@ -570,8 +572,8 @@ services:
     # Temporal worker (task queue hq-core) + the NATS bridge into HQ_CORE.
     <<: *service
     image: coinepro-hq/api:0.1.0
-    # hq-core: Temporal; hq-agent: OPA and the Tool Gateway.
-    networks: [hq-internal, hq-core, hq-agent]
+    # hq-core: Temporal; hq-agent: OPA and the Tool Gateway; hq-stt: speech to text.
+    networks: [hq-internal, hq-core, hq-agent, hq-stt]
     depends_on:
       api:
         condition: service_healthy
@@ -593,7 +595,7 @@ services:
       HQ_CEO_DAILY_REPORTS: ${HQ_CEO_DAILY_REPORTS:-off}
       HQ_MORNING_REPORT_LLM: ${HQ_MORNING_REPORT_LLM:-on}
       # Owner media (prompt 6 §2-§3): the file store (posters, key frames, sound
-      # tracks) and the self-hosted speech recogniser (empty: the stt profile is off).
+      # tracks); the speech recogniser: hq.sh sets STT_URL while HQ_STT=on, else empty.
       HQ_FILES_ROOT: /data/files
       STT_URL: ${STT_URL:-}
       STT_PUNCTUATION: ${STT_PUNCTUATION:-on}
@@ -944,6 +946,70 @@ services:
         limits:
           memory: ${MEM_OTEL_COLLECTOR:?}
 
+  stt-fetch:
+    # One-shot (profile "stt", prompt 06 §3): downloads the pinned speech model
+    # (services/stt/model.lock.json: repo, revision, size and sha256 of every
+    # file) into stt-models once; files already there and correct are skipped.
+    # The only part of stt with internet, on a network of its own.
+    <<: *job
+    profiles: [stt]
+    image: coinepro-hq/stt:0.1.0
+    build:
+      context: ../../services
+      dockerfile: stt/Dockerfile
+    networks: [hq-fetch]
+    command: ["python", "-m", "hq_stt.fetch"]
+    environment:
+      HF_HUB_OFFLINE: "0"
+      STT_MODEL: ${STT_MODEL:-large-v3-turbo}
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - stt-models:/models
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_STT_FETCH:?}
+
+  stt:
+    # Persian speech to text (prompt 06 §3, contract §17.2): faster-whisper,
+    # int8 on CPU, offline, with the pinned model read-only. Opt-in (profile
+    # "stt", HQ_STT=on): hq.sh refuses it while the profile plus stt is over
+    # the memory budget. Only the worker reaches it (hq-stt is internal);
+    # no audio ever leaves the hub. The model is freed after STT_IDLE_UNLOAD_S.
+    <<: *service
+    profiles: [stt]
+    image: coinepro-hq/stt:0.1.0
+    build:
+      context: ../../services
+      dockerfile: stt/Dockerfile
+    networks: [hq-stt]
+    depends_on:
+      stt-fetch:
+        condition: service_completed_successfully
+    environment:
+      STT_MODEL: ${STT_MODEL:-large-v3-turbo}
+      STT_IDLE_UNLOAD_S: ${STT_IDLE_UNLOAD_S:-300}
+      STT_CPU_THREADS: ${STT_CPU_THREADS:-4}
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - stt-models:/models:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_STT:?}
+
   cadvisor:
     # Opt-in only (profile "cadvisor", prompt 05 §11): it needs the Docker and
     # containerd sockets, i.e. root on the host. The default profiles get
@@ -1024,6 +1090,24 @@ networks:
       config:
         - subnet: 172.30.4.0/24
           gateway: 172.30.4.1
+  hq-stt:
+    # The worker and stt only (prompt 06 §3). Internal: no route out, so no
+    # audio can leave the hub; stt reaches nothing else.
+    name: hq-stt
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.5.0/24
+          gateway: 172.30.5.1
+  hq-fetch:
+    # stt-fetch alone: the internet for the one model download, no service of the hub.
+    name: hq-fetch
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.6.0/24
+          gateway: 172.30.6.1
 
 volumes:
   hq-tools:
@@ -1039,3 +1123,4 @@ volumes:
   grafana-data:
   tempo-data:
   hq-files:
+  stt-models:

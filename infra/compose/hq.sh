@@ -8,6 +8,7 @@
 # Env:   HQ_PROFILE=lean|full   force a profile (else .env, else server RAM)
 #        HQ_ENV_FILE=PATH       use another secrets file (CI uses a throwaway one)
 #        HQ_ALL_PROFILES=1      act on the services of every profile (used by `down`)
+#        HQ_STT=on|off          speech to text (opt-in profile "stt"; else .env)
 set -euo pipefail
 
 COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -85,15 +86,61 @@ if [[ -r "$SITES_SEED" ]] &&
   grep -qvE '[{,[:space:]]enabled:[[:space:]]*false'; then
   export HQ_CANARY=on
 fi
+compose() {
+  docker compose \
+    --project-name coinepro-hq \
+    --project-directory "$COMPOSE_DIR" \
+    --file "$COMPOSE_DIR/compose.yaml" \
+    --env-file "$COMPOSE_DIR/profiles/$profile.env" \
+    --env-file "$ENV_FILE" \
+    "$@"
+}
+
+# The compose subcommand: the first argument that is not a global option.
+subcommand() {
+  while (($#)); do
+    case "$1" in
+      --ansi | --env-file | -f | --file | --parallel | --profile | --progress | \
+        --project-directory | -p | --project-name) shift 2 ;;
+      -*) shift ;;
+      *) printf '%s\n' "$1"; return ;;
+    esac
+  done
+}
+
+# Speech to text (prompt 06 §3): opt-in profile "stt", switched on with
+# HQ_STT=on (.env). While the active profile plus stt is over the memory budget
+# (80% of the profile's reference RAM, as the memory gate counts it) it can
+# never be switched on by accident: a command that starts or creates
+# containers is refused; any other (exec for the backup and unseal, ps, logs,
+# config) runs without stt. The worker gets STT_URL only while stt is on.
+stt="${HQ_STT:-$(sed -n 's/^HQ_STT=//p' "$ENV_FILE" | tail -n1)}"
+export STT_URL=""
+if [[ "$stt" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  sum="$(compose "${profile_args[@]}" --profile stt config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile stt)
+    export STT_URL="http://stt:8000"
+  else
+    over="the $profile profile plus stt needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_STT=on refused: $over." >&2
+        echo "       Turning stt on is the owner's decision: the options (a smaller model," \
+          "lower limits elsewhere, a bigger server) are in docs/ops/RUNBOOK.md (STT)." >&2
+        echo "       Set HQ_STT=off in $ENV_FILE to start the stack without it." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_STT=on ignored ($over; docs/ops/RUNBOOK.md, STT)" >&2 ;;
+    esac
+  fi
+fi
 if [[ "${HQ_ALL_PROFILES:-0}" == "1" ]]; then
   profile_args=(--profile "*")
 fi
 
-exec docker compose \
-  --project-name coinepro-hq \
-  --project-directory "$COMPOSE_DIR" \
-  --file "$COMPOSE_DIR/compose.yaml" \
-  --env-file "$COMPOSE_DIR/profiles/$profile.env" \
-  --env-file "$ENV_FILE" \
-  "${profile_args[@]}" \
-  "$@"
+compose "${profile_args[@]}" "$@"
