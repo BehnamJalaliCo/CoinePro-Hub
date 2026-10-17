@@ -215,6 +215,9 @@ async def test_start_needs_its_step_up_and_proposals_wake_each_head_once(
     agent = await agent_headers("HQ-ADV")
     r = await client.post("/api/v1/owner/hiring/start", headers=agent, json={"mode": "proposals"})
     assert r.status_code == 403
+    tagged = """SELECT count(*) FROM work.work_events
+                WHERE kind = 'bootstrap' AND data->>'tag' LIKE 'bootstrap:hiring_proposals:%'"""
+    before = await su.fetchval(tagged)
     try:
         su_h = await step_up(hub, sid, "hiring.start", "holding")
         r = await client.post(
@@ -234,10 +237,8 @@ async def test_start_needs_its_step_up_and_proposals_wake_each_head_once(
                 item["role"],
                 {"companies": "company", "holding": "holding"}[item["for"]],
             )
-        tagged = """SELECT count(*) FROM work.work_events
-                    WHERE kind = 'bootstrap' AND data->>'tag' LIKE 'bootstrap:hiring_proposals:%'"""
         made = await su.fetchval(tagged)
-        assert made == heads and len(body["work"]) == heads
+        assert made == heads and len(body["work"]) == heads - before  # one per head
         ceo_item = await su.fetchrow(
             """SELECT w.priority, w.budget_tokens, w.created_by_kind FROM work.work w
                JOIN work.work_events e ON e.work_id = w.id
