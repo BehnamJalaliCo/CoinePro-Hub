@@ -42,6 +42,8 @@ const paths = [
   '/backups/status', '/threads/N/messages', '/threads/P/messages',
   // ⟨1.4.2⟩ hiring starts with the owner: the state and the charters the owner hires from.
   '/owner/hiring', '/roles',
+  // ⟨1.4.3⟩ the companies' stories
+  '/stories',
 ];
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;

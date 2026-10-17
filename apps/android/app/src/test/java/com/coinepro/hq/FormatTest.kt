@@ -66,5 +66,8 @@ class FormatTest {
         // Each number is a left-to-right isolate (U+2066 … U+2069) in the Latin face; spaces stay where they were.
         assertEquals("⁦500⁩ در ⁦90⁩ روز", figs("500 در 90 روز").text)
         assertEquals("⁦≥ 80%⁩", figs("≥ 80%").text)
+        // Units and a dollar sign stay with their number, so "2.4M" never reads "M2.4" in a right-to-left line.
+        assertEquals("تعهد ⁦2.4M⁩، مصرف ⁦$4.20⁩ در ⁦1.1s⁩", figs("تعهد 2.4M، مصرف $4.20 در 1.1s").text)
+        assertEquals("⁦5⁩ Max", figs("5 Max").text)
     }
 }

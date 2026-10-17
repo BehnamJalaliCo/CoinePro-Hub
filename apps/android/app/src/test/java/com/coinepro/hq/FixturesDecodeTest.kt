@@ -115,4 +115,17 @@ class FixturesDecodeTest {
         assertTrue(hireableRoles(roles, "company", "TECH").any { it.role == "sre" })
         assertTrue(hireableRoles(roles, "holding", "OVS").size >= 3)
     }
+
+    @Test
+    fun storiesAndEnvelopesDecode() {
+        val rings = list("/stories", com.coinepro.hq.core.net.StoryRing.serializer())
+        assertTrue(rings.isNotEmpty() && rings.all { r -> r.items.isNotEmpty() && r.items.all { it.company == r.company && it.figures.size <= 3 } })
+        assertTrue(rings.flatMap { it.items }.any { it.kind == "hire" && it.links.employee != null })
+        // Rings with unseen stories come first.
+        assertEquals(rings.sortedByDescending { it.unseen > 0 }.map { it.company }, rings.map { it.company })
+        val h = decode("/owner/hiring", Hiring.serializer())
+        assertTrue(h.envelopes.isNotEmpty() && h.envelopes.all { it.company != "HQ" })
+        val roll = decode("/stars/rollup?period=week", com.coinepro.hq.core.net.StarRollup.serializer())
+        assertTrue(roll.companies.all { it.parts.efficiency > 0 } && roll.employees.all { it.efficiency != null })
+    }
 }

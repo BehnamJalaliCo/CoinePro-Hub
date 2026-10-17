@@ -218,7 +218,7 @@ data class StarRubric(
 )
 
 @Serializable
-data class StandingParts(val kpi: Double = 0.0, val challenges: Double = 0.0, val compliance: Double = 0.0, val people: Double = 0.0)
+data class StandingParts(val kpi: Double = 0.0, val challenges: Double = 0.0, val compliance: Double = 0.0, val people: Double = 0.0, val efficiency: Double = 0.0)
 
 @Serializable
 data class CompanyStanding(
@@ -240,6 +240,8 @@ data class EmployeeStanding(
     val rankCompany: Int = 0,
     val rankHolding: Int = 0,
     val trend: List<Double> = emptyList(),
+    /** ⟨1.4.3⟩ 0–100: tokens per accepted output, failed runs, estimate accuracy. */
+    val efficiency: Double? = null,
 )
 
 @Serializable
@@ -520,6 +522,11 @@ data class BackupStatus(
 
 // ---------------------------------------------------------- hiring ⟨1.4.2⟩ --
 // Contract §18.11: hiring starts with the owner. Closed by default; the owner opens it to the CEOs' proposals or hires directly.
+/** ⟨1.4.3⟩ A company's month: its envelope (the month budget), what its employees' estimates commit, what it used, hires this month. */
+@Serializable
+data class Envelope(val company: String, val tokensMonth: Long? = null, val committedMonth: Long = 0, val usedMonth: Long = 0, val hiresMonth: Int = 0)
+
+/** `mode`: `delegated` (each CEO hires inside the envelope and picks the model) or `proposals` (every hire is the owner's card). */
 @Serializable
 data class Hiring(
     val state: String = "closed",
@@ -527,6 +534,7 @@ data class Hiring(
     val changedAt: String? = null,
     val changedBy: Actor? = null,
     val withdrawn: List<String> = emptyList(),
+    val envelopes: List<Envelope> = emptyList(),
 )
 
 @Serializable
@@ -575,3 +583,40 @@ data class HireDecision(val ref: String, val status: String = "approved", val re
 
 @Serializable
 data class HireOut(val employee: HiredEmployee, val decision: HireDecision)
+
+// --------------------------------------------------------- stories ⟨1.4.3⟩ --
+// Contract §18.12: designed cards per company, system and CEO posts, 24 hours, pulled and never pushed.
+@Serializable
+data class StoryFigure(val labelFa: String, val value: String)
+
+@Serializable
+data class StoryLinks(val employee: String? = null, val deliverable: String? = null, val decision: String? = null, val work: String? = null, val period: String? = null)
+
+@Serializable
+data class Story(
+    val id: String = "",
+    val ref: String,
+    val company: String,
+    val kind: String,
+    val author: Actor,
+    val titleFa: String,
+    val bodyFa: String = "",
+    val figures: List<StoryFigure> = emptyList(),
+    val media: FileRef? = null,
+    val links: StoryLinks = StoryLinks(),
+    val createdAt: String,
+    val expiresAt: String? = null,
+    val seen: Boolean = false,
+    val welcomed: Boolean = false,
+)
+
+@Serializable
+data class StoryRing(val company: String, val unseen: Int = 0, val latestAt: String = "", val items: List<Story> = emptyList())
+
+/** The body of PUT /budgets for company month envelopes (contract §9; the seal is bound to its exact text). */
+@Serializable
+data class CompanyBudgetIn(val company: String, val scopeType: String, val scopeRef: String, val period: String, val tokenLimit: Long? = null, val enabled: Boolean = true)
+
+@Serializable
+data class BudgetsPut(val budgets: List<CompanyBudgetIn>)
+

@@ -1,6 +1,15 @@
 package com.coinepro.hq.ui.settings
 
 import androidx.compose.foundation.background
+import com.coinepro.hq.ui.companyOf
+import com.coinepro.hq.core.net.Company
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -64,7 +74,8 @@ import com.coinepro.hq.ui.v14.figs
 private val EFFORTS = listOf("low", "medium", "high", "xhigh")
 private val MODELS = listOf("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5")
 
-/** Contract §18.11: hiring starts with the owner (owner, 2026-10-17). Closed until the owner opens it, by hiring directly or by asking the CEOs. */
+/** Contract §18.11 (owner, 2026-10-17): closed until the owner brings the hub up; then each company's CEO hires with full authority inside
+ *  the company's monthly envelope and picks the model each job needs, or every hire is the owner's card. The owner can always hire directly. */
 @Composable
 fun HiringCard() {
     val env = LocalEnv.current
@@ -73,21 +84,27 @@ fun HiringCard() {
     val act = activity()
     val c = Divan.colors
     val hiring = rememberQuery("hiring", "hiring") { hiring() }
+    val companies = rememberQuery("companies", "companies", maxAgeMs = 60_000) { companies() }
     val action = rememberAction()
     var sheet by rememberSaveable { mutableStateOf(false) }
+    var envelopes by rememberSaveable { mutableStateOf<String?>(null) }
     var confirm by rememberSaveable { mutableStateOf(false) }
     val h = hiring.data
     val open = h?.state == "open"
+    val delegated = open && h?.mode == "delegated"
 
     HqCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SectionTitle("استخدام", Modifier.weight(1f), note = "تا خودت شروع نکنی، هیچ ایجنتی استخدام پیشنهاد نمیدهد.")
-            if (h != null) Pill(if (open) "باز برای پیشنهاد" else "بسته", if (open) Tone.POS else Tone.NEUTRAL)
+            SectionTitle("استخدام", Modifier.weight(1f), note = if (delegated) "مدیرعامل‌ها با اختیار کامل، داخل پاکت ماهانه‌ی هر شرکت" else "تا خودت باز نکنی، هیچ ایجنتی استخدام پیشنهاد نمیدهد.")
+            if (h != null) Pill(if (delegated) "با مدیرعامل‌ها" else if (open) "با مُهر من" else "بسته", if (open) Tone.POS else Tone.NEUTRAL)
         }
         if (h != null) {
             Text(stateLine(h), style = Divan.type.small, color = c.textSecondary, modifier = Modifier.padding(top = 10.dp))
+            if (h.envelopes.isNotEmpty()) EnvelopeRows(h, companies.data.orEmpty()) { envelopes = "edit" }
             Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!delegated) Choice(DivanIcon.SEAL, "اختیار استخدام با مدیرعامل‌ها", "پاکت ماهانه‌ی هر شرکت را تعیین کن؛ از آن به بعد استخدام با خود مدیرعامل‌هاست.", primary = true) { envelopes = "open" }
                 Choice(DivanIcon.HIRE, "خودم استخدام میکنم", "نقش، دپارتمان، مدل و effort را خودت انتخاب میکنی و با گذرکلید مُهر میکنی.") { sheet = true }
+                if (!open) Choice(DivanIcon.DECISION, "هر استخدام با مُهر من", "مدیرها پیشنهاد میدهند و هر استخدام یک کارت در کارتابل توست.") { confirm = true }
                 if (open) {
                     Choice(DivanIcon.CLOSE, "بستن استخدام", "پیشنهادهای منتظر پس گرفته میشوند؛ چیزی حذف نمیشود.", enabled = !action.busy) {
                         action.run {
@@ -96,8 +113,6 @@ fun HiringCard() {
                             toasts.info("استخدام بسته شد؛ پیشنهادهای منتظر پس گرفته شدند.")
                         }
                     }
-                } else {
-                    Choice(DivanIcon.SEAL, "مدیرعامل‌ها پیشنهاد بدهند", "هر مدیرعامل یک کار «تیم ماه اول» میگیرد؛ پیشنهادها همان لحظه در کارتابل.") { confirm = true }
                 }
             }
             if (h.withdrawn.isNotEmpty()) {
@@ -116,13 +131,15 @@ fun HiringCard() {
     }
 
     if (sheet) HireSheet { sheet = false }
+    val mode = envelopes
+    if (mode != null && h != null) EnvelopeSheet(h, companies.data.orEmpty(), opening = mode == "open", onDone = { hiring.set(it) }) { envelopes = null }
     if (confirm) AlertDialog(
         onDismissRequest = { confirm = false },
         containerColor = c.overlay,
-        title = { Text("استخدام برای مدیرعامل‌ها باز شود؟", style = Divan.type.h3) },
+        title = { Text("هر استخدام با مُهر تو؟", style = Divan.type.h3) },
         text = {
             Text(
-                "هر مدیرعامل (و هر نقش هلدینگ با وظیفه‌ی استخدام) یک کار «تیم ماه اولت را پیشنهاد بده» میگیرد. هیچ استخدامی بدون مُهر تو انجام نمیشود و هر وقت بخواهی میبندی.",
+                "هر مدیرعامل یک کار «تیم ماه اولت را پیشنهاد بده» میگیرد و هر استخدام یک کارت در کارتابل توست. هر وقت بخواهی اختیار را به مدیرعامل‌ها میدهی یا میبندی.",
                 style = Divan.type.small, color = c.textSecondary,
             )
         },
@@ -132,7 +149,7 @@ fun HiringCard() {
                     hiring.set(env.api.startHiring("proposals") { a, t -> env.auth.stepUp(act, a, t) })
                     env.cache.invalidate("hiring", "work", "planner")
                     confirm = false
-                    toasts.ok("استخدام باز شد؛ هر مدیرعامل یک کار «تیم ماه اول» گرفت.")
+                    toasts.ok("استخدام باز شد؛ هر استخدام یک کارت برای مُهر توست.")
                 }
             }, variant = BtnVariant.PRIMARY, icon = DivanIcon.SEAL, loading = action.busy)
         },
@@ -142,19 +159,124 @@ fun HiringCard() {
 
 private fun stateLine(h: Hiring): String {
     val text = when {
-        h.state == "open" -> "مدیرعامل‌ها تیم ماه اول را پیشنهاد میدهند؛ هر پیشنهاد با برآورد توکن به کارتابل تو میرسد."
-        h.mode == "self" -> "فقط خودت استخدام میکنی؛ ایجنت‌ها پیشنهاد نمیدهند و کمبود تیم را در خروجی کارشان مینویسند."
-        else -> "وقتی هاب را برای کار واقعی بالا آوردی، یکی از دو راه را انتخاب کن. تا آن موقع ایجنت‌ها کمبود تیم را فقط در خروجی کارشان مینویسند."
+        h.state == "open" && h.mode == "delegated" -> "هر دپارتمان به اندازه‌ی نیازش نیرو میخواهد و مدیرعامل تصمیم میگیرد و مدل هر کار را خودش انتخاب میکند. هر استخدام یک استوری میسازد؛ از همان‌جا خوش‌آمد میگویی یا برمیگردانی. مصرف درست بودجه ستاره میگیرد."
+        h.state == "open" -> "هر استخدام یک کارت در کارتابل توست، با برآورد توکن."
+        else -> "وقتی هاب را برای کار واقعی بالا آوردی، اختیار را به مدیرعامل‌ها بده. تا آن موقع ایجنت‌ها کمبود تیم را فقط در خروجی کارشان مینویسند."
     }
     val who = if (h.changedBy?.kind == "owner") "تو" else "سیستم"
     return if (h.changedAt != null) "$text ($who، ${ago(h.changedAt)})" else text
 }
 
+/** Each operating company's month: used and committed against its envelope. */
 @Composable
-private fun Choice(icon: DivanIcon, title: String, note: String, enabled: Boolean = true, onClick: () -> Unit) {
+private fun EnvelopeRows(h: Hiring, companies: List<Company>, onEdit: () -> Unit) {
     val c = Divan.colors
+    Column(
+        Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("پاکت ماهانه‌ی هر شرکت (توکن)", style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f))
+            HqButton("پاکت‌ها", onEdit, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.BUDGET)
+        }
+        for (e in h.envelopes) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CompanyMark(e.company, height = 13.dp, mono = true, ink = c.textSecondary)
+                    Text(companyOf(companies, e.company).nameFa, style = Divan.type.small, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val cap = e.tokensMonth
+                    if (cap != null) Fig("${tokens(e.usedMonth)} / ${tokens(cap)}", style = Divan.type.figureSmall, color = c.textSecondary)
+                    else Text("پاکت تعیین نشده", style = Divan.type.caption, color = c.warning)
+                }
+                e.tokensMonth?.let { cap ->
+                    val used = (e.usedMonth.toFloat() / cap).coerceIn(0f, 1f)
+                    val committed = (e.committedMonth.toFloat() / cap).coerceIn(0f, 1f)
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(c.page)) {
+                            Box(Modifier.fillMaxWidth(committed).height(6.dp).clip(RoundedCornerShape(50)).background(c.softGold))
+                            Box(Modifier.fillMaxWidth(used).height(6.dp).clip(RoundedCornerShape(50)).background(if (used >= 0.9f) c.negative else if (used >= 0.7f) c.warning else c.positive))
+                        }
+                    }
+                    // The commitment is a figure; the count of hires is prose.
+                    Text(figs("تعهد کارمندها ${tokens(e.committedMonth)}") + AnnotatedString("، استخدام این ماه ${e.hiresMonth}"), style = Divan.type.micro, color = c.textMuted)
+                }
+            }
+        }
+    }
+}
+
+/** The envelopes: each operating company's monthly token budget (contract §9 /budgets, §18.11). With `opening`, delegated hiring opens after. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EnvelopeSheet(h: Hiring, companies: List<Company>, opening: Boolean, onDone: (Hiring) -> Unit, onDismiss: () -> Unit) {
+    val env = LocalEnv.current
+    val toasts = LocalToasts.current
+    val act = activity()
+    val c = Divan.colors
+    val action = rememberAction()
+    val vals = remember { mutableStateMapOf<String, String>().apply { for (e in h.envelopes) put(e.company, e.tokensMonth?.let { millions(it) }.orEmpty()) } }
+    val parsed = h.envelopes.associate { it.company to parseMillions(vals[it.company].orEmpty()) }
+    val valid = parsed.values.all { it != null && it > 0 }
+    val changed = parsed.filter { (co, t) -> t != null && t > 0 && t != h.envelopes.first { it.company == co }.tokensMonth }.mapValues { it.value!! }
+    val total = parsed.values.sumOf { it ?: 0L }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.overlay) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(if (opening) "اختیار استخدام با مدیرعامل‌ها" else "پاکت ماهانه‌ی شرکت‌ها", style = Divan.type.h2)
+            Text("هر شرکت تا سقف پاکت ماهانه‌اش استخدام میکند؛ استخدامی که در پاکت جا نشود پذیرفته نمیشود. پاکت همان بودجه‌ی ماهانه‌ی شرکت در خزانه است.", style = Divan.type.caption, color = c.textMuted)
+            for (e in h.envelopes) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CompanyMark(e.company, height = 13.dp, mono = true, ink = c.textSecondary)
+                    Text(companyOf(companies, e.company).nameFa, style = Divan.type.small, modifier = Modifier.weight(1f))
+                    Text(figs("تعهد ${tokens(e.committedMonth)}، مصرف ${tokens(e.usedMonth)}"), style = Divan.type.micro, color = c.textMuted)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        HqTextField(vals[e.company].orEmpty(), { vals[e.company] = it }, "—", Modifier.weight(1f), maxLength = 8, figure = true)
+                    }
+                    Fig("M", style = Divan.type.figure, color = c.textMuted)
+                }
+            }
+            Text(figs("جمع پاکت‌ها ${tokens(total)} در ماه. استخدام‌های خود هلدینگ همیشه با مُهر توست."), style = Divan.type.small, color = c.textSecondary,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp))
+            HqButton(
+                if (opening) "با گذرکلید ثبت کن و باز کن" else "با گذرکلید ثبت کن", {
+                    action.run {
+                        if (changed.isNotEmpty()) env.api.setEnvelopes(changed) { target -> env.auth.stepUp(act, "budgets.update", target) }
+                        if (opening) {
+                            onDone(env.api.startHiring("delegated") { a, t -> env.auth.stepUp(act, a, t) })
+                            toasts.ok("اختیار استخدام با مدیرعامل‌هاست؛ هر استخدام یک استوری میسازد.")
+                        } else {
+                            onDone(env.api.hiring())
+                            toasts.ok("پاکت‌ها ثبت شد.")
+                        }
+                        env.cache.invalidate("hiring", "treasury", "work", "planner")
+                        onDismiss()
+                    }
+                },
+                Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL,
+                enabled = valid && (opening || changed.isNotEmpty()), loading = action.busy,
+            )
+        }
+    }
+}
+
+/** "5" or "2.5" (Latin or Persian digits, either decimal mark) millions → tokens. */
+internal fun parseMillions(text: String): Long? {
+    val t = text.trim().map { ch -> if (ch in '۰'..'۹') '0' + (ch - '۰') else if (ch == '٫' || ch == ',') '.' else ch }.joinToString("")
+    val m = t.toDoubleOrNull() ?: return null
+    return if (m > 0) Math.round(m * 1_000_000) else null
+}
+
+private fun millions(tokens: Long): String = (tokens / 1_000_000.0).let { if (it == Math.floor(it)) it.toLong().toString() else it.toString() }
+
+@Composable
+private fun Choice(icon: DivanIcon, title: String, note: String, enabled: Boolean = true, primary: Boolean = false, onClick: () -> Unit) {
+    val c = Divan.colors
+    val shape = RoundedCornerShape(12.dp)
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(12.dp),
+        Modifier.fillMaxWidth().clip(shape).background(if (primary) c.softGold else c.tile).then(if (primary) Modifier.border(1.dp, c.goldInk, shape) else Modifier)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         DIcon(icon, size = 20.dp, tint = c.goldInk)

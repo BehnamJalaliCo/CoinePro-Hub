@@ -45,6 +45,7 @@ import com.coinepro.hq.ui.outputs.OutputScreen
 import com.coinepro.hq.ui.outputs.OutputsScreen
 import com.coinepro.hq.ui.planner.PlannerScreen
 import com.coinepro.hq.ui.settings.HireForm
+import com.coinepro.hq.ui.stories.StoryPreview
 import com.coinepro.hq.ui.settings.SettingsScreen
 import com.coinepro.hq.ui.treasury.TreasuryScreen
 import com.coinepro.hq.ui.workshop.SessionScreen
@@ -109,6 +110,9 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "founding-ready" to { _ -> FoundingScreen("C-0001") },
             "tools" to { _ -> ToolsScreen() },
             // ⟨1.4.2⟩ the owner's own hire, filled in (the sheet's content)
+            // ⟨1.4.3⟩ a hire story (welcome / dismiss) and a CEO's milestone
+            "story-hire" to { _ -> StoryPreview("FX") },
+            "story-stars" to { _ -> StoryPreview("TY") },
             "hire" to { _ -> HireForm(onDone = {}, modifier = Modifier.verticalScroll(rememberScrollState()), company0 = "TY", department0 = "TECH", role0 = "sre") },
         )
     }

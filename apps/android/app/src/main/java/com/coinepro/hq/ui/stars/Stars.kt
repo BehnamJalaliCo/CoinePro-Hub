@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -61,9 +62,11 @@ import com.coinepro.hq.ui.v14.ScoreBar
 import com.coinepro.hq.ui.v14.Spark
 import com.coinepro.hq.ui.v14.StarsRow
 
+// Contract §18.4 ⟨1.4.3⟩: efficiency (the envelope kept, little waste, a fair cost per accepted output) is 15% of a company's score.
 private val PARTS: List<Triple<(CompanyStanding) -> Double, String, Int>> = listOf(
-    Triple({ it.parts.kpi }, "KPI", 40), Triple({ it.parts.challenges }, "چالش‌ها", 25),
-    Triple({ it.parts.compliance }, "انطباق", 20), Triple({ it.parts.people }, "ستاره‌ی کارمندها", 15),
+    Triple({ it.parts.kpi }, "KPI", 35), Triple({ it.parts.challenges }, "چالش‌ها", 20),
+    Triple({ it.parts.compliance }, "انطباق", 15), Triple({ it.parts.people }, "ستاره‌ی کارمندها", 15),
+    Triple({ it.parts.efficiency }, "کارایی", 15),
 )
 
 /** ستاره‌ها (contract §18.4): CEOs give their people 0–5 stars weekly under their own rubric; companies are ranked
@@ -113,7 +116,7 @@ fun StarsScreen() {
                 }
                 item {
                     HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
-                        SectionTitle("رتبه‌ی شرکت‌ها", note = "امتیاز = ۴۰٪ KPI + ۲۵٪ چالش‌ها + ۲۰٪ انطباق + ۱۵٪ ستاره‌ی کارمندها")
+                        SectionTitle("رتبه‌ی شرکت‌ها", note = "امتیاز = ۳۵٪ KPI + ۲۰٪ چالش‌ها + ۱۵٪ انطباق + ۱۵٪ ستاره‌ی کارمندها + ۱۵٪ کارایی (مصرف درست بودجه)")
                         roll.companies.forEachIndexed { i, k ->
                             if (i > 0) HorizontalDivider(color = c.lineDivider)
                             Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -130,6 +133,8 @@ fun StarsScreen() {
                                             Text("$fa $w٪", style = Divan.type.micro, color = c.textMuted)
                                             ScoreBar(get(k))
                                         }
+                                        // An odd last row keeps its half width.
+                                        if (pair.size == 1) Spacer(Modifier.weight(1f))
                                     }
                                 }
                             }
@@ -154,6 +159,12 @@ fun StarsScreen() {
                                 Column(Modifier.weight(1f)) {
                                     Text(e.titleFa, style = Divan.type.small, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Fig(e.code, style = Divan.type.figureSmall, color = c.textMuted)
+                                }
+                                e.efficiency?.let { eff ->
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Fig(eff.toInt().toString(), style = Divan.type.figureSmall, color = c.textSecondary)
+                                        Text("کارایی", style = Divan.type.micro, color = c.textMuted)
+                                    }
                                 }
                                 StarsRow(e.stars, size = 12.dp)
                             }

@@ -330,6 +330,22 @@ class Api(
     suspend fun roles(): List<RoleInfo> = get("/roles")
     suspend fun startHiring(mode: String, stepUp: StepUp): Hiring = post("/owner/hiring/start", buildJsonObject { put("mode", mode) }, stepUp("hiring.start", "holding"))
     suspend fun closeHiring(): Hiring = post("/owner/hiring/close", JsonObject(emptyMap()))
+    /** Company month envelopes are budgets (contract §9 PUT /budgets); the seal is bound to the exact body. */
+    suspend fun setEnvelopes(items: Map<String, Long>, stepUp: suspend (target: String) -> String) {
+        val body = BudgetsPut(items.map { (co, t) -> CompanyBudgetIn(co, "company", co, "month", t) })
+        val text = json.encodeToString(BudgetsPut.serializer(), body)
+        val token = stepUp(sha256(text))
+        val req = Request.Builder().url(url("/budgets")).put(text.toRequestBody(JSON)).header("X-Step-Up", token).build()
+        execute(req).use { check(it) }
+    }
+
+    // ------------------------------------------------ stories ⟨1.4.3⟩ --
+    suspend fun stories(): List<StoryRing> = get("/stories")
+    suspend fun storiesSeen(refs: List<String>) = postUnit("/stories/seen", buildJsonObject { put("refs", ids(refs)) })
+    suspend fun welcomeStory(ref: String): Story = post("/stories/${seg(ref)}/welcome", JsonObject(emptyMap()))
+    /** Undoing a hire is the employee's dismissal (contract §4), sealed on the code. */
+    suspend fun dismissEmployee(code: String, reason: String, stepUp: StepUp) =
+        postUnit("/employees/${seg(code)}/dismiss", buildJsonObject { put("reason", reason) }, stepUp("employee.dismiss", code))
     /** The owner's own hire; the seal is bound to the exact body (its SHA-256), which the server hashes again. */
     suspend fun hireDirect(body: HireIn, stepUp: suspend (target: String) -> String): HireOut {
         val text = json.encodeToString(HireIn.serializer(), body)

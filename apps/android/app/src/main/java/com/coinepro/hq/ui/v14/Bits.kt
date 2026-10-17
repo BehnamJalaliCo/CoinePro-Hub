@@ -205,7 +205,8 @@ fun HqSheet(onDismiss: () -> Unit, title: String, sub: String? = null, ref: Stri
     }
 }
 
-private val NUMBER = Regex("(?:[≥≤<>~±+−-]\\s?)?\\d[\\d.,/:]*(?:\\s?[%٪])?")
+// A figure keeps its sign, a leading $ and a unit suffix (K, M, B, s) inside the isolate: "$4.20", "2.4M", "1.1s".
+private val NUMBER = Regex("(?:[≥≤<>~±+−-]\\s?)?\\$?\\d[\\d.,/:]*(?:\\s?[%٪]|[KMBs](?![A-Za-z]))?")
 
 /** Mixed text such as a KPI target ("500 در 90 روز", "≥ 80%"): every number is a Latin figure, the words stay in
  *  their right-to-left order. */

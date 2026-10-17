@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import com.coinepro.hq.core.format.modelLabel
 import com.coinepro.hq.core.media.kindOf
 import com.coinepro.hq.core.net.Api
 import java.io.File
@@ -560,9 +561,34 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         when (path) {
             "/owner/hiring/start" -> {
                 val mode = body?.str("mode") ?: "proposals"
-                return 200 to edit("/owner/hiring") {
-                    it + mapOf("state" to JsonPrimitive(if (mode == "proposals") "open" else "closed"), "mode" to JsonPrimitive(mode), "changed_at" to stamp, "changed_by" to owner)
+                val missing = store["/owner/hiring"]?.second?.jsonObject?.get("envelopes")?.jsonArray.orEmpty()
+                    .map { it.jsonObject }.filter { it["tokens_month"] == null || it["tokens_month"] is JsonNull }.mapNotNull { it.str("company") }
+                if (mode == "delegated" && missing.isNotEmpty()) {
+                    return 422 to buildJsonObject {
+                        put("code", "envelope_required"); put("message_fa", "برای ${missing.joinToString("، ")} پاکت ماهانه تعیین نشده است."); put("status", 422)
+                        put("title", "envelope_required"); put("type", "about:blank")
+                    }
                 }
+                return 200 to edit("/owner/hiring") {
+                    it + mapOf("state" to JsonPrimitive("open"), "mode" to JsonPrimitive(mode), "changed_at" to stamp, "changed_by" to owner)
+                }
+            }
+            "/budgets" -> {
+                // Company month budgets are the hiring envelopes (contract §9, §18.11).
+                val set = body?.get("budgets")?.jsonArray.orEmpty().map { it.jsonObject }
+                    .filter { it.str("scope_type") == "company" && it.str("period") == "month" }.associate { it.str("company")!! to (it["token_limit"] ?: JsonNull) }
+                edit("/owner/hiring") { h ->
+                    h + ("envelopes" to JsonArray(h["envelopes"]?.jsonArray.orEmpty().map { e ->
+                        val co = e.jsonObject.str("company")
+                        if (co != null && co in set) JsonObject(e.jsonObject + ("tokens_month" to set.getValue(co))) else e
+                    }))
+                }
+                return 200 to JsonArray(emptyList())
+            }
+            "/stories/seen" -> {
+                val refs = body?.get("refs")?.jsonArray.orEmpty().map { it.jsonPrimitive.content }.toSet()
+                storyEdit { st -> if (st.str("ref") in refs) JsonObject(st + ("seen" to JsonPrimitive(true))) else st }
+                return 200 to buildJsonObject { put("updated", refs.size) }
             }
             "/owner/hiring/close" -> {
                 val withdrawn = mutableListOf<JsonElement>()
@@ -614,10 +640,51 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
                 store["/employees/${emp.str("code")}"] = 200 to emp
                 prepend("/decisions?status=all", dec)
                 store["/decisions/$ref"] = 200 to dec
+                addStory(buildJsonObject {
+                    put("id", "st-$ref"); put("ref", "ST-%06d".format(200 + list("/decisions?status=all").size)); put("company", company); put("kind", "hire"); put("author", system)
+                    put("title_fa", "${b.str("title_fa")} به تیم پیوست"); put("body_fa", b["reason"] ?: JsonPrimitive("استخدام مستقیم مالک"))
+                    put("figures", JsonArray(listOf(
+                        buildJsonObject { put("label_fa", "مدل"); put("value", modelLabel(model)) },
+                        buildJsonObject { put("label_fa", "effort"); put("value", effort) },
+                    )))
+                    put("links", buildJsonObject { put("employee", emp.str("code")); put("decision", ref) })
+                    put("media", JsonNull); put("created_at", stamp); put("expires_at", JsonPrimitive(Instant.now().plusSeconds(86_400).toString())); put("seen", false); put("welcomed", false)
+                })
                 return 201 to buildJsonObject { put("employee", emp); put("decision", dec) }
             }
         }
+        Regex("^/stories/(ST-\\d+)/welcome$").find(path)?.let { m ->
+            var hit: JsonObject? = null
+            storyEdit { st -> if (st.str("ref") == m.groupValues[1]) JsonObject(st + ("welcomed" to JsonPrimitive(true))).also { hit = it } else st }
+            return hit?.let { 200 to it } ?: (404 to problem("not_found", "پیدا نشد."))
+        }
+        Regex("^/employees/([A-Z0-9-]+)/dismiss$").find(path)?.let { m ->
+            val code = m.groupValues[1]
+            val e = store["/employees/$code"]?.second?.jsonObject ?: return 404 to problem("not_found", "پیدا نشد.")
+            val gone = JsonObject(e + mapOf("status" to JsonPrimitive("dismissed"), "dismissed_at" to stamp))
+            store["/employees/$code"] = 200 to gone
+            return 200 to buildJsonObject { put("employee", gone); put("work_returned", 0); put("transfer_work", JsonNull) }
+        }
         return null
+    }
+
+    /** Rewrites every story in the rings (contract §18.12) and recounts each ring's unseen. */
+    private fun storyEdit(f: (JsonObject) -> JsonObject) {
+        val rings = list("/stories").map { r ->
+            val items = r.jsonObject["items"]!!.jsonArray.map { f(it.jsonObject) }
+            JsonObject(r.jsonObject + mapOf("items" to JsonArray(items), "unseen" to JsonPrimitive(items.count { it.jsonObject["seen"]?.jsonPrimitive?.content != "true" })))
+        }
+        store["/stories"] = 200 to JsonArray(rings)
+    }
+
+    private fun addStory(st: JsonObject) {
+        val co = st.str("company")
+        val rings = list("/stories").map { it.jsonObject }
+        val hit = rings.any { it.str("company") == co }
+        val next = if (hit) rings.map { r -> if (r.str("company") == co) JsonObject(r + mapOf("items" to JsonArray(r["items"]!!.jsonArray + st), "latest_at" to st["created_at"]!!)) else r }
+        else listOf(buildJsonObject { put("company", co); put("unseen", 0); put("latest_at", st["created_at"]!!); put("items", JsonArray(listOf(st))) }) + rings
+        store["/stories"] = 200 to JsonArray(next)
+        storyEdit { it }
     }
 
     private fun bumpInbox() {

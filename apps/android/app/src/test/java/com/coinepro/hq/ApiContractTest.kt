@@ -291,4 +291,40 @@ class ApiContractTest {
         assertEquals(listOf("writer"), hireableRoles(roles, "company", "GROWTH").map { it.role })
         assertEquals(listOf("ai_safety"), hireableRoles(roles, "holding", "OVS").map { it.role })
     }
+
+    // ------------------------------------------------------------ ⟨1.4.3⟩ --
+    @Test
+    fun envelopesAreCompanyMonthBudgetsSealedOnTheBody() = runTest {
+        server.enqueue(json(200, "[]"))
+        var target = ""
+        api.setEnvelopes(linkedMapOf("TY" to 6_000_000L)) { target = it; "su" }
+        val req = server.takeRequest()
+        val body = req.body!!.utf8()
+        assertEquals("PUT", req.method)
+        assertEquals("/api/v1/budgets", req.url.encodedPath)
+        assertEquals(Api.sha256(body), target)
+        assertEquals("""{"budgets":[{"company":"TY","scope_type":"company","scope_ref":"TY","period":"month","token_limit":6000000}]}""", body)
+    }
+
+    @Test
+    fun storiesSeenWelcomeAndDismissal() = runTest {
+        server.enqueue(json(200, """[{"company":"FX","unseen":1,"latest_at":"2026-10-17T10:00:00Z","items":[{"ref":"ST-000104","company":"FX","kind":"hire","author":{"code":"system","kind":"system"},"title_fa":"t","figures":[{"label_fa":"مدل","value":"Haiku 5.5"}],"links":{"employee":"FX-QUANT-02"},"created_at":"2026-10-17T10:00:00Z"}]}]"""))
+        val rings = api.stories()
+        assertEquals("FX-QUANT-02", rings.single().items.single().links.employee)
+        server.takeRequest()
+        server.enqueue(json(200, """{"updated":1}"""))
+        api.storiesSeen(listOf("ST-000104"))
+        assertEquals("""{"refs":["ST-000104"]}""", server.takeRequest().body!!.utf8())
+        val (action, target, req) = signed("""{"employee":{"code":"FX-QUANT-02"}}""") { api.dismissEmployee("FX-QUANT-02", "مالک: از استوری", it) }
+        assertEquals("employee.dismiss" to "FX-QUANT-02", action to target)
+        assertEquals("/api/v1/employees/FX-QUANT-02/dismiss", req.url.encodedPath)
+    }
+
+    @Test
+    fun envelopeInputReadsMillionsInEitherDigits() {
+        assertEquals(5_000_000L, com.coinepro.hq.ui.settings.parseMillions("5"))
+        assertEquals(2_500_000L, com.coinepro.hq.ui.settings.parseMillions("۲٫۵"))
+        assertEquals(null, com.coinepro.hq.ui.settings.parseMillions("0"))
+        assertEquals(null, com.coinepro.hq.ui.settings.parseMillions("x"))
+    }
 }

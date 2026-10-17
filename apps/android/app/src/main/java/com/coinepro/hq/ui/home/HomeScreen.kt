@@ -75,6 +75,7 @@ import com.coinepro.hq.ui.cartable.DecisionRow
 import com.coinepro.hq.ui.companyOf
 import com.coinepro.hq.ui.rememberCompanies
 import com.coinepro.hq.ui.rememberQuery
+import com.coinepro.hq.ui.stories.StoriesBar
 import com.coinepro.hq.ui.workshop.SessionRow
 import com.coinepro.hq.ui.workshop.rememberGrants
 import com.coinepro.hq.ui.workshop.rememberSessions
@@ -124,6 +125,8 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
                 }
             }
         }
+        // ⟨1.4.3⟩ the companies' stories, at the top like Instagram (contract §18.12)
+        item { StoriesBar() }
         away.data?.let { a ->
             val n = a.decisions.new + a.deliverables.new + a.messages.new
             if (n > 0) item {

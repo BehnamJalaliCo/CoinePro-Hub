@@ -59,7 +59,8 @@ export function Score({ value, className }: { value: number; className?: string 
   );
 }
 
-const NUMBER = /((?:[≥≤<>~±+−-]\s?)?\d[\d.,/:]*(?:\s?[%٪])?)/;
+// A figure keeps its sign, a leading $ and a unit suffix (K, M, B, s) together: "$4.20", "2.4M", "1.1s".
+const NUMBER = /((?:[≥≤<>~±+−-]\s?)?\$?\d[\d.,/:]*(?:\s?[%٪]|[KMBs](?![A-Za-z]))?)/;
 
 /** Mixed text such as a KPI target ("500 در 90 روز", "≥ 80%"): every number a Latin figure, the words in their right-to-left order. */
 export function Figs({ text }: { text: string }) {
