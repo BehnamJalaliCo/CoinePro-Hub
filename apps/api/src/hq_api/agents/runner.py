@@ -42,6 +42,7 @@ from hq_api.agents.clients import Gateway, LivePush, ModelCall, Router
 from hq_api.db import Tx
 from hq_api.domain import decisions as D
 from hq_api.hub import Hub
+from hq_api.routes.messages import LINK_TABLES
 from hq_api.security import agent_tokens
 from hq_api.worker.jalali import jalali_long
 from hq_common.charters import Charter
@@ -576,11 +577,22 @@ class Runner:
             "owner_timezone": tz,
         }
 
+    async def read_scope(self, rc: RunCtx) -> list[UUID]:
+        """The companies a run may read: its charter's scope (prompt 5.1 §1.1),
+        every company for a holding charter in the holding, else its own."""
+        holding = await self.hub.companies.holding()
+        if rc.charter.scope == "holding" and rc.emp["company_id"] == holding.id:
+            return await self.hub.companies.ids()
+        return [rc.emp["company_id"]]
+
     async def _context(self, rc: RunCtx) -> str:
-        """The trigger and what the role needs to act on it (never a secret)."""
+        """The trigger and what the role needs to act on it (never a secret).
+        Read in a transaction scoped to the charter (RLS), and every record a
+        message points at is filtered by that scope too."""
         run, emp = rc.run, rc.emp
         parts = [f"# Trigger\n{run['trigger']} ({run['reason']})"]
-        async with await self._tx() as tx:
+        scope = await self.read_scope(rc)
+        async with self.hub.db.tx(scope) as tx:
             lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])
             presence = await tx.one("SELECT khalvat FROM owner.presence WHERE id = 1")
             parts.append(
@@ -600,23 +612,32 @@ class Runner:
                     t=run["thread_id"],
                     n=THREAD_MESSAGES,
                 )
+                seen = await self._visible_links(tx, msgs, scope)
                 lines = []
                 for m in reversed(msgs):
                     who = "owner" if m["author_kind"] == "owner" else m["author_code"]
-                    links = f" links={json.dumps(m['links'])}" if m["links"] else ""
+                    shown = {k: v for k, v in (m["links"] or {}).items() if (k, v) in seen}
+                    links = f" links={json.dumps(shown)}" if shown else ""
                     lines.append(f"[{m['ref']}] {who}{links}: {m['body'][:3000]}")
                 parts.append(
                     "# Conversation (oldest first; answer the owner's latest)\n" + "\n".join(lines)
                 )
                 decision = next(
-                    (m["links"].get("decision") for m in msgs if m["links"].get("decision")), None
+                    (
+                        m["links"]["decision"]
+                        for m in msgs
+                        if ("decision", (m["links"] or {}).get("decision")) in seen
+                    ),
+                    None,
                 )
                 if decision:
                     d = await tx.first(
                         """SELECT d.ref, c.code AS company, d.kind, d.title, d.what, d.why, d.risk, d.reversible,
                                   d.quota_tokens, d.quota_usd, d.payload, d.status, d.proposer_code
-                           FROM cartable.decisions d JOIN core.companies c ON c.id = d.company_id WHERE d.ref = :r""",
+                           FROM cartable.decisions d JOIN core.companies c ON c.id = d.company_id
+                           WHERE d.ref = :r AND d.company_id = ANY(:scope)""",
                         r=decision,
+                        scope=scope,
                     )
                     if d:
                         parts.append(
@@ -632,6 +653,33 @@ class Runner:
                 "# Your memory (latest first)\n" + "\n".join(f"- {n['note'][:500]}" for n in notes)
             )
         return P.trim("\n\n".join(parts), CONTEXT_CHARS)
+
+    async def _visible_links(
+        self, tx: Tx, msgs: list[dict[str, Any]], scope: list[UUID]
+    ) -> set[tuple[str, Any]]:
+        """The (kind, ref) links of `msgs` that resolve inside the run's read
+        scope; a pointer to anything else never reaches the prompt."""
+        seen: set[tuple[str, Any]] = set()
+        for m in msgs:
+            corrects = (m["links"] or {}).get("corrects")
+            if corrects:
+                seen.add(("corrects", corrects))  # a message of this same thread
+        for kind, table in LINK_TABLES.items():
+            refs = sorted(
+                {
+                    str(m["links"][kind])
+                    for m in msgs
+                    if isinstance((m["links"] or {}).get(kind), str)
+                }
+            )
+            if refs:
+                rows = await tx.all(
+                    f"SELECT ref FROM {table} WHERE ref = ANY(:refs) AND company_id = ANY(:scope)",  # noqa: S608
+                    refs=refs,
+                    scope=scope,
+                )
+                seen |= {(kind, r["ref"]) for r in rows}
+        return seen
 
     async def _work_brief(self, tx: Tx, work_id: UUID) -> dict[str, Any]:
         w = await tx.one(

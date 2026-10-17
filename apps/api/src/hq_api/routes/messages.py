@@ -285,6 +285,52 @@ async def list_messages(
         return Page(items=await render_messages(tx, items), next_cursor=nxt)
 
 
+# What a message may point at (Links), and where each ref lives.
+LINK_TABLES = {
+    "decision": "cartable.decisions",
+    "work": "work.work",
+    "resolution": "cartable.resolutions",
+}
+
+
+async def check_links(ctx: Ctx, tx: Tx, thread_company: UUID, links: dict[str, Any]) -> None:
+    """Every ref in `links` must exist in the thread's company or in what the
+    author may read (prompt 5.1 §1.1): an agent's read scope is its charter's
+    (its own company, or every company for a holding charter); the owner and
+    services read every company. Otherwise 422, so no message can carry a
+    pointer that would later pull another company's record into a prompt."""
+    refs = {kind: links[kind] for kind in LINK_TABLES if links.get(kind)}
+    if not refs:
+        return
+    if ctx.who.kind == "agent":
+        assert ctx.who.company_id is not None
+        everyone = ctx.who.scope == "holding"
+        scope = (
+            await ctx.hub.companies.ids()
+            if everyone
+            else list(dict.fromkeys([ctx.who.company_id, thread_company]))
+        )
+    else:
+        scope = await ctx.hub.companies.ids()
+    bad: list[str] = []
+    async with ctx.hub.db.tx(scope) as rtx:
+        await rtx.exec("SET TRANSACTION READ ONLY")
+        for kind, ref in refs.items():
+            sql = f"SELECT 1 FROM {LINK_TABLES[kind]} WHERE ref = :r"  # noqa: S608 - fixed names
+            found = await rtx.scalar(sql + " AND company_id = ANY(:scope)", r=str(ref), scope=scope)
+            if not found:
+                bad.append(kind)
+    if bad:
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={
+                "links": ", ".join(bad)
+                + ": must exist in this thread's company or in what the author may read"
+            },
+        )
+
+
 async def post_message(
     ctx: Ctx,
     tx: Tx,
@@ -305,6 +351,7 @@ async def post_message(
         raise ApiError(
             422, "validation_failed", fields={"links.corrects": "a message of this thread"}
         )
+    await check_links(ctx, tx, t["company_id"], links)
     # seq, ref and company_id come from the thread (trigger msg.messages_number).
     m = await tx.one(
         """INSERT INTO msg.messages (thread_id, company_id, seq, ref, author_kind, author_code, body,
