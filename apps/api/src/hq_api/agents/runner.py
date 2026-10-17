@@ -402,7 +402,10 @@ class Runner:
                 results.append({"tool": action.tool, **out})
                 await self._after_action(rc, action, out, live_thread)
             await self._record_step(rc, n, summary, results, call)
-            done = step.done
+            # "done" next to an action refused for its arguments is not done: the
+            # model gets the field errors and one more step to fix them.
+            fixable = any(r.get("code") == "invalid_args" for r in results)
+            done = step.done and not fixable
             rc.messages += [
                 {
                     "role": "assistant",

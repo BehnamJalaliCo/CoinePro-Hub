@@ -420,3 +420,35 @@ async def test_a_deliverables_usage_is_its_runs_ledger(
     )
     assert json.loads(dl["usage"])["input_tokens"] == 0
     assert "made-up" not in dl["produced_with"]
+
+
+async def test_done_next_to_a_refused_argument_gets_one_more_step(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    agents: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """A model that says `done` in the step whose deliver was refused for its
+    arguments (as a real run did on the hub, 2026-10-17) sees the field errors
+    and fixes them in the next step; the output is not lost."""
+    co = (await new_company())["code"]
+    w = await order(client, owner, co)
+    (row,) = await runs_of(su, f"{co}-CEO")
+    bad = {"work_ref": w["ref"], "title_fa": "گزارش", "body_md": "متن کامل"}
+    since = len(agents.fake.calls)
+    agents.fake.enqueue(
+        f"{co}-CEO",
+        step("تحویل", ("deliver", {**bad, "evidence": [{"kind": "tool", "ref": "health.hub"}]})),
+        step(
+            "تحویل درست", ("deliver", {**bad, "evidence": [{"kind": "log", "ref": "health.hub"}]})
+        ),
+    )
+    assert (await run(agents, row["id"]))["state"] == "done"
+    assert await su.fetchval("SELECT steps FROM agents.runs WHERE id = $1", row["id"]) == 2
+    second = _prompts(agents, f"{co}-CEO", since + 1)
+    assert "invalid_args" in second and "evidence" in second
+    body = await su.fetchval(
+        "SELECT body FROM cartable.deliverables WHERE work_id = $1", uuid.UUID(w["id"])
+    )
+    assert body == "متن کامل"
