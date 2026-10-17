@@ -30,6 +30,8 @@ class Hub:
     temporal: Any = None  # hq_api.workflows_client.Workflows, optional (best effort)
     channels: Any = None  # hq_api.channels.Channels
     bao: Any = None  # hq_common.openbao.OpenBaoClient (write-only connection keys)
+    charters: Any = None  # hq_common.charters.Library (agents/, read-only)
+    live: Any = None  # hq_api.live.LiveHub (replies being written; api process only)
 
 
 def get_hub(request: Request) -> Hub:

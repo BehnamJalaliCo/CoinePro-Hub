@@ -61,6 +61,9 @@ class Quota(Model):
 class HirePayload(Model):
     company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
     department: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,11}$")
+    # The charter the new employee runs with (agents/roles/<role>.md, prompt 05 §2):
+    # required for approval; the proposer names it (an `employee` charter).
+    role: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{1,40}$")
     title_fa: str = Field(min_length=1, max_length=200)
     title_en: str = Field(min_length=1, max_length=200)
     reason: str = Field(min_length=1, max_length=5000)
@@ -278,6 +281,41 @@ def validate_payload(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def check_hire_role(
+    payload: dict[str, Any], company_kind: str, charters: Any, *, required: bool
+) -> None:
+    """A hire's `role` must be an existing employee charter whose scope fits the
+    company (company / holding) and whose department (if it has one) is the
+    hire's department. 422 validation_failed otherwise."""
+    role = payload.get("role")
+    if role is None:
+        if required:
+            raise ApiError(
+                422,
+                "validation_failed",
+                fields={"payload.role": "a charter (agents/roles) is required"},
+            )
+        return
+    charter = charters.get(role) if charters is not None else None
+    if charter is None:
+        raise ApiError(422, "validation_failed", fields={"payload.role": f"no charter {role!r}"})
+    if charter.kind != "employee":
+        raise ApiError(
+            422, "validation_failed", fields={"payload.role": f"{role} is a {charter.kind} charter"}
+        )
+    scope = "holding" if company_kind == "holding" else "company"
+    if charter.scope != scope:
+        raise ApiError(
+            422, "validation_failed", fields={"payload.role": f"{role} is a {charter.scope} role"}
+        )
+    if charter.department and charter.department != payload["department"]:
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"payload.department": f"{role} works in {charter.department}"},
+        )
+
+
 async def known_model(tx: Tx, model: str) -> bool:
     return bool(
         await tx.scalar("SELECT EXISTS (SELECT 1 FROM llm.connections WHERE models ? :m)", m=model)
@@ -293,9 +331,12 @@ async def propose(
     company_code: str,
     body: DecisionIn,
     thread_code: str | None,
+    charters: Any = None,
+    company_kind: str = "company",
 ) -> dict[str, Any]:
     payload = validate_payload(body.kind, body.payload)
     if body.kind == "hire":
+        check_hire_role(payload, company_kind, charters, required=who.is_agent)
         if payload["company"] != company_code:
             raise ApiError(
                 422,
@@ -611,6 +652,7 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
             duties=p.get("duties", []),
             permissions=p.get("permissions", []),
             decision_id=d["id"],
+            role=p.get("role"),
         )
         await tx.exec(
             "SELECT llm.put_assignment('role', :ref, NULL, :model, :effort, :note)",

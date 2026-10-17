@@ -17,7 +17,7 @@ EMPLOYEE_SQL = """
     SELECT e.id, e.code, e.kind, e.title_fa, e.title_en, e.display_name, e.status, e.activity,
            e.activity_note, e.activity_at, e.score, e.score_owner_avg, e.rank_in_department,
            e.hired_at, e.dismissed_at, e.version, e.company_id, e.department_id, e.reports_to,
-           e.duties, e.permissions,
+           e.duties, e.permissions, e.role,
            c.code AS company, d.code AS department,
            r.code AS rt_code, r.title_fa AS rt_title_fa, r.kind AS rt_kind, rc.code AS rt_company,
            rd.code AS rt_department, hd.ref AS hired_by_decision
@@ -43,6 +43,13 @@ def ref_cols(alias: str, prefix: str) -> str:
 DEPTH_OF_KIND = {"ceo": 0, "advisor": 0, "system": 0, "manager": 1, "inspector": 1, "employee": 2}
 
 
+class CharterRef(BaseModel):
+    """The charter an employee runs with (contract §16.1)."""
+
+    role: str
+    version: int | None
+
+
 class Employee(BaseModel):
     id: UUID
     code: str
@@ -64,6 +71,7 @@ class Employee(BaseModel):
     hired_at: datetime
     dismissed_at: datetime | None
     hired_by_decision: str | None
+    charter: CharterRef | None = None
     version: int
 
 
@@ -87,6 +95,8 @@ class Assignments:
     def resolve(
         self, company: str, department: str | None, kind: str, code: str
     ) -> ModelChoice | None:
+        """`kind` is the employee's charter role when it has one (else its kind),
+        exactly what the runtime sends the router as `role`."""
         chain = [("holding", self._holding), ("company", company)]
         if department:
             chain.append(("department", f"{company}-{department}"))
@@ -133,13 +143,18 @@ async def trends(tx: Tx, ids: list[UUID]) -> dict[UUID, list[float | None]]:
 
 
 def render(
-    row: dict[str, Any], assignments: Assignments | None, trend: list[float | None]
+    row: dict[str, Any],
+    assignments: Assignments | None,
+    trend: list[float | None],
+    charters: Any = None,
 ) -> Employee:
+    role = row.get("role")
     model = (
-        assignments.resolve(row["company"], row["department"], row["kind"], row["code"])
+        assignments.resolve(row["company"], row["department"], role or row["kind"], row["code"])
         if assignments
         else None
     )
+    charter = charters.get(role) if charters is not None and role else None
     return Employee(
         id=row["id"],
         code=row["code"],
@@ -166,6 +181,9 @@ def render(
         hired_at=row["hired_at"],
         dismissed_at=row["dismissed_at"],
         hired_by_decision=row["hired_by_decision"],
+        charter=CharterRef(role=role, version=charter.version if charter else None)
+        if role
+        else None,
         version=row["version"],
     )
 
@@ -201,10 +219,11 @@ async def hire(
     duties: list[Any],
     permissions: list[Any],
     decision_id: UUID | None,
+    role: str | None = None,
 ) -> dict[str, Any]:
     """A new numbered employee: next code (never reused), reports to the
-    department's manager, gets a direct thread. Model assignment is the
-    caller's (it belongs to llm.assignments)."""
+    department's manager, gets a direct thread, runs with its charter `role`.
+    Model assignment is the caller's (it belongs to llm.assignments)."""
     dept = await tx.one(
         "SELECT id, code FROM core.departments WHERE company_id = :co AND code = :d",
         co=company_id,
@@ -215,9 +234,9 @@ async def hire(
     mgr = await manager_of(tx, dept["id"])
     row = await tx.one(
         """INSERT INTO core.employees (company_id, department_id, code, kind, title_fa, title_en,
-               reports_to, duties, permissions, hired_by_decision_id)
+               reports_to, duties, permissions, hired_by_decision_id, role)
            VALUES (:co, :d, :code, 'employee', :tfa, :ten, :rt, CAST(:duties AS jsonb),
-                   CAST(:perms AS jsonb), :dec)
+                   CAST(:perms AS jsonb), :dec, :role)
            RETURNING id, code""",
         co=company_id,
         d=dept["id"],
@@ -228,6 +247,7 @@ async def hire(
         duties=_json(duties),
         perms=_json(permissions),
         dec=decision_id,
+        role=role,
     )
     await tx.exec(
         """INSERT INTO msg.threads (code, kind, company_id, employee_id, title_fa)
@@ -277,6 +297,17 @@ async def dismiss(
         id=employee["id"],
         to=manager["id"] if manager else None,
     )
+    # Knowledge transfer (§1.3): the memory notes go to the receiver, marked
+    # with their source (append-only; the dismissed employee keeps its own).
+    transferred = 0
+    if receiver is not None:
+        transferred = await tx.exec(
+            """INSERT INTO core.employee_memory (company_id, employee_id, note, tags, source_employee_id)
+               SELECT company_id, :to, note, tags || ARRAY['transfer'], employee_id
+               FROM core.employee_memory WHERE employee_id = :id ORDER BY id""",
+            id=employee["id"],
+            to=receiver["id"],
+        )
     kt = await tx.one(
         """INSERT INTO work.work (company_id, department_id, kind, title, brief, priority,
                created_by_kind, created_by_code, assignee_id, depth)
@@ -287,12 +318,17 @@ async def dismiss(
         title=f"Knowledge transfer from {employee['code']}",
         brief=(
             f"Transfer the knowledge, memory and playbooks of {employee['code']} "
-            "and write the positive and negative lessons of their work (OPERATING_MODEL §1.3)."
+            "and write the positive and negative lessons of their work (OPERATING_MODEL §1.3). "
+            f"{transferred} memory note(s) of {employee['code']} are now in your memory (tag transfer)."
         ),
         to=receiver["id"] if receiver else None,
         depth=DEPTH_OF_KIND.get(receiver["kind"], 2) if receiver else 0,
     )
-    return {"moved_work": moved, "knowledge_transfer_work": kt["ref"]}
+    return {
+        "moved_work": moved,
+        "knowledge_transfer_work": kt["ref"],
+        "memory_transferred": transferred,
+    }
 
 
 def _json(value: Any) -> str:

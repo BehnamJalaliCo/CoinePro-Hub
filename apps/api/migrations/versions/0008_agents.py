@@ -166,6 +166,9 @@ def upgrade() -> None:
             token_cap           bigint CHECK (token_cap >= 0),
             tool_calls          int NOT NULL DEFAULT 0 CHECK (tool_calls >= 0),
             tool_calls_cap      int NOT NULL DEFAULT 48 CHECK (tool_calls_cap BETWEEN 0 AND 500),
+            current_step        int NOT NULL DEFAULT 0 CHECK (current_step >= 0),
+            step_tool_calls     int NOT NULL DEFAULT 0 CHECK (step_tool_calls >= 0),
+            step_tool_calls_cap int NOT NULL DEFAULT 8 CHECK (step_tool_calls_cap BETWEEN 0 AND 50),
             input_tokens        bigint NOT NULL DEFAULT 0 CHECK (input_tokens >= 0),
             output_tokens       bigint NOT NULL DEFAULT 0 CHECK (output_tokens >= 0),
             cache_read_tokens   bigint NOT NULL DEFAULT 0 CHECK (cache_read_tokens >= 0),
@@ -189,7 +192,8 @@ def upgrade() -> None:
             FOREIGN KEY (company_id, thread_id) REFERENCES msg.threads (company_id, id),
             CHECK (state = 'queued' OR state = 'refused' OR state = 'failed' OR started_at IS NOT NULL),
             CHECK ((state IN ('done', 'failed', 'refused')) = (finished_at IS NOT NULL)),
-            CHECK (tool_calls <= tool_calls_cap)
+            CHECK (tool_calls <= tool_calls_cap),
+            CHECK (step_tool_calls <= step_tool_calls_cap)
         );
         -- At most one run at a time per employee; one queued run per employee and cause.
         CREATE UNIQUE INDEX runs_one_running ON agents.runs (employee_id) WHERE state = 'running';
@@ -361,9 +365,10 @@ def upgrade() -> None:
 
         GRANT SELECT ON agents.runs, agents.steps TO {APP_ROLES};
         -- The gateway's reservation of a tool call (through the api, agent's own run).
-        GRANT UPDATE (tool_calls) ON agents.runs TO hq_api;
+        GRANT UPDATE (tool_calls, current_step, step_tool_calls) ON agents.runs TO hq_api;
         GRANT UPDATE (state, priority, charter_role, charter_version, model, effort, steps, steps_cap,
-                      token_cap, tool_calls, tool_calls_cap, input_tokens, output_tokens,
+                      token_cap, tool_calls, tool_calls_cap, step_tool_calls_cap, input_tokens,
+                      output_tokens,
                       cache_read_tokens, cache_write_tokens, equiv_cost_usd, cost_usd, partial,
                       error_code, note, dispatched_at, started_at, finished_at, token_expires_at)
             ON agents.runs TO hq_worker;

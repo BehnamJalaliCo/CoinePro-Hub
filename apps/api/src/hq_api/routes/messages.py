@@ -55,6 +55,13 @@ class Links(Model):
     corrects: str | None = Field(default=None, max_length=40)
 
 
+class Citation(Model):
+    """A reference the author cites (contract §16.3), validated server-side."""
+
+    kind: Literal["decision", "resolution", "deliverable", "work", "message", "audit"]
+    ref: str = Field(min_length=1, max_length=40)
+
+
 class Message(BaseModel):
     id: UUID
     ref: str
@@ -65,6 +72,21 @@ class Message(BaseModel):
     links: dict[str, Any]
     kind: str
     created_at: datetime
+    citations: list[Citation] = Field(default_factory=list)
+    meta: dict[str, Any] = Field(default_factory=dict)
+
+
+class Reply(BaseModel):
+    state: Literal["queued", "running"]
+    run_id: UUID
+
+
+class Sent(BaseModel):
+    """POST /threads/{code}/messages (contract §16.3): the stored message and,
+    when the thread's counterpart is an agent, its reply run (woken)."""
+
+    message: Message
+    reply: Reply | None
 
 
 class MessageIn(Model):
@@ -109,9 +131,36 @@ THREAD_SQL = """
 
 MESSAGE_SQL = """
     SELECT m.id, m.ref, t.code AS thread, m.author_kind, m.author_code, m.body, m.attachments, m.links,
-           m.kind, m.created_at, m.seq
+           m.kind, m.created_at, m.seq, m.citations, m.meta
     FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
 """
+META_KEYS = ("citations_dropped",)
+# How each cited kind is found (refs are global: D-, M-, O-, W-, <thread>-<seq>, audit seq).
+CITED = {
+    "decision": "SELECT 1 FROM cartable.decisions WHERE ref = :r",
+    "resolution": "SELECT 1 FROM cartable.resolutions WHERE ref = :r",
+    "deliverable": "SELECT 1 FROM cartable.deliverables WHERE ref = :r",
+    "work": "SELECT 1 FROM work.work WHERE ref = :r",
+    "message": "SELECT 1 FROM msg.messages WHERE ref = :r",
+    "audit": "SELECT 1 FROM audit.entries WHERE seq = CAST(:r AS bigint)",
+}
+
+
+async def validate_citations(tx: Tx, citations: list[Citation]) -> tuple[list[Citation], int]:
+    """Keep the citations that exist and that `tx` (the author's read scope) can
+    see; the others are dropped and counted (contract §16.3)."""
+    kept: list[Citation] = []
+    seen: set[tuple[str, str]] = set()
+    for c in citations:
+        key = (c.kind, c.ref)
+        if key in seen:
+            continue
+        seen.add(key)
+        if c.kind == "audit" and not c.ref.isdigit():
+            continue
+        if await tx.scalar(CITED[c.kind], r=c.ref):
+            kept.append(c)
+    return kept, len(citations) - len(kept)
 
 
 def _thread(r: dict[str, Any]) -> Thread:
@@ -151,6 +200,8 @@ async def render_messages(tx: Tx, rows: list[dict[str, Any]]) -> list[Message]:
                 links=r["links"],
                 kind=r["kind"],
                 created_at=r["created_at"],
+                citations=[Citation(**c) for c in r.get("citations") or [] if isinstance(c, dict)],
+                meta={k: v for k, v in (r.get("meta") or {}).items() if k in META_KEYS},
             )
         )
     return out
@@ -241,6 +292,9 @@ async def post_message(
     body: str,
     links: dict[str, Any],
     attachments: list[UUID] | None = None,
+    *,
+    citations: list[Citation] | None = None,
+    meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     t = await tx.one("SELECT id, company_id FROM msg.threads WHERE code = :c", c=thread_code)
     if links.get("corrects") and not await tx.scalar(
@@ -251,15 +305,22 @@ async def post_message(
         raise ApiError(
             422, "validation_failed", fields={"links.corrects": "a message of this thread"}
         )
+    # seq, ref and company_id come from the thread (trigger msg.messages_number).
     m = await tx.one(
-        """SELECT id, ref, company_id
-           FROM msg.post(:t, :ak, :ac, :body, CAST(:links AS jsonb), CAST(:att AS uuid[]), 'text')""",
+        """INSERT INTO msg.messages (thread_id, company_id, seq, ref, author_kind, author_code, body,
+               attachments, links, kind, citations, meta)
+           VALUES (:t, :nil, 0, '', :ak, :ac, :body, CAST(:att AS uuid[]), CAST(:links AS jsonb), 'text',
+                   CAST(:cit AS jsonb), CAST(:meta AS jsonb))
+           RETURNING id, ref, company_id""",
         t=t["id"],
+        nil="00000000-0000-0000-0000-000000000000",
         ak=ctx.who.kind,
         ac=ctx.who.code,
         body=body,
         links=json.dumps(links),
         att=[str(a) for a in attachments or []],
+        cit=json.dumps([c.model_dump() for c in citations or []]),
+        meta=json.dumps(meta or {}),
     )
     co_code = await ctx.hub.companies.code_of(t["company_id"])
     await ctx.emit(
@@ -285,12 +346,14 @@ async def post_message(
     return m
 
 
-@router.post("/threads/{code}/messages", response_model=Message, status_code=201, responses=E)
+@router.post("/threads/{code}/messages", response_model=Sent, status_code=201, responses=E)
 async def send_message(
     code: str, body: MessageIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
     """Messages are immutable: a correction is a new message with `links.corrects`.
-    Requires `Idempotency-Key`."""
+    In an agent's thread (the advisor `A`, a CEO, a manager, an employee) the
+    message wakes that agent: `reply` is its queued run; the reply arrives as a
+    message (and live on GET /threads/{code}/live). Requires `Idempotency-Key`."""
     links = body.links.model_dump(exclude_none=True) if body.links else {}
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
@@ -306,9 +369,19 @@ async def send_message(
             target_ref=m["ref"],
             data={"thread": code, "chars": len(body.body), "links": links},
         )
-        result = (
+        message = (
             await render_messages(tx, [await tx.one(MESSAGE_SQL + " WHERE m.id = :id", id=m["id"])])
         )[0]
+        run = await tx.first(
+            """SELECT r.id, r.state FROM agents.runs r JOIN msg.threads t ON t.id = r.thread_id
+               WHERE t.code = :c AND r.state IN ('queued', 'running')
+               ORDER BY r.queued_at DESC LIMIT 1""",
+            c=code,
+        )
+        result = Sent(
+            message=message,
+            reply=Reply(state=run["state"], run_id=run["id"]) if run else None,
+        )
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
     return result

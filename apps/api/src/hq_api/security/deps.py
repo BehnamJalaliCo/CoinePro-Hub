@@ -134,6 +134,13 @@ async def agent_principal(hub: Hub, code: str, *, run: str | None = None) -> Pri
         )
     if row is None or row["status"] == "dismissed" or row["run_ok"] is not True:
         raise ApiError(401, "unauthenticated")
+    charter = hub.charters.get(row["role"]) if hub.charters is not None else None
+    holding = await hub.companies.holding()
+    scope = (
+        "holding"
+        if charter is not None and charter.scope == "holding" and row["company_id"] == holding.id
+        else "company"
+    )
     return Principal(
         kind="agent",
         code=row["code"],
@@ -146,6 +153,7 @@ async def agent_principal(hub: Hub, code: str, *, run: str | None = None) -> Pri
         status=row["status"],
         run_id=run_id,
         charter=row["role"],
+        scope=scope,
     )
 
 

@@ -25,6 +25,9 @@ class Principal:
     via_cookie: bool = False
     run_id: str | None = None
     charter: str | None = None  # agents/roles/<charter>.md (agents only)
+    # "holding": a holding-level role whose charter reads every company
+    # (oversight, AI operations, the advisor); else "company".
+    scope: str = "company"
 
     @property
     def is_owner(self) -> bool:
@@ -46,6 +49,7 @@ class Principal:
             "company": self.company,
             "department": self.department,
             "status": self.status,
+            "scope": self.scope,
         }
 
 

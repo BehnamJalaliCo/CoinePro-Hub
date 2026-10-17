@@ -18,6 +18,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S105", "S106", "S108", "S311", "S603", "S608", "BLE001", "E501", "C408", "PT011", "PT012", "PT018", "PT022", "RUF001"]
 "src/hq_api/**" = ["RUF001", "RUF002", "RUF003"]  # Persian text in messages and comments
+# The runtime's protocol text for the model: one instruction per line.
+"src/hq_api/agents/protocol.py" = ["RUF001", "RUF002", "RUF003", "E501"]
 
 [tool.ruff.lint.pycodestyle]
 # The formatter keeps code at 100; embedded SQL may run to 120 before wrapping.

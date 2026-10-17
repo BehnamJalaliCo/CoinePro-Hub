@@ -27,7 +27,15 @@ from hq_api.domain import decisions as D
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
 from hq_api.principal import Principal
-from hq_api.routes.messages import MESSAGE_SQL, Links, Message, post_message, render_messages
+from hq_api.routes.messages import (
+    MESSAGE_SQL,
+    Citation,
+    Links,
+    Message,
+    post_message,
+    render_messages,
+    validate_citations,
+)
 from hq_api.schemas import EMPLOYEE_CODE, Evidence, FileRef, Model
 
 router = APIRouter(tags=["internal"])
@@ -118,6 +126,9 @@ class AgentMessage(Model):
     body: str = Field(min_length=1, max_length=100000)
     links: Links | None = None
     attachments: list[UUID] = Field(default_factory=list, max_length=20)
+    # Validated server-side: a ref that does not exist or that the author may
+    # not read is dropped and counted in meta.citations_dropped (contract §16.3).
+    citations: list[Citation] = Field(default_factory=list, max_length=50)
 
 
 class Activity(Model):
@@ -182,6 +193,19 @@ OP_CLASS: dict[str, str] = {
     "work.create": "A2",
     "kill_switch.set": "A2",
     "deploy_freeze.set": "A2",
+    # prompt 05: the Tool Gateway's reads, memory, the run itself, live replies
+    "work.read": "A0",
+    "company.read": "A0",
+    "health.read": "A0",
+    "hub.read": "A0",
+    "treasury.read": "A0",
+    "knowledge.read": "A0",
+    "audit.read": "A0",
+    "memory.read": "A0",
+    "memory.write": "A1",
+    "run.reserve": "A0",
+    "run.record": "A0",
+    "thread.live": "A1",
 }
 
 
@@ -414,12 +438,15 @@ async def deliver_work(
             usage=u.model_dump_json(),
             ev=W.evidence_json(body.evidence),
         )
-        await W.add_usage(
-            tx,
-            w,
-            u.input_tokens + u.output_tokens + u.cache_read_tokens + u.cache_write_tokens,
-            u.equiv_cost_usd + u.cost_usd,
-        )
+        if ctx.who.run_id is None:
+            # A registered run's usage is booked on the work by the runtime, step
+            # by step (agents.runs); a deliverable's `usage` is what it shows.
+            await W.add_usage(
+                tx,
+                w,
+                u.input_tokens + u.output_tokens + u.cache_read_tokens + u.cache_write_tokens,
+                u.equiv_cost_usd + u.cost_usd,
+            )
         await W.set_status(tx, w, "delivered", delivered_at=datetime.now().astimezone())
         closed = await W.close_delivered_children(tx, w, ctx.who)
         await W.event(
@@ -623,6 +650,8 @@ async def propose_decision(
             thread_code=ctx.who.code
             if await tx.scalar("SELECT 1 FROM msg.threads WHERE code = :c", c=ctx.who.code)
             else None,
+            charters=ctx.hub.charters,
+            company_kind=(await ctx.hub.companies.by_id(ctx.who.company_id)).kind,
         )
         await ctx.audit(
             tx,
@@ -721,7 +750,23 @@ async def agent_message(
         )
         await ctx.ensure_unlocked(tx, t["company_id"])
         links = body.links.model_dump(exclude_none=True) if body.links else {}
-        m = await post_message(ctx, tx, code, body.body, links, body.attachments)
+        kept: list[Citation] = []
+        dropped = 0
+        if body.citations:
+            from hq_api.routes.agent_tools import read_tx  # the author's read scope
+
+            async with read_tx(ctx) as rtx:
+                kept, dropped = await validate_citations(rtx, body.citations)
+        m = await post_message(
+            ctx,
+            tx,
+            code,
+            body.body,
+            links,
+            body.attachments,
+            citations=kept,
+            meta={"citations_dropped": dropped} if body.citations else None,
+        )
         result = (
             await render_messages(tx, [await tx.one(MESSAGE_SQL + " WHERE m.id = :id", id=m["id"])])
         )[0]
@@ -762,7 +807,9 @@ async def set_activity(body: Activity, ctx: Ctx = Depends(internal_ctx)) -> org.
         )
         row = await org.load_employee(tx, body.employee)
         holding = await ctx.hub.companies.holding()
-        return org.render(row, await org.Assignments.load(tx, holding.code), [None] * 12)
+        return org.render(
+            row, await org.Assignments.load(tx, holding.code), [None] * 12, ctx.hub.charters
+        )
 
 
 @router.post("/notifications", response_model=NotificationOut, status_code=201, responses=E)
@@ -954,7 +1001,9 @@ async def run_context(employee: str, ctx: Ctx = Depends(internal_ctx)) -> Contex
     async with ctx.tx() as tx:
         row = await org.load_employee(tx, employee)
         holding = await ctx.hub.companies.holding()
-        emp = org.render(row, await org.Assignments.load(tx, holding.code), [None] * 12)
+        emp = org.render(
+            row, await org.Assignments.load(tx, holding.code), [None] * 12, ctx.hub.charters
+        )
         lock = await tx.scalar("SELECT control.lock_state(:co)", co=row["company_id"])
         presence = await tx.one("SELECT khalvat, since, until FROM owner.presence WHERE id = 1")
         work = await tx.all(

@@ -521,7 +521,9 @@ async def _render_many(ctx: Ctx, tx: Tx, rows: list[dict[str, Any]]) -> list[org
     holding = await ctx.hub.companies.holding()
     assignments = await org.Assignments.load(tx, holding.code)
     trend = await org.trends(tx, [r["id"] for r in rows])
-    return [org.render(r, assignments, trend.get(r["id"], [None] * 12)) for r in rows]
+    return [
+        org.render(r, assignments, trend.get(r["id"], [None] * 12), ctx.hub.charters) for r in rows
+    ]
 
 
 @router.get("/employees", response_model=Page[org.Employee], responses=E)

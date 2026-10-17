@@ -59,6 +59,44 @@ class Settings:
     rate_per_principal: int = field(default_factory=lambda: _int("HQ_RATE_PER_PRINCIPAL", 1200))
     # Background loops in the api process
     outbox_relay: bool = field(default_factory=lambda: _env("HQ_OUTBOX_RELAY", "1") == "1")
+    # The agent runtime (worker, prompt 05)
+    llm_router_url: str = field(
+        default_factory=lambda: _env("LLM_ROUTER_URL", "http://llm-router:8000")
+    )
+    gateway_url: str = field(default_factory=lambda: _env("GATEWAY_URL", "http://gateway:8080"))
+    api_internal_url: str = field(
+        default_factory=lambda: _env("HQ_API_INTERNAL_URL", "http://api:8000")
+    )
+    prometheus_url: str = field(
+        default_factory=lambda: _env("PROMETHEUS_URL", "http://prometheus:9090")
+    )
+    hub_status_dir: str = field(default_factory=lambda: _env("HQ_HUB_STATUS_DIR", "/hub-status"))
+    # Real-model spend of all agent runs per UTC day (input + output tokens); a
+    # run is refused once the day's total reaches it (0 = no cap).
+    agent_daily_token_cap: int = field(
+        default_factory=lambda: _int("AGENT_DAILY_TOKEN_CAP", 2_000_000)
+    )
+    agent_max_run_s: int = field(default_factory=lambda: _int("AGENT_MAX_RUN_S", 3000))
+    # The token budget of an incident's work (site checks): the responder's run stops at it.
+    incident_budget_tokens: int = field(
+        default_factory=lambda: _int("AGENT_INCIDENT_BUDGET_TOKENS", 60_000)
+    )
+    agent_step_timeout_s: int = field(default_factory=lambda: _int("AGENT_STEP_TIMEOUT_S", 300))
+    agent_actions_per_step: int = field(default_factory=lambda: _int("AGENT_ACTIONS_PER_STEP", 8))
+    agent_tool_calls_per_run: int = field(
+        default_factory=lambda: _int("AGENT_TOOL_CALLS_PER_RUN", 48)
+    )
+    agent_dispatch_interval_s: float = field(
+        default_factory=lambda: float(_env("AGENT_DISPATCH_INTERVAL_S", "3"))
+    )
+    # The CEOs' daily report runs (prompt 05 §6): built, off until the owner says so.
+    ceo_daily_reports: bool = field(
+        default_factory=lambda: _env("HQ_CEO_DAILY_REPORTS", "off") == "on"
+    )
+    # The morning report rewritten by a model (prompt 05 §6); off = rule-based only.
+    morning_report_llm: bool = field(
+        default_factory=lambda: _env("HQ_MORNING_REPORT_LLM", "on") == "on"
+    )
 
     @property
     def login_configured(self) -> bool:

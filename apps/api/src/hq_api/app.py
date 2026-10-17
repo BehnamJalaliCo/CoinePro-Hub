@@ -22,6 +22,7 @@ from hq_api.errors import ApiError, problem_response
 from hq_api.hub import Hub
 from hq_api.openapi_examples import add_examples
 from hq_api.routes import (
+    agent_tools,
     audit_control,
     auth,
     decisions,
@@ -33,6 +34,7 @@ from hq_api.routes import (
     notifications,
     org,
     owner,
+    runs,
     stream,
     treasury,
     work,
@@ -121,9 +123,11 @@ def create_app(
         audit_control,
         treasury,
         stream,
+        runs,
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
+    app.include_router(agent_tools.router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi
