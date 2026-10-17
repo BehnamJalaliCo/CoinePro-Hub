@@ -340,13 +340,29 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                     }
                 }
             }
-        } else d.seal?.let { s ->
+        } else if (d.seal != null) {
+            val s = d.seal
             HqCard(Modifier.fillMaxWidth(), radius = 18.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Seal(d.company, co.nameFa, co.nameEn, holding = co.holding, state = SealState.SEALED, size = 72.dp)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("مُهر خورد، ${jDateTime(s.sealedAt)}", style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
                         d.resolution?.let { Text(buildAnnotatedString { append("مصوبه‌ی "); fig(it, c.goldInk) }, style = Divan.type.small, color = c.textSecondary) }
+                        d.note?.let { Text(it, style = Divan.type.caption, color = c.textMuted) }
+                    }
+                }
+            }
+        } else if (d.decidedAt != null || d.note != null) {
+            // Rejected, returned, expired or withdrawn: what happened, when, by whom, and why.
+            HqCard(Modifier.fillMaxWidth(), radius = 18.dp) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DIcon(
+                        when (d.status) { "rejected" -> DivanIcon.REJECT; "returned" -> DivanIcon.BACK; "expired" -> DivanIcon.TIME; else -> DivanIcon.CLOSE },
+                        size = 20.dp, tint = c.textSecondary,
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val head = listOfNotNull(DECISION_STATUS[d.status] ?: d.status, d.decidedAt?.let { jDateTime(it) }, d.decidedBy?.let { actorFa(it) })
+                        Text(head.joinToString("، "), style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
                         d.note?.let { Text(it, style = Divan.type.caption, color = c.textMuted) }
                     }
                 }

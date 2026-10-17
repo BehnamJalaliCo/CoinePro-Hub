@@ -18,7 +18,8 @@ export function Sheet({ open, onOpenChange, title, description, children, footer
           )}
           style={{ width: undefined, maxWidth: '100vw' }}
         >
-          <div className="flex w-full flex-col md:h-full" style={{ width: `min(100vw, ${width}px)` }}>
+          {/* min-h-0: on narrow screens the sheet is capped at 92dvh; without it a long form pushes the footer off the screen instead of scrolling. */}
+          <div className="flex min-h-0 w-full flex-col md:h-full" style={{ width: `min(100vw, ${width}px)` }}>
             <div className="flex items-start gap-3 border-b border-div px-5 py-4">
               <div className="flex min-w-0 flex-1 flex-col">
                 <D.Title className="text-h3 font-semibold text-ink">{title}</D.Title>

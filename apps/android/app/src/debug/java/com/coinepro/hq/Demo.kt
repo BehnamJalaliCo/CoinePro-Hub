@@ -180,6 +180,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         }
         workshop(path, body)?.let { return it }
         v14(path, body)?.let { return it }
+        hiring(path, body)?.let { return it }
         if (path == "/orders") return order(body)
         if (path == "/notifications/read-all") return 200 to buildJsonObject { put("updated", 0) }
         if (path == "/auth/logout") return 204 to JsonObject(emptyMap())
@@ -550,6 +551,73 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             ),
             "note" to listOf("یادداشت: از مشاور کل بپرس هزینه‌ی کارگاه کد در ماه اول چقدر شد."),
         )
+    }
+
+    // ---------------------------------------------------------------- ⟨1.4.2⟩ --
+    /** Hiring starts with the owner (contract §18.11): open to the CEOs' proposals, close, or hire directly. */
+    private fun hiring(path: String, body: JsonObject?): Pair<Int, JsonElement>? {
+        val system = buildJsonObject { put("kind", "system"); put("code", "system"); put("display_fa", "سیستم") }
+        when (path) {
+            "/owner/hiring/start" -> {
+                val mode = body?.str("mode") ?: "proposals"
+                return 200 to edit("/owner/hiring") {
+                    it + mapOf("state" to JsonPrimitive(if (mode == "proposals") "open" else "closed"), "mode" to JsonPrimitive(mode), "changed_at" to stamp, "changed_by" to owner)
+                }
+            }
+            "/owner/hiring/close" -> {
+                val withdrawn = mutableListOf<JsonElement>()
+                for (d in list("/decisions?status=all").map { it.jsonObject }.filter { it.str("kind") == "hire" && it.str("status") == "pending" }) {
+                    val ref = d.str("ref")!!
+                    val u = JsonObject(d + mapOf("status" to JsonPrimitive("withdrawn"), "decided_at" to stamp, "decided_by" to system, "note" to JsonPrimitive("مالک: استخدام با شروع خود مالک")))
+                    replaceIn("/decisions?status=all", ref, u)
+                    store["/decisions/$ref"] = 200 to u
+                    withdrawn += JsonPrimitive(ref)
+                }
+                store["/decisions?status=pending"] = 200 to page(list("/decisions?status=all").filter { it.jsonObject.str("status") == "pending" })
+                bumpInbox()
+                return 200 to edit("/owner/hiring") {
+                    it + mapOf("state" to JsonPrimitive("closed"), "mode" to JsonNull, "changed_at" to stamp, "changed_by" to owner, "withdrawn" to JsonArray(it["withdrawn"]?.jsonArray.orEmpty() + withdrawn))
+                }
+            }
+            "/org/hires" -> {
+                val b = body ?: return 422 to problem("validation_failed", "بدنه خالی است.")
+                val company = b.str("company").orEmpty()
+                val department = b.str("department").orEmpty()
+                val role = list("/roles").map { it.jsonObject }.firstOrNull { it.str("role") == b.str("role") }
+                val kind = list("/companies").map { it.jsonObject }.firstOrNull { it.str("code") == company }?.str("kind")
+                val fits = role != null && kind != null && role.str("kind") == "employee" &&
+                    role.str("scope") == (if (kind == "holding") "holding" else "company") && (role.str("department") ?: department) == department
+                if (!fits) return 422 to problem("validation_failed", "این نقش با این شرکت و دپارتمان نمیخواند.")
+                val n = list("/employees").count { it.jsonObject.str("company") == company && it.jsonObject.str("department") == department && it.jsonObject.str("kind") == "employee" } + 1
+                val ref = "D-%06d".format(list("/decisions?status=all").size + 30)
+                val model = b.str("model") ?: role!!.str("model")!!
+                val effort = b.str("effort") ?: role!!.str("effort")!!
+                val emp = JsonObject(list("/employees").first { it.jsonObject.str("kind") == "employee" }.jsonObject + mapOf(
+                    "id" to JsonPrimitive("e-$ref"), "code" to JsonPrimitive("$company-$department-%02d".format(n)), "company" to JsonPrimitive(company),
+                    "department" to JsonPrimitive(department), "kind" to JsonPrimitive("employee"), "title_fa" to b["title_fa"]!!,
+                    "title_en" to (b["title_en"] ?: role!!["title_en"]!!), "activity" to JsonPrimitive("idle"), "activity_at" to stamp, "activity_note" to JsonNull,
+                    "hired_at" to stamp, "hired_by_decision" to JsonPrimitive(ref),
+                    "model" to buildJsonObject { put("connection", "claude-max"); put("model", model); put("effort", effort) },
+                    "score" to buildJsonObject { put("value", JsonNull); put("owner_avg", JsonNull); put("rank_in_department", JsonNull); put("trend", JsonArray(emptyList())) },
+                ))
+                val dec = JsonObject(list("/decisions?status=all").first().jsonObject + mapOf(
+                    "id" to JsonPrimitive("d-$ref"), "ref" to JsonPrimitive(ref), "kind" to JsonPrimitive("hire"), "company" to JsonPrimitive(company),
+                    "status" to JsonPrimitive("approved"), "title" to JsonPrimitive("استخدام ${b.str("title_fa")}"), "proposer" to owner, "created_at" to stamp,
+                    "what" to JsonPrimitive("${b.str("title_fa")} (${role!!.str("title_en")}) در دپارتمان $department."),
+                    "why" to (b["reason"] ?: JsonPrimitive("استخدام مستقیم مالک")), "payload" to JsonObject(b + mapOf("model" to JsonPrimitive(model), "effort" to JsonPrimitive(effort))),
+                    "seal" to buildJsonObject { put("method", "passkey_uv"); put("sealed_at", stamp); put("step_up_id", "demo") },
+                    "decided_at" to stamp, "decided_by" to owner, "note" to JsonNull, "resolution" to JsonPrimitive("M-0008"), "effect_status" to JsonPrimitive("applied"),
+                    "thread" to JsonNull, "expires_at" to JsonNull,
+                ))
+                prepend("/employees", emp)
+                if (store.containsKey("/employees?company=$company")) prepend("/employees?company=$company", emp)
+                store["/employees/${emp.str("code")}"] = 200 to emp
+                prepend("/decisions?status=all", dec)
+                store["/decisions/$ref"] = 200 to dec
+                return 201 to buildJsonObject { put("employee", emp); put("decision", dec) }
+            }
+        }
+        return null
     }
 
     private fun bumpInbox() {

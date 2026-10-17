@@ -3,9 +3,12 @@ package com.coinepro.hq
 import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.ApiException
 import com.coinepro.hq.core.net.GrantIn
+import com.coinepro.hq.core.net.HireIn
+import com.coinepro.hq.core.net.RoleInfo
 import com.coinepro.hq.core.net.ServerPlan
 import com.coinepro.hq.core.net.Skill
 import com.coinepro.hq.core.net.TokenSource
+import com.coinepro.hq.core.net.hireableRoles
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -241,5 +244,51 @@ class ApiContractTest {
         val f = api.startFounding("repo", "o/new-bot", "")
         assertEquals("""{"source":{"kind":"repo","repo":"o/new-bot","brief_md":""}}""", server.takeRequest().body!!.utf8())
         assertEquals("auditing", f.state)
+    }
+
+    // ------------------------------------------------------------ ⟨1.4.2⟩ --
+    @Test
+    fun openingHiringIsSignedOnTheHolding() = runTest {
+        val (action, target, req) = signed("""{"state":"open","mode":"proposals","changed_at":"2026-10-17T10:00:00Z","withdrawn":["D-000001"]}""") { api.startHiring("proposals", it) }
+        assertEquals("hiring.start" to "holding", action to target)
+        assertEquals("/api/v1/owner/hiring/start", req.url.encodedPath)
+        assertEquals("""{"mode":"proposals"}""", req.body!!.utf8())
+    }
+
+    @Test
+    fun closingHiringNeedsNoPasskey() = runTest {
+        server.enqueue(json(200, """{"state":"closed","mode":null,"withdrawn":["D-000001","D-000002"]}"""))
+        val h = api.closeHiring()
+        val req = server.takeRequest()
+        assertNull(req.headers["X-Step-Up"])
+        assertEquals(listOf("D-000001", "D-000002"), h.withdrawn)
+    }
+
+    @Test
+    fun directHireIsBoundToTheExactBody() = runTest {
+        server.enqueue(json(201, """{"employee":{"code":"TY-TECH-01","company":"TY","department":"TECH","title_fa":"x","status":"active"},"decision":{"ref":"D-000031","status":"approved","resolution":"M-0008"}}"""))
+        var target = ""
+        val out = api.hireDirect(HireIn("TY", "TECH", "sre", "مهندس پایداری", model = "claude-haiku-5-5", effort = "high")) { target = it; "su" }
+        val req = server.takeRequest()
+        val body = req.body!!.utf8()
+        assertEquals("/api/v1/org/hires", req.url.encodedPath)
+        assertEquals(Api.sha256(body), target)
+        assertEquals("su", req.headers["X-Step-Up"])
+        // Nulls are left out, so the body the passkey signed is the body the server hashes.
+        assertTrue(!body.contains("reason") && !body.contains("title_en"))
+        assertEquals("TY-TECH-01" to "D-000031", out.employee.code to out.decision.ref)
+    }
+
+    @Test
+    fun onlyFittingEmployeeChartersAreHireable() {
+        val roles = listOf(
+            RoleInfo("sre", "SRE", kind = "employee", scope = "company", department = "TECH", model = "m", effort = "high"),
+            RoleInfo("cto", "CTO", kind = "manager", scope = "company", department = "TECH", model = "m", effort = "high"),
+            RoleInfo("ai_safety", "AI", kind = "employee", scope = "holding", department = "OVS", model = "m", effort = "high"),
+            RoleInfo("writer", "W", kind = "employee", scope = "company", department = null, model = "m", effort = "high"),
+        )
+        assertEquals(listOf("sre", "writer"), hireableRoles(roles, "company", "TECH").map { it.role })
+        assertEquals(listOf("writer"), hireableRoles(roles, "company", "GROWTH").map { it.role })
+        assertEquals(listOf("ai_safety"), hireableRoles(roles, "holding", "OVS").map { it.role })
     }
 }

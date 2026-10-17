@@ -517,3 +517,61 @@ data class BackupStatus(
     val openbaoSnapshot: VaultSnapshot = VaultSnapshot(),
     val encryption: String = "",
 )
+
+// ---------------------------------------------------------- hiring ⟨1.4.2⟩ --
+// Contract §18.11: hiring starts with the owner. Closed by default; the owner opens it to the CEOs' proposals or hires directly.
+@Serializable
+data class Hiring(
+    val state: String = "closed",
+    val mode: String? = null,
+    val changedAt: String? = null,
+    val changedBy: Actor? = null,
+    val withdrawn: List<String> = emptyList(),
+)
+
+@Serializable
+data class RoleLimits(val stepsPerRun: Int = 0, val tokensPerStep: Long = 0, val tokensPerRun: Long = 0)
+
+/** A role charter as `GET /roles` returns it (agents/roles/<role>.md frontmatter). */
+@Serializable
+data class RoleInfo(
+    val role: String,
+    val titleFa: String,
+    val titleEn: String = "",
+    val kind: String,
+    val scope: String,
+    val department: String? = null,
+    val model: String,
+    val effort: String,
+    val priority: String = "",
+    val tools: List<String> = emptyList(),
+    val limits: RoleLimits = RoleLimits(),
+    val version: Int = 1,
+)
+
+/** The roles the owner can hire into a department: `employee` charters whose scope fits the company and whose department (if any) is this one. */
+fun hireableRoles(roles: List<RoleInfo>, companyKind: String, department: String?): List<RoleInfo> {
+    val scope = if (companyKind == "holding") "holding" else "company"
+    return roles.filter { it.kind == "employee" && it.scope == scope && (it.department == null || it.department == department) }
+}
+
+@Serializable
+data class HireIn(
+    val company: String,
+    val department: String,
+    val role: String,
+    val titleFa: String,
+    val titleEn: String? = null,
+    val model: String? = null,
+    val effort: String? = null,
+    val reason: String? = null,
+)
+
+@Serializable
+data class HiredEmployee(val code: String, val company: String, val department: String? = null, val titleFa: String = "", val status: String = "active")
+
+@Serializable
+data class HireDecision(val ref: String, val status: String = "approved", val resolution: String? = null)
+
+@Serializable
+data class HireOut(val employee: HiredEmployee, val decision: HireDecision)

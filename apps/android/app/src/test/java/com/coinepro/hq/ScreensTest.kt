@@ -2,6 +2,8 @@ package com.coinepro.hq
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -42,6 +44,7 @@ import com.coinepro.hq.ui.notifications.NotificationsScreen
 import com.coinepro.hq.ui.outputs.OutputScreen
 import com.coinepro.hq.ui.outputs.OutputsScreen
 import com.coinepro.hq.ui.planner.PlannerScreen
+import com.coinepro.hq.ui.settings.HireForm
 import com.coinepro.hq.ui.settings.SettingsScreen
 import com.coinepro.hq.ui.treasury.TreasuryScreen
 import com.coinepro.hq.ui.workshop.SessionScreen
@@ -105,6 +108,8 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "founding-proposed" to { _ -> FoundingScreen("C-0002") },
             "founding-ready" to { _ -> FoundingScreen("C-0001") },
             "tools" to { _ -> ToolsScreen() },
+            // ⟨1.4.2⟩ the owner's own hire, filled in (the sheet's content)
+            "hire" to { _ -> HireForm(onDone = {}, modifier = Modifier.verticalScroll(rememberScrollState()), company0 = "TY", department0 = "TECH", role0 = "sre") },
         )
     }
 

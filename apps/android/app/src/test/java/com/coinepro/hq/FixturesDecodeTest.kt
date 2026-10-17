@@ -10,6 +10,7 @@ import com.coinepro.hq.core.net.Errand
 import com.coinepro.hq.core.net.EvalSuite
 import com.coinepro.hq.core.net.Finding
 import com.coinepro.hq.core.net.Founding
+import com.coinepro.hq.core.net.Hiring
 import com.coinepro.hq.core.net.Hold
 import com.coinepro.hq.core.net.Inquiry
 import com.coinepro.hq.core.net.Lesson
@@ -19,6 +20,7 @@ import com.coinepro.hq.core.net.OversightSummary
 import com.coinepro.hq.core.net.Page
 import com.coinepro.hq.core.net.Protocol
 import com.coinepro.hq.core.net.ProvisionRun
+import com.coinepro.hq.core.net.RoleInfo
 import com.coinepro.hq.core.net.ServerPlan
 import com.coinepro.hq.core.net.ServiceAccount
 import com.coinepro.hq.core.net.Skill
@@ -27,6 +29,7 @@ import com.coinepro.hq.core.net.StarRollup
 import com.coinepro.hq.core.net.StarRubric
 import com.coinepro.hq.core.net.Teaching
 import com.coinepro.hq.core.net.ToolInfo
+import com.coinepro.hq.core.net.hireableRoles
 import java.io.File
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -97,5 +100,19 @@ class FixturesDecodeTest {
         assertTrue(run.state == "done" && run.login != null && run.steps.all { it.state == "done" })
         val b = decode("/backups/status", BackupStatus.serializer())
         assertTrue(b.destinations.any { it.key == "gdrive" } && b.retention.hourly > 0)
+    }
+
+    @Test
+    fun hiringIsClosedAndEveryCompanyHasSomeoneToHire() {
+        // Owner, 2026-10-17: no hire now; the pending hire cards were withdrawn, not deleted.
+        val h = decode("/owner/hiring", Hiring.serializer())
+        assertEquals("closed", h.state)
+        assertTrue(h.withdrawn.isNotEmpty())
+        val all = page("/decisions?status=all", com.coinepro.hq.core.net.Decision.serializer())
+        assertTrue(h.withdrawn.all { ref -> all.any { it.ref == ref && it.status == "withdrawn" } })
+        assertTrue(all.none { it.kind == "hire" && it.status == "pending" })
+        val roles = list("/roles", RoleInfo.serializer())
+        assertTrue(hireableRoles(roles, "company", "TECH").any { it.role == "sre" })
+        assertTrue(hireableRoles(roles, "holding", "OVS").size >= 3)
     }
 }

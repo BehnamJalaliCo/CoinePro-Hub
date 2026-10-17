@@ -30,7 +30,8 @@ Every library is free and open source and pinned to an exact version (`gradle/li
   companies by their fixed palette slot, models, budgets, top consumers, connections), **planner** (week from
   Saturday), **notifications** (five levels; learning questions answered with one touch), **control** (kill
   switches; release needs the passkey), **audit** (hash-chain verification) and **settings** (devices,
-  passkeys, theme, Khalvat, this app's signing fingerprint).
+  passkeys, **hiring** ⟨1.4.2⟩, theme, Khalvat, this app's signing fingerprint). Hiring is closed until the owner
+  opens it: the CEOs propose their first month's team, or the owner hires directly, sealed on the exact body.
 - **Voice, photos and films** ⟨1.3⟩ — voice orders and voice in every composer, turned into exact Persian text for
   the owner to read before sending; photos, films and PDFs attached to messages and briefs.
 - **Code Workshop** ⟨1.3⟩ — the owner's grants (sealed on the exact body), live sessions, approvals for push and PR.

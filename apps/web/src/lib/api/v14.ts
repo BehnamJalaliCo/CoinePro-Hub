@@ -5,7 +5,7 @@
 // contract. Same conventions as v13: X-HQ-Client and Idempotency-Key on writes, Problem errors as ApiError.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { stepUp } from '@/lib/auth';
+import { bodyTarget, stepUp } from '@/lib/auth';
 import { call, type Actor, type MediaRef } from './v13';
 
 export type Evidence = { kind: string; ref: string; note?: string | null };
@@ -206,3 +206,36 @@ export type BackupStatus = {
   openbao_snapshot: { last_at: string | null; ok: boolean }; encryption: string;
 };
 export const useBackups = () => useQuery({ queryKey: ['backups'], queryFn: () => call<BackupStatus>('GET', '/backups/status'), refetchInterval: 120_000 });
+
+// -------------------------------------------------------------- hiring --
+// Contract §18.11 (v1.4.2): hiring starts with the owner. Closed by default; the owner opens it to the CEOs' proposals or hires directly.
+export type Hiring = { state: 'closed' | 'open'; mode: 'self' | 'proposals' | null; changed_at: string | null; changed_by: Actor | null; withdrawn: string[] };
+export type RoleInfo = {
+  role: string; title_fa: string; title_en: string; kind: string; scope: 'company' | 'holding' | string; department: string | null;
+  model: string; effort: string; priority: string; tools: string[]; limits: { steps_per_run: number; tokens_per_step: number; tokens_per_run: number }; version: number;
+};
+export type HireIn = { company: string; department: string; role: string; title_fa: string; title_en?: string; model?: string; effort?: string; reason?: string; duties?: string[] };
+export type HireOut = { employee: { code: string; company: string; department: string | null; title_fa: string; status: string }; decision: { ref: string; status: string; resolution: string | null } };
+
+export const useHiring = () => useQuery({ queryKey: ['hiring'], queryFn: () => call<Hiring>('GET', '/owner/hiring'), staleTime: 30_000 });
+export const useRoles = () => useQuery({ queryKey: ['roles'], queryFn: () => call<RoleInfo[]>('GET', '/roles'), staleTime: 300_000 });
+
+/** The roles the owner can hire into a department: `employee` charters whose scope fits the company and whose department (if any) is this one. */
+export function hireableRoles(roles: RoleInfo[], companyKind: string, department: string | null): RoleInfo[] {
+  const scope = companyKind === 'holding' ? 'holding' : 'company';
+  return roles.filter((r) => r.kind === 'employee' && r.scope === scope && (!r.department || r.department === department));
+}
+
+export function useHiringAction() {
+  const qc = useQueryClient();
+  const done = () => Promise.all([qc.invalidateQueries({ queryKey: ['hiring'] }), qc.invalidateQueries({ queryKey: ['decisions'] }), qc.invalidateQueries({ queryKey: ['inbox'] })]);
+  return {
+    start: useMutation({ mutationFn: async (mode: 'proposals' | 'self') => call<Hiring>('POST', '/owner/hiring/start', { mode }, { 'X-Step-Up': await stepUp('hiring.start', 'holding') }), onSuccess: done }),
+    close: useMutation({ mutationFn: () => call<Hiring>('POST', '/owner/hiring/close', {}), onSuccess: done }),
+    // The seal is bound to the exact body: the server hashes what it received and compares.
+    hire: useMutation({
+      mutationFn: async (body: HireIn) => call<HireOut>('POST', '/org/hires', body, { 'X-Step-Up': await stepUp('hire.direct', await bodyTarget(JSON.stringify(body))) }),
+      onSuccess: async () => { await done(); await qc.invalidateQueries({ queryKey: ['employees'] }); await qc.invalidateQueries({ queryKey: ['companies'] }); },
+    }),
+  };
+}

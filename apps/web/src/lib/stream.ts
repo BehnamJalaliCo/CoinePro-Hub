@@ -15,7 +15,14 @@ const EVENT_TYPES = [
   'budget.alert', 'run.started', 'run.step', 'run.finished',
   // ⟨1.3⟩ §17.6
   'file.ready', 'file.failed', 'workshop.session', 'workshop.approval', 'order.routed',
+  // ⟨1.4⟩ §18.10, ⟨1.4.2⟩ §18.11
+  'oversight.finding', 'oversight.hold', 'oversight.watch', 'inquiry.answered', 'errand.updated', 'stars.rollup', 'skill.updated',
+  'academy.eval', 'founding.updated', 'provision.step', 'backup.done', 'backup.failed', 'hiring.changed',
 ] as const;
+
+const CORE_TOPICS = 'work,decisions,deliverables,messages,notifications,activity,llm,control';
+// Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
+const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups`;
 
 // Event type prefix -> query keys to refresh (contract §7, §16).
 const INVALIDATE: Array<[string, string[]]> = [
@@ -33,6 +40,16 @@ const INVALIDATE: Array<[string, string[]]> = [
   ['file.', ['messages']],
   ['workshop.', ['workshop']],
   ['order.', ['orders', 'planner', 'work']],
+  ['hiring.', ['hiring']],
+  ['oversight.', ['oversight']],
+  ['inquiry.', ['inquiries']],
+  ['errand.', ['errands']],
+  ['stars.', ['stars']],
+  ['skill.', ['skills']],
+  ['academy.', ['academy']],
+  ['founding.', ['founding']],
+  ['provision.', ['founding']],
+  ['backup.', ['backups']],
 ];
 
 export type StreamState = 'connecting' | 'live' | 'offline';
@@ -57,10 +74,15 @@ export function useHoldingStream(onEvent?: (e: StreamEvent) => void): StreamStat
     let retry = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let closed = false;
+    // A server older than contract v1.4.2 refuses topics it does not know (422), which EventSource only sees as an error
+    // before the stream opened; after one such failure only the core topics are asked for.
+    let opened = false;
+    let coreOnly = false;
     const open = () => {
-      es = new EventSource('/api/v1/stream?topics=work,decisions,deliverables,messages,notifications,activity,llm,control,files,workshop,orders', { withCredentials: true });
-      es.onopen = () => { retry = 0; setState('live'); };
+      es = new EventSource(`/api/v1/stream?topics=${coreOnly ? CORE_TOPICS : TOPICS}`, { withCredentials: true });
+      es.onopen = () => { retry = 0; opened = true; setState('live'); };
       es.onerror = () => {
+        if (!opened) coreOnly = true;
         setState('offline');
         es?.close();
         if (closed) return;

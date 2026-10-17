@@ -182,6 +182,15 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
             {d.note ? <span className="text-muted">{d.note}</span> : null}
           </div>
         </div>
+      ) : d.decided_at || d.note ? (
+        // Rejected, returned, expired or withdrawn: what happened, when, by whom, and why.
+        <div className="flex items-start gap-3 rounded-[18px] bg-card p-4 text-[13px]">
+          <span className="mt-0.5 text-sec"><Icon name={d.status === 'rejected' ? 'reject' : d.status === 'returned' ? 'back' : d.status === 'expired' ? 'time' : 'close'} size={20} /></span>
+          <div className="flex flex-col gap-1">
+            <span className="font-semibold">{DECISION_STATUS[d.status] ?? d.status}{d.decided_at ? `، ${jDateTime(d.decided_at)}` : ''}{d.decided_by ? <span className="font-normal text-sec">، {ACTOR_FA(d.decided_by)}</span> : null}</span>
+            {d.note ? <span className="text-muted">{d.note}</span> : null}
+          </div>
+        </div>
       ) : null}
 
       <Dialog open={reject} onOpenChange={setReject} title="رد این تصمیم" actions={<>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Icon } from '@/components/icon';
+import { HiringCard } from '@/components/v14/hiring';
 import { Button } from '@/components/ui/button';
 import { Card, PageHeader, Pill, SectionTitle, Segmented, Skeleton, Switch } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
@@ -51,21 +52,24 @@ export default function SettingsPage() {
     <>
       <PageHeader title="تنظیمات" />
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <Card className="flex flex-col gap-4 p-5">
-          <SectionTitle title="دستگاه‌ها و passkeyها" note="بدون رمز؛ دست‌کم دو دستگاه ثبت کن تا اگر یکی گم شد بیرون نمانی." />
-          {passkeys.length < 2 && devices.data ? <p className="flex items-center gap-2 rounded-[12px] bg-warn-soft p-3 text-[13px]"><Icon name="urgent" size={18} />فقط یک passkey داری؛ یک دستگاه دوم ثبت کن.</p> : null}
-          {devices.isLoading ? <Skeleton className="h-28" /> : (devices.data?.items ?? []).map((d) => (
-            <div key={d.id} className="flex items-center gap-3 rounded-[12px] bg-tile p-3">
-              <span className="text-sec"><Icon name={d.kind === 'passkey' ? 'lock' : 'server'} size={20} /></span>
-              <div className="flex min-w-0 flex-1 flex-col"><span className="fig truncate text-[14px]">{d.name}</span><span className="text-[11px] text-muted">{d.kind === 'passkey' ? 'passkey' : 'نشست'}، آخرین استفاده {ago(d.last_used_at)}</span></div>
-              {d.current ? <Pill tone="gold">همین دستگاه</Pill> : d.revoked_at ? <Pill tone="neutral">باطل</Pill> : <Button variant="danger" size="sm" loading={busy === d.id} onClick={() => revoke(d.id)}>باطل کن</Button>}
+        <div className="flex flex-col gap-4">
+          <Card className="flex flex-col gap-4 p-5">
+            <SectionTitle title="دستگاه‌ها و passkeyها" note="بدون رمز؛ دست‌کم دو دستگاه ثبت کن تا اگر یکی گم شد بیرون نمانی." />
+            {passkeys.length < 2 && devices.data ? <p className="flex items-center gap-2 rounded-[12px] bg-warn-soft p-3 text-[13px]"><Icon name="urgent" size={18} />فقط یک passkey داری؛ یک دستگاه دوم ثبت کن.</p> : null}
+            {devices.isLoading ? <Skeleton className="h-28" /> : (devices.data?.items ?? []).map((d) => (
+              <div key={d.id} className="flex items-center gap-3 rounded-[12px] bg-tile p-3">
+                <span className="text-sec"><Icon name={d.kind === 'passkey' ? 'lock' : 'server'} size={20} /></span>
+                <div className="flex min-w-0 flex-1 flex-col"><span className="fig truncate text-[14px]">{d.name}</span><span className="text-[11px] text-muted">{d.kind === 'passkey' ? 'passkey' : 'نشست'}، آخرین استفاده {ago(d.last_used_at)}</span></div>
+                {d.current ? <Pill tone="gold">همین دستگاه</Pill> : d.revoked_at ? <Pill tone="neutral">باطل</Pill> : <Button variant="danger" size="sm" loading={busy === d.id} onClick={() => revoke(d.id)}>باطل کن</Button>}
+              </div>
+            ))}
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" icon="add" loading={busy === 'add'} onClick={addDevice}>ثبت همین دستگاه به‌عنوان passkey تازه</Button>
+              <Button variant="ghost" icon="back" onClick={async () => { await signOut().catch(() => {}); qc.clear(); router.replace('/login'); }}>خروج</Button>
             </div>
-          ))}
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" icon="add" loading={busy === 'add'} onClick={addDevice}>ثبت همین دستگاه به‌عنوان passkey تازه</Button>
-            <Button variant="ghost" icon="back" onClick={async () => { await signOut().catch(() => {}); qc.clear(); router.replace('/login'); }}>خروج</Button>
-          </div>
-        </Card>
+          </Card>
+          <HiringCard />
+        </div>
         <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-4 p-5">
             <SectionTitle title="نما" />

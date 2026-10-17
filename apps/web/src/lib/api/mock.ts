@@ -3,6 +3,7 @@
 
 import { DEMO_CHART, DEMO_SKETCH, DEMO_VOICE } from './mock-media';
 import { handle14 } from './mock-v14';
+import { roles } from './mock-roles';
 
 const now = Date.now();
 const iso = (minAgo: number) => new Date(now - minAgo * 60_000).toISOString();
@@ -17,39 +18,40 @@ const CO = [
 const companies = CO.map((c, i) => ({
   id: `co-${c.code}`, ...c, status: 'active', template: c.kind === 'holding' ? 'holding' : 'standard', kill_switch: 'released',
   deploy_freeze_until: c.code === 'FX' ? ahead(95) : null, version: 3, created_at: iso(60 * 24 * 3),
-  counts: { decisions_pending: [1, 2, 1, 1][i] ?? 0, employees_active: [5, 9, 10, 9][i] ?? 0, work_open: [3, 7, 11, 4][i] ?? 0 },
+  counts: { decisions_pending: [0, 0, 0, 1][i] ?? 0, employees_active: [5, 9, 10, 9][i] ?? 0, work_open: [3, 7, 11, 4][i] ?? 0 },
 }));
 
 const actor = (code: string, display_fa: string, kind = 'agent') => ({ kind, code, display_fa });
 const owner = { kind: 'owner', code: 'owner', display_fa: 'مدیر کل' };
+const system = { kind: 'system', code: 'system', display_fa: 'سیستم' };
 
 const decisions: any[] = [
   {
-    ref: 'D-000014', kind: 'hire', company: 'TY', action_class: 'A1', risk: 'low', reversible: true, status: 'pending',
+    ref: 'D-000014', kind: 'hire', company: 'TY', action_class: 'A1', risk: 'low', reversible: true, status: 'withdrawn',
     title: 'استخدام SRE تریدیار', proposer: actor('TY-TECH-MGR', 'مدیر فنی تریدیار'), created_at: iso(42),
     what: 'یک **مهندس پایداری (SRE)** برای پایش سلامت سایت و پنل کاربری تریدیار. فقط وقتی پایش‌های قاعده‌محور خطا پیدا کنند بیدار میشود.',
     why: 'در ۷ روز گذشته `user.tradeyar.trade-future.ir` دو بار بیش از ۵ دقیقه کند بود و کسی پیگیری نکرد (شاهد: I-0002، I-0005).',
     quota_estimate: { tokens: 420000, usd: '6.80' }, risk_note: 'فقط‌خواندنی؛ هیچ اقدام بیرونی ندارد.',
     payload: { department: 'TECH', title_fa: 'مهندس پایداری (SRE)', title_en: 'Site Reliability Engineer', role: 'sre', model: 'claude-haiku-5-5', effort: 'high', duties: ['بررسی هشدارهای سایت و پنل', 'خلاصه‌ی روزانه‌ی سلامت', 'پیشنهاد اصلاح آستانه‌ها'], permissions: ['health.sites', 'deliver', 'notify'], quota_estimate_month: 420000 },
-    seal: null, decided_at: null, decided_by: null, note: null, resolution: null, thread: 'TY-TECH-MGR', expires_at: ahead(60 * 46), version: 1, effect_status: 'none', work_id: null, id: 'd14', reason_code: null,
+    seal: null, decided_at: iso(20), decided_by: system, note: 'مالک: استخدام با شروع خود مالک', resolution: null, thread: 'TY-TECH-MGR', expires_at: ahead(60 * 46), version: 1, effect_status: 'none', work_id: null, id: 'd14', reason_code: null,
   },
   {
-    ref: 'D-000015', kind: 'hire', company: 'FX', action_class: 'A1', risk: 'low', reversible: true, status: 'pending',
+    ref: 'D-000015', kind: 'hire', company: 'FX', action_class: 'A1', risk: 'low', reversible: true, status: 'withdrawn',
     title: 'استخدام SRE کوینه‌پرو FX', proposer: actor('FX-TECH-MGR', 'مدیر فنی FX'), created_at: iso(38),
     what: 'یک SRE برای پایش `coineprofx.com` و `fx.trade-future.ir`، با خلاصه‌ی روزانه و تحلیل هشدارها.',
     why: 'سیگنال‌ها و ربات تلگرام به سلامت سرویس وابسته‌اند؛ امروز هیچ نقشی مسئول پایش نیست.',
     quota_estimate: { tokens: 380000, usd: '6.10' }, risk_note: null,
     payload: { department: 'TECH', title_fa: 'مهندس پایداری (SRE)', role: 'sre', model: 'claude-haiku-5-5', effort: 'high', duties: ['تحلیل هشدار', 'خلاصه‌ی روزانه'], permissions: ['health.sites', 'deliver', 'notify'], quota_estimate_month: 380000 },
-    seal: null, decided_at: null, decided_by: null, note: null, resolution: null, thread: 'FX-TECH-MGR', expires_at: ahead(60 * 47), version: 1, effect_status: 'none', work_id: null, id: 'd15', reason_code: null,
+    seal: null, decided_at: iso(20), decided_by: system, note: 'مالک: استخدام با شروع خود مالک', resolution: null, thread: 'FX-TECH-MGR', expires_at: ahead(60 * 47), version: 1, effect_status: 'none', work_id: null, id: 'd15', reason_code: null,
   },
   {
-    ref: 'D-000016', kind: 'hire', company: 'HQ', action_class: 'A1', risk: 'medium', reversible: true, status: 'pending',
+    ref: 'D-000016', kind: 'hire', company: 'HQ', action_class: 'A1', risk: 'medium', reversible: true, status: 'withdrawn',
     title: 'تیم نظارت: مسئول ایمنی هوش مصنوعی', proposer: actor('HQ-OVS-MGR', 'بازرس کل'), created_at: iso(33),
     what: 'مسئول ایمنی هوش مصنوعی برای بررسی اینکه ایجنت‌ها در محدوده‌ی اختیارشان میمانند.',
     why: 'با شروع کار ایجنت‌ها، یک نقش مستقل باید audit و پیشنهادهای A3 را مرور کند.',
     quota_estimate: { tokens: 900000, usd: '14.20' }, risk_note: 'دسترسی به audit (فقط متادیتا).',
     payload: { department: 'OVS', title_fa: 'مسئول ایمنی هوش مصنوعی', role: 'ai_safety', model: 'claude-sonnet-5-5', effort: 'high', duties: ['مرور audit', 'گزارش هفتگی ایمنی'], permissions: ['audit.recent', 'deliver', 'notify'], quota_estimate_month: 900000 },
-    seal: null, decided_at: null, decided_by: null, note: null, resolution: null, thread: 'HQ-OVS-MGR', expires_at: ahead(60 * 47), version: 1, effect_status: 'none', work_id: null, id: 'd16', reason_code: null,
+    seal: null, decided_at: iso(20), decided_by: system, note: 'مالک: استخدام با شروع خود مالک', resolution: null, thread: 'HQ-OVS-MGR', expires_at: ahead(60 * 47), version: 1, effect_status: 'none', work_id: null, id: 'd16', reason_code: null,
   },
   {
     ref: 'D-000017', kind: 'deploy', company: 'PC', action_class: 'A3', risk: 'high', reversible: true, status: 'pending',
@@ -97,7 +99,7 @@ const deliverables: any[] = [
 const work: any[] = [
   { ref: 'W-000104', title: 'رفع کندی ثبت‌نام', company: 'FX', status: 'in_progress', priority: 'P1', depth: 1, assignee: { code: 'FX-TECH-MGR', company: 'FX', kind: 'manager', department: 'TECH', title_fa: 'مدیر فنی' }, due_at: ahead(60 * 5), progress_pct: 60 },
   { ref: 'W-000102', title: 'سئوی فنی ۴۰ صفحه', company: 'TY', status: 'delivered', priority: 'P3', depth: 2, assignee: { code: 'TY-GROWTH-01', company: 'TY', kind: 'employee', department: 'GROWTH', title_fa: 'تحلیلگر سئوی فنی' }, due_at: iso(-60), progress_pct: 100 },
-  { ref: 'W-000105', title: 'پیشنهاد تیم فنی ماه ۱', company: 'PC', status: 'queued', priority: 'P3', depth: 1, assignee: { code: 'PC-TECH-MGR', company: 'PC', kind: 'manager', department: 'TECH', title_fa: 'مدیر فنی' }, due_at: ahead(60 * 20), progress_pct: null },
+  { ref: 'W-000105', title: 'پیشنهاد تیم فنی ماه ۱', company: 'PC', status: 'cancelled', priority: 'P3', depth: 1, assignee: { code: 'PC-TECH-MGR', company: 'PC', kind: 'manager', department: 'TECH', title_fa: 'مدیر فنی' }, due_at: ahead(60 * 20), progress_pct: null },
   { ref: 'W-000098', title: 'ممیزی امنیتی همه‌ی شرکت‌ها', company: 'HQ', status: 'waiting', priority: 'P2', depth: 0, assignee: { code: 'HQ-OVS-MGR', company: 'HQ', kind: 'inspector', department: 'OVS', title_fa: 'بازرس کل' }, due_at: iso(120), progress_pct: 20 },
 ].map((w, i) => ({ id: `w${i}`, kind: 'one_off', brief: 'جزئیات کار…', created_at: iso(60 * (i + 2)), updated_at: iso(i * 11), created_by: owner, department: w.assignee?.department ?? null, overdue: w.ref === 'W-000098', escalation_level: w.ref === 'W-000098' ? 1 : 0, parent_id: null, root_id: `w${i}`, requested_by_work_id: null, budget: { tokens: 200000, tokens_used: 46000 + i * 9000, usd: null, usd_used: '0.80' }, escrow: null, schedule: null, deliverable_ids: [], evidence: [], progress_note: null, version: 1, ...w }));
 
@@ -189,7 +191,6 @@ const planner = () => {
       d === 0 && { ref: 'W-000104', title: 'رفع کندی ثبت‌نام', company: 'FX', priority: 'P1', status: 'in_progress', at: at(10), assignee: 'FX-TECH-MGR', recurring: false },
       { ref: `W-1${d}0`, title: 'گزارش صبحگاهی', company: 'HQ', priority: 'P3', status: d === 0 ? 'done' : 'queued', at: at(4), assignee: 'HQ-SYS', recurring: true },
       d % 2 === 0 && { ref: `W-2${d}0`, title: 'خلاصه‌ی سلامت سایت‌ها', company: ['TY', 'FX', 'PC'][d % 3], priority: 'P3', status: 'queued', at: at(6), assignee: null, recurring: true },
-      d === 1 && { ref: 'W-000105', title: 'پیشنهاد تیم فنی ماه ۱', company: 'PC', priority: 'P3', status: 'queued', at: at(8), assignee: 'PC-TECH-MGR', recurring: false },
       d === 3 && { ref: 'W-000098', title: 'ممیزی امنیتی همه‌ی شرکت‌ها', company: 'HQ', priority: 'P2', status: 'waiting', at: at(9), assignee: 'HQ-OVS-MGR', recurring: false },
       d === 5 && { ref: 'W-000120', title: 'جلسه‌ی هفتگی هیئت‌مدیره', company: 'HQ', priority: 'P2', status: 'queued', at: at(6), assignee: null, recurring: true },
     ].filter(Boolean);
@@ -346,6 +347,30 @@ export async function handle(req: Request): Promise<Response> {
     if (p === '/auth/step-up/options') return json({ challenge: 'mock' });
     if (p === '/auth/step-up/verify') return json({ step_up_token: 'mock-step-up', expires_at: ahead(2) });
     if (p === '/auth/passkey/login/verify') return json({ session: { expires_at: ahead(60 * 24 * 30) } });
+    if (p === '/owner/hiring/start') {
+      const b = (await req.json().catch(() => ({}))) as { mode: 'self' | 'proposals' };
+      Object.assign(hiring, { state: b.mode === 'proposals' ? 'open' : 'closed', mode: b.mode, changed_at: iso(0), changed_by: owner });
+      // Proposals: one "propose your first month's team" item for each CEO, once.
+      if (b.mode === 'proposals') for (const c of CO.filter((x) => x.kind !== 'holding')) if (!work.some((w) => w.title === 'پیشنهاد تیم ماه اول' && w.company === c.code)) work.unshift({ ...work[0], id: `wh-${c.code}`, ref: `W-0002${work.length}`, title: 'پیشنهاد تیم ماه اول', company: c.code, status: 'queued', priority: 'P3', depth: 0, assignee: { code: `${c.code}-CEO`, company: c.code, kind: 'ceo', department: null, title_fa: 'مدیرعامل' }, created_at: iso(0) });
+      return json(hiring);
+    }
+    if (p === '/owner/hiring/close') {
+      for (const d of decisions) if (d.kind === 'hire' && d.status === 'pending') { Object.assign(d, { status: 'withdrawn', decided_at: iso(0), decided_by: system, note: 'مالک: استخدام با شروع خود مالک' }); hiring.withdrawn.push(d.ref); }
+      Object.assign(hiring, { state: 'closed', mode: null, changed_at: iso(0), changed_by: owner });
+      return json(hiring);
+    }
+    if (p === '/org/hires') {
+      const b = (await req.json().catch(() => ({}))) as { company: string; department: string; role: string; title_fa: string; title_en?: string; model?: string; effort?: string; reason?: string; duties?: string[] };
+      const r = roles.find((x) => x.role === b.role);
+      const co = CO.find((c) => c.code === b.company);
+      if (!r || !co || r.kind !== 'employee' || r.scope !== (co.kind === 'holding' ? 'holding' : 'company') || (r.department && r.department !== b.department)) return json({ code: 'validation_failed', message_fa: 'این نقش با این شرکت و دپارتمان نمیخواند.', status: 422, title: 'Unprocessable', type: 'about:blank', fields: { role: 'does not fit' } }, 422);
+      const n = employees.filter((e) => e.company === b.company && e.department === b.department && e.kind === 'employee').length + 1;
+      const ref = `D-0000${decisions.length + 30}`;
+      const emp = { ...employees.find((e) => e.kind === 'employee'), id: `e-${ref}`, code: `${b.company}-${b.department}-${String(n).padStart(2, '0')}`, company: b.company, department: b.department, kind: 'employee', title_fa: b.title_fa, title_en: b.title_en ?? r.title_en, activity: 'idle', activity_at: iso(0), activity_note: null, hired_at: iso(0), hired_by_decision: ref, model: { connection: 'claude-max', model: b.model ?? r.model, effort: b.effort ?? r.effort }, score: { value: null, owner_avg: null, rank_in_department: null, trend: [] } };
+      const dec = { ...decisions[0], id: `d-${ref}`, ref, company: b.company, status: 'approved', title: `استخدام ${b.title_fa}`, proposer: owner, created_at: iso(0), what: `${b.title_fa} (${r.title_en}) در دپارتمان ${b.department}.`, why: b.reason ?? 'استخدام مستقیم مالک', payload: { ...b, role: r.role, title_en: b.title_en ?? r.title_en, model: b.model ?? r.model, effort: b.effort ?? r.effort }, seal: { method: 'passkey_uv', sealed_at: iso(0), step_up_id: null }, decided_at: iso(0), decided_by: owner, note: null, resolution: `M-00${decisions.length + 10}`, effect_status: 'applied', thread: null, expires_at: null };
+      employees.push(emp); decisions.unshift(dec);
+      return json({ employee: emp, decision: dec }, 201);
+    }
     const d = /^\/decisions\/(D-\d+)\/(approve|reject|return)$/.exec(p);
     if (d) {
       const x = decisions.find((y) => y.ref === d[1]);
@@ -465,9 +490,9 @@ export async function handle(req: Request): Promise<Response> {
   if (p === '/orders') return json(page(orders));
   if (p === '/auth/session') return json({ principal: { kind: 'owner', code: 'owner' }, device: { id: 'dev1', name: 'Chrome · Android', kind: 'session', created_at: iso(600), last_used_at: iso(0), current: true }, expires_at: ahead(60 * 24 * 30) });
   if (p === '/meta') return json({ api_version: '1.4', service_version: 'mock', login_configured: true, public_origin: u.origin, stream_retention_days: 30, channels: { in_app: true, web_push: true, fcm: false, telegram: false }, workshop: { runtime: 'managed' }, precedence: [{ rank: 1, kinds: ['owner'], note_fa: 'مدیر کل' }, { rank: 2, kinds: ['overseer', 'advisor'], note_fa: 'ناظر کل و مشاور کل' }, { rank: 3, kinds: ['ceo', 'inspector'], note_fa: 'مدیرعامل‌ها، بازرس کل (QC)' }, { rank: 4, kinds: ['manager'], note_fa: 'مدیرها' }, { rank: 5, kinds: ['employee'], note_fa: 'کارمندها' }] });
-  if (p === '/inbox/summary') return json({ decisions_pending: decisions.filter((d) => d.status === 'pending').length, decisions_by_risk: { low: 2, medium: 1, high: 1 }, deliverables_unrated: deliverables.filter((d) => !d.rating).length, messages_unread: 3, khalvat: presence.khalvat, notifications: { urgent: 0, decision: 1, report: 0, info: 2, learning: 1 } });
+  if (p === '/inbox/summary') return json({ decisions_pending: decisions.filter((d) => d.status === 'pending').length, decisions_by_risk: Object.fromEntries(['low', 'medium', 'high'].map((r) => [r, decisions.filter((d) => d.status === 'pending' && d.risk === r).length])), deliverables_unrated: deliverables.filter((d) => !d.rating).length, messages_unread: 3, khalvat: presence.khalvat, notifications: { urgent: 0, decision: 1, report: 0, info: 2, learning: 1 } });
   if (p === '/owner/presence') return json(presence);
-  if (p === '/owner/away-summary') return json({ since: iso(60 * 9), until: iso(0), companies: CO.map((c, i) => ({ company: c.code, decisions_new: [1, 1, 1, 1][i], deliverables_new: [1, 1, 1, 0][i], messages_new: [0, 1, 2, 0][i], notifications_new: [1, 1, 0, 1][i] })), decisions: { new: 4, pending: 4, top: decisions.filter((d) => d.status === 'pending').map((d) => ({ ref: d.ref, company: d.company, kind: d.kind, risk: d.risk, status: d.status, title: d.title, created_at: d.created_at })) }, deliverables: { new: 3, unrated: 2, top: deliverables.map((d) => ({ ref: d.ref, company: d.company, title: d.title, created_at: d.created_at })) }, messages: { new: 3, unread: 3, top_threads: threads.map((t) => ({ thread: t.code, company: t.company, new_messages: t.unread, last_at: t.last_message_at })) }, notifications: { by_level: { decision: 1, report: 1, learning: 1 }, held: 2, top: [] } });
+  if (p === '/owner/away-summary') return json({ since: iso(60 * 9), until: iso(0), companies: CO.map((c, i) => ({ company: c.code, decisions_new: [1, 1, 1, 1][i], deliverables_new: [1, 1, 1, 0][i], messages_new: [0, 1, 2, 0][i], notifications_new: [1, 1, 0, 1][i] })), decisions: { new: 4, pending: decisions.filter((d) => d.status === 'pending').length, top: decisions.filter((d) => d.status === 'pending').map((d) => ({ ref: d.ref, company: d.company, kind: d.kind, risk: d.risk, status: d.status, title: d.title, created_at: d.created_at })) }, deliverables: { new: 3, unrated: 2, top: deliverables.map((d) => ({ ref: d.ref, company: d.company, title: d.title, created_at: d.created_at })) }, messages: { new: 3, unread: 3, top_threads: threads.map((t) => ({ thread: t.code, company: t.company, new_messages: t.unread, last_at: t.last_message_at })) }, notifications: { by_level: { decision: 1, report: 1, learning: 1 }, held: 2, top: [] } });
   if (p === '/decisions') { const st = u.searchParams.get('status') ?? 'pending'; return json(page(decisions.filter((d) => st === 'all' || d.status === st))); }
   const dd = /^\/decisions\/(D-\d+)$/.exec(p); if (dd) return json(decisions.find((d) => d.ref === dd[1]) ?? {}, decisions.some((d) => d.ref === dd[1]) ? 200 : 404);
   if (p === '/deliverables') return json(page(u.searchParams.get('unrated') === 'true' ? deliverables.filter((d) => !d.rating) : deliverables));
@@ -475,6 +500,7 @@ export async function handle(req: Request): Promise<Response> {
   if (p === '/companies') return json(companies);
   const cd = /^\/companies\/([A-Z0-9]+)$/.exec(p); if (cd) return json(companies.find((c) => c.code === cd[1]) ?? {});
   const dep = /^\/companies\/([A-Z0-9]+)\/departments$/.exec(p);
+  if (dep && dep[1] === 'HQ') return json([['OVS', 'نظارت و کنترل کیفیت', 'بازرس کل', 'Oversight'], ['AIOPS', 'عملیات هوش مصنوعی', 'مدیر عملیات AI', 'AI Operations']].map(([k, fa, mgr, en], i) => ({ id: `HQ-${k}`, code: k, company: 'HQ', name_fa: fa, name_en: en, manager_title_fa: mgr, manager_title_en: en, manager: { code: `HQ-${k}-MGR`, company: 'HQ', department: k, kind: 'manager', title_fa: mgr }, sort: i, status: 'active', version: 1 })));
   if (dep) return json(['TECH', 'GROWTH', 'SALES', 'PRODUCT', 'FIN', 'QUANT', 'AIOPS', 'HR'].map((k, i) => ({ id: `${dep[1]}-${k}`, code: k, company: dep[1], name_fa: ['فنی', 'رشد و مارکتینگ', 'فروش و پشتیبانی', 'محصول', 'مالی', 'کوانت', 'عملیات هوش مصنوعی', 'منابع انسانی'][i], name_en: k, manager_title_fa: ['مدیر فنی', 'مدیر مارکتینگ', 'مدیر فروش', 'مدیر محصول', 'مدیر مالی', 'مدیر کوانت', 'مدیر عملیات AI', 'مدیر منابع انسانی'][i], manager_title_en: k, manager: { code: `${dep[1]}-${k}-MGR`, company: dep[1], department: k, kind: 'manager', title_fa: 'مدیر' }, sort: i, status: 'active', version: 1 })));
   if (p === '/employees') { const c = u.searchParams.getAll('company'); return json(page(c.length ? employees.filter((e) => c.includes(e.company)) : employees)); }
   const ed = /^\/employees\/([A-Z0-9-]+)$/.exec(p); if (ed) { const e = employees.find((x) => x.code === ed[1]); return e ? json({ ...e, recent_ratings: [{ deliverable: 'O-000031', score: 8, rated_at: iso(60) }], recent_work: work.slice(0, 2).map((w) => ({ ref: w.ref, title: w.title, status: w.status })) }) : json({}, 404); }
@@ -494,10 +520,15 @@ export async function handle(req: Request): Promise<Response> {
   if (p === '/audit/verify') return json({ ok: true, checked: 1200, first_bad_seq: null, verified_at: iso(60 * 6), anchor: 'ok' });
   if (p === '/resolutions') return json(page([{ ref: 'M-0003', title: 'گزارش هفتگی سئوی فنی تریدیار', body: '…', company: 'TY', sealed_at: iso(60 * 19), sealed_by: owner, sent_to: ['TY-GROWTH-MGR'], source: { decision: 'D-000011' }, follow_up_work_id: null, id: 'r3' }]));
   if (p === '/auth/devices') return json({ items: [{ id: 'dev1', name: 'Chrome · Android', kind: 'passkey', created_at: iso(60 * 20), last_used_at: iso(0), current: true }, { id: 'dev2', name: 'Safari · macOS', kind: 'passkey', created_at: iso(60 * 19), last_used_at: iso(60 * 3) }], next_cursor: null });
+  if (p === '/owner/hiring') return json(hiring);
+  if (p === '/roles') return json(roles);
   if (p === '/owner/settings') return json({ timezone: 'Asia/Tehran', calendars: ['jalali', 'gregorian'], morning_report_at: '08:00', digest_minutes: 30, ceo_daily_attention: 6, learning_daily_cap: 3, version: 1 });
   const ch = /^\/org\/([A-Z0-9]+)\/chart$/.exec(p);
   if (ch) { const es = employees.filter((e) => e.company === ch[1]); const ceo = es.find((e) => e.kind === 'ceo'); const node = (e: any): any => ({ code: e.code, kind: e.kind, title_fa: e.title_fa, display_name: null, department: e.department, activity: e.activity, status: 'active', children: [] }); return json({ company: ch[1], roots: ceo ? [{ ...node(ceo), children: es.filter((e) => e.kind !== 'ceo').map(node) }] : es.map(node) }); }
   return json({ code: 'not_found', message_fa: 'پیدا نشد.', status: 404, title: 'Not found', type: 'about:blank' }, 404);
 }
+
+// Contract §18.11: hiring is closed until the owner opens it; the owner's decision withdrew the pending hire cards.
+const hiring = { state: 'closed' as 'closed' | 'open', mode: null as 'self' | 'proposals' | null, changed_at: iso(20) as string | null, changed_by: system as typeof system | typeof owner, withdrawn: ['D-000014', 'D-000015', 'D-000016'] };
 
 const presence = { khalvat: false, since: iso(60 * 9), until: null as string | null };

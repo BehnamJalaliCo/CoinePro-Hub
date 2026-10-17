@@ -40,6 +40,8 @@ const paths = [
   '/egress/summary?period=day', '/egress', '/tools/mcp', '/tools/accounts', '/tools/catalog',
   '/foundings', '/foundings/C-0001', '/foundings/C-0002', '/provisioning/plans/PV-0001', '/provisioning/plans/PV-0002', '/provisioning/runs/r1',
   '/backups/status', '/threads/N/messages', '/threads/P/messages',
+  // ⟨1.4.2⟩ hiring starts with the owner: the state and the charters the owner hires from.
+  '/owner/hiring', '/roles',
 ];
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;

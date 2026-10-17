@@ -78,10 +78,10 @@
  "/inbox/summary": {
   "status": 200,
   "body": {
-   "decisions_pending": 4,
+   "decisions_pending": 1,
    "decisions_by_risk": {
-    "low": 2,
-    "medium": 1,
+    "low": 0,
+    "medium": 0,
     "high": 1
    },
    "deliverables_unrated": 2,
@@ -141,35 +141,8 @@
    ],
    "decisions": {
     "new": 4,
-    "pending": 4,
+    "pending": 1,
     "top": [
-     {
-      "ref": "D-000014",
-      "company": "TY",
-      "kind": "hire",
-      "risk": "low",
-      "status": "pending",
-      "title": "استخدام SRE تریدیار",
-      "created_at": "@-42m"
-     },
-     {
-      "ref": "D-000015",
-      "company": "FX",
-      "kind": "hire",
-      "risk": "low",
-      "status": "pending",
-      "title": "استخدام SRE کوینه‌پرو FX",
-      "created_at": "@-38m"
-     },
-     {
-      "ref": "D-000016",
-      "company": "HQ",
-      "kind": "hire",
-      "risk": "medium",
-      "status": "pending",
-      "title": "تیم نظارت: مسئول ایمنی هوش مصنوعی",
-      "created_at": "@-33m"
-     },
      {
       "ref": "D-000017",
       "company": "PC",
@@ -272,164 +245,6 @@
   "body": {
    "items": [
     {
-     "ref": "D-000014",
-     "kind": "hire",
-     "company": "TY",
-     "action_class": "A1",
-     "risk": "low",
-     "reversible": true,
-     "status": "pending",
-     "title": "استخدام SRE تریدیار",
-     "proposer": {
-      "kind": "agent",
-      "code": "TY-TECH-MGR",
-      "display_fa": "مدیر فنی تریدیار"
-     },
-     "created_at": "@-42m",
-     "what": "یک **مهندس پایداری (SRE)** برای پایش سلامت سایت و پنل کاربری تریدیار. فقط وقتی پایش‌های قاعده‌محور خطا پیدا کنند بیدار میشود.",
-     "why": "در ۷ روز گذشته `user.tradeyar.trade-future.ir` دو بار بیش از ۵ دقیقه کند بود و کسی پیگیری نکرد (شاهد: I-0002، I-0005).",
-     "quota_estimate": {
-      "tokens": 420000,
-      "usd": "6.80"
-     },
-     "risk_note": "فقط‌خواندنی؛ هیچ اقدام بیرونی ندارد.",
-     "payload": {
-      "department": "TECH",
-      "title_fa": "مهندس پایداری (SRE)",
-      "title_en": "Site Reliability Engineer",
-      "role": "sre",
-      "model": "claude-haiku-5-5",
-      "effort": "high",
-      "duties": [
-       "بررسی هشدارهای سایت و پنل",
-       "خلاصه‌ی روزانه‌ی سلامت",
-       "پیشنهاد اصلاح آستانه‌ها"
-      ],
-      "permissions": [
-       "health.sites",
-       "deliver",
-       "notify"
-      ],
-      "quota_estimate_month": 420000
-     },
-     "seal": null,
-     "decided_at": null,
-     "decided_by": null,
-     "note": null,
-     "resolution": null,
-     "thread": "TY-TECH-MGR",
-     "expires_at": "@2760m",
-     "version": 1,
-     "effect_status": "none",
-     "work_id": null,
-     "id": "d14",
-     "reason_code": null
-    },
-    {
-     "ref": "D-000015",
-     "kind": "hire",
-     "company": "FX",
-     "action_class": "A1",
-     "risk": "low",
-     "reversible": true,
-     "status": "pending",
-     "title": "استخدام SRE کوینه‌پرو FX",
-     "proposer": {
-      "kind": "agent",
-      "code": "FX-TECH-MGR",
-      "display_fa": "مدیر فنی FX"
-     },
-     "created_at": "@-38m",
-     "what": "یک SRE برای پایش `coineprofx.com` و `fx.trade-future.ir`، با خلاصه‌ی روزانه و تحلیل هشدارها.",
-     "why": "سیگنال‌ها و ربات تلگرام به سلامت سرویس وابسته‌اند؛ امروز هیچ نقشی مسئول پایش نیست.",
-     "quota_estimate": {
-      "tokens": 380000,
-      "usd": "6.10"
-     },
-     "risk_note": null,
-     "payload": {
-      "department": "TECH",
-      "title_fa": "مهندس پایداری (SRE)",
-      "role": "sre",
-      "model": "claude-haiku-5-5",
-      "effort": "high",
-      "duties": [
-       "تحلیل هشدار",
-       "خلاصه‌ی روزانه"
-      ],
-      "permissions": [
-       "health.sites",
-       "deliver",
-       "notify"
-      ],
-      "quota_estimate_month": 380000
-     },
-     "seal": null,
-     "decided_at": null,
-     "decided_by": null,
-     "note": null,
-     "resolution": null,
-     "thread": "FX-TECH-MGR",
-     "expires_at": "@2820m",
-     "version": 1,
-     "effect_status": "none",
-     "work_id": null,
-     "id": "d15",
-     "reason_code": null
-    },
-    {
-     "ref": "D-000016",
-     "kind": "hire",
-     "company": "HQ",
-     "action_class": "A1",
-     "risk": "medium",
-     "reversible": true,
-     "status": "pending",
-     "title": "تیم نظارت: مسئول ایمنی هوش مصنوعی",
-     "proposer": {
-      "kind": "agent",
-      "code": "HQ-OVS-MGR",
-      "display_fa": "بازرس کل"
-     },
-     "created_at": "@-33m",
-     "what": "مسئول ایمنی هوش مصنوعی برای بررسی اینکه ایجنت‌ها در محدوده‌ی اختیارشان میمانند.",
-     "why": "با شروع کار ایجنت‌ها، یک نقش مستقل باید audit و پیشنهادهای A3 را مرور کند.",
-     "quota_estimate": {
-      "tokens": 900000,
-      "usd": "14.20"
-     },
-     "risk_note": "دسترسی به audit (فقط متادیتا).",
-     "payload": {
-      "department": "OVS",
-      "title_fa": "مسئول ایمنی هوش مصنوعی",
-      "role": "ai_safety",
-      "model": "claude-sonnet-5-5",
-      "effort": "high",
-      "duties": [
-       "مرور audit",
-       "گزارش هفتگی ایمنی"
-      ],
-      "permissions": [
-       "audit.recent",
-       "deliver",
-       "notify"
-      ],
-      "quota_estimate_month": 900000
-     },
-     "seal": null,
-     "decided_at": null,
-     "decided_by": null,
-     "note": null,
-     "resolution": null,
-     "thread": "HQ-OVS-MGR",
-     "expires_at": "@2820m",
-     "version": 1,
-     "effect_status": "none",
-     "work_id": null,
-     "id": "d16",
-     "reason_code": null
-    },
-    {
      "ref": "D-000017",
      "kind": "deploy",
      "company": "PC",
@@ -492,7 +307,7 @@
      "action_class": "A1",
      "risk": "low",
      "reversible": true,
-     "status": "pending",
+     "status": "withdrawn",
      "title": "استخدام SRE تریدیار",
      "proposer": {
       "kind": "agent",
@@ -527,9 +342,13 @@
       "quota_estimate_month": 420000
      },
      "seal": null,
-     "decided_at": null,
-     "decided_by": null,
-     "note": null,
+     "decided_at": "@-20m",
+     "decided_by": {
+      "kind": "system",
+      "code": "system",
+      "display_fa": "سیستم"
+     },
+     "note": "مالک: استخدام با شروع خود مالک",
      "resolution": null,
      "thread": "TY-TECH-MGR",
      "expires_at": "@2760m",
@@ -546,7 +365,7 @@
      "action_class": "A1",
      "risk": "low",
      "reversible": true,
-     "status": "pending",
+     "status": "withdrawn",
      "title": "استخدام SRE کوینه‌پرو FX",
      "proposer": {
       "kind": "agent",
@@ -579,9 +398,13 @@
       "quota_estimate_month": 380000
      },
      "seal": null,
-     "decided_at": null,
-     "decided_by": null,
-     "note": null,
+     "decided_at": "@-20m",
+     "decided_by": {
+      "kind": "system",
+      "code": "system",
+      "display_fa": "سیستم"
+     },
+     "note": "مالک: استخدام با شروع خود مالک",
      "resolution": null,
      "thread": "FX-TECH-MGR",
      "expires_at": "@2820m",
@@ -598,7 +421,7 @@
      "action_class": "A1",
      "risk": "medium",
      "reversible": true,
-     "status": "pending",
+     "status": "withdrawn",
      "title": "تیم نظارت: مسئول ایمنی هوش مصنوعی",
      "proposer": {
       "kind": "agent",
@@ -631,9 +454,13 @@
       "quota_estimate_month": 900000
      },
      "seal": null,
-     "decided_at": null,
-     "decided_by": null,
-     "note": null,
+     "decided_at": "@-20m",
+     "decided_by": {
+      "kind": "system",
+      "code": "system",
+      "display_fa": "سیستم"
+     },
+     "note": "مالک: استخدام با شروع خود مالک",
      "resolution": null,
      "thread": "HQ-OVS-MGR",
      "expires_at": "@2820m",
@@ -957,7 +784,7 @@
     "version": 3,
     "created_at": "@-4320m",
     "counts": {
-     "decisions_pending": 1,
+     "decisions_pending": 0,
      "employees_active": 5,
      "work_open": 3
     }
@@ -976,7 +803,7 @@
     "version": 3,
     "created_at": "@-4320m",
     "counts": {
-     "decisions_pending": 2,
+     "decisions_pending": 0,
      "employees_active": 9,
      "work_open": 7
     }
@@ -995,7 +822,7 @@
     "version": 3,
     "created_at": "@-4320m",
     "counts": {
-     "decisions_pending": 1,
+     "decisions_pending": 0,
      "employees_active": 10,
      "work_open": 11
     }
@@ -1147,7 +974,7 @@
      "ref": "W-000105",
      "title": "پیشنهاد تیم فنی ماه ۱",
      "company": "PC",
-     "status": "queued",
+     "status": "cancelled",
      "priority": "P3",
      "depth": 1,
      "assignee": {
@@ -1224,7 +1051,7 @@
        "company": "FX",
        "priority": "P1",
        "status": "in_progress",
-       "at": "@-376m",
+       "at": "@-436m",
        "assignee": "FX-TECH-MGR",
        "recurring": false
       },
@@ -1234,7 +1061,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "done",
-       "at": "@-736m",
+       "at": "@-796m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1244,7 +1071,7 @@
        "company": "TY",
        "priority": "P3",
        "status": "queued",
-       "at": "@-616m",
+       "at": "@-676m",
        "assignee": null,
        "recurring": true
       }
@@ -1259,19 +1086,9 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@704m",
+       "at": "@644m",
        "assignee": "HQ-SYS",
        "recurring": true
-      },
-      {
-       "ref": "W-000105",
-       "title": "پیشنهاد تیم فنی ماه ۱",
-       "company": "PC",
-       "priority": "P3",
-       "status": "queued",
-       "at": "@944m",
-       "assignee": "PC-TECH-MGR",
-       "recurring": false
       }
      ]
     },
@@ -1284,7 +1101,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@2144m",
+       "at": "@2084m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1294,7 +1111,7 @@
        "company": "PC",
        "priority": "P3",
        "status": "queued",
-       "at": "@2264m",
+       "at": "@2204m",
        "assignee": null,
        "recurring": true
       }
@@ -1309,7 +1126,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@3584m",
+       "at": "@3524m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1319,7 +1136,7 @@
        "company": "HQ",
        "priority": "P2",
        "status": "waiting",
-       "at": "@3884m",
+       "at": "@3824m",
        "assignee": "HQ-OVS-MGR",
        "recurring": false
       }
@@ -1334,7 +1151,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@5024m",
+       "at": "@4964m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1344,7 +1161,7 @@
        "company": "FX",
        "priority": "P3",
        "status": "queued",
-       "at": "@5144m",
+       "at": "@5084m",
        "assignee": null,
        "recurring": true
       }
@@ -1359,7 +1176,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@6464m",
+       "at": "@6404m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1369,7 +1186,7 @@
        "company": "HQ",
        "priority": "P2",
        "status": "queued",
-       "at": "@6584m",
+       "at": "@6524m",
        "assignee": null,
        "recurring": true
       }
@@ -1384,7 +1201,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@7904m",
+       "at": "@7844m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1394,7 +1211,7 @@
        "company": "TY",
        "priority": "P3",
        "status": "queued",
-       "at": "@8024m",
+       "at": "@7964m",
        "assignee": null,
        "recurring": true
       }
@@ -2354,7 +2171,7 @@
    "action_class": "A1",
    "risk": "low",
    "reversible": true,
-   "status": "pending",
+   "status": "withdrawn",
    "title": "استخدام SRE تریدیار",
    "proposer": {
     "kind": "agent",
@@ -2389,9 +2206,13 @@
     "quota_estimate_month": 420000
    },
    "seal": null,
-   "decided_at": null,
-   "decided_by": null,
-   "note": null,
+   "decided_at": "@-20m",
+   "decided_by": {
+    "kind": "system",
+    "code": "system",
+    "display_fa": "سیستم"
+   },
+   "note": "مالک: استخدام با شروع خود مالک",
    "resolution": null,
    "thread": "TY-TECH-MGR",
    "expires_at": "@2760m",
@@ -2411,7 +2232,7 @@
    "action_class": "A1",
    "risk": "low",
    "reversible": true,
-   "status": "pending",
+   "status": "withdrawn",
    "title": "استخدام SRE کوینه‌پرو FX",
    "proposer": {
     "kind": "agent",
@@ -2444,9 +2265,13 @@
     "quota_estimate_month": 380000
    },
    "seal": null,
-   "decided_at": null,
-   "decided_by": null,
-   "note": null,
+   "decided_at": "@-20m",
+   "decided_by": {
+    "kind": "system",
+    "code": "system",
+    "display_fa": "سیستم"
+   },
+   "note": "مالک: استخدام با شروع خود مالک",
    "resolution": null,
    "thread": "FX-TECH-MGR",
    "expires_at": "@2820m",
@@ -2466,7 +2291,7 @@
    "action_class": "A1",
    "risk": "medium",
    "reversible": true,
-   "status": "pending",
+   "status": "withdrawn",
    "title": "تیم نظارت: مسئول ایمنی هوش مصنوعی",
    "proposer": {
     "kind": "agent",
@@ -2499,9 +2324,13 @@
     "quota_estimate_month": 900000
    },
    "seal": null,
-   "decided_at": null,
-   "decided_by": null,
-   "note": null,
+   "decided_at": "@-20m",
+   "decided_by": {
+    "kind": "system",
+    "code": "system",
+    "display_fa": "سیستم"
+   },
+   "note": "مالک: استخدام با شروع خود مالک",
    "resolution": null,
    "thread": "HQ-OVS-MGR",
    "expires_at": "@2820m",
@@ -2748,7 +2577,7 @@
    "version": 3,
    "created_at": "@-4320m",
    "counts": {
-    "decisions_pending": 1,
+    "decisions_pending": 0,
     "employees_active": 5,
     "work_open": 3
    }
@@ -2758,116 +2587,21 @@
   "status": 200,
   "body": [
    {
-    "id": "HQ-TECH",
-    "code": "TECH",
+    "id": "HQ-OVS",
+    "code": "OVS",
     "company": "HQ",
-    "name_fa": "فنی",
-    "name_en": "TECH",
-    "manager_title_fa": "مدیر فنی",
-    "manager_title_en": "TECH",
+    "name_fa": "نظارت و کنترل کیفیت",
+    "name_en": "Oversight",
+    "manager_title_fa": "بازرس کل",
+    "manager_title_en": "Oversight",
     "manager": {
-     "code": "HQ-TECH-MGR",
+     "code": "HQ-OVS-MGR",
      "company": "HQ",
-     "department": "TECH",
+     "department": "OVS",
      "kind": "manager",
-     "title_fa": "مدیر"
+     "title_fa": "بازرس کل"
     },
     "sort": 0,
-    "status": "active",
-    "version": 1
-   },
-   {
-    "id": "HQ-GROWTH",
-    "code": "GROWTH",
-    "company": "HQ",
-    "name_fa": "رشد و مارکتینگ",
-    "name_en": "GROWTH",
-    "manager_title_fa": "مدیر مارکتینگ",
-    "manager_title_en": "GROWTH",
-    "manager": {
-     "code": "HQ-GROWTH-MGR",
-     "company": "HQ",
-     "department": "GROWTH",
-     "kind": "manager",
-     "title_fa": "مدیر"
-    },
-    "sort": 1,
-    "status": "active",
-    "version": 1
-   },
-   {
-    "id": "HQ-SALES",
-    "code": "SALES",
-    "company": "HQ",
-    "name_fa": "فروش و پشتیبانی",
-    "name_en": "SALES",
-    "manager_title_fa": "مدیر فروش",
-    "manager_title_en": "SALES",
-    "manager": {
-     "code": "HQ-SALES-MGR",
-     "company": "HQ",
-     "department": "SALES",
-     "kind": "manager",
-     "title_fa": "مدیر"
-    },
-    "sort": 2,
-    "status": "active",
-    "version": 1
-   },
-   {
-    "id": "HQ-PRODUCT",
-    "code": "PRODUCT",
-    "company": "HQ",
-    "name_fa": "محصول",
-    "name_en": "PRODUCT",
-    "manager_title_fa": "مدیر محصول",
-    "manager_title_en": "PRODUCT",
-    "manager": {
-     "code": "HQ-PRODUCT-MGR",
-     "company": "HQ",
-     "department": "PRODUCT",
-     "kind": "manager",
-     "title_fa": "مدیر"
-    },
-    "sort": 3,
-    "status": "active",
-    "version": 1
-   },
-   {
-    "id": "HQ-FIN",
-    "code": "FIN",
-    "company": "HQ",
-    "name_fa": "مالی",
-    "name_en": "FIN",
-    "manager_title_fa": "مدیر مالی",
-    "manager_title_en": "FIN",
-    "manager": {
-     "code": "HQ-FIN-MGR",
-     "company": "HQ",
-     "department": "FIN",
-     "kind": "manager",
-     "title_fa": "مدیر"
-    },
-    "sort": 4,
-    "status": "active",
-    "version": 1
-   },
-   {
-    "id": "HQ-QUANT",
-    "code": "QUANT",
-    "company": "HQ",
-    "name_fa": "کوانت",
-    "name_en": "QUANT",
-    "manager_title_fa": "مدیر کوانت",
-    "manager_title_en": "QUANT",
-    "manager": {
-     "code": "HQ-QUANT-MGR",
-     "company": "HQ",
-     "department": "QUANT",
-     "kind": "manager",
-     "title_fa": "مدیر"
-    },
-    "sort": 5,
     "status": "active",
     "version": 1
    },
@@ -2876,36 +2610,17 @@
     "code": "AIOPS",
     "company": "HQ",
     "name_fa": "عملیات هوش مصنوعی",
-    "name_en": "AIOPS",
+    "name_en": "AI Operations",
     "manager_title_fa": "مدیر عملیات AI",
-    "manager_title_en": "AIOPS",
+    "manager_title_en": "AI Operations",
     "manager": {
      "code": "HQ-AIOPS-MGR",
      "company": "HQ",
      "department": "AIOPS",
      "kind": "manager",
-     "title_fa": "مدیر"
+     "title_fa": "مدیر عملیات AI"
     },
-    "sort": 6,
-    "status": "active",
-    "version": 1
-   },
-   {
-    "id": "HQ-HR",
-    "code": "HR",
-    "company": "HQ",
-    "name_fa": "منابع انسانی",
-    "name_en": "HR",
-    "manager_title_fa": "مدیر منابع انسانی",
-    "manager_title_en": "HR",
-    "manager": {
-     "code": "HQ-HR-MGR",
-     "company": "HQ",
-     "department": "HR",
-     "kind": "manager",
-     "title_fa": "مدیر"
-    },
-    "sort": 7,
+    "sort": 1,
     "status": "active",
     "version": 1
    }
@@ -3173,7 +2888,7 @@
    "version": 3,
    "created_at": "@-4320m",
    "counts": {
-    "decisions_pending": 2,
+    "decisions_pending": 0,
     "employees_active": 9,
     "work_open": 7
    }
@@ -3553,7 +3268,7 @@
    "version": 3,
    "created_at": "@-4320m",
    "counts": {
-    "decisions_pending": 1,
+    "decisions_pending": 0,
     "employees_active": 10,
     "work_open": 11
    }
@@ -5845,7 +5560,7 @@
    "ref": "W-000105",
    "title": "پیشنهاد تیم فنی ماه ۱",
    "company": "PC",
-   "status": "queued",
+   "status": "cancelled",
    "priority": "P3",
    "depth": 1,
    "assignee": {
@@ -5877,7 +5592,7 @@
      "id": "c1",
      "ref": "W-000105",
      "depth": 1,
-     "status": "queued",
+     "status": "cancelled",
      "assignee": {
       "code": "PC-TECH-MGR",
       "company": "PC",
@@ -10901,6 +10616,598 @@
    ],
    "next_cursor": null
   }
+ },
+ "/owner/hiring": {
+  "status": 200,
+  "body": {
+   "state": "closed",
+   "mode": null,
+   "changed_at": "@-20m",
+   "changed_by": {
+    "kind": "system",
+    "code": "system",
+    "display_fa": "سیستم"
+   },
+   "withdrawn": [
+    "D-000014",
+    "D-000015",
+    "D-000016"
+   ]
+  }
+ },
+ "/roles": {
+  "status": 200,
+  "body": [
+   {
+    "role": "advisor",
+    "title_fa": "مشاور کل",
+    "title_en": "Chief Advisor to the owner",
+    "kind": "advisor",
+    "scope": "holding",
+    "department": null,
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "priority": "P2",
+    "tools": [
+     "work.get",
+     "company.state",
+     "health.sites",
+     "health.hub",
+     "treasury.usage",
+     "knowledge.search",
+     "audit.recent",
+     "files.read",
+     "github.read",
+     "workshop.read",
+     "backups.status",
+     "web.search",
+     "web.read",
+     "web.browse",
+     "http.request",
+     "mcp.call",
+     "memory.read",
+     "memory.write",
+     "message.thread",
+     "inquiry.ask"
+    ],
+    "limits": {
+     "steps_per_run": 10,
+     "tokens_per_step": 120000,
+     "tokens_per_run": 600000
+    },
+    "version": 2
+   },
+   {
+    "role": "ai_safety",
+    "title_fa": "مسئول ایمنی هوش مصنوعی",
+    "title_en": "AI Safety Officer",
+    "kind": "employee",
+    "scope": "holding",
+    "department": "OVS",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "priority": "P3",
+    "tools": [
+     "work.get",
+     "company.state",
+     "knowledge.search",
+     "audit.recent",
+     "treasury.usage",
+     "memory.read",
+     "memory.write",
+     "deliver",
+     "propose",
+     "message.thread",
+     "work.accept",
+     "work.progress",
+     "work.fail",
+     "activity.set",
+     "notify",
+     "files.read",
+     "web.search",
+     "web.read",
+     "egress.recent",
+     "inquiry.answer",
+     "finding.raise",
+     "finding.update",
+     "skill.review"
+    ],
+    "limits": {
+     "steps_per_run": 6,
+     "tokens_per_step": 40000,
+     "tokens_per_run": 160000
+    },
+    "version": 2
+   },
+   {
+    "role": "aiops_head",
+    "title_fa": "مدیر عملیات هوش مصنوعی",
+    "title_en": "Head of AI Operations",
+    "kind": "manager",
+    "scope": "holding",
+    "department": "AIOPS",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "priority": "P3",
+    "tools": [
+     "work.get",
+     "company.state",
+     "health.hub",
+     "treasury.usage",
+     "knowledge.search",
+     "audit.recent",
+     "memory.read",
+     "memory.write",
+     "deliver",
+     "propose",
+     "message.owner",
+     "message.thread",
+     "work.accept",
+     "work.progress",
+     "work.fail",
+     "work.delegate",
+     "activity.set",
+     "notify",
+     "files.read",
+     "web.search",
+     "web.read",
+     "mcp.call",
+     "inquiry.answer",
+     "finding.update",
+     "eval.run",
+     "teach.draft",
+     "lesson.write"
+    ],
+    "limits": {
+     "steps_per_run": 8,
+     "tokens_per_step": 50000,
+     "tokens_per_run": 240000
+    },
+    "version": 2
+   },
+   {
+    "role": "assistant",
+    "title_fa": "دستیار شخصی",
+    "title_en": "Personal Assistant to the owner",
+    "kind": "assistant",
+    "scope": "holding",
+    "department": null,
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "priority": "P2",
+    "tools": [
+     "knowledge.search",
+     "files.read",
+     "web.search",
+     "web.read",
+     "web.browse",
+     "http.request",
+     "mcp.call",
+     "memory.read",
+     "memory.write",
+     "message.thread",
+     "errand.step",
+     "errand.finish",
+     "propose",
+     "planner.add"
+    ],
+    "limits": {
+     "steps_per_run": 12,
+     "tokens_per_step": 60000,
+     "tokens_per_run": 400000
+    },
+    "version": 1
+   },
+   {
+    "role": "ceo",
+    "title_fa": "مدیرعامل",
+    "title_en": "Chief Executive Officer",
+    "kind": "ceo",
+    "scope": "company",
+    "department": null,
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "priority": "P3",
+    "tools": [
+     "work.get",
+     "company.state",
+     "health.sites",
+     "treasury.usage",
+     "knowledge.search",
+     "files.read",
+     "github.read",
+     "workshop.read",
+     "web.search",
+     "web.read",
+     "web.browse",
+     "http.request",
+     "mcp.call",
+     "memory.read",
+     "memory.write",
+     "deliver",
+     "propose",
+     "message.owner",
+     "message.thread",
+     "work.accept",
+     "work.progress",
+     "work.fail",
+     "work.delegate",
+     "work.request",
+     "activity.set",
+     "notify",
+     "inquiry.ask",
+     "inquiry.answer",
+     "finding.update",
+     "challenge.submit",
+     "star.give",
+     "star.rubric",
+     "kill_switch.engage"
+    ],
+    "limits": {
+     "steps_per_run": 6,
+     "tokens_per_step": 40000,
+     "tokens_per_run": 160000
+    },
+    "version": 2
+   },
+   {
+    "role": "cto",
+    "title_fa": "مدیر فنی",
+    "title_en": "Chief Technology Officer",
+    "kind": "manager",
+    "scope": "company",
+    "department": "TECH",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "priority": "P3",
+    "tools": [
+     "work.get",
+     "company.state",
+     "health.sites",
+     "treasury.usage",
+     "knowledge.search",
+     "github.read",
+     "memory.read",
+     "memory.write",
+     "deliver",
+     "propose",
+     "message.owner",
+     "message.thread",
+     "work.accept",
+     "work.progress",
+     "work.fail",
+     "work.delegate",
+     "work.request",
+     "activity.set",
+     "notify",
+     "files.read",
+     "workshop.read",
+     "web.search",
+     "web.read",
+     "web.browse",
+     "http.request",
+     "mcp.call",
+     "inquiry.ask",
+     "inquiry.answer",
+     "finding.update",
+     "server.plan"
+    ],
+    "limits": {
+     "steps_per_run": 8,
+     "tokens_per_step": 50000,
+     "tokens_per_run": 240000
+    },
+    "version": 2
+   },
+   {
+    "role": "fact_checker",
+    "title_fa": "راستی‌آزما",
+    "title_en": "Fact-checker",
+    "kind": "employee",
+    "scope": "holding",
+    "department": "OVS",
+    "model": "claude-haiku-5-5",
+    "effort": "high",
+    "priority": "P3",
+    "tools": [
+     "work.get",
+     "knowledge.search",
+     "memory.read",
+     "memory.write",
+     "deliver",
+     "message.thread",
+     "work.accept",
+     "work.progress",
+     "work.fail",
+     "activity.set",
+     "files.read",
+     "web.search",
+     "web.read",
+     "web.browse",
+     "inquiry.answer",
+     "finding.raise"
+    ],
+    "limits": {
+     "steps_per_run": 5,
+     "tokens_per_step": 30000,
+     "tokens_per_run": 100000
+    },
+    "version": 2
+   },
+   {
+    "role": "hub_platform_sre",
+    "title_fa": "SRE سکوی هاب",
+    "title_en": "Hub Platform SRE",
+    "kind": "employee",
+    "scope": "holding",
+    "department": "AIOPS",
+    "model": "claude-haiku-5-5",
+    "effort": "high",
+    "priority": "P3",
+    "tools": [
+     "work.get",
+     "health.hub",
+     "treasury.usage",
+     "knowledge.search",
+     "memory.read",
+     "memory.write",
+     "deliver",
+     "propose",
+     "message.thread",
+     "work.accept",
+     "work.progress",
+     "work.fail",
+     "activity.set",
+     "notify",
+     "backups.status",
+     "web.search",
+     "web.read",
+     "http.request",
+     "inquiry.answer",
+     "finding.update",
+     "server.plan"
+    ],
+    "limits": {
+     "steps_per_run": 6,
+     "tokens_per_step": 30000,
+     "tokens_per_run": 120000
+    },
+    "version": 2
+   },
+   {
+    "role": "inspector",
+    "title_fa": "بازرس کل",
+    "title_en": "Inspector General",
+    "kind": "inspector",
+    "scope": "holding",
+    "department": "OVS",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "priority": "P3",
+    "tools": [
+     "work.get",
+     "company.state",
+     "health.sites",
+     "treasury.usage",
+     "knowledge.search",
+     "audit.recent",
+     "files.read",
+     "github.read",
+     "workshop.read",
+     "web.search",
+     "web.read",
+     "memory.read",
+     "memory.write",
+     "deliver",
+     "propose",
+     "message.owner",
+     "message.thread",
+     "work.accept",
+     "work.progress",
+     "work.fail",
+     "work.delegate",
+     "activity.set",
+     "notify",
+     "inquiry.answer",
+     "finding.raise",
+     "finding.update",
+     "challenge.score",
+     "hold"
+    ],
+    "limits": {
+     "steps_per_run": 8,
+     "tokens_per_step": 50000,
+     "tokens_per_run": 240000
+    },
+    "version": 2
+   },
+   {
+    "role": "manager",
+    "title_fa": "مدیر دپارتمان",
+    "title_en": "Department manager",
+    "kind": "manager",
+    "scope": "company",
+    "department": null,
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "priority": "P3",
+    "tools": [
+     "work.get",
+     "company.state",
+     "treasury.usage",
+     "knowledge.search",
+     "memory.read",
+     "memory.write",
+     "deliver",
+     "propose",
+     "message.owner",
+     "message.thread",
+     "work.accept",
+     "work.progress",
+     "work.fail",
+     "work.delegate",
+     "work.request",
+     "activity.set",
+     "files.read",
+     "web.search",
+     "web.read",
+     "web.browse",
+     "http.request",
+     "mcp.call",
+     "inquiry.answer",
+     "finding.update"
+    ],
+    "limits": {
+     "steps_per_run": 6,
+     "tokens_per_step": 40000,
+     "tokens_per_run": 160000
+    },
+    "version": 2
+   },
+   {
+    "role": "overseer",
+    "title_fa": "ناظر کل",
+    "title_en": "Chief Overseer",
+    "kind": "overseer",
+    "scope": "holding",
+    "department": "OVS",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "priority": "P2",
+    "tools": [
+     "work.get",
+     "company.state",
+     "health.sites",
+     "health.hub",
+     "treasury.usage",
+     "knowledge.search",
+     "audit.recent",
+     "files.read",
+     "github.read",
+     "workshop.read",
+     "egress.recent",
+     "backups.status",
+     "web.search",
+     "web.read",
+     "web.browse",
+     "http.request",
+     "memory.read",
+     "memory.write",
+     "inquiry.ask",
+     "inquiry.answer",
+     "finding.raise",
+     "finding.update",
+     "protocol.result",
+     "challenge.issue",
+     "challenge.score",
+     "hold",
+     "kill_switch.engage",
+     "deploy.freeze",
+     "skill.review",
+     "lesson.write",
+     "star.audit",
+     "deliver",
+     "propose",
+     "message.owner",
+     "message.thread",
+     "work.accept",
+     "work.progress",
+     "work.fail",
+     "work.delegate",
+     "activity.set",
+     "notify"
+    ],
+    "limits": {
+     "steps_per_run": 12,
+     "tokens_per_step": 120000,
+     "tokens_per_run": 600000
+    },
+    "version": 1
+   },
+   {
+    "role": "security_analyst",
+    "title_fa": "تحلیلگر امنیت",
+    "title_en": "Security Analyst",
+    "kind": "employee",
+    "scope": "holding",
+    "department": "OVS",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "priority": "P3",
+    "tools": [
+     "work.get",
+     "company.state",
+     "health.sites",
+     "health.hub",
+     "audit.recent",
+     "knowledge.search",
+     "github.read",
+     "memory.read",
+     "memory.write",
+     "deliver",
+     "propose",
+     "message.thread",
+     "work.accept",
+     "work.progress",
+     "work.fail",
+     "activity.set",
+     "notify",
+     "files.read",
+     "egress.recent",
+     "web.search",
+     "web.read",
+     "http.request",
+     "inquiry.answer",
+     "finding.raise",
+     "finding.update",
+     "hold"
+    ],
+    "limits": {
+     "steps_per_run": 6,
+     "tokens_per_step": 40000,
+     "tokens_per_run": 160000
+    },
+    "version": 2
+   },
+   {
+    "role": "sre",
+    "title_fa": "مهندس پایداری (SRE)",
+    "title_en": "Site Reliability Engineer",
+    "kind": "employee",
+    "scope": "company",
+    "department": "TECH",
+    "model": "claude-haiku-5-5",
+    "effort": "high",
+    "priority": "P3",
+    "tools": [
+     "work.get",
+     "company.state",
+     "health.sites",
+     "knowledge.search",
+     "memory.read",
+     "memory.write",
+     "deliver",
+     "propose",
+     "message.thread",
+     "work.accept",
+     "work.progress",
+     "work.fail",
+     "activity.set",
+     "notify",
+     "web.search",
+     "web.read",
+     "http.request",
+     "inquiry.answer",
+     "finding.update"
+    ],
+    "limits": {
+     "steps_per_run": 6,
+     "tokens_per_step": 30000,
+     "tokens_per_run": 120000
+    },
+    "version": 2
+   }
+  ]
  },
  "#script:S-0003": {
   "status": 200,

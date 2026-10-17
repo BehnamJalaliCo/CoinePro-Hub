@@ -41,7 +41,7 @@
 - **`mode: proposals`:** با شروع، به هر CEO (و هر نقش هلدینگی که در منشورش وظیفه‌ی استخدام دارد: `aiops_head`، `inspector`) **یک** work item «تیم ماه اول‌ات را پیشنهاد بده» با اولویت عادی‌اش و بودجه‌ی همان کار راه‌اندازی پرامپت ۵ داده میشود؛ idempotent (شروع دوباره، کار دوم نمیسازد). **`mode: self`:** هیچ کاری ساخته نمیشود؛ استخدام برای ایجنت‌ها بسته میماند.
 - **`company.state`** (ابزار ایجنت) فیلد `hiring` (`closed`/`open`) را برمیگرداند؛ منشور مشترک v4 (`agents/roles/_common.md`) به آن تکیه میکند.
 - **کارهای ماه ۱** که هنوز باز یا در صف‌اند و هدفشان پیشنهاد استخدام است (مثل کار راه‌اندازی CTOها): **cancel** با یادداشت همان تصمیم، نه اجرای دوباره.
-- استریم: `hiring.changed` روی topic `control`.
+- استریم: `hiring.changed` روی topic `control` (پیشوند `hiring.` به `events.TOPICS["control"]` اضافه شود).
 - تست: (۱) migration روی دیتابیس تستی با ۷ کارت pending ← هر ۷ `withdrawn`، هیچ حذفی، اجرای دوم بی‌اثر؛ (۲) ایجنت در حالت `closed` ← `403 hiring_closed` و **هیچ** ردیفی در `cartable.decisions`؛ (۳) `start` بدون step-up ← 401، با step-up اشتباه ← 403، `proposals` ← یک کار برای هر CEO و شروع دوباره ← همان تعداد؛ (۴) `/org/hires` با بدنه‌ای که با hash نمیخواند ← 403، درست ← `201` با کارت `approved` که `proposed_by` و `decided_by` هر دو مالک‌اند و کارمند `active`؛ نقشی که با شرکت و دپارتمان نمیخواند ← 422؛ ایجنت ← 403؛ (۵) `close` ← کارت‌های pending تازه `withdrawn`.
 
 ## ۲. باید (در همین شاخه)
@@ -107,6 +107,7 @@
 - نام نقش‌ها در کد: `agents/checks.py` (`RESPONDERS`) و `runner.py` (`TASK_CLASS`) از منشورها/داده خوانده شوند (قاعده‌ی سخت ۱ قرارداد).
 - `agents.queue_run` (SECURITY DEFINER) از `hq_api` که آن را صدا نمیزند revoke شود.
 - `POST /internal/v1/memory` به `Idempotency-Key` احترام بگذارد.
+- **`GET /stream` topic ناشناخته را نادیده میگیرد، نه 422** (قرارداد §۷، v1.4.2). امروز وب و اندروید `files,workshop,orders` را هم میخواهند (v1.3، پرامپت ۶) و سرور 422 میدهد، پس استریم زنده‌ی کلاینت‌ها روی سرور واقعی وصل نمیشود. اولین comment هر اتصال topicهای سرو‌شده را میگوید (`: topics …`). تست: `?topics=work,oversight` ← 200 و فقط `work`؛ `?topics=Work!` ← 422.
 - policy پیش از `by_code` (امروز 404 در برابر 403 وجود کد شرکت را لو میدهد؛ `agent_tools.py` 63، 434، 581).
 - 429 سقف `Retry-After` دارد؛ کدهای خطای 413 و 503 درست (`agent_tools.py` 819، 824؛ `runs.py` 514). live خاموش ← `503 live_unavailable` (کد تازه، قرارداد §۱۴).
 - تست «هیچ prompt در لاگ» لاگ‌ها را هم بپوشاند؛ تستی که همه‌ی policyهای RLS را به شکل یک‌بار-در-پرس‌وجو (0009) بررسی کند تا migration آینده شکل کند را برنگرداند.

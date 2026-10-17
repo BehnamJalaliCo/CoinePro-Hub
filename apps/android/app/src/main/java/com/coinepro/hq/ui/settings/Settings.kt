@@ -54,7 +54,7 @@ import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.refresher
 
-/** Settings: devices and passkeys, theme, Khalvat, the owner's working settings, and this app's identity
+/** Settings: devices and passkeys, hiring, theme, Khalvat, the owner's working settings, and this app's identity
  *  (the signing fingerprint the server needs for passkeys on Android). */
 @Composable
 fun SettingsScreen(graph: AppGraph) {
@@ -117,6 +117,7 @@ fun SettingsScreen(graph: AppGraph) {
                 }, Modifier.fillMaxWidth().padding(top = 12.dp), icon = DivanIcon.ADD, loading = action.busy)
             }
         }
+        item { HiringCard() }
         item {
             HqCard(Modifier.fillMaxWidth()) {
                 SectionTitle("نما")

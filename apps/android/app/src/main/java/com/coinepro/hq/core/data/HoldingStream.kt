@@ -41,6 +41,8 @@ class HoldingStream(
     private var source: EventSource? = null
     private var loop: Job? = null
     private var lastId: String? = null
+    /** A server older than contract v1.4.2 refuses topics it does not know (422); then only the core topics are asked for. */
+    private var coreOnly = false
 
     fun start() {
         if (loop?.isActive == true) return
@@ -67,7 +69,7 @@ class HoldingStream(
 
     private fun open(onClosed: () -> Unit): EventSource {
         val req = Request.Builder()
-            .url(api.url("/stream", mapOf("topics" to TOPICS)))
+            .url(api.url("/stream", mapOf("topics" to if (coreOnly) CORE_TOPICS else TOPICS)))
             .header("Accept", "text/event-stream")
             .apply { lastId?.let { header("Last-Event-ID", it) } }
             .build()
@@ -87,6 +89,7 @@ class HoldingStream(
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
                 if (response?.code == 401) api.unauthorized()
+                if (response?.code == 422) coreOnly = true
                 response?.close()
                 onClosed()
             }
@@ -112,7 +115,10 @@ class HoldingStream(
     }
 
     private companion object {
-        const val TOPICS = "work,decisions,deliverables,messages,notifications,activity,llm,control,files,workshop,orders"
+        const val CORE_TOPICS = "work,decisions,deliverables,messages,notifications,activity,llm,control"
+
+        // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
+        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups"
 
         // Event type prefix -> query tags to refresh (mirrors apps/web/src/lib/stream.ts).
         val INVALIDATE: List<Pair<String, Array<String>>> = listOf(
@@ -130,6 +136,17 @@ class HoldingStream(
             "file." to arrayOf("messages"),
             "workshop." to arrayOf("workshop"),
             "order." to arrayOf("orders", "planner", "work"),
+            // ⟨1.4⟩ §18.10 and ⟨1.4.2⟩ §18.11
+            "hiring." to arrayOf("hiring"),
+            "oversight." to arrayOf("oversight"),
+            "inquiry." to arrayOf("inquiries"),
+            "errand." to arrayOf("errands"),
+            "stars." to arrayOf("stars"),
+            "skill." to arrayOf("skills"),
+            "academy." to arrayOf("academy"),
+            "founding." to arrayOf("founding"),
+            "provision." to arrayOf("founding"),
+            "backup." to arrayOf("backups"),
         )
     }
 }

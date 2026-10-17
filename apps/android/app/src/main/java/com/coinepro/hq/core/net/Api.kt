@@ -325,6 +325,20 @@ class Api(
     /** The seal is bound to the plan the owner saw: its digest, which the server recomputes before anything is built. */
     suspend fun sealPlan(p: ServerPlan, stepUp: StepUp): ServerPlan = post("/provisioning/plans/${seg(p.ref)}/seal", JsonObject(emptyMap()), stepUp("provision.seal", p.digest))
 
+    // ------------------------------------------------- hiring ⟨1.4.2⟩ --
+    suspend fun hiring(): Hiring = get("/owner/hiring")
+    suspend fun roles(): List<RoleInfo> = get("/roles")
+    suspend fun startHiring(mode: String, stepUp: StepUp): Hiring = post("/owner/hiring/start", buildJsonObject { put("mode", mode) }, stepUp("hiring.start", "holding"))
+    suspend fun closeHiring(): Hiring = post("/owner/hiring/close", JsonObject(emptyMap()))
+    /** The owner's own hire; the seal is bound to the exact body (its SHA-256), which the server hashes again. */
+    suspend fun hireDirect(body: HireIn, stepUp: suspend (target: String) -> String): HireOut {
+        val text = json.encodeToString(HireIn.serializer(), body)
+        val token = stepUp(sha256(text))
+        val req = Request.Builder().url(url("/org/hires")).post(text.toRequestBody(JSON))
+            .header("Idempotency-Key", UUID.randomUUID().toString()).header("X-Step-Up", token).build()
+        return call(req, serializer())
+    }
+
     // --------------------------------------------------- backups ⟨1.4⟩ --
     suspend fun backups(): BackupStatus = get("/backups/status")
 
