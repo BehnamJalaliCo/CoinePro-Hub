@@ -428,6 +428,10 @@ async def _run_ledger(tx: Tx, actor: str, run_id: str) -> tuple[UsageIn, dict[st
     return usage, produced
 
 
+# The urgent cap is per company per (rolling) hour: try again after a while.
+URGENT_RETRY_AFTER_S = 600
+
+
 async def _request_budget(
     ctx: Ctx, tx: Tx, body: WorkRequest
 ) -> tuple[UUID | None, W.BudgetIn | None]:
@@ -478,6 +482,8 @@ async def _request_budget(
             cap = max(0, min(cap, int(left["left"])))
     if body.kind == "recurring":  # bounded by its escrow, approved by a decision
         return origin, body.budget
+    if cap <= 0:  # nothing left to hand on: no work with a zero budget
+        raise ApiError(409, "budget_exceeded", "the requesting work has no token budget left")
     asked = body.budget.tokens if body.budget and body.budget.tokens is not None else None
     tokens = min(asked, cap) if asked is not None else cap
     usd = body.budget.usd if body.budget else None
@@ -604,13 +610,12 @@ async def request_work(
         raise ApiError(403, "policy_denied", "agents only")
     company_code = body.company or ctx.who.company
     assert company_code is not None
-    company = await ctx.hub.companies.by_code(company_code)
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
         assert ctx.who.company_id is not None
-        cross = company.id != ctx.who.company_id
+        cross = company_code != ctx.who.company
         # The policy decides BEFORE anything outside the agent's company is
         # looked up, so a refusal never tells whether a code exists elsewhere.
         if cross:
@@ -633,12 +638,16 @@ async def request_work(
             ctx,
             "work.create",
             {
-                "company": company.code,
+                "company": company_code,
                 "kind": body.kind,
                 "to_role": to_role,
                 "to_department": to_dept,
             },
         )
+        # Looked up only now: a missing and a forbidden company both answer 403.
+        company = await ctx.hub.companies.find(company_code)
+        if company is None:
+            raise ApiError(403, "policy_denied", "work.create_not_permitted")
         await ctx.ensure_unlocked(tx, ctx.who.company_id)
         if cross:
             await tx.rescope([ctx.who.company_id, company.id])
@@ -923,7 +932,13 @@ async def raise_notification(
     capped per company per hour; otherwise it is raised as 🟡. While its company
     is locked an agent raises only 🔴 incidents."""
     code = body.company or ctx.who.company or (await ctx.hub.companies.holding()).code
-    company = await ctx.hub.companies.by_code(code)
+    company = await ctx.hub.companies.find(code)
+    if company is None:  # an agent learns nothing of another company's code: 403 either way
+        raise ApiError(
+            403 if ctx.who.is_agent else 404, "policy_denied" if ctx.who.is_agent else "not_found"
+        )
+    if ctx.who.is_agent and company.code != ctx.who.company:
+        raise ApiError(403, "policy_denied", "notification.raise_not_permitted")
     async with ctx.tx() as tx:
         level = body.level
         if not ctx.who.is_agent:
@@ -949,7 +964,10 @@ async def raise_notification(
                 if n["company_urgent_hour"] >= notify.AGENT_URGENT_PER_HOUR:
                     if locked:
                         raise ApiError(
-                            429, "rate_limited", "too many urgent notifications this hour"
+                            429,
+                            "rate_limited",
+                            "too many urgent notifications this hour",
+                            headers={"Retry-After": str(URGENT_RETRY_AFTER_S)},
                         )
                     level = "decision"
             target = {

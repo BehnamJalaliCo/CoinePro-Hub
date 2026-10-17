@@ -206,9 +206,11 @@ async def test_the_daily_cap_is_checked_before_every_model_call(
     await order(client, owner, co)
     (row,) = await runs_of(su, f"{co}-CEO")
     spent = await su.fetchval(
-        """SELECT COALESCE(sum(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens), 0)
-           FROM agents.runs
-           WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"""
+        """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                               + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+           FROM llm.calls
+           WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+             AND meta ? 'run_id'"""
     )
     settings = agents.runner.s
     agents.runner.s = replace(settings, agent_daily_token_cap=int(spent) + 1)
@@ -332,7 +334,11 @@ async def test_claim_refuses_closed_or_spent_work(
 
 
 async def test_agent_requests_get_a_budget_and_a_bounded_chain(
-    client: httpx.AsyncClient, owner: dict[str, str], hub: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    hub: Any,
+    su: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
     w0 = await order(client, owner, co, budget={"tokens": 50_000})
@@ -362,6 +368,13 @@ async def test_agent_requests_get_a_budget_and_a_bounded_chain(
     w2 = r2.json()["work"]
     r3 = await request(w2["id"])
     assert r3.status_code == 409 and r3.json()["code"] == "delegation_depth_exceeded"
+    # Nothing left to hand on: refused, never a work item with a zero budget.
+    spent = await order(client, owner, co, title="تمام‌شده", budget={"tokens": 1_000})
+    await su.execute(
+        "UPDATE work.work SET tokens_used = 1000 WHERE id = $1", uuid.UUID(spent["id"])
+    )
+    r4 = await request(spent["id"])
+    assert r4.status_code == 409 and r4.json()["code"] == "budget_exceeded", r4.text
 
 
 # ------------------------------------------------------------- §2.7 usage --
@@ -452,3 +465,59 @@ async def test_done_next_to_a_refused_argument_gets_one_more_step(
         "SELECT body FROM cartable.deliverables WHERE work_id = $1", uuid.UUID(w["id"])
     )
     assert body == "متن کامل"
+
+
+async def test_secrets_at_the_start_of_a_line_and_under_keys_never_reach_the_model(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    agents: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """Review of 5.1 (blocker 1): records are masked as values before they
+    become JSON, where a line break turns into "\\n" right before a secret; a
+    value under a secret key (mobile_number) is masked whatever it looks like."""
+    co = (await new_company())["code"]
+    line_starts = [
+        "sk-" + "ant-" + "api03-" + "Qw8" * 14,
+        "ghp_" + "Zx7" * 12,
+        "AKIA" + "QWERTYUIOPASDFGH",
+        "eyJ" + "hbGciOiJIUzI1NiJ9" + ".eyJ" + "zdWIiOiIxMjMifQ" + "." + "s1gN4tur3" * 3,
+        "hvs." + "R4t" * 9,
+        "Bearer " + "t0k" * 8,
+    ]
+    w = await order(
+        client, owner, co, title="کار خط‌به‌خط", brief="\n".join(["سطر اول", *line_starts])
+    )
+    phone = "۰۹۱۲" + "۷۶۵" + "۴۳۲۱"
+    card = await client.post(
+        "/internal/v1/decisions",
+        headers={**await agent_headers(f"{co}-TECH-MGR"), **idem()},  # not the CEO: it runs next
+        json={
+            "kind": "deploy",
+            "title": "deploy",
+            "payload": {
+                "repo": "x/y",
+                "pr_url": "https://example.com/pr/1",
+                "ci": {"mobile_number": phone, "note": "ok"},
+            },
+        },
+    )
+    assert card.status_code == 201, card.text
+    r = await client.post(
+        f"/api/v1/threads/{co}-CEO/messages",
+        headers={**owner, **idem()},
+        json={"body": "این کارت را ببین", "links": {"decision": card.json()["ref"]}},
+    )
+    assert r.status_code == 201, r.text
+    runs = await runs_of(su, f"{co}-CEO")
+    since = len(agents.fake.calls)
+    for row in runs:
+        if row["state"] == "queued":
+            agents.fake.enqueue(f"{co}-CEO", step("خواندم"))
+            await run(agents, row["id"])
+    seen = _prompts(agents, f"{co}-CEO", since)
+    assert "کار خط‌به‌خط" in seen and "# Decision card to review" in seen
+    for s in [*line_starts, phone]:
+        assert s not in seen, s
+    assert w["ref"] in seen
