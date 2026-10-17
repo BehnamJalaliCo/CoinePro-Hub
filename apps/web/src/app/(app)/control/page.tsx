@@ -43,12 +43,12 @@ export default function ControlPage() {
         <>
           <Card className={cx('flex flex-wrap items-center gap-4 p-5', holding?.state === 'engaged' ? 'bg-neg-soft' : 'tahrir')}>
             <span className="flex size-14 items-center justify-center rounded-full bg-tile"><Monogram size={26} /></span>
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex min-w-0 flex-[1_1_12rem] flex-col gap-1">
               <span className="text-h3 font-semibold">کلید توقف کل هلدینگ</span>
               <span className="text-[13px] text-sec">{holding?.state === 'engaged' ? <>روشن از {ago(holding.changed_at)}: فقط کارهای اضطراری (<span className="fig">P0</span>) اجرا میشوند.</> : 'خاموش؛ همه‌چیز عادی است.'}</span>
               {holding?.reason ? <span className="text-[12px] text-muted">«{holding.reason}»</span> : null}
             </div>
-            <Button variant={holding?.state === 'engaged' ? 'primary' : 'danger'} icon={holding?.state === 'engaged' ? 'resume' : 'pause'} onClick={() => setT({ scope: 'holding', name: 'کل هلدینگ', engaged: holding?.state === 'engaged' })}>
+            <Button className="max-sm:w-full" variant={holding?.state === 'engaged' ? 'primary' : 'danger'} icon={holding?.state === 'engaged' ? 'resume' : 'pause'} onClick={() => setT({ scope: 'holding', name: 'کل هلدینگ', engaged: holding?.state === 'engaged' })}>
               {holding?.state === 'engaged' ? 'آزاد کن' : 'توقف همه‌چیز'}
             </Button>
           </Card>

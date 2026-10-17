@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { cx } from '@/lib/format';
 
 export type Seg = { key: string; label: ReactNode; value: number; color: string; fmt?: string };
@@ -61,7 +61,18 @@ export function HBars({ rows, max }: { rows: Array<{ key: string; label: ReactNo
  *  Time runs left→right (market convention for data charts). Crosshair + tooltip on hover. */
 export function CumulativeChart({ days, budget, forecastTo, fmt, height = 240 }: { days: Array<{ key: string; label: string; value: number }>; budget?: number | null; forecastTo?: number; fmt: (v: number) => string; height?: number }) {
   const [hi, setHi] = useState<number | null>(null);
-  const W = 720, H = height, P = { l: 48, r: 16, t: 16, b: 28 };
+  // Drawn at the container's real width so labels stay 11px on a phone instead of shrinking with a viewBox.
+  const box = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(720);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => { if (e) setW(Math.round(e.contentRect.width)); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const W = Math.max(w, 280), H = height, P = { l: 48, r: 16, t: 16, b: 28 };
+  const every = Math.ceil(days.length / (W < 480 ? 4 : 7));
   const cum = days.reduce<number[]>((a, d) => [...a, (a.at(-1) ?? 0) + d.value], []);
   const n = Math.max(forecastTo ?? days.length, days.length);
   const last = cum.at(-1) ?? 0;
@@ -74,15 +85,15 @@ export function CumulativeChart({ days, budget, forecastTo, fmt, height = 240 }:
   const area = `${path}L${x(cum.length - 1).toFixed(1)},${y(0)}L${x(0)},${y(0)}Z`;
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => yMax * t);
   return (
-    <div className="relative" style={{ direction: 'ltr' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="مصرف تجمعی در برابر بودجه" onMouseLeave={() => setHi(null)}
-        onMouseMove={(e) => { const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect(); const px = ((e.clientX - r.left) / r.width) * W; const i = Math.round(((px - P.l) / (W - P.l - P.r)) * (n - 1)); setHi(i >= 0 && i < cum.length ? i : null); }}>
+    <div ref={box} className="relative" style={{ direction: 'ltr' }}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="block w-full touch-pan-y" role="img" aria-label="مصرف تجمعی در برابر بودجه" onPointerLeave={() => setHi(null)}
+        onPointerMove={(e) => { const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect(); const px = ((e.clientX - r.left) / r.width) * W; const i = Math.round(((px - P.l) / (W - P.l - P.r)) * (n - 1)); setHi(i >= 0 && i < cum.length ? i : null); }}>
         {ticks.map((t) => <g key={t}><line x1={P.l} x2={W - P.r} y1={y(t)} y2={y(t)} stroke="var(--hq-line-divider)" /><text x={P.l - 8} y={y(t) + 4} textAnchor="end" fontSize="11" fill="var(--hq-text-muted)" fontFamily="IRANYekanX">{fmt(t)}</text></g>)}
-        {budget ? <g><line x1={P.l} x2={W - P.r} y1={y(budget)} y2={y(budget)} stroke="var(--hq-negative)" strokeDasharray="6 5" strokeWidth={1.5} /><text x={W - P.r} y={y(budget) - 6} textAnchor="end" fontSize="11" fill="var(--hq-negative)" fontFamily="IRANYekanX">budget {fmt(budget)}</text></g> : null}
+        {budget ? <g><line x1={P.l} x2={W - P.r} y1={y(budget)} y2={y(budget)} stroke="var(--hq-negative)" strokeDasharray="6 5" strokeWidth={1.5} /><text x={W - P.r} y={y(budget) - 6} textAnchor="end" fontSize="11" fill="var(--hq-negative)" fontFamily="IRANYekanX">{fmt(budget)}{' سقف'}</text></g> : null}
         <path d={area} fill="var(--hq-chart-1)" opacity={0.12} />
         <path d={path} fill="none" stroke="var(--hq-chart-1)" strokeWidth={2} strokeLinejoin="round" />
         {n > cum.length ? <line x1={x(cum.length - 1)} y1={y(last)} x2={x(n - 1)} y2={y(fc)} stroke="var(--hq-chart-1)" strokeWidth={2} strokeDasharray="4 6" opacity={0.7} /> : null}
-        {days.map((d, i) => (i % Math.ceil(days.length / 7) === 0 ? <text key={d.key} x={x(i)} y={H - 8} textAnchor="middle" fontSize="11" fill="var(--hq-text-muted)" fontFamily="IRANYekanX">{d.label}</text> : null))}
+        {days.map((d, i) => (i % every === 0 ? <text key={d.key} x={x(i)} y={H - 8} textAnchor="middle" fontSize="11" fill="var(--hq-text-muted)" fontFamily="IRANYekanX">{d.label}</text> : null))}
         {hi != null ? <g><line x1={x(hi)} x2={x(hi)} y1={P.t} y2={H - P.b} stroke="var(--hq-line-strong)" /><circle cx={x(hi)} cy={y(cum[hi]!)} r={5} fill="var(--hq-chart-1)" stroke="var(--hq-surface-card)" strokeWidth={2} /></g> : null}
       </svg>
       {hi != null ? (

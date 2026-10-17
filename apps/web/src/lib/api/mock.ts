@@ -239,7 +239,7 @@ export async function handle(req: Request): Promise<Response> {
   if (p === '/treasury/summary') return json(summary);
   if (p === '/treasury/breakdown') return json(breakdown(u.searchParams.get('by') ?? 'day'));
   if (p === '/treasury/calls') return json(page([]));
-  if (p === '/connections') return json([{ id: 'c1', key: 'claude-max', display_name: 'اشتراک Claude (Max)', kind: 'subscription', provider: 'anthropic', status: 'healthy', status_reason: null, models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], default_model: 'claude-sonnet-5-5', fallback_priority: 1, has_secret_ref: true, limits: {}, pricing: {}, quota_reset_at: ahead(60 * 30), updated_at: iso(60), version: 1 }]);
+  if (p === '/connections') return json([{ id: 'c1', key: 'claude-max', display_name: 'اشتراک Claude (Max)', kind: 'claude_subscription', provider: 'anthropic', status: 'enabled', status_reason: null, models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], default_model: 'claude-sonnet-5-5', fallback_priority: 1, has_secret_ref: true, limits: {}, pricing: {}, quota_reset_at: ahead(60 * 30), updated_at: iso(60), version: 1 }]);
   if (p === '/audit') return json(page(audit));
   if (p === '/audit/verify') return json({ ok: true, checked: 1200, first_bad_seq: null, verified_at: iso(60 * 6), anchor: 'ok' });
   if (p === '/resolutions') return json(page([{ ref: 'M-0003', title: 'گزارش هفتگی سئوی فنی تریدیار', body: '…', company: 'TY', sealed_at: iso(60 * 19), sealed_by: owner, sent_to: ['TY-GROWTH-MGR'], source: { decision: 'D-000011' }, follow_up_work_id: null, id: 'r3' }]));

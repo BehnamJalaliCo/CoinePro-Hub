@@ -12,6 +12,13 @@ import { tokens, usd, cx, until, modelLabel } from '@/lib/format';
 
 const TOKEN_COLOR = { input: 'var(--hq-chart-1)', output: 'var(--hq-chart-2)', cache: 'var(--hq-chart-3)', write: 'var(--hq-chart-5)', thinking: 'var(--hq-chart-4)' };
 
+
+/** `llm.connections.status` (LLM layer, prompt 3): enabled, disabled or quota_exhausted. */
+const CONNECTION_STATUS: Record<string, { label: string; tone: 'pos' | 'warn' | 'neutral' }> = {
+  enabled: { label: 'روشن', tone: 'pos' },
+  quota_exhausted: { label: 'سهمیه تمام', tone: 'warn' },
+  disabled: { label: 'خاموش', tone: 'neutral' },
+};
 export default function TreasuryPage() {
   const { company } = useScope();
   const [period, setPeriod] = useState<'day' | 'month'>('month');
@@ -104,14 +111,20 @@ export default function TreasuryPage() {
           </Card>
           <Card className="flex flex-col gap-2 p-5">
             <SectionTitle title="اتصال‌ها" note="کلیدها هرگز نمایش داده نمیشوند" />
-            {(conns.data ?? []).map((c) => (
-              <div key={c.id} className="flex items-center gap-3 rounded-[12px] bg-tile p-3">
-                <span className={cx('size-2.5 rounded-full', c.status === 'healthy' ? 'bg-pos' : c.status === 'degraded' ? 'bg-warn' : 'bg-neg')} />
-                <div className="flex min-w-0 flex-1 flex-col"><span className="text-[13px] font-semibold">{c.display_name}</span><span className="fig text-[11px] text-muted">{c.key} · {c.models.length} models</span></div>
-                {c.quota_reset_at ? <span className="text-[11px] text-muted">ریست، {until(c.quota_reset_at)}</span> : null}
-                <Pill tone={c.status === 'healthy' ? 'pos' : 'warn'} dot>{c.status === 'healthy' ? 'سالم' : c.status}</Pill>
-              </div>
-            ))}
+            {(conns.data ?? []).map((c) => {
+              const st = CONNECTION_STATUS[c.status] ?? { label: c.status, tone: 'neutral' as const };
+              return (
+                <div key={c.id} className="flex items-center gap-3 rounded-[12px] bg-tile p-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-[13px] font-semibold">{c.display_name}</span>
+                    <span className="fig text-[11px] text-muted">{c.key} · {c.models.length} models</span>
+                    {c.status === 'quota_exhausted' && c.quota_reset_at ? <span className="text-[11px] text-warn">ریست سهمیه {until(c.quota_reset_at)}</span> : null}
+                    {c.status_reason ? <span className="text-[11px] text-muted">{c.status_reason}</span> : null}
+                  </div>
+                  <Pill tone={st.tone} dot>{st.label}</Pill>
+                </div>
+              );
+            })}
           </Card>
         </div>
       </div>

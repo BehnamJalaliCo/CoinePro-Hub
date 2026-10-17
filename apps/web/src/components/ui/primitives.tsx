@@ -27,7 +27,8 @@ export function SectionTitle({ title, note, action, className }: { title: ReactN
 export function PageHeader({ eyebrow, title, actions, children }: { eyebrow?: ReactNode; title: ReactNode; actions?: ReactNode; children?: ReactNode }) {
   return (
     <header className="flex flex-wrap items-end gap-x-4 gap-y-3">
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* A 16rem basis makes the actions wrap under the title on a phone instead of squeezing it. */}
+      <div className="flex min-w-0 flex-[1_1_16rem] flex-col">
         {eyebrow ? <span className="text-caption text-muted">{eyebrow}</span> : null}
         <h1 className="text-h1 font-semibold text-ink">{title}</h1>
       </div>

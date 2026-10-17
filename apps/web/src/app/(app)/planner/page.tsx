@@ -39,7 +39,7 @@ export default function PlannerPage() {
 
   return (
     <>
-      <PageHeader eyebrow={<span>{fmtRange.format(start)} تا {fmtRange.format(end)} <span className="fig">· {gRange.format(start)} – {gRange.format(end)}</span></span>} title="پلنر" actions={<>
+      <PageHeader eyebrow={<span>{fmtRange.format(start)} تا {fmtRange.format(end)} · <span className="fig" dir="ltr">{gRange.format(start)} – {gRange.format(end)}</span></span>} title="پلنر" actions={<>
         <IconButton icon="next" label="هفته‌ی قبل" onClick={() => setOffset(offset - 1)} />
         <Button variant="secondary" size="sm" onClick={() => setOffset(0)}>این هفته</Button>
         <IconButton icon="next" label="هفته‌ی بعد" mirror onClick={() => setOffset(offset + 1)} />
