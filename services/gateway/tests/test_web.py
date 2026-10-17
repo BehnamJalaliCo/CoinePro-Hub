@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import base64
 import json
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
+import pytest
 import respx
-from test_gateway import API, LIB, OPA, Stub, call, gate, gw, mock  # noqa: F401 - fixtures
+from test_gateway import API, LIB, OPA, Stub, call, gate
 
 from hq_gateway import tools as T
 from hq_gateway.gateway import Gateway, Opa
@@ -18,6 +20,18 @@ from hq_gateway.web import Egress
 EGRESS = "http://egress.test"
 SECRET = "acct-" + "Q" * 30
 FILE_ID = "0193e7a1-0000-7000-8000-00000000abcd"
+
+
+@pytest.fixture
+def mock() -> Iterator[respx.MockRouter]:
+    with respx.mock(assert_all_called=False) as m:
+        yield m
+
+
+@pytest.fixture
+def gw() -> Gateway:
+    """The gateway without egress wired (EGRESS_URL empty)."""
+    return Gateway(LIB, T.Api(API, 5), Opa(OPA), max_result_chars=4000, tool_timeout_s=2)
 
 
 def gw_web() -> Gateway:
