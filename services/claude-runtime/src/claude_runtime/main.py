@@ -13,7 +13,7 @@ import json
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable, MutableMapping
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -26,12 +26,20 @@ from prometheus_client import (
     Histogram,
     generate_latest,
 )
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from claude_runtime import __version__
 from claude_runtime.config import Settings
-from claude_runtime.runner import ClaudeRunner, Delta, Message, Outcome, RunSpec
-from hq_common import heartbeat, tokens
+from claude_runtime.runner import (
+    ClaudeRunner,
+    Delta,
+    ImagePart,
+    Message,
+    Outcome,
+    Part,
+    RunSpec,
+)
+from hq_common import heartbeat, tokens, vision
 from hq_common.openbao import OpenBaoClient, SecretNotFound
 
 log = logging.getLogger("claude_runtime")
@@ -41,10 +49,52 @@ Receive = Callable[[], Awaitable[MutableMapping[str, Any]]]
 Send = Callable[[MutableMapping[str, Any]], Awaitable[None]]
 
 
+class TextIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["text"]
+    text: str = Field(min_length=1)
+
+
+class ImageIn(BaseModel):
+    """An image for the model (prompt 06 §2): bytes only, checked again here."""
+
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["image"]
+    media_type: Literal["image/jpeg", "image/png", "image/webp"]
+    data: str = Field(min_length=1, repr=False)
+
+    @model_validator(mode="after")
+    def _bytes(self) -> ImageIn:
+        vision.decode(self.media_type, self.data)
+        return self
+
+
 class RunMessage(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role: Literal["user", "assistant"]
-    content: str = Field(min_length=1)
+    content: str | list[Annotated[TextIn | ImageIn, Field(discriminator="type")]]
+
+    @model_validator(mode="after")
+    def _shape(self) -> RunMessage:
+        if not self.content:
+            raise ValueError("content must not be empty")
+        if (
+            self.role != "user"
+            and not isinstance(self.content, str)
+            and any(isinstance(b, ImageIn) for b in self.content)
+        ):
+            raise ValueError("only a user turn may carry images")
+        return self
+
+    def message(self) -> Message:
+        if isinstance(self.content, str):
+            return Message(self.role, self.content)
+        parts: tuple[Part, ...] = tuple(
+            b.text if isinstance(b, TextIn) else ImagePart(b.media_type, b.data)
+            for b in self.content
+        )
+        text = "\n\n".join(p for p in parts if isinstance(p, str))
+        return Message(self.role, text, parts)
 
 
 class RunBody(BaseModel):
@@ -65,7 +115,7 @@ class RunBody(BaseModel):
             self.model,
             self.effort,
             self.system,
-            tuple(Message(m.role, m.content) for m in self.messages),
+            tuple(m.message() for m in self.messages),
             self.json_schema,
             self.timeout_s,
             self.max_output_tokens,

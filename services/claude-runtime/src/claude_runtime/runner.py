@@ -37,7 +37,7 @@ from claude_agent_sdk import (
 )
 
 from claude_runtime.quota import OK, TIMEOUT, Signals, Verdict, classify
-from claude_runtime.render import render
+from claude_runtime.render import render, render_blocks
 
 log = logging.getLogger("claude_runtime.runner")
 
@@ -51,9 +51,21 @@ CHILD_ENV = {
 
 
 @dataclass(frozen=True)
+class ImagePart:
+    """An image of a user turn (prompt 06 §2): media type and base64 bytes."""
+
+    media_type: str
+    data: str = field(repr=False)
+
+
+Part = str | ImagePart
+
+
+@dataclass(frozen=True)
 class Message:
     role: str
-    content: str
+    content: str  # the turn's text
+    parts: tuple[Part, ...] = ()  # ordered text and image parts, when it has images
 
 
 @dataclass(frozen=True)
@@ -245,7 +257,10 @@ class ClaudeRunner:
         result: ResultMessage | None = None
         error_text = ""
         options = self._options(spec, run_dir, token, stream=partial)
-        prompt = render(spec.messages)
+        prompt: str | AsyncIterator[dict[str, Any]] = render(spec.messages)
+        if any(m.parts for m in spec.messages):
+            # Images go as content blocks of one user turn (stream-json input).
+            prompt = _one_turn(render_blocks(spec.messages))
         try:
             async with asyncio.timeout(spec.timeout_s):
                 stream = cast(AsyncGenerator[Any, None], query(prompt=prompt, options=options))
@@ -323,3 +338,13 @@ class ClaudeRunner:
             effort_applied=spec.effort is not None,
             rate_limit=rate_limit,
         )
+
+
+async def _one_turn(content: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
+    """The whole conversation as one user message of content blocks."""
+    yield {
+        "type": "user",
+        "session_id": "",
+        "message": {"role": "user", "content": content},
+        "parent_tool_use_id": None,
+    }
