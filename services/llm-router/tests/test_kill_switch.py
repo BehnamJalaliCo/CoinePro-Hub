@@ -46,6 +46,8 @@ async def test_only_p0_runs_while_locked(su: asyncpg.Connection, make_service: A
             assert (await svc.run(req(priority=0), "test", 100_000)).status == "ok"
         await su.execute("UPDATE control.test_locks SET state = 'deploy_freeze'")
         svc = make_service()
-        assert (await svc.run(req(priority=3), "test", 100_000)).status == "ok"  # a freeze does not stop thinking
+        assert (
+            await svc.run(req(priority=3), "test", 100_000)
+        ).status == "ok"  # a freeze does not stop thinking
     finally:
         await su.execute("DROP SCHEMA control CASCADE")
