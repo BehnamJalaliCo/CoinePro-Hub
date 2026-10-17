@@ -318,7 +318,7 @@ async def send_message(
 async def mark_read(code: str, body: ReadIn, ctx: Ctx = Depends(owner_ctx)) -> Thread:
     """Marks the thread read up to (and including) a message ref."""
     async with ctx.tx() as tx:
-        t = await tx.one("SELECT id FROM msg.threads WHERE code = :c", c=code)
+        t = await tx.one("SELECT id, company_id FROM msg.threads WHERE code = :c", c=code)
         seq = await tx.scalar(
             "SELECT seq FROM msg.messages WHERE thread_id = :t AND ref = :r",
             t=t["id"],
@@ -330,6 +330,15 @@ async def mark_read(code: str, body: ReadIn, ctx: Ctx = Depends(owner_ctx)) -> T
             "UPDATE msg.threads SET owner_read_seq = greatest(owner_read_seq, :s) WHERE id = :t",
             t=t["id"],
             s=seq,
+        )
+        await ctx.audit(
+            tx,
+            company_id=t["company_id"],
+            action="thread.read",
+            action_class="A0",
+            target_kind="thread",
+            target_ref=code,
+            summary=f"up to {body.up_to_ref}",
         )
         return _thread(await tx.one(THREAD_SQL + " WHERE t.id = :t", t=t["id"]))
 
