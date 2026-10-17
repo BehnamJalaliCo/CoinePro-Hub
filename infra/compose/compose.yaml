@@ -668,7 +668,11 @@ services:
       HQ_ANDROID_CERT_SHA256: ${HQ_ANDROID_CERT_SHA256:-}
     user: "10001:10001"
     read_only: true
-    tmpfs: ["/tmp:size=64m,mode=1777", "/app/.next/cache:size=64m,uid=10001,gid=10001,mode=0700"]
+    # tmpfs is charged to the container's memory: sized per profile so the
+    # Node process keeps most of MEM_WEB.
+    tmpfs:
+      - "/tmp:size=${WEB_TMPFS_TMP:?},mode=1777"
+      - "/app/.next/cache:size=${WEB_TMPFS_CACHE:?},uid=10001,gid=10001,mode=0700"
     cap_drop: [ALL]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]

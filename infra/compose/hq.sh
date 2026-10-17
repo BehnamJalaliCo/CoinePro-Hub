@@ -14,8 +14,11 @@ COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${HQ_ENV_FILE:-$COMPOSE_DIR/.env}"
 # The full profile is sized for the hub's 16 GB class (prompt 05 §11); a
 # nominal 16 GB server reports a little less (kernel reserve), so the
-# threshold is 15 GiB of MemTotal. Anything smaller runs lean.
-FULL_PROFILE_MIN_KB=$((15 * 1024 * 1024))
+# threshold is 15 GiB of MemTotal. Anything smaller runs lean. The full
+# profile's memory budget is sized for exactly this threshold
+# (profiles/full.env HQ_BUDGET_REF_RAM_MB; scripts/quality/memory-budget.sh).
+FULL_PROFILE_MIN_MB=15360
+FULL_PROFILE_MIN_KB=$((FULL_PROFILE_MIN_MB * 1024))
 
 detect_profile() {
   local p="${HQ_PROFILE:-}"

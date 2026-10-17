@@ -22,9 +22,19 @@ ensure_env() {
   fi
 }
 
-# Rendered compose model (JSON) for one profile.
+# Rendered compose model (JSON) for one profile, plus any opt-in profiles:
+# compose_json PROFILE [OPT_IN_PROFILE...]
 compose_json() {
-  HQ_PROFILE="$1" "$HQ" config --format json
+  local profile="$1" extra=() p
+  shift
+  for p in "$@"; do extra+=(--profile "$p"); done
+  HQ_PROFILE="$profile" "$HQ" "${extra[@]}" config --format json
+}
+
+# Compose profiles an operator may add by hand (e.g. cadvisor): every profile
+# of compose.yaml but the memory profiles and "web" (hq.sh switches it on).
+opt_in_profiles() {
+  HQ_PROFILE=lean "$HQ" config --profiles | grep -vxE "$(IFS='|'; echo "${PROFILES[*]}")|web" || true
 }
 
 # Tracked files plus new files that are not ignored.
