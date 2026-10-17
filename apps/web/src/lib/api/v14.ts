@@ -16,7 +16,7 @@ export type Area = 'truth' | 'authority' | 'money' | 'safety' | 'quality' | 'del
 export type Protocol = {
   id: string; ref: string; title_fa: string; area: Area; check_md: string; method: string; schedule: string; scope: string;
   evidence_md: string; severity: Severity; answerable: string; status: 'active' | 'paused' | 'draft'; version: number;
-  sealed_at: string | null; last_run: { at: string; result: 'pass' | 'fail' | 'partial'; findings: number } | null;
+  sealed_at: string | null; last_run: { at: string; result: 'pass' | 'fail' | 'partial' | 'deferred'; findings: number } | null;
 };
 export type FindingStatus = 'open' | 'acknowledged' | 'fixing' | 'fixed' | 'verified' | 'disputed' | 'closed';
 export type Finding = {

@@ -538,14 +538,10 @@ export const DEMO_PROTOCOLS = [
   "evidence_md": "the exchange transcript, KB refs",
   "severity": "high",
   "answerable": "ceo",
-  "status": "active",
+  "status": "paused",
   "version": 1,
   "sealed_at": "@-4320m",
-  "last_run": {
-   "at": "@-330m",
-   "result": "pass",
-   "findings": 0
-  }
+  "last_run": null
  },
  {
   "id": "p26",
@@ -622,14 +618,10 @@ export const DEMO_PROTOCOLS = [
   "evidence_md": "O-… reports",
   "severity": "low",
   "answerable": "ceo",
-  "status": "active",
+  "status": "paused",
   "version": 1,
   "sealed_at": "@-4320m",
-  "last_run": {
-   "at": "@-478m",
-   "result": "pass",
-   "findings": 0
-  }
+  "last_run": null
  },
  {
   "id": "p30",
@@ -874,14 +866,10 @@ export const DEMO_PROTOCOLS = [
   "evidence_md": "HR deliverables, D-…",
   "severity": "medium",
   "answerable": "manager",
-  "status": "active",
+  "status": "paused",
   "version": 1,
   "sealed_at": "@-4320m",
-  "last_run": {
-   "at": "@-322m",
-   "result": "pass",
-   "findings": 0
-  }
+  "last_run": null
  },
  {
   "id": "p42",
@@ -916,14 +904,10 @@ export const DEMO_PROTOCOLS = [
   "evidence_md": "KPI rows",
   "severity": "medium",
   "answerable": "ceo",
-  "status": "active",
+  "status": "paused",
   "version": 1,
   "sealed_at": "@-4320m",
-  "last_run": {
-   "at": "@-396m",
-   "result": "pass",
-   "findings": 0
-  }
+  "last_run": null
  },
  {
   "id": "p44",

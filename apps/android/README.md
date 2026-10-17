@@ -117,5 +117,5 @@ The app shows both values under **تنظیمات → این اپ** with copy but
 Until then the app installs and runs, the demo works in the debug build, and sign-in reports that the app is not
 yet linked to the domain.
 
-Push notifications (FCM) are not in this version: they need a Firebase project, which is the owner's decision.
+Push notifications through FCM are dropped (owner's decision, 2026-10-17: one user, the GitHub release is enough, no Firebase project). Notifications arrive in the app over the live stream.
 The in-app stream covers notifications while the app is open.

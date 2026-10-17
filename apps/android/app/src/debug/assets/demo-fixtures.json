@@ -1051,7 +1051,7 @@
        "company": "FX",
        "priority": "P1",
        "status": "in_progress",
-       "at": "@-751m",
+       "at": "@-785m",
        "assignee": "FX-TECH-MGR",
        "recurring": false
       },
@@ -1061,7 +1061,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "done",
-       "at": "@-1111m",
+       "at": "@-1145m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1071,7 +1071,7 @@
        "company": "TY",
        "priority": "P3",
        "status": "queued",
-       "at": "@-991m",
+       "at": "@-1025m",
        "assignee": null,
        "recurring": true
       }
@@ -1086,7 +1086,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@329m",
+       "at": "@295m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
@@ -1101,7 +1101,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@1769m",
+       "at": "@1735m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1111,7 +1111,7 @@
        "company": "PC",
        "priority": "P3",
        "status": "queued",
-       "at": "@1889m",
+       "at": "@1855m",
        "assignee": null,
        "recurring": true
       }
@@ -1126,7 +1126,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@3209m",
+       "at": "@3175m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1136,7 +1136,7 @@
        "company": "HQ",
        "priority": "P2",
        "status": "waiting",
-       "at": "@3509m",
+       "at": "@3475m",
        "assignee": "HQ-OVS-MGR",
        "recurring": false
       }
@@ -1151,7 +1151,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@4649m",
+       "at": "@4615m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1161,7 +1161,7 @@
        "company": "FX",
        "priority": "P3",
        "status": "queued",
-       "at": "@4769m",
+       "at": "@4735m",
        "assignee": null,
        "recurring": true
       }
@@ -1176,7 +1176,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@6089m",
+       "at": "@6055m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1186,7 +1186,7 @@
        "company": "HQ",
        "priority": "P2",
        "status": "queued",
-       "at": "@6209m",
+       "at": "@6175m",
        "assignee": null,
        "recurring": true
       }
@@ -1201,7 +1201,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@7529m",
+       "at": "@7495m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1211,7 +1211,7 @@
        "company": "TY",
        "priority": "P3",
        "status": "queued",
-       "at": "@7649m",
+       "at": "@7615m",
        "assignee": null,
        "recurring": true
       }
@@ -6794,7 +6794,7 @@
    },
    "protocols": {
     "active": 52,
-    "failed_today": 6
+    "failed_today": 10
    }
   }
  },
@@ -7640,14 +7640,10 @@
     "evidence_md": "the exchange transcript, KB refs",
     "severity": "high",
     "answerable": "ceo",
-    "status": "active",
+    "status": "paused",
     "version": 1,
     "sealed_at": "@-4320m",
-    "last_run": {
-     "at": "@-330m",
-     "result": "pass",
-     "findings": 0
-    }
+    "last_run": null
    },
    {
     "id": "p26",
@@ -7724,14 +7720,10 @@
     "evidence_md": "O-… reports",
     "severity": "low",
     "answerable": "ceo",
-    "status": "active",
+    "status": "paused",
     "version": 1,
     "sealed_at": "@-4320m",
-    "last_run": {
-     "at": "@-478m",
-     "result": "pass",
-     "findings": 0
-    }
+    "last_run": null
    },
    {
     "id": "p30",
@@ -7976,14 +7968,10 @@
     "evidence_md": "HR deliverables, D-…",
     "severity": "medium",
     "answerable": "manager",
-    "status": "active",
+    "status": "paused",
     "version": 1,
     "sealed_at": "@-4320m",
-    "last_run": {
-     "at": "@-322m",
-     "result": "pass",
-     "findings": 0
-    }
+    "last_run": null
    },
    {
     "id": "p42",
@@ -8018,14 +8006,10 @@
     "evidence_md": "KPI rows",
     "severity": "medium",
     "answerable": "ceo",
-    "status": "active",
+    "status": "paused",
     "version": 1,
     "sealed_at": "@-4320m",
-    "last_run": {
-     "at": "@-396m",
-     "result": "pass",
-     "findings": 0
-    }
+    "last_run": null
    },
    {
     "id": "p44",
@@ -10780,9 +10764,9 @@
     "limits": {
      "steps_per_run": 10,
      "tokens_per_step": 120000,
-     "tokens_per_run": 600000
+     "tokens_per_run": 200000
     },
-    "version": 2
+    "version": 3
    },
    {
     "role": "ai_safety",
@@ -11227,9 +11211,9 @@
     "limits": {
      "steps_per_run": 12,
      "tokens_per_step": 120000,
-     "tokens_per_run": 600000
+     "tokens_per_run": 200000
     },
-    "version": 1
+    "version": 2
    },
    {
     "role": "security_analyst",

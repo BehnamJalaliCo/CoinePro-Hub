@@ -1,6 +1,8 @@
 # Oversight protocols — the Chief Overseer's written duties (contract §18.1). Data, not code: the API seeds
 # `oversight.protocols` from this file; later versions are sealed by the owner in the app.
 # schedule: RRULE in the owner's time zone (Asia/Tehran). check/evidence: English, for the model. title_fa: what the owner reads.
+# status (optional, default active): `paused` = seeded paused, because the feature it checks is not built yet; the prompt that
+# builds the feature switches it on (docs/GAP_ANALYSIS_v2.md §6). The overseer never fines what does not exist.
 version: 1
 protocols:
   - ref: PR-001
@@ -272,6 +274,7 @@ protocols:
     scope: company
     severity: high
     answerable: ceo
+    status: paused  # the support desk arrives in prompt 10
     title_fa: "مشتری ناشناس پشتیبانی"
     check: >-
       With the owner's standing permission, ask support an ordinary question as a customer. Measure time, correctness, tone and use of the approved
@@ -314,6 +317,7 @@ protocols:
     scope: company
     severity: low
     answerable: ceo
+    status: paused  # the CEOs' daily report is off until the owner turns it on
     title_fa: "گزارش روزانه و هفتگی مدیرعامل کامل و به‌موقع"
     check: "Daily and weekly CEO reports arrived on time with what moved, what is blocked and what is needed."
     evidence: "O-… reports"
@@ -434,6 +438,7 @@ protocols:
     scope: company
     severity: medium
     answerable: manager
+    status: paused  # the monthly HR review arrives in prompt 12
     title_fa: "ارزیابی ماهانه با شاهد انجام شد"
     check: "Monthly HR evaluations were made for every employee with evidence and a proposal where needed."
     evidence: "HR deliverables, D-…"
@@ -454,6 +459,7 @@ protocols:
     scope: company
     severity: medium
     answerable: ceo
+    status: paused  # the company cards arrive in prompt 11
     title_fa: "KPIهای کارت شرکت تازه و منبع‌دار"
     check: "Every KPI on the company's cards has a source and a timestamp younger than its stated freshness."
     evidence: "KPI rows"
