@@ -1,0 +1,14 @@
+{
+  "hq": {
+    "config": {
+      "incident_categories": ["service_down", "security", "data_loss", "budget_hard_stop"],
+      "propose_department": {
+        "manager": {"evaluation": "HR", "dismissal": "HR"}
+      },
+      "a2_grants": {
+        "ceo": ["work.delegate", "work.create", "kill_switch.set", "deploy_freeze.set", "decision.approve"],
+        "manager": ["work.delegate", "work.create"]
+      }
+    }
+  }
+}

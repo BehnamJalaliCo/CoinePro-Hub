@@ -4,11 +4,13 @@ import data.hq.decisions
 import data.hq.fixtures_test as f
 import rego.v1
 
-dec(kind, class) := {"kind": kind, "company": "TY", "action_class": class, "payload": {}}
+mgr := {"kind": "agent", "code": "TY-SALES-MGR"}
 
-publish := {"kind": "a3_action", "company": "TY", "action_class": "A3", "payload": {"action": "publish"}}
+dec(kind, class) := {"kind": kind, "company": "TY", "action_class": class, "payload": {}, "proposer": mgr}
 
-price := {"kind": "a3_action", "company": "TY", "action_class": "A3", "payload": {"action": "price_change"}}
+publish := {"kind": "a3_action", "company": "TY", "action_class": "A3", "payload": {"action": "publish"}, "proposer": mgr}
+
+price := {"kind": "a3_action", "company": "TY", "action_class": "A3", "payload": {"action": "price_change"}, "proposer": mgr}
 
 recurring := dec("recurring_approval", "A2")
 
@@ -102,4 +104,19 @@ test_managers_never_decide if {
 	reasons(f.ty_growth_mgr, recurring, quota_ok) == {"ceo_only"}
 	reasons(f.ty_growth_mgr, dec("hire", "A2"), quota_ok) == {"owner_only"}
 	reasons(f.ty_growth_01, publish, calendar_ok) == {"ceo_only"}
+}
+
+test_nobody_decides_their_own_proposal if {
+	own := object.union(recurring, {"proposer": {"kind": "agent", "code": "TY-CEO"}})
+	not allowed(f.ty_ceo, own, quota_ok)
+	reasons(f.ty_ceo, own, quota_ok) == {"own_proposal"}
+	by_owner := object.union(dec("proposal", "A1"), {"proposer": {"kind": "owner", "code": "owner"}})
+	reasons(f.owner, by_owner, {}) == {"own_proposal"}
+	allowed(f.owner, own, {}) # the owner decides the CEO's own proposal
+}
+
+test_decision_without_proposer_is_denied if {
+	no_proposer := {"kind": "proposal", "company": "TY", "action_class": "A1", "payload": {}}
+	reasons(f.owner, no_proposer, {}) == {"unknown_proposer"}
+	reasons(f.owner, object.union(no_proposer, {"proposer": {"code": 7}}), {}) == {"unknown_proposer"}
 }

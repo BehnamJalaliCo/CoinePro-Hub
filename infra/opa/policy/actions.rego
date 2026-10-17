@@ -1,7 +1,8 @@
-# Action classes A0..A4 (OPERATING_MODEL §1.12).
+# Action classes A0..A4 (OPERATING_MODEL §1.12) — the gate for every agent write.
 #   owner:   everything, A0..A4, never locked out
-#   agent:   own company only; A0 and A1; A2 only inside its escrow; A3 only
-#            through a decision; A4 never
+#   agent:   own company only; A0 and A1; A2 when the role's grant table (data
+#            hq.config.a2_grants) lists the action, or inside its escrow; A3
+#            only through a decision; A4 never
 #   service: A0..A2; A3 and A4 never
 #   company_locked (kill switch or deploy freeze): every non-owner action >= A1
 package hq.actions
@@ -21,7 +22,16 @@ class := object.get(action, "class", "")
 
 company := object.get(action, "company", null)
 
+name := object.get(action, "name", "")
+
 escrow := object.get(ctx, "escrow_classes", [])
+
+# Internal A2 actions each role may take without an escrow (data, not code).
+role_a2 := object.get(object.get(data.hq.config, "a2_grants", {}), p.role, [])
+
+a2_ok if name in role_a2
+
+a2_ok if "A2" in escrow
 
 locked := object.get(ctx, "company_locked", false) == true
 
@@ -45,7 +55,7 @@ grant if {
 grant if {
 	p.kind == "agent"
 	class == "A2"
-	"A2" in escrow
+	a2_ok
 }
 
 grant if {
@@ -72,10 +82,10 @@ deny_reasons contains "a3_not_for_services" if {
 	p.kind == "service"
 }
 
-deny_reasons contains "a2_outside_escrow" if {
+deny_reasons contains "a2_needs_role_or_escrow" if {
 	class == "A2"
 	p.kind == "agent"
-	not "A2" in escrow
+	not a2_ok
 }
 
 deny_reasons contains "other_company" if {

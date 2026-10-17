@@ -100,9 +100,10 @@ test_cross_company_only_ceo_to_ceo if {
 # ------------------------------------------------------- decision.propose --
 
 test_propose_kinds_by_role if {
-	every kind in policy.propose_kinds.ceo {
+	every kind in policy.propose_kinds.ceo - {"budget_change"} {
 		allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": kind})
 	}
+	allowed(f.ty_ceo, "decision.propose", budget("company", "TY"))
 	allowed(f.ty_growth_mgr, "decision.propose", {"company": "TY", "kind": "hire"})
 	allowed(f.ty_growth_01, "decision.propose", {"company": "TY", "kind": "deploy"})
 	allowed(f.hq_adv, "decision.propose", {"company": "HQ", "kind": "proposal"})
@@ -123,18 +124,38 @@ test_propose_only_for_own_company if {
 	reasons(f.ty_ceo, "decision.propose", {"company": "FX", "kind": "proposal"}) == {"other_company", "decision.propose_not_permitted"}
 }
 
+budget(scope_type, ref) := {"company": "TY", "kind": "budget_change", "scope": {"scope_type": scope_type, "scope_ref": ref}}
+
+test_budget_change_stays_inside_the_company if {
+	allowed(f.ty_ceo, "decision.propose", budget("company", "TY"))
+	allowed(f.ty_ceo, "decision.propose", budget("department", "TY-GROWTH"))
+	allowed(f.ty_ceo, "decision.propose", budget("role", "TY:TY-GROWTH-01"))
+	allowed(f.ty_ceo, "decision.propose", budget("task_class", "TY:general"))
+	reasons(f.ty_ceo, "decision.propose", budget("company", "FX")) == {"scope_outside_company", "decision.propose_not_permitted"}
+	not allowed(f.ty_ceo, "decision.propose", budget("department", "FX-GROWTH"))
+	not allowed(f.ty_ceo, "decision.propose", budget("role", "advisor"))
+	not allowed(f.ty_ceo, "decision.propose", budget("task_class", "FX:general"))
+	not allowed(f.ty_ceo, "decision.propose", budget("holding", "HQ"))
+	"scope_outside_company" in reasons(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "budget_change"})
+}
+
 # ------------------------------------------------------- decision.approve --
 
 test_ceo_approves_through_the_decisions_policy if {
+	by_mgr := {"kind": "agent", "code": "TY-GROWTH-MGR"}
 	allowed(f.ty_ceo, "decision.approve", {
-		"decision": {"kind": "recurring_approval", "company": "TY", "action_class": "A2", "payload": {}},
+		"decision": {"kind": "recurring_approval", "company": "TY", "action_class": "A2", "payload": {}, "proposer": by_mgr},
 		"context": {"within_quota": true},
 	})
 	reasons(f.ty_ceo, "decision.approve", {
-		"decision": {"kind": "deploy", "company": "TY", "action_class": "A3", "payload": {}},
+		"decision": {"kind": "deploy", "company": "TY", "action_class": "A3", "payload": {}, "proposer": by_mgr},
 		"context": {},
 	}) == {"owner_only"}
-	"services_never_decide" in reasons(f.svc, "decision.approve", {"decision": {"kind": "proposal", "company": "TY", "action_class": "A1"}})
+	reasons(f.ty_ceo, "decision.approve", {
+		"decision": {"kind": "recurring_approval", "company": "TY", "action_class": "A2", "payload": {}, "proposer": {"kind": "agent", "code": "TY-CEO"}},
+		"context": {"within_quota": true},
+	}) == {"own_proposal"}
+	"services_never_decide" in reasons(f.svc, "decision.approve", {"decision": {"kind": "proposal", "company": "TY", "action_class": "A1", "proposer": by_mgr}})
 }
 
 # ----------------------------------------------------------- message.post --
@@ -160,28 +181,80 @@ test_advisor_and_ceo_threads if {
 
 # ----------------------------------------------------- notification.raise --
 
+note(company, level, category, locked) := {"company": company, "level": level, "category": category, "company_locked": locked}
+
 test_notifications if {
 	allowed(f.svc, "notification.raise", {"company": "FX"})
-	allowed(f.ty_growth_mgr, "notification.raise", {"company": "TY"})
-	reasons(f.ty_growth_mgr, "notification.raise", {"company": "FX"}) == {"other_company", "notification.raise_not_permitted"}
+	allowed(f.svc, "notification.raise", note("FX", "urgent", null, true))
+	allowed(f.ty_growth_mgr, "notification.raise", note("TY", "decision", null, false))
+	reasons(f.ty_growth_mgr, "notification.raise", note("FX", "info", null, false)) == {"other_company", "notification.raise_not_permitted"}
+	reasons(f.ty_growth_mgr, "notification.raise", note("TY", "loud", null, false)) == {"unknown_level", "notification.raise_not_permitted"}
+}
+
+test_agents_raise_urgent_only_for_incidents if {
+	every category in policy.incident_categories {
+		allowed(f.ty_ceo, "notification.raise", note("TY", "urgent", category, false))
+	}
+	reasons(f.ty_ceo, "notification.raise", note("TY", "urgent", "marketing", false)) == {"urgent_needs_incident", "notification.raise_not_permitted"}
+	reasons(f.ty_ceo, "notification.raise", note("TY", "urgent", null, false)) == {"urgent_needs_incident", "notification.raise_not_permitted"}
+}
+
+test_locked_company_raises_only_urgent_incidents if {
+	allowed(f.ty_ceo, "notification.raise", note("TY", "urgent", "security", true))
+	reasons(f.ty_ceo, "notification.raise", note("TY", "decision", null, true)) == {"company_locked", "notification.raise_not_permitted"}
+	reasons(f.ty_ceo, "notification.raise", note("TY", "urgent", "marketing", true)) == {"company_locked", "urgent_needs_incident", "notification.raise_not_permitted"}
+	"company_locked" in reasons(f.ty_ceo, "notification.raise", {"company": "TY", "level": "info"})
 }
 
 # --------------------------------------------------- kill switch / freeze --
 
-test_ceo_kill_switch_only_for_its_company if {
-	allowed(f.ty_ceo, "kill_switch.set", {"scope": "company:TY"})
-	reasons(f.ty_ceo, "kill_switch.set", {"scope": "company:FX"}) == {"kill_switch.set_not_permitted"}
-	not allowed(f.ty_ceo, "kill_switch.set", {"scope": "holding"})
-	not allowed(f.ty_growth_mgr, "kill_switch.set", {"scope": "company:TY"})
-	not allowed(object.union(f.ty_ceo, {"company": null}), "kill_switch.set", {"scope": "company:"})
-	not allowed(f.svc, "kill_switch.set", {"scope": "company:TY"})
+switch(scope, state, by_kind, by_code, by_company) := {
+	"scope": scope, "state": state,
+	"current": {"state": "engaged", "changed_by_kind": by_kind, "changed_by_code": by_code, "changed_by_company": by_company},
 }
 
-test_deploy_freeze if {
+test_ceo_engages_only_its_company if {
+	allowed(f.ty_ceo, "kill_switch.set", {"scope": "company:TY", "state": "engaged"})
+	reasons(f.ty_ceo, "kill_switch.set", {"scope": "company:FX", "state": "engaged"}) == {"kill_switch.set_not_permitted"}
+	not allowed(f.ty_ceo, "kill_switch.set", {"scope": "holding", "state": "engaged"})
+	not allowed(f.ty_growth_mgr, "kill_switch.set", {"scope": "company:TY", "state": "engaged"})
+	not allowed(object.union(f.ty_ceo, {"company": null}), "kill_switch.set", {"scope": "company:", "state": "engaged"})
+	not allowed(f.svc, "kill_switch.set", {"scope": "company:TY", "state": "engaged"})
+	not allowed(f.ty_ceo, "kill_switch.set", {"scope": "company:TY", "state": "maybe"})
+}
+
+test_release_follows_the_engager_authority if {
+	allowed(f.ty_ceo, "kill_switch.set", switch("company:TY", "released", "agent", "TY-CEO", "TY"))
+	allowed(f.ty_ceo, "kill_switch.set", switch("company:TY", "released", "agent", "TY-TECH-MGR", "TY"))
+	reasons(f.ty_ceo, "kill_switch.set", switch("company:TY", "released", "owner", "owner", null)) == {"released_only_by_engager_authority", "kill_switch.set_not_permitted"}
+	reasons(f.ty_ceo, "kill_switch.set", switch("company:TY", "released", "agent", "FX-CEO", "FX")) == {"released_only_by_engager_authority", "kill_switch.set_not_permitted"}
+	"released_only_by_engager_authority" in reasons(f.ty_ceo, "kill_switch.set", {"scope": "company:TY", "state": "released"})
+	not allowed(f.ty_ceo, "kill_switch.set", switch("holding", "released", "agent", "TY-CEO", "TY"))
+}
+
+freeze(company, lift, by_kind, by_code) := {
+	"company": company, "lift": lift,
+	"freeze": {"created_by_kind": by_kind, "created_by_code": by_code, "created_by_company": company},
+}
+
+test_deploy_freeze_set if {
 	allowed(f.svc, "deploy_freeze.set", {"company": "TY"})
-	allowed(f.ty_ceo, "deploy_freeze.set", {"company": "TY"})
+	allowed(f.svc, "deploy_freeze.set", {"company": "FX", "lift": false})
+	allowed(f.ty_ceo, "deploy_freeze.set", {"company": "TY", "lift": false})
 	not allowed(f.ty_ceo, "deploy_freeze.set", {"company": "FX"})
 	reasons(f.ty_growth_mgr, "deploy_freeze.set", {"company": "TY"}) == {"deploy_freeze.set_not_permitted"}
+}
+
+test_deploy_freeze_lift_follows_authority if {
+	allowed(f.svc, "deploy_freeze.set", freeze("TY", true, "service", "deploy-pipeline"))
+	reasons(f.svc, "deploy_freeze.set", freeze("TY", true, "owner", "owner")) == {"lifted_only_by_setter_authority", "deploy_freeze.set_not_permitted"}
+	reasons(f.svc, "deploy_freeze.set", freeze("TY", true, "agent", "TY-CEO")) == {"lifted_only_by_setter_authority", "deploy_freeze.set_not_permitted"}
+	allowed(f.ty_ceo, "deploy_freeze.set", freeze("TY", true, "agent", "TY-CEO"))
+	not allowed(f.ty_ceo, "deploy_freeze.set", freeze("TY", true, "agent", "TY-TECH-MGR"))
+	not allowed(f.ty_ceo, "deploy_freeze.set", freeze("TY", true, "service", "deploy-pipeline"))
+	not allowed(f.ty_ceo, "deploy_freeze.set", freeze("TY", true, "owner", "owner"))
+	not allowed(f.ty_ceo, "deploy_freeze.set", freeze("FX", true, "agent", "TY-CEO"))
+	"lifted_only_by_setter_authority" in reasons(f.ty_ceo, "deploy_freeze.set", {"company": "TY", "lift": true})
 }
 
 # ------------------------------------------------------------ file.upload --
