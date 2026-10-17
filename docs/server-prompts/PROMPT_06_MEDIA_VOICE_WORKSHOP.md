@@ -15,7 +15,7 @@
 قرارداد همه‌ی این‌ها **`contracts/HQ_CORE_API_v1.md` §۱۷ (v1.3)** است. اپ وب و اندروید سمت خودشان را با داده‌ی نمونه ساخته‌اند و منتظر همین API هستند.
 
 ## ۰. قبل از شروع (اجباری)
-1. در `/home/Hub/CoinePro-Hub` آخرین `claude/coinepro-hub-setup-hsvnw7` را pull کن و شاخه‌ی **`server/p06-media-voice-workshop`** را بساز.
+1. **پیش‌نیاز:** پرامپت ۵.۱ تمام و merge شده باشد (اگر هنوز نه، اول آن). در `/home/Hub/CoinePro-Hub` آخرین `claude/coinepro-hub-setup-hsvnw7` را pull کن و شاخه‌ی **`server/p06-media-voice-workshop`** را بساز. ماسک مشترک `hq_common` (پرامپت ۵.۱ §۲.۱) برای متن صوت و پیوست‌ها هم به کار میرود.
 2. **بخوان:** `CLAUDE.md`، `contracts/HQ_CORE_API_v1.md` §۵.۳، §۱۰، §۱۲ و **§۱۷**، `docs/OPERATING_MODEL.md` §۱.۱ (مدیر برنامه‌نویسی) و §۱.۵ (ایمنی کار برنامه‌نویسی)، و `docs/GAP_ANALYSIS_v1.md` (فقط برای زمینه).
 3. `contracts/`، `agents/` و `apps/web`، `apps/android` مال Claude سشن مشورت است؛ فقط میخوانی. هر جا قرارداد ناقص بود، امن‌ترین رفتار را پیاده کن و در «Contract notes» بگو.
 4. **تسک‌بندی اجباری** با تست قبولی برای هر تسک؛ بدون توقف؛ کارهای مستقل موازی.

@@ -7,7 +7,7 @@
 >
 > **v1.1 (۲۰۲۶-۱۰-۱۷):** «Contract notes» گزارش پرامپت ۴ و نتیجه‌ی بازبینی وارد شد. تغییرها با ⟨1.1⟩ علامت خورده‌اند؛ آن‌هایی که هنوز پیاده نشده‌اند در `docs/server-prompts/PROMPT_04_1_HARDENING.md` هستند.
 >
-> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹).
+> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`.
 
 ---
 
@@ -362,7 +362,7 @@ Behaviour (§1.7):
 
 ## 7. Live stream
 
-`GET /stream` — Server-Sent Events. `?topics=work,decisions,deliverables,messages,notifications,activity,llm,control&company=TY` (repeatable).
+`GET /stream` — Server-Sent Events. `?topics=work,decisions,deliverables,messages,notifications,activity,llm,control,runs&company=TY` (repeatable; ⟨1.4.1⟩ `runs` carries `run.*`).
 - Envelope: `event: <type>` and `data: {id, type, at, company, ref, data}`; `id:` is the JetStream sequence so `Last-Event-ID` resumes without loss.
 - Types: `work.created|updated|delegated|completed`, `decision.created|decided`, `deliverable.created|rated`, `message.created`, `notification.created`, `presence.changed`, `control.changed`, `employee.updated`, `activity.changed` (runtime), `llm.call.started|finished` (from llm-router, metadata only), `budget.alert`.
 - Backed by NATS JetStream subjects `hq.core.<company>.<type>`; the API is a filtered, tenant-checked bridge. Heartbeat comment every 15 s.
@@ -455,6 +455,7 @@ Used by the agent runtime in prompt 5 and by tests now (with a fake agent princi
 `delegation_depth_exceeded`, `budget_exceeded`, `company_locked`, `decision_not_pending`, `policy_denied`,
 `rate_limited`, `channel_not_configured`, `internal_error`,
 ⟨1.1⟩ `precondition_required` (428, PATCH without `If-Match`), `policy_unavailable` (503, OPA did not answer; the API is fail-closed — distinct from `policy_denied` 403 so clients say "try again" instead of "not allowed").
+⟨1.4.1⟩ `live_unavailable` (503, live replies are switched off; the stored reply still arrives in the thread).
 
 ---
 
@@ -511,6 +512,24 @@ No model runs for a healthy check. N consecutive failures open an incident and *
 
 ### 16.5 Quota
 `GET /treasury/quota` → `{ subscription: { status: "ok"|"warning"|"limited", window, resets_at|null, source }, throttle: { paused_priorities: ["P4", …] } }`. The Quota Controller is code (no model): at `warning` it pauses P4, at `limited` it lets only P0–P2 through, and it says so on the stream (`budget.alert`).
+
+### 16.6 As built in prompt 5 ⟨1.4.1⟩
+Recorded from the server's report and the review of `server/p05-agents` (2026-10-17). Where the build differs from §16.1–16.5, this list is the contract.
+- **Messages.** `POST /threads/{code}/messages` → `201 { message, reply: { state: "queued"|"running", run_id } | null }` on **every** thread; `reply` is null when no agent was woken. `Message.citations[{kind, ref}]` and `meta.citations_dropped` as in §16.3; an agent's message carries at most 50 citations, checked against what its author may read. An agent's `links` refs must exist in the thread's company (prompt 5.1).
+- **Charters.** `Employee.charter` is `{role, version|null} | null`. `GET /roles` is a plain list and adds `department` and `priority`. A charter with `scope: holding` (in the holding company) reads every company.
+- **Hiring.** The `hire` payload carries `role`: required when an agent proposes and checked again at approval, before the step-up is consumed. It must be an `employee` charter whose scope fits the company (company ← `company`, holding ← `holding`) and the department; otherwise `422 validation_failed`.
+- **Runs.** `Run` adds `company, reason, priority, model, effort, queued_at, tool_calls, cost_usd, charter, partial, error_code`. `steps` stays a count; `GET /runs/{id}` and `GET /work/{id}/runs` carry `steps_detail[Step]`. `/work/{id}/runs` is an unpaged list, oldest first. A step action's class is serialised as `"class"`.
+- **Usage.** What an agent reports as usage on `deliver` is ignored; a deliverable's `usage` and `produced_with` come from its run's ledger rows (prompt 5.1).
+- **Locks.** A holding or company kill switch **and a deploy freeze** refuse a run before its next step (prompt 5.1); a freeze no longer lets model calls continue with read-only writes.
+- **Caps.** Tool-call caps per step and per run answer `429 rate_limited` with `Retry-After`. The daily agent token cap counts input, output and cache tokens and is checked before **every** model call, not only at the start of a run.
+- **Site checks.** `Site` adds `method, canary, consecutive_failures, last{…}, uptime_24h, version`. `PUT /ops/sites` takes `{company, sites[≤50]}` and is sealed with step-up action `sites.update` bound to the SHA-256 of the exact body; sites left out are switched off, never deleted; canaries are untouched; URLs on private or internal addresses are refused. `Incident` carries `url` (not `site_id`), `last_status`, `last_error`.
+- **Unpaged lists.** `/roles`, `/ops/sites` and `/ops/incidents` (`limit` ≤ 500) are plain lists, an accepted exception to §1's paging rule: each is small by nature.
+- **Quota.** `subscription` adds `connection, utilization, changed_at`; `window` and `resets_at` are null while `ok`. A `limited` state whose reset time is unknown expires after the router's retry time or five hours, never "for good" (prompt 5.1). Each status change is published as `budget.alert {kind: "quota", …}` on the holding's subject with one 🔵 report.
+- **Live replies.** `GET /threads/{code}/live`: every event carries `run_id`; when live replies are off it answers `503 live_unavailable` (new stable code, §14).
+- **Stream.** Topic **`runs`** carries `run.started`, `run.step`, `run.finished` (§7's topic list gains `runs`).
+- **Step-up.** `/auth/step-up/verify` rotates the web session cookie (`Set-Cookie`); bearer sessions (Android) are not rotated.
+- **Internal API for the runtime (§12).** `GET /internal/v1/work/ref/{ref}`, `/company/state`, `/health/sites`, `/health/hub`, `/treasury/usage`, `/knowledge/search` (kinds: `resolutions, deliverables, decisions, work`; `messages` for the advisor only), `/audit/recent`, `GET|POST /memory` (POST honours `Idempotency-Key`), `POST /runs/self/reserve`, `POST /runs/self/tool-calls`, `POST /threads/{code}/live` (NDJSON). Policy is decided before any lookup in another company, so a missing and a forbidden code answer the same 403.
+- **Redaction.** Keys, tokens, passwords, e-mails, phone and card numbers are masked in everything a model reads (run context, tool results, decision payloads, memory) and in everything an agent writes or streams (prompt 5.1); outgoing text is masked but never shortened.
 
 ---
 
