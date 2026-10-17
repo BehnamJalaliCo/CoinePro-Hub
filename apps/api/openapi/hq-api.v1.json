@@ -19791,7 +19791,7 @@
     },
     "/api/v1/stream": {
       "get": {
-        "description": "Live events (SSE). `Last-Event-ID` resumes after that JetStream sequence.",
+        "description": "Live events (SSE). `Last-Event-ID` resumes after that JetStream sequence.\nUnknown topics are ignored; the first comment names the topics served.",
         "operationId": "stream",
         "parameters": [
           {
@@ -19799,7 +19799,7 @@
             "name": "topics",
             "required": false,
             "schema": {
-              "default": "work,decisions,deliverables,messages,notifications,activity,llm,control",
+              "default": "work,decisions,deliverables,messages,notifications,activity,llm,control,runs",
               "maxLength": 200,
               "pattern": "^[a-z]+(,[a-z]+)*$",
               "title": "Topics",
