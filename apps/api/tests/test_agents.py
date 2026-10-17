@@ -205,10 +205,8 @@ async def test_the_line_ceo_to_cto_and_back(
         "SELECT meta FROM llm.calls WHERE actor_ref = $1 ORDER BY started_at", f"{co}-TECH-MGR"
     )
     metas = [json.loads(r["meta"]) for r in ledger]
-    assert [m["charter"] for m in metas] == ["cto@1", "cto@1"] and [m["step"] for m in metas] == [
-        1,
-        2,
-    ]
+    assert [m["charter"] for m in metas] == [cto.ref, cto.ref]
+    assert [m["step"] for m in metas] == [1, 2]
     assert all(m["run_id"] == str(cto_run["id"]) for m in metas)
     audits = await su.fetch(
         "SELECT target_ref, summary FROM audit.entries WHERE action = 'tool.call' AND actor_code = $1",
