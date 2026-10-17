@@ -4,17 +4,17 @@
 # restart unless-stopped + a healthcheck. One-shot jobs are listed below.
 # Our own services also run as an explicit non-root user, on a read-only root
 # filesystem, with every capability dropped. Network isolation (prompt 04.1):
-# Temporal and OPA are never on hq-internal, and only the allow-list below
-# may join hq-core.
+# Temporal, OPA and the Tool Gateway are never on hq-internal, and only the
+# allow-list below may join hq-core.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ensure_env
 
 JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate"]'
-HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate"]'
-CORE_ONLY='["temporal","opa"]'
-CORE_MEMBERS='["temporal","temporal-namespace","temporal-ui","opa","api","worker","postgres","prometheus"]'
+HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web"]'
+CORE_ONLY='["temporal","opa","gateway"]'
+CORE_MEMBERS='["temporal","temporal-namespace","temporal-ui","opa","api","worker","postgres","prometheus","gateway"]'
 failed=0
 for profile in "${PROFILES[@]}"; do
   problems="$(jq -r --argjson jobs "$JOBS" --argjson hardened "$HARDENED" \

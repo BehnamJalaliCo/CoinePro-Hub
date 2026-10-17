@@ -209,11 +209,11 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (container_label_com_docker_compose_service) (container_memory_working_set_bytes{container_label_com_docker_compose_service!=\"\"})",
-          "legendFormat": "{{container_label_com_docker_compose_service}}"
+          "expr": "sum by (service) (hq_container_memory_bytes)",
+          "legendFormat": "{{service}}"
         }
       ],
-      "description": "cAdvisor runs only in the full profile; on lean this panel stays empty."
+      "description": "Socket-free per-container metrics written on the host every 30 s (infra/observability/container-metrics.sh, node-exporter textfile)."
     },
     {
       "id": 4,
@@ -262,11 +262,11 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (container_label_com_docker_compose_service) (container_memory_working_set_bytes{container_label_com_docker_compose_service!=\"\"}) / sum by (container_label_com_docker_compose_service) (container_spec_memory_limit_bytes{container_label_com_docker_compose_service!=\"\"} > 0)",
-          "legendFormat": "{{container_label_com_docker_compose_service}}"
+          "expr": "sum by (service) (hq_container_memory_bytes) / sum by (service) (hq_container_memory_limit_bytes > 0)",
+          "legendFormat": "{{service}}"
         }
       ],
-      "description": "cAdvisor runs only in the full profile; on lean this panel stays empty."
+      "description": "Socket-free per-container metrics written on the host every 30 s (infra/observability/container-metrics.sh, node-exporter textfile)."
     },
     {
       "id": 5,
@@ -313,11 +313,11 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service!=\"\"}[5m]))",
-          "legendFormat": "{{container_label_com_docker_compose_service}}"
+          "expr": "sum by (service) (hq_container_cpu_percent) / 100",
+          "legendFormat": "{{service}}"
         }
       ],
-      "description": "cAdvisor runs only in the full profile; on lean this panel stays empty."
+      "description": "Socket-free per-container metrics written on the host every 30 s (infra/observability/container-metrics.sh, node-exporter textfile)."
     },
     {
       "id": 6,
@@ -364,8 +364,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (container_label_com_docker_compose_service) (rate(container_network_receive_bytes_total{container_label_com_docker_compose_service!=\"\"}[5m]))",
-          "legendFormat": "rx {{container_label_com_docker_compose_service}}"
+          "expr": "sum by (service) (rate(hq_container_network_receive_bytes_total[5m]))",
+          "legendFormat": "rx {{service}}"
         },
         {
           "refId": "B",
@@ -373,11 +373,11 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (container_label_com_docker_compose_service) (rate(container_network_transmit_bytes_total{container_label_com_docker_compose_service!=\"\"}[5m]))",
-          "legendFormat": "tx {{container_label_com_docker_compose_service}}"
+          "expr": "sum by (service) (rate(hq_container_network_transmit_bytes_total[5m]))",
+          "legendFormat": "tx {{service}}"
         }
       ],
-      "description": "cAdvisor runs only in the full profile; on lean this panel stays empty."
+      "description": "Socket-free per-container metrics written on the host every 30 s (infra/observability/container-metrics.sh, node-exporter textfile)."
     },
     {
       "id": 7,

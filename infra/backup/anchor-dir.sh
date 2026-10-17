@@ -13,6 +13,9 @@ SERVICE_UID=10001
 ok() { [[ -d "$BACKUP_ROOT/audit-anchors" ]] &&
   [[ "$(stat -c '%u:%a' "$BACKUP_ROOT/audit-anchors")" == "$SERVICE_UID:750" ]]; }
 
+# The backup scripts' status files (read-only for the worker, health.hub): Hub's own, no sudo.
+mkdir -p "$BACKUP_ROOT/status" && chmod 755 "$BACKUP_ROOT/status"
+
 if [[ "${1:-}" == "--check" ]]; then
   ok || { echo "anchor-dir: $BACKUP_ROOT/audit-anchors is missing or wrong: run make bootstrap" >&2; exit 1; }
   echo "anchor-dir: $BACKUP_ROOT/audit-anchors ok"

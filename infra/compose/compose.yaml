@@ -15,6 +15,8 @@
 #     reachable only from api, worker, Temporal's own tooling, Prometheus
 #     (Temporal metrics) and Postgres (Temporal's database). Nothing else on
 #     hq-internal can reach them (scripts/quality/compose-rules.sh checks it).
+#   - gateway (prompt 05) sits only on hq-core: the worker calls it, it calls
+#     the api and OPA; it reaches neither the data services nor OpenBao.
 #   - node-exporter uses the host network (to see the host's real NICs) and
 #     listens only on the hq-internal gateway 172.30.0.1, never on 0.0.0.0.
 
@@ -533,6 +535,8 @@ services:
       HQ_FILES_ROOT: /data/files
       # Audit chain anchors (prompt 04.1 §1.11): the worker appends, the api reads.
       HQ_AUDIT_ANCHOR_FILE: /anchors/audit-chain.jsonl
+      # Role charters (agents/, read-only; prompt 05).
+      HQ_AGENTS_DIR: /app/agents
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -541,6 +545,7 @@ services:
       - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/hq-api:/run/secrets/hq:ro
       - hq-files:/data/files
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors:ro
+      - ../../agents:/app/agents:ro
     healthcheck:
       test: ["CMD", "python", "-m", "hq_common.heartbeat"]
       interval: 15s
@@ -567,6 +572,16 @@ services:
       <<: *api-env
       DB_USER: hq_worker
       DB_PASSWORD: ${HQ_WORKER_DB_PASSWORD:?run make env}
+      # The agent runtime (prompt 05): llm-router, the Tool Gateway, the api's
+      # live replies, Prometheus (health.hub) and the backup status files.
+      LLM_ROUTER_URL: http://llm-router:8000
+      GATEWAY_URL: http://gateway:8080
+      HQ_API_INTERNAL_URL: http://api:8000
+      PROMETHEUS_URL: http://prometheus:9090
+      HQ_HUB_STATUS_DIR: /hub-status
+      AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
+      HQ_CEO_DAILY_REPORTS: ${HQ_CEO_DAILY_REPORTS:-off}
+      HQ_MORNING_REPORT_LLM: ${HQ_MORNING_REPORT_LLM:-on}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -574,8 +589,10 @@ services:
     volumes:
       - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/hq-worker:/run/secrets/hq:ro
       # Append-only anchor file of the audit chain, outside the Postgres volume
-      # and inside the backup set (created by `make up`, owner uid 10001).
+      # and inside the backup set (created by `make bootstrap`, owner uid 10001).
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors
+      - ${HQ_BACKUP_DIR:-/home/Hub/backups}/status:/hub-status:ro
+      - ../../agents:/app/agents:ro
     healthcheck:
       test: ["CMD", "python", "-m", "hq_common.heartbeat"]
       interval: 15s
@@ -587,6 +604,70 @@ services:
         limits:
           memory: ${MEM_WORKER:?}
 
+  gateway:
+    # Tool Gateway (prompt 05 §3): every action of an agent goes through here,
+    # with the run's own agent token, to the api's /internal/v1. hq-core only:
+    # no database, NATS, Valkey or OpenBao; only the worker calls it.
+    <<: *service
+    image: coinepro-hq/gateway:0.1.0
+    build:
+      context: ../../services
+      dockerfile: gateway/Dockerfile
+    networks: [hq-core]
+    depends_on:
+      api:
+        condition: service_healthy
+      opa:
+        condition: service_healthy
+    environment:
+      GATEWAY_API_URL: http://api:8000
+      OPA_URL: http://opa:8181
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      # Only the SHA-256 of the worker's token (600, uid 10001), installed by make up.
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/gateway:/run/secrets/hq:ro
+      - ../../agents:/app/agents:ro
+    healthcheck:
+      test: ["CMD", "python", "-m", "hq_common.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_GATEWAY:?}
+
+  web:
+    # The owner's web panel (apps/web, owned by the consultation session;
+    # Next.js standalone on :3000). Profile "web": on when apps/web/Dockerfile
+    # exists (infra/compose/hq.sh); Caddy then sends every path but /api here.
+    <<: *service
+    profiles: [web]
+    image: coinepro-hq/web:0.1.0
+    build:
+      context: ../../apps/web
+    environment:
+      HQ_ANDROID_PACKAGES: ${HQ_ANDROID_PACKAGES:-com.coinepro.hq}
+      HQ_ANDROID_CERT_SHA256: ${HQ_ANDROID_CERT_SHA256:-}
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777", "/app/.next/cache:size=64m,uid=10001,gid=10001,mode=0700"]
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_WEB:?}
+
   # ------------------------------------------------------------------- edge --
   caddy:
     <<: *service
@@ -596,6 +677,8 @@ services:
       HQ_SITE_ADDRESS: ${HQ_SITE_ADDRESS:-:80}
       # "on" only with a domain (infra/compose/hq.sh): /api reaches the api.
       HQ_API_EDGE: ${HQ_API_EDGE:?use hq.sh}
+      # "on" when the web panel is built (infra/compose/hq.sh): other paths reach web.
+      HQ_WEB: ${HQ_WEB:?use hq.sh}
     ports:
       # The only ports published on all interfaces.
       - "80:80"
@@ -604,6 +687,8 @@ services:
       - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ../caddy/api-on.caddy:/etc/caddy/api-on.caddy:ro
       - ../caddy/api-off.caddy:/etc/caddy/api-off.caddy:ro
+      - ../caddy/web-on.caddy:/etc/caddy/web-on.caddy:ro
+      - ../caddy/web-off.caddy:/etc/caddy/web-off.caddy:ro
       - ../caddy/site:/srv/site:ro
       - caddy-data:/data
       - caddy-config:/config
@@ -759,6 +844,8 @@ services:
     command:
       - --path.rootfs=/host
       - --web.listen-address=172.30.0.1:9100
+      # Per-container metrics written on the host (infra/observability/container-metrics.sh).
+      - --collector.textfile.directory=/host/var/lib/coinepro-hq/textfile
       - --collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|var/lib/docker/.+|var/lib/containerd/.+)($$|/)
     volumes:
       - /:/host:ro,rslave
@@ -825,8 +912,11 @@ services:
           memory: ${MEM_OTEL_COLLECTOR:?}
 
   cadvisor:
+    # Opt-in only (profile "cadvisor", prompt 05 §11): it needs the Docker and
+    # containerd sockets, i.e. root on the host. The default profiles get
+    # container metrics socket-free (infra/observability/container-metrics.sh).
     <<: *service
-    profiles: [full]
+    profiles: [cadvisor]
     image: ghcr.io/google/cadvisor:v0.60.6
     command:
       - --docker_only=true

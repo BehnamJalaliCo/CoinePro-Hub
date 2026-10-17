@@ -14,6 +14,8 @@
 #   - empty key paths for the (disabled) API connections
 #   - prompt 04: hq-api config (agent token key), Web Push (VAPID) keys,
 #     empty FCM/Telegram credentials (channels stay off until the owner fills them)
+#   - prompt 05: the agent runtime's tokens (kv/hq-agents/runtime: llm-router
+#     caller hq-agents, the Tool Gateway's caller) and the gateway's digest file
 # The root token is used only while the admin token does not exist yet; it is
 # NOT revoked here (owner's decision).
 #
@@ -223,4 +225,22 @@ for channel in fcm telegram; do
   fi
 done
 log "channel paths ready: kv/hq-api/channels/{fcm,telegram} (off until filled)"
+
+# ---------------------------------------------------- agent runtime (p05) --
+# The worker runs the agents: its own llm-router caller (hq-agents) and the
+# Tool Gateway's only caller. The gateway has no OpenBao access: it gets the
+# digest of the worker's token as a file (600, uid 10001).
+gw_digest="$SECRETS_DIR/services/gateway/worker-token.sha256"
+if ! kv_exists hq-agents/runtime || ! installed "$gw_digest"; then
+  llm_token="$(newtoken)"
+  gw_token="$(newtoken)"
+  expect "$(api GET kv/data/llm-router/callers </dev/null)" 200
+  LH="$(printf '%s' "$llm_token" | sha256)" jq '{data: (.data.data | .callers["hq-agents"] =
+      {token_sha256: env.LH, rpm: 240, max_input_chars: 200000})}' "$WORK/resp" | kv_put llm-router/callers
+  LT="$llm_token" GT="$gw_token" jq -n '{data: {llm_router_token: env.LT, gateway_token: env.GT}}' |
+    kv_put hq-agents/runtime
+  printf '%s' "$gw_token" | sha256 | install_secret "$SERVICE_UID" "$gw_digest"
+  unset llm_token gw_token
+  log "agent runtime: llm-router caller hq-agents and the gateway's token (re)generated"
+fi
 log "done"

@@ -15,7 +15,17 @@ BACKUP_ROOT="${HQ_BACKUP_DIR:-/home/Hub/backups}"
 source "$REPO_DIR/infra/backup/files.sh"
 
 log() { printf 'restore-test: %s\n' "$*"; }
-fail() { printf 'restore-test: FAIL: %s\n' "$*" >&2; exit 1; }
+started_s="$(date +%s)"
+# The outcome, for the hub's own health (health.hub, prompt 05 §4).
+status() { # status OK STAMP
+  mkdir -p "$BACKUP_ROOT/status" && chmod 755 "$BACKUP_ROOT/status"
+  jq -n --arg at "$(date -u +%FT%TZ)" --argjson ok "$1" --arg stamp "$2" \
+    --argjson dur "$(($(date +%s) - started_s))" \
+    '{at: $at, ok: $ok, stamp: $stamp, duration_s: $dur}' >"$BACKUP_ROOT/status/restore-test.json.tmp"
+  chmod 644 "$BACKUP_ROOT/status/restore-test.json.tmp"
+  mv "$BACKUP_ROOT/status/restore-test.json.tmp" "$BACKUP_ROOT/status/restore-test.json"
+}
+fail() { printf 'restore-test: FAIL: %s\n' "$*" >&2; status false "${latest:-}"; exit 1; }
 
 latest="$(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -regextype posix-extended \
   -regex '.*/[0-9]{8}T[0-9]{6}Z' -printf '%f\n' | sort | tail -n1)"
@@ -113,3 +123,4 @@ if [[ -s "$dir/audit-chain.jsonl" ]]; then
 fi
 
 log "PASS ($latest, ${#databases[@]} databases); throwaway container and volumes removed"
+status true "$latest"

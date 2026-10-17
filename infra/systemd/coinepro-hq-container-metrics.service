@@ -1,0 +1,12 @@
+[Unit]
+Description=CoinePro HQ: per-container metrics for node-exporter (no Docker socket in any container)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+ExecStart=/home/Hub/CoinePro-Hub/infra/observability/container-metrics.sh
+TimeoutStartSec=60
+Nice=10

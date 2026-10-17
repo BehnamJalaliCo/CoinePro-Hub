@@ -24,7 +24,8 @@ trap '"$TE" down' EXIT
 # (prompt 05 §12) the agent runner and the rule-based site checker.
 API_DOMAIN="*/hq_api/domain/work.py,*/hq_api/domain/decisions.py,*/hq_api/domain/notify.py,\
 */hq_api/domain/org.py,*/hq_api/domain/templates.py,*/hq_api/domain/recurrence.py,\
-*/hq_api/domain/recurring.py,*/hq_api/domain/control.py,*/hq_api/security/*,*/hq_api/routes/auth.py"
+*/hq_api/domain/recurring.py,*/hq_api/domain/control.py,*/hq_api/security/*,*/hq_api/routes/auth.py,\
+*/hq_api/agents/runner.py,*/hq_api/agents/protocol.py,*/hq_api/agents/checks.py"
 
 api_image() { # api_image <cmd...>: apps/api's test image without the test dependencies
   docker build -q -f "$API_DIR/Dockerfile.test" -t "$API_IMAGE" "$API_DIR" >/dev/null

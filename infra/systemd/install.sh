@@ -5,12 +5,16 @@ set -euo pipefail
 
 UNIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UNITS=(coinepro-hq-backup.service coinepro-hq-backup.timer
-  coinepro-hq-openbao-unseal.service coinepro-hq-openbao-unseal.timer)
+  coinepro-hq-openbao-unseal.service coinepro-hq-openbao-unseal.timer
+  coinepro-hq-container-metrics.service coinepro-hq-container-metrics.timer)
 
+# node-exporter's textfile directory (container metrics without a Docker socket).
+sudo install -d -o Hub -g Hub -m 0755 /var/lib/coinepro-hq /var/lib/coinepro-hq/textfile
 for unit in "${UNITS[@]}"; do
   sudo install -m 0644 "$UNIT_DIR/$unit" "/etc/systemd/system/$unit"
 done
 sudo systemd-analyze verify "${UNITS[@]/#//etc/systemd/system/}"
 sudo systemctl daemon-reload
-sudo systemctl enable --now coinepro-hq-backup.timer coinepro-hq-openbao-unseal.timer
+sudo systemctl enable --now coinepro-hq-backup.timer coinepro-hq-openbao-unseal.timer \
+  coinepro-hq-container-metrics.timer
 systemctl list-timers 'coinepro-hq-*' --no-pager
