@@ -358,7 +358,7 @@ async def test_transcribe_with_the_punctuation_guard(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    acts, stt = media_acts
+    acts, _stt = media_acts
 
     async def on_worker(hub: Any, file_id: str, timeout_s: int) -> dict[str, Any]:
         return await _on_worker(acts, file_id)
