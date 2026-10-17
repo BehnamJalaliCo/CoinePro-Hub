@@ -11,6 +11,10 @@
 #     llm-migrate and api-migrate are one-shot jobs (restart "no", no healthcheck).
 #   - claude-runtime sits only on hq-llm (llm-router, OpenBao, Prometheus):
 #     it can reach the internet for the Claude API but not the data services.
+#   - hq-core (prompt 04.1): Temporal (unauthenticated on 7233) and OPA are
+#     reachable only from api, worker, Temporal's own tooling, Prometheus
+#     (Temporal metrics) and Postgres (Temporal's database). Nothing else on
+#     hq-internal can reach them (scripts/quality/compose-rules.sh checks it).
 #   - node-exporter uses the host network (to see the host's real NICs) and
 #     listens only on the hq-internal gateway 172.30.0.1, never on 0.0.0.0.
 
@@ -55,6 +59,8 @@ services:
   postgres:
     <<: *service
     image: pgvector/pgvector:0.8.7-pg17
+    # hq-core: Temporal's database.
+    networks: [hq-internal, hq-core]
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run make env}
       POSTGRES_INITDB_ARGS: "--data-checksums"
@@ -80,6 +86,11 @@ services:
       - work_mem=${PG_WORK_MEM:?}
       - -c
       - log_min_duration_statement=1000
+      # Statement parameters (message bodies, notes) never reach the logs.
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
     shm_size: 256mb
     stop_grace_period: 60s
     ports:
@@ -182,6 +193,7 @@ services:
   temporal:
     <<: *service
     image: temporalio/server:1.32.1
+    networks: [hq-core]
     depends_on:
       temporal-schema:
         condition: service_completed_successfully
@@ -221,7 +233,7 @@ services:
     # Registers the "default" namespace once (no-op when it exists).
     <<: *job
     image: temporalio/admin-tools:1.32.1
-    networks: [hq-internal]
+    networks: [hq-core]
     depends_on:
       temporal:
         condition: service_healthy
@@ -240,6 +252,7 @@ services:
   temporal-ui:
     <<: *service
     image: temporalio/ui:2.56.0
+    networks: [hq-core]
     depends_on:
       temporal:
         condition: service_healthy
@@ -449,11 +462,24 @@ services:
     # The api is fail-closed: no answer from OPA means "denied".
     <<: *service
     image: ${OPA_IMAGE:?use hq.sh}
+    # Only api and worker (hq-core) reach it. --authorization=basic with
+    # system.authz (infra/opa/policy/authz.rego): POST /v1/data/hq/... and
+    # GET /health only; policies and data come from files, never over HTTP.
+    networks: [hq-core]
     depends_on:
       hq-tools:
         condition: service_completed_successfully
-    command: ["run", "--server", "--addr", "0.0.0.0:8181", "--log-level", "error", "--disable-telemetry", "/policy"]
+    command:
+      - run
+      - --server
+      - --addr=0.0.0.0:8181
+      - --authorization=basic
+      - --log-level=error
+      - --disable-telemetry
+      - /policy
+    user: "1000:1000"
     read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
     cap_drop: [ALL]
     volumes:
       - ../opa/policy:/policy:ro
@@ -473,6 +499,9 @@ services:
     # /api/v1 (behind Caddy, only with a domain) and /internal/v1 (hq-internal).
     <<: *service
     image: coinepro-hq/api:0.1.0
+    # hq-internal: Caddy, NATS, OpenBao (AppRole bound to 172.30.0.0/24);
+    # hq-core: OPA and Temporal.
+    networks: [hq-internal, hq-core]
     build:
       context: ../../apps/api
       additional_contexts:
@@ -502,6 +531,8 @@ services:
       HQ_PUBLIC_ORIGIN: ${HQ_PUBLIC_ORIGIN:-}
       HQ_WEBAUTHN_RP_ID: ${HQ_WEBAUTHN_RP_ID:-}
       HQ_FILES_ROOT: /data/files
+      # Audit chain anchors (prompt 04.1 §1.11): the worker appends, the api reads.
+      HQ_AUDIT_ANCHOR_FILE: /anchors/audit-chain.jsonl
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -509,6 +540,7 @@ services:
     volumes:
       - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/hq-api:/run/secrets/hq:ro
       - hq-files:/data/files
+      - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors:ro
     healthcheck:
       test: ["CMD", "python", "-m", "hq_common.heartbeat"]
       interval: 15s
@@ -524,6 +556,7 @@ services:
     # Temporal worker (task queue hq-core) + the NATS bridge into HQ_CORE.
     <<: *service
     image: coinepro-hq/api:0.1.0
+    networks: [hq-internal, hq-core]
     depends_on:
       api:
         condition: service_healthy
@@ -540,6 +573,9 @@ services:
     cap_drop: [ALL]
     volumes:
       - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/hq-worker:/run/secrets/hq:ro
+      # Append-only anchor file of the audit chain, outside the Postgres volume
+      # and inside the backup set (created by `make up`, owner uid 10001).
+      - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors
     healthcheck:
       test: ["CMD", "python", "-m", "hq_common.heartbeat"]
       interval: 15s
@@ -586,7 +622,8 @@ services:
   prometheus:
     <<: *service
     image: prom/prometheus:v3.15.0
-    networks: [hq-internal, hq-llm]
+    # hq-core: Temporal's metrics endpoint (temporal:9090).
+    networks: [hq-internal, hq-llm, hq-core]
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -835,6 +872,15 @@ networks:
       config:
         - subnet: 172.30.1.0/24
           gateway: 172.30.1.1
+  hq-core:
+    # Temporal and OPA (no authentication of their own on this network) with
+    # their only clients: api, worker, Temporal's tooling, Prometheus, Postgres.
+    name: hq-core
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.2.0/24
+          gateway: 172.30.2.1
 
 volumes:
   hq-tools:

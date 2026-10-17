@@ -54,7 +54,8 @@ start() {
   docker network create "$NET" >/dev/null
   docker run -d --name "$NAME-pg" --network "$NET" --network-alias postgres \
     --env-file "$STATE" -v "$REPO_DIR/infra/postgres/initdb:/docker-entrypoint-initdb.d:ro" \
-    "$PG_IMAGE" -c shared_preload_libraries=pg_stat_statements >/dev/null
+    "$PG_IMAGE" -c shared_preload_libraries=pg_stat_statements \
+    -c log_parameter_max_length=0 -c log_parameter_max_length_on_error=0 >/dev/null
   docker run -d --name "$NAME-nats" --network "$NET" --network-alias nats \
     --env-file "$STATE" -v "$REPO_DIR/infra/nats/nats-server.conf:/etc/nats/nats-server.conf:ro" \
     "$NATS_IMAGE" --config /etc/nats/nats-server.conf >/dev/null
@@ -72,7 +73,7 @@ start_api_deps() {
     --log-level error --namespace default >/dev/null
   docker run -d --name "$NAME-opa" --network "$NET" --network-alias opa \
     -v "$REPO_DIR/infra/opa/policy:/policy:ro" "$OPA_IMAGE" \
-    run --server --watch --addr 0.0.0.0:8181 --log-level error /policy >/dev/null
+    run --server --watch --authorization=basic --addr 0.0.0.0:8181 --log-level error /policy >/dev/null
 }
 
 run() {

@@ -64,10 +64,25 @@ make check
 ## ۳. backup و restore
 
 - **شبانه:** `coinepro-hq-backup.timer` هر شب ساعت **۰۲:۳۰ UTC** (با تأخیر تصادفی تا ۱۵ دقیقه) اجرا میشود. اگر سرور در آن ساعت خاموش بوده باشد، بعد از روشن شدن اجرا میشود.
-- **چه چیزی:** برای هر دیتابیس (به جز `postgres`) یک `pg_dump -Fc` جدا، به‌علاوه‌ی `globals.sql` (نقش‌ها؛ شامل hash رمزها)، `manifest.json` و `SHA256SUMS`.
+- **چه چیزی:**
+  - برای هر دیتابیس (به جز `postgres`) یک `pg_dump -Fc` جدا، به‌علاوه‌ی `globals.sql` (نقش‌ها؛ شامل hash رمزها)، `manifest.json` و `SHA256SUMS`.
+  - (پرامپت ۴.۱) فایل‌های api (volume ‏`hq-files`): `files.tar.gz` و `files.sha256` (sha256 هر فایل).
+  - یک کپی از لنگرهای زنجیره‌ی Audit: `audit-chain.jsonl`.
 - **کجا:** `/home/Hub/backups/<YYYYMMDDTHHMMSSZ>/` (دسترسی `700`/`600`). **نگهداری ۷ روز.** فقط پوشه‌هایی با همین الگوی نام پاک میشوند.
+- **لنگر زنجیره‌ی Audit (پرامپت ۴.۱ §۱.۱۱):**
+  - فایل: `/home/Hub/backups/audit-anchors/audit-chain.jsonl`. append-only است و بیرون از volume پستگرس.
+  - پوشه را `make up` میسازد (`infra/backup/anchor-dir.sh`، مالک uid 10001، `0750`).
+  - `worker` آن را خواندنی و نوشتنی در `/anchors` دارد و `api` فقط خواندنی.
+  - retention هرگز این پوشه را پاک نمیکند. هر backup یک کپی از آن را برمیدارد، که offsite هم میرود.
 - **وضعیت:** `systemctl list-timers 'coinepro-hq-*'` و `journalctl -u coinepro-hq-backup.service`.
-- **تست بازیابی:** `make restore-test`. آخرین backup را در یک Postgres موقت (همان ایمیج، بدون شبکه، 512MB) بازیابی میکند و این‌ها را چک میکند: checksumها، `pg_restore --exit-on-error`، برابر بودن تعداد جدول‌ها با فهرست آرشیو، افزونه‌ی `vector` در `hq` و نسخه‌ی schema در Temporal. بعد کانتینر را پاک میکند. **حداقل ماهی یک بار اجرا شود.**
+- **تست بازیابی:** `make restore-test`. آخرین backup را در یک Postgres موقت (همان ایمیج، بدون شبکه، 512MB) بازیابی میکند و این‌ها را چک میکند:
+  - checksumها و `pg_restore --exit-on-error` (نقش‌ها اول از `globals.sql` ساخته میشوند)
+  - برابر بودن تعداد جدول‌ها با فهرست آرشیو (ردیف‌های `TABLE ATTACH` پارتیشن‌ها شمرده نمیشوند)
+  - افزونه‌ی `vector` در `hq` و نسخه‌ی schema در Temporal
+  - **فایل‌ها:** در یک volume موقت بازیابی میشوند و sha256 همه‌ی آن‌ها بررسی میشود. اگر backup فایلی نداشته باشد، همین مسیر روی یک فایل نمونه آزموده میشود.
+  - **لنگرها:** JSONL معتبر با `seq` و `hash`.
+
+  بعد کانتینر و volumeهای موقت پاک میشوند. **حداقل ماهی یک بار اجرا شود.**
 - **OpenBao در این backup نیست.** OpenBao داده‌ی raft خودش را دارد. snapshot آن (`bao operator raft snapshot save`) توکن لازم دارد و در پرامپت بعدی، همراه با policyها، اضافه میشود.
 
 **بازیابی واقعی یک دیتابیس روی production** (فقط با اجازه‌ی مالک؛ مثال برای `hq`):
@@ -160,8 +175,10 @@ make check
 | Valkey | `127.0.0.1:6379` | `valkey:6379` | همه |
 | NATS (client) | `127.0.0.1:4222` | `nats:4222` | همه |
 | NATS (monitoring) | `127.0.0.1:8222` | `nats:8222` | همه |
-| Temporal (gRPC) | `127.0.0.1:7233` | `temporal:7233` (HTTP: 7243، metrics: 9090) | همه |
-| Temporal UI | `127.0.0.1:8233` | `temporal-ui:8080` | همه |
+| Temporal (gRPC) | `127.0.0.1:7233` | **فقط شبکه‌ی `hq-core`:** `temporal:7233` (HTTP: 7243، metrics: 9090) | همه |
+| Temporal UI | `127.0.0.1:8233` | `temporal-ui:8080` (`hq-core`) | همه |
+| OPA | — (**بدون پورت منتشرشده**) | **فقط `hq-core`:** `opa:8181` (فقط `POST /v1/data/hq/...` و `GET /health`) | همه |
+| api / worker | — (**بدون پورت منتشرشده**) | `api:8000` (`hq-internal` و `hq-core`) | همه |
 | OpenBao | `127.0.0.1:8200` | `openbao:8200` | همه |
 | Tempo | `127.0.0.1:3200` | `tempo:3200`، OTLP: `tempo:4317`/`4318` | full |
 | otel-collector (OTLP) | `127.0.0.1:4317` (gRPC)، `127.0.0.1:4318` (HTTP) | `otel-collector:4317`/`4318` | full |
@@ -169,6 +186,13 @@ make check
 | llm-router | — (**بدون پورت منتشرشده**) | `llm-router:8000` (شبکه‌های `hq-internal` و `hq-llm`) | همه |
 | claude-runtime | — (**بدون پورت منتشرشده**) | `claude-runtime:8100` (**فقط** شبکه‌ی `hq-llm`) | همه |
 | SSH (مال مالک) | `0.0.0.0:1367` | — | — |
+
+**شبکه‌ی `hq-core` (`172.30.2.0/24`، پرامپت ۴.۱):**
+- Temporal (بی‌احراز روی 7233) و OPA فقط اینجا هستند و **روی `hq-internal` نیستند.**
+- اعضای مجاز: `temporal`، `temporal-namespace`، `temporal-ui`، `opa`، `api`، `worker`، `postgres` (دیتابیس Temporal) و `prometheus` (متریک Temporal).
+- `scripts/quality/compose-rules.sh` هر عضو دیگر را رد میکند.
+- Valkey فقط cache است و **هیچ persistence ندارد** (نه AOF، نه RDB). پس fork بازنویسی هرگز حافظه را دو برابر نمیکند.
+- Postgres مقدار پارامترهای کوئری را هرگز لاگ نمیکند (`log_parameter_max_length=0`، و همین برای خطاها).
 
 **دسترسی از لپ‌تاپ مالک** با تونل SSH، بدون باز کردن پورت:
 ```bash

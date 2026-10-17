@@ -52,7 +52,11 @@ export OPA_IMAGE
 # (contract §2): HQ_SITE_ADDRESS=<domain> switches on /api at the edge and
 # gives the api its origin and WebAuthn RP id. Without it /api answers 404.
 site="${HQ_SITE_ADDRESS:-$(sed -n 's/^HQ_SITE_ADDRESS=//p' "$ENV_FILE" | tail -n1)}"
-if [[ "$site" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+# A domain: dot-separated labels whose last label has a letter (an IP address
+# is not a domain) and is not "localhost" (no public certificate exists).
+tld="${site##*.}"
+if [[ "$site" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ &&
+  "$tld" =~ [a-z] && "$tld" != localhost ]]; then
   export HQ_API_EDGE=on HQ_PUBLIC_ORIGIN="https://$site" HQ_WEBAUTHN_RP_ID="$site"
 else
   export HQ_API_EDGE=off HQ_PUBLIC_ORIGIN="" HQ_WEBAUTHN_RP_ID=""

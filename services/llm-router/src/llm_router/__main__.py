@@ -19,6 +19,8 @@ def main() -> None:
         log_config=None,
         server_header=False,
         proxy_headers=False,
+        # No uvicorn access line: it carries full paths with query strings.
+        access_log=False,
         timeout_graceful_shutdown=30,
     )
 

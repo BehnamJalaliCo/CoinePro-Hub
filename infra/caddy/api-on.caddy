@@ -1,22 +1,38 @@
-# /api with a domain over HTTPS (HQ_API_EDGE=on, set by infra/compose/hq.sh).
-# SSE needs flush_interval -1; bodies are capped (files go to /internal only).
-handle /api/* {
-	request_body {
-		max_size 2MB
-	}
-	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
-		Cross-Origin-Opener-Policy same-origin
-		Cross-Origin-Resource-Policy same-origin
-		Permissions-Policy "camera=(), microphone=(), geolocation=()"
-		-Server
-	}
+# With a domain over HTTPS (HQ_API_EDGE=on, set by infra/compose/hq.sh).
+# Imported inside the site block, so the first header applies to the whole site.
+
+# HSTS for the whole site (HTTPS only, hence only in this snippet).
+header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+@api path /api/*
+header @api {
+	Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+	Cross-Origin-Opener-Policy same-origin
+	Cross-Origin-Resource-Policy same-origin
+	Permissions-Policy "camera=(), microphone=(), geolocation=()"
+}
+
+# The live stream (SSE): flushed at once and never timed out by the proxy.
+handle /api/v1/stream {
 	reverse_proxy api:8000 {
 		flush_interval -1
 		header_up X-Forwarded-For {remote_host}
 		transport http {
 			read_timeout 0
+		}
+	}
+}
+
+# Everything else under /api: bodies capped (files go to /internal only) and
+# a normal read timeout.
+handle /api/* {
+	request_body {
+		max_size 2MB
+	}
+	reverse_proxy api:8000 {
+		header_up X-Forwarded-For {remote_host}
+		transport http {
+			read_timeout 60s
 		}
 	}
 }
