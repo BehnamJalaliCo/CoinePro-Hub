@@ -545,12 +545,32 @@ async def test_daily_cap_refuses_runs(
     assert c.code == "daily_cap"
     # The day's spend counts everything the model read or wrote: through the
     # subscription most input arrives as cache writes and reads.
-    want = await su.fetchval(
-        """SELECT COALESCE(sum(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens), 0)
-           FROM agents.runs WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"""
+    # It is read call by call from the ledger: a run that started before
+    # midnight (UTC) still counts what it spends today.
+    today = """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                       + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+               FROM llm.calls WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+                 AND meta ? 'run_id'"""
+    async with agents.runner.hub.db.tx(await agents.runner.hub.companies.ids()) as tx:
+        assert await agents.runner._spent_today(tx) == await su.fetchval(today)
+    late = await su.fetchval(
+        """INSERT INTO agents.runs (company_id, employee_id, trigger, reason, state, started_at, finished_at)
+           SELECT company_id, id, 'work', 'late', 'done', now() - interval '1 day', now() FROM core.employees
+           WHERE code = $1 RETURNING id""",
+        f"{co}-CEO",
+    )
+    before = await su.fetchval(today)
+    await su.execute(
+        """INSERT INTO llm.calls (id, started_at, company_id, actor_ref, task_class, priority, caller,
+               status, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, meta)
+           SELECT gen_random_uuid(), now(), company_id, $1, 'general', 3, 'hq-agents', 'ok',
+                  100, 20, 300, 40, jsonb_build_object('run_id', $2::text)
+           FROM core.employees WHERE code = $1""",
+        f"{co}-CEO",
+        str(late),
     )
     async with agents.runner.hub.db.tx(await agents.runner.hub.companies.ids()) as tx:
-        assert await agents.runner._spent_today(tx) == want
+        assert await agents.runner._spent_today(tx) == before + 460
 
 
 async def test_bad_output_and_router_refusals(

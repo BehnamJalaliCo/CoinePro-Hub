@@ -34,7 +34,7 @@ async def test_unknown_topics_are_ignored_and_named(
     async with serve(app) as url:
         assert await _first_comment(url, owner, "work,oversight") == ": topics work"
         assert await _first_comment(url, owner, "files,workshop,orders,runs") == ": topics runs"
-        assert await _first_comment(url, owner, "files") == ": topics "
+        assert await _first_comment(url, owner, "files") == ": topics"  # nothing served
     for bad in ("Work!", "work,,x", "a" * 201):
         r = await client.get("/api/v1/stream", headers=owner, params={"topics": bad})
         assert r.status_code == 422, bad

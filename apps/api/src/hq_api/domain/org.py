@@ -16,7 +16,7 @@ from hq_api.schemas import EmployeeRef, ModelChoice, Score, employee_ref
 EMPLOYEE_SQL = """
     SELECT e.id, e.code, e.kind, e.title_fa, e.title_en, e.display_name, e.status, e.activity,
            e.activity_note, e.activity_at, e.score, e.score_owner_avg, e.rank_in_department,
-           e.hired_at, e.dismissed_at, e.version, e.company_id, e.department_id, e.reports_to,
+           e.hired_at, e.dismissed_at, e.probation_until, e.version, e.company_id, e.department_id, e.reports_to,
            e.duties, e.permissions, e.role,
            c.code AS company, d.code AS department,
            r.code AS rt_code, r.title_fa AS rt_title_fa, r.kind AS rt_kind, rc.code AS rt_company,
@@ -71,6 +71,8 @@ class Employee(BaseModel):
     hired_at: datetime
     dismissed_at: datetime | None
     hired_by_decision: str | None
+    # ⟨1.4.3⟩ +7 days after a delegated hire (§18.11); null otherwise
+    probation_until: datetime | None = None
     charter: CharterRef | None = None
     version: int
 
@@ -181,6 +183,7 @@ def render(
         hired_at=row["hired_at"],
         dismissed_at=row["dismissed_at"],
         hired_by_decision=row["hired_by_decision"],
+        probation_until=row.get("probation_until"),
         charter=CharterRef(role=role, version=charter.version if charter else None)
         if role
         else None,

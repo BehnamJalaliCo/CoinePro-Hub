@@ -74,7 +74,7 @@ async def bridge(
         events.SUBJECTS, stream=events.STREAM, ordered_consumer=True, config=cfg
     )
     try:
-        yield f": topics {served}\nretry: 3000\n\n".encode()
+        yield f": topics{' ' + served if served else ''}\nretry: 3000\n\n".encode()
         while True:
             try:
                 msg = await sub.next_msg(timeout=HEARTBEAT_S)

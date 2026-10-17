@@ -49,9 +49,17 @@ from hq_api.routes.messages import LINK_TABLES
 from hq_api.security import agent_tokens
 from hq_api.worker.jalali import jalali_long
 from hq_common.charters import Charter
-from hq_common.redact import scrub, scrub_async
+from hq_common.redact import redact_async, scrub, scrub_async
 
 log = logging.getLogger("hq_api.agents.runner")
+
+
+async def masked_json(value: Any) -> str:
+    """A record for the prompt, masked as a value (strings, dict keys, values
+    under secret keys) BEFORE it becomes JSON text: dumped first, a secret at
+    the start of a line would sit behind a "\\n" escape (prompt 5.1 review)."""
+    plain = json.loads(json.dumps(value, ensure_ascii=False, default=str))
+    return json.dumps(await redact_async(plain), ensure_ascii=False)
 
 
 def prompt_tokens(system: str, messages: list[dict[str, str]]) -> int:
@@ -68,6 +76,7 @@ TASK_CLASS_OF_KIND = {"advisor": "advisor"}
 ALERT_TASK = "ops_alert"
 HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
 MIN_OUTPUT_TOKENS = 256  # a step needs at least this much room to answer at all
+LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked for context
 
 
 @dataclass
@@ -221,11 +230,15 @@ class Runner:
 
     async def _spent_today(self, tx: Tx) -> int:
         n = await tx.scalar(
-            # Everything the model read or wrote: through the subscription most of the
-            # input arrives as cache writes and reads, not as input_tokens.
-            """SELECT COALESCE(sum(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens), 0)
-               FROM agents.runs
-               WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"""
+            # Every agent call of today (UTC) from the router's ledger, call by call:
+            # a run that started before midnight still counts what it spends after.
+            # Everything the model read or wrote: through the subscription most of
+            # the input arrives as cache writes and reads, not as input_tokens.
+            """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                                   + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+               FROM llm.calls
+               WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+                 AND meta ? 'run_id'"""
         )
         return int(n or 0)
 
@@ -512,7 +525,9 @@ class Runner:
             if target == live_thread and out.get("ref"):
                 body = args.get("body_md")
                 if isinstance(body, str):  # masked like everything the owner sees live
-                    await self._live(live_thread, rc, "reply.delta", {"text": scrub(body)[:4000]})
+                    # cut before masking: a 50,000-char body never blocks the event loop
+                    text = scrub(body[:LIVE_SCRUB_CHARS])[:4000]
+                    await self._live(live_thread, rc, "reply.delta", {"text": text})
                 rc.replied = str(out["ref"])
                 await self._live(live_thread, rc, "reply.done", {"message_ref": rc.replied})
 
@@ -684,10 +699,7 @@ class Runner:
             )
             if run["work_id"] is not None:
                 parts.append(
-                    "# Work\n"
-                    + json.dumps(
-                        await self._work_brief(tx, run["work_id"]), ensure_ascii=False, default=str
-                    )
+                    "# Work\n" + await masked_json(await self._work_brief(tx, run["work_id"]))
                 )
             if run["thread_id"] is not None:
                 msgs = await tx.all(
@@ -724,10 +736,7 @@ class Runner:
                         scope=scope,
                     )
                     if d:
-                        parts.append(
-                            "# Decision card to review\n"
-                            + json.dumps(d, ensure_ascii=False, default=str)
-                        )
+                        parts.append("# Decision card to review\n" + await masked_json(d))
             notes = await tx.all(
                 "SELECT note FROM core.employee_memory WHERE employee_id = :e ORDER BY id DESC LIMIT 5",
                 e=emp["id"],

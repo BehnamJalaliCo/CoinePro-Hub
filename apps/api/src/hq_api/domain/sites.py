@@ -42,13 +42,26 @@ async def resolve(host: str) -> list[str]:
     return sorted({str(i[4][0]) for i in infos})
 
 
-def _not_public(address: str) -> bool:
+# NAT64 prefixes (RFC 6052 well-known and RFC 8215 local use): they translate to
+# any IPv4 address, private ones included, so they are never "public" here.
+NAT64 = (ipaddress.ip_network("64:ff9b::/96"), ipaddress.ip_network("64:ff9b:1::/48"))
+
+
+def not_public(address: str) -> bool:
+    """True for anything a check must not connect to: RFC 1918 (the hub's
+    10.10.1.0/24 and the neighbours too), loopback, link-local (cloud
+    metadata), CGNAT, multicast, reserved, unspecified, NAT64, and an IPv4
+    address carried inside IPv6 that is any of those."""
     try:
         ip = ipaddress.ip_address(address.split("%")[0])
     except ValueError:
         return True
-    # RFC 1918 (the hub's 10.10.1.0/24 and the neighbours too), loopback,
-    # link-local, CGNAT, multicast, reserved, unspecified: anything not global.
+    if isinstance(ip, ipaddress.IPv6Address):
+        if any(ip in net for net in NAT64):
+            return True
+        inner = ip.ipv4_mapped or ip.sixtofour
+        if inner is not None:
+            return not inner.is_global
     return not ip.is_global
 
 
@@ -64,10 +77,10 @@ async def internal_reason(url: str, resolver: Resolve = resolve) -> str | None:
     except ValueError:
         if "." not in host or host.endswith(INTERNAL_SUFFIXES):
             return "an internal name"
-        if any(_not_public(a) for a in await resolver(host)):
+        if any(not_public(a) for a in await resolver(host)):
             return "resolves to a private or internal address"
         return None
-    return "a private or internal address" if _not_public(host) else None
+    return "a private or internal address" if not_public(host) else None
 
 
 @lru_cache(maxsize=1)

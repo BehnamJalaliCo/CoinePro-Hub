@@ -2254,6 +2254,16 @@
             ],
             "title": "Amendments"
           },
+          "approver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Actor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "company": {
             "title": "Company",
             "type": "string"
@@ -3522,6 +3532,18 @@
             "title": "Permissions",
             "type": "array"
           },
+          "probation_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probation Until"
+          },
           "reports_to": {
             "anyOf": [
               {
@@ -3704,6 +3726,18 @@
             "title": "Permissions",
             "type": "array"
           },
+          "probation_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probation Until"
+          },
           "recent_ratings": {
             "items": {
               "$ref": "#/components/schemas/RatingBrief"
@@ -3833,6 +3867,47 @@
           "company"
         ],
         "title": "EmployeeRef",
+        "type": "object"
+      },
+      "Envelope": {
+        "description": "One operating company's monthly token envelope (contract §18.11).",
+        "properties": {
+          "committed_month": {
+            "title": "Committed Month",
+            "type": "integer"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "hires_month": {
+            "title": "Hires Month",
+            "type": "integer"
+          },
+          "tokens_month": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Month"
+          },
+          "used_month": {
+            "title": "Used Month",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "company",
+          "tokens_month",
+          "committed_month",
+          "used_month",
+          "hires_month"
+        ],
+        "title": "Envelope",
         "type": "object"
       },
       "Escrow": {
@@ -4356,12 +4431,19 @@
               }
             ]
           },
+          "envelopes": {
+            "items": {
+              "$ref": "#/components/schemas/Envelope"
+            },
+            "title": "Envelopes",
+            "type": "array"
+          },
           "mode": {
             "anyOf": [
               {
                 "enum": [
-                  "self",
-                  "proposals"
+                  "proposals",
+                  "delegated"
                 ],
                 "type": "string"
               },
@@ -4402,7 +4484,7 @@
           "mode": {
             "enum": [
               "proposals",
-              "self"
+              "delegated"
             ],
             "title": "Mode",
             "type": "string"
@@ -4438,12 +4520,19 @@
               }
             ]
           },
+          "envelopes": {
+            "items": {
+              "$ref": "#/components/schemas/Envelope"
+            },
+            "title": "Envelopes",
+            "type": "array"
+          },
           "mode": {
             "anyOf": [
               {
                 "enum": [
-                  "self",
-                  "proposals"
+                  "proposals",
+                  "delegated"
                 ],
                 "type": "string"
               },
@@ -13695,6 +13784,11 @@
                     {
                       "action_class": "x",
                       "amendments": {},
+                      "approver": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
                       "company": "TY",
                       "created_at": "2026-10-17T05:42:00Z",
                       "decided_at": "2026-10-17T05:42:00Z",
@@ -13832,6 +13926,11 @@
                 "example": {
                   "action_class": "x",
                   "amendments": {},
+                  "approver": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -13979,6 +14078,11 @@
                 "example": {
                   "action_class": "x",
                   "amendments": {},
+                  "approver": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -14232,6 +14336,11 @@
                 "example": {
                   "action_class": "x",
                   "amendments": {},
+                  "approver": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -14379,6 +14488,11 @@
                 "example": {
                   "action_class": "x",
                   "amendments": {},
+                  "approver": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -15397,6 +15511,7 @@
                         "model": "claude-sonnet-5-5"
                       },
                       "permissions": [],
+                      "probation_until": "2026-10-17T05:42:00Z",
                       "reports_to": {
                         "code": "TY-GROWTH-01",
                         "company": "TY",
@@ -15532,6 +15647,7 @@
                     "model": "claude-sonnet-5-5"
                   },
                   "permissions": [],
+                  "probation_until": "2026-10-17T05:42:00Z",
                   "recent_ratings": [
                     {
                       "deliverable": "O-000456",
@@ -15693,6 +15809,7 @@
                     "model": "claude-sonnet-5-5"
                   },
                   "permissions": [],
+                  "probation_until": "2026-10-17T05:42:00Z",
                   "reports_to": {
                     "code": "TY-GROWTH-01",
                     "company": "TY",
@@ -15944,6 +16061,7 @@
                     "model": "claude-sonnet-5-5"
                   },
                   "permissions": [],
+                  "probation_until": "2026-10-17T05:42:00Z",
                   "reports_to": {
                     "code": "TY-GROWTH-01",
                     "company": "TY",
@@ -16076,6 +16194,7 @@
                     "model": "claude-sonnet-5-5"
                   },
                   "permissions": [],
+                  "probation_until": "2026-10-17T05:42:00Z",
                   "reports_to": {
                     "code": "TY-GROWTH-01",
                     "company": "TY",
@@ -17348,6 +17467,11 @@
                   "decision": {
                     "action_class": "x",
                     "amendments": {},
+                    "approver": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
                     "company": "TY",
                     "created_at": "2026-10-17T05:42:00Z",
                     "decided_at": "2026-10-17T05:42:00Z",
@@ -17415,6 +17539,7 @@
                       "model": "claude-sonnet-5-5"
                     },
                     "permissions": [],
+                    "probation_until": "2026-10-17T05:42:00Z",
                     "reports_to": {
                       "code": "TY-GROWTH-01",
                       "company": "TY",
@@ -17763,7 +17888,16 @@
                     "display_fa": "x",
                     "kind": "agent"
                   },
-                  "mode": "self",
+                  "envelopes": [
+                    {
+                      "committed_month": 1,
+                      "company": "TY",
+                      "hires_month": 1,
+                      "tokens_month": 1,
+                      "used_month": 1
+                    }
+                  ],
+                  "mode": "proposals",
                   "state": "closed",
                   "withdrawn": [
                     "x"
@@ -17809,7 +17943,16 @@
                     "display_fa": "x",
                     "kind": "agent"
                   },
-                  "mode": "self",
+                  "envelopes": [
+                    {
+                      "committed_month": 1,
+                      "company": "TY",
+                      "hires_month": 1,
+                      "tokens_month": 1,
+                      "used_month": 1
+                    }
+                  ],
+                  "mode": "proposals",
                   "state": "closed",
                   "withdrawn": [
                     "x"
@@ -17842,7 +17985,7 @@
     },
     "/api/v1/owner/hiring/start": {
       "post": {
-        "description": "🔏 (`hiring.start`, target `holding`). `proposals`: hiring opens to agents\nand each CEO (and each holding head with a hiring duty) gets one work item\n\"propose your first month's team\" (a second start adds none). `self`: hiring\nstays closed to agents; the owner hires directly (`POST /org/hires`).",
+        "description": "🔏 (`hiring.start`, target `holding`). `proposals`: hiring opens to agents,\nthe owner decides every card, and each CEO (and each holding head with a\nhiring duty) gets one work item \"propose your first month's team\" (a second\nstart adds none). `delegated` (each CEO hires inside its monthly envelope)\nanswers `409 not_ready` until prompt 8, before any step-up is consumed and\nwithout changing anything. Honours `Idempotency-Key` (a retry after a lost\nanswer gets the same answer, not a spent step-up).",
         "operationId": "start_hiring",
         "requestBody": {
           "content": {
@@ -17868,7 +18011,16 @@
                     "display_fa": "x",
                     "kind": "agent"
                   },
-                  "mode": "self",
+                  "envelopes": [
+                    {
+                      "committed_month": 1,
+                      "company": "TY",
+                      "hires_month": 1,
+                      "tokens_month": 1,
+                      "used_month": 1
+                    }
+                  ],
+                  "mode": "proposals",
                   "state": "closed",
                   "withdrawn": [
                     "x"
@@ -17896,6 +18048,17 @@
             "description": "Problem"
           },
           "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
             "content": {
               "application/json": {
                 "schema": {
@@ -23050,6 +23213,7 @@
                     "model": "claude-sonnet-5-5"
                   },
                   "permissions": [],
+                  "probation_until": "2026-10-17T05:42:00Z",
                   "reports_to": {
                     "code": "TY-GROWTH-01",
                     "company": "TY",
@@ -23518,6 +23682,7 @@
                       "model": "claude-sonnet-5-5"
                     },
                     "permissions": [],
+                    "probation_until": "2026-10-17T05:42:00Z",
                     "reports_to": {
                       "code": "TY-GROWTH-01",
                       "company": "TY",
@@ -24006,6 +24171,11 @@
                 "example": {
                   "action_class": "x",
                   "amendments": {},
+                  "approver": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -24165,6 +24335,11 @@
                 "example": {
                   "action_class": "x",
                   "amendments": {},
+                  "approver": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -24324,6 +24499,11 @@
                 "example": {
                   "action_class": "x",
                   "amendments": {},
+                  "approver": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",

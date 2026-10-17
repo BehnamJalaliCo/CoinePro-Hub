@@ -81,6 +81,8 @@ CODES: dict[str, tuple[int, str, str]] = {
     # ⟨1.4.2⟩ an agent proposed a hire while hiring is closed (contract §18.11); this
     # text reaches the model through the Tool Gateway
     "hiring_closed": (403, "Hiring closed", "استخدام بسته است؛ کمبود تیم را در خروجی‌ات بنویس."),
+    # ⟨1.4.3⟩ a feature the contract names that this server build does not serve yet
+    "not_ready": (409, "Not ready", "این قابلیت هنوز روی این سرور آماده نیست."),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 

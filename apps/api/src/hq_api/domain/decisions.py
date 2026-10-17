@@ -187,6 +187,9 @@ class Decision(BaseModel):
     what: str
     why: str
     proposer: Actor
+    # ⟨1.4.3⟩ who decides the card: null = the owner; a company's CEO for
+    # delegated hires (§18.11, prompt 8)
+    approver: Actor | None = None
     work_id: UUID | None
     quota_estimate: QuotaOut
     risk: str
@@ -231,6 +234,7 @@ def render(r: dict[str, Any]) -> Decision:
         what=r["what"],
         why=r["why"],
         proposer=proposer,
+        approver=actor(r.get("approver_kind"), r.get("approver_code")),
         work_id=r["work_id"],
         quota_estimate=QuotaOut(tokens=r["quota_tokens"], usd=r["quota_usd"]),
         risk=r["risk"],

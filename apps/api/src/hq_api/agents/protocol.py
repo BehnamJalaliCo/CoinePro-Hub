@@ -31,7 +31,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from hq_common.charters import Charter, Library
-from hq_common.redact import scrub
+from hq_common.redact import scrub, spans
 
 STEP_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -287,13 +287,19 @@ class StreamFilter:
 
 
 class ScrubBuffer:
-    """Masks a live text on its way to the owner (prompt 5.1 §2.1): it passes
-    on whole lines only (a long line, once 512 characters are pending, up to
-    its last space, keeping 128 back), so a secret split across two deltas is
-    still seen whole; a private key block is held until its END line."""
+    """Masks a live text on its way to the owner (prompt 5.1 §2.1 and its
+    review). It passes on whole lines (a long line, once 512 characters are
+    pending, up to a space, keeping 128 back). The cut is chosen on the raw
+    text with the masks of the WHOLE pending text in view (hq_common.redact
+    spans): never inside a secret, nor within 64 characters before one (where
+    its key stands: "password: ", "Bearer "), so a key and its value always
+    leave together, masked. The rest stays raw, so a secret split across two
+    deltas is still seen whole next time. A private key block is held until
+    its END line."""
 
     HOLD = 512
     TAIL = 128
+    MARGIN = 64
 
     def __init__(self) -> None:
         self.buf = ""
@@ -304,17 +310,39 @@ class ScrubBuffer:
         if pem != -1 and "-----END" not in self.buf[pem:]:
             head, self.buf = self.buf[:pem], self.buf[pem:]
             return scrub(head) if head else ""
-        cut = self.buf.rfind("\n") + 1
-        if cut == 0 and len(self.buf) > self.HOLD:
-            cut = self.buf.rfind(" ", 0, len(self.buf) - self.TAIL) + 1
+        cut = self._cut()
         if cut <= 0:
             return ""
         out, self.buf = self.buf[:cut], self.buf[cut:]
         return scrub(out)
 
+    def _cut(self) -> int:
+        buf = self.buf
+        cut = buf.rfind("\n") + 1
+        if cut == 0 and len(buf) > self.HOLD:
+            cut = _space_before(buf, len(buf) - self.TAIL)
+        masked = spans(buf) if cut > 0 else []
+        while cut > 0:
+            hit = next((s for s, e in masked if s - self.MARGIN < cut <= e), None)
+            if hit is None:
+                return cut
+            cut = _boundary_before(buf, hit - self.MARGIN)
+        return 0
+
     def flush(self) -> str:
         out, self.buf = self.buf, ""
         return scrub(out) if out else ""
+
+
+def _space_before(text: str, limit: int) -> int:
+    return text.rfind(" ", 0, max(limit, 0)) + 1
+
+
+def _boundary_before(text: str, limit: int) -> int:
+    """The end of the last whole line or word before `limit` (0: none)."""
+    if limit <= 0:
+        return 0
+    return max(text.rfind("\n", 0, limit), text.rfind(" ", 0, limit)) + 1
 
 
 # --------------------------------------------------------------- context --

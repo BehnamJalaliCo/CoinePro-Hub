@@ -18,3 +18,23 @@ PROMPT_05_1 REPORT
 - Decisions for owner: when to open hiring (start proposals/self); daily cap stays 600K until set; fx.trade-future.ir 301 / terminal.coinepro.com DNS; CEO daily reports (off); GitHub token (github.read off, GITHUB_READ_REPOS empty); make install-systemd (sudo) to apply the container-metrics sandbox
 - Branch server/p05-1-fixes (from main 6ac5814), pushed
 این گزارش را برای Claude سشن مشورت ببر.
+
+## Review of 5.1 (PROMPT_05_1_REVIEW.md, on server/p05-1-fixes after merging main 13183b2)
+- B1 ok: brief and decision card masked as values before JSON (runner.masked_json); redact treats \n \t \r escapes as token boundaries (sk-ant, ghp_, AKIA, JWT, hvs., Bearer at a line start, raw and in JSON); mobile_number-style keys masked
+- B2 ok: GATEWAY_MAX_BODY_BYTES 2 MiB; a 200,000-char Persian deliver passes through the real HTTP app whole
+- B3 ok: mode delegated|proposals; delegated -> 409 not_ready (new code) before the step-up is consumed, nothing changes; GET /owner/hiring has envelopes [{company, tokens_month, committed_month, used_month (Jalali), hires_month}]
+- B4 ok: api 0012 adds decisions.approver (kind/code, null = owner) and employees.probation_until; both in Decision/Employee output (null until prompt 8)
+- M5 ok: core.hiring_state_for_share() in the proposing tx; a concurrent close waits, then withdraws the card (two-tx test)
+- M6 ok: Idempotency-Key claimed before the step-up on /org/hires and /owner/hiring/start (replay instead of 403 step_up_invalid); propose checks hiring after its key
+- M7 ok: withdrawal also emits decision.decided (status withdrawn); the 7 cards withdrawn by 0010 get it once
+- M8 ok: ScrubBuffer cuts on the raw text outside every mask and 64 chars before it (redact.spans), masks what leaves, keeps the rest raw; 1,920 split cases (5 shapes x 4 places x delta 1-96): no secret, output = scrub(whole); the old buffer fails it
+- M9 ok: every Default_Ignorable_Code_Point dropped from the matching view (U+FE0F, U+034F, U+3164 ...)
+- M10 ok: an httpx trace hook checks the socket's real peer before the request is sent (redirects too), the TLS probe checks its peer, NAT64 and IPv4-in-IPv6 judged as what they carry
+- Nits gateway ok: reserve without `lock` = locked; audit in finally (a cancelled call has its row, code cancelled); Usd allow_inf_nan=False
+- Nits internal.py ok: work.request and notification companies looked up after the policy (403 both); urgent 429 has Retry-After
+- Nits redaction ok: PGP private key blocks, name/value secret pairs, Luhn cards and phone-shaped JSON integers, URL user part up to 512, 0.9876543210 no longer masked; a live reply body is cut to 6,000 chars before it is masked
+- Nits hiring/budget ok: work.request from a spent work -> 409 budget_exceeded; daily cap from today's ledger calls (a run that began before midnight UTC counts); open children of the cancelled month-1 work cancelled (none on the hub)
+- Tests ok: the migration test proves a decided hire card and a pending non-hire card are untouched
+- Small ok: OpenAPI start lists 409; ": topics" without a trailing space; anchor-dir.sh --check only verifies
+- Gates and live: make check 14/14 (213 api + 266 services tests); deployed (api 0012): 21/21 healthy, 7 decision.decided events backfilled, hiring closed with envelopes FX/PC/TY (tokens_month null: no company monthly budget is set yet, the owner's before delegated), verify-live pass, /__canary 404; no real-model call in this round
+- Owner decisions unchanged (see above); new: each operating company's monthly envelope (PUT /budgets) before delegated hiring can be used

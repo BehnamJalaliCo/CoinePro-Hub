@@ -111,7 +111,8 @@ exec 8>&-
 
 # ------------------------------------------------------------ anchor-dir ----
 A="$T/anchor-root"
-(umask 002 && HQ_BACKUP_DIR="$A" PATH="$SAFE_PATH" "$REPO_DIR/infra/backup/anchor-dir.sh" --check \
+# Creating (make bootstrap; the stand-in sudo fails after the Hub-owned parts).
+(umask 002 && HQ_BACKUP_DIR="$A" PATH="$SAFE_PATH" "$REPO_DIR/infra/backup/anchor-dir.sh" \
   >/dev/null 2>&1) || true
 if [[ "$(mode "$A")" != 700 ]]; then
   fail "anchor-dir: backup root created $(mode "$A") under umask 002 (want 700)"
@@ -119,6 +120,15 @@ elif [[ "$(mode "$A/status")" != 755 ]]; then
   fail "anchor-dir: status/ is $(mode "$A/status") (want 755)"
 else
   pass "anchor-dir: backup root 0700 and status/ 0755 whatever the umask"
+fi
+# Checking (make up) changes nothing, and says what is wrong.
+C="$T/anchor-check"
+if HQ_BACKUP_DIR="$C" PATH="$SAFE_PATH" "$REPO_DIR/infra/backup/anchor-dir.sh" --check >/dev/null 2>&1; then
+  fail "anchor-dir: --check passed on a missing directory"
+elif [[ -e "$C" ]]; then
+  fail "anchor-dir: --check created $C"
+else
+  pass "anchor-dir: --check only verifies (nothing created or changed)"
 fi
 
 # -------------------------------------------------------------- reanchor ----

@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
-from hq_api import pagination
+from hq_api import idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import decisions as D
@@ -794,9 +794,7 @@ class DirectHire(BaseModel):
     status_code=201,
     responses=responses(401, 403, 404, 422),
 )
-async def direct_hire(
-    body: DirectHireIn, request: Request, ctx: Ctx = Depends(owner_ctx)
-) -> DirectHire:
+async def direct_hire(body: DirectHireIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """🔏 (`hire.direct`, target = SHA-256 of the exact body) the owner hires
     directly: a `hire` decision proposed **and** sealed by the owner in one
     transaction (approved, resolution M-…), then the employee. The same checks
@@ -825,6 +823,10 @@ async def direct_hire(
     # Before the step-up is consumed: the charter must fit (422 otherwise).
     D.check_hire_role(payload, co.kind, ctx.hub.charters, required=True)
     async with ctx.tx() as tx:
+        # A retry after a lost answer replays it (the step-up is single-use).
+        idem = await idempotency.claim(tx, request, ctx.who)
+        if idem and idem.replay:
+            return idem.replay
         su = await stepup.consume(tx, request, ctx.who, "hire.direct", target)
         d = await D.propose(
             tx,
@@ -868,4 +870,7 @@ async def direct_hire(
         row = await org.load_employee(tx, out["employee"])
         employee = (await _render_many(ctx, tx, [row]))[0]
         decision = D.render(await D.load(tx, d["ref"]))
-    return DirectHire(employee=employee, decision=decision)
+        result = DirectHire(employee=employee, decision=decision)
+        if idem:
+            await idem.store(tx, 201, result.model_dump(mode="json"))
+    return result

@@ -4,6 +4,7 @@ stubbed (respx); the charters are the real ones (agents/, mounted read-only)."""
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from collections.abc import AsyncIterator
@@ -864,3 +865,94 @@ async def test_create_app_starts_and_stops(tmp_path: Path) -> None:
     app = create_app(Settings(worker_token_file=str(digest), api_url=API, opa_url=OPA))
     async with app.router.lifespan_context(app):
         assert app.state.gw.gateway is not None and app.state.gw.worker_digest
+
+
+# ------------------------------------------------------ review of 5.1 (§B) --
+async def test_a_large_persian_output_passes_the_http_body_cap(
+    mock: respx.MockRouter, tmp_path: Path
+) -> None:
+    """Through the real HTTP app with the default body cap: a 200,000-character
+    Persian deliverable (about 400 KB as UTF-8 JSON) reaches the api whole
+    (prompt 5.1 review, blocker 2)."""
+    digest = tmp_path / "worker-token.sha256"
+    digest.write_text(hashlib.sha256(WORKER.encode()).hexdigest())
+    state = State(Settings(worker_token_file=str(digest)))
+    assert state.settings.max_body_bytes >= 1024 * 1024
+    state.load_digest()
+    state.gateway = Gateway(LIB, T.Api(API, 5), Opa(OPA))
+    Stub(mock)
+    work_route(mock)
+    deliver = mock.post(
+        f"{API}/internal/v1/work/11111111-1111-1111-1111-111111111111/deliver"
+    ).mock(
+        return_value=httpx.Response(200, json={"deliverable": "O-000079", "closed_children": []})
+    )
+    body = ("گزارش فارسی بلند با جزئیات کامل. " * 7000)[:200_000]
+    assert len(body) == 200_000
+    payload = {
+        "token": TOKEN,
+        "step": 1,
+        "tool": "deliver",
+        "args": {"work_ref": "W-000101", "title_fa": "گزارش", "body_md": body},
+    }
+    raw = json.dumps(payload, ensure_ascii=False).encode()
+    assert len(raw) > 256 * 1024
+    transport = httpx.ASGITransport(app=build_app(state))
+    async with httpx.AsyncClient(transport=transport, base_url="http://gw") as c:
+        r = await c.post(
+            "/v1/tools/call",
+            headers={"Authorization": f"Bearer {WORKER}", "Content-Type": "application/json"},
+            content=raw,
+        )
+    assert r.status_code == 200, r.text[:200]
+    assert r.json()["outcome"] == "ok"
+    assert json.loads(deliver.calls.last.request.content)["body"] == body
+
+
+async def test_a_reserve_answer_without_its_lock_counts_as_locked(
+    mock: respx.MockRouter, gw: Gateway
+) -> None:
+    g = gate()
+    del g["lock"]
+    s = Stub(mock, g)
+    mock.get(f"{API}/internal/v1/memory").mock(return_value=httpx.Response(200, json=[]))
+    await call(gw, "memory.read", {})
+    assert s.opa_inputs[-1]["context"]["company_locked"] is True
+    s.gate = gate()  # lock: null -> not locked
+    await call(gw, "memory.read", {})
+    assert s.opa_inputs[-1]["context"]["company_locked"] is False
+
+
+async def test_a_cancelled_call_still_has_its_audit_row(
+    mock: respx.MockRouter, gw: Gateway
+) -> None:
+    s = Stub(mock)
+    started = asyncio.Event()
+
+    async def slow(request: httpx.Request) -> httpx.Response:
+        started.set()
+        await asyncio.sleep(30)
+        return httpx.Response(200, json={})
+
+    mock.get(f"{API}/internal/v1/work/ref/W-000101").mock(side_effect=slow)
+    task = asyncio.create_task(gw.call(TOKEN, 1, 0, "work.get", {"ref": "W-000101"}))
+    await asyncio.wait_for(started.wait(), 5)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert [(r["tool"], r["outcome"], r["code"]) for r in s.records] == [
+        ("work.get", "error", "cancelled")
+    ]
+
+
+@pytest.mark.parametrize("bad", [float("inf"), float("-inf"), float("nan")])
+async def test_infinite_or_nan_money_is_invalid_args(
+    mock: respx.MockRouter, gw: Gateway, bad: float
+) -> None:
+    Stub(mock)
+    out = await call(
+        gw,
+        "propose",
+        {"kind": "proposal", "title_fa": "x", "quota_estimate": {"usd": bad}},
+    )
+    assert (out["outcome"], out["code"]) == ("error", "invalid_args")

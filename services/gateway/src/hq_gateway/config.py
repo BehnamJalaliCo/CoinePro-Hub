@@ -36,5 +36,9 @@ class Settings:
         default_factory=lambda: float(os.environ.get("GATEWAY_DEADLINE_S", "30"))
     )
     max_result_chars: int = field(default_factory=lambda: _int("GATEWAY_MAX_RESULT_CHARS", 16_000))
-    max_body_bytes: int = field(default_factory=lambda: _int("GATEWAY_MAX_BODY_BYTES", 256 * 1024))
+    # A 200,000-character deliverable (the contract's cap) in Persian is ~400 KB
+    # of UTF-8 JSON and up to ~800 KB with 4-byte characters: room for it.
+    max_body_bytes: int = field(
+        default_factory=lambda: _int("GATEWAY_MAX_BODY_BYTES", 2 * 1024 * 1024)
+    )
     log_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL", "info"))

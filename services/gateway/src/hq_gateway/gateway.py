@@ -113,6 +113,7 @@ class Gateway:
         catalog = self.lib.tools.get(name)
         cls = catalog.cls if catalog else None
         gate: dict[str, Any] = {}
+        out = Outcome("error", cls, "cancelled", None, None, {})  # if the call is cancelled
         try:
             out = await asyncio.wait_for(
                 self._call(token, step, index, name, catalog, args, gate),
@@ -123,9 +124,12 @@ class Gateway:
         except Exception:
             log.exception("tool call failed", extra={"tool": name, "step": step})
             out = Outcome("error", cls, "internal_error", None, None, {})
-        out.cls = cls
-        if out.code != "run_not_running":  # the api audits nothing for a dead run's token
-            await self._record(token, name, out, step)
+        finally:
+            # Whatever happened, cancellation included, the call has its audit row
+            # (shielded: a second cancel does not lose it).
+            out.cls = cls
+            if out.code != "run_not_running":  # the api audits nothing for a dead run's token
+                await asyncio.shield(self._record(token, name, out, step))
         log.info(
             "tool call",
             extra={
@@ -194,7 +198,8 @@ class Gateway:
                 "action": {"class": catalog.cls, "name": name, "company": gate["company"]},
                 "context": {
                     "escrow_classes": gate.get("escrow_classes") or [],
-                    "company_locked": gate.get("lock") is not None,
+                    # An answer without its lock field counts as locked (the safe side).
+                    "company_locked": "lock" not in gate or gate["lock"] is not None,
                     "incident": name == "notify"
                     and isinstance(args, dict)
                     and args.get("level") == "urgent"
