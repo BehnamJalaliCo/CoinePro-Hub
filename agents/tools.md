@@ -48,7 +48,7 @@ internal names and `/internal` are unreachable. Service-account credentials are 
 ### Files, code and the workshop
 | Tool | Class | Input | What it does |
 |---|---|---|---|
-| `files.read` | A0 | `{file_id, variant?}` | An owner or agent file the role may read: images as vision input, video as key frames plus transcript, audio as transcript, PDF as text. |
+| `files.read` | A0 | `{file_id, variant?}` | An owner or agent file the role may read, own company only: images as vision input (long edge ≤ 1568), video as key frames plus transcript, audio as transcript, PDF as text; never the raw media or the file name. A file outside the company answers `policy_denied`, like a missing one. |
 | `workshop.read` | A0 | `{session_ref, after?}` | A Code Workshop session and its events. |
 | `backups.status` | A0 | `{}` | The backup status (§18.9). |
 

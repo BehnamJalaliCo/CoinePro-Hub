@@ -459,6 +459,7 @@ Used by the agent runtime in prompt 5 and by tests now (with a fake agent princi
 ⟨1.1⟩ `precondition_required` (428, PATCH without `If-Match`), `policy_unavailable` (503, OPA did not answer; the API is fail-closed — distinct from `policy_denied` 403 so clients say "try again" instead of "not allowed").
 ⟨1.4.1⟩ `live_unavailable` (503, live replies are switched off; the stored reply still arrives in the thread).
 ⟨1.4.2⟩ `hiring_closed` (403, an agent proposed a hire while hiring is closed, §18.11).
+⟨1.3⟩ `runtime_not_configured` (503, the Code Workshop has no runtime yet, §17.7).
 ⟨1.4.3⟩ `envelope_required` (422, delegated hiring needs a monthly envelope for every operating company), `envelope_exceeded` (409, the hire's monthly estimate does not fit the company's envelope), `story_limit` (429, a company's three stories a day). `not_ready` (409, a feature the contract names that this server build does not serve yet, e.g. `delegated` before prompt 8).
 
 ---
@@ -654,6 +655,24 @@ Their `/stream` topics: `files`, `workshop`, `orders` (added to the `topics` lis
   **allow** — a denial (`allow: false`) needs no step-up, like engaging a kill switch.
 - `GET /meta` gains `workshop: { runtime: "managed"|"self_hosted"|null }` — `null` until the owner chooses (then `POST /workshop/sessions`
   answers `503 runtime_not_configured`), so the apps can say so before the owner tries.
+
+### 17.8 As built in prompt 6 ⟨1.4.3⟩
+- **FileRef** carries `kind`, `status`, `width?`, `height?`, `duration_s?`, `variants {thumb?, poster?}`, `transcript?`; a variant is fetched as
+  `GET /files/{id}?variant=thumb|poster` on the original's id. The agents' `GET /internal/v1/files/{id}/meta` adds `frames: [{id, at_s}]`; a missing and
+  a forbidden file are both `403 policy_denied` (no existence oracle).
+- **Ownership:** an owner upload sits in the holding until its first attachment, then belongs to that thread's company for good; attaching it in
+  another operating company is `422` (upload again). Files are never shared across companies.
+- **`/transcribe`** keeps the audio as a file (`purpose: message|order|note`); attaching a `message` audio makes the message `voice_transcript`. The
+  punctuation pass is skipped when the text holds anything the masker would hide (no model reads a spoken secret). While the `stt` service is off
+  (memory, owner's decision): `503 channel_not_configured`.
+- **Workshop:** `CodeSession` gains `area`, `held: "budget"|"company_locked"|"work_lock"|null` and `transcript_file`; owner-only
+  `GET /workshop/sessions/{ref}/transcript`; the events list is a `Page`; `PUT /workshop/workspaces` takes the whole list and a workspace left out is
+  paused, never deleted; a grant's driver must belong to the workspace's company; an owner-ordered `code_session` defaults to `$20`, 7 days.
+  New stable code `runtime_not_configured` (503, §14).
+- **Orders:** `Order` gains `routed_by: "rule"|"model"|"advisor"`; each route gains `message_ref?` and `note_fa?`.
+- **The agents' file tool** is `files.read` (`agents/tools.md`); prompt 6 built it as `file.view` — the name follows `tools.md` (review of 6).
+- Gaps left open (safest behaviour): session attachments are recorded but not yet sent to the runtime; workshop usage sits on the session row, not
+  yet in the Token Treasury ledger (a managed runtime bills its own API key).
 
 ## 18. v1.4 — the owner's decisions of 2026-10-17, round two (prompts 7–9)
 
