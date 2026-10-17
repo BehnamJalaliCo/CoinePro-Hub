@@ -20,7 +20,7 @@ from typing import Any, Literal
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator
 
-from hq_gateway.redact import redact
+from hq_gateway.redact import MAX_DEPTH, redact
 
 WORK_REF = r"^W-[0-9]{6,}$"
 CODE = r"^[A-Z][A-Z0-9]{1,9}$"
@@ -186,6 +186,22 @@ class ProposeIn(In):
     quota_estimate: QuotaIn | StrictInt | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("payload")
+    @classmethod
+    def _payload_depth(cls, v: dict[str, Any]) -> dict[str, Any]:
+        # Refused, never flattened: the payload leaves exactly as written (scrubbed only).
+        if _depth(v) > MAX_DEPTH:
+            raise ValueError(f"payload nested deeper than {MAX_DEPTH} levels")
+        return v
+
+
+def _depth(value: Any) -> int:
+    if isinstance(value, dict):
+        return 1 + max((_depth(v) for v in value.values()), default=0)
+    if isinstance(value, list):
+        return 1 + max((_depth(v) for v in value), default=0)
+    return 0
+
 
 class LinksIn(In):
     decision: str | None = Field(default=None, max_length=20)
@@ -281,7 +297,9 @@ Handler = Callable[[Api, Call, Any], Awaitable[Result]]
 
 def _text(value: Any) -> Any:
     """Outgoing text of a write tool, redacted (a key or a customer's data the
-    model may have echoed never leaves)."""
+    model may have echoed never leaves) and never shortened: the input models
+    already refuse anything above the contract's caps (invalid_args), so no
+    deliverable, message, proposal or payload is cut on its way out."""
     return redact(value)
 
 

@@ -344,6 +344,64 @@ async def test_deliver_redacts_what_leaves(mock: respx.MockRouter, gw: Gateway) 
     assert len(keys) == 1
 
 
+async def test_outgoing_text_is_never_cut(mock: respx.MockRouter, gw: Gateway) -> None:
+    """What an agent writes leaves complete: only scrubbed, never shortened (prompt 5.1 §1.2)."""
+    Stub(mock)
+    work_route(mock)
+    deliver = mock.post(
+        f"{API}/internal/v1/work/11111111-1111-1111-1111-111111111111/deliver"
+    ).mock(
+        return_value=httpx.Response(200, json={"deliverable": "O-000078", "closed_children": []})
+    )
+    email = "ali" + "@" + "example.com"
+    paragraph = "گزارش کامل این هفته: سرویس‌ها سالم ماندند و هیچ هشداری نبود. "
+    body = "خلاصه\n\n" + paragraph * (149_000 // len(paragraph)) + f" تماس: {email} "
+    body = body + "پ" * (150_000 - len(body))
+    assert len(body) == 150_000
+    out = await call(gw, "deliver", {"work_ref": "W-000101", "title_fa": "گزارش", "body_md": body})
+    assert out["outcome"] == "ok"
+    sent = json.loads(deliver.calls.last.request.content)
+    assert sent["body"] == body.replace(email, "[email]")  # complete, the e-mail masked
+    assert "[cut]" not in sent["body"]
+
+    decisions = mock.post(f"{API}/internal/v1/decisions").mock(
+        return_value=httpx.Response(201, json={"ref": "D-000034", "status": "pending"})
+    )
+    items = [{"n": i, "label": f"مورد {i}"} for i in range(100)]
+    what = "ش" * 20_000
+    out = await call(
+        gw,
+        "propose",
+        {"kind": "proposal", "title_fa": "فهرست", "what_md": what, "payload": {"items": items}},
+    )
+    assert out["outcome"] == "ok"
+    sent = json.loads(decisions.calls.last.request.content)
+    assert sent["payload"] == {"items": items} and sent["what"] == what
+    deep: dict[str, Any] = {}
+    cur = deep
+    for _ in range(20):
+        cur["x"] = {}
+        cur = cur["x"]
+    out = await call(gw, "propose", {"kind": "proposal", "title_fa": "عمیق", "payload": deep})
+    assert (out["outcome"], out["code"]) == ("error", "invalid_args")  # refused, not flattened
+
+    thread = mock.post(f"{API}/internal/v1/threads/TY-TECH/messages").mock(
+        return_value=httpx.Response(201, json={"ref": "TY-TECH-0003", "citations": [], "meta": {}})
+    )
+    text = "ب" * 50_000
+    out = await call(gw, "message.thread", {"thread": "TY-TECH", "body_md": text})
+    assert out["outcome"] == "ok"
+    assert json.loads(thread.calls.last.request.content)["body"] == text
+
+    # Above the contract's cap: refused with the field named, never cut and sent.
+    calls = len(deliver.calls)
+    out = await call(
+        gw, "deliver", {"work_ref": "W-000101", "title_fa": "گزارش", "body_md": "x" * 200_001}
+    )
+    assert (out["outcome"], out["code"]) == ("error", "invalid_args") and "body_md" in out["fields"]
+    assert len(deliver.calls) == calls
+
+
 async def test_deliver_to_unknown_work(mock: respx.MockRouter, gw: Gateway) -> None:
     Stub(mock)
     mock.get(f"{API}/internal/v1/work/ref/W-000999").mock(

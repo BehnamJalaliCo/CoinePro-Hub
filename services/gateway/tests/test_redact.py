@@ -123,11 +123,13 @@ def test_redact_by_key_and_nested_structures() -> None:
     assert "09121234567" not in json.dumps(out)
 
 
-def test_sizes_are_capped() -> None:
+def test_sizes_are_capped_only_when_asked() -> None:
     long = "الف" * 10_000
-    assert len(redact(long)) < 4100
+    assert redact(long) == long  # what an agent writes is never shortened
+    assert len(redact(long, max_string=4000)) < 4100
     big = {"items": list(range(200))}
-    assert redact(big)["items"][-1] == "…[140 more]"
+    assert redact(big) == big
+    assert redact(big, max_list=60)["items"][-1] == "…[140 more]"
     deep: dict[str, object] = {}
     cur = deep
     for _ in range(20):

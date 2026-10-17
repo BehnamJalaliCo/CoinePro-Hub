@@ -78,13 +78,19 @@ def scrub(text: str) -> str:
     return text
 
 
-def redact(value: Any, *, max_string: int = MAX_STRING, _depth: int = 0) -> Any:
-    """A copy of `value` with secrets and personal data removed and sizes capped."""
+def redact(
+    value: Any, *, max_string: int | None = None, max_list: int | None = None, _depth: int = 0
+) -> Any:
+    """A copy of `value` with secrets and personal data removed. Sizes are capped
+    only when asked (results going back to a model, see fit); what an agent
+    writes is never shortened."""
     if _depth > MAX_DEPTH:
         return "[too deep]"
     if isinstance(value, str):
         out = scrub(value)
-        return out if len(out) <= max_string else out[:max_string] + " …[cut]"
+        if max_string is None or len(out) <= max_string:
+            return out
+        return out[:max_string] + " …[cut]"
     if isinstance(value, dict):
         res: dict[str, Any] = {}
         for k, v in value.items():
@@ -92,23 +98,26 @@ def redact(value: Any, *, max_string: int = MAX_STRING, _depth: int = 0) -> Any:
             if SECRET_KEY.match(key) and not isinstance(v, bool) and v is not None:
                 res[key] = MASK
             else:
-                res[key] = redact(v, max_string=max_string, _depth=_depth + 1)
+                res[key] = redact(v, max_string=max_string, max_list=max_list, _depth=_depth + 1)
         return res
     if isinstance(value, list | tuple):
-        items = [redact(v, max_string=max_string, _depth=_depth + 1) for v in value[:MAX_LIST]]
-        if len(value) > MAX_LIST:
-            items.append(f"…[{len(value) - MAX_LIST} more]")
+        kept = value if max_list is None else value[:max_list]
+        items = [
+            redact(v, max_string=max_string, max_list=max_list, _depth=_depth + 1) for v in kept
+        ]
+        if len(value) > len(kept):
+            items.append(f"…[{len(value) - len(kept)} more]")
         return items
     return value
 
 
 def fit(value: Any, max_chars: int) -> tuple[Any, bool]:
     """Redacted `value` whose JSON fits in `max_chars` (strings cut harder if needed)."""
-    out = redact(value)
+    out = redact(value, max_string=MAX_STRING, max_list=MAX_LIST)
     if len(json.dumps(out, ensure_ascii=False, default=str)) <= max_chars:
         return out, False
     for limit in (1000, 400, 160):
-        out = redact(value, max_string=limit)
+        out = redact(value, max_string=limit, max_list=MAX_LIST)
         if len(json.dumps(out, ensure_ascii=False, default=str)) <= max_chars:
             return out, True
     text = json.dumps(out, ensure_ascii=False, default=str)
