@@ -14,7 +14,16 @@ ops := {
 	"decision.propose", "decision.approve",
 	"message.post", "notification.raise",
 	"kill_switch.set", "deploy_freeze.set", "file.upload",
+	# prompt 05: the Tool Gateway's reads, the employee's memory, the run itself
+	"work.read", "company.read", "health.read", "hub.read", "treasury.read",
+	"knowledge.read", "audit.read", "memory.read", "memory.write",
+	"run.reserve", "run.record", "thread.live",
 }
+
+# Reads of the gateway's tools: an agent reads its own company; a holding-scope
+# role (charter scope "holding": oversight, AI operations, the advisor) may
+# read every company (never write in another).
+read_ops := {"work.read", "company.read", "health.read", "treasury.read", "knowledge.read"}
 
 work_ops := {"work.accept", "work.progress", "work.deliver", "work.fail"}
 
@@ -30,7 +39,7 @@ propose_kinds := {
 	"manager": {"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal"},
 	"employee": {"a3_action", "deploy", "recurring_approval"},
 	"advisor": {"proposal"},
-	"inspector": {"proposal"},
+	"inspector": {"proposal", "hire"},
 }
 
 # Data, not code (data.json). Without it nothing that depends on it is allowed.
@@ -204,6 +213,39 @@ grant if {
 	same_company(tv("company"))
 }
 
+grant if {
+	op in read_ops
+	agent
+	reads_company(tv("company"))
+	knowledge_kinds_ok
+}
+
+# The hub's own health, the audit trail: holding-scope roles only.
+grant if {
+	op in {"hub.read", "audit.read"}
+	agent
+	holding_reader
+}
+
+# The employee's own memory, its own run, its own thread's live stream.
+grant if {
+	op in {"memory.read", "memory.write"}
+	agent
+	tv("employee") == p.code
+}
+
+grant if {
+	op in {"run.reserve", "run.record"}
+	agent
+	tv("employee") == p.code
+}
+
+grant if {
+	op == "thread.live"
+	agent
+	message_ok
+}
+
 # ------------------------------------------------------------ helpers ----
 
 delegate_ok if {
@@ -212,10 +254,32 @@ delegate_ok if {
 }
 
 delegate_ok if {
-	p.role == "manager"
+	p.role in {"manager", "inspector"}
 	tv("to_role") == "employee"
 	p.department != null
 	tv("to_department") == p.department
+}
+
+holding_reader if object.get(lib.raw_principal, "scope", "company") == "holding"
+
+reads_company(c) if same_company(c)
+
+reads_company(c) if {
+	holding_reader
+	is_string(c)
+}
+
+# Message bodies (other threads) are searched by the advisor only.
+knowledge_kinds_ok if op != "knowledge.read"
+
+knowledge_kinds_ok if {
+	op == "knowledge.read"
+	not "messages" in {k | some k in object.get(t, "kinds", [])}
+}
+
+knowledge_kinds_ok if {
+	op == "knowledge.read"
+	p.role == "advisor"
 }
 
 # A manager asks another department of its own company.

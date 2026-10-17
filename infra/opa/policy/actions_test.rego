@@ -84,3 +84,15 @@ test_unknown_class_and_principal if {
 	reasons(f.stranger, act("A0", "TY"), open) == {"unknown_principal"}
 	not actions.allow with input as {"action": act("A0", "TY")}
 }
+
+test_tool_level_a2_grants if {
+	every name in {"work.accept", "work.progress", "work.fail", "activity.set", "notify"} {
+		allowed(f.ty_growth_01, named("A2", name, "TY"), open)
+		allowed(f.hq_ovs, named("A2", name, "HQ"), open)
+	}
+	allowed(f.ty_ceo, named("A2", "work.request", "TY"), open)
+	allowed(f.ty_growth_mgr, named("A2", "work.request", "TY"), open)
+	allowed(f.hq_ovs, named("A2", "work.delegate", "HQ"), open)
+	reasons(f.ty_growth_01, named("A2", "work.delegate", "TY"), open) == {"a2_needs_role_or_escrow"}
+	reasons(f.hq_adv, named("A2", "notify", "HQ"), open) == {"a2_needs_role_or_escrow"}
+}

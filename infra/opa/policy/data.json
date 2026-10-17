@@ -1,13 +1,57 @@
 {
   "hq": {
     "config": {
-      "incident_categories": ["service_down", "security", "data_loss", "budget_hard_stop"],
+      "incident_categories": [
+        "service_down",
+        "security",
+        "data_loss",
+        "budget_hard_stop"
+      ],
       "propose_department": {
-        "manager": {"evaluation": "HR", "dismissal": "HR"}
+        "manager": {
+          "evaluation": "HR",
+          "dismissal": "HR"
+        }
       },
       "a2_grants": {
-        "ceo": ["work.delegate", "work.create", "kill_switch.set", "deploy_freeze.set", "decision.approve"],
-        "manager": ["work.delegate", "work.create"]
+        "ceo": [
+          "work.delegate",
+          "work.create",
+          "kill_switch.set",
+          "deploy_freeze.set",
+          "decision.approve",
+          "work.request",
+          "work.accept",
+          "work.progress",
+          "work.fail",
+          "activity.set",
+          "notify"
+        ],
+        "manager": [
+          "work.delegate",
+          "work.create",
+          "work.request",
+          "work.accept",
+          "work.progress",
+          "work.fail",
+          "activity.set",
+          "notify"
+        ],
+        "inspector": [
+          "work.delegate",
+          "work.accept",
+          "work.progress",
+          "work.fail",
+          "activity.set",
+          "notify"
+        ],
+        "employee": [
+          "work.accept",
+          "work.progress",
+          "work.fail",
+          "activity.set",
+          "notify"
+        ]
       }
     }
   }
