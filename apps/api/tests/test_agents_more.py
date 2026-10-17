@@ -419,7 +419,7 @@ async def test_the_checker_never_reaches_a_private_network() -> None:
         "http://192.168.1.1/",
         "http://100.64.0.1/",
         "http://postgres:5432/",
-        "http://api:8000/internal/v1/x",
+        "http://api:8000/",
         "https://printer.local/",
         "https://inner.example.com/",
         "https://mixed.example.com/",
