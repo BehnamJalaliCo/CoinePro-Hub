@@ -147,7 +147,9 @@ export default function WorkshopPage() {
   const grantOf = (ref: string) => grants?.find((g) => g.ref === ref);
   return (
     <>
-      <PageHeader eyebrow="کارگاه کد" title="Claude Code برای شرکت‌ها" actions={runtime ? <Button variant="primary" icon="add" onClick={() => setStart(true)}>جلسه‌ی تازه</Button> : undefined}>
+      <PageHeader eyebrow="کارگاه کد" title="Claude Code برای شرکت‌ها" actions={runtime ? <Button variant="primary" icon="add" onClick={() => setStart(true)}>جلسه‌ی تازه</Button>
+        // Without an in-hub runtime a new session opens in Claude Code itself (claude.ai/code), on the same subscription.
+        : <a href="https://claude.ai/code" target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-gold px-4 text-[13px] font-bold text-on-gold"><Icon name="add" size={18} />جلسه‌ی تازه</a>}>
         <p className="max-w-3xl text-[13px] leading-6 text-sec">{runtime ? 'مدیرها و مشاور کل با مجوز تو روی ریپوی هر شرکت کد میزنند. تو فقط مجوز میدهی، زنده تماشا میکنی و هر لحظه میتوانی متوقف کنی؛ هر push و PR اجازه‌ی تو را میخواهد و هیچ چیزی به production نمیرسد.' : 'جلسه‌های Claude Code در اپ Claude اجرا میشوند. مجوزها و تاریخچه‌ی کارگاه اینجا میمانند.'}</p>
       </PageHeader>
       <Runtime />

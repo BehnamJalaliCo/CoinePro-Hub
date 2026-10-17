@@ -161,7 +161,9 @@ fun WorkshopScreen(onNewSession: () -> Unit, onGrant: (String?) -> Unit) {
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
             PageHeader("Claude Code برای شرکت‌ها", eyebrow = "کارگاه کد") {
-                if (meta.data?.workshop?.runtime != null) HqButton("جلسه‌ی تازه", onNewSession, variant = BtnVariant.PRIMARY, icon = DivanIcon.ADD)
+                // Without an in-hub runtime a new session opens in Claude Code itself (claude.ai/code), on the same subscription.
+                val uri = LocalUriHandler.current
+                HqButton("جلسه‌ی تازه", { if (meta.data?.workshop?.runtime != null) onNewSession() else uri.openUri("https://claude.ai/code") }, variant = BtnVariant.PRIMARY, icon = DivanIcon.ADD)
             }
         }
         item {
