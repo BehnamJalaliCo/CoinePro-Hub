@@ -536,7 +536,7 @@ async def test_internal_principals(hub: Hub, new_company: Any, su: Any) -> None:
     co = await new_company()
     mgr = f"{co['code']}-GROWTH-MGR"
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=probe), base_url=ORIGIN) as c:
-        r = await c.get("/who", headers=agent_headers(mgr))
+        r = await c.get("/who", headers=await agent_headers(mgr))
         assert r.status_code == 200, r.text
         assert r.json() | {"run": None} == {
             "kind": "agent",
@@ -552,7 +552,7 @@ async def test_internal_principals(hub: Hub, new_company: Any, su: Any) -> None:
             {},
             {"Authorization": "Bearer nope"},
             {"Authorization": "Basic abc"},
-            agent_headers("NOBODY-X"),
+            await agent_headers("NOBODY-X"),
             {"Authorization": "Bearer hqa1.bad.token"},
         ):
             assert (await c.get("/who", headers=headers)).status_code == 401, headers
@@ -560,7 +560,7 @@ async def test_internal_principals(hub: Hub, new_company: Any, su: Any) -> None:
             "UPDATE core.employees SET status = 'dismissed', dismissed_at = now() WHERE code = $1",
             mgr,
         )
-        assert (await c.get("/who", headers=agent_headers(mgr))).status_code == 401
+        assert (await c.get("/who", headers=await agent_headers(mgr))).status_code == 401
 
 
 async def test_auth_rate_limit_answers_429_with_retry_after(hub: Hub) -> None:

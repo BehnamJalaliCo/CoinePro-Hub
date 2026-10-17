@@ -33,7 +33,7 @@ SCHEMAS = (
 async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: str) -> None:
     """Rows of company `co` in (nearly) every table, through the real API."""
     h = owner["headers"]
-    mgr, ceo = agent_headers(f"{co}-GROWTH-MGR"), agent_headers(f"{co}-CEO")
+    mgr, ceo = await agent_headers(f"{co}-GROWTH-MGR"), await agent_headers(f"{co}-CEO")
     r = await client.post(
         "/internal/v1/decisions",
         headers={**mgr, **idem()},
@@ -83,14 +83,14 @@ async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: 
         await client.post(
             "/internal/v1/files",
             params={"name": "a.txt"},
-            headers={**agent_headers(emp), "Content-Type": "text/plain"},
+            headers={**await agent_headers(emp), "Content-Type": "text/plain"},
             content=b"hello",
         )
     ).json()
     out = (
         await client.post(
             f"/internal/v1/work/{leaf['id']}/deliver",
-            headers={**agent_headers(emp), **idem()},
+            headers={**await agent_headers(emp), **idem()},
             json={"title": "o", "attachments": [file["id"]]},
         )
     ).json()["deliverable"]

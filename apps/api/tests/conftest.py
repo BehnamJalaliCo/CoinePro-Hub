@@ -205,8 +205,50 @@ async def owner(hub: Hub) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def agent_headers(code: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {agent_tokens.mint(AGENT_KEY, code, str(uuid.uuid4()))}"}
+_POOL: asyncpg.Pool | None = None
+
+
+async def _su_pool() -> asyncpg.Pool:
+    """A small superuser pool for test setup (the session shares one event loop)."""
+    global _POOL
+    if _POOL is None:
+        _POOL = await asyncpg.create_pool(
+            host=HOST,
+            user="postgres",
+            database="hq",
+            password=os.environ["POSTGRES_PASSWORD"],
+            min_size=1,
+            max_size=4,
+        )
+    return _POOL
+
+
+async def running_run(code: str) -> str:
+    """The employee's running run (the registry allows one at a time), started
+    for the test if there is none. An unknown code gets a run id nobody has."""
+    pool = await _su_pool()
+    async with pool.acquire() as c:
+        rid = await c.fetchval(
+            """SELECT r.id FROM agents.runs r JOIN core.employees e ON e.id = r.employee_id
+               WHERE e.code = $1 AND r.state = 'running' AND r.token_expires_at > now()""",
+            code,
+        )
+        if rid is None:
+            rid = await c.fetchval(
+                """INSERT INTO agents.runs (company_id, employee_id, trigger, reason, state, started_at,
+                       token_expires_at)
+                   SELECT company_id, id, 'work', 'test', 'running', now(), now() + interval '1 hour'
+                   FROM core.employees WHERE code = $1
+                   ON CONFLICT DO NOTHING RETURNING id""",
+                code,
+            )
+    return str(rid or uuid.uuid4())
+
+
+async def agent_headers(code: str) -> dict[str, str]:
+    """An agent token for `code`, bound to a running run in the registry."""
+    run = await running_run(code)
+    return {"Authorization": f"Bearer {agent_tokens.mint(AGENT_KEY, code, run)}"}
 
 
 def service_headers() -> dict[str, str]:

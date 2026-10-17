@@ -185,6 +185,16 @@ OP_CLASS: dict[str, str] = {
 }
 
 
+async def lock_state(hub: Any, who: Principal) -> str | None:
+    """'holding' | 'company' | 'deploy_freeze' | None for the agent's company
+    right now (control.lock_state: kill switch or deploy freeze)."""
+    if who.company_id is None:
+        return "company"  # an agent without a company is treated as locked (safe side)
+    async with hub.db.raw() as tx:
+        state: str | None = await tx.scalar("SELECT control.lock_state(:co)", co=who.company_id)
+    return state
+
+
 async def action_gate(
     hub: Any,
     who: Principal,
@@ -192,28 +202,54 @@ async def action_gate(
     cls: str,
     *,
     escrow_classes: list[str],
-    company_locked: bool = False,
+    incident: bool = False,
 ) -> None:
-    """hq.actions: A0-A3 by role and escrow, A4 always denied for non-owners."""
-    await hub.policy.require(
+    """hq.actions: A0-A3 by role and escrow, A4 always denied for non-owners.
+    The real lock state goes in; a refusal for that reason alone is the
+    contract's 423 company_locked, not a 403."""
+    lock = await lock_state(hub, who) if who.is_agent else None
+    verdict = await hub.policy.query(
         "actions",
         {
             "principal": who.opa(),
             "action": {"class": cls, "name": name, "company": who.company},
-            "context": {"escrow_classes": escrow_classes, "company_locked": company_locked},
+            "context": {
+                "escrow_classes": escrow_classes,
+                "company_locked": lock is not None,
+                "incident": incident,
+            },
         },
     )
+    if verdict.allow:
+        return
+    if "policy_unavailable" in verdict.reasons:
+        raise ApiError(503, "policy_unavailable", "policy service unavailable (fail-closed)")
+    if verdict.reasons == ("company_locked",):
+        raise ApiError(423, "company_locked", f"locked: {lock}")
+    raise ApiError(403, "policy_denied", ", ".join(verdict.reasons) or "denied")
 
 
 async def allow(
-    ctx: Ctx, op: str, target: dict[str, Any], *, escrow_classes: list[str] | None = None
+    ctx: Ctx,
+    op: str,
+    target: dict[str, Any],
+    *,
+    escrow_classes: list[str] | None = None,
+    incident: bool = False,
 ) -> None:
     """hq.internal (who may do what, where), then hq.actions for agents."""
     await ctx.hub.policy.require(
         "internal", {"principal": ctx.who.opa(), "op": op, "target": target}
     )
     if ctx.who.is_agent:
-        await action_gate(ctx.hub, ctx.who, op, OP_CLASS[op], escrow_classes=escrow_classes or [])
+        await action_gate(
+            ctx.hub,
+            ctx.who,
+            op,
+            OP_CLASS[op],
+            escrow_classes=escrow_classes or [],
+            incident=incident,
+        )
 
 
 async def escrow_of(tx: Tx, w: dict[str, Any]) -> list[str]:
@@ -755,6 +791,11 @@ async def raise_notification(
         else:
             locked = await tx.scalar("SELECT control.lock_state(:co)", co=company.id) is not None
             if level == "urgent" and body.category is not None:
+                # Count and raise under one lock per company: two agents racing for
+                # the last 🔴 of the hour cannot both get it.
+                await tx.exec(
+                    "SELECT pg_advisory_xact_lock(:k)", k=advisory_key("urgent", company.id)
+                )
                 n = await notify.counts(tx, datetime.now().astimezone(), ctx.who.code, company.id)
                 if n["company_urgent_hour"] >= notify.AGENT_URGENT_PER_HOUR:
                     if locked:
@@ -780,7 +821,12 @@ async def raise_notification(
             ):
                 level = "decision"  # not an incident: the owner sees it, without the alarm
                 target["level"] = level
-            await allow(ctx, "notification.raise", target)
+            await allow(
+                ctx,
+                "notification.raise",
+                target,
+                incident=level == "urgent" and body.category is not None,
+            )
         n = await notify.raise_notification(
             tx,
             company_id=company.id,
@@ -819,7 +865,7 @@ async def agent_kill_switch(
         if idem and idem.replay:
             return idem.replay
         company = await control.resolve_scope(tx, body.scope)
-        current = await control.current_switch(tx, company["id"])
+        current = await control.current_switch(tx, company["id"], lock=True)
         await allow(
             ctx, "kill_switch.set", {"scope": body.scope, "state": body.state, "current": current}
         )
@@ -855,9 +901,15 @@ async def agent_deploy_freeze(
             )
             await control.add_deploy_freeze(tx, ctx.who, company, body.until, body.reason)
             summary = "active"
+        elif not (active := await control.active_freezes(tx, company["id"])):
+            # Nothing is frozen: lifting again is a no-op for whoever may set a freeze.
+            await allow(
+                ctx, "deploy_freeze.set", {"company": body.company, "lift": False, "freeze": None}
+            )
+            summary = "nothing to lift"
         else:
             mine = []
-            for f in await control.active_freezes(tx, company["id"]):
+            for f in active:
                 freeze = {
                     k: f[k] for k in ("created_by_kind", "created_by_code", "created_by_company")
                 }
@@ -994,6 +1046,14 @@ async def upload_file(
             summary=f"{mime}, {len(data)} bytes",
         )
     return FileRef(**row)
+
+
+def advisory_key(purpose: str, company_id: UUID) -> int:
+    """A stable 64-bit advisory-lock key for (purpose, company)."""
+    import hashlib
+
+    digest = hashlib.sha256(f"{purpose}:{company_id}".encode()).digest()
+    return int.from_bytes(digest[:8], "big", signed=True)
 
 
 def _json(value: Any) -> str:

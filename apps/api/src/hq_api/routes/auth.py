@@ -196,16 +196,18 @@ async def _assert(hub: Hub, tx: Tx, credential: dict[str, Any], challenge: bytes
     )
     if pk is None:
         raise passkeys.PasskeyError("unknown or revoked credential")
-    counter = passkeys.sign_count_of(credential)
-    if counter is not None and int(pk["sign_count"]) > 0 and counter <= int(pk["sign_count"]):
-        raise passkeys.ClonedPasskey(pk["id"])  # flagged by _clone_guard after the rollback
+    # The signature first: only a response the passkey really signed can say
+    # anything about its counter, so a forged one never flags (or alarms on) it.
     verified = passkeys.verify_assertion(
         hub.settings,
         credential,
         challenge=challenge,
         public_key=bytes(pk["public_key"]),
-        sign_count=int(pk["sign_count"]),
+        sign_count=0,  # the counter is compared below, after the signature verified
     )
+    stored = int(pk["sign_count"])
+    if stored > 0 and verified.new_sign_count <= stored:
+        raise passkeys.ClonedPasskey(pk["id"])  # flagged by _clone_guard after the rollback
     await tx.exec(
         """UPDATE auth.passkeys SET sign_count = :n, last_used_at = now(),
                backup_eligible = backup_eligible OR :be
@@ -260,6 +262,18 @@ async def _flag_clone(hub: Hub, passkey_id: UUID) -> None:
             link_kind="device",
             link_ref=str(passkey_id),
         )
+
+
+def _set_session_cookie(response: Response, hub: Hub, token: str) -> None:
+    response.set_cookie(
+        sessions.COOKIE,
+        token,
+        max_age=hub.settings.session_absolute_days * 86400,
+        path="/api",
+        secure=True,
+        httponly=True,
+        samesite="strict",
+    )
 
 
 def _passkey_device(row: dict[str, Any]) -> Device:
@@ -483,15 +497,7 @@ async def passkey_login_verify(
             target_ref=str(srow["id"]),
         )
     if client == "web":
-        response.set_cookie(
-            sessions.COOKIE,
-            token,
-            max_age=hub.settings.session_absolute_days * 86400,
-            path="/api",
-            secure=True,
-            httponly=True,
-            samesite="strict",
-        )
+        _set_session_cookie(response, hub, token)
     return LoginOut(
         session=SessionOut(
             token=None if client == "web" else token,
@@ -534,9 +540,13 @@ async def step_up_options(body: StepUpOptionsIn, ctx: Ctx = Depends(owner_ctx)) 
     response_model=StepUpOut,
     responses=responses(401, 403, 422, 429, 503),
 )
-async def step_up_verify(body: StepUpVerifyIn, ctx: Ctx = Depends(owner_ctx)) -> StepUpOut:
+async def step_up_verify(
+    body: StepUpVerifyIn, response: Response, ctx: Ctx = Depends(owner_ctx)
+) -> StepUpOut:
     """Verify the assertion -> a single-use step-up token (120 s) for the action/target
-    chosen at options time. Send it as `X-Step-Up`."""
+    chosen at options time. Send it as `X-Step-Up`. On the web the session cookie
+    is rotated at the same time (same session, new secret): a cookie seen before
+    the step-up is worthless after it."""
     credential = body.credential.model_dump()
     try:
         challenge = passkeys.challenge_of(credential)
@@ -566,6 +576,14 @@ async def step_up_verify(body: StepUpVerifyIn, ctx: Ctx = Depends(owner_ctx)) ->
             ttl=ctx.hub.settings.step_up_ttl_s,
             id=su["id"],
         )
+        rotated = None
+        if ctx.who.via_cookie:
+            rotated = sessions.new_token()
+            await tx.exec(
+                "UPDATE auth.sessions SET token_sha256 = :h WHERE id = :id AND revoked_at IS NULL",
+                h=digest(rotated),
+                id=ctx.who.session_id,
+            )
         await _security_event(
             ctx,
             tx,
@@ -574,6 +592,8 @@ async def step_up_verify(body: StepUpVerifyIn, ctx: Ctx = Depends(owner_ctx)) ->
             target_kind="step_up",
             target_ref=f"{su['action']}:{su['target']}"[:200],
         )
+    if rotated is not None:
+        _set_session_cookie(response, ctx.hub, rotated)
     return StepUpOut(step_up_token=token, expires_at=row["expires_at"])
 
 

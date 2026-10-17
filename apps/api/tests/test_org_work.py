@@ -24,7 +24,7 @@ async def hire(
     """Hire through the real path: proposal -> owner approval (step-up) -> effect."""
     r = await client.post(
         "/internal/v1/decisions",
-        headers={**agent_headers(f"{co}-{dept}-MGR"), **idem()},
+        headers={**await agent_headers(f"{co}-{dept}-MGR"), **idem()},
         json={
             "kind": "hire",
             "title": "استخدام کارمند",
@@ -226,7 +226,7 @@ async def test_order_delegation_depth_budget_and_delivery(
     )
     assert other.status_code == 409 and other.json()["code"] == "idempotency_conflict"
 
-    ceo, mgr = agent_headers(f"{co}-CEO"), agent_headers(f"{co}-GROWTH-MGR")
+    ceo, mgr = await agent_headers(f"{co}-CEO"), await agent_headers(f"{co}-GROWTH-MGR")
     assert (await client.post(f"/internal/v1/work/{root['id']}/accept", headers=ceo)).json()[
         "status"
     ] == "in_progress"
@@ -260,7 +260,7 @@ async def test_order_delegation_depth_budget_and_delivery(
     assert r.status_code == 403 and r.json()["code"] == "policy_denied"
     r = await client.post(
         f"/internal/v1/work/{grand['id']}/delegate",
-        headers=agent_headers(emp),
+        headers=await agent_headers(emp),
         json={"to": emp, "title": "x"},
     )
     assert r.status_code == 403  # employees never delegate (policy) ...
@@ -280,7 +280,7 @@ async def test_order_delegation_depth_budget_and_delivery(
     detail = (await client.get(f"/api/v1/work/{grand['id']}", headers=h)).json()
     assert [s["depth"] for s in detail["chain"]] == [0, 1, 2]
 
-    me = agent_headers(emp)
+    me = await agent_headers(emp)
     r = await client.post(
         f"/internal/v1/work/{grand['id']}/deliver",
         headers={**me, **idem()},
@@ -355,7 +355,7 @@ async def test_cancel_cascade_patch_and_lists(
     child = (
         await client.post(
             f"/internal/v1/work/{root['id']}/delegate",
-            headers=agent_headers(f"{co}-CEO"),
+            headers=await agent_headers(f"{co}-CEO"),
             json={"to": f"{co}-SALES-MGR", "title": "فرزند"},
         )
     ).json()

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import uuid
 from typing import Any
 
 from fastapi import Depends, Request
@@ -110,17 +111,28 @@ async def internal(request: Request, hub: Hub = Depends(get_hub)) -> Principal:
 
 
 async def agent_principal(hub: Hub, code: str, *, run: str | None = None) -> Principal:
+    """The employee behind an agent token. The token's run must be in the run
+    registry (agents.runs), belong to that employee and be running: a token
+    outlives neither its run nor its hour."""
+    try:
+        run_id = str(uuid.UUID(run)) if run is not None else None
+    except ValueError:
+        run_id = None
     async with hub.db.tx(await hub.companies.ids()) as tx:
         row: dict[str, Any] | None = await tx.first(
-            """SELECT e.id, e.code, e.kind, e.status, e.company_id, c.code AS company,
-                      e.department_id, d.code AS department
+            """SELECT e.id, e.code, e.kind, e.status, e.role, e.company_id, c.code AS company,
+                      e.department_id, d.code AS department,
+                      (SELECT r.state = 'running' AND r.token_expires_at > now()
+                         FROM agents.runs r
+                        WHERE r.id = CAST(:run AS uuid) AND r.employee_id = e.id) AS run_ok
                FROM core.employees e
                JOIN core.companies c ON c.id = e.company_id
                LEFT JOIN core.departments d ON d.id = e.department_id
                WHERE e.code = :code""",
             code=code,
+            run=run_id,
         )
-    if row is None or row["status"] == "dismissed":
+    if row is None or row["status"] == "dismissed" or row["run_ok"] is not True:
         raise ApiError(401, "unauthenticated")
     return Principal(
         kind="agent",
@@ -132,7 +144,8 @@ async def agent_principal(hub: Hub, code: str, *, run: str | None = None) -> Pri
         department_id=row["department_id"],
         employee_id=row["id"],
         status=row["status"],
-        run_id=run,
+        run_id=run_id,
+        charter=row["role"],
     )
 
 

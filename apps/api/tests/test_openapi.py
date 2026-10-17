@@ -83,7 +83,7 @@ async def test_schemathesis_finds_no_server_errors(
         code, out = await _schemathesis(url, owner, "--include-path-regex", "^/api/v1/")
         assert code == 0, out[-6000:]
         code, out = await _schemathesis(
-            url, agent_headers(f"{co}-CEO"), "--include-path-regex", "^/internal/v1/"
+            url, await agent_headers(f"{co}-CEO"), "--include-path-regex", "^/internal/v1/"
         )
         assert code == 0, out[-6000:]
     assert json.dumps({"ok": True})

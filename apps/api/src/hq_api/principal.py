@@ -24,6 +24,7 @@ class Principal:
     session_id: UUID | None = None
     via_cookie: bool = False
     run_id: str | None = None
+    charter: str | None = None  # agents/roles/<charter>.md (agents only)
 
     @property
     def is_owner(self) -> bool:

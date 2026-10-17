@@ -48,7 +48,7 @@ async def test_hire_proposal_approval_and_effect(
 ) -> None:
     h, sid = owner_session["headers"], owner_session["session_id"]
     co = (await new_company())["code"]
-    mgr = agent_headers(f"{co}-GROWTH-MGR")
+    mgr = await agent_headers(f"{co}-GROWTH-MGR")
     bad = await client.post(
         "/internal/v1/decisions", headers={**mgr, **idem()}, json=hire_body(co, model="gpt-9")
     )
@@ -132,7 +132,7 @@ async def test_reject_return_ask_and_advisor(
     client: httpx.AsyncClient, owner: dict[str, str], new_company: Callable[..., Any]
 ) -> None:
     co = (await new_company())["code"]
-    ceo = agent_headers(f"{co}-CEO")
+    ceo = await agent_headers(f"{co}-CEO")
 
     async def propose() -> str:
         r = await client.post(
@@ -200,14 +200,16 @@ async def test_ceo_approves_recurring_work_within_quota(
         "schedule": {"rrule": "FREQ=WEEKLY;BYDAY=SU;BYHOUR=9", "timezone": "Asia/Tehran"},
     }
     r = await client.post(
-        "/internal/v1/work", headers={**agent_headers(f"{co}-GROWTH-MGR"), **idem()}, json=body
+        "/internal/v1/work",
+        headers={**await agent_headers(f"{co}-GROWTH-MGR"), **idem()},
+        json=body,
     )
     assert r.status_code == 201, r.text
     created = r.json()
     ref = created["decision"]
     assert created["work"]["escrow"]["status"] == "pending" and ref.startswith("D-")
 
-    ceo = agent_headers(f"{co}-CEO")
+    ceo = await agent_headers(f"{co}-CEO")
     r = await client.post(
         f"/internal/v1/decisions/{ref}/approve", headers={**ceo, **idem()}, json={}
     )
@@ -231,7 +233,7 @@ async def test_ceo_approves_recurring_work_within_quota(
         "budgets.update",
     )
     assert r.status_code == 200, r.text
-    other_ceo = agent_headers("PC-CEO")
+    other_ceo = await agent_headers("PC-CEO")
     r = await client.post(
         f"/internal/v1/decisions/{ref}/approve", headers={**other_ceo, **idem()}, json={}
     )
@@ -280,7 +282,7 @@ async def test_messages_search_read_and_resolutions(
     first = r.json()
     r = await client.post(
         f"/internal/v1/threads/{thread}/messages",
-        headers={**agent_headers(thread), **idem()},
+        headers={**await agent_headers(thread), **idem()},
         json={"body": "پاسخ مدیرعامل"},
     )
     assert r.status_code == 201 and r.json()["author"]["code"] == thread
@@ -291,7 +293,7 @@ async def test_messages_search_read_and_resolutions(
     assert threads[thread]["unread"] == 1  # the CEO's reply; the owner's own messages count as read
     r = await client.post(
         f"/internal/v1/threads/{co}-TECH-MGR/messages",
-        headers={**agent_headers(f"{co}-GROWTH-MGR"), **idem()},
+        headers={**await agent_headers(f"{co}-GROWTH-MGR"), **idem()},
         json={"body": "x"},
     )
     assert r.status_code == 403  # not its thread
