@@ -13,3 +13,6 @@ task_classes:
   - {key: classify, transferable: true, description: Classification and tagging}
   - {key: extract, transferable: true, description: Structured extraction}
   - {key: draft, transferable: true, description: Drafts that are reviewed later}
+  # prompt 6 §3: the light model's punctuation of the owner's own transcribed
+  # voice (A0, P1); never on another provider (it is the owner's speech).
+  - {key: stt_punctuation, transferable: false, description: Punctuation of a Persian voice transcript}

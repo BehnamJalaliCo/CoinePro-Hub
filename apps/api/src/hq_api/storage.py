@@ -19,6 +19,18 @@ class Storage(Protocol):
 
     async def get(self, key: str) -> bytes: ...
 
+    def scratch(self) -> Path:
+        """A new temporary path on the same volume (for a streamed upload)."""
+        ...
+
+    async def commit(self, tmp: Path) -> tuple[str, str, int]:
+        """Move a finished temporary file in -> (storage_key, sha256, size)."""
+        ...
+
+    def local_path(self, key: str) -> Path:
+        """Where the bytes are (ffmpeg, Range reads); S3 would download first."""
+        ...
+
 
 class LocalStorage:
     def __init__(self, root: str | Path) -> None:
@@ -48,3 +60,30 @@ class LocalStorage:
 
     async def get(self, key: str) -> bytes:
         return await asyncio.to_thread(self._path(key).read_bytes)
+
+    def scratch(self) -> Path:
+        tmp = self._root / "tmp"
+        tmp.mkdir(parents=True, exist_ok=True, mode=0o700)
+        return tmp / f"{uuid.uuid4().hex}.part"
+
+    async def commit(self, tmp: Path) -> tuple[str, str, int]:
+        key = uuid.uuid4().hex
+        path = self._path(key)
+
+        def move() -> tuple[str, int]:
+            digest = hashlib.sha256()
+            size = 0
+            with open(tmp, "rb") as fh:
+                for block in iter(lambda: fh.read(1024 * 1024), b""):
+                    digest.update(block)
+                    size += len(block)
+                os.fsync(fh.fileno())
+            path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            tmp.replace(path)
+            return digest.hexdigest(), size
+
+        sha, size = await asyncio.to_thread(move)
+        return key, sha, size
+
+    def local_path(self, key: str) -> Path:
+        return self._path(key)

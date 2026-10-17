@@ -3,18 +3,17 @@ with history, and file downloads (tenant-checked)."""
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
+from hq_api.domain import files as F
 from hq_api.domain import org, scoring
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import EmployeeRef, FileRef, Model, Page, employee_ref
@@ -69,12 +68,7 @@ DELIVERABLE_SQL = f"""
 
 
 async def files_of(tx: Tx, ids: list[UUID]) -> dict[UUID, FileRef]:
-    if not ids:
-        return {}
-    rows = await tx.all(
-        "SELECT id, name, mime, size, sha256 FROM files.files WHERE id = ANY(:ids)", ids=ids
-    )
-    return {r["id"]: FileRef(**r) for r in rows}
+    return await F.refs(tx, ids)
 
 
 async def render(tx: Tx, rows: list[dict[str, Any]]) -> list[Deliverable]:
@@ -238,32 +232,3 @@ async def rate_deliverable(
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
     return result
-
-
-_SAFE_NAME = re.compile(r"[^A-Za-z0-9._ -]")
-
-
-@router.get(
-    "/files/{id}",
-    response_class=Response,
-    responses={**E, 200: {"content": {"application/octet-stream": {}}, "description": "The file"}},
-)
-async def get_file(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> Response:
-    """Streams the file; the row is read under RLS before any byte is."""
-    async with ctx.tx() as tx:
-        f = await tx.one(
-            "SELECT name, mime, storage_key, sha256 FROM files.files WHERE id = :id", id=id
-        )
-    try:
-        data = await ctx.hub.storage.get(f["storage_key"])
-    except (OSError, ValueError) as exc:
-        raise ApiError(404, "not_found", "file content missing") from exc
-    name = _SAFE_NAME.sub("_", f["name"])[:120] or "file"
-    return Response(
-        content=data,
-        media_type=f["mime"],
-        headers={
-            "Content-Disposition": f'attachment; filename="{name}"',
-            "X-Content-Sha256": f["sha256"],
-        },
-    )

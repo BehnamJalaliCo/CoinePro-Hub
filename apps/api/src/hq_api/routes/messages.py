@@ -15,12 +15,13 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import decisions as D
+from hq_api.domain import files as F
 from hq_api.errors import ApiError, responses
 from hq_api.routes.deliverables import files_of
 from hq_api.schemas import Actor, FileRef, Model, Page, actor
@@ -90,8 +91,17 @@ class Sent(BaseModel):
 
 
 class MessageIn(Model):
-    body: str = Field(min_length=1, max_length=100000)
+    """⟨1.3⟩ up to 10 owner files; `body` may be empty when there is one."""
+
+    body: str = Field(default="", max_length=100000)
     links: Links | None = None
+    attachments: list[UUID] = Field(default_factory=list, max_length=F.MAX_ATTACHMENTS)
+
+    @model_validator(mode="after")
+    def _something(self) -> MessageIn:
+        if not self.body.strip() and not self.attachments:
+            raise ValueError("a message needs a body or an attachment")
+        return self
 
 
 class ReadIn(Model):
@@ -331,6 +341,35 @@ async def check_links(ctx: Ctx, tx: Tx, thread_company: UUID, links: dict[str, A
         )
 
 
+async def _attachments(
+    ctx: Ctx, tx: Tx, thread_company: UUID, ids: list[UUID]
+) -> tuple[list[UUID], str]:
+    """The owner's files move into the thread's company (§17.1); an agent may
+    attach only originals of its own (the thread's) company. A message with
+    an audio file recorded for a message (/transcribe?purpose=message) is a
+    voice transcript (the owner can always replay what was said)."""
+    if ctx.who.is_owner:
+        holding = await ctx.hub.companies.holding()
+        ids = await F.attach(tx, ids, thread_company, holding.id)
+    else:
+        unique = list(dict.fromkeys(ids))
+        n = await tx.scalar(
+            """SELECT count(*) FROM files.files WHERE id = ANY(:ids) AND company_id = :co
+                 AND variant = 'original'""",
+            ids=unique,
+            co=thread_company,
+        )
+        if n != len(unique):
+            raise ApiError(422, "validation_failed", fields={"attachments": "unknown files"})
+        ids = unique
+    voice = await tx.scalar(
+        """SELECT 1 FROM files.files f JOIN files.processing p ON p.file_id = f.id
+           WHERE f.id = ANY(:ids) AND f.kind = 'audio' AND p.stt->>'purpose' = 'message'""",
+        ids=ids,
+    )
+    return ids, "voice_transcript" if voice and ctx.who.is_owner else "text"
+
+
 async def post_message(
     ctx: Ctx,
     tx: Tx,
@@ -352,11 +391,14 @@ async def post_message(
             422, "validation_failed", fields={"links.corrects": "a message of this thread"}
         )
     await check_links(ctx, tx, t["company_id"], links)
+    kind = "text"
+    if attachments:
+        attachments, kind = await _attachments(ctx, tx, t["company_id"], attachments)
     # seq, ref and company_id come from the thread (trigger msg.messages_number).
     m = await tx.one(
         """INSERT INTO msg.messages (thread_id, company_id, seq, ref, author_kind, author_code, body,
                attachments, links, kind, citations, meta)
-           VALUES (:t, :nil, 0, '', :ak, :ac, :body, CAST(:att AS uuid[]), CAST(:links AS jsonb), 'text',
+           VALUES (:t, :nil, 0, '', :ak, :ac, :body, CAST(:att AS uuid[]), CAST(:links AS jsonb), :kind,
                    CAST(:cit AS jsonb), CAST(:meta AS jsonb))
            RETURNING id, ref, company_id""",
         t=t["id"],
@@ -366,6 +408,7 @@ async def post_message(
         body=body,
         links=json.dumps(links),
         att=[str(a) for a in attachments or []],
+        kind=kind,
         cit=json.dumps([c.model_dump() for c in citations or []]),
         meta=json.dumps(meta or {}),
     )
@@ -406,7 +449,7 @@ async def send_message(
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
-        m = await post_message(ctx, tx, code, body.body, links)
+        m = await post_message(ctx, tx, code, body.body, links, body.attachments)
         await ctx.interaction(
             tx,
             company_id=m["company_id"],
@@ -414,7 +457,12 @@ async def send_message(
             action="message.post",
             target_kind="message",
             target_ref=m["ref"],
-            data={"thread": code, "chars": len(body.body), "links": links},
+            data={
+                "thread": code,
+                "chars": len(body.body),
+                "links": links,
+                "attachments": len(body.attachments),
+            },
         )
         message = (
             await render_messages(tx, [await tx.one(MESSAGE_SQL + " WHERE m.id = :id", id=m["id"])])

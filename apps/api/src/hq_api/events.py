@@ -42,6 +42,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "control": ("control.", "presence.", "hiring."),
     # ⟨1.4.1⟩ the agent runs: run.started, run.step, run.finished
     "runs": ("run.",),
+    # ⟨1.3⟩ owner media: file.ready, file.failed
+    "files": ("file.",),
 }
 
 

@@ -80,12 +80,26 @@ class Score(BaseModel):
     trend: list[float | None]
 
 
+class FileVariants(BaseModel):
+    thumb: UUID | None = None
+    poster: UUID | None = None
+
+
 class FileRef(BaseModel):
+    """A stored file (contract §17.1, ⟨1.3⟩ adds kind … transcript)."""
+
     id: UUID
     name: str
     mime: str
     size: int
     sha256: str
+    kind: Literal["image", "video", "audio", "document"] = "document"
+    status: Literal["processing", "ready", "failed"] = "ready"
+    width: int | None = None
+    height: int | None = None
+    duration_s: float | None = None
+    variants: FileVariants = Field(default_factory=FileVariants)
+    transcript: str | None = None
 
 
 class Deleted(BaseModel):

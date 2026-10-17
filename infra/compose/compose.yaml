@@ -592,12 +592,18 @@ services:
       AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
       HQ_CEO_DAILY_REPORTS: ${HQ_CEO_DAILY_REPORTS:-off}
       HQ_MORNING_REPORT_LLM: ${HQ_MORNING_REPORT_LLM:-on}
+      # Owner media (prompt 6 §2-§3): the file store (posters, key frames, sound
+      # tracks) and the self-hosted speech recogniser (empty: the stt profile is off).
+      HQ_FILES_ROOT: /data/files
+      STT_URL: ${STT_URL:-}
+      STT_PUNCTUATION: ${STT_PUNCTUATION:-on}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
     cap_drop: [ALL]
     volumes:
       - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/hq-worker:/run/secrets/hq:ro
+      - hq-files:/data/files
       # Append-only anchor file of the audit chain, outside the Postgres volume
       # and inside the backup set (created by `make bootstrap`, owner uid 10001).
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors

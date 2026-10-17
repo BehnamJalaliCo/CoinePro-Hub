@@ -17,7 +17,7 @@ from typing import Any
 from fastapi import FastAPI, Request, Response
 from fastapi.routing import APIRoute
 
-from hq_api import __version__, errors
+from hq_api import __version__, errors, media
 from hq_api.errors import ApiError, problem_response
 from hq_api.hub import Hub
 from hq_api.openapi_examples import add_examples
@@ -27,6 +27,7 @@ from hq_api.routes import (
     auth,
     decisions,
     deliverables,
+    files,
     inbox,
     internal,
     messages,
@@ -42,7 +43,16 @@ from hq_api.routes import (
 
 log = logging.getLogger("hq_api.access")
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
-UPLOAD_PATHS = ("/internal/v1/files",)
+# Raw-body uploads and their own size caps (checked again while streaming).
+UPLOAD_PATHS = ("/internal/v1/files", "/api/v1/files", "/api/v1/transcribe")
+
+
+def upload_limit(path: str, max_file: int, max_body: int) -> int:
+    if path == "/api/v1/files":
+        return media.VIDEO.max_bytes  # the largest kind; each kind is held to its own
+    if path == "/api/v1/transcribe":
+        return media.AUDIO.max_bytes
+    return max_file if path in UPLOAD_PATHS else max_body
 
 
 def _operation_id(route: APIRoute) -> str:
@@ -83,9 +93,7 @@ def create_app(
         rid = request.headers.get("x-request-id", "")
         request.state.request_id = rid if _REQUEST_ID.match(rid) else str(uuid.uuid4())
         settings = request.app.state.hub.settings
-        limit = (
-            settings.max_file_bytes if request.url.path in UPLOAD_PATHS else settings.max_body_bytes
-        )
+        limit = upload_limit(request.url.path, settings.max_file_bytes, settings.max_body_bytes)
         length = request.headers.get("content-length")
         if length is not None and (not length.isdigit() or int(length) > limit):
             return problem_response(
@@ -116,6 +124,7 @@ def create_app(
         work,
         decisions,
         deliverables,
+        files,
         messages,
         inbox,
         notifications,

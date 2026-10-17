@@ -28,6 +28,7 @@ from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.hub import Hub
 from hq_api.worker import report, schedules
+from hq_api.worker.media_activities import MediaActivities
 
 log = logging.getLogger("hq_api.worker")
 SYSTEM = audit.SYSTEM
@@ -61,9 +62,11 @@ class Activities:
         self.gateway = gateway or Gateway(s.gateway_url, lambda: self.hub.secrets.gateway_token)
         self.live = live or LivePush(s.api_internal_url)
         self.checker = checker or checks.Checker()
+        self.media = MediaActivities(hub, self.router, self._tx)
 
     def all(self) -> list[Any]:
         return [
+            *self.media.all(),
             self.decision_state,
             self.decision_expire,
             self.holding_locked,
@@ -415,7 +418,27 @@ class Activities:
         for r in stuck:
             await workflows_client.decision_decided(hub, r["ref"])
         ended = await self._end_stale_decision_workflows(hub)
-        return {"pending": len(pending), "effects_resumed": len(stuck), "ended": ended}
+        files = await self._resume_files(hub)
+        return {
+            "pending": len(pending),
+            "effects_resumed": len(stuck),
+            "ended": ended,
+            "files_resumed": files,
+        }
+
+    async def _resume_files(self, hub: Any) -> int:
+        """Uploads still processing whose workflow never started (Temporal was
+        down at upload): started again (one workflow id per file)."""
+        async with self._tx() as tx:
+            rows = await tx.all(
+                """SELECT file_id FROM files.processing
+                   WHERE status = 'processing' AND NOT (stt ? 'purpose')
+                     AND updated_at < now() - interval '10 minutes' AND attempts < 3
+                   ORDER BY created_at LIMIT 50"""
+            )
+        for r in rows:
+            await workflows_client.file_uploaded(hub, str(r["file_id"]))
+        return len(rows)
 
     async def _end_stale_decision_workflows(self, hub: Any) -> int:
         """A DecisionLifecycle still waiting for a card that is no longer pending

@@ -242,7 +242,48 @@ class CeoDaily:
         return result
 
 
+MEDIA_LIMIT = timedelta(minutes=30)  # a 10-minute video: frames, sound track, Whisper on CPU
+
+
+@workflow.defn(name="FileProcess")
+class FileProcess:
+    """An owner video or audio upload (prompt 6 §2): poster, key frames, sound
+    track and transcript; file.ready or file.failed at the end."""
+
+    @workflow.run
+    async def run(self, file_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await workflow.execute_activity(
+            "file_process",
+            args=[file_id],
+            start_to_close_timeout=MEDIA_LIMIT,
+            heartbeat_timeout=timedelta(minutes=2),
+            retry_policy=RetryPolicy(maximum_attempts=2),
+        )
+        return result
+
+
+@workflow.defn(name="Transcribe")
+class Transcribe:
+    """POST /transcribe (prompt 6 §3): one audio file to exact Persian text; the
+    api waits for this result."""
+
+    @workflow.run
+    async def run(self, file_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await workflow.execute_activity(
+            "transcribe_file",
+            args=[file_id],
+            start_to_close_timeout=MEDIA_LIMIT,
+            heartbeat_timeout=timedelta(minutes=2),
+            retry_policy=RetryPolicy(
+                maximum_attempts=2, non_retryable_error_types=["SttUnavailable", "TooLong"]
+            ),
+        )
+        return result
+
+
 WORKFLOWS = [
+    FileProcess,
+    Transcribe,
     AgentRun,
     SiteChecks,
     CeoDaily,

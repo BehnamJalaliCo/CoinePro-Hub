@@ -10,6 +10,7 @@ never fails because of Temporal. Workflows are addressed by name:
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Any
 
 from temporalio.client import Client
@@ -78,3 +79,39 @@ async def reconcile(hub: Any) -> None:
         )
     except Exception:  # noqa: BLE001 - the periodic run catches up
         log.warning("could not start reconciliation")
+
+
+FILE_WORKFLOW = "FileProcess"
+TRANSCRIBE_WORKFLOW = "Transcribe"
+
+
+async def file_uploaded(hub: Any, file_id: str) -> None:
+    """A video or audio upload: the worker makes its frames and transcript."""
+    client = _client(hub)
+    if client is None:
+        return
+    try:
+        await client.start_workflow(
+            FILE_WORKFLOW,
+            file_id,
+            id=f"file-{file_id}",
+            task_queue=hub.settings.task_queue,
+            id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+        )
+    except Exception:  # noqa: BLE001 - Maintenance picks up files still processing
+        log.warning("could not start file processing", extra={"file": file_id})
+
+
+async def transcribe(hub: Any, file_id: str, timeout_s: int) -> dict[str, Any]:
+    """Runs the transcription on the worker and waits for its result."""
+    client = _client(hub)
+    if client is None:
+        raise RuntimeError("no Temporal client")
+    result: dict[str, Any] = await client.execute_workflow(
+        TRANSCRIBE_WORKFLOW,
+        file_id,
+        id=f"transcribe-{file_id}",
+        task_queue=hub.settings.task_queue,
+        execution_timeout=timedelta(seconds=timeout_s),
+    )
+    return result

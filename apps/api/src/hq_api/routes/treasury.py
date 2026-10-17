@@ -371,7 +371,9 @@ async def treasury_breakdown(
         if end - start > timedelta(days=MAX_DAYS):
             raise ApiError(422, "validation_failed", fields={"from": f"at most {MAX_DAYS} days"})
         async with ctx.tx() as tx:
-            tz = await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
+            tz = (
+                await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
+            )
             rows = await tx.all(DAY_SQL, s=start, e=end, tz=tz, co=co.id if co else None)
         return [BreakdownRow(**r) for r in rows]
     key = BREAKDOWN_KEYS[by]

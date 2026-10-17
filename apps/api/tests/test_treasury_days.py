@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -12,9 +13,9 @@ async def _call(su: Any, company_id: Any, at: str, tokens: int) -> None:
     await su.execute(
         """INSERT INTO llm.calls (id, started_at, company_id, actor_ref, task_class, priority, caller,
                status, input_tokens, output_tokens, equiv_cost_usd)
-           VALUES (gen_random_uuid(), $2::timestamptz, $1, 'test', 'general', 3, 'tests', 'ok', $3, 1, 0.5)""",
+           VALUES (gen_random_uuid(), $2, $1, 'test', 'general', 3, 'tests', 'ok', $3, 1, 0.5)""",
         company_id,
-        at,
+        datetime.fromisoformat(at),
         tokens,
     )
 

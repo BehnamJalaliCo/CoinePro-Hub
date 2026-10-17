@@ -48,6 +48,15 @@ class Settings:
     log_level: str = field(default_factory=lambda: _env("LOG_LEVEL", "info"))
     max_body_bytes: int = field(default_factory=lambda: _int("HQ_MAX_BODY_BYTES", 1024 * 1024))
     max_file_bytes: int = field(default_factory=lambda: _int("HQ_MAX_FILE_BYTES", 25 * 1024 * 1024))
+    # Speech to text (prompt 6 §3): the self-hosted Whisper service, reached by the
+    # worker only (empty: the stt profile is off); the light model's punctuation pass.
+    stt_url: str = field(default_factory=lambda: _env("STT_URL"))
+    stt_punctuation: bool = field(default_factory=lambda: _env("STT_PUNCTUATION", "on") == "on")
+    stt_punctuation_model: str = field(
+        default_factory=lambda: _env("STT_PUNCTUATION_MODEL", "claude-haiku-5-5")
+    )
+    # How long POST /transcribe waits for the worker (a 15-minute recording on CPU).
+    transcribe_wait_s: int = field(default_factory=lambda: _int("HQ_TRANSCRIBE_WAIT_S", 600))
     # Sessions (contract §2): sliding 30 days, absolute 90 days.
     session_sliding_days: int = 30
     session_absolute_days: int = 90

@@ -9,6 +9,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PYTHONPATH=/app/hq-common/src:/app/api/src
 
+# ffmpeg/ffprobe (LGPL/GPL, Debian trixie, exact version): posters, key frames
+# and sound tracks of owner videos, and media durations (prompt 6 §2).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg=7:7.1.5-0+deb13u1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.lock /tmp/requirements.lock
 RUN pip install --require-hashes --no-deps -r /tmp/requirements.lock \
     && rm /tmp/requirements.lock \
