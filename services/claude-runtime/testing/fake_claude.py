@@ -11,6 +11,7 @@ chosen by a marker in the prompt:
     [[fake:auth]]     authentication_failed
     [[fake:auth401]]  API error 401 only (no assistant error)
     [[fake:sleep]]    never answers (timeouts)
+    [[fake:warning]]  "OK" after a rate_limit_event allowed_warning (85% of five_hour)
     anything else     "OK" with usage and total_cost_usd
 If FAKE_CLAUDE_RECORD is set, argv and selected env go to that JSON file.
 Never used in production: only when RUNTIME_CLI_PATH points here.
@@ -114,6 +115,20 @@ def answer(prompt: str) -> None:
             )
         )
         return
+    if "[[fake:warning]]" in prompt:
+        emit(
+            {
+                "type": "rate_limit_event",
+                "uuid": str(uuid.uuid4()),
+                "session_id": SESSION,
+                "rate_limit_info": {
+                    "status": "allowed_warning",
+                    "resetsAt": int(time.time()) + 7200,
+                    "rateLimitType": "five_hour",
+                    "utilization": 0.85,
+                },
+            }
+        )
     if "[[fake:ratelimit]]" in prompt:
         emit(
             {

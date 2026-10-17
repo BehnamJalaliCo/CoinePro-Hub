@@ -115,6 +115,34 @@ async def test_failure_modes(
         assert out.text is None
 
 
+async def test_rate_limit_state_is_reported(runner: ClaudeRunner) -> None:
+    """The Quota Controller's source (prompt 05 §8): the latest rate-limit event."""
+    warn = await runner.run(spec("[[fake:warning]] hi"))
+    assert warn.status == "ok"
+    assert warn.rate_limit is not None
+    assert warn.rate_limit["status"] == "allowed_warning"
+    assert warn.rate_limit["window"] == "five_hour"
+    assert warn.rate_limit["utilization"] == 0.85
+    assert warn.rate_limit["resets_at"] and warn.rate_limit["resets_at"] > 1_700_000_000
+    assert warn.as_json()["rate_limit"] == warn.rate_limit
+    rejected = await runner.run(spec("[[fake:quota]]"))
+    assert rejected.rate_limit is not None and rejected.rate_limit["status"] == "rejected"
+    plain = await runner.run(spec("hello"))
+    assert plain.rate_limit is None
+
+
+def test_rate_limit_metadata_is_type_checked() -> None:
+    from types import SimpleNamespace
+
+    from claude_runtime.runner import rate_limit_of
+
+    assert rate_limit_of(SimpleNamespace(status="weird")) is None
+    odd = rate_limit_of(
+        SimpleNamespace(status="allowed", rate_limit_type="x" * 99, utilization=7, resets_at=-1)
+    )
+    assert odd == {"status": "allowed", "window": None, "utilization": None, "resets_at": None}
+
+
 async def test_timeout_and_missing_token(
     runner: ClaudeRunner, tmp_path: Path, fake_cli: str
 ) -> None:
