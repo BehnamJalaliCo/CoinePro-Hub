@@ -11,6 +11,7 @@ from collections.abc import Callable
 from typing import Any
 
 from hq_api.openapi_export import PATH, render
+from hq_api.workshop.runtime import FakeRuntime
 
 from .conftest import agent_headers
 from .test_control_treasury_stream import serve
@@ -57,7 +58,7 @@ async def _schemathesis(url: str, headers: dict[str, str], *args: str) -> tuple[
         os.environ.get("HQ_FUZZ_EXAMPLES", "8"),
         # The SSE streams never end on their own (heartbeats keep them open).
         "--exclude-path-regex",
-        "^/api/v1/(stream|threads/[^/]+/live)$",
+        "^/api/v1/(stream|threads/[^/]+/live|workshop/sessions/[^/]+/live)$",
         "--generation-database",
         "none",
         "--no-color",
@@ -80,11 +81,18 @@ async def test_schemathesis_finds_no_server_errors(
     app: Any, owner: dict[str, str], new_company: Callable[..., Any], relay: None
 ) -> None:
     co = (await new_company())["code"]
-    async with serve(app) as url:
-        code, out = await _schemathesis(url, owner, "--include-path-regex", "^/api/v1/")
-        assert code == 0, out[-6000:]
-        code, out = await _schemathesis(
-            url, await agent_headers(f"{co}-CEO"), "--include-path-regex", "^/internal/v1/"
-        )
-        assert code == 0, out[-6000:]
+    # The workshop's designed 503 (runtime_not_configured) is not a server error:
+    # fuzz it with a runtime in place.
+    hub = app.state.hub
+    hub.workshop = FakeRuntime()
+    try:
+        async with serve(app) as url:
+            code, out = await _schemathesis(url, owner, "--include-path-regex", "^/api/v1/")
+            assert code == 0, out[-6000:]
+            code, out = await _schemathesis(
+                url, await agent_headers(f"{co}-CEO"), "--include-path-regex", "^/internal/v1/"
+            )
+            assert code == 0, out[-6000:]
+    finally:
+        hub.workshop = None
     assert json.dumps({"ok": True})

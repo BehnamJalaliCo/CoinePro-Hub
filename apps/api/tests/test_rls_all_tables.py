@@ -31,6 +31,7 @@ SCHEMAS = (
     "files",
     "agents",
     "ops",
+    "workshop",
 )
 
 
@@ -177,6 +178,44 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
         "INSERT INTO ops.incidents (company_id, site_id) VALUES ($1, $2)", co["id"], site
     )
     await su.execute("INSERT INTO ops.hub_health (company_id, data) VALUES ($1, '{}')", co["id"])
+    # Prompt 06: the Code Workshop and the owner's orders.
+    ws = await su.fetchval(
+        """INSERT INTO workshop.workspaces (company_id, code, repo, default_branch, title_fa, policy)
+           VALUES ($1, $2, 'o/r', 'main', 'w', '{}') RETURNING id""",
+        co["id"],
+        f"{co['code']}-RLS",
+    )
+    grant = await su.fetchval(
+        """INSERT INTO workshop.grants (company_id, workspace_id, actions, budget_usd, expires_at,
+               granted_by_kind, granted_by_code)
+           VALUES ($1, $2, '{read}', 1, now() + interval '1 day', 'owner', 'owner') RETURNING id""",
+        co["id"],
+        ws,
+    )
+    session = await su.fetchval(
+        """INSERT INTO workshop.sessions (company_id, workspace_id, grant_id, title, writes,
+               opened_by_kind, opened_by_code, driver_kind, driver_code, runtime, model, effort,
+               last_seq)
+           VALUES ($1, $2, $3, 't', false, 'owner', 'owner', 'owner', 'owner', 'fake', 'm', 'low', 1)
+           RETURNING id""",
+        co["id"],
+        ws,
+        grant,
+    )
+    await su.execute(
+        """INSERT INTO workshop.events (session_id, company_id, seq, type, actor_kind, actor_code)
+           VALUES ($1, $2, 1, 'state', 'system', 'workshop')""",
+        session,
+        co["id"],
+    )
+    await su.execute(
+        "INSERT INTO workshop.approvals (session_id, company_id, action) VALUES ($1, $2, 'command')",
+        session,
+        co["id"],
+    )
+    await su.execute(
+        "INSERT INTO owner.orders (company_id, text, source) VALUES ($1, 'o', 'text')", co["id"]
+    )
 
 
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
