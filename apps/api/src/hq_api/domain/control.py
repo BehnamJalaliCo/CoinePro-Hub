@@ -123,31 +123,78 @@ async def set_kill_switch(
     return True
 
 
-async def set_deploy_freeze(
-    tx: Tx, who: Principal, company: dict[str, Any], until: datetime, reason: str
-) -> dict[str, Any]:
-    """`until` in the future sets/extends a freeze; in the past lifts them."""
-    lifted = await tx.exec(
-        """UPDATE control.deploy_freezes SET lifted_at = now()
-           WHERE company_id = :co AND lifted_at IS NULL""",
-        co=company["id"],
+async def active_freezes(tx: Tx, company_id: Any) -> list[dict[str, Any]]:
+    """Active freezes with who set them (the setter's company for agents)."""
+    return await tx.all(
+        """SELECT f.id, f.until, f.created_by_kind, f.created_by_code,
+                  (SELECT c.code FROM core.employees e JOIN core.companies c ON c.id = e.company_id
+                    WHERE f.created_by_kind = 'agent' AND e.code = f.created_by_code) AS created_by_company
+           FROM control.deploy_freezes f
+           WHERE f.company_id = :co AND f.lifted_at IS NULL AND f.until > now()
+           ORDER BY f.created_at""",
+        co=company_id,
     )
-    active = await tx.scalar("SELECT :u > now()", u=until)
-    if active:
-        await tx.exec(
-            """INSERT INTO control.deploy_freezes (company_id, until, reason, created_by_kind, created_by_code)
-               VALUES (:co, :u, :r, :k, :c)""",
-            co=company["id"],
-            u=until,
-            r=reason,
-            k=who.kind,
-            c=who.code,
-        )
+
+
+async def add_deploy_freeze(
+    tx: Tx, who: Principal, company: dict[str, Any], until: datetime, reason: str
+) -> None:
+    """A new freeze; existing freezes of others stay (lifting follows authority)."""
+    await tx.exec(
+        """INSERT INTO control.deploy_freezes (company_id, until, reason, created_by_kind, created_by_code)
+           VALUES (:co, :u, :r, :k, :c)""",
+        co=company["id"],
+        u=until,
+        r=reason,
+        k=who.kind,
+        c=who.code,
+    )
     await events.emit(
         tx,
         company["code"],
         "control.changed",
         f"company:{company['code']}",
-        {"deploy_freeze_until": until.isoformat() if active else None, "by": who.code},
+        {"deploy_freeze_until": until.isoformat(), "by": who.code},
     )
-    return {"active": bool(active), "replaced": lifted}
+
+
+async def lift_deploy_freezes(
+    tx: Tx, who: Principal, company: dict[str, Any], ids: list[Any]
+) -> int:
+    """Lift exactly the freezes the caller has authority over (decided by the caller)."""
+    if not ids:
+        return 0
+    n = await tx.exec(
+        "UPDATE control.deploy_freezes SET lifted_at = now() WHERE id = ANY(:ids) AND lifted_at IS NULL",
+        ids=ids,
+    )
+    left = await tx.scalar(
+        """SELECT max(until) FROM control.deploy_freezes
+           WHERE company_id = :co AND lifted_at IS NULL AND until > now()""",
+        co=company["id"],
+    )
+    await events.emit(
+        tx,
+        company["code"],
+        "control.changed",
+        f"company:{company['code']}",
+        {"deploy_freeze_until": left.isoformat() if left else None, "by": who.code},
+    )
+    return n
+
+
+async def current_switch(tx: Tx, company_id: Any) -> dict[str, Any]:
+    """The switch as it stands, with who set it (and that agent's company)."""
+    row = await tx.first(
+        """SELECT k.state, k.changed_by_kind, k.changed_by_code,
+                  (SELECT c.code FROM core.employees e JOIN core.companies c ON c.id = e.company_id
+                    WHERE k.changed_by_kind = 'agent' AND e.code = k.changed_by_code) AS changed_by_company
+           FROM control.kill_switches k WHERE k.company_id = :co""",
+        co=company_id,
+    )
+    return row or {
+        "state": "released",
+        "changed_by_kind": None,
+        "changed_by_code": None,
+        "changed_by_company": None,
+    }

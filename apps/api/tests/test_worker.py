@@ -587,12 +587,12 @@ async def test_audit_verify_alerts_when_broken(
     ok = await wk["acts"].audit_verify()
     assert ok["ok"] is True and ok["checked"] >= 0
 
-    async def broken(_tx: Any) -> dict[str, Any]:
-        return {"ok": False, "checked": 10, "first_bad_seq": 7}
+    async def broken(_tx: Any, **_kw: Any) -> dict[str, Any]:
+        return {"ok": False, "checked": 10, "first_bad_seq": 7, "anchor": "none"}
 
     monkeypatch.setattr(audit, "verify", broken)
     out = await wk["acts"].audit_verify()
-    assert out == {"ok": False, "checked": 10, "first_bad_seq": 7}
+    assert out == {"ok": False, "checked": 10, "first_bad_seq": 7, "anchor": "none"}
     async with hub.db.tx(await _all(hub)) as tx:
         assert (
             await tx.scalar(

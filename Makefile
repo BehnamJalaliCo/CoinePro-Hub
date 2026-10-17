@@ -28,6 +28,7 @@ up: $(ENV_FILE) ## Start every service of the active profile and wait until heal
 	@infra/openbao/init.sh
 	@infra/openbao/unseal.sh
 	@infra/openbao/provision.sh
+	@infra/backup/anchor-dir.sh
 	$(HQ) up -d --build --remove-orphans --wait --wait-timeout 300
 
 down: ## Stop and remove the containers of every profile (volumes are kept)

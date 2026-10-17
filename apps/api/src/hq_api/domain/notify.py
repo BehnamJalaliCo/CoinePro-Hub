@@ -108,24 +108,20 @@ async def _is_ceo(tx: Tx, source_kind: str, source_code: str) -> bool:
     return bool(kind == "ceo")
 
 
-async def _learning_shown_since(tx: Tx, day_start: datetime) -> int:
-    """The learning cap is holding-wide, but the caller's transaction may be
-    scoped to one company (an agent). Count across every company (a number
-    only, no row leaves this function), then restore the caller's scope."""
-    prev = await tx.scalar("SELECT current_setting('app.company_ids', true)")
-    await tx.exec(
-        """SELECT set_config('app.company_ids',
-                             (SELECT array_agg(id)::text FROM core.companies), true)"""
+# Agents may raise 🔴 only for incidents, at most this many per company per hour (§1.5 of 04.1).
+AGENT_URGENT_PER_HOUR = 5
+
+
+async def counts(tx: Tx, day_start: datetime, source_code: str, company_id: UUID) -> dict[str, int]:
+    """Quota counts across the holding, as numbers only, through a SECURITY
+    DEFINER function: the caller's company scope is never widened."""
+    row = await tx.one(
+        "SELECT * FROM notify.agent_notification_counts(:day, :sc, :co)",
+        day=day_start,
+        sc=source_code,
+        co=company_id,
     )
-    try:
-        n = await tx.scalar(
-            """SELECT count(*) FROM notify.notifications
-               WHERE level = 'learning' AND created_at >= :day AND delivered_in_app""",
-            day=day_start,
-        )
-    finally:
-        await tx.exec("SELECT set_config('app.company_ids', :prev, true)", prev=prev or "")
-    return int(n)
+    return {k: int(v) for k, v in row.items()}
 
 
 def decide(
@@ -241,20 +237,11 @@ async def raise_notification(
     ctx = await _context(tx)
     now: datetime = ctx["now"]
     setting = level_setting(ctx["matrix"] or {}, company_code, level)
+    n = await counts(tx, ctx["day_start"], source_code, company_id)
     ceo_over = False
     if level != "urgent" and await _is_ceo(tx, source_kind, source_code):
-        sent_today = await tx.scalar(
-            """SELECT count(*) FROM notify.notifications
-               WHERE source_kind = 'agent' AND source_code = :sc AND level <> 'urgent'
-                 AND created_at >= :day AND state <> 'suppressed'""",
-            sc=source_code,
-            day=ctx["day_start"],
-        )
-        ceo_over = int(sent_today) >= int(ctx["ceo_daily_attention"])
-    learning_over = False
-    if level == "learning":
-        shown = await _learning_shown_since(tx, ctx["day_start"])
-        learning_over = shown >= int(ctx["learning_daily_cap"])
+        ceo_over = n["source_today"] >= int(ctx["ceo_daily_attention"])
+    learning_over = level == "learning" and n["learning_today"] >= int(ctx["learning_daily_cap"])
     d = decide(
         level=level,
         khalvat=bool(ctx["khalvat"]),

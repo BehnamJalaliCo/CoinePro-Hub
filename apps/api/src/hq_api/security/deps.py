@@ -20,6 +20,7 @@ from hq_api.security import agent_tokens, sessions
 from hq_common.tokens import bearer, digest
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+REPLAYS = agent_tokens.ReplayGuard()
 
 
 def client_ip(request: Request) -> str:
@@ -38,11 +39,12 @@ def check_csrf(hub: Hub, request: Request) -> None:
     """Web mutations need X-HQ-Client: web and our exact Origin (contract §2)."""
     if request.method in SAFE_METHODS:
         return
-    origin = request.headers.get("origin", "")
+    origin = request.headers.get("origin", "").rstrip("/").encode("utf-8", "surrogateescape")
+    expected = hub.settings.public_origin.encode()
     if (
         request.headers.get("x-hq-client") != "web"
-        or not hub.settings.public_origin
-        or not hmac.compare_digest(origin.rstrip("/"), hub.settings.public_origin)
+        or not expected
+        or not hmac.compare_digest(origin, expected)
     ):
         raise ApiError(403, "csrf_rejected")
 
@@ -74,6 +76,9 @@ async def owner(request: Request, hub: Hub = Depends(get_hub)) -> Principal:
 
 
 async def internal(request: Request, hub: Hub = Depends(get_hub)) -> Principal:
+    # /internal is never routed by the edge: a proxied request does not belong here.
+    if "x-forwarded-for" in request.headers:
+        raise ApiError(403, "forbidden", "/internal is not reachable through a proxy")
     token = bearer(request.headers.get("authorization"))
     if not token:
         raise ApiError(401, "unauthenticated")
@@ -82,6 +87,10 @@ async def internal(request: Request, hub: Hub = Depends(get_hub)) -> Principal:
             claims = agent_tokens.verify(hub.secrets.agent_token_key, token)
         except agent_tokens.InvalidToken as exc:
             raise ApiError(401, "unauthenticated") from exc
+        # The same token with the same request id twice is a replay.
+        rid = request.headers.get("x-request-id")
+        if rid and not REPLAYS.first_use(f"{claims.jti}:{rid}", claims.exp):
+            raise ApiError(401, "unauthenticated", "replayed request")
         who = await agent_principal(hub, claims.employee, run=claims.run)
     else:
         name = next(

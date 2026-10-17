@@ -33,8 +33,19 @@ propose_kinds := {
 	"inspector": {"proposal"},
 }
 
-# Kinds a role may propose only from one department (monthly HR evaluation, dismissal).
-propose_department := {"manager": {"evaluation": "HR", "dismissal": "HR"}}
+# Data, not code (data.json). Without it nothing that depends on it is allowed.
+config := data.hq.config
+
+config_loaded if is_object(config)
+
+# Kinds a role may propose only from one department (monthly HR evaluation,
+# dismissal): data hq.config.propose_department, not code.
+propose_department := object.get(config, "propose_department", {})
+
+# Categories for which an agent may raise 🔴 urgent (data hq.config).
+incident_categories := {c | some c in object.get(config, "incident_categories", [])}
+
+levels := {"urgent", "decision", "report", "info", "learning"}
 
 p := lib.principal
 
@@ -121,26 +132,60 @@ grant if {
 	op == "notification.raise"
 	agent
 	same_company(tv("company"))
+	tv("level") in levels
+	urgent_ok
+	unlocked_or_incident
 }
 
+# A CEO engages its own company's switch ...
 grant if {
 	op == "kill_switch.set"
-	agent
-	p.role == "ceo"
-	p.company != null
-	tv("scope") == concat("", ["company:", p.company])
+	own_switch
+	tv("state") == "engaged"
 }
 
+# ... and releases it only if an agent of its own company engaged it: a
+# switch the owner engaged is released only by the owner (public API, 🔏).
+grant if {
+	op == "kill_switch.set"
+	own_switch
+	tv("state") == "released"
+	engaged_by_own_agent
+}
+
+# Setting a freeze: services (the deploy pipeline) for any company, a CEO for
+# its own company.
 grant if {
 	op == "deploy_freeze.set"
+	not lifting
 	service
 }
 
 grant if {
 	op == "deploy_freeze.set"
+	not lifting
 	agent
 	p.role == "ceo"
 	same_company(tv("company"))
+}
+
+# Lifting follows authority: the pipeline lifts the pipeline's freezes, a CEO
+# only its own; an owner freeze is lifted only by the owner (public API).
+grant if {
+	op == "deploy_freeze.set"
+	lifting
+	service
+	object.get(freeze, "created_by_kind", "") == "service"
+}
+
+grant if {
+	op == "deploy_freeze.set"
+	lifting
+	agent
+	p.role == "ceo"
+	same_company(tv("company"))
+	object.get(freeze, "created_by_kind", "") == "agent"
+	object.get(freeze, "created_by_code", "") == p.code
 }
 
 grant if {
@@ -199,14 +244,74 @@ work_create_ok if {
 }
 
 propose_ok if {
+	config_loaded
 	kind := tv("kind")
 	kind in object.get(propose_kinds, p.role, set())
 	department_ok(kind)
+	scope_ok(kind)
 }
 
 department_ok(kind) if not propose_department[p.role][kind]
 
 department_ok(kind) if propose_department[p.role][kind] == p.department
+
+# budget_change: the scope lies inside the proposer's own company.
+scope_ok(kind) if kind != "budget_change"
+
+scope_ok("budget_change") if scope_inside_company
+
+scope := lib.obj(tv("scope"))
+
+scope_ref := object.get(scope, "scope_ref", "")
+
+scope_inside_company if {
+	scope.scope_type == "company"
+	scope_ref == p.company
+}
+
+scope_inside_company if {
+	scope.scope_type == "department"
+	startswith(scope_ref, concat("", [p.company, "-"]))
+}
+
+scope_inside_company if {
+	scope.scope_type in {"role", "task_class"}
+	startswith(scope_ref, concat("", [p.company, ":"]))
+}
+
+urgent_ok if tv("level") != "urgent"
+
+urgent_ok if tv("category") in incident_categories
+
+incident if {
+	tv("level") == "urgent"
+	tv("category") in incident_categories
+}
+
+# Missing lock information counts as locked (the safe side).
+company_locked := object.get(t, "company_locked", true) != false
+
+unlocked_or_incident if not company_locked
+
+unlocked_or_incident if incident
+
+own_switch if {
+	agent
+	p.role == "ceo"
+	p.company != null
+	tv("scope") == concat("", ["company:", p.company])
+}
+
+current := lib.obj(tv("current"))
+
+engaged_by_own_agent if {
+	object.get(current, "changed_by_kind", "") == "agent"
+	object.get(current, "changed_by_company", null) == p.company
+}
+
+lifting if tv("lift") == true
+
+freeze := lib.obj(tv("freeze"))
 
 message_ok if tv("thread_code") == p.code
 
@@ -264,6 +369,46 @@ deny_reasons contains reason if {
 	op == "decision.approve"
 	reasons := data.hq.decisions.deny_reasons with input as approve_input
 	some reason in reasons
+}
+
+deny_reasons contains "released_only_by_engager_authority" if {
+	op == "kill_switch.set"
+	own_switch
+	tv("state") == "released"
+	not engaged_by_own_agent
+}
+
+deny_reasons contains "lifted_only_by_setter_authority" if {
+	op == "deploy_freeze.set"
+	lifting
+	not grant
+}
+
+deny_reasons contains "urgent_needs_incident" if {
+	op == "notification.raise"
+	agent
+	tv("level") == "urgent"
+	not tv("category") in incident_categories
+}
+
+deny_reasons contains "company_locked" if {
+	op == "notification.raise"
+	agent
+	company_locked
+	not incident
+}
+
+deny_reasons contains "unknown_level" if {
+	op == "notification.raise"
+	agent
+	not tv("level") in levels
+}
+
+deny_reasons contains "scope_outside_company" if {
+	op == "decision.propose"
+	agent
+	tv("kind") == "budget_change"
+	not scope_inside_company
 }
 
 # Every other refusal names the operation.

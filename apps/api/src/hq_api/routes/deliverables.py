@@ -131,7 +131,8 @@ async def list_deliverables(
                     AND (CAST(:producer AS text) IS NULL OR p.code = :producer)
                     AND (CAST(:unrated AS boolean) IS NULL OR (lr.score IS NULL) = :unrated)
                     AND (CAST(:q AS text) IS NULL OR dl.ref = :q
-                         OR core.fa_normalize(dl.title || ' ' || dl.summary) LIKE '%' || core.fa_normalize(:q) || '%')
+                         OR core.fa_normalize(dl.title || ' ' || dl.summary)
+                            LIKE '%' || core.like_escape(core.fa_normalize(:q)) || '%')
                     AND (CAST(:after_t AS timestamptz) IS NULL
                          OR (dl.created_at, dl.id) < (CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))
                   ORDER BY dl.created_at DESC, dl.id DESC LIMIT :lim""",

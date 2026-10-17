@@ -26,6 +26,7 @@ from hq_api.domain import control, notify, org
 from hq_api.domain import decisions as D
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
+from hq_api.principal import Principal
 from hq_api.routes.messages import MESSAGE_SQL, Links, Message, post_message, render_messages
 from hq_api.schemas import EMPLOYEE_CODE, Evidence, FileRef, Model
 
@@ -133,6 +134,8 @@ class NotificationIn(Model):
     link_kind: str | None = Field(default=None, pattern=r"^[a-z_]{2,30}$")
     link_ref: str | None = Field(default=None, max_length=100)
     choices: list[dict[str, str]] | None = Field(default=None, max_length=6)
+    # Agents raise 🔴 only for an incident category (policy data); else it becomes 🟡.
+    category: Literal["service_down", "security", "data_loss", "budget_hard_stop"] | None = None
 
 
 class NotificationOut(BaseModel):
@@ -161,15 +164,78 @@ class ContextOut(BaseModel):
 
 
 # ----------------------------------------------------------------- helpers --
-async def allow(ctx: Ctx, op: str, target: dict[str, Any]) -> None:
+# The action class of every internal write (OPERATING_MODEL §1.12). Reads are A0.
+# A3 never happens here (it goes through a decision) and A4 never at all.
+OP_CLASS: dict[str, str] = {
+    "context.read": "A0",
+    "activity.set": "A0",
+    "work.accept": "A1",
+    "work.progress": "A1",
+    "work.deliver": "A1",
+    "work.fail": "A1",
+    "decision.propose": "A1",
+    "decision.approve": "A2",
+    "message.post": "A1",
+    "notification.raise": "A1",
+    "file.upload": "A1",
+    "work.delegate": "A2",
+    "work.create": "A2",
+    "kill_switch.set": "A2",
+    "deploy_freeze.set": "A2",
+}
+
+
+async def action_gate(
+    hub: Any,
+    who: Principal,
+    name: str,
+    cls: str,
+    *,
+    escrow_classes: list[str],
+    company_locked: bool = False,
+) -> None:
+    """hq.actions: A0-A3 by role and escrow, A4 always denied for non-owners."""
+    await hub.policy.require(
+        "actions",
+        {
+            "principal": who.opa(),
+            "action": {"class": cls, "name": name, "company": who.company},
+            "context": {"escrow_classes": escrow_classes, "company_locked": company_locked},
+        },
+    )
+
+
+async def allow(
+    ctx: Ctx, op: str, target: dict[str, Any], *, escrow_classes: list[str] | None = None
+) -> None:
+    """hq.internal (who may do what, where), then hq.actions for agents."""
     await ctx.hub.policy.require(
         "internal", {"principal": ctx.who.opa(), "op": op, "target": target}
     )
+    if ctx.who.is_agent:
+        await action_gate(ctx.hub, ctx.who, op, OP_CLASS[op], escrow_classes=escrow_classes or [])
+
+
+async def escrow_of(tx: Tx, w: dict[str, Any]) -> list[str]:
+    """Allowed classes of the work's escrow (or of its recurring template's)."""
+    classes = await tx.scalar(
+        """SELECT allowed_action_classes FROM work.escrows
+           WHERE status = 'active'
+             AND work_id IN (CAST(:w AS uuid), COALESCE(CAST(:t AS uuid), CAST(:w AS uuid))) LIMIT 1""",
+        w=str(w["id"]),
+        t=str(w["recurrence_of"]) if w.get("recurrence_of") else None,
+    )
+    return list(classes or [])
 
 
 async def work_for(ctx: Ctx, tx: Tx, id: UUID, op: str) -> dict[str, Any]:
     w = await W.load(tx, id, lock=True)
-    await allow(ctx, op, {"assignee": w["a_code"], "company": w["company"]})
+    await allow(
+        ctx,
+        op,
+        {"assignee": w["a_code"], "company": w["company"]},
+        escrow_classes=await escrow_of(tx, w),
+    )
     await ctx.ensure_unlocked(tx, w["company_id"])
     return w
 
@@ -247,6 +313,7 @@ async def delegate_work(
                 "to_role": to["kind"] if to else None,
                 "to_department": to["department"] if to else None,
             },
+            escrow_classes=await escrow_of(tx, w),
         )
         await ctx.ensure_unlocked(tx, w["company_id"])
         child = await W.delegate(
@@ -389,18 +456,24 @@ async def request_work(
             return idem.replay
         assert ctx.who.company_id is not None
         cross = company.id != ctx.who.company_id
+        # The policy decides BEFORE anything outside the agent's company is
+        # looked up, so a refusal never tells whether a code exists elsewhere.
         if cross:
-            await tx.rescope([ctx.who.company_id, company.id])
-        to_role, to_dept = "ceo", body.department
-        if body.to:
-            t = await tx.one(
-                """SELECT e.kind, d.code AS department, e.company_id FROM core.employees e
-                   LEFT JOIN core.departments d ON d.id = e.department_id WHERE e.code = :c""",
-                c=body.to,
-            )
-            to_role, to_dept = t["kind"], t["department"]
-        elif body.department:
-            to_role = "manager"
+            if body.to or body.department:  # CEO to CEO only: addressed to the company
+                raise ApiError(403, "policy_denied", "work.create_not_permitted")
+            to_role: str | None = "ceo"
+            to_dept: str | None = None
+        else:
+            to_role, to_dept = "ceo", body.department
+            if body.to:
+                t = await tx.first(  # under the agent's own scope: other companies are invisible
+                    """SELECT e.kind, d.code AS department FROM core.employees e
+                       LEFT JOIN core.departments d ON d.id = e.department_id WHERE e.code = :c""",
+                    c=body.to,
+                )
+                to_role, to_dept = (t["kind"], t["department"]) if t else (None, None)
+            elif body.department:
+                to_role = "manager"
         await allow(
             ctx,
             "work.create",
@@ -411,8 +484,10 @@ async def request_work(
                 "to_department": to_dept,
             },
         )
-        assert ctx.who.company_id is not None
         await ctx.ensure_unlocked(tx, ctx.who.company_id)
+        if cross:
+            await tx.rescope([ctx.who.company_id, company.id])
+            await ctx.ensure_unlocked(tx, company.id)  # the destination is locked too
         if body.requested_by_work_id is not None and not await tx.scalar(
             "SELECT 1 FROM work.work WHERE id = :id AND company_id = :co",
             id=body.requested_by_work_id,
@@ -493,7 +568,11 @@ async def propose_decision(
         raise ApiError(403, "policy_denied", "agents only")
     assert ctx.who.company is not None
     assert ctx.who.company_id is not None
-    await allow(ctx, "decision.propose", {"company": ctx.who.company, "kind": body.kind})
+    payload = D.validate_payload(body.kind, body.payload)  # 422 before the policy
+    scope = payload.get("scope") if body.kind == "budget_change" else None
+    await allow(
+        ctx, "decision.propose", {"company": ctx.who.company, "kind": body.kind, "scope": scope}
+    )
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
@@ -654,17 +733,59 @@ async def set_activity(body: Activity, ctx: Ctx = Depends(internal_ctx)) -> org.
 async def raise_notification(
     body: NotificationIn, ctx: Ctx = Depends(internal_ctx)
 ) -> NotificationOut:
-    """Services and agents raise a notification; level rules, Khalvat and the
-    CEO attention quota apply."""
+    """Services and agents raise a notification; level rules, Khalvat and the CEO
+    attention quota apply. An agent's 🔴 needs an incident `category` and is
+    capped per company per hour; otherwise it is raised as 🟡. While its company
+    is locked an agent raises only 🔴 incidents."""
     code = body.company or ctx.who.company or (await ctx.hub.companies.holding()).code
     company = await ctx.hub.companies.by_code(code)
-    await allow(ctx, "notification.raise", {"company": company.code})
     async with ctx.tx() as tx:
+        level = body.level
+        if not ctx.who.is_agent:
+            await allow(
+                ctx,
+                "notification.raise",
+                {
+                    "company": company.code,
+                    "level": level,
+                    "category": body.category,
+                    "company_locked": False,
+                },
+            )
+        else:
+            locked = await tx.scalar("SELECT control.lock_state(:co)", co=company.id) is not None
+            if level == "urgent" and body.category is not None:
+                n = await notify.counts(tx, datetime.now().astimezone(), ctx.who.code, company.id)
+                if n["company_urgent_hour"] >= notify.AGENT_URGENT_PER_HOUR:
+                    if locked:
+                        raise ApiError(
+                            429, "rate_limited", "too many urgent notifications this hour"
+                        )
+                    level = "decision"
+            target = {
+                "company": company.code,
+                "level": level,
+                "category": body.category,
+                "company_locked": locked,
+            }
+            verdict = await ctx.hub.policy.query(
+                "internal",
+                {"principal": ctx.who.opa(), "op": "notification.raise", "target": target},
+            )
+            if (
+                not verdict.allow
+                and level == "urgent"
+                and "urgent_needs_incident" in verdict.reasons
+                and not locked
+            ):
+                level = "decision"  # not an incident: the owner sees it, without the alarm
+                target["level"] = level
+            await allow(ctx, "notification.raise", target)
         n = await notify.raise_notification(
             tx,
             company_id=company.id,
             company_code=company.code,
-            level=body.level,
+            level=level,
             title_fa=body.title_fa,
             body_fa=body.body_fa,
             link_kind=body.link_kind,
@@ -680,7 +801,7 @@ async def raise_notification(
             action_class="A1",
             target_kind="notification",
             target_ref=str(n["id"]),
-            summary=body.level,
+            summary=level if level == body.level else f"{body.level} -> {level}",
         )
     return NotificationOut(id=n["id"], level=n["level"], state=n["state"])
 
@@ -690,14 +811,18 @@ async def raise_notification(
 async def agent_kill_switch(
     body: KillSwitchIn, request: Request, ctx: Ctx = Depends(internal_ctx)
 ) -> Any:
-    """A CEO engages or releases the switch of its own company only.
+    """A CEO engages its own company's switch, and releases only a switch that
+    an agent of its own company engaged (an owner's switch: owner + step-up).
     Requires `Idempotency-Key`."""
-    await allow(ctx, "kill_switch.set", {"scope": body.scope})
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
         company = await control.resolve_scope(tx, body.scope)
+        current = await control.current_switch(tx, company["id"])
+        await allow(
+            ctx, "kill_switch.set", {"scope": body.scope, "state": body.state, "current": current}
+        )
         changed = await control.set_kill_switch(tx, ctx.who, company, body.state, body.reason)
         await ctx.audit(
             tx,
@@ -718,11 +843,44 @@ async def agent_kill_switch(
 async def agent_deploy_freeze(
     body: FreezeIn, ctx: Ctx = Depends(internal_ctx)
 ) -> control.ControlState:
-    """Services (deploy pipeline) or a CEO for its own company (§1.5 #5)."""
-    await allow(ctx, "deploy_freeze.set", {"company": body.company})
+    """Services (the deploy pipeline) or a CEO for its own company (§1.5 #5). A past
+    `until` lifts only the freezes the caller may lift: the pipeline's by the
+    pipeline, a CEO's own by that CEO; the owner's only by the owner."""
     async with ctx.tx() as tx:
         company = await control.resolve_scope(tx, f"company:{body.company}")
-        r = await control.set_deploy_freeze(tx, ctx.who, company, body.until, body.reason)
+        lift = not await tx.scalar("SELECT :u > now()", u=body.until)
+        if not lift:
+            await allow(
+                ctx, "deploy_freeze.set", {"company": body.company, "lift": False, "freeze": None}
+            )
+            await control.add_deploy_freeze(tx, ctx.who, company, body.until, body.reason)
+            summary = "active"
+        else:
+            mine = []
+            for f in await control.active_freezes(tx, company["id"]):
+                freeze = {
+                    k: f[k] for k in ("created_by_kind", "created_by_code", "created_by_company")
+                }
+                verdict = await ctx.hub.policy.query(
+                    "internal",
+                    {
+                        "principal": ctx.who.opa(),
+                        "op": "deploy_freeze.set",
+                        "target": {"company": body.company, "lift": True, "freeze": freeze},
+                    },
+                )
+                if "policy_unavailable" in verdict.reasons:
+                    raise ApiError(
+                        503, "policy_unavailable", "policy service unavailable (fail-closed)"
+                    )
+                if verdict.allow:
+                    mine.append(f["id"])
+            if not mine:
+                raise ApiError(403, "policy_denied", "lifted_only_by_setter_authority")
+            if ctx.who.is_agent:
+                await action_gate(ctx.hub, ctx.who, "deploy_freeze.set", "A2", escrow_classes=[])
+            await control.lift_deploy_freezes(tx, ctx.who, company, mine)
+            summary = f"lifted {len(mine)}"
         await ctx.audit(
             tx,
             company_id=company["id"],
@@ -730,7 +888,7 @@ async def agent_deploy_freeze(
             action_class="A2",
             target_kind="company",
             target_ref=body.company,
-            summary="active" if r["active"] else "lifted",
+            summary=summary,
         )
         return await control.state(tx)
 
@@ -799,9 +957,17 @@ async def upload_file(
     )
     if not MIME.match(mime):
         raise ApiError(422, "validation_failed", fields={"Content-Type": "invalid media type"})
-    data = await request.body()
-    if len(data) > ctx.hub.settings.max_file_bytes:
-        raise ApiError(413, "validation_failed", "file too large")
+    async with ctx.tx() as tx:  # a locked company writes nothing, not even bytes
+        await ctx.ensure_unlocked(tx, ctx.who.company_id)
+    limit = ctx.hub.settings.max_file_bytes
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():  # the limit holds while reading, not after
+        size += len(chunk)
+        if size > limit:
+            raise ApiError(413, "validation_failed", "file too large")
+        chunks.append(chunk)
+    data = b"".join(chunks)
     key, sha = await ctx.hub.storage.put(data)
     async with ctx.tx() as tx:
         await ctx.ensure_unlocked(tx, ctx.who.company_id)

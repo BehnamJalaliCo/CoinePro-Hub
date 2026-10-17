@@ -60,6 +60,16 @@ CODES: dict[str, tuple[int, str, str]] = {
     "company_locked": (423, "Company locked", "این شرکت فعلاً قفل است (کلید توقف یا توقف deploy)."),
     "decision_not_pending": (409, "Decision not pending", "این تصمیم قبلاً گرفته شده است."),
     "policy_denied": (403, "Policy denied", "طبق سیاست‌های هلدینگ این کار مجاز نیست."),
+    "policy_unavailable": (
+        503,
+        "Policy unavailable",
+        "سرویس سیاست‌ها پاسخ نداد؛ کمی بعد دوباره امتحان کن.",
+    ),
+    "precondition_required": (
+        428,
+        "Precondition required",
+        "نسخه‌ی فعلی (If-Match) لازم است؛ اول آن را بخوان.",
+    ),
     "rate_limited": (429, "Rate limited", "درخواست‌ها زیاد است؛ کمی بعد دوباره امتحان کن."),
     "channel_not_configured": (503, "Channel not configured", "این کانال هنوز تنظیم نشده است."),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),

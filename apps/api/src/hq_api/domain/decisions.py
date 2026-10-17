@@ -106,8 +106,13 @@ class ProposalPayload(Model):
     options: list[str] = Field(default_factory=list, max_length=10)
 
 
+class BudgetScope(Model):
+    scope_type: Literal["holding", "company", "department", "role", "task_class"]
+    scope_ref: str = Field(min_length=1, max_length=100)
+
+
 class BudgetChangePayload(Model):
-    scope: dict[str, str]
+    scope: BudgetScope
     period: Literal["day", "month"]
     token_limit: int | None = Field(default=None, gt=0)
     usd_limit: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=4)
@@ -182,6 +187,8 @@ class Decision(BaseModel):
     risk_note: str | None
     reversible: bool
     payload: dict[str, Any]
+    # The owner's amendments (applied on top of `payload` by the effect).
+    amendments: dict[str, Any] | None = None
     status: str
     expires_at: datetime | None
     decided_at: datetime | None
@@ -224,6 +231,7 @@ def render(r: dict[str, Any]) -> Decision:
         risk_note=r["risk_note"],
         reversible=r["reversible"],
         payload=r["payload"],
+        amendments=r["amendments"],
         status=r["status"],
         expires_at=r["expires_at"],
         decided_at=r["decided_at"],
@@ -245,6 +253,16 @@ async def load(tx: Tx, ref: str, *, lock: bool = False) -> dict[str, Any]:
     if lock:
         await tx.exec("SELECT 1 FROM cartable.decisions WHERE ref = :ref FOR UPDATE", ref=ref)
     return await tx.one(DECISION_SQL + " WHERE d.ref = :ref", ref=ref)
+
+
+def amended(
+    kind: str, payload: dict[str, Any], amendments: dict[str, Any] | None
+) -> dict[str, Any]:
+    """The payload the effect uses: the original with the owner's amendments
+    applied on top, validated like a proposal (422 when it no longer is one)."""
+    if not amendments:
+        return payload
+    return validate_payload(kind, {**payload, **amendments})
 
 
 def validate_payload(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -412,6 +430,8 @@ def opa_input(who: Principal, d: dict[str, Any], quota_ok: bool) -> dict[str, An
             "company": d["company"],
             "action_class": d["action_class"],
             "payload": d["payload"],
+            # Nobody approves their own proposal (contract §5.1 v1.1).
+            "proposer": {"kind": d["proposer_kind"], "code": d["proposer_code"]},
         },
         # No approved content calendar exists in v1, so CEO approval of a
         # publish (§1.12) is not reachable yet; the policy already supports it.
@@ -578,7 +598,7 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
     d = await load(tx, ref, lock=True)
     if d["effect_status"] != "pending":
         return {"ref": ref, "effect": d["effect_status"], "changed": False}
-    p = d["payload"]
+    p = amended(d["kind"], d["payload"], d["amendments"])
     result: dict[str, Any] = {}
     if d["kind"] == "hire":
         emp = await org.hire(
@@ -593,10 +613,7 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
             decision_id=d["id"],
         )
         await tx.exec(
-            """INSERT INTO llm.assignments (scope_type, scope_ref, model, effort, note)
-               VALUES ('role', :ref, :model, :effort, :note)
-               ON CONFLICT (scope_type, scope_ref) DO UPDATE
-                   SET model = EXCLUDED.model, effort = EXCLUDED.effort, note = EXCLUDED.note, updated_at = now()""",
+            "SELECT llm.put_assignment('role', :ref, NULL, :model, :effort, :note)",
             ref=f"{d['company']}:{emp['code']}",
             model=p["model"],
             effort=p["effort"],

@@ -3,6 +3,7 @@ session, the action and the target, consumed in the action's transaction."""
 
 from __future__ import annotations
 
+import hashlib
 from uuid import UUID
 
 from fastapi import Request
@@ -40,3 +41,10 @@ async def consume(tx: Tx, request: Request, who: Principal, action: str, target:
     await tx.exec("UPDATE auth.step_ups SET used_at = now() WHERE id = :id", id=row["id"])
     sid: UUID = row["id"]
     return sid
+
+
+async def body_target(request: Request) -> str:
+    """Step-up target for a whole-body change (PUT /assignments, /budgets):
+    the SHA-256 (hex) of the exact request body, so the signature covers what
+    is changed, not just "something" (contract §10 v1.1)."""
+    return hashlib.sha256(await request.body()).hexdigest()

@@ -4,6 +4,8 @@
 #     a3_action "publish" of a post that is in the approved content calendar
 #   everything else (deploy, price changes, group/customer messages, ...): owner only
 #   services never decide; A4 never appears in a decision
+#   nobody decides their own proposal (input.decision.proposer), so a CEO's own
+#   recurring proposal goes to the owner
 package hq.decisions
 
 import data.hq.lib
@@ -32,6 +34,10 @@ company := object.get(decision, "company", null)
 action_class := object.get(decision, "action_class", "")
 
 payload := lib.obj(object.get(decision, "payload", {}))
+
+proposer := lib.obj(object.get(decision, "proposer", {}))
+
+proposer_code := object.get(proposer, "code", "")
 
 default allow := false
 
@@ -105,3 +111,14 @@ deny_reasons contains "not_in_content_calendar" if {
 	kind == "a3_action"
 	object.get(ctx, "in_content_calendar", false) != true
 }
+
+# Proposer = approver is always refused, whoever the principal and whatever the kind.
+deny_reasons contains "own_proposal" if {
+	proposer_code != ""
+	proposer_code == p.code
+}
+
+# The proposer is part of the input; without it nobody can decide.
+deny_reasons contains "unknown_proposer" if not is_string(proposer_code)
+
+deny_reasons contains "unknown_proposer" if proposer_code == ""

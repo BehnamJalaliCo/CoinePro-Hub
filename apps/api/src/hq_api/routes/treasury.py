@@ -21,6 +21,7 @@ from hq_api import pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import org, pricing
 from hq_api.errors import ApiError, responses
+from hq_api.http import check_version, if_match
 from hq_api.schemas import Model, Page
 from hq_api.security import stepup
 
@@ -136,6 +137,7 @@ class Connection(BaseModel):
     pricing: dict[str, Any]
     limits: dict[str, Any]
     fallback_priority: int | None
+    version: int
     updated_at: datetime
 
 
@@ -470,7 +472,7 @@ async def treasury_what_if(
 # ------------------------------------------------------------- connections --
 CONN_SQL = """SELECT id, key, kind, provider, display_name, status, status_reason, quota_reset_at,
                      secret_ref IS NOT NULL AS has_secret_ref, models, default_model, pricing, limits,
-                     fallback_priority, updated_at FROM llm.connections"""
+                     fallback_priority, version, updated_at FROM llm.connections"""
 
 
 @router.get("/connections", response_model=list[Connection], responses=E)
@@ -481,15 +483,22 @@ async def list_connections(ctx: Ctx = Depends(owner_ctx)) -> list[Connection]:
     return [Connection(**r) for r in rows]
 
 
-@router.patch("/connections/{id}", response_model=Connection, responses=E)
+@router.patch(
+    "/connections/{id}",
+    response_model=Connection,
+    responses=responses(401, 403, 404, 409, 422, 428),
+)
 async def update_connection(
     id: UUID, body: ConnectionPatch, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Connection:
     """🔏 step-up `connection.update` (target = the id). Status, name and the
-    price table (every price with `source_url` and `as_of`)."""
+    price table (every price with `source_url` and `as_of`). Requires
+    `If-Match: <version>` like every PATCH."""
+    expected = if_match(request)
     fields = body.model_dump(exclude_unset=True, mode="json")
     async with ctx.tx() as tx:
         cur = await tx.one(CONN_SQL + " WHERE id = :id FOR UPDATE", id=id)
+        check_version(cur["version"], expected)
         await stepup.consume(tx, request, ctx.who, "connection.update", str(id))
         if "pricing" in fields:
             merged = {
@@ -633,9 +642,12 @@ async def get_assignments(ctx: Ctx = Depends(owner_ctx)) -> Assignments:
 async def put_assignments(
     body: AssignmentsPut, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Assignments:
-    """🔏 step-up `assignments.update` (target `*`). Upserts the listed levels."""
+    """🔏 step-up `assignments.update`, bound to the request body: the target is the
+    SHA-256 (hex) of the exact body bytes. Upserts the listed levels."""
     async with ctx.tx() as tx:
-        await stepup.consume(tx, request, ctx.who, "assignments.update", "*")
+        await stepup.consume(
+            tx, request, ctx.who, "assignments.update", await stepup.body_target(request)
+        )
         for a in body.assignments:
             if a.connection is None and a.model is None and a.effort is None:
                 raise ApiError(
@@ -652,12 +664,9 @@ async def put_assignments(
                     raise ApiError(
                         422, "validation_failed", fields={"connection": f"unknown {a.connection}"}
                     )
+            # Only through the scope-checked function (the api role cannot write the table).
             await tx.exec(
-                """INSERT INTO llm.assignments (scope_type, scope_ref, connection_id, model, effort, note)
-                   VALUES (:st, :sr, :cn, :m, :e, :note)
-                   ON CONFLICT (scope_type, scope_ref) DO UPDATE
-                       SET connection_id = EXCLUDED.connection_id, model = EXCLUDED.model,
-                           effort = EXCLUDED.effort, note = EXCLUDED.note, updated_at = now()""",
+                "SELECT llm.put_assignment(:st, :sr, :cn, :m, :e, :note)",
                 st=a.scope_type,
                 sr=a.scope_ref,
                 cn=conn_id,
@@ -730,9 +739,12 @@ async def get_budgets(ctx: Ctx = Depends(owner_ctx)) -> list[BudgetUse]:
 async def put_budgets(
     body: BudgetsPut, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> list[BudgetUse]:
-    """🔏 step-up `budgets.update` (target `*`). Upserts per scope and period."""
+    """🔏 step-up `budgets.update`, bound to the request body: the target is the
+    SHA-256 (hex) of the exact body bytes. Upserts per scope and period."""
     async with ctx.tx() as tx:
-        await stepup.consume(tx, request, ctx.who, "budgets.update", "*")
+        await stepup.consume(
+            tx, request, ctx.who, "budgets.update", await stepup.body_target(request)
+        )
         for b in body.budgets:
             co = await ctx.hub.companies.by_code(b.company)
             await tx.exec(

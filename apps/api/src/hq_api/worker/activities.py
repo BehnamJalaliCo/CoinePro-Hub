@@ -127,6 +127,12 @@ class Activities:
         async with self._tx() as tx:
             if await _holding_locked(tx):
                 raise ApplicationError("the holding kill switch is engaged", type=HOLDING_LOCKED)
+            company_lock = await tx.scalar(
+                "SELECT control.lock_state(company_id) FROM cartable.decisions WHERE ref = :r",
+                r=ref,
+            )
+            if company_lock == "company":  # the company's own switch holds its effects too
+                raise ApplicationError("the company kill switch is engaged", type=HOLDING_LOCKED)
             try:
                 result = await D.apply_effect(tx, ref, SYSTEM)
             except ApiError as exc:
@@ -207,6 +213,17 @@ class Activities:
                 )
                 return {"created": False, "reason": f"locked: {lock}"}
             run = await recurring.create_run(tx, t["id"], at, SYSTEM)
+            if run is not None:
+                await audit.record(
+                    tx,
+                    SYSTEM,
+                    company_id=t["company_id"],
+                    action="work.recurring_run",
+                    action_class="A2",
+                    target_kind="work",
+                    target_ref=run["ref"],
+                    summary=f"run of {t['ref']} at {at.isoformat()}",
+                )
         if run is None:
             return {"created": False, "reason": "exists or not active"}
         return {"created": True, "ref": run["ref"]}
@@ -377,10 +394,21 @@ class Activities:
     async def end_expired_escrows(self) -> dict[str, Any]:
         async with self._tx() as tx:
             rows = await tx.all(
-                "SELECT work_id FROM work.escrows WHERE status = 'active' AND expires_at <= now()"
+                """SELECT e.work_id, e.company_id, w.ref FROM work.escrows e JOIN work.work w ON w.id = e.work_id
+                   WHERE e.status = 'active' AND e.expires_at <= now()"""
             )
             for r in rows:
                 await recurring.end(tx, r["work_id"])
+                await audit.record(
+                    tx,
+                    SYSTEM,
+                    company_id=r["company_id"],
+                    action="escrow.expire",
+                    action_class="A2",
+                    target_kind="work",
+                    target_ref=r["ref"],
+                    summary="escrow expired; schedule ended",
+                )
         return {"ended": len(rows)}
 
     @activity.defn(name="purge")
@@ -465,7 +493,7 @@ class Activities:
                 holding.code,
                 "deliverable.created",
                 dl["ref"],
-                {"work": w["ref"], "producer": "HQ-SYS"},
+                {"work": w["ref"], "producer": f"{holding.code}-SYS"},
             )
             await events.emit(tx, holding.code, "work.completed", w["ref"], {"by": "system"})
             pushed.append(
@@ -501,8 +529,12 @@ class Activities:
     @activity.defn(name="audit_verify")
     async def audit_verify(self) -> dict[str, Any]:
         pushed: list[dict[str, Any]] = []
+        anchor_file = self.hub.settings.audit_anchor_file or None
         async with self._tx() as tx:
-            r = await audit.verify(tx)
+            r = await audit.verify(tx, anchor_file=anchor_file)
+            if r["ok"] and anchor_file:
+                # Anchor the verified head outside Postgres (append-only file in the backup set).
+                await audit.write_anchor(tx, anchor_file)
             if not r["ok"]:
                 holding = await self.hub.companies.holding()
                 pushed.append(
@@ -522,6 +554,7 @@ class Activities:
             "ok": bool(r["ok"]),
             "checked": int(r["checked"]),
             "first_bad_seq": r["first_bad_seq"],
+            "anchor": r["anchor"],
         }
 
     @activity.defn(name="score_job")

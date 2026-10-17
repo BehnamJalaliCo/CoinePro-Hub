@@ -199,7 +199,7 @@ async def test_wrong_origin_rp_and_missing_uv_are_rejected(
 
 
 async def test_replay_unknown_credential_and_cloned_counter(
-    hub: Hub, client: httpx.AsyncClient
+    hub: Hub, client: httpx.AsyncClient, su: Any
 ) -> None:
     auth = await enrolled(hub, client)
     opts = (await client.post(f"{BASE}/passkey/login/options")).json()
@@ -211,9 +211,14 @@ async def test_replay_unknown_credential_and_cloned_counter(
         await client.post(f"{BASE}/passkey/login/verify", json={"credential": cred})
     ).status_code == 401
     assert (await login(client, SoftAuthenticator())).status_code == 401
-    # a clone that did not advance its counter
+    # a clone that did not advance its counter: refused, flagged, audited, 🔴
+    counts = """SELECT (SELECT count(*) FROM auth.passkeys WHERE flagged_at IS NOT NULL),
+                       (SELECT count(*) FROM audit.entries WHERE action = 'auth.passkey_clone_suspected'),
+                       (SELECT count(*) FROM notify.notifications WHERE level = 'urgent' AND link_kind = 'device')"""
+    before = tuple(await su.fetchrow(counts))
     r = await login(client, auth, bump=False)
     assert r.status_code == 401
+    assert tuple(await su.fetchrow(counts)) == tuple(n + 1 for n in before)
     garbage = {"credential": {"id": "x", "rawId": "x", "type": "public-key", "response": {}}}
     assert (await client.post(f"{BASE}/passkey/login/verify", json=garbage)).status_code == 401
 

@@ -12,7 +12,7 @@ from hq_api.audit import SYSTEM
 from hq_api.domain import decisions as D
 from hq_api.hub import Hub
 
-from .conftest import agent_headers, idem, step_up
+from .conftest import agent_headers, idem, signed_put, step_up
 
 
 def hire_body(co: str, **over: Any) -> dict[str, Any]:
@@ -185,7 +185,7 @@ async def test_ceo_approves_recurring_work_within_quota(
 ) -> None:
     """Acceptance 4 (API level): an agent proposes recurring work; the company's
     CEO may approve it only inside the company's monthly budget."""
-    h, sid = owner_session["headers"], owner_session["session_id"]
+    h = owner_session["headers"]
     co = (await new_company())["code"]
     body = {
         "department": "GROWTH",
@@ -212,11 +212,12 @@ async def test_ceo_approves_recurring_work_within_quota(
         f"/internal/v1/decisions/{ref}/approve", headers={**ceo, **idem()}, json={}
     )
     assert r.status_code == 403 and "outside_quota" in r.json()["detail"]  # no company budget yet
-    su = await step_up(hub, sid, "budgets.update", "*")
-    r = await client.put(
+    r = await signed_put(
+        client,
+        hub,
+        owner_session,
         "/api/v1/budgets",
-        headers={**h, **su},
-        json={
+        {
             "budgets": [
                 {
                     "company": co,
@@ -227,6 +228,7 @@ async def test_ceo_approves_recurring_work_within_quota(
                 }
             ]
         },
+        "budgets.update",
     )
     assert r.status_code == 200, r.text
     other_ceo = agent_headers("PC-CEO")
@@ -307,7 +309,7 @@ async def test_messages_search_read_and_resolutions(
     )
     assert r.json()["unread"] == 0  # (replying already marked the thread read)
 
-    for q in ("کیک", "يادداشتهای", "يادداشت‌های مهم", "فروش"):  # Persian-safe in both directions
+    for q in ("کیک", "يادداشت", "يادداشت های", "يادداشت‌های مهم", "فروش"):  # Persian-safe both ways
         hits = (
             await client.get(
                 "/api/v1/search/messages", headers=owner, params={"q": q, "company": co}

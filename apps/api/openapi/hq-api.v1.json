@@ -1367,7 +1367,7 @@
           "color_index": {
             "anyOf": [
               {
-                "maximum": 10.0,
+                "maximum": 8.0,
                 "minimum": 1.0,
                 "type": "integer"
               },
@@ -1410,7 +1410,7 @@
           "color_index": {
             "anyOf": [
               {
-                "maximum": 10.0,
+                "maximum": 8.0,
                 "minimum": 1.0,
                 "type": "integer"
               },
@@ -1582,6 +1582,10 @@
             "format": "date-time",
             "title": "Updated At",
             "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -1599,6 +1603,7 @@
           "pricing",
           "limits",
           "fallback_priority",
+          "version",
           "updated_at"
         ],
         "title": "Connection",
@@ -1765,6 +1770,18 @@
           "action_class": {
             "title": "Action Class",
             "type": "string"
+          },
+          "amendments": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amendments"
           },
           "company": {
             "title": "Company",
@@ -4190,6 +4207,23 @@
             "maxLength": 4000,
             "title": "Body Fa",
             "type": "string"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "service_down",
+                  "security",
+                  "data_loss",
+                  "budget_hard_stop"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
           },
           "choices": {
             "anyOf": [
@@ -6748,6 +6782,15 @@
       },
       "Verify": {
         "properties": {
+          "anchor": {
+            "enum": [
+              "ok",
+              "mismatch",
+              "none"
+            ],
+            "title": "Anchor",
+            "type": "string"
+          },
           "checked": {
             "title": "Checked",
             "type": "integer"
@@ -6777,6 +6820,7 @@
           "ok",
           "checked",
           "first_bad_seq",
+          "anchor",
           "verified_at"
         ],
         "title": "Verify",
@@ -8121,7 +8165,7 @@
         ]
       },
       "put": {
-        "description": "🔏 step-up `assignments.update` (target `*`). Upserts the listed levels.",
+        "description": "🔏 step-up `assignments.update`, bound to the request body: the target is the\nSHA-256 (hex) of the exact body bytes. Upserts the listed levels.",
         "operationId": "put_assignments",
         "requestBody": {
           "content": {
@@ -8483,13 +8527,14 @@
     },
     "/api/v1/audit/verify": {
       "get": {
-        "description": "Recomputes the whole hash chain (every company).",
+        "description": "Recomputes the whole hash chain (every company) and compares its head\nwith the last anchor kept outside Postgres (`anchor`).",
         "operationId": "verify_audit",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "example": {
+                  "anchor": "ok",
                   "checked": 1,
                   "first_bad_seq": 1,
                   "ok": false,
@@ -9443,7 +9488,7 @@
         ]
       },
       "put": {
-        "description": "🔏 step-up `budgets.update` (target `*`). Upserts per scope and period.",
+        "description": "🔏 step-up `budgets.update`, bound to the request body: the target is the\nSHA-256 (hex) of the exact body bytes. Upserts per scope and period.",
         "operationId": "put_budgets",
         "requestBody": {
           "content": {
@@ -10313,7 +10358,8 @@
                     "quota_reset_at": "2026-10-17T05:42:00Z",
                     "status": "active",
                     "status_reason": "x",
-                    "updated_at": "2026-10-17T05:42:00Z"
+                    "updated_at": "2026-10-17T05:42:00Z",
+                    "version": 1
                   }
                 ],
                 "schema": {
@@ -10391,7 +10437,7 @@
     },
     "/api/v1/connections/{id}": {
       "patch": {
-        "description": "🔏 step-up `connection.update` (target = the id). Status, name and the\nprice table (every price with `source_url` and `as_of`).",
+        "description": "🔏 step-up `connection.update` (target = the id). Status, name and the\nprice table (every price with `source_url` and `as_of`). Requires\n`If-Match: <version>` like every PATCH.",
         "operationId": "update_connection",
         "parameters": [
           {
@@ -10441,7 +10487,8 @@
                   "quota_reset_at": "2026-10-17T05:42:00Z",
                   "status": "active",
                   "status_reason": "x",
-                  "updated_at": "2026-10-17T05:42:00Z"
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
                 },
                 "schema": {
                   "$ref": "#/components/schemas/Connection"
@@ -10495,6 +10542,17 @@
             "description": "Problem"
           },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
             "content": {
               "application/json": {
                 "schema": {
@@ -10631,7 +10689,7 @@
     },
     "/api/v1/control/deploy-freeze": {
       "post": {
-        "description": "Freezes agent write actions of one company until `until` (§1.5 #5);\na past `until` lifts the freeze.",
+        "description": "Freezes agent write actions of one company until `until` (§1.5 #5); a past\n`until` lifts freezes. The owner lifts any freeze (pipeline's, CEOs'); a new\nfreeze never lifts another one.",
         "operationId": "set_deploy_freeze",
         "requestBody": {
           "content": {
@@ -11094,6 +11152,7 @@
                   "items": [
                     {
                       "action_class": "x",
+                      "amendments": {},
                       "company": "TY",
                       "created_at": "2026-10-17T05:42:00Z",
                       "decided_at": "2026-10-17T05:42:00Z",
@@ -11230,6 +11289,7 @@
               "application/json": {
                 "example": {
                   "action_class": "x",
+                  "amendments": {},
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -11376,6 +11436,7 @@
               "application/json": {
                 "example": {
                   "action_class": "x",
+                  "amendments": {},
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -11628,6 +11689,7 @@
               "application/json": {
                 "example": {
                   "action_class": "x",
+                  "amendments": {},
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -11774,6 +11836,7 @@
               "application/json": {
                 "example": {
                   "action_class": "x",
+                  "amendments": {},
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -19172,7 +19235,7 @@
     },
     "/internal/v1/control/deploy-freeze": {
       "post": {
-        "description": "Services (deploy pipeline) or a CEO for its own company (§1.5 #5).",
+        "description": "Services (the deploy pipeline) or a CEO for its own company (§1.5 #5). A past\n`until` lifts only the freezes the caller may lift: the pipeline's by the\npipeline, a CEO's own by that CEO; the owner's only by the owner.",
         "operationId": "agent_deploy_freeze",
         "requestBody": {
           "content": {
@@ -19303,7 +19366,7 @@
     },
     "/internal/v1/control/kill-switch": {
       "post": {
-        "description": "A CEO engages or releases the switch of its own company only.\nRequires `Idempotency-Key`.",
+        "description": "A CEO engages its own company's switch, and releases only a switch that\nan agent of its own company engaged (an owner's switch: owner + step-up).\nRequires `Idempotency-Key`.",
         "operationId": "agent_kill_switch",
         "requestBody": {
           "content": {
@@ -19485,6 +19548,7 @@
               "application/json": {
                 "example": {
                   "action_class": "x",
+                  "amendments": {},
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -19643,6 +19707,7 @@
               "application/json": {
                 "example": {
                   "action_class": "x",
+                  "amendments": {},
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -19801,6 +19866,7 @@
               "application/json": {
                 "example": {
                   "action_class": "x",
+                  "amendments": {},
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
@@ -20045,7 +20111,7 @@
     },
     "/internal/v1/notifications": {
       "post": {
-        "description": "Services and agents raise a notification; level rules, Khalvat and the\nCEO attention quota apply.",
+        "description": "Services and agents raise a notification; level rules, Khalvat and the CEO\nattention quota apply. An agent's 🔴 needs an incident `category` and is\ncapped per company per hour; otherwise it is raised as 🟡. While its company\nis locked an agent raises only 🔴 incidents.",
         "operationId": "raise_notification",
         "requestBody": {
           "content": {

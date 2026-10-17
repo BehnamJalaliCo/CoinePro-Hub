@@ -9,6 +9,7 @@ first resolution M-0001; on a reused one the next free numbers are expected.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from collections.abc import Callable
 from dataclasses import replace
@@ -21,7 +22,7 @@ import pytest
 from hq_api.app import create_app
 from hq_api.hub import Hub
 
-from .conftest import agent_headers, idem
+from .conftest import agent_headers, body_bytes, idem
 from .test_control_treasury_stream import serve
 from .test_identity import bearer, enrolled
 from .test_identity import step_up as passkey_step_up
@@ -231,10 +232,8 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
         assert score["owner_avg"] == 8.0 and score["value"] is not None
 
         # ---- 4. recurring work proposed by an agent, approved by TY's CEO within quota, first run
-        r = await client.put(
-            "/api/v1/budgets",
-            headers={**owner, **await sign("budgets.update", "*")},
-            json={
+        budget = body_bytes(
+            {
                 "budgets": [
                     {
                         "company": "TY",
@@ -244,7 +243,16 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
                         "usd_limit": "500",
                     }
                 ]
+            }
+        )
+        r = await client.put(  # the passkey signs this exact body (step-up target = its SHA-256)
+            "/api/v1/budgets",
+            headers={
+                **owner,
+                **await sign("budgets.update", hashlib.sha256(budget).hexdigest()),
+                "Content-Type": "application/json",
             },
+            content=budget,
         )
         assert r.status_code == 200
         r = await client.post(
@@ -297,7 +305,7 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
             red = await client.post(
                 "/internal/v1/notifications",
                 headers=agent_headers("TY-CEO"),
-                json={"level": "urgent", "title_fa": "خرابی پرداخت"},
+                json={"level": "urgent", "category": "service_down", "title_fa": "خرابی پرداخت"},
             )
             assert yellow.json()["state"] == "held" and red.json()["state"] == "delivered"
             unread = (

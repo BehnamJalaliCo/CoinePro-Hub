@@ -78,7 +78,7 @@ async def list_decisions(
                     AND (CAST(:kind AS text) IS NULL OR d.kind = :kind)
                     AND (CAST(:risk AS text) IS NULL OR d.risk = :risk)
                     AND (CAST(:q AS text) IS NULL OR d.ref = :q
-                         OR core.fa_normalize(d.title) LIKE '%' || core.fa_normalize(:q) || '%')
+                         OR core.fa_normalize(d.title) LIKE '%' || core.like_escape(core.fa_normalize(:q)) || '%')
                     AND (CAST(:after_t AS timestamptz) IS NULL
                          OR (d.created_at, d.id) > (CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))
                   ORDER BY d.created_at, d.id LIMIT :lim""",
@@ -119,6 +119,10 @@ async def _decide(
         d = await D.load(tx, ref, lock=True)
         if d["status"] != "pending":
             raise ApiError(409, "decision_not_pending", f"{ref} is {d['status']}")
+        if amendments:
+            D.amended(
+                d["kind"], d["payload"], amendments
+            )  # 422 when the amended payload is invalid
         step_up_id = None
         if verdict == "approved" and needs_step_up(d):
             step_up_id = await stepup.consume(tx, request, ctx.who, "decision.approve", ref)

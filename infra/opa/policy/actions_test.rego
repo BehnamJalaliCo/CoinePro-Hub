@@ -6,6 +6,8 @@ import rego.v1
 
 act(class, company) := {"class": class, "name": "test", "company": company}
 
+named(class, name, company) := {"class": class, "name": name, "company": company}
+
 ctx(escrow, locked) := {"escrow_classes": escrow, "company_locked": locked}
 
 open := ctx([], false)
@@ -27,10 +29,15 @@ test_agent_observes_and_proposes if {
 	allowed(f.ty_growth_01, act("A1", "TY"), open)
 }
 
-test_agent_a2_only_inside_escrow if {
+test_agent_a2_by_role_or_inside_escrow if {
 	allowed(f.ty_growth_01, act("A2", "TY"), ctx(["A0", "A1", "A2"], false))
 	not allowed(f.ty_growth_01, act("A2", "TY"), open)
-	reasons(f.ty_growth_01, act("A2", "TY"), open) == {"a2_outside_escrow"}
+	reasons(f.ty_growth_01, act("A2", "TY"), open) == {"a2_needs_role_or_escrow"}
+	allowed(f.ty_ceo, named("A2", "kill_switch.set", "TY"), open)
+	allowed(f.ty_ceo, named("A2", "decision.approve", "TY"), open)
+	allowed(f.ty_growth_mgr, named("A2", "work.delegate", "TY"), open)
+	reasons(f.ty_growth_mgr, named("A2", "kill_switch.set", "TY"), open) == {"a2_needs_role_or_escrow"}
+	reasons(f.ty_growth_01, named("A2", "work.delegate", "TY"), open) == {"a2_needs_role_or_escrow"}
 }
 
 test_agent_a3_needs_a_decision if {
