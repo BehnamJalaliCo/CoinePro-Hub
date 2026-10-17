@@ -429,6 +429,15 @@ deny_reasons contains "agent_inactive" if {
 	op != "context.read"
 }
 
+# Hiring starts with the owner (contract §18.11): while hiring is closed no
+# agent proposes a hire. The api sends the state; missing counts as closed.
+deny_reasons contains "hiring_closed" if {
+	agent
+	op == "decision.propose"
+	tv("kind") == "hire"
+	tv("hiring") != "open"
+}
+
 deny_reasons contains "other_company" if {
 	agent
 	op in own_company_ops

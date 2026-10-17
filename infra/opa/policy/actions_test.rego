@@ -73,6 +73,30 @@ test_company_locked if {
 	reasons(f.svc, act("A2", "TY"), ctx([], true)) == {"company_locked"}
 }
 
+# Exactly what the Tool Gateway sends (services/gateway hq_gateway/gateway.py
+# _decide, and services/gateway/tests test_the_policy_input): tool name
+# "notify", the gate's lock as company_locked, the 🔴 incident flag.
+gateway_notify(level_urgent) := {
+	"principal": {
+		"kind": "agent", "code": "TY-TECH-01", "role": "employee", "company": "TY",
+		"department": "TECH", "status": "active", "scope": "company",
+	},
+	"action": {"class": "A2", "name": "notify", "company": "TY"},
+	"context": {"escrow_classes": [], "company_locked": true, "incident": level_urgent},
+}
+
+test_locked_company_agent_raises_an_incident_from_the_gateway if {
+	actions.allow with input as gateway_notify(true)
+	actions.policy_action == "notification.raise" with input as gateway_notify(true)
+	actions.deny_reasons == {"company_locked"} with input as gateway_notify(false)
+	not actions.allow with input as gateway_notify(false)
+}
+
+test_missing_lock_information_counts_as_locked if {
+	reasons(f.ty_growth_01, act("A1", "TY"), {"escrow_classes": []}) == {"company_locked"}
+	allowed(f.ty_growth_01, act("A0", "TY"), {})
+}
+
 test_inactive_agent if {
 	reasons(f.paused(f.ty_growth_01), act("A1", "TY"), open) == {"agent_inactive"}
 	allowed(f.dismissed(f.ty_growth_01), act("A0", "TY"), open)

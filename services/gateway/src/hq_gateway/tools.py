@@ -1,32 +1,40 @@
 """The tools of agents/tools.md, each validated and carried out through the
 internal API with the run's own agent token (so RLS, OPA and audit are the
 api's, as for any agent call). Inputs are Pydantic models (extra keys are
-refused, so a model learns the exact shape); text an agent writes is redacted
-before it leaves.
+refused, so a model learns the exact shape; numbers of budgets and quotas
+are strict: a JSON true is not a token count); text an agent writes is
+redacted before it leaves, never shortened.
 
 A tool returns a Result: outcome ok | denied | error, a stable `code` on
-anything but ok, a `ref` (W-…, D-…, O-…, the message ref, ...) and the data
-for the model (redacted again by the gateway).
+anything but ok, a `ref` (W-…, D-…, O-…, the message ref, ...), the data
+for the model (redacted again by the gateway) and, on a refusal, the api's
+short Persian explanation (`hint_fa`) so the model knows what to do instead.
 """
 
 from __future__ import annotations
 
+import os
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator
 
-from hq_gateway.redact import redact
+from hq_common.redact import MAX_DEPTH, redact_async, scrub
 
 WORK_REF = r"^W-[0-9]{6,}$"
 CODE = r"^[A-Z][A-Z0-9]{1,9}$"
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
 THREAD = r"^(A|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
 NS = uuid.UUID("6a0f1c3e-5b7d-4e21-9c3a-0d7f2b6e8a41")  # idempotency keys per action
+HINT_CHARS = 300
+
+# Budgets and quotas: strict (a JSON true or "50000" is not a number) and never negative.
+Tokens = Annotated[StrictInt, Field(ge=0)]
+Usd = Annotated[float, Field(ge=0, strict=True)]
 
 
 @dataclass
@@ -36,6 +44,7 @@ class Result:
     ref: str | None = None
     data: Any = None
     fields: dict[str, str] = field(default_factory=dict)
+    hint_fa: str | None = None
 
 
 @dataclass
@@ -52,7 +61,7 @@ class Call:
 
 
 class Api:
-    """The internal API (api:8000 on hq-core), always with the agent's token."""
+    """The internal API (api:8000), always with the agent's token."""
 
     def __init__(
         self, base_url: str, timeout: float, transport: httpx.AsyncBaseTransport | None = None
@@ -80,7 +89,8 @@ class Api:
 
 
 def from_response(resp: httpx.Response, ref_key: str | None = "ref") -> Result:
-    """The api's answer as a tool result (problem+json -> denied/error + code)."""
+    """The api's answer as a tool result (problem+json -> denied/error + code,
+    the field errors and the Persian explanation, all scrubbed)."""
     try:
         body: Any = resp.json()
     except ValueError:
@@ -90,17 +100,20 @@ def from_response(resp: httpx.Response, ref_key: str | None = "ref") -> Result:
         if ref_key and isinstance(body, dict):
             ref = body.get(ref_key) if isinstance(body.get(ref_key), str) else None
         return Result("ok", ref=ref, data=body)
-    code = body.get("code") if isinstance(body, dict) else None
-    fields = body.get("fields") if isinstance(body, dict) else None
+    problem = body if isinstance(body, dict) else {}
+    code = problem.get("code")
+    fields = problem.get("fields")
+    hint = problem.get("message_fa")
     denied = resp.status_code in (401, 403, 423, 429)
     if resp.status_code == 401:
         code = "run_not_running"  # the agent token is accepted only while its run runs
     return Result(
         "denied" if denied else "error",
         code=str(code or f"http_{resp.status_code}"),
-        fields={str(k): str(v)[:200] for k, v in (fields or {}).items()}
+        fields={scrub(str(k))[:60]: scrub(str(v))[:200] for k, v in fields.items()}
         if isinstance(fields, dict)
         else {},
+        hint_fa=scrub(hint)[:HINT_CHARS] if isinstance(hint, str) and hint.strip() else None,
     )
 
 
@@ -143,9 +156,19 @@ class AuditIn(CompanyIn):
 
 
 class GithubIn(In):
-    repo: str = Field(min_length=1, max_length=200)
+    repo: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
     what: Literal["commits", "issues", "pulls", "file"]
     path: str | None = Field(default=None, max_length=500)
+
+    @field_validator("path")
+    @classmethod
+    def _relative_path(cls, v: str | None) -> str | None:
+        # A file inside the repo only: no "..", no absolute path, no tricks.
+        if v is not None and (
+            v.startswith("/") or "\\" in v or "\x00" in v or ".." in v.split("/")
+        ):
+            raise ValueError("a relative path inside the repository")
+        return v
 
 
 class EvidenceIn(In):
@@ -162,8 +185,8 @@ class DeliverIn(In):
 
 
 class QuotaIn(In):
-    tokens: StrictInt | None = Field(default=None, ge=0)
-    usd: float | None = Field(default=None, ge=0)
+    tokens: Tokens | None = None
+    usd: Usd | None = None
 
 
 class ProposeIn(In):
@@ -182,9 +205,24 @@ class ProposeIn(In):
     why_md: str = Field(default="", max_length=20000)
     risk: Literal["low", "medium", "high"] = "low"
     reversible: bool = True
-    # StrictInt: a JSON true is not a token count (it would become 1).
-    quota_estimate: QuotaIn | StrictInt | None = None
+    quota_estimate: QuotaIn | Tokens | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("payload")
+    @classmethod
+    def _payload_depth(cls, v: dict[str, Any]) -> dict[str, Any]:
+        # Refused, never flattened: the payload leaves exactly as written (scrubbed only).
+        if _depth(v) > MAX_DEPTH:
+            raise ValueError(f"payload nested deeper than {MAX_DEPTH} levels")
+        return v
+
+
+def _depth(value: Any) -> int:
+    if isinstance(value, dict):
+        return 1 + max((_depth(v) for v in value.values()), default=0)
+    if isinstance(value, list):
+        return 1 + max((_depth(v) for v in value), default=0)
+    return 0
 
 
 class LinksIn(In):
@@ -239,8 +277,8 @@ class FailIn(In):
 
 
 class BudgetIn(In):
-    tokens: int | None = Field(default=None, ge=0)
-    usd: float | None = Field(default=None, ge=0)
+    tokens: Tokens | None = None
+    usd: Usd | None = None
 
 
 class DelegateIn(In):
@@ -248,7 +286,7 @@ class DelegateIn(In):
     to: str = Field(pattern=EMP)
     title_fa: str = Field(min_length=1, max_length=300)
     brief_md: str = Field(default="", max_length=50000)
-    budget: BudgetIn | int | None = None
+    budget: BudgetIn | Tokens | None = None
 
 
 class RequestIn(In):
@@ -279,10 +317,13 @@ class NotifyIn(In):
 Handler = Callable[[Api, Call, Any], Awaitable[Result]]
 
 
-def _text(value: Any) -> Any:
+async def _text(value: Any) -> Any:
     """Outgoing text of a write tool, redacted (a key or a customer's data the
-    model may have echoed never leaves)."""
-    return redact(value)
+    model may have echoed never leaves) and never shortened: the input models
+    already refuse anything above the contract's caps (invalid_args), so no
+    deliverable, message, proposal or payload is cut on its way out. A large
+    text is scrubbed in a worker thread."""
+    return await redact_async(value)
 
 
 async def _work_id(api: Api, call: Call, ref: str) -> tuple[str | None, Result | None]:
@@ -290,6 +331,8 @@ async def _work_id(api: Api, call: Call, ref: str) -> tuple[str | None, Result |
     r = from_response(resp, None)
     if r.outcome != "ok":
         return None, r
+    if not isinstance(r.data, dict) or not isinstance(r.data.get("id"), str):
+        return None, Result("error", code="api_bad_answer")
     return str(r.data["id"]), None
 
 
@@ -346,7 +389,17 @@ async def memory_read(api: Api, call: Call, a: Empty) -> Result:
     return from_response(await api.request("GET", "/internal/v1/memory", call.token), None)
 
 
+def github_repos() -> frozenset[str]:
+    """The repositories github.read may read (GITHUB_READ_REPOS, comma list)."""
+    raw = os.environ.get("GITHUB_READ_REPOS", "")
+    return frozenset(r.strip().lower() for r in raw.split(",") if r.strip())
+
+
 async def github_read(api: Api, call: Call, a: GithubIn) -> Result:
+    # Before it is switched on (prompt 5.1 §3): only an allowed repository, a
+    # path inside it (GithubIn), and the token from OpenBao (the owner's call).
+    if a.repo.lower() not in github_repos():
+        return Result("denied", code="repo_not_allowed")
     # Off until the owner provides a read-only token (agents/tools.md).
     return Result("error", code="channel_not_configured")
 
@@ -355,7 +408,7 @@ async def deliver(api: Api, call: Call, a: DeliverIn) -> Result:
     wid, err = await _work_id(api, call, a.work_ref)
     if err is not None:
         return err
-    body = _text(a.body_md)
+    body = await _text(a.body_md)
     summary = next((p.strip() for p in body.split("\n\n") if p.strip()), "")[:500]
     g = call.gate
     produced = {
@@ -368,21 +421,22 @@ async def deliver(api: Api, call: Call, a: DeliverIn) -> Result:
         f"/internal/v1/work/{wid}/deliver",
         call.token,
         json={
-            "title": _text(a.title_fa),
+            "title": await _text(a.title_fa),
             "summary": summary,
             "body": body,
-            "evidence": [e.model_dump(exclude_none=True) for e in a.evidence],
+            "evidence": await _text([e.model_dump(exclude_none=True) for e in a.evidence]),
             "produced_with": produced,
         },
         idem=call.idem("deliver"),
     )
     r = from_response(resp, None)
     if r.outcome == "ok":
-        r.ref = r.data.get("deliverable") if isinstance(r.data, dict) else None
+        data = r.data if isinstance(r.data, dict) else {}
+        r.ref = data.get("deliverable") if isinstance(data.get("deliverable"), str) else None
         r.data = {
             "deliverable": r.ref,
             "work": a.work_ref,
-            "closed_children": r.data.get("closed_children"),
+            "closed_children": data.get("closed_children"),
         }
     return r
 
@@ -404,13 +458,13 @@ async def propose(api: Api, call: Call, a: ProposeIn) -> Result:
         call.token,
         json={
             "kind": a.kind,
-            "title": _text(a.title_fa),
-            "what": _text(a.what_md),
-            "why": _text(a.why_md),
+            "title": await _text(a.title_fa),
+            "what": await _text(a.what_md),
+            "why": await _text(a.why_md),
             "risk": a.risk,
             "reversible": a.reversible,
             "quota_estimate": quota,
-            "payload": _text(a.payload),
+            "payload": await _text(a.payload),
             **({"work_id": work_id} if work_id else {}),
         },
         idem=call.idem("propose"),
@@ -429,7 +483,7 @@ async def _post_message(
         f"/internal/v1/threads/{thread}/messages",
         call.token,
         json={
-            "body": _text(body),
+            "body": await _text(body),
             **({"links": links.model_dump(exclude_none=True)} if links else {}),
             **({"citations": [c.model_dump() for c in citations]} if citations else {}),
         },
@@ -476,7 +530,11 @@ async def message_thread(api: Api, call: Call, a: ThreadMessageIn) -> Result:
 
 async def memory_write(api: Api, call: Call, a: MemoryIn) -> Result:
     resp = await api.request(
-        "POST", "/internal/v1/memory", call.token, json={"note": _text(a.note_md), "tags": a.tags}
+        "POST",
+        "/internal/v1/memory",
+        call.token,
+        json={"note": await _text(a.note_md), "tags": await _text(a.tags)},
+        idem=call.idem("memory.write"),
     )
     r = from_response(resp, None)
     if r.outcome == "ok" and isinstance(r.data, dict):
@@ -503,17 +561,17 @@ async def _on_work(
 async def work_accept(api: Api, call: Call, a: AcceptIn) -> Result:
     r = await _on_work(api, call, a.ref, "accept", None)
     if r.outcome == "ok" and a.note:
-        await _on_work(api, call, a.ref, "progress", {"note": _text(a.note)})
+        await _on_work(api, call, a.ref, "progress", {"note": await _text(a.note)})
     return r
 
 
 async def work_progress(api: Api, call: Call, a: ProgressIn) -> Result:
-    return await _on_work(api, call, a.ref, "progress", {"note": _text(a.note), "pct": a.pct})
+    return await _on_work(api, call, a.ref, "progress", {"note": await _text(a.note), "pct": a.pct})
 
 
 async def work_fail(api: Api, call: Call, a: FailIn) -> Result:
     return await _on_work(
-        api, call, a.ref, "fail", {"reason": _text(a.reason), "decline": a.decline}
+        api, call, a.ref, "fail", {"reason": await _text(a.reason), "decline": a.decline}
     )
 
 
@@ -534,8 +592,8 @@ async def work_delegate(api: Api, call: Call, a: DelegateIn) -> Result:
         call.token,
         json={
             "to": a.to,
-            "title": _text(a.title_fa),
-            "brief": _text(a.brief_md),
+            "title": await _text(a.title_fa),
+            "brief": await _text(a.brief_md),
             **({"budget": budget} if budget else {}),
         },
         idem=call.idem("work.delegate"),
@@ -566,8 +624,8 @@ async def work_request(api: Api, call: Call, a: RequestIn) -> Result:
         call.token,
         json={
             **target,
-            "title": _text(a.title_fa),
-            "brief": _text(a.brief_md),
+            "title": await _text(a.title_fa),
+            "brief": await _text(a.brief_md),
             **({"requested_by_work_id": req_by} if req_by else {}),
         },
         idem=call.idem("work.request"),
@@ -587,7 +645,11 @@ async def activity_set(api: Api, call: Call, a: ActivityIn) -> Result:
             "POST",
             "/internal/v1/activity",
             call.token,
-            json={"employee": call.gate["employee"], "activity": state, "note": _text(a.note)},
+            json={
+                "employee": call.gate["employee"],
+                "activity": state,
+                "note": await _text(a.note),
+            },
         ),
         None,
     )
@@ -597,16 +659,17 @@ async def activity_set(api: Api, call: Call, a: ActivityIn) -> Result:
 
 
 async def notify(api: Api, call: Call, a: NotifyIn) -> Result:
+    link = {"link_kind": a.link.kind, "link_ref": await _text(a.link.ref)} if a.link else {}
     resp = await api.request(
         "POST",
         "/internal/v1/notifications",
         call.token,
         json={
             "level": a.level,
-            "title_fa": _text(a.title_fa),
-            "body_fa": _text(a.body_fa),
+            "title_fa": await _text(a.title_fa),
+            "body_fa": await _text(a.body_fa),
             **({"category": a.category} if a.category else {}),
-            **({"link_kind": a.link.kind, "link_ref": a.link.ref} if a.link else {}),
+            **link,
         },
     )
     r = from_response(resp, None)
@@ -642,10 +705,13 @@ TOOLS: dict[str, tuple[type[In], Handler]] = {
 
 
 def validate(tool: str, args: Any) -> tuple[Any, dict[str, str]]:
-    """(parsed input, {}) or (None, field errors without the submitted values)."""
+    """(parsed input, {}) or (None, field errors without the submitted values).
+    Arguments that are not a JSON object are refused, never taken as {}."""
     model, _ = TOOLS[tool]
+    if not isinstance(args, dict):
+        return None, {"args": "must be a JSON object"}
     try:
-        return model.model_validate(args if isinstance(args, dict) else {}), {}
+        return model.model_validate(args), {}
     except ValidationError as exc:
         return None, {
             ".".join(str(p) for p in e["loc"]) or "args": e["msg"][:160] for e in exc.errors()[:10]

@@ -452,7 +452,8 @@ async def test_stream_filters_and_resumes(
         await _work_for_ceo(client, owner, co)
         summary = await asyncio.wait_for(listener, 20)
         assert set(summary[0]["data"]) == {"id", "type", "at", "company"}
-        r = await client.get("/api/v1/stream", headers=owner, params={"topics": "gossip"})
+        # Only a malformed `topics` is refused; unknown ones are ignored (v1.4.2).
+        r = await client.get("/api/v1/stream", headers=owner, params={"topics": "Work!"})
         assert r.status_code == 422
 
 

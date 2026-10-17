@@ -29,6 +29,12 @@ class Settings:
     tool_timeout_s: float = field(
         default_factory=lambda: float(os.environ.get("GATEWAY_TOOL_TIMEOUT_S", "25"))
     )
+    # The whole call (reserve, policy, the tool, the audit row): kept below the
+    # worker's timeout for a gateway call (40 s), so a write that was carried
+    # out is never reported to the worker as a failure.
+    deadline_s: float = field(
+        default_factory=lambda: float(os.environ.get("GATEWAY_DEADLINE_S", "30"))
+    )
     max_result_chars: int = field(default_factory=lambda: _int("GATEWAY_MAX_RESULT_CHARS", 16_000))
     max_body_bytes: int = field(default_factory=lambda: _int("GATEWAY_MAX_BODY_BYTES", 256 * 1024))
     log_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL", "info"))

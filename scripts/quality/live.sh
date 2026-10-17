@@ -4,43 +4,98 @@
 # `make check` that is skipped where no stack runs (CI: compose-rules covers
 # the topology statically).
 #   1.3   a throwaway container on hq-internal reaches neither OPA (8181),
-#         Temporal (7233) nor the Tool Gateway (8080); the same probe on hq-core
-#         does reach OPA (positive control: the probe can see a port).
+#         Temporal (7233) nor the Tool Gateway (8080), by name or by any of
+#         their addresses; the same probe on hq-agent does reach OPA (positive
+#         control: the probe can see a port).
 #   1.12  a slow statement with a Persian parameter is logged (duration line)
 #         without the parameter's value.
+#   5.1 §2.9  from inside the web panel's own network namespace nothing but
+#         Caddy answers (no data service, api, OpenBao, Prometheus, Loki, the
+#         host's node-exporter, no internet); from inside the gateway's, the
+#         api and OPA answer and neither Temporal, Postgres nor any other
+#         data service does.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 PROBE_IMAGE="busybox:1.38.0-musl"
 PG="coinepro-hq-postgres-1"
+WEB="coinepro-hq-web-1"
+GATEWAY="coinepro-hq-gateway-1"
 
-if ! docker network inspect hq-internal >/dev/null 2>&1 ||
-  [[ "$(docker inspect -f '{{.State.Running}}' coinepro-hq-opa-1 2>/dev/null)" != true ]]; then
+running() { [[ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" == true ]]; }
+
+if ! docker network inspect hq-internal >/dev/null 2>&1 || ! running coinepro-hq-opa-1; then
   echo "live: skip (no running coinepro-hq stack here; compose-rules checks the topology)"
   exit 0
 fi
-failed=0
-fail() { echo "live: FAIL $*" >&2; failed=1; }
+failures=0
+fail() { echo "live: FAIL $*" >&2; failures=$((failures + 1)); }
+ok() { # ok BEFORE MESSAGE: the message only when no check failed since BEFORE
+  if ((failures == $1)); then echo "live: $2"; fi
+}
 
 probe() { # probe NETWORK HOST PORT -> 0 if a TCP connection opens
   docker run --rm --network "$1" "$PROBE_IMAGE" nc -z -w 3 "$2" "$3" >/dev/null 2>&1
 }
-ip_on() { # ip_on CONTAINER NETWORK
-  docker inspect -f "{{(index .NetworkSettings.Networks \"$2\").IPAddress}}" "$1" 2>/dev/null || true
+probe_from() { # probe_from CONTAINER HOST PORT -> 0 if it opens from inside CONTAINER's netns
+  docker run --rm --network "container:$1" "$PROBE_IMAGE" nc -z -w 3 "$2" "$3" >/dev/null 2>&1
+}
+ips_of() { # ips_of SERVICE -> every address of its container, on every network
+  docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' \
+    "coinepro-hq-$1-1" 2>/dev/null || true
+}
+unreachable_from() { # unreachable_from CONTAINER LABEL SERVICE:PORT... (by name and by every IP)
+  local from="$1" label="$2" target host port ip
+  shift 2
+  for target in "$@"; do
+    host="${target%:*}" port="${target#*:}"
+    if probe_from "$from" "$host" "$port"; then fail "$label reaches $target"; fi
+    for ip in $(ips_of "$host"); do
+      if probe_from "$from" "$ip" "$port"; then fail "$label reaches $host by IP ($ip:$port)"; fi
+    done
+  done
 }
 
 # ------------------------------------------------------------------ 1.3 ----
-probe hq-core opa 8181 || fail "positive control: hq-core cannot reach opa:8181"
+before=$failures
+probe hq-agent opa 8181 || fail "positive control: hq-agent cannot reach opa:8181"
 for target in opa:8181 temporal:7233 gateway:8080; do
   host="${target%:*}" port="${target#*:}"
   if probe hq-internal "$host" "$port"; then fail "hq-internal reaches $target"; fi
-  ip="$(ip_on "coinepro-hq-$host-1" hq-core)"
-  if [[ -n "$ip" ]] && probe hq-internal "$ip" "$port"; then fail "hq-internal reaches $host by IP ($ip)"; fi
+  for ip in $(ips_of "$host"); do
+    if probe hq-internal "$ip" "$port"; then fail "hq-internal reaches $host by IP ($ip)"; fi
+  done
 done
-echo "live: hq-internal reaches neither OPA, Temporal nor the gateway (hq-core reaches OPA)"
+ok "$before" "hq-internal reaches neither OPA, Temporal nor the gateway (hq-agent reaches OPA)"
+
+# ------------------------------------------------------------ 5.1 §2.9 ----
+DATA_SERVICES=(postgres:5432 valkey:6379 nats:4222 openbao:8200 llm-router:8000
+  claude-runtime:8100 temporal:7233 temporal-ui:8080 prometheus:9090 loki:3100)
+before=$failures
+if running "$WEB"; then
+  probe_from "$WEB" caddy 2020 || fail "positive control: the web cannot reach caddy:2020"
+  unreachable_from "$WEB" web "${DATA_SERVICES[@]}" api:8000 opa:8181 gateway:8080 grafana:3000
+  # The host's node-exporter listens on the hq-internal gateway address only.
+  if probe_from "$WEB" 172.30.0.1 9100; then fail "web reaches node-exporter (172.30.0.1:9100)"; fi
+  if probe_from "$WEB" 1.1.1.1 443; then fail "web reaches the internet (1.1.1.1:443)"; fi
+  ok "$before" "the web reaches only Caddy (no data service, api, OpenBao, Prometheus, internet)"
+else
+  echo "live: web not running (HQ_WEB=off): web probe skipped"
+fi
+before=$failures
+if running "$GATEWAY"; then
+  probe_from "$GATEWAY" api 8000 || fail "positive control: the gateway cannot reach api:8000"
+  probe_from "$GATEWAY" opa 8181 || fail "positive control: the gateway cannot reach opa:8181"
+  unreachable_from "$GATEWAY" gateway "${DATA_SERVICES[@]}"
+  if probe_from "$GATEWAY" 1.1.1.1 443; then fail "gateway reaches the internet (1.1.1.1:443)"; fi
+  ok "$before" "the gateway reaches the api and OPA only (not Temporal, Postgres, any data service)"
+else
+  fail "the gateway is not running"
+fi
 
 # ----------------------------------------------------------------- 1.12 ----
+before=$failures
 marker="آزمون-محرمانه-$(openssl rand -hex 6)"
 since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 docker exec -i "$PG" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -qAt >/dev/null <<SQL
@@ -50,6 +105,6 @@ sleep 1
 logs="$(docker logs --since "$since" "$PG" 2>&1)"
 grep -q 'duration:' <<<"$logs" || fail "positive control: the slow statement was not logged"
 if grep -qF "$marker" <<<"$logs"; then fail "a statement parameter reached the log"; fi
-echo "live: slow statement logged without its Persian parameter"
+ok "$before" "slow statement logged without its Persian parameter"
 
-exit "$failed"
+((failures == 0))

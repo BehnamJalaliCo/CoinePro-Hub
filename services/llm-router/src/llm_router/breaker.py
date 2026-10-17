@@ -104,6 +104,14 @@ class CircuitBreaker:
         self._quota_backoff_s = self.base_quota_backoff_s
         self._snap = Snapshot(State.CLOSED)
 
+    def cooling(self) -> bool:
+        """Open and before its retry time: no request may run. Past it the next
+        request is the half-open probe."""
+        snap = self._snap
+        return (
+            snap.state is State.OPEN and snap.retry_at is not None and self._clock() < snap.retry_at
+        )
+
     def retry_after_s(self) -> int:
         """Seconds until the next probe may run (0 when not open)."""
         if self._snap.state is not State.OPEN or self._snap.retry_at is None:

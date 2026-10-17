@@ -81,6 +81,13 @@ class Settings:
     incident_budget_tokens: int = field(
         default_factory=lambda: _int("AGENT_INCIDENT_BUDGET_TOKENS", 60_000)
     )
+    # An agent's work request (work.request, prompt 5.1 §2.6): the new root work's
+    # token budget is the requester's budget left, at most this; and a request
+    # made from requested work may go this many hops deep, no further.
+    agent_request_budget_tokens: int = field(
+        default_factory=lambda: _int("AGENT_REQUEST_BUDGET_TOKENS", 60_000)
+    )
+    agent_request_chain_max: int = field(default_factory=lambda: _int("AGENT_REQUEST_CHAIN_MAX", 2))
     agent_step_timeout_s: int = field(default_factory=lambda: _int("AGENT_STEP_TIMEOUT_S", 300))
     agent_actions_per_step: int = field(default_factory=lambda: _int("AGENT_ACTIONS_PER_STEP", 8))
     agent_tool_calls_per_run: int = field(

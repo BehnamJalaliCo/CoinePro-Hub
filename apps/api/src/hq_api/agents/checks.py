@@ -21,6 +21,7 @@ the charter file - nothing here knows a company, a department or a URL.
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import logging
 import socket
@@ -33,9 +34,11 @@ from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 import httpx
+import yaml
 
 from hq_api import audit, events
 from hq_api.db import Tx
+from hq_api.domain import sites as site_seed
 from hq_api.domain import work as W
 from hq_api.hub import Hub
 from hq_api.principal import Principal
@@ -50,7 +53,14 @@ MAX_BODY = 256 * 1024
 TLS_CACHE_S = 3600.0
 PARALLEL = 8
 # Who answers an incident: (charter that watches, charter that leads), first hired wins.
-RESPONDERS = {"company": ("sre", "cto"), "holding": ("hub_platform_sre", "aiops_head")}
+RESPONDERS_FILE = Path(__file__).resolve().parents[3] / "seed" / "responders.yaml"
+
+
+@functools.cache
+def responders() -> dict[str, tuple[str, ...]]:
+    """seed/responders.yaml: per company kind, the charters an incident goes to."""
+    data = yaml.safe_load(RESPONDERS_FILE.read_text("utf-8")) or {}
+    return {kind: tuple(str(r) for r in data.get(kind) or ()) for kind in ("company", "holding")}
 
 
 @dataclass
@@ -63,9 +73,15 @@ class Result:
 
 
 class Checker:
-    def __init__(self, transport: httpx.AsyncBaseTransport | None = None, tls: bool = True) -> None:
+    def __init__(
+        self,
+        transport: httpx.AsyncBaseTransport | None = None,
+        tls: bool = True,
+        resolver: site_seed.Resolve = site_seed.resolve,
+    ) -> None:
         self._transport = transport
         self._tls = tls
+        self._resolver = resolver
         self._tls_cache: dict[str, tuple[float, int | None]] = {}
 
     async def check(self, site: dict[str, Any]) -> Result:
@@ -75,6 +91,9 @@ class Checker:
         contains = expect.get("contains")
         started = time.monotonic()
         host = urlsplit(url).hostname or ""
+        if await site_seed.internal_reason(url, self._resolver):
+            # Never a request into a private network, whatever the list says.
+            return Result(False, None, None, None, "private_address")
         try:
             async with httpx.AsyncClient(
                 transport=self._transport,
@@ -249,7 +268,7 @@ async def record(hub: Hub, site: dict[str, Any], r: Result) -> tuple[int, int]:
 async def responder(hub: Hub, tx: Tx, company_id: Any, company_kind: str) -> dict[str, Any] | None:
     """The employee an incident goes to (by charter; nothing knows a code)."""
     lib = hub.charters
-    for role in RESPONDERS["holding" if company_kind == "holding" else "company"]:
+    for role in responders()["holding" if company_kind == "holding" else "company"]:
         charter = lib.get(role) if lib is not None else None
         row = await tx.first(
             """SELECT e.id, e.code, e.kind FROM core.employees e

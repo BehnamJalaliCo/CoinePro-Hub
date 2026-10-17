@@ -87,6 +87,20 @@ async def test_run_ok_usage_and_safety_flags(runner: ClaudeRunner, tmp_path: Pat
     assert list((tmp_path / "runs").iterdir()) == []  # wiped after the run
 
 
+async def test_the_output_cap_reaches_the_cli(runner: ClaudeRunner, tmp_path: Path) -> None:
+    """prompt 5.1 §2.6: a step's hard output cap is the CLI's own limit."""
+    rec = tmp_path / "rec.json"
+    os.environ["FAKE_CLAUDE_RECORD"] = str(rec)
+    try:
+        await runner.run(spec(max_output_tokens=777))
+        capped = json.loads(rec.read_text())["max_output_tokens"]
+        await runner.run(spec())
+        free = json.loads(rec.read_text())["max_output_tokens"]
+    finally:
+        del os.environ["FAKE_CLAUDE_RECORD"]
+    assert (capped, free) == ("777", None)
+
+
 async def test_stream_and_structured_output(runner: ClaudeRunner) -> None:
     items = [i async for i in runner.stream(spec(json_schema={"type": "object"}))]
     assert [i.text for i in items if isinstance(i, Delta)] == ["O", "K"]

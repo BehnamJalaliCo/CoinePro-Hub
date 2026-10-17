@@ -26,9 +26,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 
-from hq_api import audit
+from hq_api import audit, idempotency
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
+from hq_api.domain import hiring
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow, escrow_of
@@ -57,10 +58,19 @@ async def read_tx(ctx: Ctx) -> AsyncIterator[Tx]:
         yield tx
 
 
-async def _company(ctx: Ctx, code: str | None) -> Any:
-    """The company a read targets: given (holding scope) or the agent's own."""
+# A tool-call cap (per step or per run) answers 429 with this Retry-After: the
+# next step may call again; a run at its own cap ends before then.
+CAP_RETRY_AFTER_S = 30
+
+
+async def _company(ctx: Ctx, op: str, code: str | None, **target: Any) -> Any:
+    """The company a read targets (given, for holding scope, or the agent's
+    own), looked up only AFTER the policy allowed the read: a missing and a
+    forbidden code answer the same 403 (prompt 5.1 §3)."""
     assert ctx.who.company is not None
-    return await ctx.hub.companies.by_code(code or ctx.who.company)
+    wanted = code or ctx.who.company
+    await allow(ctx, op, {"company": wanted, **target})
+    return await ctx.hub.companies.by_code(wanted)
 
 
 # ------------------------------------------------------------------ work.get --
@@ -198,10 +208,14 @@ class CompanyState(BaseModel):
     work_open: dict[str, int]
     decisions_pending: int
     budgets: list[dict[str, Any]]
+    # ⟨1.4.2⟩ hiring starts with the owner (§18.11): while closed, record a team gap
+    # in an output instead of proposing a hire
+    hiring: Literal["closed", "open"] = "closed"
 
 
 class HoldingState(BaseModel):
     companies: list[CompanyState]
+    hiring: Literal["closed", "open"] = "closed"
 
 
 async def _company_state(tx: Tx, co: Any) -> CompanyState:
@@ -246,6 +260,7 @@ async def _company_state(tx: Tx, co: Any) -> CompanyState:
         work_open={r["status"]: int(r["n"]) for r in work},
         decisions_pending=int(pending or 0),
         budgets=budgets,
+        hiring=await hiring.state(tx),
     )
 
 
@@ -291,10 +306,10 @@ async def tool_company_state(
         await allow(ctx, "company.read", {"company": ctx.who.company})
         async with read_tx(ctx) as tx:
             return HoldingState(
-                companies=[await _company_state(tx, c) for c in await ctx.hub.companies.all()]
+                companies=[await _company_state(tx, c) for c in await ctx.hub.companies.all()],
+                hiring=await hiring.state(tx),
             )
-    co = await _company(ctx, company)
-    await allow(ctx, "company.read", {"company": co.code})
+    co = await _company(ctx, "company.read", company)
     async with read_tx(ctx) as tx:
         return await _company_state(tx, co)
 
@@ -349,8 +364,9 @@ async def tool_health_sites(
     TLS days left, consecutive failures), 24 h uptime, and open incidents."""
     _agent(ctx)
     every = company is None and ctx.who.scope == "holding"
-    co = None if every else await _company(ctx, company)
-    await allow(ctx, "health.read", {"company": co.code if co else ctx.who.company})
+    if every:
+        await allow(ctx, "health.read", {"company": ctx.who.company})
+    co = None if every else await _company(ctx, "health.read", company)
     start = since or datetime.now(UTC) - timedelta(hours=24)
     async with read_tx(ctx) as tx:
         sites = await tx.all(
@@ -431,8 +447,9 @@ async def tool_treasury_usage(
     every = target == "holding"
     if every and ctx.who.scope != "holding":
         raise ApiError(403, "policy_denied", "treasury.read_not_permitted")
-    co = None if every else await ctx.hub.companies.by_code(target)
-    await allow(ctx, "treasury.read", {"company": co.code if co else ctx.who.company})
+    if every:
+        await allow(ctx, "treasury.read", {"company": ctx.who.company})
+    co = None if every else await _company(ctx, "treasury.read", target)
     start = period_start(period)
     async with read_tx(ctx) as tx:
         totals = await tx.one(
@@ -503,10 +520,9 @@ async def tool_knowledge_search(
     if not wanted:
         raise ApiError(422, "validation_failed", fields={"kinds": f"some of {', '.join(KINDS)}"})
     every = company is None and ctx.who.scope == "holding"
-    co = None if every else await _company(ctx, company)
-    await allow(
-        ctx, "knowledge.read", {"company": co.code if co else ctx.who.company, "kinds": wanted}
-    )
+    if every:
+        await allow(ctx, "knowledge.read", {"company": ctx.who.company, "kinds": wanted})
+    co = None if every else await _company(ctx, "knowledge.read", company, kinds=wanted)
     queries = {
         "resolutions": """SELECT 'resolution' AS kind, r.ref, c.code AS company, r.title,
                               left(r.body, 400) AS body, r.sealed_at AS at
@@ -640,12 +656,18 @@ async def tool_memory_read(
 
 
 @router.post("/memory", response_model=MemoryNote, status_code=201, responses=E)
-async def tool_memory_write(body: MemoryIn, ctx: Ctx = Depends(internal_ctx)) -> MemoryNote:
-    """memory.write: append one note to the employee's own memory (append-only)."""
+async def tool_memory_write(
+    body: MemoryIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+) -> Any:
+    """memory.write: append one note to the employee's own memory (append-only).
+    Honours `Idempotency-Key` (a retried call writes the note once)."""
     _agent(ctx)
     await allow(ctx, "memory.write", {"employee": ctx.who.code})
     tags = sorted({t.strip()[:40] for t in body.tags if t.strip()})
     async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who)
+        if idem and idem.replay:
+            return idem.replay
         await ctx.ensure_unlocked(tx, ctx.who.company_id)  # type: ignore[arg-type]
         row = await tx.one(
             """INSERT INTO core.employee_memory (company_id, employee_id, run_id, note, tags)
@@ -666,9 +688,12 @@ async def tool_memory_write(body: MemoryIn, ctx: Ctx = Depends(internal_ctx)) ->
             target_ref=ctx.who.code,
             summary=f"note {row['id']}",
         )
-    return MemoryNote(
-        id=row["id"], note=row["note"], tags=list(row["tags"]), source=None, at=row["at"]
-    )
+        note = MemoryNote(
+            id=row["id"], note=row["note"], tags=list(row["tags"]), source=None, at=row["at"]
+        )
+        if idem:
+            await idem.store(tx, 201, note.model_dump(mode="json"))
+    return note
 
 
 # ------------------------------------------------------- the run's own gate --
@@ -723,7 +748,12 @@ async def run_reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> Gate
             step=body.step,
         )
         if row is None:
-            raise ApiError(429, "rate_limited", "tool-call cap of this run or step reached")
+            raise ApiError(
+                429,
+                "rate_limited",
+                "tool-call cap of this run or step reached",
+                headers={"Retry-After": str(CAP_RETRY_AFTER_S)},
+            )
         w = await W.load(tx, row["work_id"]) if row["work_id"] else None
         escrow = await escrow_of(tx, w) if w else []
         lock = await tx.scalar("SELECT control.lock_state(:co)", co=ctx.who.company_id)
@@ -816,7 +846,7 @@ async def push_live(code: str, request: Request, ctx: Ctx = Depends(internal_ctx
     )
     live = ctx.hub.live
     if live is None:
-        raise ApiError(503, "internal_error", "live replies are off")
+        raise ApiError(503, "live_unavailable", "live replies are off")
     size, buf = 0, b""
     async for chunk in request.stream():
         size += len(chunk)

@@ -1,0 +1,5 @@
+# The site-check canary is enabled (HQ_CANARY=on, infra/compose/hq.sh): it
+# fails on purpose. Carries no data.
+handle /__canary {
+	respond 503
+}

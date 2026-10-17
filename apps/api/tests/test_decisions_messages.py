@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+import pytest
 
 from hq_api.audit import SYSTEM
 from hq_api.domain import decisions as D
@@ -41,6 +42,7 @@ def hire_body(co: str, **over: Any) -> dict[str, Any]:
     }
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_hire_proposal_approval_and_effect(
     client: httpx.AsyncClient,
     hub: Hub,

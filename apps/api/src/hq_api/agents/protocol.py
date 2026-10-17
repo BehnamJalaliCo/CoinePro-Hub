@@ -31,6 +31,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from hq_common.charters import Charter, Library
+from hq_common.redact import scrub
 
 STEP_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -62,7 +63,9 @@ CITATION_KINDS = ("decision", "resolution", "deliverable", "work", "message", "a
 @dataclass
 class Action:
     tool: str
-    args: dict[str, Any]
+    # As the model wrote it: anything but a JSON object is refused by the
+    # Tool Gateway (invalid_args), never quietly turned into {}.
+    args: Any
 
 
 @dataclass
@@ -92,8 +95,7 @@ def parse_step(value: Any, text: str | None, max_actions: int) -> StepOut:
     for a in actions[:max_actions]:
         if not isinstance(a, dict) or not isinstance(a.get("tool"), str):
             raise BadOutput("each action needs a tool name")
-        args = a.get("args", {})
-        out.append(Action(tool=a["tool"][:80], args=args if isinstance(args, dict) else {}))
+        out.append(Action(tool=a["tool"][:80], args=a.get("args", {})))
     return StepOut(summary_fa=summary.strip()[:2000], actions=out, done=done)
 
 
@@ -284,6 +286,37 @@ class StreamFilter:
         return out
 
 
+class ScrubBuffer:
+    """Masks a live text on its way to the owner (prompt 5.1 §2.1): it passes
+    on whole lines only (a long line, once 512 characters are pending, up to
+    its last space, keeping 128 back), so a secret split across two deltas is
+    still seen whole; a private key block is held until its END line."""
+
+    HOLD = 512
+    TAIL = 128
+
+    def __init__(self) -> None:
+        self.buf = ""
+
+    def feed(self, chunk: str) -> str:
+        self.buf += chunk
+        pem = self.buf.rfind("-----BEGIN")
+        if pem != -1 and "-----END" not in self.buf[pem:]:
+            head, self.buf = self.buf[:pem], self.buf[pem:]
+            return scrub(head) if head else ""
+        cut = self.buf.rfind("\n") + 1
+        if cut == 0 and len(self.buf) > self.HOLD:
+            cut = self.buf.rfind(" ", 0, len(self.buf) - self.TAIL) + 1
+        if cut <= 0:
+            return ""
+        out, self.buf = self.buf[:cut], self.buf[cut:]
+        return scrub(out)
+
+    def flush(self) -> str:
+        out, self.buf = self.buf, ""
+        return scrub(out) if out else ""
+
+
 # --------------------------------------------------------------- context --
 def render_results(results: list[dict[str, Any]], *, steps_left: int, tokens_left: int) -> str:
     lines = ["Results of your actions (redacted):"]
@@ -296,6 +329,8 @@ def render_results(results: list[dict[str, Any]], *, steps_left: int, tokens_lef
         lines.append(head)
         if r.get("fields"):
             lines.append("   fields: " + json.dumps(r["fields"], ensure_ascii=False))
+        if r.get("hint_fa"):  # the api's own Persian explanation of a refusal
+            lines.append("   hint_fa: " + str(r["hint_fa"])[:300])
         if r.get("result") is not None:
             lines.append("   " + json.dumps(r["result"], ensure_ascii=False, default=str))
     if not results:

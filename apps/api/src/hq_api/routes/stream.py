@@ -4,9 +4,12 @@ stream HQ_CORE (`hq.core.<company>.<type>`).
 - `id:` is the JetStream sequence, so `Last-Event-ID` resumes without loss
   (within the 30-day retention).
 - Filters: `topics` (work, decisions, deliverables, messages, notifications,
-  activity, llm, control) and `company` (repeatable). `company=*` is the
-  holding view for 40+ companies: only counters and `activity.changed`,
+  activity, llm, control, runs) and `company` (repeatable). `company=*` is
+  the holding view for 40+ companies: only counters and `activity.changed`,
   never full payloads.
+- ⟨1.4.2⟩ Unknown topics are ignored, not refused (a client may name topics a
+  newer server adds); the first comment lists the topics served
+  (`: topics work,decisions,...`). Only a malformed `topics` is 422.
 - Heartbeat comment every 15 s. Events carry metadata only.
 """
 
@@ -57,6 +60,7 @@ def sse(seq: int, env: dict[str, Any]) -> bytes:
 async def bridge(
     ctx: Ctx, topics: set[str], companies: set[str] | None, summary: bool, last_id: int | None
 ) -> AsyncIterator[bytes]:
+    served = ",".join(t for t in events.TOPICS if t in topics)
     bus = ctx.hub.bus
     if bus is None or not bus.connected:
         raise ApiError(503, "internal_error", "the event bus is not available")
@@ -70,7 +74,7 @@ async def bridge(
         events.SUBJECTS, stream=events.STREAM, ordered_consumer=True, config=cfg
     )
     try:
-        yield b"retry: 3000\n\n"
+        yield f": topics {served}\nretry: 3000\n\n".encode()
         while True:
             try:
                 msg = await sub.next_msg(timeout=HEARTBEAT_S)
@@ -100,20 +104,16 @@ async def bridge(
 async def stream(
     request: Request,
     topics: str = Query(
-        default="work,decisions,deliverables,messages,notifications,activity,llm,control",
+        default="work,decisions,deliverables,messages,notifications,activity,llm,control,runs",
         pattern=r"^[a-z]+(,[a-z]+)*$",
         max_length=200,
     ),
     company: list[str] | None = Query(default=None),
     ctx: Ctx = Depends(owner_ctx),
 ) -> StreamingResponse:
-    """Live events (SSE). `Last-Event-ID` resumes after that JetStream sequence."""
-    wanted = {t for t in topics.split(",") if t}
-    unknown = wanted - events.TOPICS.keys()
-    if unknown:
-        raise ApiError(
-            422, "validation_failed", fields={"topics": f"unknown: {', '.join(sorted(unknown))}"}
-        )
+    """Live events (SSE). `Last-Event-ID` resumes after that JetStream sequence.
+    Unknown topics are ignored; the first comment names the topics served."""
+    wanted = {t for t in topics.split(",") if t} & events.TOPICS.keys()
     summary = company == ["*"]
     companies: set[str] | None = None
     if company and not summary:

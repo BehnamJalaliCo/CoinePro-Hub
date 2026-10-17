@@ -1,9 +1,16 @@
 # The owner's web panel (apps/web, Next.js standalone on web:3000; HQ_WEB=on,
 # set by infra/compose/hq.sh when apps/web/Dockerfile exists). It sets its own
-# CSP with a nonce per response.
+# CSP with a nonce per response. Caddy reaches it over hq-edge only.
 handle {
+	# The panel takes no uploads (they go to /api): small bodies only.
+	request_body {
+		max_size 1MB
+	}
 	reverse_proxy web:3000 {
 		header_up X-Forwarded-For {remote_host}
+		# Next.js trusts this internal header to skip its middleware
+		# (CVE-2025-29927); a client never sends it through the edge.
+		header_up -X-Middleware-Subrequest
 		transport http {
 			read_timeout 60s
 		}

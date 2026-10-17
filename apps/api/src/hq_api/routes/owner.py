@@ -13,11 +13,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field, field_validator
 
-from hq_api import pagination
+from hq_api import pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
-from hq_api.domain import notify
+from hq_api.domain import hiring, notify
 from hq_api.errors import ApiError, responses
 from hq_api.routes.notifications import if_match, time_cursor
+from hq_api.security import stepup
 
 log = logging.getLogger("hq_api.routes.owner")
 router = APIRouter(tags=["owner"])
@@ -381,3 +382,97 @@ async def list_owner_interactions(
         ],
         next_cursor=nxt,
     )
+
+
+# ------------------------------------------------------------------ hiring --
+class HiringStart(BaseModel):
+    mode: Literal["proposals", "self"]
+
+
+class HiringStarted(hiring.Hiring):
+    work: list[str] = Field(default_factory=list, description="work items created (proposals)")
+
+
+@router.get("/owner/hiring", response_model=hiring.Hiring, responses=responses(401))
+async def get_hiring(ctx: Ctx = Depends(owner_ctx)) -> hiring.Hiring:
+    """Hiring starts with the owner (contract §18.11): `closed` by default; the
+    hire cards the system withdrew are listed in `withdrawn`."""
+    holding = await ctx.hub.companies.holding()
+    async with ctx.tx() as tx:
+        return await hiring.load(tx, holding.id)
+
+
+@router.post(
+    "/owner/hiring/start", response_model=HiringStarted, responses=responses(401, 403, 422)
+)
+async def start_hiring(
+    body: HiringStart, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> HiringStarted:
+    """🔏 (`hiring.start`, target `holding`). `proposals`: hiring opens to agents
+    and each CEO (and each holding head with a hiring duty) gets one work item
+    "propose your first month's team" (a second start adds none). `self`: hiring
+    stays closed to agents; the owner hires directly (`POST /org/hires`)."""
+    holding = await ctx.hub.companies.holding()
+    async with ctx.tx() as tx:
+        await stepup.consume(tx, request, ctx.who, "hiring.start", "holding")
+        out = await hiring.start(
+            tx,
+            ctx.who,
+            holding_id=holding.id,
+            holding_code=holding.code,
+            mode=body.mode,
+            charters=ctx.hub.charters,
+        )
+        work = [w["ref"] for w in out["work"]]
+        await ctx.audit(
+            tx,
+            company_id=holding.id,
+            action="hiring.start",
+            action_class="A2",
+            target_kind="hiring",
+            target_ref=holding.code,
+            summary=f"mode {body.mode}; {len(work)} work items",
+            step_up=True,
+        )
+        await ctx.interaction(
+            tx,
+            company_id=holding.id,
+            kind="setting",
+            action="hiring.start",
+            target_kind="hiring",
+            target_ref=holding.code,
+            data={"mode": body.mode, "work": work},
+        )
+        state = await hiring.load(tx, holding.id)
+    return HiringStarted(**state.model_dump(), work=work)
+
+
+@router.post("/owner/hiring/close", response_model=hiring.Hiring, responses=responses(401))
+async def close_hiring(ctx: Ctx = Depends(owner_ctx)) -> hiring.Hiring:
+    """No step-up (closing is always safe): hiring closes to agents and every
+    pending hire card is withdrawn (never deleted; listed in `withdrawn`)."""
+    holding = await ctx.hub.companies.holding()
+    async with ctx.tx() as tx:
+        refs = await hiring.close(tx, ctx.who, holding_id=holding.id, holding_code=holding.code)
+        await ctx.audit(
+            tx,
+            company_id=holding.id,
+            action="hiring.close",
+            action_class="A1",
+            target_kind="hiring",
+            target_ref=holding.code,
+            summary=f"{len(refs)} pending hire cards withdrawn",
+        )
+        await ctx.interaction(
+            tx,
+            company_id=holding.id,
+            kind="setting",
+            action="hiring.close",
+            target_kind="hiring",
+            target_ref=holding.code,
+            data={"withdrawn": refs},
+        )
+        state = await hiring.load(tx, holding.id)
+    for ref in refs:  # each card's DecisionLifecycle sees it is no longer pending and ends
+        await workflows_client.decision_decided(ctx.hub, ref)
+    return state

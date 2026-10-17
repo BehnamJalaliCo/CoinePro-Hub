@@ -48,11 +48,55 @@ class State:
         self.worker_digest = path.read_text().strip() if path.exists() else ""
 
 
+class BodyLimit:
+    """Caps a request body that has no Content-Length (chunked) while it is
+    read: more than `max_bytes` is answered 413 before the app sees any of it."""
+
+    def __init__(self, app: Any, max_bytes: int) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        chunks: list[bytes] = []
+        size = 0
+        while True:
+            message = await receive()
+            if message["type"] != "http.request":
+                await self.app(scope, receive, send)  # a disconnect: nothing to read
+                return
+            chunk = message.get("body", b"")
+            size += len(chunk)
+            if size > self.max_bytes:
+                await JSONResponse({"error": "body_too_large"}, status_code=413)(
+                    scope, receive, send
+                )
+                return
+            chunks.append(chunk)
+            if not message.get("more_body", False):
+                break
+        body = b"".join(chunks)
+        replayed = False
+
+        async def replay() -> Any:
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return await receive()
+
+        await self.app(scope, replay, send)
+
+
 def build_app(state: State) -> FastAPI:
     app = FastAPI(
         title="tool-gateway", version=__version__, docs_url=None, redoc_url=None, openapi_url=None
     )
     app.state.gw = state
+    # Inside the guard below (added later = outer): the runtime is authenticated first.
+    app.add_middleware(BodyLimit, max_bytes=state.settings.max_body_bytes)
 
     @app.middleware("http")
     async def guard(request: Request, call_next: Any) -> Any:
@@ -102,7 +146,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         state.load_digest()
         api, opa = Api(s.api_url, s.call_timeout_s), Opa(s.opa_url)
         state.gateway = Gateway(
-            lib, api, opa, max_result_chars=s.max_result_chars, tool_timeout_s=s.tool_timeout_s
+            lib,
+            api,
+            opa,
+            max_result_chars=s.max_result_chars,
+            tool_timeout_s=s.tool_timeout_s,
+            deadline_s=s.deadline_s,
         )
 
         async def check() -> dict[str, Any]:

@@ -6,6 +6,7 @@ nothing of the conversation reaches logs, audit or NATS."""
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections.abc import Callable
 from typing import Any
@@ -14,6 +15,7 @@ import httpx
 import pytest
 
 from hq_api.security import agent_tokens
+from hq_common import charters
 
 from .conftest import AGENT_KEY, idem
 
@@ -106,7 +108,9 @@ async def test_the_line_ceo_to_cto_and_back(
     su: Any,
     agents: Any,
     new_company: Callable[..., Any],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    caplog.set_level(logging.DEBUG)  # every log line of api, gateway, router and runner
     co = (await new_company())["code"]
     marker = f"PROMPT-MARKER-{uuid.uuid4().hex[:8]}"
     w = await order(
@@ -192,9 +196,10 @@ async def test_the_line_ceo_to_cto_and_back(
     ]
     assert actions[0]["ref"].startswith("O-")
     finished = await su.fetchrow("SELECT * FROM agents.runs WHERE id = $1", cto_run["id"])
-    assert finished["charter_role"] == "cto" and finished["charter_version"] == 1
+    cto = charters.load().roles["cto"]
+    assert finished["charter_role"] == "cto" and finished["charter_version"] == cto.version
     assert finished["input_tokens"] > 0 and finished["steps"] == 2 and finished["tool_calls"] == 4
-    assert finished["model"] == "claude-sonnet-5-5" and finished["effort"] == "high"
+    assert finished["model"] == cto.model and finished["effort"] == cto.effort
     used = await su.fetchval("SELECT tokens_used FROM work.work WHERE ref = $1", child_ref)
     assert used == sum(
         json.loads(s["usage"])["input"] + json.loads(s["usage"])["output"] for s in steps
@@ -203,10 +208,8 @@ async def test_the_line_ceo_to_cto_and_back(
         "SELECT meta FROM llm.calls WHERE actor_ref = $1 ORDER BY started_at", f"{co}-TECH-MGR"
     )
     metas = [json.loads(r["meta"]) for r in ledger]
-    assert [m["charter"] for m in metas] == ["cto@1", "cto@1"] and [m["step"] for m in metas] == [
-        1,
-        2,
-    ]
+    assert [m["charter"] for m in metas] == [cto.ref, cto.ref]
+    assert [m["step"] for m in metas] == [1, 2]
     assert all(m["run_id"] == str(cto_run["id"]) for m in metas)
     audits = await su.fetch(
         "SELECT target_ref, summary FROM audit.entries WHERE action = 'tool.call' AND actor_code = $1",
@@ -218,7 +221,9 @@ async def test_the_line_ceo_to_cto_and_back(
         "memory.write",
         "work.accept",
     ]
-    # Never the conversation: not in audit, steps, the outbox (NATS) or the employee's activity.
+    # Never the conversation: not in the logs (prompt 5.1 §3), audit, steps, the
+    # outbox (NATS) or the employee's activity.
+    assert caplog.records and marker not in caplog.text
     for table, col in (
         ("audit.entries", "summary"),
         ("agents.steps", "summary_fa"),
@@ -359,21 +364,26 @@ async def test_the_charter_token_cap_and_a_partial_deliverable(
     new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
-    w = await order(client, owner, co, budget={"tokens": 4_000})
+    w = await order(client, owner, co, budget={"tokens": 20_000})
     run_row = (await runs_of(su, f"{co}-CEO"))[-1]
     agents.fake.enqueue(f"{co}-CEO", *[step(f"قدم {i}", done=False) for i in range(10)])
     out = await run(agents, run_row["id"])
     assert out == {"state": "done", "code": "limit_reached"}, out
     r = await su.fetchrow("SELECT * FROM agents.runs WHERE id = $1", run_row["id"])
-    assert r["partial"] is True and r["token_cap"] == 4_000
-    per_step = max(
-        json.loads(s["usage"])["input"] + json.loads(s["usage"])["output"]
-        for s in await su.fetch("SELECT usage FROM agents.steps WHERE run_id = $1", run_row["id"])
-    )
+    assert r["partial"] is True and r["token_cap"] == 20_000
+    limits = charters.load().roles["ceo"].limits
+    assert 1 <= r["steps"] < limits.steps_per_run  # the tokens ran out before the steps
     spent = (
         r["input_tokens"] + r["output_tokens"] + r["cache_read_tokens"] + r["cache_write_tokens"]
     )
-    assert spent <= r["token_cap"] + per_step  # never more than one step past the cap
+    assert spent <= r["token_cap"]  # hard (prompt 5.1 §2.6): never past the cap
+    # Every call asked the router for at most what was left of the step and the run.
+    caps = [
+        c.max_output_tokens
+        for c in agents.fake.calls
+        if c.actor_ref == f"{co}-CEO" and c.max_output_tokens is not None
+    ]
+    assert caps and all(0 < cap <= limits.tokens_per_step for cap in caps)
     dl = await su.fetchrow(
         "SELECT title, body FROM cartable.deliverables WHERE work_id = $1", uuid.UUID(w["id"])
     )
@@ -389,7 +399,8 @@ async def test_the_charter_token_cap_and_a_partial_deliverable(
     msg_run = r2.json()["reply"]["run_id"]
     agents.fake.enqueue(f"{co}-CEO", *[step(f"گفتگو {i}", done=False) for i in range(10)])
     assert (await run(agents, msg_run))["state"] == "failed"
-    assert await su.fetchval("SELECT steps FROM agents.runs WHERE id = $1", uuid.UUID(msg_run)) == 6
+    steps = await su.fetchval("SELECT steps FROM agents.runs WHERE id = $1", uuid.UUID(msg_run))
+    assert steps == limits.steps_per_run
 
 
 async def test_kill_switch_mid_run_refuses_the_next_step(
@@ -574,3 +585,4 @@ async def test_bad_output_and_router_refusals(
     )
     agents.service.breakers.clear()
     agents.service.quota.states.clear()
+    agents.service.quota.windows.clear()

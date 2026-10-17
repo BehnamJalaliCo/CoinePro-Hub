@@ -11,12 +11,18 @@
 #     llm-migrate and api-migrate are one-shot jobs (restart "no", no healthcheck).
 #   - claude-runtime sits only on hq-llm (llm-router, OpenBao, Prometheus):
 #     it can reach the internet for the Claude API but not the data services.
-#   - hq-core (prompt 04.1): Temporal (unauthenticated on 7233) and OPA are
-#     reachable only from api, worker, Temporal's own tooling, Prometheus
-#     (Temporal metrics) and Postgres (Temporal's database). Nothing else on
-#     hq-internal can reach them (scripts/quality/compose-rules.sh checks it).
-#   - gateway (prompt 05) sits only on hq-core: the worker calls it, it calls
-#     the api and OPA; it reaches neither the data services nor OpenBao.
+#   - hq-core (prompt 04.1): Temporal (unauthenticated on 7233) is reachable
+#     only from api, worker, Temporal's own tooling, Prometheus (Temporal
+#     metrics) and Postgres (Temporal's database).
+#   - hq-agent (prompt 05.1 §2.9): the agents' tool path and its policy:
+#     worker -> gateway -> api (/internal/v1) and OPA. The gateway sits only
+#     here: it reaches neither Temporal, the data services nor OpenBao. OPA
+#     sits only here (api, worker and gateway are its only clients).
+#   - hq-edge (prompt 05.1 §2.9): Caddy and the web panel only. The web
+#     (Next.js, internet-facing) reaches nothing but Caddy.
+#   - hq-agent and hq-edge are internal (no route out of the host); nothing on
+#     hq-internal reaches Temporal, OPA or the gateway
+#     (scripts/quality/compose-rules.sh and live.sh check all of it).
 #   - node-exporter uses the host network (to see the host's real NICs) and
 #     listens only on the hq-internal gateway 172.30.0.1, never on 0.0.0.0.
 
@@ -464,10 +470,10 @@ services:
     # The api is fail-closed: no answer from OPA means "denied".
     <<: *service
     image: ${OPA_IMAGE:?use hq.sh}
-    # Only api and worker (hq-core) reach it. --authorization=basic with
-    # system.authz (infra/opa/policy/authz.rego): POST /v1/data/hq/... and
+    # Only api, worker and gateway (hq-agent) reach it. --authorization=basic
+    # with system.authz (infra/opa/policy/authz.rego): POST /v1/data/hq/... and
     # GET /health only; policies and data come from files, never over HTTP.
-    networks: [hq-core]
+    networks: [hq-agent]
     depends_on:
       hq-tools:
         condition: service_completed_successfully
@@ -502,8 +508,8 @@ services:
     <<: *service
     image: coinepro-hq/api:0.1.0
     # hq-internal: Caddy, NATS, OpenBao (AppRole bound to 172.30.0.0/24);
-    # hq-core: OPA and Temporal.
-    networks: [hq-internal, hq-core]
+    # hq-core: Temporal; hq-agent: OPA and the gateway's calls to /internal/v1.
+    networks: [hq-internal, hq-core, hq-agent]
     build:
       context: ../../apps/api
       additional_contexts:
@@ -561,7 +567,8 @@ services:
     # Temporal worker (task queue hq-core) + the NATS bridge into HQ_CORE.
     <<: *service
     image: coinepro-hq/api:0.1.0
-    networks: [hq-internal, hq-core]
+    # hq-core: Temporal; hq-agent: OPA and the Tool Gateway.
+    networks: [hq-internal, hq-core, hq-agent]
     depends_on:
       api:
         condition: service_healthy
@@ -606,14 +613,16 @@ services:
 
   gateway:
     # Tool Gateway (prompt 05 §3): every action of an agent goes through here,
-    # with the run's own agent token, to the api's /internal/v1. hq-core only:
-    # no database, NATS, Valkey or OpenBao; only the worker calls it.
+    # with the run's own agent token, to the api's /internal/v1. hq-agent only
+    # (prompt 05.1 §2.9): it reaches the api and OPA, never Temporal, Postgres,
+    # NATS, Valkey or OpenBao, and has no route out of the host; only the
+    # worker calls it.
     <<: *service
     image: coinepro-hq/gateway:0.1.0
     build:
       context: ../../services
       dockerfile: gateway/Dockerfile
-    networks: [hq-core]
+    networks: [hq-agent]
     depends_on:
       api:
         condition: service_healthy
@@ -645,8 +654,11 @@ services:
     # The owner's web panel (apps/web, owned by the consultation session;
     # Next.js standalone on :3000). Profile "web": on when apps/web/Dockerfile
     # exists (infra/compose/hq.sh); Caddy then sends every path but /api here.
+    # hq-edge only (prompt 05.1 §2.9): it is internet-facing, so it reaches
+    # Caddy and nothing else (no database, api, NATS, OpenBao, Prometheus).
     <<: *service
     profiles: [web]
+    networks: [hq-edge]
     image: coinepro-hq/web:0.1.0
     build:
       context: ../../apps/web
@@ -656,7 +668,11 @@ services:
       HQ_ANDROID_CERT_SHA256: ${HQ_ANDROID_CERT_SHA256:-}
     user: "10001:10001"
     read_only: true
-    tmpfs: ["/tmp:size=64m,mode=1777", "/app/.next/cache:size=64m,uid=10001,gid=10001,mode=0700"]
+    # tmpfs is charged to the container's memory: sized per profile so the
+    # Node process keeps most of MEM_WEB.
+    tmpfs:
+      - "/tmp:size=${WEB_TMPFS_TMP:?},mode=1777"
+      - "/app/.next/cache:size=${WEB_TMPFS_CACHE:?},uid=10001,gid=10001,mode=0700"
     cap_drop: [ALL]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -673,6 +689,8 @@ services:
   caddy:
     <<: *service
     image: caddy:2.11.7-alpine
+    # hq-internal: the api (and the ACME route out); hq-edge: the web panel.
+    networks: [hq-internal, hq-edge]
     environment:
       # Empty -> ":80" (plain HTTP). A domain here switches on automatic HTTPS.
       HQ_SITE_ADDRESS: ${HQ_SITE_ADDRESS:-:80}
@@ -680,6 +698,9 @@ services:
       HQ_API_EDGE: ${HQ_API_EDGE:?use hq.sh}
       # "on" when the web panel is built (infra/compose/hq.sh): other paths reach web.
       HQ_WEB: ${HQ_WEB:?use hq.sh}
+      # "on" while a canary row of apps/api/seed/sites.yaml is enabled (hq.sh):
+      # /__canary answers 503, else 404.
+      HQ_CANARY: ${HQ_CANARY:?use hq.sh}
     ports:
       # The only ports published on all interfaces.
       - "80:80"
@@ -690,6 +711,8 @@ services:
       - ../caddy/api-off.caddy:/etc/caddy/api-off.caddy:ro
       - ../caddy/web-on.caddy:/etc/caddy/web-on.caddy:ro
       - ../caddy/web-off.caddy:/etc/caddy/web-off.caddy:ro
+      - ../caddy/canary-on.caddy:/etc/caddy/canary-on.caddy:ro
+      - ../caddy/canary-off.caddy:/etc/caddy/canary-off.caddy:ro
       - ../caddy/site:/srv/site:ro
       - caddy-data:/data
       - caddy-config:/config
@@ -964,14 +987,34 @@ networks:
         - subnet: 172.30.1.0/24
           gateway: 172.30.1.1
   hq-core:
-    # Temporal and OPA (no authentication of their own on this network) with
-    # their only clients: api, worker, Temporal's tooling, Prometheus, Postgres.
+    # Temporal (no authentication of its own on this network) with its only
+    # clients: api, worker, Temporal's tooling, Prometheus, Postgres.
     name: hq-core
     driver: bridge
     ipam:
       config:
         - subnet: 172.30.2.0/24
           gateway: 172.30.2.1
+  hq-agent:
+    # The agents' tool path: worker -> gateway -> api, and OPA for all three.
+    # Internal: no route out of the host.
+    name: hq-agent
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.3.0/24
+          gateway: 172.30.3.1
+  hq-edge:
+    # Caddy and the web panel only. Internal: the web has no route out; Caddy
+    # reaches the internet (ACME) through hq-internal.
+    name: hq-edge
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.4.0/24
+          gateway: 172.30.4.1
 
 volumes:
   hq-tools:

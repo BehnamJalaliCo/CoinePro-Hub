@@ -39,7 +39,9 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "notifications": ("notification.",),
     "activity": ("activity.", "employee."),
     "llm": ("llm.", "budget."),
-    "control": ("control.", "presence."),
+    "control": ("control.", "presence.", "hiring."),
+    # ⟨1.4.1⟩ the agent runs: run.started, run.step, run.finished
+    "runs": ("run.",),
 }
 
 

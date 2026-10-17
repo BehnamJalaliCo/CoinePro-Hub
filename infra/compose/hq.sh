@@ -14,8 +14,11 @@ COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${HQ_ENV_FILE:-$COMPOSE_DIR/.env}"
 # The full profile is sized for the hub's 16 GB class (prompt 05 §11); a
 # nominal 16 GB server reports a little less (kernel reserve), so the
-# threshold is 15 GiB of MemTotal. Anything smaller runs lean.
-FULL_PROFILE_MIN_KB=$((15 * 1024 * 1024))
+# threshold is 15 GiB of MemTotal. Anything smaller runs lean. The full
+# profile's memory budget is sized for exactly this threshold
+# (profiles/full.env HQ_BUDGET_REF_RAM_MB; scripts/quality/memory-budget.sh).
+FULL_PROFILE_MIN_MB=15360
+FULL_PROFILE_MIN_KB=$((FULL_PROFILE_MIN_MB * 1024))
 
 detect_profile() {
   local p="${HQ_PROFILE:-}"
@@ -70,6 +73,17 @@ if [[ -f "$COMPOSE_DIR/../../apps/web/Dockerfile" ]]; then
   profile_args+=(--profile web)
 else
   export HQ_WEB=off
+fi
+# The site-check canary (prompt 05 §9.1): Caddy's /__canary fails on purpose
+# (503) only while a canary row of the sites seed is enabled; switched off it
+# answers 404 like any unknown path (prompt 05.1 §3). The seed keeps each row
+# on one line, so a canary row is enabled unless it says `enabled: false`.
+SITES_SEED="${HQ_SITES_SEED:-$COMPOSE_DIR/../../apps/api/seed/sites.yaml}"  # override: tests only
+export HQ_CANARY=off
+if [[ -r "$SITES_SEED" ]] &&
+  grep -E '^[[:space:]]*-.*[{,[:space:]]canary:[[:space:]]*true' "$SITES_SEED" |
+  grep -qvE '[{,[:space:]]enabled:[[:space:]]*false'; then
+  export HQ_CANARY=on
 fi
 if [[ "${HQ_ALL_PROFILES:-0}" == "1" ]]; then
   profile_args=(--profile "*")

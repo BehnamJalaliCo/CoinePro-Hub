@@ -65,6 +65,7 @@ class RunSpec:
     messages: tuple[Message, ...]
     json_schema: dict[str, Any] | None
     timeout_s: int
+    max_output_tokens: int | None = None
 
 
 @dataclass
@@ -182,7 +183,17 @@ class ClaudeRunner:
             effort=spec.effort,  # type: ignore[arg-type]
             max_turns=3 if spec.json_schema else 1,
             cwd=str(run_dir / "work"),
-            env={**CHILD_ENV, "HOME": str(run_dir / "home"), "CLAUDE_CODE_OAUTH_TOKEN": token},
+            env={
+                **CHILD_ENV,
+                "HOME": str(run_dir / "home"),
+                "CLAUDE_CODE_OAUTH_TOKEN": token,
+                # The CLI's own output cap: the call stops there (prompt 5.1 §2.6).
+                **(
+                    {"CLAUDE_CODE_MAX_OUTPUT_TOKENS": str(spec.max_output_tokens)}
+                    if spec.max_output_tokens
+                    else {}
+                ),
+            },
             include_partial_messages=stream,
             stderr=self._count_stderr,
             cli_path=self._cli_path,

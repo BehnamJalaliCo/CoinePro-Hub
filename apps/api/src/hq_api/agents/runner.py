@@ -36,22 +36,38 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy.exc import DBAPIError
+
 from hq_api import audit, events
 from hq_api.agents import protocol as P
 from hq_api.agents.clients import Gateway, LivePush, ModelCall, Router
 from hq_api.db import Tx
 from hq_api.domain import decisions as D
+from hq_api.errors import sqlstate_of
 from hq_api.hub import Hub
+from hq_api.routes.messages import LINK_TABLES
 from hq_api.security import agent_tokens
 from hq_api.worker.jalali import jalali_long
 from hq_common.charters import Charter
+from hq_common.redact import scrub, scrub_async
 
 log = logging.getLogger("hq_api.agents.runner")
+
+
+def prompt_tokens(system: str, messages: list[dict[str, str]]) -> int:
+    """A cautious estimate of a prompt's tokens (about four characters each)."""
+    return (len(system) + sum(len(m["content"]) for m in messages)) // 4
+
+
 FINAL = ("done", "failed", "refused")
 CONTEXT_CHARS = 24_000
 THREAD_MESSAGES = 12
-TASK_CLASS = {"advisor": "advisor"}
+# The router's task class of a run comes from the charter's KIND (data in
+# agents/roles), never from a role name (contract hard rule 1).
+TASK_CLASS_OF_KIND = {"advisor": "advisor"}
 ALERT_TASK = "ops_alert"
+HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
+MIN_OUTPUT_TOKENS = 256  # a step needs at least this much room to answer at all
 
 
 @dataclass
@@ -91,6 +107,7 @@ class Runner:
         self.gateway = gateway
         self.live = live
         self.heartbeat = heartbeat or (lambda: None)
+        self.heartbeat_every_s = HEARTBEAT_EVERY_S
         self.s = hub.settings
 
     async def _tx(self) -> Any:
@@ -118,13 +135,15 @@ class Runner:
                 refuse = "employee_inactive"
             else:
                 lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])
-                if lock in ("holding", "company"):
+                if lock is not None:  # kill switch (holding or company) or a deploy freeze
                     refuse = "locked"
                 elif (
                     self.s.agent_daily_token_cap
                     and await self._spent_today(tx) >= self.s.agent_daily_token_cap
                 ):
                     refuse = "daily_cap"
+                elif run["work_id"] is not None:
+                    refuse = await self._work_refusal(tx, run["work_id"])
             if refuse is None and await tx.scalar(
                 "SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running'",
                 e=run["employee_id"],
@@ -175,6 +194,18 @@ class Runner:
                 },
             )
         return Claim("running")
+
+    async def _work_refusal(self, tx: Tx, work_id: UUID) -> str | None:
+        """A run for work that is closed (done, cancelled, failed) or whose
+        dollar budget is spent has nothing to do (prompt 5.1 §2.6)."""
+        w = await tx.first(
+            "SELECT status, budget_usd, usd_used FROM work.work WHERE id = :id", id=work_id
+        )
+        if w is None or w["status"] in ("done", "cancelled", "failed"):
+            return "work_closed"
+        if w["budget_usd"] is not None and Decimal(w["usd_used"]) >= Decimal(w["budget_usd"]):
+            return "budget_used_up"
+        return None
 
     async def _employee(self, tx: Tx, employee_id: UUID) -> dict[str, Any]:
         return await tx.one(
@@ -311,23 +342,36 @@ class Runner:
         steps_cap = int(run["steps_cap"] or charter.limits.steps_per_run)
         token_cap = int(run["token_cap"] or charter.limits.tokens_per_run)
         per_step = charter.limits.tokens_per_step
+        # The advisor's streamed answer is a step too: it counts inside the cap.
+        research_steps = steps_cap - 1 if advisor and live_thread else steps_cap
         if live_thread:
             await self._live(live_thread, rc, "reply.started", {})
         done = False
         n = 0
         bad_outputs = 0
-        while n < steps_cap and not done:
+        while n < research_steps and not done:
             if await self._locked(run["company_id"]):
-                return "refused", "locked", "the kill switch was engaged during the run"
+                return (
+                    "refused",
+                    "locked",
+                    "a kill switch or a deploy freeze was engaged during the run",
+                )
             if time.monotonic() > deadline:
                 break
             left = token_cap - rc.used_tokens
             if left < min(per_step, token_cap) // 4 or left <= 0:
                 break
+            # Hard: the next prompt plus its capped output must fit in what is left.
+            room = min(per_step, left - prompt_tokens(system, rc.messages))
+            if room < MIN_OUTPUT_TOKENS:
+                break
+            if await self._daily_cap_reached():
+                return "failed", "daily_cap", "the hub's daily agent token cap was reached"
             n += 1
             self.heartbeat()
-            call = await self._model_step(rc, system, n)
+            call = await self._model_step(rc, system, n, max_output=room)
             if not call.ok:
+                await self._book(rc, call)  # a failed call's tokens are spent too
                 await self._record_step(rc, n, "", [], call)
                 if call.code in ("quota_throttled", "company_locked", "budget_exhausted"):
                     return "failed", str(call.code), None
@@ -341,7 +385,7 @@ class Runner:
                 if bad_outputs >= 2:
                     return "failed", "invalid_output", None
                 rc.messages += [
-                    {"role": "assistant", "content": (call.text or "")[:4000] or "{}"},
+                    {"role": "assistant", "content": scrub((call.text or "")[:4000]) or "{}"},
                     {
                         "role": "user",
                         "content": "Your answer was not the JSON object of the protocol. "
@@ -349,21 +393,25 @@ class Runner:
                     },
                 ]
                 continue
-            rc.summaries.append(step.summary_fa)
+            summary = scrub(step.summary_fa)  # stored and shown to the owner
+            rc.summaries.append(summary)
             results = []
             for i, action in enumerate(step.actions):
                 self.heartbeat()
                 out = await self.gateway.call(rc.token, n, i, action.tool, action.args)
                 results.append({"tool": action.tool, **out})
                 await self._after_action(rc, action, out, live_thread)
-            await self._record_step(rc, n, step.summary_fa, results, call)
-            done = step.done
+            await self._record_step(rc, n, summary, results, call)
+            # "done" next to an action refused for its arguments is not done: the
+            # model gets the field errors and one more step to fix them.
+            fixable = any(r.get("code") == "invalid_args" for r in results)
+            done = step.done and not fixable
             rc.messages += [
                 {
                     "role": "assistant",
                     "content": json.dumps(
                         {
-                            "summary_fa": step.summary_fa,
+                            "summary_fa": summary,
                             "actions": [{"tool": a.tool, "args": a.args} for a in step.actions],
                             "done": step.done,
                         },
@@ -383,14 +431,24 @@ class Runner:
                 },
             ]
         if advisor and live_thread and rc.replied is None:
-            return await self._answer(rc, system, n + 1, live_thread)
+            return await self._answer(rc, system, n + 1, live_thread, deadline)
         if live_thread and rc.replied is None and not done:
             await self._live(live_thread, rc, "reply.failed", {"code": "no_reply"})
         if done:
             return "done", None, None
         return await self._partial(rc, n)
 
-    async def _model_step(self, rc: RunCtx, system: str, n: int) -> ModelCall:
+    async def _daily_cap_reached(self) -> bool:
+        """The hub's daily agent token cap, checked before EVERY model call
+        (prompt 5.1 §2.6), not only when a run is claimed."""
+        if not self.s.agent_daily_token_cap:
+            return False
+        async with await self._tx() as tx:  # every company's runs (RLS)
+            return await self._spent_today(tx) >= self.s.agent_daily_token_cap
+
+    async def _model_step(
+        self, rc: RunCtx, system: str, n: int, *, max_output: int | None = None
+    ) -> ModelCall:
         run, emp, charter = rc.run, rc.emp, rc.charter
         body = {
             "company_code": emp["company"],
@@ -412,6 +470,8 @@ class Runner:
                 "trigger": run["trigger"],
             },
         }
+        if max_output:
+            body["max_output_tokens"] = max_output  # the step's hard cap (§2.6)
         if run["model"]:
             body["model"] = run["model"]
         if run["effort"]:
@@ -419,14 +479,16 @@ class Runner:
         return await self._with_heartbeat(self.router.run(body, self.s.agent_step_timeout_s))
 
     def _task_class(self, rc: RunCtx) -> str:
-        if rc.charter.role in TASK_CLASS:
-            return TASK_CLASS[rc.charter.role]
+        if rc.charter.kind in TASK_CLASS_OF_KIND:
+            return TASK_CLASS_OF_KIND[rc.charter.kind]
         return ALERT_TASK if rc.run["trigger"] == "alert" else "general"
 
     async def _with_heartbeat(self, aw: Awaitable[ModelCall]) -> ModelCall:
+        """A model call (a step, or the advisor's streamed answer) beating the
+        activity's heartbeat while it waits, far inside its 3-minute timeout."""
         task = asyncio.ensure_future(aw)
         while True:
-            done, _ = await asyncio.wait({task}, timeout=20)
+            done, _ = await asyncio.wait({task}, timeout=self.heartbeat_every_s)
             if done:
                 return task.result()
             self.heartbeat()
@@ -445,30 +507,52 @@ class Runner:
         if action.tool == "deliver":
             rc.delivered = True
         if action.tool in ("message.thread", "message.owner") and live_thread:
-            target = action.args.get("thread") if action.tool == "message.thread" else live_thread
+            args = action.args if isinstance(action.args, dict) else {}
+            target = args.get("thread") if action.tool == "message.thread" else live_thread
             if target == live_thread and out.get("ref"):
-                body = action.args.get("body_md")
-                if isinstance(body, str):
-                    await self._live(live_thread, rc, "reply.delta", {"text": body[:4000]})
+                body = args.get("body_md")
+                if isinstance(body, str):  # masked like everything the owner sees live
+                    await self._live(live_thread, rc, "reply.delta", {"text": scrub(body)[:4000]})
                 rc.replied = str(out["ref"])
                 await self._live(live_thread, rc, "reply.done", {"message_ref": rc.replied})
 
     async def _answer(
-        self, rc: RunCtx, system: str, n: int, thread: str
+        self, rc: RunCtx, system: str, n: int, thread: str, deadline: float
     ) -> tuple[str, str | None, str | None]:
-        """The advisor's answer, streamed live, then stored with its citations."""
-        if rc.used_tokens >= int(rc.run["token_cap"] or rc.charter.limits.tokens_per_run):
-            await self._live(thread, rc, "reply.failed", {"code": "token_cap"})
-            return "failed", "token_cap", None
+        """The advisor's answer, streamed live, then stored with its citations.
+        It is a step like the others: lock, time, tokens and the daily cap are
+        checked before it, and its output is capped like a step's."""
+        system = system + "\n\n" + P.ANSWER_PHASE
+        messages = [*rc.messages, {"role": "user", "content": "Write the answer to the owner now."}]
+        left = int(rc.run["token_cap"] or rc.charter.limits.tokens_per_run) - rc.used_tokens
+        room = min(rc.charter.limits.tokens_per_step, left - prompt_tokens(system, messages))
+        stop: tuple[str, str | None, str | None] | None = None
+        if await self._locked(rc.run["company_id"]):
+            stop = (
+                "refused",
+                "locked",
+                "a kill switch or a deploy freeze was engaged during the run",
+            )
+        elif time.monotonic() > deadline:
+            stop = ("failed", "time_limit", None)
+        elif room < MIN_OUTPUT_TOKENS:
+            stop = ("failed", "token_cap", None)
+        elif await self._daily_cap_reached():
+            stop = ("failed", "daily_cap", "the hub's daily agent token cap was reached")
+        if stop is not None:
+            await self._live(thread, rc, "reply.failed", {"code": stop[1]})
+            return stop
         flt = P.StreamFilter()
+        masked = P.ScrubBuffer()
         chunks: list[str] = []
         assert self.live is not None
 
         async with self.live.open(thread, rc.token) as send:
 
             def on_delta(text: str) -> None:
+                self.heartbeat()  # a long answer keeps the activity alive (§2.5)
                 chunks.append(text)
-                visible = flt.feed(text)
+                visible = masked.feed(flt.feed(text))
                 if visible:
                     send("reply.delta", {"text": visible})
 
@@ -479,12 +563,10 @@ class Runner:
                 "employee": rc.emp["code"],
                 "task_class": self._task_class(rc),
                 "priority": rc.run["priority"],
-                "system": system + "\n\n" + P.ANSWER_PHASE,
-                "messages": [
-                    *rc.messages,
-                    {"role": "user", "content": "Write the answer to the owner now."},
-                ],
+                "system": system,
+                "messages": messages,
                 "timeout_s": self.s.agent_step_timeout_s,
+                "max_output_tokens": room,
                 "meta": {
                     "charter": f"{rc.charter.role}@{rc.charter.version}",
                     "run_id": str(rc.run["id"]),
@@ -498,11 +580,14 @@ class Runner:
             if rc.run["effort"]:
                 body["effort"] = rc.run["effort"]
             self.heartbeat()
-            call = await self.router.stream(body, self.s.agent_step_timeout_s, on_delta)
-            tail = flt.flush()
+            call = await self._with_heartbeat(
+                self.router.stream(body, self.s.agent_step_timeout_s, on_delta)
+            )
+            tail = masked.feed(flt.flush()) + masked.flush()
             if tail:
                 send("reply.delta", {"text": tail})
             if not call.ok:
+                await self._book(rc, call)  # a failed call's tokens are spent too
                 await self._record_step(rc, n, "", [], call)
                 send("reply.failed", {"code": call.code or "model_error"})
                 return "failed", (call.code or "model_error")[:40], None
@@ -576,11 +661,22 @@ class Runner:
             "owner_timezone": tz,
         }
 
+    async def read_scope(self, rc: RunCtx) -> list[UUID]:
+        """The companies a run may read: its charter's scope (prompt 5.1 §1.1),
+        every company for a holding charter in the holding, else its own."""
+        holding = await self.hub.companies.holding()
+        if rc.charter.scope == "holding" and rc.emp["company_id"] == holding.id:
+            return await self.hub.companies.ids()
+        return [rc.emp["company_id"]]
+
     async def _context(self, rc: RunCtx) -> str:
-        """The trigger and what the role needs to act on it (never a secret)."""
+        """The trigger and what the role needs to act on it (never a secret).
+        Read in a transaction scoped to the charter (RLS), and every record a
+        message points at is filtered by that scope too."""
         run, emp = rc.run, rc.emp
         parts = [f"# Trigger\n{run['trigger']} ({run['reason']})"]
-        async with await self._tx() as tx:
+        scope = await self.read_scope(rc)
+        async with self.hub.db.tx(scope) as tx:
             lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])
             presence = await tx.one("SELECT khalvat FROM owner.presence WHERE id = 1")
             parts.append(
@@ -600,23 +696,32 @@ class Runner:
                     t=run["thread_id"],
                     n=THREAD_MESSAGES,
                 )
+                seen = await self._visible_links(tx, msgs, scope)
                 lines = []
                 for m in reversed(msgs):
                     who = "owner" if m["author_kind"] == "owner" else m["author_code"]
-                    links = f" links={json.dumps(m['links'])}" if m["links"] else ""
+                    shown = {k: v for k, v in (m["links"] or {}).items() if (k, v) in seen}
+                    links = f" links={json.dumps(shown)}" if shown else ""
                     lines.append(f"[{m['ref']}] {who}{links}: {m['body'][:3000]}")
                 parts.append(
                     "# Conversation (oldest first; answer the owner's latest)\n" + "\n".join(lines)
                 )
                 decision = next(
-                    (m["links"].get("decision") for m in msgs if m["links"].get("decision")), None
+                    (
+                        m["links"]["decision"]
+                        for m in msgs
+                        if ("decision", (m["links"] or {}).get("decision")) in seen
+                    ),
+                    None,
                 )
                 if decision:
                     d = await tx.first(
                         """SELECT d.ref, c.code AS company, d.kind, d.title, d.what, d.why, d.risk, d.reversible,
                                   d.quota_tokens, d.quota_usd, d.payload, d.status, d.proposer_code
-                           FROM cartable.decisions d JOIN core.companies c ON c.id = d.company_id WHERE d.ref = :r""",
+                           FROM cartable.decisions d JOIN core.companies c ON c.id = d.company_id
+                           WHERE d.ref = :r AND d.company_id = ANY(:scope)""",
                         r=decision,
+                        scope=scope,
                     )
                     if d:
                         parts.append(
@@ -631,7 +736,37 @@ class Runner:
             parts.append(
                 "# Your memory (latest first)\n" + "\n".join(f"- {n['note'][:500]}" for n in notes)
             )
-        return P.trim("\n\n".join(parts), CONTEXT_CHARS)
+        # What a model reads never carries a secret or personal data (prompt 5.1
+        # §2.1): cut first (bounded work), masked, then trimmed to size.
+        raw = "\n\n".join(parts)
+        return P.trim(await scrub_async(raw[: CONTEXT_CHARS * 2]), CONTEXT_CHARS)
+
+    async def _visible_links(
+        self, tx: Tx, msgs: list[dict[str, Any]], scope: list[UUID]
+    ) -> set[tuple[str, Any]]:
+        """The (kind, ref) links of `msgs` that resolve inside the run's read
+        scope; a pointer to anything else never reaches the prompt."""
+        seen: set[tuple[str, Any]] = set()
+        for m in msgs:
+            corrects = (m["links"] or {}).get("corrects")
+            if corrects:
+                seen.add(("corrects", corrects))  # a message of this same thread
+        for kind, table in LINK_TABLES.items():
+            refs = sorted(
+                {
+                    str(m["links"][kind])
+                    for m in msgs
+                    if isinstance((m["links"] or {}).get(kind), str)
+                }
+            )
+            if refs:
+                rows = await tx.all(
+                    f"SELECT ref FROM {table} WHERE ref = ANY(:refs) AND company_id = ANY(:scope)",  # noqa: S608
+                    refs=refs,
+                    scope=scope,
+                )
+                seen |= {(kind, r["ref"]) for r in rows}
+        return seen
 
     async def _work_brief(self, tx: Tx, work_id: UUID) -> dict[str, Any]:
         w = await tx.one(
@@ -678,9 +813,10 @@ class Runner:
             log.warning("live update not sent", extra={"type": type_})
 
     async def _locked(self, company_id: UUID) -> bool:
+        """A kill switch (holding or company) or a deploy freeze (contract §16.6)."""
         async with self.hub.db.raw() as tx:
             state = await tx.scalar("SELECT control.lock_state(:co)", co=company_id)
-        return state in ("holding", "company")
+        return state is not None
 
     # ------------------------------------------------------------ records --
     async def _book(self, rc: RunCtx, call: ModelCall) -> None:
@@ -710,7 +846,9 @@ class Runner:
                         t=call.tokens,
                         u=usd,
                     )
-            except Exception:  # noqa: BLE001 - HQB01: the budget was already used up
+            except DBAPIError as exc:
+                if sqlstate_of(exc) != "HQB01":  # only "no budget left" ends the run's tokens
+                    raise
                 log.warning(
                     "work spending refused (budget used up)", extra={"run_id": str(rc.run["id"])}
                 )

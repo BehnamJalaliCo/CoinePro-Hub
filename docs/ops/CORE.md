@@ -9,7 +9,7 @@
  مرورگر / اندروید ──HTTPS──► Caddy ──(/api/* فقط وقتی دامنه هست)──► api :8000
                                 │    (/internal/* هرگز)                │
                                 └──(هر مسیر دیگر)──► web :3000 (پروفایل web)
- ایجنت‌ها: worker ──► gateway (hq-core) ──► /internal/v1 ───────────────┤
+ ایجنت‌ها: worker ──► gateway (hq-agent) ──► /internal/v1 ──────────────┤
                                                                       ├──► Postgres (RLS FORCE)
                                                                       ├──► OPA (سیاست‌ها، fail-closed)
                                                                       ├──► NATS JetStream HQ_CORE ──► SSE /api/v1/stream
@@ -23,13 +23,14 @@
 | `api` | `/api/v1` و `/internal/v1` | uid 10001؛ rootfs فقط‌خواندنی؛ tmpfs ۳۲MB؛ `cap_drop: ALL`؛ volume ‏`hq-files` | AppRole ‏`hq-api` |
 | `worker` | گردش‌کارهای Temporal و پل NATS | مثل api | AppRole ‏`hq-worker` |
 | `opa` | سیاست‌های `infra/opa/policy` | uid 1000 (ایمیج distroless)؛ rootfs فقط‌خواندنی | — |
-| `gateway` (پرامپت ۵) | Tool Gateway: هر اقدام ایجنت، با توکن `hqa1` همان اجرا (`docs/ops/AGENTS.md`) | uid 10001؛ rootfs فقط‌خواندنی؛ `cap_drop: ALL`؛ **فقط `hq-core`** | فقط SHA-256 توکن worker |
+| `gateway` (پرامپت ۵) | Tool Gateway: هر اقدام ایجنت، با توکن `hqa1` همان اجرا (`docs/ops/AGENTS.md`) | uid 10001؛ rootfs فقط‌خواندنی؛ `cap_drop: ALL`؛ **فقط `hq-agent`** | فقط SHA-256 توکن worker |
 | `web` (پرامپت ۵) | پنل Next.js (`apps/web`، مال Claude سشن مشورت) | uid 10001؛ rootfs فقط‌خواندنی؛ tmpfs برای `/tmp` و کش | — |
 
 - **شبکه‌ها (۴.۱):**
-  - `api` و `worker` روی `hq-internal` و `hq-core` هستند.
-  - `opa`، `temporal`، `temporal-namespace` و `temporal-ui` **فقط** روی `hq-core` (`172.30.2.0/24`) هستند. Postgres و Prometheus هم به آن وصل‌اند: Temporal به Postgres نیاز دارد و Prometheus متریک Temporal را میخواند.
-  - هیچ کانتینر دیگری روی `hq-internal` به OPA یا به پورت 7233 ‏Temporal نمیرسد. یک گیت این را بررسی میکند.
+  - `api` و `worker` روی `hq-internal`، `hq-core` و `hq-agent` هستند.
+  - `temporal`، `temporal-namespace` و `temporal-ui` **فقط** روی `hq-core` (`172.30.2.0/24`) هستند. Postgres و Prometheus هم به آن وصل‌اند: Temporal به Postgres نیاز دارد و Prometheus متریک Temporal را میخواند.
+  - `opa` و `gateway` **فقط** روی `hq-agent` (`172.30.3.0/24`، internal؛ پرامپت ۵.۱ §۲.۹) هستند، با worker و api. gateway به Temporal و Postgres نمیرسد.
+  - هیچ کانتینر دیگری روی `hq-internal` به OPA، gateway یا پورت 7233 ‏Temporal نمیرسد. `compose-rules` و `make verify-live` این را بررسی میکنند.
   - هیچ‌کدام پورت عمومی ندارند؛ فقط Caddy روی 80/443 است.
 - نقش‌های دیتابیس: `hq_api` و `hq_worker`، هر دو با کمترین دسترسی (`infra/postgres/provision.sh`؛ grantها در migrationها). **هیچ نقشی حق DELETE روی داده‌ی کسب‌وکار ندارد.**
 - OpenBao: policy‌های `hq-api` (خواندن `kv/hq-api/*`؛ کلید اتصال‌ها فقط **نوشتنی**) و `hq-worker` (Web Push، کانال‌ها، `kv/hq-api/config` و از پرامپت ۵ `kv/hq-agents/runtime`: توکن فراخواننده‌ی `hq-agents` روی llm-router و توکن gateway). `make bootstrap` و `make up` آن‌ها را میسازند (`infra/openbao/provision.sh`).
@@ -134,6 +135,8 @@ OPA با `--authorization=basic` و `system.authz` اجرا میشود: فقط `
 - **چرخه:** پیشنهاد (`/internal/v1/decisions`) ← کارتابل و اعلان 🟡 ← تصمیم مالک (با 🔏 برای A3، `hire`، `dismissal` و `budget_change`)، یا مدیرعامل در حد اختیارش ← مصوبه‌ی `M-…` ← پیام سیستمی به thread پیشنهاددهنده ← **اثر** در worker (`hire`: کارمند با کد بعدی + تخصیص مدل در `llm.assignments` با `role` و `<CO>:<کد>`؛ `recurring_approval`: پاکت و زمان‌بندی فعال و اجرای اول؛ `dismissal`؛ `budget_change`) ← کار پیگیری برای `deploy`، `a3_action` و `proposal`.
 - **امتیاز ۱ تا ۱۰** روی هر خروجی؛ امتیازدهی دوباره تا ۷ روز نسخه‌ی جدید میسازد و تاریخچه میماند. فرمول امتیاز کارمند (§۱.۱۶) در `hq_api/domain/scoring.py` است و شبانه و بعد از هر امتیاز حساب میشود.
 - **پیام‌ها تغییرناپذیرند.** اصلاح یعنی پیام تازه با `links.corrects`.
+- **پیوندهای پیام (۵.۱ §۱.۱):** هر `decision`، `work` یا `resolution` در `links` باید وجود داشته باشد و در شرکت thread یا دامنه‌ی خواندن نویسنده باشد، وگرنه `422` (`fields.links`).
+- **استخدام (۵.۱ §۱.۳، قرارداد §۱۸.۱۱):** تا مالک استخدام را باز نکند، پیشنهاد `hire` ایجنت ← `403 hiring_closed` و هیچ کارتی ساخته نمیشود. کارت‌های در انتظار `withdrawn` میشوند (حذف نه). مالک مستقیم با `POST /org/hires` 🔏 استخدام میکند. جزئیات در `docs/ops/AGENTS.md` §۷.
 
 ## ۸. اعلان‌ها و خلوت
 
@@ -158,6 +161,7 @@ OPA با `--authorization=basic` و `system.authz` اجرا میشود: فقط `
 
 - JetStream ‏`HQ_CORE` (نگهداری ۳۰ روز) با موضوع‌های `hq.core.<company>.<type>`. هر تغییر در **outbox همان تراکنش** نوشته میشود و relay در api آن را با `Nats-Msg-Id` منتشر میکند، پس هیچ تغییر ثبت‌شده‌ای بی‌رویداد نمیماند.
 - `GET /api/v1/stream` (SSE) با فیلتر `topics` و `company`، ادامه با `Last-Event-ID` (همان sequence ‏JetStream) و heartbeat هر ۱۵ ثانیه. `company=*` فقط شمارنده و `activity.changed` میدهد.
+- **topicها:** `work`، `decisions`، `deliverables`، `messages`، `notifications`، `activity`، `llm`، `control` (همراه `presence.*` و `hiring.*`) و `runs` (`run.*`؛ ۵.۱). **topic ناشناخته نادیده گرفته میشود**، چون کلاینت میتواند topicهای نسخه‌ی بعد را بخواهد. اولین comment هر اتصال topicهای سرو‌شده را میگوید (`: topics work,...`). فقط `topics` بدشکل `422` میگیرد.
 - worker رویدادهای `hq.llm.*` و هشدارهای `hq.alerts.*` ‏llm-router را **فقط با متادیتا** به HQ_CORE میآورد. هشدار بودجه (۷۰/۹۰ ← 🔵، ۱۰۰ ← 🔴)، ناهنجاری (🔴) و نسبت هزینه‌ی SDK (🔵) اعلان هم میشوند.
 - **هیچ متن پیام، prompt یا رازی روی NATS، در Audit یا در لاگ نمیرود.** این را تست هم میکنیم.
 
@@ -184,7 +188,7 @@ OPA با `--authorization=basic` و `system.authz` اجرا میشود: فقط `
 |---|---|---|---|
 | کلید **هلدینگ** روشن | هر اقدام نوشتنی ایجنت‌ها ← `423 company_locked` | فقط P0 | اجراهای دائمی و اثر تصمیم‌ها صبر میکنند؛ گزارش، Audit، امتیاز و پله‌ی عقب‌افتادگی ادامه دارند |
 | کلید **یک شرکت** روشن | همان، فقط برای آن شرکت | فقط P0 برای آن شرکت | اجراهای دائمی همان شرکت رد میشوند |
-| **توقف deploy** | اقدام نوشتنی ایجنت‌های آن شرکت ← `423` | بی‌اثر (فکر کردن مجاز است) | — |
+| **توقف deploy** | اقدام نوشتنی ایجنت‌های آن شرکت ← `423` | بی‌اثر | اجرای ایجنت‌های آن شرکت پیش از قدم بعد `refused` میشود (۵.۱ §۲.۶؛ قرارداد §۱۶.۶) |
 
 مالک هیچ‌وقت قفل نمیشود. روشن کردن کلید step-up نمیخواهد، چون سرعت مهم است، ولی **آزاد کردنش 🔏 میخواهد.**
 

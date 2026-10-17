@@ -3,6 +3,7 @@ org chart. Companies are data: adding one is a record plus a template."""
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -13,6 +14,7 @@ from pydantic import BaseModel, Field
 from hq_api import pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
+from hq_api.domain import decisions as D
 from hq_api.domain import org, templates
 from hq_api.errors import ApiError, responses
 from hq_api.http import check_version, if_match
@@ -759,3 +761,111 @@ async def org_chart(company: str, ctx: Ctx = Depends(owner_ctx)) -> Chart:
         parent = nodes.get(r["reports_to"]) if r["reports_to"] else None
         (parent.children if parent else roots).append(nodes[r["id"]])
     return Chart(company=company, roots=roots)
+
+
+# ------------------------------------------------------------ direct hire --
+DIRECT_REASON = "استخدام مستقیم مالک"
+
+
+class DirectHireIn(Model):
+    """The owner hires directly (contract §18.11)."""
+
+    company: str = Field(pattern=CODE)
+    department: str = Field(pattern=DEPT_CODE)
+    role: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    title_fa: str = Field(min_length=1, max_length=200)
+    title_en: str | None = Field(default=None, min_length=1, max_length=200)
+    model: str | None = Field(default=None, min_length=3, max_length=100)
+    effort: D.Effort | None = None
+    reason: str | None = Field(default=None, min_length=1, max_length=5000)
+    duties: list[str] = Field(default_factory=list, max_length=50)
+    reports_to: str | None = Field(default=None, pattern=D.EMP)
+    quota_estimate_month: D.Quota | None = None
+
+
+class DirectHire(BaseModel):
+    employee: org.Employee
+    decision: D.Decision
+
+
+@router.post(
+    "/org/hires",
+    response_model=DirectHire,
+    status_code=201,
+    responses=responses(401, 403, 404, 422),
+)
+async def direct_hire(
+    body: DirectHireIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> DirectHire:
+    """🔏 (`hire.direct`, target = SHA-256 of the exact body) the owner hires
+    directly: a `hire` decision proposed **and** sealed by the owner in one
+    transaction (approved, resolution M-…), then the employee. The same checks
+    as an agent's proposal (the charter `role` must fit the company and the
+    department); `model`, `effort` and `title_en` default to the charter's."""
+    target = hashlib.sha256(await request.body()).hexdigest()
+    co = await ctx.hub.companies.by_code(body.company)
+    charter = ctx.hub.charters.get(body.role) if ctx.hub.charters is not None else None
+    payload: dict[str, Any] = {
+        "company": co.code,
+        "department": body.department,
+        "role": body.role,
+        "title_fa": body.title_fa,
+        "title_en": body.title_en or (charter.title_en if charter else body.title_fa),
+        "reason": body.reason or DIRECT_REASON,
+        "duties": body.duties,
+        "model": body.model or (charter.model if charter else ""),
+        "effort": body.effort or (charter.effort if charter else "medium"),
+    }
+    if body.reports_to:
+        payload["reports_to"] = body.reports_to
+    if body.quota_estimate_month:
+        payload["quota_estimate_month"] = body.quota_estimate_month.model_dump(
+            mode="json", exclude_none=True
+        )
+    # Before the step-up is consumed: the charter must fit (422 otherwise).
+    D.check_hire_role(payload, co.kind, ctx.hub.charters, required=True)
+    async with ctx.tx() as tx:
+        su = await stepup.consume(tx, request, ctx.who, "hire.direct", target)
+        d = await D.propose(
+            tx,
+            ctx.who,
+            company_id=co.id,
+            company_code=co.code,
+            body=D.DecisionIn(
+                kind="hire",
+                title=f"استخدام مستقیم: {body.title_fa}"[:300],
+                what=f"{body.title_fa} ({body.role}) در {co.code}-{body.department}",
+                why=payload["reason"],
+                quota_estimate=body.quota_estimate_month,
+                payload=payload,
+            ),
+            thread_code=None,
+            charters=ctx.hub.charters,
+            company_kind=co.kind,
+            notify_owner=False,
+        )
+        d = await D.decide(tx, ctx.who, d, "approved", note=None, step_up_id=su)
+        out = await D.apply_effect(tx, d["ref"], ctx.who)
+        await ctx.audit(
+            tx,
+            company_id=co.id,
+            action="hire.direct",
+            action_class="A2",
+            target_kind="employee",
+            target_ref=out["employee"],
+            summary=f"{body.role} in {co.code}-{body.department} ({d['ref']})",
+            step_up=True,
+        )
+        await ctx.interaction(
+            tx,
+            company_id=co.id,
+            kind="decision",
+            action="hire.direct",
+            target_kind="decision",
+            target_ref=d["ref"],
+            data={"employee": out["employee"], "role": body.role},
+        )
+        row = await org.load_employee(tx, out["employee"])
+        employee = (await _render_many(ctx, tx, [row]))[0]
+        decision = D.render(await D.load(tx, d["ref"]))
+    return DirectHire(employee=employee, decision=decision)

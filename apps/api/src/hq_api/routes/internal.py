@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, workflows_client
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
-from hq_api.domain import control, notify, org
+from hq_api.domain import control, hiring, notify, org
 from hq_api.domain import decisions as D
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
@@ -396,6 +396,94 @@ async def delegate_work(
     return result
 
 
+async def _run_ledger(tx: Tx, actor: str, run_id: str) -> tuple[UsageIn, dict[str, Any]]:
+    """Usage (every token kind and both costs) and the connection, provider,
+    model and effort of a run, from llm.calls (the router's ledger)."""
+    row = await tx.one(
+        """SELECT COALESCE(sum(c.input_tokens), 0) AS i, COALESCE(sum(c.output_tokens), 0) AS o,
+                  COALESCE(sum(c.cache_read_tokens), 0) AS cr, COALESCE(sum(c.cache_write_tokens), 0) AS cw,
+                  COALESCE(sum(c.equiv_cost_usd), 0) AS eq, COALESCE(sum(c.cost_usd), 0) AS usd,
+                  (array_agg(cn.key ORDER BY c.started_at DESC))[1] AS connection,
+                  (array_agg(c.provider ORDER BY c.started_at DESC))[1] AS provider,
+                  (array_agg(c.model ORDER BY c.started_at DESC) FILTER (WHERE c.model IS NOT NULL))[1] AS model,
+                  (array_agg(c.effort ORDER BY c.started_at DESC) FILTER (WHERE c.effort IS NOT NULL))[1] AS effort
+           FROM llm.calls c LEFT JOIN llm.connections cn ON cn.id = c.connection_id
+           WHERE c.actor_ref = :actor AND c.meta->>'run_id' = :run
+             AND c.started_at >= (SELECT COALESCE(r.started_at, r.queued_at) - interval '1 minute'
+                                  FROM agents.runs r WHERE r.id = CAST(:run AS uuid))""",
+        actor=actor,
+        run=run_id,
+    )
+    usage = UsageIn(
+        input_tokens=int(row["i"]),
+        output_tokens=int(row["o"]),
+        cache_read_tokens=int(row["cr"]),
+        cache_write_tokens=int(row["cw"]),
+        equiv_cost_usd=Decimal(row["eq"]),
+        cost_usd=Decimal(row["usd"]),
+    )
+    produced = {
+        k: row[k] for k in ("connection", "provider", "model", "effort") if row[k] is not None
+    }
+    return usage, produced
+
+
+async def _request_budget(
+    ctx: Ctx, tx: Tx, body: WorkRequest
+) -> tuple[UUID | None, W.BudgetIn | None]:
+    """An agent's request opens root work that would wake another agent:
+    without a budget and a bound, two managers (or CEOs) could wake each other
+    for ever (prompt 5.1 §2.6). The request is tied to the work it came from
+    (the run's own work by default); its token budget is what that work has
+    left, at most AGENT_REQUEST_BUDGET_TOKENS (and never more than asked);
+    a chain of requests is at most AGENT_REQUEST_CHAIN_MAX hops long."""
+    s = ctx.hub.settings
+    origin = body.requested_by_work_id
+    if origin is None and ctx.who.run_id is not None:
+        origin = await tx.scalar(
+            """SELECT r.work_id FROM agents.runs r JOIN work.work w ON w.id = r.work_id
+               WHERE r.id = CAST(:run AS uuid) AND w.company_id = :co""",
+            run=ctx.who.run_id,
+            co=ctx.who.company_id,
+        )
+    cap = s.agent_request_budget_tokens
+    if origin is not None:
+        # Every company's view: a chain may have crossed companies (CEO to CEO).
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as all_tx:
+            hops = await all_tx.scalar(
+                """WITH RECURSIVE chain(id, hops) AS (
+                       SELECT w.root_id, 0 FROM work.work w WHERE w.id = :id
+                       UNION ALL
+                       SELECT p.root_id, c.hops + 1 FROM chain c
+                       JOIN work.work r ON r.id = c.id
+                       JOIN work.work p ON p.id = r.requested_by_work_id
+                       WHERE c.hops < 20)
+                   SELECT max(hops) FROM chain""",
+                id=origin,
+            )
+            left = await all_tx.first(
+                """SELECT budget_tokens - tokens_used
+                          - (SELECT COALESCE(sum(c.budget_tokens), 0) FROM work.work c WHERE c.parent_id = w.id)
+                          AS left
+                   FROM work.work w WHERE w.id = :id AND budget_tokens IS NOT NULL""",
+                id=origin,
+            )
+        if int(hops or 0) + 1 > s.agent_request_chain_max:
+            raise ApiError(
+                409,
+                "delegation_depth_exceeded",
+                f"a chain of requests is at most {s.agent_request_chain_max} long",
+            )
+        if left is not None:
+            cap = max(0, min(cap, int(left["left"])))
+    if body.kind == "recurring":  # bounded by its escrow, approved by a decision
+        return origin, body.budget
+    asked = body.budget.tokens if body.budget and body.budget.tokens is not None else None
+    tokens = min(asked, cap) if asked is not None else cap
+    usd = body.budget.usd if body.budget else None
+    return origin, W.BudgetIn(tokens=tokens, usd=usd)
+
+
 @router.post("/work/{id}/deliver", response_model=DeliverOut, responses=E)
 async def deliver_work(
     id: UUID, body: Deliver, request: Request, ctx: Ctx = Depends(internal_ctx)
@@ -418,9 +506,13 @@ async def deliver_work(
             if n != len(set(body.attachments)):
                 raise ApiError(422, "validation_failed", fields={"attachments": "unknown files"})
         pw = body.produced_with.model_dump(exclude_none=True)
+        u = body.usage
+        if ctx.who.run_id is not None:
+            # A registered run: what the deliverable cost and what produced it come
+            # from the run's own ledger rows, never from the agent (prompt 5.1 §2.7).
+            u, pw = await _run_ledger(tx, ctx.who.code, ctx.who.run_id)
         if "label_fa" not in pw and pw.get("model"):
             pw["label_fa"] = f"انجام‌شده با {pw['model']}"
-        u = body.usage
         dl = await tx.one(
             """INSERT INTO cartable.deliverables (company_id, work_id, producer_id, title, summary, body,
                    attachments, produced_with, usage, evidence)
@@ -559,6 +651,7 @@ async def request_work(
             raise ApiError(
                 422, "validation_failed", fields={"requested_by_work_id": "unknown work of yours"}
             )
+        requested_by, budget = await _request_budget(ctx, tx, body)
         w = await W.create(
             tx,
             ctx.who,
@@ -571,10 +664,10 @@ async def request_work(
             department_code=body.department,
             assignee_code=body.to,
             due_at=body.due_at,
-            budget=body.budget,
+            budget=budget,
             escrow=body.escrow,
             schedule=body.schedule,
-            requested_by_work_id=body.requested_by_work_id,
+            requested_by_work_id=requested_by,
         )
         decision_ref = None
         if body.kind == "recurring":
@@ -631,10 +724,18 @@ async def propose_decision(
         raise ApiError(403, "policy_denied", "agents only")
     assert ctx.who.company is not None
     assert ctx.who.company_id is not None
+    # Hiring starts with the owner (§18.11): a hire while closed is refused before
+    # anything else, and OPA gets the state too (a second, fail-closed layer).
+    async with ctx.hub.db.raw() as rtx:
+        hiring_state = await hiring.state(rtx)
+    if body.kind == "hire" and hiring_state != "open":
+        raise ApiError(403, "hiring_closed")
     payload = D.validate_payload(body.kind, body.payload)  # 422 before the policy
     scope = payload.get("scope") if body.kind == "budget_change" else None
     await allow(
-        ctx, "decision.propose", {"company": ctx.who.company, "kind": body.kind, "scope": scope}
+        ctx,
+        "decision.propose",
+        {"company": ctx.who.company, "kind": body.kind, "scope": scope, "hiring": hiring_state},
     )
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)

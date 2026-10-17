@@ -19,5 +19,7 @@ sites:
   # Canary (prompt 05 §9.1): Caddy answers 503 here on purpose, so the whole
   # line (check -> incident -> work -> run -> deliverable) can be proven.
   # Proven on 2026-10-17 (I-0003 -> W-000004 -> HQ-AIOPS-MGR -> O-000003) and
-  # switched off; set enabled: true to prove it again (one real run).
+  # switched off; set enabled: true to prove it again (one real run), then
+  # `make up` (Caddy answers 503 only while it is enabled, else 404).
+  # Keep canary rows on one line: infra/compose/hq.sh reads this flag.
   - {company: HQ, url: "https://hq.coinepro.com/__canary", kind: api, canary: true, enabled: false}

@@ -78,7 +78,7 @@ installed() { # installed DEST -- already installed for its container?
   fi
   return 1
 }
-need_sudo() {
+need_sudo() { # need_sudo DEST -- call BEFORE the first write a file install depends on
   sudo -n true 2>/dev/null || die "first-time install of $1 needs sudo: run make bootstrap"
 }
 install_secret() { # install_secret OWNER_UID DEST < content
@@ -164,6 +164,9 @@ kv_put() { expect "$(api POST "kv/data/$1")" 200 204; }  # body on stdin
 
 prom_token="$SECRETS_DIR/services/prometheus/llm-metrics.token"
 if ! kv_exists llm-router/config || ! installed "$prom_token"; then
+  # The new tokens go to KV and to a file only sudo can install: without sudo
+  # stop before KV changes, or router, runtime and Prometheus would disagree.
+  need_sudo "$prom_token"
   runtime_token="$(newtoken)"
   metrics_token="$(newtoken)"
   RT="$runtime_token" MH="$(printf '%s' "$metrics_token" | sha256)" \
@@ -232,6 +235,9 @@ log "channel paths ready: kv/hq-api/channels/{fcm,telegram} (off until filled)"
 # digest of the worker's token as a file (600, uid 10001).
 gw_digest="$SECRETS_DIR/services/gateway/worker-token.sha256"
 if ! kv_exists hq-agents/runtime || ! installed "$gw_digest"; then
+  # As above: without sudo stop before the callers and KV change, or the
+  # gateway would keep the digest of a token the worker no longer has.
+  need_sudo "$gw_digest"
   llm_token="$(newtoken)"
   gw_token="$(newtoken)"
   expect "$(api GET kv/data/llm-router/callers </dev/null)" 200

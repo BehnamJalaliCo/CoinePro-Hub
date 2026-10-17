@@ -38,6 +38,7 @@ class BackendCall:
     json_schema: dict[str, Any] | None
     timeout_s: int
     actor_ref: str | None = None  # who calls (the fake backend's scripts use it)
+    max_output_tokens: int | None = None  # hard output cap of this call, when asked
 
 
 @dataclass

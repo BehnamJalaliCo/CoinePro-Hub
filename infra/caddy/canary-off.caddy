@@ -1,0 +1,4 @@
+# The site-check canary is switched off (HQ_CANARY=off): an unknown path.
+handle /__canary {
+	respond 404
+}

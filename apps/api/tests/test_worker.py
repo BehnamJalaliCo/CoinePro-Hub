@@ -176,6 +176,7 @@ def test_bridge_allow_lists_metadata() -> None:
 
 
 # ----------------------------------------------------------------- decisions --
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_hire_effect_via_decision_lifecycle(
     hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any]
 ) -> None:
@@ -215,6 +216,7 @@ async def test_hire_effect_via_decision_lifecycle(
     assert again["result"] in ("applied", "approved")
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_rejected_decision_ends_without_effect(
     hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any]
 ) -> None:
@@ -227,6 +229,7 @@ async def test_rejected_decision_ends_without_effect(
     assert out == {"ref": ref, "result": "rejected", "effect": "none"}
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_pending_decision_expires(
     hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any]
 ) -> None:
@@ -247,6 +250,7 @@ async def test_pending_decision_expires(
     assert (await wk["acts"].decision_expire(ref))["expired"] is False
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_effect_waits_while_the_holding_is_locked(
     hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any]
 ) -> None:
@@ -267,6 +271,7 @@ async def test_effect_waits_while_the_holding_is_locked(
     assert out["result"] == "applied"
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_rejected_effect_is_marked_failed_with_an_urgent_notification(
     hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any], owner_db: Database
 ) -> None:
@@ -296,6 +301,7 @@ async def test_rejected_effect_is_marked_failed_with_an_urgent_notification(
         )
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_reconcile_decisions_starts_missing_workflows(
     hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any]
 ) -> None:
@@ -776,6 +782,7 @@ async def test_bridge_forwards_metadata_only(
 
 
 # ------------------------------------------------------- remaining branches --
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_decision_already_expired_and_unscheduled_run(
     hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any]
 ) -> None:

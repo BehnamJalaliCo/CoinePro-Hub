@@ -3,11 +3,13 @@ to company A sees no row of company B, whatever the table."""
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+import pytest
 
 from hq_api.audit import SYSTEM
 from hq_api.domain import decisions as D
@@ -147,6 +149,11 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     await su.execute(
         "INSERT INTO agents.steps (run_id, company_id, n) VALUES ($1, $2, 1)", run, co["id"]
     )
+    # core.hiring (prompt 5.1) holds the holding's row only; a row of `co` here just
+    # proves the policy (core.hiring_state() reads the holding's).
+    await su.execute(
+        "INSERT INTO core.hiring (company_id) VALUES ($1) ON CONFLICT DO NOTHING", co["id"]
+    )
     await su.execute(
         "INSERT INTO core.employee_memory (company_id, employee_id, note) VALUES ($1, $2, 'n')",
         co["id"],
@@ -166,6 +173,7 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     await su.execute("INSERT INTO ops.hub_health (company_id, data) VALUES ($1, '{}')", co["id"])
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_no_table_leaks_between_companies(
     client: httpx.AsyncClient,
     hub: Hub,
@@ -206,3 +214,26 @@ async def test_no_table_leaks_between_companies(
     assert len(populated) >= len(tables) - 2, sorted(
         {f"{r['s']}.{r['t']}" for r in tables} - set(populated)
     )
+
+
+async def test_every_tenant_policy_evaluates_the_scope_once_per_query(su: Any) -> None:
+    """Prompt 5.1 §3: migration 0009 put every tenant policy in the InitPlan
+    form, `company_id = ANY ((SELECT <schema>.allowed_company_ids())::uuid[])`;
+    a later migration that writes the old per-row form again fails here."""
+    rows = await su.fetch(
+        """SELECT n.nspname || '.' || c.relname || ':' || pol.polname AS name,
+                  pg_get_expr(pol.polqual, pol.polrelid) AS qual,
+                  pg_get_expr(pol.polwithcheck, pol.polrelid) AS chk
+           FROM pg_policy pol JOIN pg_class c ON c.oid = pol.polrelid
+           JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname = ANY($1::text[]) OR n.nspname = 'llm'""",
+        list(SCHEMAS),
+    )
+    tenant = [r for r in rows if "allowed_company_ids" in f"{r['qual']} {r['chk']}"]
+    assert len(tenant) >= 40
+    hoisted = re.compile(r"\( SELECT (core|llm)\.allowed_company_ids\(\) AS allowed_company_ids\)")
+    per_row = re.compile(r"ANY \((core|llm)\.allowed_company_ids\(\)\)")
+    for r in tenant:
+        for expr in (r["qual"], r["chk"]):
+            if expr and "allowed_company_ids" in expr:
+                assert hoisted.search(expr) and not per_row.search(expr), (r["name"], expr)

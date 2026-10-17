@@ -329,6 +329,7 @@ async def test_1_6_budget_change_scope_is_typed_and_inside_the_company(
 
 
 # ---------------------------------------------------------------- 1.7 -------
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_1_7_owner_amendments_are_applied(
     client: httpx.AsyncClient,
     hub: Hub,
