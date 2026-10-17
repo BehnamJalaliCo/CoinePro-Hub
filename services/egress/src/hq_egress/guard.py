@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import posixpath
+import re
 import socket
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
@@ -189,5 +190,5 @@ def _internal_path(path: str) -> bool:
     p = path
     for _ in range(3):
         p = unquote(p)
-    p = posixpath.normpath("/" + p.replace("\\", "/")).lower()
+    p = posixpath.normpath(re.sub("/+", "/", "/" + p.replace("\\", "/"))).lower()
     return p == "/internal" or p.startswith("/internal/")
