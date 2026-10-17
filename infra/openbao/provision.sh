@@ -14,8 +14,16 @@
 #   - empty key paths for the (disabled) API connections
 #   - prompt 04: hq-api config (agent token key), Web Push (VAPID) keys,
 #     empty FCM/Telegram credentials (channels stay off until the owner fills them)
+#   - prompt 05: the agent runtime's tokens (kv/hq-agents/runtime: llm-router
+#     caller hq-agents, the Tool Gateway's caller) and the gateway's digest file
 # The root token is used only while the admin token does not exist yet; it is
 # NOT revoked here (owner's decision).
+#
+# Routine runs need no sudo (prompt 05 §1.5): the files this script installs
+# for the containers (owned by their uid, unreadable to Hub) are listed in a
+# manifest ($HQ_SECRETS_DIR/.provisioned, 600, Hub's). Only a file not in the
+# manifest yet needs sudo, i.e. `make bootstrap` (once, or when a service is
+# added); it records files that already exist and installs missing ones.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -23,6 +31,7 @@ SECRETS_DIR="${HQ_SECRETS_DIR:-/home/Hub/.secrets}"
 BAO_ADDR="${HQ_BAO_ADDR:-http://127.0.0.1:8200}"
 POLICY_DIR="$REPO_DIR/infra/openbao/policies"
 INIT_FILE="$SECRETS_DIR/openbao-init.json"
+MANIFEST="$SECRETS_DIR/.provisioned"
 ADMIN_FILE="$SECRETS_DIR/openbao-admin.token"
 CALLER_FILE="$SECRETS_DIR/llm-router-caller-hq-ops.token"
 SERVICE_UID=10001
@@ -56,12 +65,30 @@ expect() { # expect CODE... -- fail unless the last api call returned one of the
 use_token() { printf 'X-Vault-Token: %s\n' "$1" >"$WORK/auth"; }
 sha256() { sha256sum | cut -d' ' -f1; }
 newtoken() { openssl rand -hex 32; }
+touch "$MANIFEST" && chmod 600 "$MANIFEST"
+installed() { # installed DEST -- already installed for its container?
+  # Listed in the manifest: yes, without sudo. Not listed: only sudo can look
+  # (the file belongs to the container's uid); without sudo stop BEFORE any
+  # change, so nothing is regenerated half-way.
+  if grep -qxF "$1" "$MANIFEST"; then return 0; fi
+  sudo -n true 2>/dev/null || die "$1 is not in the manifest yet: run make bootstrap (needs sudo, once)"
+  if sudo test -s "$1"; then
+    printf '%s\n' "$1" >>"$MANIFEST"
+    return 0
+  fi
+  return 1
+}
+need_sudo() {
+  sudo -n true 2>/dev/null || die "first-time install of $1 needs sudo: run make bootstrap"
+}
 install_secret() { # install_secret OWNER_UID DEST < content
   local owner="$1" dest="$2"
+  need_sudo "$dest"
   sudo install -d -o "$owner" -g "$owner" -m 0700 "$(dirname "$dest")"
   cat >"$WORK/file"
   sudo install -o "$owner" -g "$owner" -m 0600 "$WORK/file" "$dest"
   rm -f "$WORK/file"
+  grep -qxF "$dest" "$MANIFEST" || printf '%s\n' "$dest" >>"$MANIFEST"
 }
 
 # ---------------------------------------------------------------- token ----
@@ -116,7 +143,7 @@ approle() { # approle NAME CIDRS
       token_policies: [$p], token_no_default_policy: true, token_ttl: "1h",
       token_max_ttl: "4h", secret_id_ttl: "0", token_bound_cidrs: $c,
       secret_id_bound_cidrs: $c}' | api POST "auth/approle/role/$name")" 204
-  if sudo test -s "$dest"; then
+  if installed "$dest"; then
     return
   fi
   expect "$(api GET "auth/approle/role/$name/role-id" </dev/null)" 200
@@ -136,7 +163,7 @@ kv_exists() { [[ "$(api GET "kv/data/$1" </dev/null)" == 200 ]]; }
 kv_put() { expect "$(api POST "kv/data/$1")" 200 204; }  # body on stdin
 
 prom_token="$SECRETS_DIR/services/prometheus/llm-metrics.token"
-if ! kv_exists llm-router/config || ! sudo test -s "$prom_token"; then
+if ! kv_exists llm-router/config || ! installed "$prom_token"; then
   runtime_token="$(newtoken)"
   metrics_token="$(newtoken)"
   RT="$runtime_token" MH="$(printf '%s' "$metrics_token" | sha256)" \
@@ -198,4 +225,22 @@ for channel in fcm telegram; do
   fi
 done
 log "channel paths ready: kv/hq-api/channels/{fcm,telegram} (off until filled)"
+
+# ---------------------------------------------------- agent runtime (p05) --
+# The worker runs the agents: its own llm-router caller (hq-agents) and the
+# Tool Gateway's only caller. The gateway has no OpenBao access: it gets the
+# digest of the worker's token as a file (600, uid 10001).
+gw_digest="$SECRETS_DIR/services/gateway/worker-token.sha256"
+if ! kv_exists hq-agents/runtime || ! installed "$gw_digest"; then
+  llm_token="$(newtoken)"
+  gw_token="$(newtoken)"
+  expect "$(api GET kv/data/llm-router/callers </dev/null)" 200
+  LH="$(printf '%s' "$llm_token" | sha256)" jq '{data: (.data.data | .callers["hq-agents"] =
+      {token_sha256: env.LH, rpm: 240, max_input_chars: 200000})}' "$WORK/resp" | kv_put llm-router/callers
+  LT="$llm_token" GT="$gw_token" jq -n '{data: {llm_router_token: env.LT, gateway_token: env.GT}}' |
+    kv_put hq-agents/runtime
+  printf '%s' "$gw_token" | sha256 | install_secret "$SERVICE_UID" "$gw_digest"
+  unset llm_token gw_token
+  log "agent runtime: llm-router caller hq-agents and the gateway's token (re)generated"
+fi
 log "done"

@@ -119,10 +119,11 @@ async def _decide(
         d = await D.load(tx, ref, lock=True)
         if d["status"] != "pending":
             raise ApiError(409, "decision_not_pending", f"{ref} is {d['status']}")
-        if amendments:
-            D.amended(
-                d["kind"], d["payload"], amendments
-            )  # 422 when the amended payload is invalid
+        final = D.amended(d["kind"], d["payload"], amendments)  # 422 when amended badly
+        if verdict == "approved" and d["kind"] == "hire":
+            # The new employee needs a real charter, else approving is refused.
+            company = await ctx.hub.companies.by_id(d["company_id"])
+            D.check_hire_role(final, company.kind, ctx.hub.charters, required=True)
         step_up_id = None
         if verdict == "approved" and needs_step_up(d):
             step_up_id = await stepup.consume(tx, request, ctx.who, "decision.approve", ref)

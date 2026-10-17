@@ -232,6 +232,13 @@ test_release_follows_the_engager_authority if {
 	not allowed(f.ty_ceo, "kill_switch.set", switch("holding", "released", "agent", "TY-CEO", "TY"))
 }
 
+test_releasing_a_released_switch_is_a_no_op if {
+	released := {"scope": "company:TY", "state": "released", "current": {"state": "released", "changed_by_kind": "owner", "changed_by_code": "owner", "changed_by_company": null}}
+	allowed(f.ty_ceo, "kill_switch.set", released)
+	not allowed(f.fx_ceo, "kill_switch.set", released)
+	not allowed(f.ty_growth_mgr, "kill_switch.set", released)
+}
+
 freeze(company, lift, by_kind, by_code) := {
 	"company": company, "lift": lift,
 	"freeze": {"created_by_kind": by_kind, "created_by_code": by_code, "created_by_company": company},
@@ -246,7 +253,8 @@ test_deploy_freeze_set if {
 }
 
 test_deploy_freeze_lift_follows_authority if {
-	allowed(f.svc, "deploy_freeze.set", freeze("TY", true, "service", "deploy-pipeline"))
+	allowed(f.svc, "deploy_freeze.set", freeze("TY", true, "service", "llm-router"))
+	reasons(f.svc, "deploy_freeze.set", freeze("TY", true, "service", "deploy-pipeline")) == {"lifted_only_by_setter_authority", "deploy_freeze.set_not_permitted"}
 	reasons(f.svc, "deploy_freeze.set", freeze("TY", true, "owner", "owner")) == {"lifted_only_by_setter_authority", "deploy_freeze.set_not_permitted"}
 	reasons(f.svc, "deploy_freeze.set", freeze("TY", true, "agent", "TY-CEO")) == {"lifted_only_by_setter_authority", "deploy_freeze.set_not_permitted"}
 	allowed(f.ty_ceo, "deploy_freeze.set", freeze("TY", true, "agent", "TY-CEO"))
@@ -283,4 +291,52 @@ test_unknown_op_and_principal if {
 	"unknown_principal" in reasons(f.stranger, "context.read", {"employee": "x"})
 	not policy.allow with input as {"op": "context.read", "target": {"employee": ""}}
 	not policy.allow with input as []
+}
+
+# ------------------------------------------------- prompt 05: gateway reads --
+
+test_reads_stay_in_the_company_unless_holding_scope if {
+	every op in {"work.read", "company.read", "health.read", "treasury.read", "knowledge.read"} {
+		allowed(f.ty_ceo, op, {"company": "TY"})
+		not allowed(f.ty_ceo, op, {"company": "FX"})
+		allowed(f.hq_ovs, op, {"company": "FX"})
+		allowed(f.hq_adv, op, {"company": "TY"})
+	}
+	reasons(f.ty_growth_01, "work.read", {"company": "FX"}) == {"work.read_not_permitted"}
+	not allowed(f.hq_ovs, "work.read", {"company": null})
+	not allowed(f.svc, "work.read", {"company": "TY"})
+}
+
+test_only_the_advisor_searches_message_bodies if {
+	allowed(f.hq_adv, "knowledge.read", {"company": "TY", "kinds": ["messages", "decisions"]})
+	not allowed(f.hq_ovs, "knowledge.read", {"company": "TY", "kinds": ["messages"]})
+	allowed(f.hq_ovs, "knowledge.read", {"company": "TY", "kinds": ["resolutions"]})
+	not allowed(f.ty_ceo, "knowledge.read", {"company": "TY", "kinds": ["messages"]})
+}
+
+test_hub_and_audit_for_holding_scope_only if {
+	allowed(f.hq_ovs, "audit.read", {})
+	allowed(f.hq_adv, "hub.read", {})
+	reasons(f.ty_ceo, "audit.read", {}) == {"audit.read_not_permitted"}
+	not allowed(f.ty_ceo, "hub.read", {})
+}
+
+test_own_memory_run_and_live_thread if {
+	allowed(f.ty_growth_01, "memory.read", {"employee": "TY-GROWTH-01"})
+	allowed(f.ty_growth_01, "memory.write", {"employee": "TY-GROWTH-01"})
+	not allowed(f.ty_growth_01, "memory.read", {"employee": "TY-GROWTH-02"})
+	allowed(f.ty_ceo, "run.reserve", {"employee": "TY-CEO"})
+	allowed(f.ty_ceo, "run.record", {"employee": "TY-CEO"})
+	not allowed(f.ty_ceo, "run.record", {"employee": "FX-CEO"})
+	allowed(f.hq_adv, "thread.live", {"thread_code": "A", "thread_kind": "advisor", "thread_company": "HQ"})
+	not allowed(f.ty_ceo, "thread.live", {"thread_code": "A", "thread_kind": "advisor", "thread_company": "HQ"})
+	allowed(f.ty_ceo, "thread.live", {"thread_code": "TY-CEO", "thread_kind": "ceo", "thread_company": "TY"})
+}
+
+test_inspector_delegates_to_its_team_and_proposes_hires if {
+	allowed(f.hq_ovs, "work.delegate", {"assignee": "HQ-OVS-MGR", "company": "HQ", "to_role": "employee", "to_department": "OVS"})
+	not allowed(f.hq_ovs, "work.delegate", {"assignee": "HQ-OVS-MGR", "company": "HQ", "to_role": "employee", "to_department": "AIOPS"})
+	allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "hire"})
+	not allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "deploy"})
+	not allowed(f.hq_ovs_01, "work.delegate", {"assignee": "HQ-OVS-01", "company": "HQ", "to_role": "employee", "to_department": "OVS"})
 }

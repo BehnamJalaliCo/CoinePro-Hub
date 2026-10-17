@@ -26,9 +26,10 @@ from hq_api.config import Settings
 from hq_api.db import Database
 from hq_api.events import Bus, OutboxRelay
 from hq_api.hub import Hub
+from hq_api.live import LiveHub
 from hq_api.policy import Policy
 from hq_api.storage import LocalStorage
-from hq_common import heartbeat, logs
+from hq_common import charters, heartbeat, logs
 from hq_common.openbao import OpenBaoClient
 
 log = logging.getLogger("hq_api")
@@ -74,6 +75,10 @@ async def build(s: Settings) -> tuple[Hub, OpenBaoClient]:
     )
     hub.bao = bao
     hub.channels = Channels(hub)
+    hub.charters = charters.load()
+    hub.live = LiveHub()
+    for problem in hub.charters.problems:
+        log.warning("charter problem", extra={"problem": problem[:300]})
     try:
         hub.temporal = await workflows_client.connect(s.temporal_address, s.temporal_namespace)
     except Exception:  # noqa: BLE001 - optional at runtime; the worker reconciles

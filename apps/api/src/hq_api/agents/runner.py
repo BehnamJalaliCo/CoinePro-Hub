@@ -1,0 +1,843 @@
+"""The agent runtime (prompt 05 §2): one run of one employee for one trigger.
+
+A run is a record first (agents.runs, state queued, written by the triggers of
+migration 0008). Then:
+
+  claim     queued -> running, at most one running run per employee; refused
+            (with an audit row) when there is no charter, the employee is not
+            active, the company or the holding is locked, the day's real-model
+            cap is spent, or the work's budget is used up. Caps of the run:
+            steps from the charter, tokens = min(charter, the work's budget
+            left, the recurring escrow's cap). Model and effort: the charter's
+            default sits above the holding-wide default; any company,
+            department, role or employee assignment overrides it (§1.13).
+  execute   step by step, all in one activity, so the conversation never
+            leaves memory (Temporal history keeps no prompt, no output, no
+            payload): lock and budget checked before every step; one model call
+            through llm-router with the step JSON schema; actions through the
+            Tool Gateway with the run's own hqa1 token (minted here, never
+            stored); the step recorded (Persian summary + tool metadata);
+            usage booked on the run and the work. Out of steps or tokens before
+            `done`: a partial deliverable (when the role may deliver), else failed.
+            The advisor (and every reply to the owner) is streamed live.
+  finish    done | failed | refused, the employee back to sleep, run.finished.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import time
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
+from uuid import UUID
+
+from hq_api import audit, events
+from hq_api.agents import protocol as P
+from hq_api.agents.clients import Gateway, LivePush, ModelCall, Router
+from hq_api.db import Tx
+from hq_api.domain import decisions as D
+from hq_api.hub import Hub
+from hq_api.security import agent_tokens
+from hq_api.worker.jalali import jalali_long
+from hq_common.charters import Charter
+
+log = logging.getLogger("hq_api.agents.runner")
+FINAL = ("done", "failed", "refused")
+CONTEXT_CHARS = 24_000
+THREAD_MESSAGES = 12
+TASK_CLASS = {"advisor": "advisor"}
+ALERT_TASK = "ops_alert"
+
+
+@dataclass
+class Claim:
+    state: str  # running | busy | final
+    final: str | None = None
+    code: str | None = None
+
+
+@dataclass
+class RunCtx:
+    """Everything one run needs, loaded at the start of execute."""
+
+    run: dict[str, Any]
+    emp: dict[str, Any]
+    charter: Charter
+    token: str
+    messages: list[dict[str, str]] = field(default_factory=list)
+    used_tokens: int = 0
+    delivered: bool = False
+    replied: str | None = None  # the message ref of a reply in the trigger thread
+    summaries: list[str] = field(default_factory=list)
+
+
+class Runner:
+    def __init__(
+        self,
+        hub: Hub,
+        router: Router,
+        gateway: Gateway,
+        live: LivePush | None = None,
+        *,
+        heartbeat: Callable[[], None] | None = None,
+    ) -> None:
+        self.hub = hub
+        self.router = router
+        self.gateway = gateway
+        self.live = live
+        self.heartbeat = heartbeat or (lambda: None)
+        self.s = hub.settings
+
+    async def _tx(self) -> Any:
+        return self.hub.db.tx(await self.hub.companies.ids())
+
+    # --------------------------------------------------------------- claim --
+    async def claim(self, run_id: str) -> Claim:
+        lib = self.hub.charters
+        async with await self._tx() as tx:
+            run = await tx.first(
+                "SELECT * FROM agents.runs WHERE id = CAST(:id AS uuid) FOR UPDATE", id=run_id
+            )
+            if run is None:
+                return Claim("final", "failed", "unknown_run")
+            if run["state"] == "running":
+                return Claim("running")  # a retried claim of our own
+            if run["state"] in FINAL:
+                return Claim("final", run["state"], run["error_code"])
+            emp = await self._employee(tx, run["employee_id"])
+            charter = lib.get(emp["role"]) if lib is not None else None
+            refuse = None
+            if charter is None:
+                refuse = "no_charter"
+            elif emp["status"] != "active" or emp["kind"] == "system":
+                refuse = "employee_inactive"
+            else:
+                lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])
+                if lock in ("holding", "company"):
+                    refuse = "locked"
+                elif (
+                    self.s.agent_daily_token_cap
+                    and await self._spent_today(tx) >= self.s.agent_daily_token_cap
+                ):
+                    refuse = "daily_cap"
+            if refuse is None and await tx.scalar(
+                "SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running'",
+                e=run["employee_id"],
+            ):
+                return Claim("busy")
+            caps: dict[str, Any] = {}
+            if refuse is None:
+                assert charter is not None
+                caps = await self._caps(tx, run, charter)
+                if caps["token_cap"] <= 0:
+                    refuse = "budget_used_up"
+            if refuse is not None:
+                await self._finish(tx, run, emp, "refused", refuse, note=None, start=False)
+                return Claim("final", "refused", refuse)
+            assert charter is not None
+            model, effort = await self._model(tx, emp, charter)
+            ttl = min(agent_tokens.MAX_TTL_S, self.s.agent_max_run_s + 120)
+            await tx.exec(
+                """UPDATE agents.runs SET state = 'running', started_at = now(), priority = :prio,
+                       charter_role = :role, charter_version = :ver, model = :model, effort = :effort,
+                       steps_cap = :steps, token_cap = :tokens, tool_calls_cap = :calls,
+                       step_tool_calls_cap = :per_step,
+                       token_expires_at = now() + make_interval(secs => :ttl)
+                   WHERE id = :id""",
+                id=run["id"],
+                prio=caps["priority"],
+                role=charter.role,
+                ver=charter.version,
+                model=model,
+                effort=effort,
+                steps=charter.limits.steps_per_run,
+                tokens=caps["token_cap"],
+                calls=self.s.agent_tool_calls_per_run,
+                per_step=self.s.agent_actions_per_step,
+                ttl=ttl,
+            )
+            await self._activity(tx, emp, "working", f"run {str(run['id'])[:8]}")
+            await events.emit(
+                tx,
+                emp["company"],
+                "run.started",
+                str(run["id"]),
+                {
+                    "employee": emp["code"],
+                    "trigger": run["trigger"],
+                    "work": await self._work_ref(tx, run["work_id"]),
+                    "charter": f"{charter.role}@{charter.version}",
+                },
+            )
+        return Claim("running")
+
+    async def _employee(self, tx: Tx, employee_id: UUID) -> dict[str, Any]:
+        return await tx.one(
+            """SELECT e.id, e.code, e.kind, e.status, e.role, e.title_fa, e.company_id, c.code AS company,
+                      c.kind AS company_kind, c.name_fa AS company_name_fa, c.name_en AS company_name_en,
+                      d.code AS department, d.name_fa AS department_name_fa, r.code AS manager
+               FROM core.employees e JOIN core.companies c ON c.id = e.company_id
+               LEFT JOIN core.departments d ON d.id = e.department_id
+               LEFT JOIN core.employees r ON r.id = e.reports_to
+               WHERE e.id = :id""",
+            id=employee_id,
+        )
+
+    async def _spent_today(self, tx: Tx) -> int:
+        n = await tx.scalar(
+            # Everything the model read or wrote: through the subscription most of the
+            # input arrives as cache writes and reads, not as input_tokens.
+            """SELECT COALESCE(sum(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens), 0)
+               FROM agents.runs
+               WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"""
+        )
+        return int(n or 0)
+
+    async def _caps(self, tx: Tx, run: dict[str, Any], charter: Charter) -> dict[str, Any]:
+        token_cap = charter.limits.tokens_per_run
+        priority = charter.priority
+        if run["work_id"] is not None:
+            w = await tx.one(
+                """SELECT w.priority, w.budget_tokens, w.tokens_used, w.recurrence_of,
+                          (SELECT COALESCE(sum(c.budget_tokens), 0) FROM work.work c WHERE c.parent_id = w.id)
+                              AS given,
+                          (SELECT e.token_cap_per_run FROM work.escrows e
+                            WHERE e.work_id = COALESCE(w.recurrence_of, w.id) AND e.status = 'active') AS escrow_cap
+                   FROM work.work w WHERE w.id = :id""",
+                id=run["work_id"],
+            )
+            priority = w["priority"] if run["trigger"] != "message" else priority
+            if w["budget_tokens"] is not None:
+                token_cap = min(
+                    token_cap, int(w["budget_tokens"]) - int(w["tokens_used"]) - int(w["given"])
+                )
+            if w["escrow_cap"] is not None:
+                token_cap = min(token_cap, int(w["escrow_cap"]))
+        return {"token_cap": max(token_cap, 0), "priority": priority}
+
+    async def _model(
+        self, tx: Tx, emp: dict[str, Any], charter: Charter
+    ) -> tuple[str | None, str | None]:
+        """(model, effort) the run asks for: the charter's default overrides the
+        holding-wide default only; company, department, role and employee
+        assignments override the charter (a new connection resets the model)."""
+        rows = await tx.all(
+            """SELECT a.scope_type, a.scope_ref, cn.key AS connection, a.model, a.effort
+               FROM llm.assignments a LEFT JOIN llm.connections cn ON cn.id = a.connection_id"""
+        )
+        by = {(r["scope_type"], r["scope_ref"]): r for r in rows}
+        holding = (await self.hub.companies.holding()).code
+        co, dept, code = emp["company"], emp["department"], emp["code"]
+        chain: list[tuple[str, str]] = [("company", co)]
+        if dept:
+            chain.append(("department", f"{co}-{dept}"))
+        chain += [
+            ("role", charter.role),
+            ("role", f"{co}:{charter.role}"),
+            ("role", code),
+            ("role", f"{co}:{code}"),
+        ]
+        base = by.get(("holding", holding)) or {}
+        connection = base.get("connection")
+        model: str | None = charter.model
+        effort: str | None = charter.effort
+        for key in chain:
+            a = by.get(key)
+            if a is None:
+                continue
+            if a["connection"] is not None and a["connection"] != connection:
+                connection, model = a["connection"], None
+            if a["model"] is not None:
+                model = a["model"]
+            if a["effort"] is not None:
+                effort = a["effort"]
+        return model, effort
+
+    async def _work_ref(self, tx: Tx, work_id: UUID | None) -> str | None:
+        if work_id is None:
+            return None
+        ref: str | None = await tx.scalar("SELECT ref FROM work.work WHERE id = :id", id=work_id)
+        return ref
+
+    # ------------------------------------------------------------- execute --
+    async def execute(self, run_id: str) -> dict[str, Any]:
+        """All the steps of a claimed run. Returns metadata only."""
+        lib = self.hub.charters
+        async with await self._tx() as tx:
+            run = await tx.one("SELECT * FROM agents.runs WHERE id = CAST(:id AS uuid)", id=run_id)
+            if run["state"] != "running":
+                return {"state": run["state"], "skipped": True}
+            emp = await self._employee(tx, run["employee_id"])
+        charter = lib.get(run["charter_role"]) if lib is not None else None
+        if charter is None:
+            return await self.finish(run_id, "failed", "no_charter")
+        expires = run["token_expires_at"] or datetime.now(UTC)
+        token = agent_tokens.mint(
+            self.hub.secrets.agent_token_key,
+            emp["code"],
+            str(run["id"]),
+            ttl_s=max(60, int((expires - datetime.now(UTC)).total_seconds())),
+        )
+        rc = RunCtx(run=run, emp=emp, charter=charter, token=token)
+        deadline = time.monotonic() + self.s.agent_max_run_s
+        try:
+            outcome = await self._steps(rc, deadline)
+        except Exception:
+            log.exception("run failed", extra={"run_id": run_id})
+            outcome = ("failed", "runtime_error", None)
+        state, code, note = outcome
+        return await self.finish(
+            run_id, state, code, note=note, partial=state == "done" and code == "limit_reached"
+        )
+
+    async def _steps(self, rc: RunCtx, deadline: float) -> tuple[str, str | None, str | None]:
+        run, charter = rc.run, rc.charter
+        system = P.system_prompt(
+            self.hub.charters,
+            charter,
+            await self._values(rc.emp),
+            max_actions=self.s.agent_actions_per_step,
+            answer_phase=charter.kind == "advisor" and run["trigger"] == "message",
+            payloads=D.PAYLOADS,
+        )
+        rc.messages = [{"role": "user", "content": await self._context(rc)}]
+        live_thread = await self._reply_thread(rc)
+        advisor = charter.kind == "advisor"
+        steps_cap = int(run["steps_cap"] or charter.limits.steps_per_run)
+        token_cap = int(run["token_cap"] or charter.limits.tokens_per_run)
+        per_step = charter.limits.tokens_per_step
+        if live_thread:
+            await self._live(live_thread, rc, "reply.started", {})
+        done = False
+        n = 0
+        bad_outputs = 0
+        while n < steps_cap and not done:
+            if await self._locked(run["company_id"]):
+                return "refused", "locked", "the kill switch was engaged during the run"
+            if time.monotonic() > deadline:
+                break
+            left = token_cap - rc.used_tokens
+            if left < min(per_step, token_cap) // 4 or left <= 0:
+                break
+            n += 1
+            self.heartbeat()
+            call = await self._model_step(rc, system, n)
+            if not call.ok:
+                await self._record_step(rc, n, "", [], call)
+                if call.code in ("quota_throttled", "company_locked", "budget_exhausted"):
+                    return "failed", str(call.code), None
+                return "failed", (call.code or "model_error")[:40], None
+            await self._book(rc, call)
+            try:
+                step = P.parse_step(call.structured, call.text, self.s.agent_actions_per_step)
+            except P.BadOutput:
+                bad_outputs += 1
+                await self._record_step(rc, n, "", [], call)
+                if bad_outputs >= 2:
+                    return "failed", "invalid_output", None
+                rc.messages += [
+                    {"role": "assistant", "content": (call.text or "")[:4000] or "{}"},
+                    {
+                        "role": "user",
+                        "content": "Your answer was not the JSON object of the protocol. "
+                        "Answer again with exactly that object.",
+                    },
+                ]
+                continue
+            rc.summaries.append(step.summary_fa)
+            results = []
+            for i, action in enumerate(step.actions):
+                self.heartbeat()
+                out = await self.gateway.call(rc.token, n, i, action.tool, action.args)
+                results.append({"tool": action.tool, **out})
+                await self._after_action(rc, action, out, live_thread)
+            await self._record_step(rc, n, step.summary_fa, results, call)
+            done = step.done
+            rc.messages += [
+                {
+                    "role": "assistant",
+                    "content": json.dumps(
+                        {
+                            "summary_fa": step.summary_fa,
+                            "actions": [{"tool": a.tool, "args": a.args} for a in step.actions],
+                            "done": step.done,
+                        },
+                        ensure_ascii=False,
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": P.trim(
+                        P.render_results(
+                            results,
+                            steps_left=steps_cap - n,
+                            tokens_left=max(token_cap - rc.used_tokens, 0),
+                        ),
+                        CONTEXT_CHARS,
+                    ),
+                },
+            ]
+        if advisor and live_thread and rc.replied is None:
+            return await self._answer(rc, system, n + 1, live_thread)
+        if live_thread and rc.replied is None and not done:
+            await self._live(live_thread, rc, "reply.failed", {"code": "no_reply"})
+        if done:
+            return "done", None, None
+        return await self._partial(rc, n)
+
+    async def _model_step(self, rc: RunCtx, system: str, n: int) -> ModelCall:
+        run, emp, charter = rc.run, rc.emp, rc.charter
+        body = {
+            "company_code": emp["company"],
+            "actor_ref": emp["code"],
+            "work_ref": await self._scalar_work_ref(run["work_id"]),
+            "department": emp["department"],
+            "role": charter.role,
+            "employee": emp["code"],
+            "task_class": self._task_class(rc),
+            "priority": run["priority"],
+            "system": system,
+            "messages": rc.messages,
+            "json_schema": P.STEP_SCHEMA,
+            "timeout_s": self.s.agent_step_timeout_s,
+            "meta": {
+                "charter": f"{charter.role}@{charter.version}",
+                "run_id": str(run["id"]),
+                "step": n,
+                "trigger": run["trigger"],
+            },
+        }
+        if run["model"]:
+            body["model"] = run["model"]
+        if run["effort"]:
+            body["effort"] = run["effort"]
+        return await self._with_heartbeat(self.router.run(body, self.s.agent_step_timeout_s))
+
+    def _task_class(self, rc: RunCtx) -> str:
+        if rc.charter.role in TASK_CLASS:
+            return TASK_CLASS[rc.charter.role]
+        return ALERT_TASK if rc.run["trigger"] == "alert" else "general"
+
+    async def _with_heartbeat(self, aw: Awaitable[ModelCall]) -> ModelCall:
+        task = asyncio.ensure_future(aw)
+        while True:
+            done, _ = await asyncio.wait({task}, timeout=20)
+            if done:
+                return task.result()
+            self.heartbeat()
+
+    async def _scalar_work_ref(self, work_id: UUID | None) -> str | None:
+        if work_id is None:
+            return None
+        async with await self._tx() as tx:
+            return await self._work_ref(tx, work_id)
+
+    async def _after_action(
+        self, rc: RunCtx, action: P.Action, out: dict[str, Any], live_thread: str | None
+    ) -> None:
+        if out.get("outcome") != "ok":
+            return
+        if action.tool == "deliver":
+            rc.delivered = True
+        if action.tool in ("message.thread", "message.owner") and live_thread:
+            target = action.args.get("thread") if action.tool == "message.thread" else live_thread
+            if target == live_thread and out.get("ref"):
+                body = action.args.get("body_md")
+                if isinstance(body, str):
+                    await self._live(live_thread, rc, "reply.delta", {"text": body[:4000]})
+                rc.replied = str(out["ref"])
+                await self._live(live_thread, rc, "reply.done", {"message_ref": rc.replied})
+
+    async def _answer(
+        self, rc: RunCtx, system: str, n: int, thread: str
+    ) -> tuple[str, str | None, str | None]:
+        """The advisor's answer, streamed live, then stored with its citations."""
+        if rc.used_tokens >= int(rc.run["token_cap"] or rc.charter.limits.tokens_per_run):
+            await self._live(thread, rc, "reply.failed", {"code": "token_cap"})
+            return "failed", "token_cap", None
+        flt = P.StreamFilter()
+        chunks: list[str] = []
+        assert self.live is not None
+
+        async with self.live.open(thread, rc.token) as send:
+
+            def on_delta(text: str) -> None:
+                chunks.append(text)
+                visible = flt.feed(text)
+                if visible:
+                    send("reply.delta", {"text": visible})
+
+            body = {
+                "company_code": rc.emp["company"],
+                "actor_ref": rc.emp["code"],
+                "role": rc.charter.role,
+                "employee": rc.emp["code"],
+                "task_class": self._task_class(rc),
+                "priority": rc.run["priority"],
+                "system": system + "\n\n" + P.ANSWER_PHASE,
+                "messages": [
+                    *rc.messages,
+                    {"role": "user", "content": "Write the answer to the owner now."},
+                ],
+                "timeout_s": self.s.agent_step_timeout_s,
+                "meta": {
+                    "charter": f"{rc.charter.role}@{rc.charter.version}",
+                    "run_id": str(rc.run["id"]),
+                    "step": n,
+                    "trigger": rc.run["trigger"],
+                    "purpose": "answer",
+                },
+            }
+            if rc.run["model"]:
+                body["model"] = rc.run["model"]
+            if rc.run["effort"]:
+                body["effort"] = rc.run["effort"]
+            self.heartbeat()
+            call = await self.router.stream(body, self.s.agent_step_timeout_s, on_delta)
+            tail = flt.flush()
+            if tail:
+                send("reply.delta", {"text": tail})
+            if not call.ok:
+                await self._record_step(rc, n, "", [], call)
+                send("reply.failed", {"code": call.code or "model_error"})
+                return "failed", (call.code or "model_error")[:40], None
+            await self._book(rc, call)
+            text = call.text or "".join(chunks)
+            answer, citations = P.split_answer(text)
+            if not answer:
+                await self._record_step(rc, n, "", [], call)
+                send("reply.failed", {"code": "empty_answer"})
+                return "failed", "empty_answer", None
+            out = await self.gateway.call(
+                rc.token,
+                n,
+                0,
+                "message.thread",
+                {"thread": thread, "body_md": answer, "citations": citations},
+            )
+            await self._record_step(
+                rc, n, "پاسخ نهایی به مدیر کل نوشته شد", [{"tool": "message.thread", **out}], call
+            )
+            if out.get("outcome") == "ok":
+                rc.replied = str(out.get("ref"))
+                send("reply.done", {"message_ref": rc.replied})
+                return "done", None, None
+            send("reply.failed", {"code": out.get("code") or "not_stored"})
+            return "failed", str(out.get("code") or "not_stored")[:40], None
+
+    async def _partial(self, rc: RunCtx, n: int) -> tuple[str, str | None, str | None]:
+        """Out of steps or tokens before `done`: what was done so far, delivered."""
+        work_ref = await self._scalar_work_ref(rc.run["work_id"])
+        if rc.delivered or work_ref is None or "deliver" not in rc.charter.tools:
+            return ("done" if rc.delivered else "failed"), "limit_reached", None
+        async with await self._tx() as tx:
+            status = await tx.scalar("SELECT status FROM work.work WHERE ref = :r", r=work_ref)
+        if status not in ("queued", "in_progress", "waiting"):
+            return "done", "limit_reached", None
+        body = "سقف قدم یا توکن این اجرا پیش از پایان کار رسید. آنچه انجام شد:\n\n" + "\n".join(
+            f"{i}. {s}" for i, s in enumerate(rc.summaries, 1) if s
+        )
+        out = await self.gateway.call(
+            rc.token,
+            max(n, 1),
+            self.s.agent_actions_per_step - 1,
+            "deliver",
+            {"work_ref": work_ref, "title_fa": "خروجی ناقص: سقف اجرا رسید", "body_md": body},
+        )
+        if out.get("outcome") == "ok":
+            return "done", "limit_reached", "partial deliverable " + str(out.get("ref") or "")
+        return "failed", "limit_reached", None
+
+    # ------------------------------------------------------------- context --
+    async def _values(self, emp: dict[str, Any]) -> dict[str, str]:
+        holding = await self.hub.companies.holding()
+        async with await self._tx() as tx:
+            tz = (
+                await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
+            )
+        today = datetime.now(UTC).date()
+        return {
+            "employee_code": emp["code"],
+            "employee_title_fa": emp["title_fa"],
+            "company_code": emp["company"],
+            "company_name_fa": emp["company_name_fa"] or emp["company"],
+            "company_name_en": emp["company_name_en"] or emp["company"],
+            "holding_code": holding.code,
+            "department_code": emp["department"] or "",
+            "department_name_fa": emp["department_name_fa"] or "",
+            "manager_code": emp["manager"] or "owner",
+            "today_jalali": jalali_long(today),
+            "today_gregorian": today.isoformat(),
+            "owner_timezone": tz,
+        }
+
+    async def _context(self, rc: RunCtx) -> str:
+        """The trigger and what the role needs to act on it (never a secret)."""
+        run, emp = rc.run, rc.emp
+        parts = [f"# Trigger\n{run['trigger']} ({run['reason']})"]
+        async with await self._tx() as tx:
+            lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])
+            presence = await tx.one("SELECT khalvat FROM owner.presence WHERE id = 1")
+            parts.append(
+                f"Company {emp['company']}: lock={lock or 'none'}; owner in Khalvat: {presence['khalvat']}"
+            )
+            if run["work_id"] is not None:
+                parts.append(
+                    "# Work\n"
+                    + json.dumps(
+                        await self._work_brief(tx, run["work_id"]), ensure_ascii=False, default=str
+                    )
+                )
+            if run["thread_id"] is not None:
+                msgs = await tx.all(
+                    """SELECT ref, author_kind, author_code, body, links FROM msg.messages
+                       WHERE thread_id = :t ORDER BY seq DESC LIMIT :n""",
+                    t=run["thread_id"],
+                    n=THREAD_MESSAGES,
+                )
+                lines = []
+                for m in reversed(msgs):
+                    who = "owner" if m["author_kind"] == "owner" else m["author_code"]
+                    links = f" links={json.dumps(m['links'])}" if m["links"] else ""
+                    lines.append(f"[{m['ref']}] {who}{links}: {m['body'][:3000]}")
+                parts.append(
+                    "# Conversation (oldest first; answer the owner's latest)\n" + "\n".join(lines)
+                )
+                decision = next(
+                    (m["links"].get("decision") for m in msgs if m["links"].get("decision")), None
+                )
+                if decision:
+                    d = await tx.first(
+                        """SELECT d.ref, c.code AS company, d.kind, d.title, d.what, d.why, d.risk, d.reversible,
+                                  d.quota_tokens, d.quota_usd, d.payload, d.status, d.proposer_code
+                           FROM cartable.decisions d JOIN core.companies c ON c.id = d.company_id WHERE d.ref = :r""",
+                        r=decision,
+                    )
+                    if d:
+                        parts.append(
+                            "# Decision card to review\n"
+                            + json.dumps(d, ensure_ascii=False, default=str)
+                        )
+            notes = await tx.all(
+                "SELECT note FROM core.employee_memory WHERE employee_id = :e ORDER BY id DESC LIMIT 5",
+                e=emp["id"],
+            )
+        if notes:
+            parts.append(
+                "# Your memory (latest first)\n" + "\n".join(f"- {n['note'][:500]}" for n in notes)
+            )
+        return P.trim("\n\n".join(parts), CONTEXT_CHARS)
+
+    async def _work_brief(self, tx: Tx, work_id: UUID) -> dict[str, Any]:
+        w = await tx.one(
+            """SELECT w.ref, c.code AS company, d.code AS department, w.kind, w.title, w.brief, w.priority,
+                      w.status, w.depth, w.due_at, w.budget_tokens, w.tokens_used, w.evidence,
+                      w.created_by_kind || ':' || w.created_by_code AS created_by,
+                      (SELECT ref FROM work.work p WHERE p.id = w.parent_id) AS parent
+               FROM work.work w JOIN core.companies c ON c.id = w.company_id
+               LEFT JOIN core.departments d ON d.id = w.department_id WHERE w.id = :id""",
+            id=work_id,
+        )
+        w["children"] = await tx.all(
+            """SELECT w.ref, e.code AS assignee, w.status, w.title FROM work.work w
+               LEFT JOIN core.employees e ON e.id = w.assignee_id WHERE w.parent_id = :id ORDER BY w.created_at""",
+            id=work_id,
+        )
+        w["deliverables"] = await tx.all(
+            """SELECT d.ref, d.title, left(d.summary, 400) AS summary, e.code AS producer
+               FROM cartable.deliverables d JOIN core.employees e ON e.id = d.producer_id
+               WHERE d.work_id = ANY(ARRAY(SELECT id FROM work.work WHERE id = :id OR parent_id = :id))
+               ORDER BY d.created_at""",
+            id=work_id,
+        )
+        w["brief"] = (w["brief"] or "")[:8000]
+        return w
+
+    async def _reply_thread(self, rc: RunCtx) -> str | None:
+        """The thread a reply goes to live: the owner's message trigger."""
+        if rc.run["trigger"] != "message" or rc.run["thread_id"] is None or self.live is None:
+            return None
+        async with await self._tx() as tx:
+            code: str | None = await tx.scalar(
+                "SELECT code FROM msg.threads WHERE id = :t", t=rc.run["thread_id"]
+            )
+        return code
+
+    async def _live(self, thread: str, rc: RunCtx, type_: str, data: dict[str, Any]) -> None:
+        if self.live is None:
+            return
+        try:
+            async with self.live.open(thread, rc.token) as send:
+                send(type_, data)
+        except Exception:  # noqa: BLE001 - a live update never fails the run
+            log.warning("live update not sent", extra={"type": type_})
+
+    async def _locked(self, company_id: UUID) -> bool:
+        async with self.hub.db.raw() as tx:
+            state = await tx.scalar("SELECT control.lock_state(:co)", co=company_id)
+        return state in ("holding", "company")
+
+    # ------------------------------------------------------------ records --
+    async def _book(self, rc: RunCtx, call: ModelCall) -> None:
+        """A step's usage on the run and on its work (budget accounting)."""
+        rc.used_tokens += call.tokens
+        usd = Decimal(call.equiv_cost_usd or 0) + Decimal(call.cost_usd or 0)
+        async with await self._tx() as tx:
+            await tx.exec(
+                """UPDATE agents.runs SET input_tokens = input_tokens + :i, output_tokens = output_tokens + :o,
+                       cache_read_tokens = cache_read_tokens + :cr, cache_write_tokens = cache_write_tokens + :cw,
+                       equiv_cost_usd = equiv_cost_usd + :eq, cost_usd = cost_usd + :c
+                   WHERE id = :id""",
+                id=rc.run["id"],
+                i=call.input_tokens,
+                o=call.output_tokens,
+                cr=call.cache_read_tokens,
+                cw=call.cache_write_tokens,
+                eq=Decimal(call.equiv_cost_usd or 0),
+                c=Decimal(call.cost_usd or 0),
+            )
+        if rc.run["work_id"] is not None and call.tokens:
+            try:
+                async with await self._tx() as tx:
+                    await tx.exec(
+                        "UPDATE work.work SET tokens_used = tokens_used + :t, usd_used = usd_used + :u WHERE id = :id",
+                        id=rc.run["work_id"],
+                        t=call.tokens,
+                        u=usd,
+                    )
+            except Exception:  # noqa: BLE001 - HQB01: the budget was already used up
+                log.warning(
+                    "work spending refused (budget used up)", extra={"run_id": str(rc.run["id"])}
+                )
+                rc.used_tokens = max(rc.used_tokens, int(rc.run["token_cap"] or 0))
+
+    async def _record_step(
+        self, rc: RunCtx, n: int, summary: str, results: list[dict[str, Any]], call: ModelCall
+    ) -> None:
+        actions = [
+            {
+                "tool": str(r.get("tool"))[:40],
+                "class": r.get("class"),
+                "outcome": r.get("outcome"),
+                **({"ref": str(r["ref"])[:80]} if r.get("ref") else {}),
+                **({"code": str(r["code"])[:60]} if r.get("code") else {}),
+            }
+            for r in results
+        ]
+        usage = {
+            "input": call.input_tokens,
+            "output": call.output_tokens,
+            "cache_read": call.cache_read_tokens,
+            "cache_write": call.cache_write_tokens,
+            "model": call.model,
+            "status": call.status,
+        }
+        async with await self._tx() as tx:
+            await tx.exec(
+                """INSERT INTO agents.steps (run_id, company_id, n, summary_fa, actions, usage, call_id)
+                   VALUES (:r, :co, :n, :s, CAST(:a AS jsonb), CAST(:u AS jsonb), CAST(:c AS uuid))
+                   ON CONFLICT (run_id, n) DO NOTHING""",
+                r=rc.run["id"],
+                co=rc.run["company_id"],
+                n=n,
+                s=summary[:2000],
+                a=json.dumps(actions, ensure_ascii=False),
+                u=json.dumps(usage),
+                c=call.call_id,
+            )
+            await tx.exec(
+                "UPDATE agents.runs SET steps = greatest(steps, :n) WHERE id = :id",
+                id=rc.run["id"],
+                n=n,
+            )
+            await events.emit(
+                tx,
+                rc.emp["company"],
+                "run.step",
+                str(rc.run["id"]),
+                {"employee": rc.emp["code"], "n": n, "actions": [a["tool"] for a in actions]},
+            )
+
+    async def _activity(self, tx: Tx, emp: dict[str, Any], activity: str, note: str | None) -> None:
+        await tx.exec(
+            "UPDATE core.employees SET activity = :a, activity_note = :n, activity_at = now() WHERE id = :id",
+            id=emp["id"],
+            a=activity,
+            n=note,
+        )
+        await events.emit(
+            tx, emp["company"], "activity.changed", emp["code"], {"activity": activity}
+        )
+
+    # -------------------------------------------------------------- finish --
+    async def finish(
+        self,
+        run_id: str,
+        state: str,
+        code: str | None,
+        *,
+        note: str | None = None,
+        partial: bool = False,
+    ) -> dict[str, Any]:
+        async with await self._tx() as tx:
+            run = await tx.one(
+                "SELECT * FROM agents.runs WHERE id = CAST(:id AS uuid) FOR UPDATE", id=run_id
+            )
+            if run["state"] in FINAL:
+                return {"state": run["state"], "code": run["error_code"]}
+            emp = await self._employee(tx, run["employee_id"])
+            await self._finish(tx, run, emp, state, code, note=note, partial=partial)
+        return {"state": state, "code": code}
+
+    async def _finish(
+        self,
+        tx: Tx,
+        run: dict[str, Any],
+        emp: dict[str, Any],
+        state: str,
+        code: str | None,
+        *,
+        note: str | None,
+        start: bool = True,
+        partial: bool = False,
+    ) -> None:
+        await tx.exec(
+            """UPDATE agents.runs SET state = :st, error_code = :code, note = :note, partial = :partial,
+                   finished_at = now(), started_at = COALESCE(started_at, CASE WHEN :st = 'done' THEN now() END)
+               WHERE id = :id""",
+            id=run["id"],
+            st=state,
+            code=code,
+            note=(note or "")[:1000] or None,
+            partial=partial,
+        )
+        busy = await tx.scalar(
+            "SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running' AND id <> :id",
+            e=emp["id"],
+            id=run["id"],
+        )
+        if not busy and start:
+            await self._activity(tx, emp, "sleeping" if state != "failed" else "error", None)
+        if state == "refused":
+            await audit.record(
+                tx,
+                audit.SYSTEM,
+                company_id=run["company_id"],
+                action="run.refused",
+                action_class="A0",
+                target_kind="run",
+                target_ref=str(run["id"]),
+                summary=f"{emp['code']}: {code}"[:500],
+            )
+        await events.emit(
+            tx,
+            emp["company"],
+            "run.finished",
+            str(run["id"]),
+            {"employee": emp["code"], "state": state, "code": code, "partial": partial},
+        )

@@ -15,9 +15,11 @@ ty_hr_mgr := {"kind": "agent", "code": "TY-HR-MGR", "role": "manager", "company"
 
 ty_growth_01 := {"kind": "agent", "code": "TY-GROWTH-01", "role": "employee", "company": "TY", "department": "GROWTH"}
 
-hq_adv := {"kind": "agent", "code": "HQ-ADV", "role": "advisor", "company": "HQ", "department": null}
+hq_adv := {"kind": "agent", "code": "HQ-ADV", "role": "advisor", "company": "HQ", "department": null, "scope": "holding"}
 
-hq_ovs := {"kind": "agent", "code": "HQ-OVS-MGR", "role": "inspector", "company": "HQ", "department": "OVS"}
+hq_ovs := {"kind": "agent", "code": "HQ-OVS-MGR", "role": "inspector", "company": "HQ", "department": "OVS", "scope": "holding"}
+
+hq_ovs_01 := {"kind": "agent", "code": "HQ-OVS-01", "role": "employee", "company": "HQ", "department": "OVS", "scope": "holding"}
 
 svc := {"kind": "service", "code": "llm-router", "role": "service", "company": null, "department": null}
 

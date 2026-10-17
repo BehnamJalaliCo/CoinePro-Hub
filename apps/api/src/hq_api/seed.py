@@ -12,7 +12,7 @@ from typing import Any
 import yaml
 
 from hq_api.db import Tx
-from hq_api.domain import templates
+from hq_api.domain import sites, templates
 
 SEED_DIR = Path(__file__).resolve().parents[2] / "seed"
 
@@ -36,9 +36,20 @@ async def seed(tx: Tx) -> dict[str, Any]:
             tpl=c.get("template"),
         )
     # Every company gets its template applied (only what is missing is added).
-    added: dict[str, int] = {"departments": 0, "employees": 0, "threads": 0}
+    added: dict[str, int] = {"departments": 0, "employees": 0, "threads": 0, "roles": 0}
     for co in await tx.all("SELECT id, code, kind, template FROM core.companies ORDER BY code"):
         key = co["template"] or ("holding" if co["kind"] == "holding" else "standard")
         for k, v in (await templates.apply(tx, co["id"], co["code"], key)).items():
             added[k] += v
+        # The charter of each leadership position follows its template (no
+        # API edits it); hired employees keep the role their decision gave.
+        for code, role in templates.leadership_roles(co["code"], key).items():
+            added["roles"] += await tx.exec(
+                """UPDATE core.employees SET role = :role
+                   WHERE code = :code AND company_id = :co AND role IS DISTINCT FROM :role""",
+                code=code,
+                co=co["id"],
+                role=role,
+            )
+    added["sites"] = await sites.seed(tx)
     return {"companies_filled": filled, **added}

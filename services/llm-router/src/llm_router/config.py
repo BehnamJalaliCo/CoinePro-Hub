@@ -59,3 +59,12 @@ class Settings:
     anomaly_min_calls: int = field(default_factory=lambda: _int("LLM_ANOMALY_MIN_CALLS", 30))
     anomaly_interval_s: int = field(default_factory=lambda: _int("LLM_ANOMALY_INTERVAL_S", 300))
     log_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL", "info"))
+    # Test environments only: answer connections of kind 'fake' (prompt 05 §2).
+    fake_backend: bool = field(default_factory=lambda: os.environ.get("LLM_FAKE_BACKEND") == "1")
+    # Quota Controller (prompt 05 §8): ledger-window thresholds in tokens; 0 = off
+    # (the SDK's own rate-limit events are the primary source).
+    quota_warn_5h: int = field(default_factory=lambda: _int("LLM_QUOTA_WARN_TOKENS_5H", 0))
+    quota_limit_5h: int = field(default_factory=lambda: _int("LLM_QUOTA_LIMIT_TOKENS_5H", 0))
+    quota_warn_7d: int = field(default_factory=lambda: _int("LLM_QUOTA_WARN_TOKENS_7D", 0))
+    quota_limit_7d: int = field(default_factory=lambda: _int("LLM_QUOTA_LIMIT_TOKENS_7D", 0))
+    quota_interval_s: int = field(default_factory=lambda: _int("LLM_QUOTA_INTERVAL_S", 60))

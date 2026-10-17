@@ -2,53 +2,63 @@
 # Creating a company from it adds these departments and ONLY the leadership
 # positions (the CEO and one manager per department), all asleep. Numbered
 # employees are never seeded: they exist only through an approved `hire`.
+# head_role / role: the charter each position runs with (agents/roles/<role>.md,
+# prompt 05). A department without its own charter yet uses `manager`.
 key: standard
 name_fa: قالب استاندارد شرکت
 name_en: Standard company
 departments:
   - code: TECH
+    head_role: cto
     name_fa: فنی
     name_en: Technology
     manager_title_fa: مدیر فنی (CTO)
     manager_title_en: Chief Technology Officer (CTO)
     sort: 10
   - code: GROWTH
+    head_role: manager
     name_fa: رشد و مارکتینگ
     name_en: Growth and Marketing
     manager_title_fa: مدیر مارکتینگ (CMO)
     manager_title_en: Chief Marketing Officer (CMO)
     sort: 20
   - code: SALES
+    head_role: manager
     name_fa: فروش و پشتیبانی
     name_en: Sales and Support
     manager_title_fa: مدیر فروش (CSO)
     manager_title_en: Chief Sales Officer (CSO)
     sort: 30
   - code: PRODUCT
+    head_role: manager
     name_fa: محصول
     name_en: Product
     manager_title_fa: مدیر محصول (CPO)
     manager_title_en: Chief Product Officer (CPO)
     sort: 40
   - code: FIN
+    head_role: manager
     name_fa: مالی
     name_en: Finance
     manager_title_fa: مدیر مالی (CFO)
     manager_title_en: Chief Financial Officer (CFO)
     sort: 50
   - code: QUANT
+    head_role: manager
     name_fa: کوانت
     name_en: Quant
     manager_title_fa: مدیر کوانت (Head of Quant)
     manager_title_en: Head of Quant
     sort: 60
   - code: AIOPS
+    head_role: manager
     name_fa: عملیات هوش مصنوعی
     name_en: AI Operations
     manager_title_fa: مدیر عملیات AI
     manager_title_en: Head of AI Operations
     sort: 70
   - code: HR
+    head_role: manager
     name_fa: منابع انسانی
     name_en: Human Resources
     manager_title_fa: مدیر منابع انسانی (HR)
@@ -58,5 +68,6 @@ leadership:
   ceo:
     title_fa: مدیرعامل
     title_en: Chief Executive Officer (CEO)
+    role: ceo
   # one manager per department above, titled by the department's manager title
   managers: true

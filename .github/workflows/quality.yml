@@ -20,3 +20,33 @@ jobs:
 
       - name: make check
         run: make check
+
+  # The web panel's production image (prompt 05 §10): built only when apps/web
+  # changed; `npm ci` from the lockfile inside the Dockerfile; no secrets.
+  web-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Did apps/web change?
+        id: changed
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if [ -z "$BEFORE" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "web=true" >>"$GITHUB_OUTPUT"   # new branch or forced push: build
+          elif git diff --quiet "$BEFORE" "$AFTER" -- apps/web; then
+            echo "web=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "web=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the web image
+        if: steps.changed.outputs.web == 'true'
+        run: docker build -t coinepro-hq/web:ci apps/web

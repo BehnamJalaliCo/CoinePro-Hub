@@ -65,7 +65,7 @@ async def superuser() -> asyncpg.Connection:
 async def su(migrated: None) -> AsyncIterator[asyncpg.Connection]:
     conn = await superuser()
     await conn.execute(
-        """TRUNCATE llm.calls, llm.usage, llm.budgets, llm.transcripts;
+        """TRUNCATE llm.calls, llm.usage, llm.budgets, llm.transcripts, llm.quota_status;
            DELETE FROM llm.assignments WHERE note IS DISTINCT FROM 'Default for the whole holding'
                AND note IS DISTINCT FROM 'General advisor (§1.1)';
            UPDATE llm.connections SET status = CASE key WHEN 'claude-max' THEN 'enabled' ELSE 'disabled' END,

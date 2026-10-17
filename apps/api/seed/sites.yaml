@@ -1,0 +1,23 @@
+# Rule-based site checks (prompt 05 §4, contract §16.4). Data, not code: the
+# owner changes the list from the app (PUT /api/v1/ops/sites, 🔏). The seed
+# only adds missing (company, url) rows and never overwrites later edits -
+# except `enabled` of canary rows, which follows this file (a canary is a
+# test fixture of the hub, not the owner's data).
+#   expect.status    the HTTP status that counts as healthy (default 200)
+#   expect.contains  optional text the body must contain (GET only)
+# Redirects are followed only on the same host; a redirect to another domain
+# is reported as it is (its 3xx status), never followed.
+sites:
+  - {company: TY, url: "https://tradeyar.trade-future.ir", kind: web}
+  - {company: TY, url: "https://user.tradeyar.trade-future.ir", kind: web}
+  - {company: FX, url: "https://coineprofx.com", kind: web}
+  - {company: FX, url: "https://fx.trade-future.ir", kind: web}
+  - {company: PC, url: "https://pro-chart.com", kind: web}
+  - {company: PC, url: "https://terminal.coinepro.com", kind: web}
+  - {company: HQ, url: "https://hq.coinepro.com/api/v1/health", kind: api,
+     expect: {status: 200, contains: '"ok"'}}
+  # Canary (prompt 05 §9.1): Caddy answers 503 here on purpose, so the whole
+  # line (check -> incident -> work -> run -> deliverable) can be proven.
+  # Proven on 2026-10-17 (I-0003 -> W-000004 -> HQ-AIOPS-MGR -> O-000003) and
+  # switched off; set enabled: true to prove it again (one real run).
+  - {company: HQ, url: "https://hq.coinepro.com/__canary", kind: api, canary: true, enabled: false}

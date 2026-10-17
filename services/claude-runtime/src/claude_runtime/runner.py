@@ -80,6 +80,9 @@ class Outcome:
     quota_resets_at: float | None = None
     duration_ms: int = 0
     effort_applied: bool | None = None
+    # The latest rate-limit state the CLI reported during the run (Quota
+    # Controller source, prompt 05 §8): status, window, utilization, reset.
+    rate_limit: dict[str, Any] | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
     def as_json(self) -> dict[str, Any]:
@@ -95,12 +98,32 @@ class Outcome:
             "quota_resets_at": self.quota_resets_at,
             "duration_ms": self.duration_ms,
             "effort_applied": self.effort_applied,
+            "rate_limit": self.rate_limit,
         }
 
 
 @dataclass(frozen=True)
 class Delta:
     text: str
+
+
+RATE_LIMIT_STATUSES = ("allowed", "allowed_warning", "rejected")
+
+
+def rate_limit_of(info: Any) -> dict[str, Any] | None:
+    """Metadata only, with types checked (the CLI's raw dict is never passed on)."""
+    status = getattr(info, "status", None)
+    if status not in RATE_LIMIT_STATUSES:
+        return None
+    kind = getattr(info, "rate_limit_type", None)
+    util = getattr(info, "utilization", None)
+    resets = getattr(info, "resets_at", None)
+    return {
+        "status": status,
+        "window": kind if isinstance(kind, str) and len(kind) <= 40 else None,
+        "utilization": float(util) if isinstance(util, int | float) and 0 <= util <= 1 else None,
+        "resets_at": float(resets) if isinstance(resets, int | float) and resets > 0 else None,
+    }
 
 
 def usage_from(raw: dict[str, Any] | None) -> dict[str, int | None] | None:
@@ -205,6 +228,7 @@ class ClaudeRunner:
         self, spec: RunSpec, run_dir: Path, token: str, partial: bool
     ) -> AsyncIterator[Delta | Outcome]:
         signals = Signals()
+        rate_limit: dict[str, Any] | None = None
         texts: list[str] = []
         model: str | None = None
         result: ResultMessage | None = None
@@ -227,6 +251,7 @@ class ClaudeRunner:
                             texts += [b.text for b in msg.content if isinstance(b, TextBlock)]
                         elif isinstance(msg, RateLimitEvent):
                             info = msg.rate_limit_info
+                            rate_limit = rate_limit_of(info) or rate_limit
                             if info.status == "rejected":
                                 signals.rejected_resets_at.append(
                                     float(info.resets_at) if info.resets_at else None
@@ -285,4 +310,5 @@ class ClaudeRunner:
             error_class=verdict.error_class,
             quota_resets_at=verdict.resets_at,
             effort_applied=spec.effort is not None,
+            rate_limit=rate_limit,
         )

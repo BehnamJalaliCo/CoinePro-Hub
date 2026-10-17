@@ -1,0 +1,5 @@
+# No web panel yet (HQ_WEB=off): a plain static page.
+handle {
+	root * /srv/site
+	file_server
+}

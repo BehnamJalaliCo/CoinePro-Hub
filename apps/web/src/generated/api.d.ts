@@ -266,7 +266,9 @@ export interface paths {
         /**
          * Step Up Verify
          * @description Verify the assertion -> a single-use step-up token (120 s) for the action/target
-         *     chosen at options time. Send it as `X-Step-Up`.
+         *     chosen at options time. Send it as `X-Step-Up`. On the web the session cookie
+         *     is rotated at the same time (same session, new secret): a cookie seen before
+         *     the step-up is worthless after it.
          */
         post: operations["step_up_verify"];
         delete?: never;
@@ -1017,6 +1019,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ops/incidents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Incidents
+         * @description Incidents opened by the rule-based checks, newest first.
+         */
+        get: operations["list_incidents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/sites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sites
+         * @description Sites under rule-based checks with their latest check and 24 h uptime.
+         */
+        get: operations["list_sites"];
+        /**
+         * Put Sites
+         * @description 🔏 (`sites.update`, target = SHA-256 of the body) replace one company's
+         *     list: new URLs are added, listed ones updated, missing ones switched off
+         *     (never deleted: their checks and incidents stay). Canaries are not touched.
+         */
+        put: operations["put_sites"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/org/{company}/chart": {
         parameters: {
             query?: never;
@@ -1294,6 +1342,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Roles
+         * @description The role charters (agents/roles/*.md), read-only: what each role is, its
+         *     default model and effort, its tools and limits, and the charter version.
+         */
+        get: operations["list_roles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Runs
+         * @description Agent runs, newest first.
+         */
+        get: operations["list_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run
+         * @description One run with its steps: summaries and tool metadata only.
+         */
+        get: operations["get_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/search/messages": {
         parameters: {
             query?: never;
@@ -1378,6 +1487,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/threads/{code}/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Thread Live
+         * @description Owner only, SSE: `reply.started {run_id}`, `reply.delta {text}` (the reply
+         *     being written, in Persian chunks), `reply.done {message_ref}`,
+         *     `reply.failed {code}`. The stored message is the final text; deltas are
+         *     never stored. A comment line every 15 s keeps the connection open.
+         */
+        get: operations["thread_live"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/threads/{code}/messages": {
         parameters: {
             query?: never;
@@ -1394,7 +1526,9 @@ export interface paths {
         /**
          * Send Message
          * @description Messages are immutable: a correction is a new message with `links.corrects`.
-         *     Requires `Idempotency-Key`.
+         *     In an agent's thread (the advisor `A`, a CEO, a manager, an employee) the
+         *     message wakes that agent: `reply` is its queued run; the reply arrives as a
+         *     message (and live on GET /threads/{code}/live). Requires `Idempotency-Key`.
          */
         post: operations["send_message"];
         delete?: never;
@@ -1455,6 +1589,27 @@ export interface paths {
          * @description Ledger rows, metadata only: never prompt or response text.
          */
         get: operations["treasury_calls"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/treasury/quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Treasury Quota
+         * @description The subscription's quota as the Quota Controller sees it (code, no model):
+         *     at `warning` P4 waits, at `limited` only P0-P2 run.
+         */
+        get: operations["treasury_quota"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1616,6 +1771,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/work/{id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Work Runs
+         * @description The runs of one work item, oldest first, with their steps.
+         */
+        get: operations["work_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/activity": {
         parameters: {
             query?: never;
@@ -1630,6 +1805,48 @@ export interface paths {
          * @description Live activity of an employee -> `activity.changed` on the stream.
          */
         post: operations["set_activity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/audit/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tool Audit Recent
+         * @description audit.recent: audit rows (metadata only) for oversight roles and the advisor.
+         */
+        get: operations["tool_audit_recent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/company/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tool Company State
+         * @description company.state: departments, active employees, open work by status, pending
+         *     decisions, kill switch, deploy freeze, budget use. A holding-scope role
+         *     without `company` gets every company.
+         */
+        get: operations["tool_company_state"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1785,6 +2002,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/health/hub": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tool Health Hub
+         * @description health.hub: the hub's own latest snapshot (services, restarts, disk,
+         *     memory, certificate days left, backup age, restore-test result).
+         */
+        get: operations["tool_health_hub"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/health/sites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tool Health Sites
+         * @description health.sites: the latest rule-based check of each site (status, latency,
+         *     TLS days left, consecutive failures), 24 h uptime, and open incidents.
+         */
+        get: operations["tool_health_sites"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/knowledge/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tool Knowledge Search
+         * @description knowledge.search: resolutions, deliverables, decisions and work the role
+         *     may read (message bodies: the advisor only). Refs and short snippets.
+         */
+        get: operations["tool_knowledge_search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tool Memory Read
+         * @description memory.read: the employee's own notes, latest first, capped in size.
+         */
+        get: operations["tool_memory_read"];
+        put?: never;
+        /**
+         * Tool Memory Write
+         * @description memory.write: append one note to the employee's own memory (append-only).
+         */
+        post: operations["tool_memory_write"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/notifications": {
         parameters: {
             query?: never;
@@ -1802,6 +2106,72 @@ export interface paths {
          *     is locked an agent raises only 🔴 incidents.
          */
         post: operations["raise_notification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/runs/self/reserve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Reserve
+         * @description The gateway reserves one tool call of the token's run before it acts: the
+         *     caps per step and per run hold in the database, steps never go back. 429
+         *     rate_limited when a cap is reached.
+         */
+        post: operations["run_reserve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/runs/self/tool-calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Record Tool Call
+         * @description One audit row per tool call (tool, class, outcome, ref) - never its input
+         *     or output. Written by the gateway after the call.
+         */
+        post: operations["run_record_tool_call"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/threads/{code}/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Push Live
+         * @description The reply being written, pushed by the runtime as NDJSON lines
+         *     {type: reply.started|reply.delta|reply.done|reply.failed, ...} and fanned
+         *     out to the owner's GET /api/v1/threads/{code}/live. Never stored, never on
+         *     NATS, never logged; the final text is the stored message.
+         */
+        post: operations["push_live"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1828,6 +2198,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/treasury/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tool Treasury Usage
+         * @description treasury.usage: tokens and equivalent cost of a company (own; another one
+         *     or `holding` for holding-scope roles) by model and top actors, budget use %.
+         */
+        get: operations["tool_treasury_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/work": {
         parameters: {
             query?: never;
@@ -1845,6 +2236,27 @@ export interface paths {
          *     agent waits for a `recurring_approval` decision. Requires `Idempotency-Key`.
          */
         post: operations["request_work"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/work/ref/{ref}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tool Work Get
+         * @description work.get: one work item with its delegation chain, brief, budget left,
+         *     evidence and deliverables (summaries).
+         */
+        get: operations["tool_work_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1995,7 +2407,56 @@ export interface components {
             attachments?: string[];
             /** Body */
             body: string;
+            /** Citations */
+            citations?: components["schemas"]["Citation"][];
             links?: components["schemas"]["Links"] | null;
+        };
+        /** AgentWorkDetail */
+        AgentWorkDetail: {
+            /** Assignee */
+            assignee: string | null;
+            /** Brief */
+            brief: string;
+            budget: components["schemas"]["BudgetLeft"];
+            /** Chain */
+            chain: components["schemas"]["ChainItem"][];
+            /** Children */
+            children: components["schemas"]["ChainItem"][];
+            /** Company */
+            company: string;
+            /** Created By */
+            created_by: string;
+            /** Deliverables */
+            deliverables: components["schemas"]["DeliverableBrief"][];
+            /** Department */
+            department: string | null;
+            /** Depth */
+            depth: number;
+            /** Due At */
+            due_at: string | null;
+            /** Escrow Classes */
+            escrow_classes: string[];
+            /** Evidence */
+            evidence: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Priority */
+            priority: string;
+            /** Progress Note */
+            progress_note: string | null;
+            /** Ref */
+            ref: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
         };
         /** AnswerIn */
         AnswerIn: {
@@ -2060,6 +2521,28 @@ export interface components {
         AssignmentsPut: {
             /** Assignments */
             assignments: components["schemas"]["AssignmentIn"][];
+        };
+        /** AuditBrief */
+        AuditBrief: {
+            /** Action */
+            action: string;
+            /** Action Class */
+            action_class: string;
+            /** Actor */
+            actor: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Company */
+            company: string;
+            /** Seq */
+            seq: number;
+            /** Summary */
+            summary: string;
+            /** Target */
+            target: string;
         };
         /** AuditEntry */
         AuditEntry: {
@@ -2142,6 +2625,21 @@ export interface components {
             tokens_used: number;
             /** Usd */
             usd: string | null;
+            /** Usd Used */
+            usd_used: string;
+        };
+        /** BudgetLeft */
+        BudgetLeft: {
+            /** Tokens */
+            tokens: number | null;
+            /** Tokens Left */
+            tokens_left: number | null;
+            /** Tokens Used */
+            tokens_used: number;
+            /** Usd */
+            usd: string | null;
+            /** Usd Left */
+            usd_left: string | null;
             /** Usd Used */
             usd_used: string;
         };
@@ -2237,6 +2735,19 @@ export interface components {
             /** Work Ref */
             work_ref: string | null;
         };
+        /** ChainItem */
+        ChainItem: {
+            /** Assignee */
+            assignee: string | null;
+            /** Depth */
+            depth: number;
+            /** Ref */
+            ref: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+        };
         /** ChainStep */
         ChainStep: {
             assignee: components["schemas"]["EmployeeRef"] | null;
@@ -2298,12 +2809,35 @@ export interface components {
             /** Title Fa */
             title_fa: string;
         };
+        /**
+         * CharterRef
+         * @description The charter an employee runs with (contract §16.1).
+         */
+        CharterRef: {
+            /** Role */
+            role: string;
+            /** Version */
+            version: number | null;
+        };
         /** Choice */
         Choice: {
             /** Id */
             id: string;
             /** Label Fa */
             label_fa: string;
+        };
+        /**
+         * Citation
+         * @description A reference the author cites (contract §16.3), validated server-side.
+         */
+        Citation: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "decision" | "resolution" | "deliverable" | "work" | "message" | "audit";
+            /** Ref */
+            ref: string;
         };
         /** Company */
         Company: {
@@ -2387,6 +2921,37 @@ export interface components {
             name_fa?: string | null;
             /** Status */
             status?: ("active" | "paused" | "archived") | null;
+        };
+        /** CompanyState */
+        CompanyState: {
+            /** Budgets */
+            budgets: {
+                [key: string]: unknown;
+            }[];
+            /** Company */
+            company: string;
+            /** Decisions Pending */
+            decisions_pending: number;
+            /** Departments */
+            departments: {
+                [key: string]: unknown;
+            }[];
+            /** Deploy Freeze Until */
+            deploy_freeze_until: string | null;
+            /** Employees */
+            employees: {
+                [key: string]: number;
+            };
+            /** Kill Switch */
+            kill_switch: string;
+            /** Kind */
+            kind: string;
+            /** Name En */
+            name_en: string | null;
+            /** Work Open */
+            work_open: {
+                [key: string]: number;
+            };
         };
         /** Complete */
         Complete: {
@@ -2698,6 +3263,22 @@ export interface components {
             /** Work Ref */
             work_ref: string;
         };
+        /** DeliverableBrief */
+        DeliverableBrief: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Producer */
+            producer: string;
+            /** Ref */
+            ref: string;
+            /** Summary */
+            summary: string;
+            /** Title */
+            title: string;
+        };
         /** DeliverablesBox */
         DeliverablesBox: {
             /** New */
@@ -2815,6 +3396,7 @@ export interface components {
             activity_at: string | null;
             /** Activity Note */
             activity_note: string | null;
+            charter?: components["schemas"]["CharterRef"] | null;
             /** Code */
             code: string;
             /** Company */
@@ -2863,6 +3445,7 @@ export interface components {
             activity_at: string | null;
             /** Activity Note */
             activity_note: string | null;
+            charter?: components["schemas"]["CharterRef"] | null;
             /** Code */
             code: string;
             /** Company */
@@ -3041,6 +3624,52 @@ export interface components {
              */
             until: string;
         };
+        /** Gate */
+        Gate: {
+            /** Charter Version */
+            charter_version: number | null;
+            /** Company */
+            company: string;
+            /** Department */
+            department: string | null;
+            /** Effort */
+            effort: string | null;
+            /** Employee */
+            employee: string;
+            /** Escrow Classes */
+            escrow_classes: string[];
+            /** Kind */
+            kind: string;
+            /** Lock */
+            lock: string | null;
+            /** Model */
+            model: string | null;
+            /** Own Thread */
+            own_thread: string | null;
+            /** Role */
+            role: string | null;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Scope */
+            scope: string;
+            /** Status */
+            status: string;
+            /** Step */
+            step: number;
+            /** Step Tool Calls */
+            step_tool_calls: number;
+            /** Step Tool Calls Cap */
+            step_tool_calls_cap: number;
+            /** Tool Calls */
+            tool_calls: number;
+            /** Tool Calls Cap */
+            tool_calls_cap: number;
+            /** Work Ref */
+            work_ref: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -3050,6 +3679,38 @@ export interface components {
         Health: {
             /** Status */
             status: string;
+        };
+        /** Hit */
+        Hit: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Company */
+            company: string;
+            /** Kind */
+            kind: string;
+            /** Ref */
+            ref: string;
+            /** Snippet */
+            snippet: string;
+            /** Title */
+            title: string;
+        };
+        /** HoldingState */
+        HoldingState: {
+            /** Companies */
+            companies: components["schemas"]["CompanyState"][];
+        };
+        /** HubHealth */
+        HubHealth: {
+            /** At */
+            at: string | null;
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            };
         };
         /** InboxSummary */
         InboxSummary: {
@@ -3063,6 +3724,61 @@ export interface components {
             /** Messages Unread */
             messages_unread: number;
             notifications: components["schemas"]["NotificationCounts"];
+        };
+        /** Incident */
+        Incident: {
+            /** Checks Failed */
+            checks_failed: number;
+            /** Closed At */
+            closed_at: string | null;
+            /** Company */
+            company: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Status */
+            last_status: number | null;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Ref */
+            ref: string;
+            /** Severity */
+            severity: string;
+            /** Url */
+            url: string;
+            /** Work Ref */
+            work_ref: string | null;
+        };
+        /** IncidentBrief */
+        IncidentBrief: {
+            /** Checks Failed */
+            checks_failed: number;
+            /** Company */
+            company: string;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Status */
+            last_status: number | null;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Ref */
+            ref: string;
+            /** Severity */
+            severity: string;
+            /** Url */
+            url: string;
+            /** Work Ref */
+            work_ref: string | null;
         };
         /** Interaction */
         Interaction: {
@@ -3164,6 +3880,29 @@ export interface components {
             /** Device Name */
             device_name?: string | null;
         };
+        /** MemoryIn */
+        MemoryIn: {
+            /** Note */
+            note: string;
+            /** Tags */
+            tags?: string[];
+        };
+        /** MemoryNote */
+        MemoryNote: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Id */
+            id: number;
+            /** Note */
+            note: string;
+            /** Source */
+            source: string | null;
+            /** Tags */
+            tags: string[];
+        };
         /** Message */
         Message: {
             /** Attachments */
@@ -3171,6 +3910,8 @@ export interface components {
             author: components["schemas"]["Actor"];
             /** Body */
             body: string;
+            /** Citations */
+            citations?: components["schemas"]["Citation"][];
             /**
              * Created At
              * Format: date-time
@@ -3185,6 +3926,10 @@ export interface components {
             kind: string;
             /** Links */
             links: {
+                [key: string]: unknown;
+            };
+            /** Meta */
+            meta?: {
                 [key: string]: unknown;
             };
             /** Ref */
@@ -3438,6 +4183,13 @@ export interface components {
             /** Next Cursor */
             next_cursor?: string | null;
         };
+        /** Page[Run] */
+        Page_Run_: {
+            /** Items */
+            items: components["schemas"]["Run"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
         /** Page[SearchHit] */
         Page_SearchHit_: {
             /** Items */
@@ -3636,6 +4388,11 @@ export interface components {
             /** Usd */
             usd: string | null;
         };
+        /** QuotaView */
+        QuotaView: {
+            subscription: components["schemas"]["Subscription"];
+            throttle: components["schemas"]["Throttle"];
+        };
         /** Rating */
         Rating: {
             /** Comment */
@@ -3704,6 +4461,26 @@ export interface components {
             /** Reason Code */
             reason_code?: ("cost" | "risk" | "timing" | "quality" | "other") | null;
         };
+        /** Reply */
+        Reply: {
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "running";
+        };
+        /** ReserveIn */
+        ReserveIn: {
+            /** Step */
+            step: number;
+            /** Tool */
+            tool: string;
+        };
         /** Resolution */
         Resolution: {
             /** Body */
@@ -3764,6 +4541,162 @@ export interface components {
             /** Note */
             note: string;
         };
+        /** Role */
+        Role: {
+            /** Department */
+            department: string | null;
+            /** Effort */
+            effort: string;
+            /** Kind */
+            kind: string;
+            limits: components["schemas"]["RoleLimits"];
+            /** Model */
+            model: string;
+            /** Priority */
+            priority: string;
+            /** Role */
+            role: string;
+            /** Scope */
+            scope: string;
+            /** Title En */
+            title_en: string;
+            /** Title Fa */
+            title_fa: string;
+            /** Tools */
+            tools: string[];
+            /** Version */
+            version: number;
+        };
+        /** RoleLimits */
+        RoleLimits: {
+            /** Steps Per Run */
+            steps_per_run: number;
+            /** Tokens Per Run */
+            tokens_per_run: number;
+            /** Tokens Per Step */
+            tokens_per_step: number;
+        };
+        /** Run */
+        Run: {
+            /** Charter */
+            charter: string | null;
+            /** Charter Version */
+            charter_version: number | null;
+            /** Company */
+            company: string;
+            /** Cost Usd */
+            cost_usd: string;
+            /** Effort */
+            effort: string | null;
+            /** Employee */
+            employee: string;
+            /** Equiv Cost Usd */
+            equiv_cost_usd: string;
+            /** Error Code */
+            error_code: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Model */
+            model: string | null;
+            /** Partial */
+            partial: boolean;
+            /** Priority */
+            priority: string;
+            /**
+             * Queued At
+             * Format: date-time
+             */
+            queued_at: string;
+            /** Reason */
+            reason: string;
+            /** Started At */
+            started_at: string | null;
+            /** State */
+            state: string;
+            /** Steps */
+            steps: number;
+            /** Thread */
+            thread: string | null;
+            tokens: components["schemas"]["RunTokens"];
+            /** Tool Calls */
+            tool_calls: number;
+            /** Trigger */
+            trigger: string;
+            /** Work Ref */
+            work_ref: string | null;
+        };
+        /** RunDetail */
+        RunDetail: {
+            /** Charter */
+            charter: string | null;
+            /** Charter Version */
+            charter_version: number | null;
+            /** Company */
+            company: string;
+            /** Cost Usd */
+            cost_usd: string;
+            /** Effort */
+            effort: string | null;
+            /** Employee */
+            employee: string;
+            /** Equiv Cost Usd */
+            equiv_cost_usd: string;
+            /** Error Code */
+            error_code: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Model */
+            model: string | null;
+            /** Partial */
+            partial: boolean;
+            /** Priority */
+            priority: string;
+            /**
+             * Queued At
+             * Format: date-time
+             */
+            queued_at: string;
+            /** Reason */
+            reason: string;
+            /** Started At */
+            started_at: string | null;
+            /** State */
+            state: string;
+            /** Steps */
+            steps: number;
+            /** Steps Detail */
+            steps_detail: components["schemas"]["Step"][];
+            /** Thread */
+            thread: string | null;
+            tokens: components["schemas"]["RunTokens"];
+            /** Tool Calls */
+            tool_calls: number;
+            /** Trigger */
+            trigger: string;
+            /** Work Ref */
+            work_ref: string | null;
+        };
+        /** RunTokens */
+        RunTokens: {
+            /** Cache Read */
+            cache_read: number;
+            /** Cache Write */
+            cache_write: number;
+            /** Input */
+            input: number;
+            /** Output */
+            output: number;
+        };
         /** Schedule */
         Schedule: {
             /** Next At */
@@ -3815,6 +4748,8 @@ export interface components {
             author: components["schemas"]["Actor"];
             /** Body */
             body: string;
+            /** Citations */
+            citations?: components["schemas"]["Citation"][];
             /**
              * Created At
              * Format: date-time
@@ -3829,6 +4764,10 @@ export interface components {
             kind: string;
             /** Links */
             links: {
+                [key: string]: unknown;
+            };
+            /** Meta */
+            meta?: {
                 [key: string]: unknown;
             };
             /** Rank */
@@ -3849,6 +4788,15 @@ export interface components {
             connection: string;
             /** Stored */
             stored: boolean;
+        };
+        /**
+         * Sent
+         * @description POST /threads/{code}/messages (contract §16.3): the stored message and,
+         *     when the thread's counterpart is an agent, its reply run (woken).
+         */
+        Sent: {
+            message: components["schemas"]["Message"];
+            reply: components["schemas"]["Reply"] | null;
         };
         /** SessionInfo */
         SessionInfo: {
@@ -3884,6 +4832,141 @@ export interface components {
              */
             token?: string | null;
         };
+        /** Site */
+        Site: {
+            /** Canary */
+            canary: boolean;
+            /** Company */
+            company: string;
+            /** Consecutive Failures */
+            consecutive_failures: number;
+            /** Enabled */
+            enabled: boolean;
+            /** Expect */
+            expect: {
+                [key: string]: unknown;
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Interval S */
+            interval_s: number;
+            /** Kind */
+            kind: string;
+            /** Last */
+            last: {
+                [key: string]: unknown;
+            } | null;
+            /** Method */
+            method: string;
+            /** Uptime 24H */
+            uptime_24h: number | null;
+            /** Url */
+            url: string;
+            /** Version */
+            version: number;
+        };
+        /** SiteHealth */
+        SiteHealth: {
+            /** Company */
+            company: string;
+            /** Consecutive Failures */
+            consecutive_failures: number;
+            /** Enabled */
+            enabled: boolean;
+            /** Kind */
+            kind: string;
+            /** Last */
+            last: {
+                [key: string]: unknown;
+            } | null;
+            /** Uptime 24H */
+            uptime_24h: number | null;
+            /** Url */
+            url: string;
+        };
+        /** SiteIn */
+        SiteIn: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Expect */
+            expect?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Interval S
+             * @default 300
+             */
+            interval_s: number;
+            /**
+             * Kind
+             * @default web
+             * @enum {string}
+             */
+            kind: "web" | "api" | "bot";
+            /**
+             * Method
+             * @default GET
+             * @enum {string}
+             */
+            method: "GET" | "HEAD";
+            /** Url */
+            url: string;
+        };
+        /** SitesHealth */
+        SitesHealth: {
+            /** Open Incidents */
+            open_incidents: components["schemas"]["IncidentBrief"][];
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /** Sites */
+            sites: components["schemas"]["SiteHealth"][];
+        };
+        /** SitesPut */
+        SitesPut: {
+            /** Company */
+            company: string;
+            /** Sites */
+            sites: components["schemas"]["SiteIn"][];
+        };
+        /** Step */
+        Step: {
+            /** Actions */
+            actions: components["schemas"]["StepAction"][];
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** N */
+            n: number;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Summary Fa */
+            summary_fa: string;
+        };
+        /** StepAction */
+        StepAction: {
+            /** Class */
+            class?: string | null;
+            /** Outcome */
+            outcome: string;
+            /** Ref */
+            ref?: string | null;
+            /** Tool */
+            tool: string;
+        };
         /** StepUpOptionsIn */
         StepUpOptionsIn: {
             /** Action */
@@ -3904,6 +4987,26 @@ export interface components {
         /** StepUpVerifyIn */
         StepUpVerifyIn: {
             credential: components["schemas"]["PublicKeyCredential"];
+        };
+        /** Subscription */
+        Subscription: {
+            /** Changed At */
+            changed_at: string | null;
+            /** Connection */
+            connection: string | null;
+            /** Resets At */
+            resets_at: string | null;
+            /** Source */
+            source: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warning" | "limited";
+            /** Utilization */
+            utilization: string | null;
+            /** Window */
+            window: string | null;
         };
         /** Summary */
         Summary: {
@@ -3973,6 +5076,29 @@ export interface components {
              * @constant
              */
             kind: "employee";
+        };
+        /** Throttle */
+        Throttle: {
+            /** Paused Priorities */
+            paused_priorities: string[];
+        };
+        /** ToolCallIn */
+        ToolCallIn: {
+            /** Class */
+            class?: ("A0" | "A1" | "A2" | "A3" | "A4") | null;
+            /** Code */
+            code?: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "ok" | "denied" | "error";
+            /** Ref */
+            ref?: string | null;
+            /** Step */
+            step: number;
+            /** Tool */
+            tool: string;
         };
         /** TopDecision */
         TopDecision: {
@@ -4063,6 +5189,34 @@ export interface components {
             output_tokens: number;
             /** Thinking Tokens */
             thinking_tokens: number;
+        };
+        /** Usage */
+        Usage: {
+            /** Budgets */
+            budgets: {
+                [key: string]: unknown;
+            }[];
+            /** By Model */
+            by_model: {
+                [key: string]: unknown;
+            }[];
+            /** Period */
+            period: string;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /** Scope */
+            scope: string;
+            /** Top Actors */
+            top_actors: {
+                [key: string]: unknown;
+            }[];
+            /** Totals */
+            totals: {
+                [key: string]: unknown;
+            };
         };
         /** UsageIn */
         UsageIn: {
@@ -8345,6 +9499,10 @@ export interface operations {
                      *           "activity": "working",
                      *           "activity_at": "2026-10-17T05:42:00Z",
                      *           "activity_note": "x",
+                     *           "charter": {
+                     *             "role": "x",
+                     *             "version": 1
+                     *           },
                      *           "code": "TY-GROWTH-01",
                      *           "company": "TY",
                      *           "department": "GROWTH",
@@ -8462,6 +9620,10 @@ export interface operations {
                      *       "activity": "x",
                      *       "activity_at": "2026-10-17T05:42:00Z",
                      *       "activity_note": "x",
+                     *       "charter": {
+                     *         "role": "x",
+                     *         "version": 1
+                     *       },
                      *       "code": "TY-GROWTH-01",
                      *       "company": "TY",
                      *       "department": "GROWTH",
@@ -8603,6 +9765,10 @@ export interface operations {
                      *       "activity": "working",
                      *       "activity_at": "2026-10-17T05:42:00Z",
                      *       "activity_note": "x",
+                     *       "charter": {
+                     *         "role": "x",
+                     *         "version": 1
+                     *       },
                      *       "code": "TY-GROWTH-01",
                      *       "company": "TY",
                      *       "department": "GROWTH",
@@ -8817,6 +9983,10 @@ export interface operations {
                      *       "activity": "working",
                      *       "activity_at": "2026-10-17T05:42:00Z",
                      *       "activity_note": "x",
+                     *       "charter": {
+                     *         "role": "x",
+                     *         "version": 1
+                     *       },
                      *       "code": "TY-GROWTH-01",
                      *       "company": "TY",
                      *       "department": "GROWTH",
@@ -8931,6 +10101,10 @@ export interface operations {
                      *       "activity": "working",
                      *       "activity_at": "2026-10-17T05:42:00Z",
                      *       "activity_note": "x",
+                     *       "charter": {
+                     *         "role": "x",
+                     *         "version": 1
+                     *       },
                      *       "code": "TY-GROWTH-01",
                      *       "company": "TY",
                      *       "department": "GROWTH",
@@ -9637,6 +10811,296 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_incidents: {
+        parameters: {
+            query?: {
+                company?: string | null;
+                open?: boolean | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "checks_failed": 1,
+                     *         "closed_at": "2026-10-17T05:42:00Z",
+                     *         "company": "TY",
+                     *         "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *         "last_error": "x",
+                     *         "last_status": 1,
+                     *         "opened_at": "2026-10-17T05:42:00Z",
+                     *         "ref": "W-000789",
+                     *         "severity": "x",
+                     *         "url": "x",
+                     *         "work_ref": "x"
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["Incident"][];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    list_sites: {
+        parameters: {
+            query?: {
+                company?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "canary": false,
+                     *         "company": "TY",
+                     *         "consecutive_failures": 1,
+                     *         "enabled": false,
+                     *         "expect": {},
+                     *         "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *         "interval_s": 1,
+                     *         "kind": "one_off",
+                     *         "last": {},
+                     *         "method": "x",
+                     *         "uptime_24h": 1,
+                     *         "url": "x",
+                     *         "version": 1
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["Site"][];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    put_sites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "company": "TY",
+                 *       "sites": [
+                 *         {
+                 *           "enabled": false,
+                 *           "expect": {},
+                 *           "interval_s": 60,
+                 *           "kind": "web",
+                 *           "method": "GET",
+                 *           "url": "x"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["SitesPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "canary": false,
+                     *         "company": "TY",
+                     *         "consecutive_failures": 1,
+                     *         "enabled": false,
+                     *         "expect": {},
+                     *         "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *         "interval_s": 1,
+                     *         "kind": "one_off",
+                     *         "last": {},
+                     *         "method": "x",
+                     *         "uptime_24h": 1,
+                     *         "url": "x",
+                     *         "version": 1
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["Site"][];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
                 };
             };
         };
@@ -10804,6 +12268,335 @@ export interface operations {
             };
         };
     };
+    list_roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "department": "GROWTH",
+                     *         "effort": "high",
+                     *         "kind": "one_off",
+                     *         "limits": {
+                     *           "steps_per_run": 1,
+                     *           "tokens_per_run": 1,
+                     *           "tokens_per_step": 1
+                     *         },
+                     *         "model": "claude-sonnet-5-5",
+                     *         "priority": "P2",
+                     *         "role": "x",
+                     *         "scope": "company:TY",
+                     *         "title_en": "Weekly growth report",
+                     *         "title_fa": "گزارش هفتگی رشد",
+                     *         "tools": [
+                     *           "x"
+                     *         ],
+                     *         "version": 1
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["Role"][];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    list_runs: {
+        parameters: {
+            query?: {
+                company?: string[] | null;
+                employee?: string | null;
+                state?: ("queued" | "running" | "done" | "failed" | "refused") | null;
+                from?: string | null;
+                to?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "charter": "x",
+                     *           "charter_version": 1,
+                     *           "company": "TY",
+                     *           "cost_usd": "2.410000",
+                     *           "effort": "high",
+                     *           "employee": "TY-GROWTH-01",
+                     *           "equiv_cost_usd": "2.410000",
+                     *           "error_code": "x",
+                     *           "finished_at": "2026-10-17T05:42:00Z",
+                     *           "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *           "model": "claude-sonnet-5-5",
+                     *           "partial": false,
+                     *           "priority": "P2",
+                     *           "queued_at": "2026-10-17T05:42:00Z",
+                     *           "reason": "دلیل",
+                     *           "started_at": "2026-10-17T05:42:00Z",
+                     *           "state": "x",
+                     *           "steps": 1,
+                     *           "thread": "TY-CEO",
+                     *           "tokens": {
+                     *             "cache_read": 1,
+                     *             "cache_write": 1,
+                     *             "input": 1,
+                     *             "output": 1
+                     *           },
+                     *           "tool_calls": 1,
+                     *           "trigger": "x",
+                     *           "work_ref": "x"
+                     *         }
+                     *       ],
+                     *       "next_cursor": "x"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Page_Run_"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    get_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "charter": "x",
+                     *       "charter_version": 1,
+                     *       "company": "TY",
+                     *       "cost_usd": "2.410000",
+                     *       "effort": "high",
+                     *       "employee": "TY-GROWTH-01",
+                     *       "equiv_cost_usd": "2.410000",
+                     *       "error_code": "x",
+                     *       "finished_at": "2026-10-17T05:42:00Z",
+                     *       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *       "model": "claude-sonnet-5-5",
+                     *       "partial": false,
+                     *       "priority": "P2",
+                     *       "queued_at": "2026-10-17T05:42:00Z",
+                     *       "reason": "دلیل",
+                     *       "started_at": "2026-10-17T05:42:00Z",
+                     *       "state": "x",
+                     *       "steps": 1,
+                     *       "steps_detail": [
+                     *         {
+                     *           "actions": [
+                     *             {
+                     *               "class": "x",
+                     *               "outcome": "x",
+                     *               "ref": "W-000789",
+                     *               "tool": "x"
+                     *             }
+                     *           ],
+                     *           "at": "2026-10-17T05:42:00Z",
+                     *           "n": 1,
+                     *           "run_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *           "summary_fa": "x"
+                     *         }
+                     *       ],
+                     *       "thread": "TY-CEO",
+                     *       "tokens": {
+                     *         "cache_read": 1,
+                     *         "cache_write": 1,
+                     *         "input": 1,
+                     *         "output": 1
+                     *       },
+                     *       "tool_calls": 1,
+                     *       "trigger": "x",
+                     *       "work_ref": "x"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["RunDetail"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
     search_messages: {
         parameters: {
             query: {
@@ -10846,10 +12639,17 @@ export interface operations {
                      *             "kind": "agent"
                      *           },
                      *           "body": "متن پیام",
+                     *           "citations": [
+                     *             {
+                     *               "kind": "decision",
+                     *               "ref": "W-000789"
+                     *             }
+                     *           ],
                      *           "created_at": "2026-10-17T05:42:00Z",
                      *           "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                      *           "kind": "one_off",
                      *           "links": {},
+                     *           "meta": {},
                      *           "rank": 1,
                      *           "ref": "TY-CEO-0012",
                      *           "thread": "TY-CEO"
@@ -11241,6 +13041,79 @@ export interface operations {
             };
         };
     };
+    thread_live: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /** @example null */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
     list_messages: {
         parameters: {
             query?: {
@@ -11280,10 +13153,17 @@ export interface operations {
                      *             "kind": "agent"
                      *           },
                      *           "body": "متن پیام",
+                     *           "citations": [
+                     *             {
+                     *               "kind": "decision",
+                     *               "ref": "W-000789"
+                     *             }
+                     *           ],
                      *           "created_at": "2026-10-17T05:42:00Z",
                      *           "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                      *           "kind": "one_off",
                      *           "links": {},
+                     *           "meta": {},
                      *           "ref": "TY-CEO-0012",
                      *           "thread": "TY-CEO"
                      *         }
@@ -11377,30 +13257,43 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "attachments": [
-                     *         {
-                     *           "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                     *           "mime": "application/pdf",
-                     *           "name": "report.pdf",
-                     *           "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                     *           "size": 1
-                     *         }
-                     *       ],
-                     *       "author": {
-                     *         "code": "TY-CEO",
-                     *         "display_fa": "x",
-                     *         "kind": "agent"
+                     *       "message": {
+                     *         "attachments": [
+                     *           {
+                     *             "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *             "mime": "application/pdf",
+                     *             "name": "report.pdf",
+                     *             "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "author": {
+                     *           "code": "TY-CEO",
+                     *           "display_fa": "x",
+                     *           "kind": "agent"
+                     *         },
+                     *         "body": "متن پیام",
+                     *         "citations": [
+                     *           {
+                     *             "kind": "decision",
+                     *             "ref": "W-000789"
+                     *           }
+                     *         ],
+                     *         "created_at": "2026-10-17T05:42:00Z",
+                     *         "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *         "kind": "one_off",
+                     *         "links": {},
+                     *         "meta": {},
+                     *         "ref": "TY-CEO-0012",
+                     *         "thread": "TY-CEO"
                      *       },
-                     *       "body": "متن پیام",
-                     *       "created_at": "2026-10-17T05:42:00Z",
-                     *       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                     *       "kind": "one_off",
-                     *       "links": {},
-                     *       "ref": "TY-CEO-0012",
-                     *       "thread": "TY-CEO"
+                     *       "reply": {
+                     *         "run_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *         "state": "queued"
+                     *       }
                      *     }
                      */
-                    "application/json": components["schemas"]["Message"];
+                    "application/json": components["schemas"]["Sent"];
                 };
             };
             /** @description Problem */
@@ -11698,6 +13591,94 @@ export interface operations {
                      *     }
                      */
                     "application/json": components["schemas"]["Page_Call_"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    treasury_quota: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "subscription": {
+                     *         "changed_at": "2026-10-17T05:42:00Z",
+                     *         "connection": "claude-max",
+                     *         "resets_at": "2026-10-17T05:42:00Z",
+                     *         "source": "x",
+                     *         "status": "ok",
+                     *         "utilization": "x",
+                     *         "window": "x"
+                     *       },
+                     *       "throttle": {
+                     *         "paused_priorities": [
+                     *           "x"
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QuotaView"];
                 };
             };
             /** @description Problem */
@@ -13010,6 +14991,128 @@ export interface operations {
             };
         };
     };
+    work_runs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "charter": "x",
+                     *         "charter_version": 1,
+                     *         "company": "TY",
+                     *         "cost_usd": "2.410000",
+                     *         "effort": "high",
+                     *         "employee": "TY-GROWTH-01",
+                     *         "equiv_cost_usd": "2.410000",
+                     *         "error_code": "x",
+                     *         "finished_at": "2026-10-17T05:42:00Z",
+                     *         "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *         "model": "claude-sonnet-5-5",
+                     *         "partial": false,
+                     *         "priority": "P2",
+                     *         "queued_at": "2026-10-17T05:42:00Z",
+                     *         "reason": "دلیل",
+                     *         "started_at": "2026-10-17T05:42:00Z",
+                     *         "state": "x",
+                     *         "steps": 1,
+                     *         "steps_detail": [
+                     *           {
+                     *             "actions": [
+                     *               {
+                     *                 "class": null,
+                     *                 "outcome": "x",
+                     *                 "ref": null,
+                     *                 "tool": "x"
+                     *               }
+                     *             ],
+                     *             "at": "2026-10-17T05:42:00Z",
+                     *             "n": 1,
+                     *             "run_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *             "summary_fa": "x"
+                     *           }
+                     *         ],
+                     *         "thread": "TY-CEO",
+                     *         "tokens": {
+                     *           "cache_read": 1,
+                     *           "cache_write": 1,
+                     *           "input": 1,
+                     *           "output": 1
+                     *         },
+                     *         "tool_calls": 1,
+                     *         "trigger": "x",
+                     *         "work_ref": "x"
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["RunDetail"][];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
     set_activity: {
         parameters: {
             query?: never;
@@ -13041,6 +15144,10 @@ export interface operations {
                      *       "activity": "working",
                      *       "activity_at": "2026-10-17T05:42:00Z",
                      *       "activity_note": "x",
+                     *       "charter": {
+                     *         "role": "x",
+                     *         "version": 1
+                     *       },
                      *       "code": "TY-GROWTH-01",
                      *       "company": "TY",
                      *       "department": "GROWTH",
@@ -13143,6 +15250,225 @@ export interface operations {
             };
         };
     };
+    tool_audit_recent: {
+        parameters: {
+            query?: {
+                company?: string | null;
+                action?: string | null;
+                since?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "action": "decision.approve",
+                     *         "action_class": "x",
+                     *         "actor": "TY-GROWTH-01",
+                     *         "at": "2026-10-17T05:42:00Z",
+                     *         "company": "TY",
+                     *         "seq": 1,
+                     *         "summary": "خلاصه",
+                     *         "target": "D-000123"
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["AuditBrief"][];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    tool_company_state: {
+        parameters: {
+            query?: {
+                company?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "budgets": [
+                     *         {}
+                     *       ],
+                     *       "company": "TY",
+                     *       "decisions_pending": 1,
+                     *       "departments": [
+                     *         {}
+                     *       ],
+                     *       "deploy_freeze_until": "2026-10-17T05:42:00Z",
+                     *       "employees": {},
+                     *       "kill_switch": "x",
+                     *       "kind": "one_off",
+                     *       "name_en": "TradeYar",
+                     *       "work_open": {}
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CompanyState"] | components["schemas"]["HoldingState"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
     run_context: {
         parameters: {
             query?: never;
@@ -13167,6 +15493,10 @@ export interface operations {
                      *         "activity": "working",
                      *         "activity_at": "2026-10-17T05:42:00Z",
                      *         "activity_note": "x",
+                     *         "charter": {
+                     *           "role": "x",
+                     *           "version": 1
+                     *         },
                      *         "code": "TY-GROWTH-01",
                      *         "company": "TY",
                      *         "department": "GROWTH",
@@ -14125,6 +16455,549 @@ export interface operations {
             };
         };
     };
+    tool_health_hub: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "at": "2026-10-17T05:42:00Z",
+                     *       "data": {}
+                     *     }
+                     */
+                    "application/json": components["schemas"]["HubHealth"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    tool_health_sites: {
+        parameters: {
+            query?: {
+                company?: string | null;
+                since?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "open_incidents": [
+                     *         {
+                     *           "checks_failed": 1,
+                     *           "company": "TY",
+                     *           "last_error": "x",
+                     *           "last_status": 1,
+                     *           "opened_at": "2026-10-17T05:42:00Z",
+                     *           "ref": "W-000789",
+                     *           "severity": "x",
+                     *           "url": "x",
+                     *           "work_ref": "x"
+                     *         }
+                     *       ],
+                     *       "since": "2026-10-17T05:42:00Z",
+                     *       "sites": [
+                     *         {
+                     *           "company": "TY",
+                     *           "consecutive_failures": 1,
+                     *           "enabled": false,
+                     *           "kind": "one_off",
+                     *           "last": {},
+                     *           "uptime_24h": 1,
+                     *           "url": "x"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["SitesHealth"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    tool_knowledge_search: {
+        parameters: {
+            query: {
+                q: string;
+                kinds?: string[] | null;
+                company?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "at": "2026-10-17T05:42:00Z",
+                     *         "company": "TY",
+                     *         "kind": "one_off",
+                     *         "ref": "W-000789",
+                     *         "snippet": "x",
+                     *         "title": "گزارش هفتگی رشد"
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["Hit"][];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    tool_memory_read: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "at": "2026-10-17T05:42:00Z",
+                     *         "id": 1,
+                     *         "note": "یادداشت",
+                     *         "source": "x",
+                     *         "tags": [
+                     *           "x"
+                     *         ]
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["MemoryNote"][];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    tool_memory_write: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "note": "یادداشت",
+                 *       "tags": [
+                 *         "x"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["MemoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "at": "2026-10-17T05:42:00Z",
+                     *       "id": 1,
+                     *       "note": "یادداشت",
+                     *       "source": "x",
+                     *       "tags": [
+                     *         "x"
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["MemoryNote"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
     raise_notification: {
         parameters: {
             query?: never;
@@ -14225,6 +17098,324 @@ export interface operations {
             };
         };
     };
+    run_reserve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "step": 1,
+                 *       "tool": "x"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ReserveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "charter_version": 1,
+                     *       "company": "TY",
+                     *       "department": "GROWTH",
+                     *       "effort": "high",
+                     *       "employee": "TY-GROWTH-01",
+                     *       "escrow_classes": [
+                     *         "x"
+                     *       ],
+                     *       "kind": "one_off",
+                     *       "lock": "x",
+                     *       "model": "claude-sonnet-5-5",
+                     *       "own_thread": "x",
+                     *       "role": "x",
+                     *       "run_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *       "scope": "company:TY",
+                     *       "status": "active",
+                     *       "step": 1,
+                     *       "step_tool_calls": 1,
+                     *       "step_tool_calls_cap": 1,
+                     *       "tool_calls": 1,
+                     *       "tool_calls_cap": 1,
+                     *       "work_ref": "x"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Gate"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    run_record_tool_call: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "class": "A0",
+                 *       "code": "TY",
+                 *       "outcome": "ok",
+                 *       "ref": "W-000789",
+                 *       "step": 1,
+                 *       "tool": "x"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ToolCallIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    push_live: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
     agent_message: {
         parameters: {
             query?: never;
@@ -14271,10 +17462,17 @@ export interface operations {
                      *         "kind": "agent"
                      *       },
                      *       "body": "متن پیام",
+                     *       "citations": [
+                     *         {
+                     *           "kind": "decision",
+                     *           "ref": "W-000789"
+                     *         }
+                     *       ],
                      *       "created_at": "2026-10-17T05:42:00Z",
                      *       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                      *       "kind": "one_off",
                      *       "links": {},
+                     *       "meta": {},
                      *       "ref": "TY-CEO-0012",
                      *       "thread": "TY-CEO"
                      *     }
@@ -14334,6 +17532,116 @@ export interface operations {
             };
             /** @description Problem */
             423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    tool_treasury_usage: {
+        parameters: {
+            query?: {
+                scope?: string;
+                period?: "day" | "month";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "budgets": [
+                     *         {}
+                     *       ],
+                     *       "by_model": [
+                     *         {}
+                     *       ],
+                     *       "period": "x",
+                     *       "period_start": "2026-10-17T05:42:00Z",
+                     *       "scope": "company:TY",
+                     *       "top_actors": [
+                     *         {}
+                     *       ],
+                     *       "totals": {}
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Usage"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14500,6 +17808,157 @@ export interface operations {
             };
             /** @description Problem */
             423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    tool_work_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "assignee": "TY-GROWTH-01",
+                     *       "brief": "x",
+                     *       "budget": {
+                     *         "tokens": 1,
+                     *         "tokens_left": 1,
+                     *         "tokens_used": 1,
+                     *         "usd": "2.410000",
+                     *         "usd_left": "x",
+                     *         "usd_used": "2.410000"
+                     *       },
+                     *       "chain": [
+                     *         {
+                     *           "assignee": "TY-GROWTH-01",
+                     *           "depth": 1,
+                     *           "ref": "W-000789",
+                     *           "status": "active",
+                     *           "title": "گزارش هفتگی رشد"
+                     *         }
+                     *       ],
+                     *       "children": [
+                     *         {
+                     *           "assignee": "TY-GROWTH-01",
+                     *           "depth": 1,
+                     *           "ref": "W-000789",
+                     *           "status": "active",
+                     *           "title": "گزارش هفتگی رشد"
+                     *         }
+                     *       ],
+                     *       "company": "TY",
+                     *       "created_by": "x",
+                     *       "deliverables": [
+                     *         {
+                     *           "created_at": "2026-10-17T05:42:00Z",
+                     *           "producer": "TY-GROWTH-01",
+                     *           "ref": "W-000789",
+                     *           "summary": "خلاصه",
+                     *           "title": "گزارش هفتگی رشد"
+                     *         }
+                     *       ],
+                     *       "department": "GROWTH",
+                     *       "depth": 1,
+                     *       "due_at": "2026-10-17T05:42:00Z",
+                     *       "escrow_classes": [
+                     *         "x"
+                     *       ],
+                     *       "evidence": [
+                     *         {}
+                     *       ],
+                     *       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                     *       "kind": "one_off",
+                     *       "priority": "P2",
+                     *       "progress_note": "x",
+                     *       "ref": "W-000789",
+                     *       "status": "active",
+                     *       "title": "گزارش هفتگی رشد"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AgentWorkDetail"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Problem */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -91,18 +91,21 @@ async def resolve_scope(tx: Tx, scope: str) -> dict[str, Any]:
 async def set_kill_switch(
     tx: Tx, who: Principal, company: dict[str, Any], state_: str, reason: str
 ) -> bool:
-    """Returns whether the state changed. Emits control.changed on the company
-    (and, for the holding, on every company's subject so each stream sees it)."""
+    """Returns whether the state (or its owner) changed. Emits control.changed on
+    the company (and, for the holding, on every company's subject so each stream
+    sees it). The owner engaging a switch an agent engaged takes it over: from
+    then on only the owner (with step-up) releases it."""
     cur = await tx.first(
-        "SELECT state FROM control.kill_switches WHERE company_id = :co FOR UPDATE",
+        "SELECT state, changed_by_kind FROM control.kill_switches WHERE company_id = :co FOR UPDATE",
         co=company["id"],
     )
     if cur is None:
         await tx.exec(
             "INSERT INTO control.kill_switches (company_id) VALUES (:co)", co=company["id"]
         )
-        cur = {"state": "released"}
-    if cur["state"] == state_:
+        cur = {"state": "released", "changed_by_kind": None}
+    takeover = state_ == "engaged" and who.is_owner and cur["changed_by_kind"] != "owner"
+    if cur["state"] == state_ and not takeover:
         return False
     await tx.exec(
         """UPDATE control.kill_switches SET state = :s, reason = :r, changed_by_kind = :k,
@@ -183,13 +186,16 @@ async def lift_deploy_freezes(
     return n
 
 
-async def current_switch(tx: Tx, company_id: Any) -> dict[str, Any]:
-    """The switch as it stands, with who set it (and that agent's company)."""
+async def current_switch(tx: Tx, company_id: Any, *, lock: bool = False) -> dict[str, Any]:
+    """The switch as it stands, with who set it (and that agent's company).
+    `lock` holds the row until commit, so the authority the policy judged is
+    still the one in force when the change is written."""
     row = await tx.first(
         """SELECT k.state, k.changed_by_kind, k.changed_by_code,
                   (SELECT c.code FROM core.employees e JOIN core.companies c ON c.id = e.company_id
                     WHERE k.changed_by_kind = 'agent' AND e.code = k.changed_by_code) AS changed_by_company
-           FROM control.kill_switches k WHERE k.company_id = :co""",
+           FROM control.kill_switches k WHERE k.company_id = :co"""  # noqa: S608 - constant clause below
+        + (" FOR UPDATE OF k" if lock else ""),
         co=company_id,
     )
     return row or {

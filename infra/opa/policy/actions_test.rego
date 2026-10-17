@@ -64,6 +64,11 @@ test_agent_other_company if {
 
 test_company_locked if {
 	reasons(f.ty_growth_01, act("A1", "TY"), ctx([], true)) == {"company_locked"}
+	allowed(f.ty_ceo, named("A1", "notification.raise", "TY"), {"escrow_classes": [], "company_locked": true, "incident": true})
+	reasons(f.ty_ceo, named("A1", "notification.raise", "TY"), ctx([], true)) == {"company_locked"}
+	reasons(f.ty_ceo, named("A1", "work.deliver", "TY"), {"escrow_classes": [], "company_locked": true, "incident": true}) == {"company_locked"}
+	allowed(f.ty_ceo, named("A2", "kill_switch.set", "TY"), ctx([], true))
+	allowed(f.ty_ceo, named("A2", "deploy_freeze.set", "TY"), ctx([], true))
 	allowed(f.ty_growth_01, act("A0", "TY"), ctx([], true))
 	reasons(f.svc, act("A2", "TY"), ctx([], true)) == {"company_locked"}
 }
@@ -78,4 +83,16 @@ test_unknown_class_and_principal if {
 	reasons(f.owner, act("A9", "TY"), open) == {"unknown_class"}
 	reasons(f.stranger, act("A0", "TY"), open) == {"unknown_principal"}
 	not actions.allow with input as {"action": act("A0", "TY")}
+}
+
+test_tool_level_a2_grants if {
+	every name in {"work.accept", "work.progress", "work.fail", "activity.set", "notify"} {
+		allowed(f.ty_growth_01, named("A2", name, "TY"), open)
+		allowed(f.hq_ovs, named("A2", name, "HQ"), open)
+	}
+	allowed(f.ty_ceo, named("A2", "work.request", "TY"), open)
+	allowed(f.ty_growth_mgr, named("A2", "work.request", "TY"), open)
+	allowed(f.hq_ovs, named("A2", "work.delegate", "HQ"), open)
+	reasons(f.ty_growth_01, named("A2", "work.delegate", "TY"), open) == {"a2_needs_role_or_escrow"}
+	reasons(f.hq_adv, named("A2", "notify", "HQ"), open) == {"a2_needs_role_or_escrow"}
 }

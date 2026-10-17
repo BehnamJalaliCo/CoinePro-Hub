@@ -20,10 +20,12 @@ export HQ_TEST_NAME="hq-check-$$"
 trap '"$TE" down' EXIT
 
 # Domain logic of apps/api held to 85% (prompt 04 §10): delegation, budgets,
-# decisions, notifications and Khalvat, codes and templates, identity.
+# decisions, notifications and Khalvat, codes and templates, identity; and
+# (prompt 05 §12) the agent runner and the rule-based site checker.
 API_DOMAIN="*/hq_api/domain/work.py,*/hq_api/domain/decisions.py,*/hq_api/domain/notify.py,\
 */hq_api/domain/org.py,*/hq_api/domain/templates.py,*/hq_api/domain/recurrence.py,\
-*/hq_api/domain/recurring.py,*/hq_api/domain/control.py,*/hq_api/security/*,*/hq_api/routes/auth.py"
+*/hq_api/domain/recurring.py,*/hq_api/domain/control.py,*/hq_api/security/*,*/hq_api/routes/auth.py,\
+*/hq_api/agents/runner.py,*/hq_api/agents/protocol.py,*/hq_api/agents/checks.py"
 
 api_image() { # api_image <cmd...>: apps/api's test image without the test dependencies
   docker build -q -f "$API_DIR/Dockerfile.test" -t "$API_IMAGE" "$API_DIR" >/dev/null
@@ -33,22 +35,23 @@ api_image() { # api_image <cmd...>: apps/api's test image without the test depen
 case "${1:-}" in
   lint)
     "$TE" run sh -c 'ruff check --no-cache . && ruff format --no-cache --check . &&
-      mypy hq-common/src llm-router/src claude-runtime/src claude-runtime/testing'
+      mypy hq-common/src llm-router/src claude-runtime/src claude-runtime/testing gateway/src'
     api_image -v "$API_DIR:/api:ro" -w /api "$API_IMAGE" sh -c \
       'ruff check --no-cache . && ruff format --no-cache --check . && mypy src'
     ;;
   test)
-    "$TE" run sh -c 'pytest hq-common/tests llm-router/tests claude-runtime/tests \
-      --cov=hq_common --cov=llm_router --cov=claude_runtime --cov-report=term --cov-fail-under=80 &&
+    "$TE" run sh -c 'pytest hq-common/tests llm-router/tests claude-runtime/tests gateway/tests \
+      --cov=hq_common --cov=llm_router --cov=claude_runtime --cov=hq_gateway --cov-report=term \
+      --cov-fail-under=80 &&
       coverage report --fail-under=85 \
-        --include="*/llm_router/assignment.py,*/llm_router/budget.py,*/llm_router/scheduler.py,*/llm_router/breaker.py"'
+        --include="*/llm_router/assignment.py,*/llm_router/budget.py,*/llm_router/scheduler.py,*/llm_router/breaker.py,*/llm_router/quota.py,*/hq_gateway/gateway.py,*/hq_gateway/tools.py,*/hq_gateway/redact.py"'
     HQ_TEST_TARGET=api "$TE" run sh -c "cd /api && HQ_FUZZ_EXAMPLES=${HQ_FUZZ_EXAMPLES:-8} pytest tests \
       --cov=hq_api --cov-report=term \
       --cov-fail-under=80 && coverage report --fail-under=85 --include='$API_DOMAIN'"
     ;;
   audit)
     "$TE" run pip-audit --progress-spinner off --require-hashes --disable-pip \
-      -r llm-router/requirements.lock -r claude-runtime/requirements.lock
+      -r llm-router/requirements.lock -r claude-runtime/requirements.lock -r gateway/requirements.lock
     api_image -v "$API_DIR:/api:ro" -w /api "$API_IMAGE" pip-audit --progress-spinner off \
       --require-hashes --disable-pip -r requirements.lock
     ;;

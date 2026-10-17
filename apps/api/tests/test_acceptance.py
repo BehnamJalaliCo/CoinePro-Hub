@@ -2,13 +2,14 @@
 real Temporal worker (in-process), Postgres, NATS, OPA and a software
 passkey for every owner signature.
 
-On a fresh database (make check, CI) the first hire is TY-GROWTH-01 and the
+On a fresh database (make check, CI) the first hire is TY-TECH-01 and the
 first resolution M-0001; on a reused one the next free numbers are expected.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 from collections.abc import Callable
@@ -68,7 +69,7 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
         next_emp = await su.fetchval(
             """SELECT COALESCE(max(s.next_no), 1) FROM core.employee_code_seq s
                JOIN core.departments d ON d.id = s.department_id JOIN core.companies c ON c.id = s.company_id
-               WHERE c.code = 'TY' AND d.code = 'GROWTH'"""
+               WHERE c.code = 'TY' AND d.code = 'TECH'"""
         )
         next_res = (
             await su.fetchval(
@@ -77,7 +78,8 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
         ) + 1
 
         # ---- 2. «خط کامل اول»: proposal -> cartable + 🟡 -> passkey approval -> hire -> M-…
-        async with serve(acc) as url:
+        async with contextlib.AsyncExitStack() as stack:
+            url = await stack.enter_async_context(serve(acc))
             watcher = asyncio.create_task(
                 _collect(
                     url,
@@ -88,10 +90,12 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
                     ),
                 )
             )
+            # A failed assertion must not leave the stream open (the server would never stop).
+            stack.callback(watcher.cancel)
             await asyncio.sleep(0.5)
             r = await client.post(
                 "/internal/v1/decisions",
-                headers={**agent_headers("TY-GROWTH-MGR"), **idem()},
+                headers={**await agent_headers("TY-TECH-MGR"), **idem()},
                 json={
                     "kind": "hire",
                     "title": "استخدام کارشناس رشد",
@@ -102,9 +106,10 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
                     "quota_estimate": {"tokens": 1500000, "usd": "30"},
                     "payload": {
                         "company": "TY",
-                        "department": "GROWTH",
-                        "title_fa": "کارشناس رشد",
-                        "title_en": "Growth Specialist",
+                        "department": "TECH",
+                        "role": "sre",  # an agent's hire names an employee charter (prompt 05)
+                        "title_fa": "کارشناس پایش",
+                        "title_en": "Site Reliability Engineer",
                         "reason": "کمپین‌های فصل",
                         "duties": ["تولید محتوا"],
                         "model": "claude-sonnet-5-5",
@@ -143,7 +148,7 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
             approved["resolution"] == f"M-{next_res:04d}"
             and approved["seal"]["method"] == "passkey_uv"
         )
-        employee = f"TY-GROWTH-{next_emp:02d}"
+        employee = f"TY-TECH-{next_emp:02d}"
 
         async def hired() -> bool:
             e = await client.get(f"/api/v1/employees/{employee}", headers=owner)
@@ -163,7 +168,7 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
             )
             == "high"
         )
-        thread = (await client.get("/api/v1/threads/TY-GROWTH-MGR/messages", headers=owner)).json()[
+        thread = (await client.get("/api/v1/threads/TY-TECH-MGR/messages", headers=owner)).json()[
             "items"
         ]
         bodies = " ".join(m["body"] for m in thread[-3:])
@@ -187,21 +192,21 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
         child = (
             await client.post(
                 f"/internal/v1/work/{root['id']}/delegate",
-                headers=agent_headers("TY-CEO"),
-                json={"to": "TY-GROWTH-MGR", "title": "طراحی کمپین"},
+                headers=await agent_headers("TY-CEO"),
+                json={"to": "TY-TECH-MGR", "title": "طراحی کمپین"},
             )
         ).json()
         leaf = (
             await client.post(
                 f"/internal/v1/work/{child['id']}/delegate",
-                headers=agent_headers("TY-GROWTH-MGR"),
+                headers=await agent_headers("TY-TECH-MGR"),
                 json={"to": employee, "title": "نوشتن متن‌ها"},
             )
         ).json()
         assert (child["depth"], leaf["depth"]) == (1, 2)
         r = await client.post(
             f"/internal/v1/work/{leaf['id']}/delegate",
-            headers=agent_headers("TY-GROWTH-MGR"),
+            headers=await agent_headers("TY-TECH-MGR"),
             json={"to": employee, "title": "عمق سوم"},
         )
         assert r.status_code in (
@@ -210,7 +215,7 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
         )  # refused (policy for the leaf's assignee, the database for depth 3)
         r = await client.post(
             f"/internal/v1/work/{leaf['id']}/deliver",
-            headers={**agent_headers(employee), **idem()},
+            headers={**await agent_headers(employee), **idem()},
             json={
                 "title": "متن‌های کمپین",
                 "summary": "سه متن",
@@ -257,10 +262,10 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
         assert r.status_code == 200
         r = await client.post(
             "/internal/v1/work",
-            headers={**agent_headers("TY-GROWTH-MGR"), **idem()},
+            headers={**await agent_headers("TY-TECH-MGR"), **idem()},
             json={
-                "department": "GROWTH",
-                "title": "گزارش هفتگی شبکه‌های اجتماعی",
+                "department": "TECH",
+                "title": "گزارش هفتگی سلامت سایت‌ها",
                 "kind": "recurring",
                 "escrow": {
                     "allowed_action_classes": ["A0", "A1"],
@@ -275,7 +280,7 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
         recurring, rec_ref = r.json()["work"], r.json()["decision"]
         r = await client.post(
             f"/internal/v1/decisions/{rec_ref}/approve",
-            headers={**agent_headers("TY-CEO"), **idem()},
+            headers={**await agent_headers("TY-CEO"), **idem()},
             json={},
         )
         assert r.status_code == 200 and r.json()["decided_by"]["code"] == "TY-CEO"
@@ -299,12 +304,12 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
             assert r.status_code == 200 and r.json()["khalvat"] is True
             yellow = await client.post(
                 "/internal/v1/notifications",
-                headers=agent_headers("TY-CEO"),
+                headers=await agent_headers("TY-CEO"),
                 json={"level": "decision", "title_fa": "یک تصمیم کوچک"},
             )
             red = await client.post(
                 "/internal/v1/notifications",
-                headers=agent_headers("TY-CEO"),
+                headers=await agent_headers("TY-CEO"),
                 json={"level": "urgent", "category": "service_down", "title_fa": "خرابی پرداخت"},
             )
             assert yellow.json()["state"] == "held" and red.json()["state"] == "delivered"
@@ -338,7 +343,7 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
         try:
             r = await client.post(
                 f"/internal/v1/work/{root['id']}/progress",
-                headers=agent_headers("TY-CEO"),
+                headers=await agent_headers("TY-CEO"),
                 json={"note": "x"},
             )
             assert r.status_code == 423 and r.json()["code"] == "company_locked"
@@ -352,7 +357,7 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
         assert (
             await client.post(
                 f"/internal/v1/work/{root['id']}/progress",
-                headers=agent_headers("TY-CEO"),
+                headers=await agent_headers("TY-CEO"),
                 json={"note": "ادامه"},
             )
         ).status_code == 200

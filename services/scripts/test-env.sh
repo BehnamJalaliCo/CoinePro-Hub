@@ -78,11 +78,12 @@ start_api_deps() {
 
 run() {
   up
-  local mounts=(-v "$SERVICES_DIR:/w:ro")
-  local extra=()
+  # The role charters (agents/, read-only) are read by the api, worker and gateway.
+  local mounts=(-v "$SERVICES_DIR:/w:ro" -v "$REPO_DIR/agents:/agents:ro")
+  local extra=(-e HQ_AGENTS_DIR=/agents)
   if [[ "$TARGET" == api ]]; then
     mounts+=(-v "$API_DIR:/api:ro" -v "$REPO_DIR/infra/opa:/opa:ro")
-    extra=(-e TEST_TEMPORAL_ADDRESS=temporal:7233 -e TEST_OPA_URL=http://opa:8181)
+    extra+=(-e TEST_TEMPORAL_ADDRESS=temporal:7233 -e TEST_OPA_URL=http://opa:8181)
   fi
   docker run --rm --network "$NET" --env-file "$STATE" \
     -e TEST_DB_HOST=postgres -e TEST_NATS_URL=nats://nats:4222 "${extra[@]}" \

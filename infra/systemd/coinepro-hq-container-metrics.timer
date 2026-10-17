@@ -1,0 +1,11 @@
+[Unit]
+Description=CoinePro HQ: per-container metrics every 30 seconds
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=coinepro-hq-container-metrics.service
+
+[Install]
+WantedBy=timers.target

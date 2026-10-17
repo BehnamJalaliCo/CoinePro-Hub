@@ -28,6 +28,7 @@ from .conftest import (
     agent_headers,
     idem,
     random_code,
+    running_run,
     service_headers,
     signed_put,
     step_up,
@@ -52,7 +53,7 @@ async def test_1_1_switch_and_freeze_release_follow_authority(
 ) -> None:
     h, sid = owner_session["headers"], owner_session["session_id"]
     co = (await new_company())["code"]
-    ceo = agent_headers(f"{co}-CEO")
+    ceo = await agent_headers(f"{co}-CEO")
     scope = f"company:{co}"
     r = await client.post(
         "/api/v1/control/kill-switch",
@@ -221,7 +222,7 @@ async def test_1_4_nobody_approves_their_own_proposal(
         },
         "budgets.update",
     )
-    ceo = agent_headers(f"{co}-CEO")
+    ceo = await agent_headers(f"{co}-CEO")
     r = await client.post(
         "/internal/v1/work",
         headers={**ceo, **idem()},
@@ -252,7 +253,7 @@ async def test_1_5_agents_raise_urgent_only_for_incidents(
     client: httpx.AsyncClient, owner: dict[str, str], new_company: Callable[..., Any]
 ) -> None:
     co = (await new_company())["code"]
-    ceo = agent_headers(f"{co}-CEO")
+    ceo = await agent_headers(f"{co}-CEO")
     r = await client.post(
         "/internal/v1/notifications", headers=ceo, json={"level": "urgent", "title_fa": "فوری نیست"}
     )
@@ -296,7 +297,7 @@ async def test_1_6_budget_change_scope_is_typed_and_inside_the_company(
     client: httpx.AsyncClient, new_company: Callable[..., Any]
 ) -> None:
     co = (await new_company())["code"]
-    ceo = agent_headers(f"{co}-CEO")
+    ceo = await agent_headers(f"{co}-CEO")
 
     def body(scope: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -338,13 +339,14 @@ async def test_1_7_owner_amendments_are_applied(
     co = (await new_company())["code"]
     r = await client.post(
         "/internal/v1/decisions",
-        headers={**agent_headers(f"{co}-GROWTH-MGR"), **idem()},
+        headers={**await agent_headers(f"{co}-TECH-MGR"), **idem()},
         json={
             "kind": "hire",
             "title": "hire",
             "payload": {
                 "company": co,
-                "department": "GROWTH",
+                "department": "TECH",
+                "role": "sre",
                 "title_fa": "کارشناس",
                 "title_en": "Specialist",
                 "reason": "r",
@@ -390,8 +392,8 @@ async def test_1_8_action_classes_gate_every_agent_write(
     from hq_api.security.deps import agent_principal
 
     co = (await new_company())["code"]
-    mgr = await agent_principal(hub, f"{co}-GROWTH-MGR")
-    ceo = await agent_principal(hub, f"{co}-CEO")
+    mgr = await agent_principal(hub, f"{co}-GROWTH-MGR", run=await running_run(f"{co}-GROWTH-MGR"))
+    ceo = await agent_principal(hub, f"{co}-CEO", run=await running_run(f"{co}-CEO"))
     with pytest.raises(ApiError) as info:
         await internal.action_gate(hub, mgr, "data.delete", "A4", escrow_classes=["A0", "A1", "A2"])
     assert info.value.code == "policy_denied" and "a4_forbidden_for_ai" in (info.value.detail or "")
@@ -426,7 +428,7 @@ async def test_1_9_agent_scope_is_never_widened(
         == 1
     )
     a, b = (await new_company())["code"], (await new_company())["code"]
-    ceo = agent_headers(f"{a}-CEO")
+    ceo = await agent_headers(f"{a}-CEO")
     answers = []
     for to in (f"{b}-TECH-MGR", f"{b}-NOPE-77"):
         r = await client.post(
@@ -610,7 +612,7 @@ async def test_1_14_error_codes(
     ) as c:
         r = await c.post(
             "/internal/v1/decisions",
-            headers={**agent_headers(f"{co}-CEO"), **idem()},
+            headers={**await agent_headers(f"{co}-CEO"), **idem()},
             json={"kind": "proposal", "title": "x", "payload": {}},
         )
     await dead.policy.aclose()

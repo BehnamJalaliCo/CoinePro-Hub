@@ -44,7 +44,7 @@ async def test_company_kill_switch_locks_agents_and_release_needs_step_up(
     h, sid = owner_session["headers"], owner_session["session_id"]
     co = (await new_company())["code"]
     w = await _work_for_ceo(client, h, co)
-    ceo = agent_headers(f"{co}-CEO")
+    ceo = await agent_headers(f"{co}-CEO")
     engage = {"scope": f"company:{co}", "state": "engaged", "reason": "حادثه"}
     assert (
         await client.post("/api/v1/control/kill-switch", headers=h, json=engage)
@@ -101,7 +101,7 @@ async def test_ceo_switch_own_company_only_and_holding_switch(
 ) -> None:
     h, sid = owner_session["headers"], owner_session["session_id"]
     co, other = (await new_company())["code"], (await new_company())["code"]
-    ceo = agent_headers(f"{co}-CEO")
+    ceo = await agent_headers(f"{co}-CEO")
     own = {"scope": f"company:{co}", "state": "engaged", "reason": "x"}
     assert (
         await client.post("/internal/v1/control/kill-switch", headers={**ceo, **idem()}, json=own)
@@ -119,7 +119,7 @@ async def test_ceo_switch_own_company_only_and_holding_switch(
             json={**own, "scope": scope},
         )
         assert r.status_code == 403, scope
-    mgr = agent_headers(f"{co}-TECH-MGR")
+    mgr = await agent_headers(f"{co}-TECH-MGR")
     assert (
         await client.post("/internal/v1/control/kill-switch", headers={**mgr, **idem()}, json=own)
     ).status_code == 403
@@ -133,7 +133,7 @@ async def test_ceo_switch_own_company_only_and_holding_switch(
         )
         assert r.json()["holding"]["state"] == "engaged"
         r = await client.post(
-            f"/internal/v1/work/{w['id']}/accept", headers=agent_headers(f"{other}-CEO")
+            f"/internal/v1/work/{w['id']}/accept", headers=await agent_headers(f"{other}-CEO")
         )
         assert r.status_code == 423 and "holding" in r.json()["detail"]
     finally:
@@ -161,7 +161,9 @@ async def test_deploy_freeze(
     state = (await client.get("/api/v1/control/state", headers=owner)).json()
     assert any(f["company"] == co for f in state["deploy_freezes"])
     assert (
-        await client.post(f"/internal/v1/work/{w['id']}/accept", headers=agent_headers(f"{co}-CEO"))
+        await client.post(
+            f"/internal/v1/work/{w['id']}/accept", headers=await agent_headers(f"{co}-CEO")
+        )
     ).status_code == 423
     past = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
     r = await client.post(
@@ -171,7 +173,9 @@ async def test_deploy_freeze(
     )
     assert r.json()["active"] is False
     assert (
-        await client.post(f"/internal/v1/work/{w['id']}/accept", headers=agent_headers(f"{co}-CEO"))
+        await client.post(
+            f"/internal/v1/work/{w['id']}/accept", headers=await agent_headers(f"{co}-CEO")
+        )
     ).status_code == 200
 
 
@@ -221,7 +225,7 @@ async def test_policy_down_means_denied(hub: Hub, new_company: Callable[..., Any
     ) as c:
         r = await c.post(
             "/internal/v1/decisions",
-            headers={**agent_headers(f"{co}-CEO"), **idem()},
+            headers={**await agent_headers(f"{co}-CEO"), **idem()},
             json={"kind": "proposal", "title": "x", "payload": {}},
         )
     assert r.status_code == 503 and r.json()["code"] == "policy_unavailable"
@@ -430,7 +434,7 @@ async def test_stream_filters_and_resumes(
         w1 = await _work_for_ceo(client, owner, co)
         await client.post(
             f"/internal/v1/work/{w1['id']}/progress",
-            headers=agent_headers(f"{co}-CEO"),
+            headers=await agent_headers(f"{co}-CEO"),
             json={"note": "x"},
         )
         got = await asyncio.wait_for(listener, 20)
@@ -472,7 +476,7 @@ async def test_no_text_or_secret_in_logs_audit_or_events(
     assert r.status_code == 201
     await client.post(
         f"/internal/v1/threads/{co}-CEO/messages",
-        headers={**agent_headers(f"{co}-CEO"), **idem()},
+        headers={**await agent_headers(f"{co}-CEO"), **idem()},
         json={"body": f"پاسخ {marker}"},
     )
     w = await client.post(
@@ -482,12 +486,12 @@ async def test_no_text_or_secret_in_logs_audit_or_events(
     )
     await client.post(
         "/internal/v1/activity",
-        headers=agent_headers(f"{co}-CEO"),
+        headers=await agent_headers(f"{co}-CEO"),
         json={"employee": f"{co}-CEO", "activity": "working", "note": marker},
     )
     await client.post(
         "/internal/v1/decisions",
-        headers={**agent_headers(f"{co}-CEO"), **idem()},
+        headers={**await agent_headers(f"{co}-CEO"), **idem()},
         json={"kind": "proposal", "title": "t", "what": marker, "why": marker, "payload": {}},
     )
     await asyncio.sleep(1.5)  # let the relay publish

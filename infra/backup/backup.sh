@@ -17,10 +17,22 @@ RETENTION_DAYS="${HQ_BACKUP_RETENTION_DAYS:-7}"
 STAMP_RE='^[0-9]{8}T[0-9]{6}Z$'
 
 log() { printf '%s backup: %s\n' "$(date -u +%FT%TZ)" "$*"; }
+started_s="$(date +%s)"
+# The outcome, for the hub's own health (health.hub, prompt 05 §4): times,
+# result and size only, readable by the worker through a read-only mount.
+status() { # status OK STAMP SIZE
+  mkdir -p "$BACKUP_ROOT/status" && chmod 755 "$BACKUP_ROOT/status"
+  jq -n --arg at "$(date -u +%FT%TZ)" --argjson ok "$1" --arg stamp "$2" --argjson size "$3" \
+    --argjson dur "$(($(date +%s) - started_s))" \
+    '{at: $at, ok: $ok, stamp: $stamp, size_bytes: $size, duration_s: $dur}' >"$BACKUP_ROOT/status/backup.json.tmp"
+  chmod 644 "$BACKUP_ROOT/status/backup.json.tmp"
+  mv "$BACKUP_ROOT/status/backup.json.tmp" "$BACKUP_ROOT/status/backup.json"
+}
 
 umask 077
 mkdir -p "$BACKUP_ROOT"
 chmod 700 "$BACKUP_ROOT"
+trap 'status false "" 0' ERR
 
 # One run at a time.
 exec 9>"$BACKUP_ROOT/.lock"
@@ -88,6 +100,7 @@ done
 mv "$work" "$BACKUP_ROOT/$stamp"
 trap - EXIT
 log "complete: $BACKUP_ROOT/$stamp (${#databases[@]} databases)"
+status true "$stamp" "$(du -sb "$BACKUP_ROOT/$stamp" | cut -f1)"
 
 # Retention: delete only directories named like a backup stamp and older than
 # the cutoff. Names sort chronologically, so a string compare is exact. The

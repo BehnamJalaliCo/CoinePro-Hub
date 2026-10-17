@@ -4,6 +4,7 @@ kv/hq-api/config            agent_token_key (hex), service_tokens {name: sha256}
 kv/hq-api/webpush           private_key_pem, public_key (base64url), subject
 kv/hq-api/channels/fcm      service_account_json (empty -> channel off)
 kv/hq-api/channels/telegram bot_token, chat_id (empty -> channel off)
+kv/hq-agents/runtime        llm_router_token, gateway_token (the worker as agent runtime)
 """
 
 from __future__ import annotations
@@ -28,6 +29,13 @@ class Secrets:
     fcm_service_account: dict[str, Any] | None = field(default=None, repr=False)
     telegram_bot_token: str = field(default="", repr=False)
     telegram_chat_id: str = field(default="", repr=False)
+    # The agent runtime (worker, prompt 05): its llm-router caller and gateway tokens.
+    llm_router_token: str = field(default="", repr=False)
+    gateway_token: str = field(default="", repr=False)
+
+    @property
+    def runtime_ready(self) -> bool:
+        return bool(self.agent_token_key and self.llm_router_token and self.gateway_token)
 
     @property
     def web_push_ready(self) -> bool:
@@ -49,14 +57,16 @@ async def _read(bao: OpenBaoClient, path: str) -> dict[str, Any]:
         return {}
 
 
-async def load(bao: OpenBaoClient, *, api_config: bool = True) -> Secrets:
-    """`api_config=False` for the worker: it needs only the push channels and its
-    OpenBao policy (hq-worker) does not grant kv/hq-api/config."""
+async def load(bao: OpenBaoClient, *, api_config: bool = True, runtime: bool = False) -> Secrets:
+    """The api reads its config (service token digests too); the worker
+    (`api_config=False, runtime=True`) reads only the agent token key from it,
+    plus its runtime tokens (policy hq-worker)."""
     try:
-        cfg = await _read(bao, "hq-api/config") if api_config else {}
+        cfg = await _read(bao, "hq-api/config") if api_config or runtime else {}
         push = await _read(bao, "hq-api/webpush")
         fcm = await _read(bao, "hq-api/channels/fcm")
         tg = await _read(bao, "hq-api/channels/telegram")
+        rt = await _read(bao, "hq-agents/runtime") if runtime else {}
     except OpenBaoError:
         log.warning("openbao unavailable; secrets not (re)loaded")
         raise
@@ -69,11 +79,15 @@ async def load(bao: OpenBaoClient, *, api_config: bool = True) -> Secrets:
             log.warning("fcm service account is not valid JSON; channel stays off")
     return Secrets(
         agent_token_key=bytes.fromhex(str(cfg.get("agent_token_key") or "")),
-        service_tokens={str(k): str(v) for k, v in (cfg.get("service_tokens") or {}).items()},
+        service_tokens={str(k): str(v) for k, v in (cfg.get("service_tokens") or {}).items()}
+        if api_config
+        else {},
         vapid_private_pem=str(push.get("private_key_pem") or ""),
         vapid_public_key=str(push.get("public_key") or ""),
         vapid_subject=str(push.get("subject") or ""),
         fcm_service_account=sa,
         telegram_bot_token=str(tg.get("bot_token") or ""),
         telegram_chat_id=str(tg.get("chat_id") or ""),
+        llm_router_token=str(rt.get("llm_router_token") or ""),
+        gateway_token=str(rt.get("gateway_token") or ""),
     )

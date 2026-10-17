@@ -239,6 +239,8 @@ async def create_company(
         await stepup.consume(tx, request, ctx.who, "company.create", body.code)
         if await tx.scalar("SELECT 1 FROM core.companies WHERE code = :c", c=body.code):
             raise ApiError(409, "validation_failed", fields={"code": "already exists"})
+        # One company creation picks a free colour slot at a time (no two take the same).
+        await tx.exec("SELECT pg_advisory_xact_lock(hashtext('core.companies.color_index'))")
         row = await tx.one(
             """INSERT INTO core.companies (code, name, kind, name_fa, name_en, color_index, template)
                VALUES (:code, :name_en, 'company', :name_fa, :name_en,
@@ -519,7 +521,9 @@ async def _render_many(ctx: Ctx, tx: Tx, rows: list[dict[str, Any]]) -> list[org
     holding = await ctx.hub.companies.holding()
     assignments = await org.Assignments.load(tx, holding.code)
     trend = await org.trends(tx, [r["id"] for r in rows])
-    return [org.render(r, assignments, trend.get(r["id"], [None] * 12)) for r in rows]
+    return [
+        org.render(r, assignments, trend.get(r["id"], [None] * 12), ctx.hub.charters) for r in rows
+    ]
 
 
 @router.get("/employees", response_model=Page[org.Employee], responses=E)

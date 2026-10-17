@@ -12,9 +12,10 @@ set -euo pipefail
 
 COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${HQ_ENV_FILE:-$COMPOSE_DIR/.env}"
-# A nominal 12 GB server reports a little less (kernel reserve), so the
-# threshold is 11 GiB of MemTotal.
-FULL_PROFILE_MIN_KB=$((11 * 1024 * 1024))
+# The full profile is sized for the hub's 16 GB class (prompt 05 §11); a
+# nominal 16 GB server reports a little less (kernel reserve), so the
+# threshold is 15 GiB of MemTotal. Anything smaller runs lean.
+FULL_PROFILE_MIN_KB=$((15 * 1024 * 1024))
 
 detect_profile() {
   local p="${HQ_PROFILE:-}"
@@ -61,7 +62,15 @@ if [[ "$site" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)
 else
   export HQ_API_EDGE=off HQ_PUBLIC_ORIGIN="" HQ_WEBAUTHN_RP_ID=""
 fi
+# The web panel (prompt 05 §10) runs once apps/web/Dockerfile exists: profile
+# "web", and Caddy sends every path but /api to it (HQ_WEB).
 profile_args=(--profile "$profile")
+if [[ -f "$COMPOSE_DIR/../../apps/web/Dockerfile" ]]; then
+  export HQ_WEB=on
+  profile_args+=(--profile web)
+else
+  export HQ_WEB=off
+fi
 if [[ "${HQ_ALL_PROFILES:-0}" == "1" ]]; then
   profile_args=(--profile "*")
 fi

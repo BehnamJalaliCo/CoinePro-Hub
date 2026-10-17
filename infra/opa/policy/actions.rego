@@ -4,7 +4,10 @@
 #            hq.config.a2_grants) lists the action, or inside its escrow; A3
 #            only through a decision; A4 never
 #   service: A0..A2; A3 and A4 never
-#   company_locked (kill switch or deploy freeze): every non-owner action >= A1
+#   company_locked (kill switch or deploy freeze): every non-owner action >= A1,
+#   except an agent's 🔴 incident notification (context.incident; hq.internal
+#   checks the incident category) and the controls themselves (hq.internal
+#   decides who may release a switch or lift a freeze)
 package hq.actions
 
 import data.hq.lib
@@ -34,6 +37,16 @@ a2_ok if name in role_a2
 a2_ok if "A2" in escrow
 
 locked := object.get(ctx, "company_locked", false) == true
+
+# A locked company's agent may still raise a 🔴 incident (service down, ...).
+lock_exempt if {
+	name == "notification.raise"
+	object.get(ctx, "incident", false) == true
+}
+
+# The controls themselves (kill switch, deploy freeze) are what the lock is
+# about: hq.internal decides who may set or release them.
+lock_exempt if name in {"kill_switch.set", "deploy_freeze.set"}
 
 default allow := false
 
@@ -103,6 +116,7 @@ deny_reasons contains "company_locked" if {
 	locked
 	class in classes
 	class != "A0"
+	not lock_exempt
 }
 
 deny_reasons contains "agent_inactive" if {
