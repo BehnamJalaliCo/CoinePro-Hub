@@ -16629,7 +16629,7 @@
     "/api/v1/files": {
       "post": {
         "description": "Owner only. Raw body, `Content-Type` = the file's type, `X-File-Name` =\nUTF-8 name, percent-encoded; `Idempotency-Key` as every POST. Images\n(jpeg, png, webp, heic ≤ 20 MB), video (mp4, webm, quicktime ≤ 200 MB,\n≤ 10 min), audio (m4a/aac, ogg/opus, webm, wav, mpeg ≤ 25 MB, ≤ 15 min),\npdf (≤ 30 MB). The type is checked by content, the size while streaming.\n`201 FileRef` (`status: processing` for video and audio).",
-        "operationId": "upload_file",
+        "operationId": "upload_owner_file",
         "requestBody": {
           "content": {
             "application/octet-stream": {
@@ -16736,7 +16736,7 @@
             "description": "Problem"
           }
         },
-        "summary": "Upload File",
+        "summary": "Upload Owner File",
         "tags": [
           "files"
         ]

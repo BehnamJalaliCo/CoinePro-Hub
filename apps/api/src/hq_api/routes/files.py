@@ -224,7 +224,7 @@ async def _audit(ctx: Ctx, tx: Any, company_id: UUID, fid: UUID, up: Upload) -> 
 
 
 @router.post("/files", response_model=FileRef, status_code=201, responses=E, openapi_extra=RAW_BODY)
-async def upload_file(request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def upload_owner_file(request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """Owner only. Raw body, `Content-Type` = the file's type, `X-File-Name` =
     UTF-8 name, percent-encoded; `Idempotency-Key` as every POST. Images
     (jpeg, png, webp, heic ≤ 20 MB), video (mp4, webm, quicktime ≤ 200 MB,

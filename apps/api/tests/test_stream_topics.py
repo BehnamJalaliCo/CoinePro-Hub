@@ -10,6 +10,8 @@ from typing import Any
 import httpx
 import pytest
 
+from hq_api import events
+
 from .test_agents import order, run, runs_of, step
 from .test_control_treasury_stream import _events, serve
 
@@ -33,8 +35,10 @@ async def test_unknown_topics_are_ignored_and_named(
 ) -> None:
     async with serve(app) as url:
         assert await _first_comment(url, owner, "work,oversight") == ": topics work"
-        assert await _first_comment(url, owner, "files,workshop,orders,runs") == ": topics runs"
-        assert await _first_comment(url, owner, "files") == ": topics"  # nothing served
+        newer = "files,workshop,orders,runs,oversight"
+        served = ",".join(t for t in events.TOPICS if t in newer.split(","))
+        assert await _first_comment(url, owner, newer) == f": topics {served}"
+        assert await _first_comment(url, owner, "gossip") == ": topics"  # nothing served
     for bad in ("Work!", "work,,x", "a" * 201):
         r = await client.get("/api/v1/stream", headers=owner, params={"topics": bad})
         assert r.status_code == 422, bad
