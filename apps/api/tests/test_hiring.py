@@ -191,7 +191,7 @@ async def test_company_state_tells_agents_the_hiring_state(
         assert (await client.get("/internal/v1/company/state", headers=h)).json()[
             "hiring"
         ] == "open"
-        r = await client.get("/internal/v1/company/state", headers=await agent_headers("HQ-ADV"))
+        r = await client.get("/internal/v1/company/state", headers=await agent_headers("HQ-OVS-MGR"))
         assert r.json()["hiring"] == "open" and r.json()["companies"]
     finally:
         await _set_hiring(su, "closed")
@@ -212,7 +212,7 @@ async def test_start_needs_its_step_up_and_proposals_wake_each_head_once(
         "/api/v1/owner/hiring/start", headers={**h, **wrong}, json={"mode": "proposals"}
     )
     assert r.status_code == 403 and r.json()["code"] == "step_up_invalid"
-    agent = await agent_headers("HQ-ADV")
+    agent = await agent_headers("HQ-OVS-MGR")
     r = await client.post("/api/v1/owner/hiring/start", headers=agent, json={"mode": "proposals"})
     assert r.status_code == 403
     tagged = """SELECT count(*) FROM work.work_events
