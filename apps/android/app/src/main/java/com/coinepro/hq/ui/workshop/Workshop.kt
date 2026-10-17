@@ -161,12 +161,13 @@ fun WorkshopScreen(onNewSession: () -> Unit, onGrant: (String?) -> Unit) {
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
             PageHeader("Claude Code برای شرکت‌ها", eyebrow = "کارگاه کد") {
-                HqButton("جلسه‌ی تازه", onNewSession, variant = BtnVariant.PRIMARY, icon = DivanIcon.ADD)
+                if (meta.data?.workshop?.runtime != null) HqButton("جلسه‌ی تازه", onNewSession, variant = BtnVariant.PRIMARY, icon = DivanIcon.ADD)
             }
         }
         item {
             Text(
-                "مدیرها و مشاور کل با مجوز تو روی ریپوی هر شرکت کد میزنند. تو فقط مجوز میدهی، زنده تماشا میکنی و هر لحظه میتوانی متوقف کنی؛ هر push و PR اجازه‌ی تو را میخواهد و هیچ چیزی به production نمیرسد.",
+                if (meta.data?.workshop?.runtime != null) "مدیرها و مشاور کل با مجوز تو روی ریپوی هر شرکت کد میزنند. تو فقط مجوز میدهی، زنده تماشا میکنی و هر لحظه میتوانی متوقف کنی؛ هر push و PR اجازه‌ی تو را میخواهد و هیچ چیزی به production نمیرسد."
+                else "جلسه‌های Claude Code در اپ Claude اجرا میشوند. مجوزها و تاریخچه‌ی کارگاه اینجا میمانند.",
                 style = Divan.type.small, color = c.textSecondary,
             )
         }

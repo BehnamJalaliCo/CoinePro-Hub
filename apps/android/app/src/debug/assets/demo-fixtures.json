@@ -32,7 +32,7 @@
     "telegram": false
    },
    "workshop": {
-    "runtime": "managed"
+    "runtime": null
    },
    "precedence": [
     {
@@ -1051,7 +1051,7 @@
        "company": "FX",
        "priority": "P1",
        "status": "in_progress",
-       "at": "@-477m",
+       "at": "@-751m",
        "assignee": "FX-TECH-MGR",
        "recurring": false
       },
@@ -1061,7 +1061,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "done",
-       "at": "@-837m",
+       "at": "@-1111m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1071,7 +1071,7 @@
        "company": "TY",
        "priority": "P3",
        "status": "queued",
-       "at": "@-717m",
+       "at": "@-991m",
        "assignee": null,
        "recurring": true
       }
@@ -1086,7 +1086,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@603m",
+       "at": "@329m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
@@ -1101,7 +1101,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@2043m",
+       "at": "@1769m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1111,7 +1111,7 @@
        "company": "PC",
        "priority": "P3",
        "status": "queued",
-       "at": "@2163m",
+       "at": "@1889m",
        "assignee": null,
        "recurring": true
       }
@@ -1126,7 +1126,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@3483m",
+       "at": "@3209m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1136,7 +1136,7 @@
        "company": "HQ",
        "priority": "P2",
        "status": "waiting",
-       "at": "@3783m",
+       "at": "@3509m",
        "assignee": "HQ-OVS-MGR",
        "recurring": false
       }
@@ -1151,7 +1151,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@4923m",
+       "at": "@4649m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1161,7 +1161,7 @@
        "company": "FX",
        "priority": "P3",
        "status": "queued",
-       "at": "@5043m",
+       "at": "@4769m",
        "assignee": null,
        "recurring": true
       }
@@ -1176,7 +1176,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@6363m",
+       "at": "@6089m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1186,7 +1186,7 @@
        "company": "HQ",
        "priority": "P2",
        "status": "queued",
-       "at": "@6483m",
+       "at": "@6209m",
        "assignee": null,
        "recurring": true
       }
@@ -1201,7 +1201,7 @@
        "company": "HQ",
        "priority": "P3",
        "status": "queued",
-       "at": "@7803m",
+       "at": "@7529m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1211,7 +1211,7 @@
        "company": "TY",
        "priority": "P3",
        "status": "queued",
-       "at": "@7923m",
+       "at": "@7649m",
        "assignee": null,
        "recurring": true
       }
