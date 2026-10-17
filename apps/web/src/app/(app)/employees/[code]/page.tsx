@@ -5,8 +5,11 @@ import { use } from 'react';
 import { Icon } from '@/components/icon';
 import { Avatar } from '@/components/brand/avatar';
 import { CompanyMark } from '@/components/brand/marks';
-import { Card, Empty, ErrorState, PageHeader, Pill, Skeleton } from '@/components/ui/primitives';
+import { Card, Empty, ErrorState, PageHeader, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
+import { EMPLOYEE_STATUS, EmployeeActions } from '@/components/v15/employee-actions';
+import { RunList } from '@/components/v15/runs';
 import { useEmployee } from '@/lib/api/hooks';
+import { useRuns } from '@/lib/api/v15';
 import { ACTIVITY, EMPLOYEE_KIND, WORK_STATUS } from '@/lib/labels';
 import { ago, jDate, modelLabel } from '@/lib/format';
 
@@ -25,6 +28,7 @@ function Trend({ values }: { values: Array<number | null> }) {
 export default function EmployeePage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const q = useEmployee(code);
+  const runs = useRuns({ employee: code, limit: 20 });
   if (q.isLoading) return <div className="flex flex-col gap-4"><Skeleton className="h-28" /><Skeleton className="h-64" /></div>;
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const e = q.data!;
@@ -33,12 +37,12 @@ export default function EmployeePage({ params }: { params: Promise<{ code: strin
       <div className="flex flex-wrap items-center gap-5">
         <Avatar kind={e.kind} dept={e.department} state={e.activity} size={88} number={e.code.split('-').at(-1)} />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <PageHeader eyebrow={<Link href={`/companies/${e.company}`} className="inline-flex items-center gap-1.5 hover:text-ink"><CompanyMark code={e.company} height={12} mono />{e.department ?? EMPLOYEE_KIND[e.kind]}</Link>} title={e.display_name ?? e.title_fa} />
+          <PageHeader eyebrow={<Link href={`/companies/${e.company}`} className="inline-flex items-center gap-1.5 hover:text-ink"><CompanyMark code={e.company} height={12} mono />{e.department ?? EMPLOYEE_KIND[e.kind]}</Link>} title={e.display_name ?? e.title_fa} actions={<EmployeeActions e={e} />} />
           <div className="flex flex-wrap items-center gap-2">
             <span className="fig text-[13px] text-sec">{e.code}</span>
             <Pill tone={e.activity === 'working' ? 'pos' : e.activity === 'error' ? 'neg' : 'neutral'} dot live={e.activity === 'working'}>{ACTIVITY[e.activity] ?? e.activity}</Pill>
             {e.model ? <Pill tone="silver"><span className="fig">{modelLabel(String(e.model.model ?? ''))} · {e.model.effort}</span></Pill> : null}
-            {e.status !== 'active' ? <Pill tone="warn">{e.status}</Pill> : null}
+            {e.status !== 'active' ? <Pill tone={e.status === 'dismissed' ? 'neg' : 'warn'}>{EMPLOYEE_STATUS[e.status] ?? e.status}</Pill> : null}
           </div>
           {e.activity_note ? <span className="text-[13px] text-muted">«{e.activity_note}»، {ago(e.activity_at)}</span> : null}
         </div>
@@ -66,6 +70,11 @@ export default function EmployeePage({ params }: { params: Promise<{ code: strin
           )) : <Empty icon="rate" title="هنوز امتیازی نگرفته" />}
         </Card>
       </div>
+      <Card className="flex flex-col gap-3 p-5">
+        <SectionTitle title="اجراهای اخیر" note="قدم‌ها، ابزارها و مصرف هر اجرا؛ اجرای در جریان خودش تازه میشود" />
+        {runs.isLoading ? <Skeleton className="h-24" /> : runs.error ? <ErrorState error={runs.error} onRetry={() => runs.refetch()} />
+          : <RunList runs={runs.data?.items ?? []} showEmployee={false} empty="هنوز اجرایی ثبت نشده." />}
+      </Card>
       <Card className="flex flex-col gap-1 p-2">
         <h2 className="px-3 pt-2 text-[14px] font-semibold">کارهای اخیر</h2>
         {e.recent_work.length ? e.recent_work.map((w) => (

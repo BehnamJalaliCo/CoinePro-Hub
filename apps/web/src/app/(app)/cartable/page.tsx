@@ -31,7 +31,15 @@ function CartableInner() {
   const [tab, setTab] = useState<Tab>('pending');
   const [risk, setRisk] = useState<string | null>(null);
   const q = useDecisions({ status: tab, company: company ? [company] : undefined, risk: (risk ?? undefined) as never });
-  const items = useMemo(() => q.data?.items ?? [], [q.data]);
+  // Cartable age (M8): what expires first, what has waited longest, or the newest.
+  const [sort, setSort] = useState<'expiry' | 'oldest' | 'newest'>('expiry');
+  const items = useMemo(() => {
+    const xs = [...(q.data?.items ?? [])];
+    const t = (s: string | null | undefined, empty: number) => (s ? new Date(s).getTime() : empty);
+    if (sort === 'expiry') xs.sort((a, b) => t(a.expires_at, Infinity) - t(b.expires_at, Infinity) || t(a.created_at, 0) - t(b.created_at, 0));
+    else xs.sort((a, b) => (sort === 'oldest' ? 1 : -1) * (t(a.created_at, 0) - t(b.created_at, 0)));
+    return xs;
+  }, [q.data, sort]);
   const selected = params.get('ref') ?? (wide ? items[0]?.ref ?? null : null);
   const detail = useDecision(selected);
   const select = (ref: string | null) => router.replace(ref ? `/cartable?ref=${ref}` : '/cartable', { scroll: false });
@@ -63,6 +71,13 @@ function CartableInner() {
           <div className="flex flex-wrap gap-2">
             {[['high', 'ریسک بالا'], ['medium', 'متوسط'], ['low', 'کم']].map(([v, l]) => <FilterChip key={v} selected={risk === v} onClick={() => setRisk(risk === v ? null : v!)}>{l}</FilterChip>)}
           </div>
+          {tab === 'pending' ? (
+            <label className="flex items-center gap-2 text-[12px] text-sec">ترتیب
+              <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="h-9 rounded-[10px] border border-strong bg-tile px-2 text-[13px] text-ink outline-none focus:border-gold-ink">
+                <option value="expiry">زودتر منقضی</option><option value="oldest">بیشترین انتظار</option><option value="newest">تازه‌ترین</option>
+              </select>
+            </label>
+          ) : null}
         </div>
       </PageHeader>
       {wide ? (

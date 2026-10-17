@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@/components/icon';
 import { CompanyMark } from '@/components/brand/marks';
 import { useCompanies, useDecisions, useEmployees } from '@/lib/api/hooks';
+import { useMessageSearch } from '@/lib/api/v15';
+import { jDate } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
 import { NAV_MAIN, NAV_TOOLS } from './nav';
 
@@ -21,6 +23,11 @@ export function CommandPalette({ open, onOpenChange, onVoice }: { open: boolean;
   const { data: employees } = useEmployees({});
   const { data: decisions } = useDecisions({ status: 'pending' });
   const go = (href: string) => { onOpenChange(false); router.push(href); };
+  // Message search (§5.3) runs on the server once the query settles; cmdk keeps the hits because their value carries the query.
+  const [search, setSearch] = useState('');
+  const [settled, setSettled] = useState('');
+  useEffect(() => { const t = setTimeout(() => setSettled(search.trim()), 300); return () => clearTimeout(t); }, [search]);
+  const hits = useMessageSearch(open ? settled : '');
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -36,11 +43,11 @@ export function CommandPalette({ open, onOpenChange, onVoice }: { open: boolean;
         <D.Overlay className="fixed inset-0 z-40 bg-scrim" />
         <D.Content className="fixed left-1/2 top-[12vh] z-50 w-[min(94vw,640px)] -translate-x-1/2 overflow-hidden rounded-[18px] bg-raised shadow-[0_24px_64px_rgba(0,0,0,.5)] outline-none">
           <D.Title className="sr-only">پالت فرمان</D.Title>
-          <D.Description className="sr-only">جستجو در صفحه‌ها، شرکت‌ها، کارمندها و تصمیم‌ها</D.Description>
+          <D.Description className="sr-only">جستجو در صفحه‌ها، شرکت‌ها، کارمندها، تصمیم‌ها و پیام‌ها</D.Description>
           <Command label="پالت فرمان" loop>
             <div className="flex items-center gap-3 border-b border-div px-4">
               <span className="text-muted"><Icon name="search" size={20} /></span>
-              <Command.Input autoFocus placeholder="کجا بروم؟ نام شرکت، کد کارمند یا تصمیم…" className="h-14 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-muted" />
+              <Command.Input autoFocus value={search} onValueChange={setSearch} placeholder="کجا بروم؟ شرکت، کارمند، تصمیم، یا متن یک پیام…" className="h-14 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-muted" />
             </div>
             <Command.List className="max-h-[60vh] overflow-y-auto p-2">
               <Command.Empty className="px-3 py-8 text-center text-[13px] text-muted">چیزی پیدا نشد.</Command.Empty>
@@ -63,6 +70,17 @@ export function CommandPalette({ open, onOpenChange, onVoice }: { open: boolean;
                   {decisions.items.map((d) => (
                     <Command.Item key={d.ref} value={`${d.ref} ${d.title}`} onSelect={() => go(`/cartable?ref=${d.ref}`)} className={itemCls}>
                       <span className="text-warn"><Icon name="level-decision" size={18} /></span><span className="flex-1 truncate">{d.title}</span><span className="fig text-[12px] text-muted">{d.ref}</span>
+                    </Command.Item>
+                  ))}
+                </Command.Group>
+              ) : null}
+              {settled.length >= 2 && hits.data?.items.length ? (
+                <Command.Group heading="در پیام‌ها" className={groupCls}>
+                  {hits.data.items.slice(0, 8).map((h) => (
+                    <Command.Item key={h.id} value={`msg ${h.ref} ${search} ${h.body.slice(0, 80)}`} onSelect={() => go(`/messages?thread=${encodeURIComponent(h.thread)}`)} className={itemCls}>
+                      <span className="text-sec"><Icon name="messages" size={18} /></span>
+                      <span className="min-w-0 flex-1 truncate">{h.body.replace(/[*_`#>]/g, '')}</span>
+                      <span className="fig text-[12px] text-muted">{h.ref}</span><span className="text-[11px] text-muted">{jDate(h.created_at)}</span>
                     </Command.Item>
                   ))}
                 </Command.Group>
