@@ -1,0 +1,86 @@
+# The owner's clients (apps/web, apps/android), owned by the consultation session: typecheck, lint and build
+# the web; unit and screenshot tests and both APKs for Android. On the working branch the APKs are published
+# to the rolling prerelease "android-latest" so the owner can install them from GitHub.
+name: clients
+
+on:
+  push:
+    paths:
+      - "apps/web/**"
+      - "apps/android/**"
+      - "apps/api/openapi/**"
+      - "design/**"
+      - ".github/workflows/clients.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    container: node:22.22.0-trixie-slim
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write # publish the android-latest prerelease
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Generated design assets are current
+        run: python3 apps/android/scripts/gen_assets.py --check
+
+      # Optional: the owner's signing key (repository secrets). Without it the release APK is signed with
+      # the runner's throwaway debug key and passkeys cannot work with it.
+      - name: Owner signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.HQ_SIGNING_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            umask 077
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/hq.jks"
+            echo "HQ_SIGNING_STORE_FILE=$RUNNER_TEMP/hq.jks" >> "$GITHUB_ENV"
+          fi
+
+      - name: Test and build
+        working-directory: apps/android
+        env:
+          HQ_SIGNING_STORE_PASSWORD: ${{ secrets.HQ_SIGNING_STORE_PASSWORD }}
+          HQ_SIGNING_KEY_ALIAS: ${{ secrets.HQ_SIGNING_KEY_ALIAS }}
+          HQ_SIGNING_KEY_PASSWORD: ${{ secrets.HQ_SIGNING_KEY_PASSWORD }}
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          ./gradlew --no-daemon --console=plain testDebugUnitTest assembleDebug assembleRelease
+
+      - name: Publish android-latest
+        if: github.ref_name == 'claude/coinepro-hub-setup-hsvnw7' || github.ref_name == github.event.repository.default_branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          out=apps/android/app/build/outputs/apk
+          cp "$out/debug/app-debug.apk" coinepro-hq-debug.apk
+          cp "$out/release/app-release.apk" coinepro-hq.apk
+          notes="Commit ${GITHUB_SHA::7}. coinepro-hq.apk: the app (passkey sign-in)."
+          notes="$notes coinepro-hq-debug.apk: development build with the demo holding."
+          if ! gh release view android-latest >/dev/null 2>&1; then
+            gh release create android-latest --prerelease --title "Android (latest)" --notes "$notes" --target "$GITHUB_SHA"
+          fi
+          gh release edit android-latest --notes "$notes"
+          gh release upload android-latest coinepro-hq.apk coinepro-hq-debug.apk --clobber

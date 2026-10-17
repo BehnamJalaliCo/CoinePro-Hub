@@ -1,0 +1,5802 @@
+{
+ "/auth/session": {
+  "status": 200,
+  "body": {
+   "principal": {
+    "kind": "owner",
+    "code": "owner"
+   },
+   "device": {
+    "id": "dev1",
+    "name": "Chrome · Android",
+    "kind": "session",
+    "created_at": "@-600m",
+    "last_used_at": "@0m",
+    "current": true
+   },
+   "expires_at": "@43200m"
+  }
+ },
+ "/meta": {
+  "status": 200,
+  "body": {
+   "api_version": "1.1",
+   "service_version": "mock",
+   "login_configured": true,
+   "public_origin": "http://demo",
+   "stream_retention_days": 30,
+   "channels": {
+    "in_app": true,
+    "web_push": true,
+    "fcm": false,
+    "telegram": false
+   }
+  }
+ },
+ "/inbox/summary": {
+  "status": 200,
+  "body": {
+   "decisions_pending": 4,
+   "decisions_by_risk": {
+    "low": 2,
+    "medium": 1,
+    "high": 1
+   },
+   "deliverables_unrated": 2,
+   "messages_unread": 3,
+   "khalvat": false,
+   "notifications": {
+    "urgent": 0,
+    "decision": 1,
+    "report": 0,
+    "info": 2,
+    "learning": 1
+   }
+  }
+ },
+ "/owner/presence": {
+  "status": 200,
+  "body": {
+   "khalvat": false,
+   "since": "@-540m",
+   "until": null
+  }
+ },
+ "/owner/away-summary": {
+  "status": 200,
+  "body": {
+   "since": "@-540m",
+   "until": "@0m",
+   "companies": [
+    {
+     "company": "HQ",
+     "decisions_new": 1,
+     "deliverables_new": 1,
+     "messages_new": 0,
+     "notifications_new": 1
+    },
+    {
+     "company": "TY",
+     "decisions_new": 1,
+     "deliverables_new": 1,
+     "messages_new": 1,
+     "notifications_new": 1
+    },
+    {
+     "company": "FX",
+     "decisions_new": 1,
+     "deliverables_new": 1,
+     "messages_new": 2,
+     "notifications_new": 0
+    },
+    {
+     "company": "PC",
+     "decisions_new": 1,
+     "deliverables_new": 0,
+     "messages_new": 0,
+     "notifications_new": 1
+    }
+   ],
+   "decisions": {
+    "new": 4,
+    "pending": 4,
+    "top": [
+     {
+      "ref": "D-000014",
+      "company": "TY",
+      "kind": "hire",
+      "risk": "low",
+      "status": "pending",
+      "title": "استخدام SRE تریدیار",
+      "created_at": "@-42m"
+     },
+     {
+      "ref": "D-000015",
+      "company": "FX",
+      "kind": "hire",
+      "risk": "low",
+      "status": "pending",
+      "title": "استخدام SRE کوینه‌پرو FX",
+      "created_at": "@-38m"
+     },
+     {
+      "ref": "D-000016",
+      "company": "HQ",
+      "kind": "hire",
+      "risk": "medium",
+      "status": "pending",
+      "title": "تیم نظارت: مسئول ایمنی هوش مصنوعی",
+      "created_at": "@-33m"
+     },
+     {
+      "ref": "D-000017",
+      "company": "PC",
+      "kind": "deploy",
+      "risk": "high",
+      "status": "pending",
+      "title": "انتشار نسخه‌ی تازه‌ی ترمینال پرو-چارت",
+      "created_at": "@-15m"
+     }
+    ]
+   },
+   "deliverables": {
+    "new": 3,
+    "unrated": 2,
+    "top": [
+     {
+      "ref": "O-000031",
+      "company": "TY",
+      "title": "گزارش سئوی فنی هفته‌ی ۴",
+      "created_at": "@-70m"
+     },
+     {
+      "ref": "O-000030",
+      "company": "HQ",
+      "title": "گزارش صبحگاهی",
+      "created_at": "@-300m"
+     },
+     {
+      "ref": "O-000029",
+      "company": "FX",
+      "title": "تحلیل افت دقت سیگنال‌های طلا",
+      "created_at": "@-540m"
+     }
+    ]
+   },
+   "messages": {
+    "new": 3,
+    "unread": 3,
+    "top_threads": [
+     {
+      "thread": "A",
+      "company": "HQ",
+      "new_messages": 0,
+      "last_at": "@-25m"
+     },
+     {
+      "thread": "FX-CEO",
+      "company": "FX",
+      "new_messages": 2,
+      "last_at": "@-12m"
+     },
+     {
+      "thread": "TY-TECH-MGR",
+      "company": "TY",
+      "new_messages": 1,
+      "last_at": "@-42m"
+     }
+    ]
+   },
+   "notifications": {
+    "by_level": {
+     "decision": 1,
+     "report": 1,
+     "learning": 1
+    },
+    "held": 2,
+    "top": []
+   }
+  }
+ },
+ "/owner/settings": {
+  "status": 200,
+  "body": {
+   "timezone": "Asia/Tehran",
+   "calendars": [
+    "jalali",
+    "gregorian"
+   ],
+   "morning_report_at": "08:00",
+   "digest_minutes": 30,
+   "ceo_daily_attention": 6,
+   "learning_daily_cap": 3,
+   "version": 1
+  }
+ },
+ "/decisions?status=pending": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "ref": "D-000014",
+     "kind": "hire",
+     "company": "TY",
+     "action_class": "A1",
+     "risk": "low",
+     "reversible": true,
+     "status": "pending",
+     "title": "استخدام SRE تریدیار",
+     "proposer": {
+      "kind": "agent",
+      "code": "TY-TECH-MGR",
+      "display_fa": "مدیر فنی تریدیار"
+     },
+     "created_at": "@-42m",
+     "what": "یک **مهندس پایداری (SRE)** برای پایش سلامت سایت و پنل کاربری تریدیار. فقط وقتی پایش‌های قاعده‌محور خطا پیدا کنند بیدار میشود.",
+     "why": "در ۷ روز گذشته `user.tradeyar.trade-future.ir` دو بار بیش از ۵ دقیقه کند بود و کسی پیگیری نکرد (شاهد: I-0002، I-0005).",
+     "quota_estimate": {
+      "tokens": 420000,
+      "usd": "6.80"
+     },
+     "risk_note": "فقط‌خواندنی؛ هیچ اقدام بیرونی ندارد.",
+     "payload": {
+      "department": "TECH",
+      "title_fa": "مهندس پایداری (SRE)",
+      "title_en": "Site Reliability Engineer",
+      "role": "sre",
+      "model": "claude-haiku-5-5",
+      "effort": "high",
+      "duties": [
+       "بررسی هشدارهای سایت و پنل",
+       "خلاصه‌ی روزانه‌ی سلامت",
+       "پیشنهاد اصلاح آستانه‌ها"
+      ],
+      "permissions": [
+       "health.sites",
+       "deliver",
+       "notify"
+      ],
+      "quota_estimate_month": 420000
+     },
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": "TY-TECH-MGR",
+     "expires_at": "@2760m",
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "id": "d14",
+     "reason_code": null
+    },
+    {
+     "ref": "D-000015",
+     "kind": "hire",
+     "company": "FX",
+     "action_class": "A1",
+     "risk": "low",
+     "reversible": true,
+     "status": "pending",
+     "title": "استخدام SRE کوینه‌پرو FX",
+     "proposer": {
+      "kind": "agent",
+      "code": "FX-TECH-MGR",
+      "display_fa": "مدیر فنی FX"
+     },
+     "created_at": "@-38m",
+     "what": "یک SRE برای پایش `coineprofx.com` و `fx.trade-future.ir`، با خلاصه‌ی روزانه و تحلیل هشدارها.",
+     "why": "سیگنال‌ها و ربات تلگرام به سلامت سرویس وابسته‌اند؛ امروز هیچ نقشی مسئول پایش نیست.",
+     "quota_estimate": {
+      "tokens": 380000,
+      "usd": "6.10"
+     },
+     "risk_note": null,
+     "payload": {
+      "department": "TECH",
+      "title_fa": "مهندس پایداری (SRE)",
+      "role": "sre",
+      "model": "claude-haiku-5-5",
+      "effort": "high",
+      "duties": [
+       "تحلیل هشدار",
+       "خلاصه‌ی روزانه"
+      ],
+      "permissions": [
+       "health.sites",
+       "deliver",
+       "notify"
+      ],
+      "quota_estimate_month": 380000
+     },
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": "FX-TECH-MGR",
+     "expires_at": "@2820m",
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "id": "d15",
+     "reason_code": null
+    },
+    {
+     "ref": "D-000016",
+     "kind": "hire",
+     "company": "HQ",
+     "action_class": "A1",
+     "risk": "medium",
+     "reversible": true,
+     "status": "pending",
+     "title": "تیم نظارت: مسئول ایمنی هوش مصنوعی",
+     "proposer": {
+      "kind": "agent",
+      "code": "HQ-OVS-MGR",
+      "display_fa": "بازرس کل"
+     },
+     "created_at": "@-33m",
+     "what": "مسئول ایمنی هوش مصنوعی برای بررسی اینکه ایجنت‌ها در محدوده‌ی اختیارشان میمانند.",
+     "why": "با شروع کار ایجنت‌ها، یک نقش مستقل باید audit و پیشنهادهای A3 را مرور کند.",
+     "quota_estimate": {
+      "tokens": 900000,
+      "usd": "14.20"
+     },
+     "risk_note": "دسترسی به audit (فقط متادیتا).",
+     "payload": {
+      "department": "OVS",
+      "title_fa": "مسئول ایمنی هوش مصنوعی",
+      "role": "ai_safety",
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "duties": [
+       "مرور audit",
+       "گزارش هفتگی ایمنی"
+      ],
+      "permissions": [
+       "audit.recent",
+       "deliver",
+       "notify"
+      ],
+      "quota_estimate_month": 900000
+     },
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": "HQ-OVS-MGR",
+     "expires_at": "@2820m",
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "id": "d16",
+     "reason_code": null
+    },
+    {
+     "ref": "D-000017",
+     "kind": "deploy",
+     "company": "PC",
+     "action_class": "A3",
+     "risk": "high",
+     "reversible": true,
+     "status": "pending",
+     "title": "انتشار نسخه‌ی تازه‌ی ترمینال پرو-چارت",
+     "proposer": {
+      "kind": "agent",
+      "code": "PC-TECH-MGR",
+      "display_fa": "مدیر فنی پرو-چارت"
+     },
+     "created_at": "@-15m",
+     "what": "انتشار `terminal` نسخه‌ی 1017ce2 با canary ۱۰٪ و بازگشت خودکار.",
+     "why": "رفع کندی بارگذاری نمودارها (میانگین ۲٫۴ ثانیه).",
+     "quota_estimate": {
+      "tokens": 60000,
+      "usd": "1.10"
+     },
+     "risk_note": "اگر canary شکست بخورد، بازگشت خودکار حدود ۴ دقیقه طول میکشد.",
+     "payload": {
+      "repo": "pro-chart",
+      "pr_url": "https://github.com/…/pull/42",
+      "diff_stat": "+412 −188",
+      "ci": {
+       "status": "passed"
+      },
+      "tests": {
+       "passed": 286,
+       "failed": 0
+      },
+      "rollout": "canary 10%"
+     },
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": "PC-TECH-MGR",
+     "expires_at": "@360m",
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "id": "d17",
+     "reason_code": null
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/decisions?status=all": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "ref": "D-000014",
+     "kind": "hire",
+     "company": "TY",
+     "action_class": "A1",
+     "risk": "low",
+     "reversible": true,
+     "status": "pending",
+     "title": "استخدام SRE تریدیار",
+     "proposer": {
+      "kind": "agent",
+      "code": "TY-TECH-MGR",
+      "display_fa": "مدیر فنی تریدیار"
+     },
+     "created_at": "@-42m",
+     "what": "یک **مهندس پایداری (SRE)** برای پایش سلامت سایت و پنل کاربری تریدیار. فقط وقتی پایش‌های قاعده‌محور خطا پیدا کنند بیدار میشود.",
+     "why": "در ۷ روز گذشته `user.tradeyar.trade-future.ir` دو بار بیش از ۵ دقیقه کند بود و کسی پیگیری نکرد (شاهد: I-0002، I-0005).",
+     "quota_estimate": {
+      "tokens": 420000,
+      "usd": "6.80"
+     },
+     "risk_note": "فقط‌خواندنی؛ هیچ اقدام بیرونی ندارد.",
+     "payload": {
+      "department": "TECH",
+      "title_fa": "مهندس پایداری (SRE)",
+      "title_en": "Site Reliability Engineer",
+      "role": "sre",
+      "model": "claude-haiku-5-5",
+      "effort": "high",
+      "duties": [
+       "بررسی هشدارهای سایت و پنل",
+       "خلاصه‌ی روزانه‌ی سلامت",
+       "پیشنهاد اصلاح آستانه‌ها"
+      ],
+      "permissions": [
+       "health.sites",
+       "deliver",
+       "notify"
+      ],
+      "quota_estimate_month": 420000
+     },
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": "TY-TECH-MGR",
+     "expires_at": "@2760m",
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "id": "d14",
+     "reason_code": null
+    },
+    {
+     "ref": "D-000015",
+     "kind": "hire",
+     "company": "FX",
+     "action_class": "A1",
+     "risk": "low",
+     "reversible": true,
+     "status": "pending",
+     "title": "استخدام SRE کوینه‌پرو FX",
+     "proposer": {
+      "kind": "agent",
+      "code": "FX-TECH-MGR",
+      "display_fa": "مدیر فنی FX"
+     },
+     "created_at": "@-38m",
+     "what": "یک SRE برای پایش `coineprofx.com` و `fx.trade-future.ir`، با خلاصه‌ی روزانه و تحلیل هشدارها.",
+     "why": "سیگنال‌ها و ربات تلگرام به سلامت سرویس وابسته‌اند؛ امروز هیچ نقشی مسئول پایش نیست.",
+     "quota_estimate": {
+      "tokens": 380000,
+      "usd": "6.10"
+     },
+     "risk_note": null,
+     "payload": {
+      "department": "TECH",
+      "title_fa": "مهندس پایداری (SRE)",
+      "role": "sre",
+      "model": "claude-haiku-5-5",
+      "effort": "high",
+      "duties": [
+       "تحلیل هشدار",
+       "خلاصه‌ی روزانه"
+      ],
+      "permissions": [
+       "health.sites",
+       "deliver",
+       "notify"
+      ],
+      "quota_estimate_month": 380000
+     },
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": "FX-TECH-MGR",
+     "expires_at": "@2820m",
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "id": "d15",
+     "reason_code": null
+    },
+    {
+     "ref": "D-000016",
+     "kind": "hire",
+     "company": "HQ",
+     "action_class": "A1",
+     "risk": "medium",
+     "reversible": true,
+     "status": "pending",
+     "title": "تیم نظارت: مسئول ایمنی هوش مصنوعی",
+     "proposer": {
+      "kind": "agent",
+      "code": "HQ-OVS-MGR",
+      "display_fa": "بازرس کل"
+     },
+     "created_at": "@-33m",
+     "what": "مسئول ایمنی هوش مصنوعی برای بررسی اینکه ایجنت‌ها در محدوده‌ی اختیارشان میمانند.",
+     "why": "با شروع کار ایجنت‌ها، یک نقش مستقل باید audit و پیشنهادهای A3 را مرور کند.",
+     "quota_estimate": {
+      "tokens": 900000,
+      "usd": "14.20"
+     },
+     "risk_note": "دسترسی به audit (فقط متادیتا).",
+     "payload": {
+      "department": "OVS",
+      "title_fa": "مسئول ایمنی هوش مصنوعی",
+      "role": "ai_safety",
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "duties": [
+       "مرور audit",
+       "گزارش هفتگی ایمنی"
+      ],
+      "permissions": [
+       "audit.recent",
+       "deliver",
+       "notify"
+      ],
+      "quota_estimate_month": 900000
+     },
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": "HQ-OVS-MGR",
+     "expires_at": "@2820m",
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "id": "d16",
+     "reason_code": null
+    },
+    {
+     "ref": "D-000017",
+     "kind": "deploy",
+     "company": "PC",
+     "action_class": "A3",
+     "risk": "high",
+     "reversible": true,
+     "status": "pending",
+     "title": "انتشار نسخه‌ی تازه‌ی ترمینال پرو-چارت",
+     "proposer": {
+      "kind": "agent",
+      "code": "PC-TECH-MGR",
+      "display_fa": "مدیر فنی پرو-چارت"
+     },
+     "created_at": "@-15m",
+     "what": "انتشار `terminal` نسخه‌ی 1017ce2 با canary ۱۰٪ و بازگشت خودکار.",
+     "why": "رفع کندی بارگذاری نمودارها (میانگین ۲٫۴ ثانیه).",
+     "quota_estimate": {
+      "tokens": 60000,
+      "usd": "1.10"
+     },
+     "risk_note": "اگر canary شکست بخورد، بازگشت خودکار حدود ۴ دقیقه طول میکشد.",
+     "payload": {
+      "repo": "pro-chart",
+      "pr_url": "https://github.com/…/pull/42",
+      "diff_stat": "+412 −188",
+      "ci": {
+       "status": "passed"
+      },
+      "tests": {
+       "passed": 286,
+       "failed": 0
+      },
+      "rollout": "canary 10%"
+     },
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": "PC-TECH-MGR",
+     "expires_at": "@360m",
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "id": "d17",
+     "reason_code": null
+    },
+    {
+     "ref": "D-000011",
+     "kind": "recurring_approval",
+     "company": "TY",
+     "action_class": "A2",
+     "risk": "low",
+     "reversible": true,
+     "status": "approved",
+     "title": "گزارش هفتگی سئوی فنی",
+     "proposer": {
+      "kind": "agent",
+      "code": "TY-GROWTH-MGR",
+      "display_fa": "مدیر رشد تریدیار"
+     },
+     "created_at": "@-1200m",
+     "what": "بررسی هفتگی ۴۰ صفحه‌ی اصلی.",
+     "why": "ورودی ارگانیک ۱۲٪ افت کرده.",
+     "quota_estimate": {
+      "tokens": 200000,
+      "usd": "3.20"
+     },
+     "risk_note": null,
+     "payload": {},
+     "seal": {
+      "method": "passkey_uv",
+      "sealed_at": "@-1140m",
+      "step_up_id": null
+     },
+     "decided_at": "@-1140m",
+     "decided_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "note": null,
+     "resolution": "M-0003",
+     "thread": null,
+     "expires_at": null,
+     "version": 2,
+     "effect_status": "applied",
+     "work_id": null,
+     "id": "d11",
+     "reason_code": null
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/deliverables": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "o0",
+     "body": "۴۰ صفحه بررسی شد؛ ۷ صفحه بیرون از ایندکس به خاطر canonical اشتباه. ۳ اصلاح فوری و ۵ پیشنهاد CR.\n\n### جزئیات\n- شاهد: پایش ۷ روزه\n- پیشنهاد: …",
+     "attachments": [],
+     "evidence": [
+      {
+       "kind": "metric",
+       "ref": "health.sites",
+       "note": "7d"
+      }
+     ],
+     "produced_with": {
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "label_fa": "Sonnet 5.5 · high"
+     },
+     "usage": {
+      "tokens": 48200,
+      "usd": "0.84"
+     },
+     "work_id": "w0",
+     "ref": "O-000031",
+     "company": "TY",
+     "title": "گزارش سئوی فنی هفته‌ی ۴",
+     "summary": "۴۰ صفحه بررسی شد؛ ۷ صفحه بیرون از ایندکس به خاطر canonical اشتباه. ۳ اصلاح فوری و ۵ پیشنهاد CR.",
+     "producer": {
+      "code": "TY-GROWTH-01",
+      "company": "TY",
+      "kind": "employee",
+      "department": "GROWTH",
+      "title_fa": "تحلیلگر سئوی فنی"
+     },
+     "rating": null,
+     "created_at": "@-70m",
+     "work_ref": "W-000102"
+    },
+    {
+     "id": "o1",
+     "body": "دیروز ۴۱ کار تمام شد؛ ۴ تصمیم منتظر مُهر؛ مصرف توکن ۱۸٪ زیر میانگین هفته.\n\n### جزئیات\n- شاهد: پایش ۷ روزه\n- پیشنهاد: …",
+     "attachments": [],
+     "evidence": [
+      {
+       "kind": "metric",
+       "ref": "health.sites",
+       "note": "7d"
+      }
+     ],
+     "produced_with": {
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "label_fa": "Sonnet 5.5 · high"
+     },
+     "usage": {
+      "tokens": 48200,
+      "usd": "0.84"
+     },
+     "work_id": "w1",
+     "ref": "O-000030",
+     "company": "HQ",
+     "title": "گزارش صبحگاهی",
+     "summary": "دیروز ۴۱ کار تمام شد؛ ۴ تصمیم منتظر مُهر؛ مصرف توکن ۱۸٪ زیر میانگین هفته.",
+     "producer": {
+      "code": "HQ-SYS",
+      "company": "HQ",
+      "kind": "system",
+      "department": null,
+      "title_fa": "سیستم"
+     },
+     "rating": {
+      "score": 8,
+      "comment": null,
+      "history_count": 1,
+      "rated_at": "@-180m"
+     },
+     "created_at": "@-300m",
+     "work_ref": "W-000099"
+    },
+    {
+     "id": "o2",
+     "body": "دقت ۷ روز گذشته ۶۱٪ (میانگین ۶۸٪). علت احتمالی: تغییر رژیم نوسان بعد از خبر فدرال. پیشنهاد: کاهش وزن مدل LSTM.\n\n### جزئیات\n- شاهد: پایش ۷ روزه\n- پیشنهاد: …",
+     "attachments": [],
+     "evidence": [
+      {
+       "kind": "metric",
+       "ref": "health.sites",
+       "note": "7d"
+      }
+     ],
+     "produced_with": {
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "label_fa": "Sonnet 5.5 · high"
+     },
+     "usage": {
+      "tokens": 48200,
+      "usd": "0.84"
+     },
+     "work_id": "w2",
+     "ref": "O-000029",
+     "company": "FX",
+     "title": "تحلیل افت دقت سیگنال‌های طلا",
+     "summary": "دقت ۷ روز گذشته ۶۱٪ (میانگین ۶۸٪). علت احتمالی: تغییر رژیم نوسان بعد از خبر فدرال. پیشنهاد: کاهش وزن مدل LSTM.",
+     "producer": {
+      "code": "FX-QUANT-02",
+      "company": "FX",
+      "kind": "employee",
+      "department": "QUANT",
+      "title_fa": "پایشگر سیگنال"
+     },
+     "rating": null,
+     "created_at": "@-540m",
+     "work_ref": "W-000096"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/deliverables?unrated=true": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "o0",
+     "body": "۴۰ صفحه بررسی شد؛ ۷ صفحه بیرون از ایندکس به خاطر canonical اشتباه. ۳ اصلاح فوری و ۵ پیشنهاد CR.\n\n### جزئیات\n- شاهد: پایش ۷ روزه\n- پیشنهاد: …",
+     "attachments": [],
+     "evidence": [
+      {
+       "kind": "metric",
+       "ref": "health.sites",
+       "note": "7d"
+      }
+     ],
+     "produced_with": {
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "label_fa": "Sonnet 5.5 · high"
+     },
+     "usage": {
+      "tokens": 48200,
+      "usd": "0.84"
+     },
+     "work_id": "w0",
+     "ref": "O-000031",
+     "company": "TY",
+     "title": "گزارش سئوی فنی هفته‌ی ۴",
+     "summary": "۴۰ صفحه بررسی شد؛ ۷ صفحه بیرون از ایندکس به خاطر canonical اشتباه. ۳ اصلاح فوری و ۵ پیشنهاد CR.",
+     "producer": {
+      "code": "TY-GROWTH-01",
+      "company": "TY",
+      "kind": "employee",
+      "department": "GROWTH",
+      "title_fa": "تحلیلگر سئوی فنی"
+     },
+     "rating": null,
+     "created_at": "@-70m",
+     "work_ref": "W-000102"
+    },
+    {
+     "id": "o2",
+     "body": "دقت ۷ روز گذشته ۶۱٪ (میانگین ۶۸٪). علت احتمالی: تغییر رژیم نوسان بعد از خبر فدرال. پیشنهاد: کاهش وزن مدل LSTM.\n\n### جزئیات\n- شاهد: پایش ۷ روزه\n- پیشنهاد: …",
+     "attachments": [],
+     "evidence": [
+      {
+       "kind": "metric",
+       "ref": "health.sites",
+       "note": "7d"
+      }
+     ],
+     "produced_with": {
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "label_fa": "Sonnet 5.5 · high"
+     },
+     "usage": {
+      "tokens": 48200,
+      "usd": "0.84"
+     },
+     "work_id": "w2",
+     "ref": "O-000029",
+     "company": "FX",
+     "title": "تحلیل افت دقت سیگنال‌های طلا",
+     "summary": "دقت ۷ روز گذشته ۶۱٪ (میانگین ۶۸٪). علت احتمالی: تغییر رژیم نوسان بعد از خبر فدرال. پیشنهاد: کاهش وزن مدل LSTM.",
+     "producer": {
+      "code": "FX-QUANT-02",
+      "company": "FX",
+      "kind": "employee",
+      "department": "QUANT",
+      "title_fa": "پایشگر سیگنال"
+     },
+     "rating": null,
+     "created_at": "@-540m",
+     "work_ref": "W-000096"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/companies": {
+  "status": 200,
+  "body": [
+   {
+    "id": "co-HQ",
+    "code": "HQ",
+    "kind": "holding",
+    "name_fa": "هلدینگ کوینه‌پرو",
+    "name_en": "CoinePro HQ",
+    "color_index": null,
+    "status": "active",
+    "template": "holding",
+    "kill_switch": "released",
+    "deploy_freeze_until": null,
+    "version": 3,
+    "created_at": "@-4320m",
+    "counts": {
+     "decisions_pending": 1,
+     "employees_active": 5,
+     "work_open": 3
+    }
+   },
+   {
+    "id": "co-TY",
+    "code": "TY",
+    "kind": "company",
+    "name_fa": "تریدیار",
+    "name_en": "TradeYar",
+    "color_index": 3,
+    "status": "active",
+    "template": "standard",
+    "kill_switch": "released",
+    "deploy_freeze_until": null,
+    "version": 3,
+    "created_at": "@-4320m",
+    "counts": {
+     "decisions_pending": 2,
+     "employees_active": 9,
+     "work_open": 7
+    }
+   },
+   {
+    "id": "co-FX",
+    "code": "FX",
+    "kind": "company",
+    "name_fa": "کوینه‌پرو FX",
+    "name_en": "CoinePro FX",
+    "color_index": 2,
+    "status": "active",
+    "template": "standard",
+    "kill_switch": "released",
+    "deploy_freeze_until": "@95m",
+    "version": 3,
+    "created_at": "@-4320m",
+    "counts": {
+     "decisions_pending": 1,
+     "employees_active": 10,
+     "work_open": 11
+    }
+   },
+   {
+    "id": "co-PC",
+    "code": "PC",
+    "kind": "company",
+    "name_fa": "پرو-چارت",
+    "name_en": "Pro-Chart",
+    "color_index": 1,
+    "status": "active",
+    "template": "standard",
+    "kill_switch": "released",
+    "deploy_freeze_until": null,
+    "version": 3,
+    "created_at": "@-4320m",
+    "counts": {
+     "decisions_pending": 1,
+     "employees_active": 9,
+     "work_open": 4
+    }
+   }
+  ]
+ },
+ "/work": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "w0",
+     "kind": "one_off",
+     "brief": "جزئیات کار…",
+     "created_at": "@-120m",
+     "updated_at": "@0m",
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "department": "TECH",
+     "overdue": false,
+     "escalation_level": 0,
+     "parent_id": null,
+     "root_id": "w0",
+     "requested_by_work_id": null,
+     "budget": {
+      "tokens": 200000,
+      "tokens_used": 46000,
+      "usd": null,
+      "usd_used": "0.80"
+     },
+     "escrow": null,
+     "schedule": null,
+     "deliverable_ids": [],
+     "evidence": [],
+     "progress_note": null,
+     "version": 1,
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "company": "FX",
+     "status": "in_progress",
+     "priority": "P1",
+     "depth": 1,
+     "assignee": {
+      "code": "FX-TECH-MGR",
+      "company": "FX",
+      "kind": "manager",
+      "department": "TECH",
+      "title_fa": "مدیر فنی"
+     },
+     "due_at": "@300m",
+     "progress_pct": 60
+    },
+    {
+     "id": "w1",
+     "kind": "one_off",
+     "brief": "جزئیات کار…",
+     "created_at": "@-180m",
+     "updated_at": "@-11m",
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "department": "GROWTH",
+     "overdue": false,
+     "escalation_level": 0,
+     "parent_id": null,
+     "root_id": "w1",
+     "requested_by_work_id": null,
+     "budget": {
+      "tokens": 200000,
+      "tokens_used": 55000,
+      "usd": null,
+      "usd_used": "0.80"
+     },
+     "escrow": null,
+     "schedule": null,
+     "deliverable_ids": [],
+     "evidence": [],
+     "progress_note": null,
+     "version": 1,
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "company": "TY",
+     "status": "delivered",
+     "priority": "P3",
+     "depth": 2,
+     "assignee": {
+      "code": "TY-GROWTH-01",
+      "company": "TY",
+      "kind": "employee",
+      "department": "GROWTH",
+      "title_fa": "تحلیلگر سئوی فنی"
+     },
+     "due_at": "@60m",
+     "progress_pct": 100
+    },
+    {
+     "id": "w2",
+     "kind": "one_off",
+     "brief": "جزئیات کار…",
+     "created_at": "@-240m",
+     "updated_at": "@-22m",
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "department": "TECH",
+     "overdue": false,
+     "escalation_level": 0,
+     "parent_id": null,
+     "root_id": "w2",
+     "requested_by_work_id": null,
+     "budget": {
+      "tokens": 200000,
+      "tokens_used": 64000,
+      "usd": null,
+      "usd_used": "0.80"
+     },
+     "escrow": null,
+     "schedule": null,
+     "deliverable_ids": [],
+     "evidence": [],
+     "progress_note": null,
+     "version": 1,
+     "ref": "W-000105",
+     "title": "پیشنهاد تیم فنی ماه ۱",
+     "company": "PC",
+     "status": "queued",
+     "priority": "P3",
+     "depth": 1,
+     "assignee": {
+      "code": "PC-TECH-MGR",
+      "company": "PC",
+      "kind": "manager",
+      "department": "TECH",
+      "title_fa": "مدیر فنی"
+     },
+     "due_at": "@1200m",
+     "progress_pct": null
+    },
+    {
+     "id": "w3",
+     "kind": "one_off",
+     "brief": "جزئیات کار…",
+     "created_at": "@-300m",
+     "updated_at": "@-33m",
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "department": "OVS",
+     "overdue": true,
+     "escalation_level": 1,
+     "parent_id": null,
+     "root_id": "w3",
+     "requested_by_work_id": null,
+     "budget": {
+      "tokens": 200000,
+      "tokens_used": 73000,
+      "usd": null,
+      "usd_used": "0.80"
+     },
+     "escrow": null,
+     "schedule": null,
+     "deliverable_ids": [],
+     "evidence": [],
+     "progress_note": null,
+     "version": 1,
+     "ref": "W-000098",
+     "title": "ممیزی امنیتی همه‌ی شرکت‌ها",
+     "company": "HQ",
+     "status": "waiting",
+     "priority": "P2",
+     "depth": 0,
+     "assignee": {
+      "code": "HQ-OVS-MGR",
+      "company": "HQ",
+      "kind": "inspector",
+      "department": "OVS",
+      "title_fa": "بازرس کل"
+     },
+     "due_at": "@-120m",
+     "progress_pct": 20
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/planner": {
+  "status": 200,
+  "body": {
+   "scope": "holding",
+   "timezone": "Asia/Tehran",
+   "days": [
+    {
+     "date": "@0d",
+     "items": [
+      {
+       "ref": "W-000104",
+       "title": "رفع کندی ثبت‌نام",
+       "company": "FX",
+       "priority": "P1",
+       "status": "in_progress",
+       "at": "@-90m",
+       "assignee": "FX-TECH-MGR",
+       "recurring": false
+      },
+      {
+       "ref": "W-100",
+       "title": "گزارش صبحگاهی",
+       "company": "HQ",
+       "priority": "P3",
+       "status": "done",
+       "at": "@-450m",
+       "assignee": "HQ-SYS",
+       "recurring": true
+      },
+      {
+       "ref": "W-200",
+       "title": "خلاصه‌ی سلامت سایت‌ها",
+       "company": "TY",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@-330m",
+       "assignee": null,
+       "recurring": true
+      }
+     ]
+    },
+    {
+     "date": "@1d",
+     "items": [
+      {
+       "ref": "W-110",
+       "title": "گزارش صبحگاهی",
+       "company": "HQ",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@990m",
+       "assignee": "HQ-SYS",
+       "recurring": true
+      },
+      {
+       "ref": "W-000105",
+       "title": "پیشنهاد تیم فنی ماه ۱",
+       "company": "PC",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@1230m",
+       "assignee": "PC-TECH-MGR",
+       "recurring": false
+      }
+     ]
+    },
+    {
+     "date": "@2d",
+     "items": [
+      {
+       "ref": "W-120",
+       "title": "گزارش صبحگاهی",
+       "company": "HQ",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@2430m",
+       "assignee": "HQ-SYS",
+       "recurring": true
+      },
+      {
+       "ref": "W-220",
+       "title": "خلاصه‌ی سلامت سایت‌ها",
+       "company": "PC",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@2550m",
+       "assignee": null,
+       "recurring": true
+      }
+     ]
+    },
+    {
+     "date": "@3d",
+     "items": [
+      {
+       "ref": "W-130",
+       "title": "گزارش صبحگاهی",
+       "company": "HQ",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@3870m",
+       "assignee": "HQ-SYS",
+       "recurring": true
+      },
+      {
+       "ref": "W-000098",
+       "title": "ممیزی امنیتی همه‌ی شرکت‌ها",
+       "company": "HQ",
+       "priority": "P2",
+       "status": "waiting",
+       "at": "@4170m",
+       "assignee": "HQ-OVS-MGR",
+       "recurring": false
+      }
+     ]
+    },
+    {
+     "date": "@4d",
+     "items": [
+      {
+       "ref": "W-140",
+       "title": "گزارش صبحگاهی",
+       "company": "HQ",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@5310m",
+       "assignee": "HQ-SYS",
+       "recurring": true
+      },
+      {
+       "ref": "W-240",
+       "title": "خلاصه‌ی سلامت سایت‌ها",
+       "company": "FX",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@5430m",
+       "assignee": null,
+       "recurring": true
+      }
+     ]
+    },
+    {
+     "date": "@5d",
+     "items": [
+      {
+       "ref": "W-150",
+       "title": "گزارش صبحگاهی",
+       "company": "HQ",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@6750m",
+       "assignee": "HQ-SYS",
+       "recurring": true
+      },
+      {
+       "ref": "W-000120",
+       "title": "جلسه‌ی هفتگی هیئت‌مدیره",
+       "company": "HQ",
+       "priority": "P2",
+       "status": "queued",
+       "at": "@6870m",
+       "assignee": null,
+       "recurring": true
+      }
+     ]
+    },
+    {
+     "date": "@6d",
+     "items": [
+      {
+       "ref": "W-160",
+       "title": "گزارش صبحگاهی",
+       "company": "HQ",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@8190m",
+       "assignee": "HQ-SYS",
+       "recurring": true
+      },
+      {
+       "ref": "W-260",
+       "title": "خلاصه‌ی سلامت سایت‌ها",
+       "company": "TY",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@8310m",
+       "assignee": null,
+       "recurring": true
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "/threads": {
+  "status": 200,
+  "body": [
+   {
+    "id": "t0",
+    "code": "A",
+    "kind": "advisor",
+    "company": "HQ",
+    "title_fa": "مشاور کل",
+    "unread": 0,
+    "last_message_at": "@-25m",
+    "last_ref": "A-0004",
+    "participants": [
+     {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     {
+      "kind": "agent",
+      "code": "HQ-ADV",
+      "display_fa": "مشاور کل"
+     }
+    ]
+   },
+   {
+    "id": "t1",
+    "code": "FX-CEO",
+    "kind": "ceo",
+    "company": "FX",
+    "title_fa": "مدیرعامل FX",
+    "unread": 2,
+    "last_message_at": "@-12m",
+    "last_ref": "FX-CEO-0009",
+    "participants": [
+     {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     {
+      "kind": "agent",
+      "code": "FX-CEO",
+      "display_fa": "مدیرعامل FX"
+     }
+    ]
+   },
+   {
+    "id": "t2",
+    "code": "TY-TECH-MGR",
+    "kind": "manager",
+    "company": "TY",
+    "title_fa": "مدیر فنی تریدیار",
+    "unread": 1,
+    "last_message_at": "@-42m",
+    "last_ref": "TY-TECH-MGR-0002",
+    "participants": [
+     {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     {
+      "kind": "agent",
+      "code": "TY-TECH-MGR",
+      "display_fa": "مدیر فنی تریدیار"
+     }
+    ]
+   }
+  ]
+ },
+ "/notifications": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "state": "delivered",
+     "delivered": {
+      "in_app": true,
+      "web_push": false,
+      "fcm": false,
+      "telegram": false
+     },
+     "answer": null,
+     "choices": null,
+     "id": "n1",
+     "level": "decision",
+     "company": "PC",
+     "title_fa": "انتشار ترمینال منتظر مُهر",
+     "body_fa": "D-000017 · ریسک بالا · ۶ ساعت تا انقضا",
+     "created_at": "@-15m",
+     "read_at": null,
+     "link": {
+      "kind": "decision",
+      "ref": "D-000017"
+     }
+    },
+    {
+     "state": "read",
+     "delivered": {
+      "in_app": true,
+      "web_push": false,
+      "fcm": false,
+      "telegram": false
+     },
+     "answer": null,
+     "choices": null,
+     "id": "n2",
+     "level": "report",
+     "company": "HQ",
+     "title_fa": "گزارش صبحگاهی آماده است",
+     "body_fa": "۴۱ کار تمام شد · ۴ تصمیم منتظر",
+     "created_at": "@-300m",
+     "read_at": "@-240m",
+     "link": {
+      "kind": "deliverable",
+      "ref": "O-000030"
+     }
+    },
+    {
+     "state": "read",
+     "delivered": {
+      "in_app": true,
+      "web_push": false,
+      "fcm": false,
+      "telegram": false
+     },
+     "answer": null,
+     "choices": null,
+     "id": "n3",
+     "level": "urgent",
+     "company": "TY",
+     "title_fa": "پنل کاربری تریدیار کند است",
+     "body_fa": "۳ شکست پشت هم · I-0005 · مدیر فنی بیدار شد",
+     "created_at": "@-1560m",
+     "read_at": "@-1500m",
+     "link": {
+      "kind": "work",
+      "ref": "W-000101"
+     }
+    },
+    {
+     "state": "delivered",
+     "delivered": {
+      "in_app": true,
+      "web_push": false,
+      "fcm": false,
+      "telegram": false
+     },
+     "answer": null,
+     "choices": [
+      {
+       "id": "timing",
+       "label_fa": "زمان بد"
+      },
+      {
+       "id": "risk",
+       "label_fa": "ریسک"
+      },
+      {
+       "id": "quality",
+       "label_fa": "کیفیت"
+      }
+     ],
+     "id": "n4",
+     "level": "learning",
+     "company": "HQ",
+     "title_fa": "چرا انتشار قبلی را برگرداندی؟",
+     "body_fa": "جواب یک‌لمسی به یادگیری سیستم کمک میکند.",
+     "created_at": "@-1800m",
+     "read_at": null,
+     "link": null
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/control/state": {
+  "status": 200,
+  "body": {
+   "holding": {
+    "scope": "holding",
+    "company": "HQ",
+    "state": "released",
+    "changed_at": "@-2880m",
+    "changed_by": null,
+    "reason": null
+   },
+   "companies": [
+    {
+     "scope": "company:TY",
+     "company": "TY",
+     "state": "released",
+     "changed_at": "@-2880m",
+     "changed_by": null,
+     "reason": null
+    },
+    {
+     "scope": "company:FX",
+     "company": "FX",
+     "state": "released",
+     "changed_at": "@-2880m",
+     "changed_by": null,
+     "reason": null
+    },
+    {
+     "scope": "company:PC",
+     "company": "PC",
+     "state": "released",
+     "changed_at": "@-2880m",
+     "changed_by": null,
+     "reason": null
+    }
+   ],
+   "deploy_freezes": [
+    {
+     "company": "FX",
+     "until": "@95m",
+     "reason": "انتشار در جریان",
+     "created_by": "pipeline"
+    }
+   ]
+  }
+ },
+ "/treasury/summary": {
+  "status": 200,
+  "body": {
+   "period": "day",
+   "period_start": "@-840m",
+   "company": null,
+   "totals": {
+    "calls": 214,
+    "input_tokens": 118400,
+    "output_tokens": 41200,
+    "cache_read_tokens": 22100,
+    "cache_write_tokens": 6400,
+    "thinking_tokens": 0,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "2.94"
+   },
+   "budgets": [
+    {
+     "company": "HQ",
+     "scope_type": "holding",
+     "scope_ref": "HQ",
+     "period": "month",
+     "level": 0,
+     "token_limit": 30000000,
+     "tokens_used": 6240000,
+     "pct": 21,
+     "usd_limit": "600.00",
+     "usd_used": "128.40"
+    },
+    {
+     "company": "TY",
+     "scope_type": "company",
+     "scope_ref": "TY",
+     "period": "month",
+     "level": 1,
+     "token_limit": 10000000,
+     "tokens_used": 7400000,
+     "pct": 74,
+     "usd_limit": null,
+     "usd_used": "58.10"
+    },
+    {
+     "company": "FX",
+     "scope_type": "company",
+     "scope_ref": "FX",
+     "period": "month",
+     "level": 1,
+     "token_limit": 10000000,
+     "tokens_used": 4100000,
+     "pct": 41,
+     "usd_limit": null,
+     "usd_used": "42.30"
+    },
+    {
+     "company": "PC",
+     "scope_type": "company",
+     "scope_ref": "PC",
+     "period": "month",
+     "level": 1,
+     "token_limit": 6000000,
+     "tokens_used": 5520000,
+     "pct": 92,
+     "usd_limit": null,
+     "usd_used": "21.60"
+    }
+   ],
+   "top_consumers": [
+    {
+     "actor": "FX-TECH-MGR",
+     "company": "FX",
+     "calls": 31,
+     "tokens": 58100,
+     "usd": "0.98"
+    },
+    {
+     "actor": "TY-GROWTH-01",
+     "company": "TY",
+     "calls": 22,
+     "tokens": 41200,
+     "usd": "0.71"
+    },
+    {
+     "actor": "HQ-ADV",
+     "company": "HQ",
+     "calls": 6,
+     "tokens": 35100,
+     "usd": "0.64"
+    },
+    {
+     "actor": "FX-QUANT-02",
+     "company": "FX",
+     "calls": 48,
+     "tokens": 31700,
+     "usd": "0.41"
+    },
+    {
+     "actor": "HQ-SYS",
+     "company": "HQ",
+     "calls": 9,
+     "tokens": 12900,
+     "usd": "0.20"
+    }
+   ]
+  }
+ },
+ "/treasury/breakdown?by=model": {
+  "status": 200,
+  "body": [
+   {
+    "key": "claude-sonnet-5-5",
+    "input_tokens": 96000,
+    "output_tokens": 28000,
+    "cache_read_tokens": 17280,
+    "cache_write_tokens": 4800,
+    "calls": 107,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.47"
+   },
+   {
+    "key": "claude-haiku-5-5",
+    "input_tokens": 31000,
+    "output_tokens": 9200,
+    "cache_read_tokens": 5580,
+    "cache_write_tokens": 1550,
+    "calls": 34,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.15"
+   },
+   {
+    "key": "claude-opus-5-5",
+    "input_tokens": 21000,
+    "output_tokens": 3600,
+    "cache_read_tokens": 3780,
+    "cache_write_tokens": 1050,
+    "calls": 23,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.08"
+   }
+  ]
+ },
+ "/treasury/breakdown?by=company": {
+  "status": 200,
+  "body": [
+   {
+    "key": "TY",
+    "input_tokens": 52000,
+    "output_tokens": 16000,
+    "cache_read_tokens": 9360,
+    "cache_write_tokens": 2600,
+    "calls": 58,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.26"
+   },
+   {
+    "key": "FX",
+    "input_tokens": 61000,
+    "output_tokens": 18200,
+    "cache_read_tokens": 10980,
+    "cache_write_tokens": 3050,
+    "calls": 68,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.30"
+   },
+   {
+    "key": "PC",
+    "input_tokens": 14000,
+    "output_tokens": 4100,
+    "cache_read_tokens": 2520,
+    "cache_write_tokens": 700,
+    "calls": 16,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.07"
+   },
+   {
+    "key": "HQ",
+    "input_tokens": 21000,
+    "output_tokens": 2900,
+    "cache_read_tokens": 3780,
+    "cache_write_tokens": 1050,
+    "calls": 23,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.07"
+   }
+  ]
+ },
+ "/treasury/breakdown?by=day": {
+  "status": 200,
+  "body": [
+   {
+    "key": "@-13d",
+    "input_tokens": 90000,
+    "output_tokens": 26000,
+    "cache_read_tokens": 16200,
+    "cache_write_tokens": 4500,
+    "calls": 100,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.44"
+   },
+   {
+    "key": "@-12d",
+    "input_tokens": 127000,
+    "output_tokens": 39000,
+    "cache_read_tokens": 22860,
+    "cache_write_tokens": 6350,
+    "calls": 141,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.64"
+   },
+   {
+    "key": "@-11d",
+    "input_tokens": 164000,
+    "output_tokens": 52000,
+    "cache_read_tokens": 29520,
+    "cache_write_tokens": 8200,
+    "calls": 182,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.85"
+   },
+   {
+    "key": "@-10d",
+    "input_tokens": 121000,
+    "output_tokens": 35000,
+    "cache_read_tokens": 21780,
+    "cache_write_tokens": 6050,
+    "calls": 134,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.59"
+   },
+   {
+    "key": "@-9d",
+    "input_tokens": 158000,
+    "output_tokens": 48000,
+    "cache_read_tokens": 28440,
+    "cache_write_tokens": 7900,
+    "calls": 176,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.80"
+   },
+   {
+    "key": "@-8d",
+    "input_tokens": 115000,
+    "output_tokens": 31000,
+    "cache_read_tokens": 20700,
+    "cache_write_tokens": 5750,
+    "calls": 128,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.54"
+   },
+   {
+    "key": "@-7d",
+    "input_tokens": 152000,
+    "output_tokens": 44000,
+    "cache_read_tokens": 27360,
+    "cache_write_tokens": 7600,
+    "calls": 169,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.74"
+   },
+   {
+    "key": "@-6d",
+    "input_tokens": 109000,
+    "output_tokens": 27000,
+    "cache_read_tokens": 19620,
+    "cache_write_tokens": 5450,
+    "calls": 121,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.49"
+   },
+   {
+    "key": "@-5d",
+    "input_tokens": 146000,
+    "output_tokens": 40000,
+    "cache_read_tokens": 26280,
+    "cache_write_tokens": 7300,
+    "calls": 162,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.69"
+   },
+   {
+    "key": "@-4d",
+    "input_tokens": 103000,
+    "output_tokens": 53000,
+    "cache_read_tokens": 18540,
+    "cache_write_tokens": 5150,
+    "calls": 114,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.74"
+   },
+   {
+    "key": "@-3d",
+    "input_tokens": 140000,
+    "output_tokens": 36000,
+    "cache_read_tokens": 25200,
+    "cache_write_tokens": 7000,
+    "calls": 156,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.64"
+   },
+   {
+    "key": "@-2d",
+    "input_tokens": 97000,
+    "output_tokens": 49000,
+    "cache_read_tokens": 17460,
+    "cache_write_tokens": 4850,
+    "calls": 108,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.68"
+   },
+   {
+    "key": "@-1d",
+    "input_tokens": 134000,
+    "output_tokens": 32000,
+    "cache_read_tokens": 24120,
+    "cache_write_tokens": 6700,
+    "calls": 149,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.59"
+   },
+   {
+    "key": "@0d",
+    "input_tokens": 91000,
+    "output_tokens": 45000,
+    "cache_read_tokens": 16380,
+    "cache_write_tokens": 4550,
+    "calls": 101,
+    "cost_usd": "0.00",
+    "equiv_cost_usd": "0.63"
+   }
+  ]
+ },
+ "/connections": {
+  "status": 200,
+  "body": [
+   {
+    "id": "c1",
+    "key": "claude-max",
+    "display_name": "اشتراک Claude (Max)",
+    "kind": "claude_subscription",
+    "provider": "anthropic",
+    "status": "enabled",
+    "status_reason": null,
+    "models": [
+     "claude-opus-5-5",
+     "claude-sonnet-5-5",
+     "claude-haiku-5-5"
+    ],
+    "default_model": "claude-sonnet-5-5",
+    "fallback_priority": 1,
+    "has_secret_ref": true,
+    "limits": {},
+    "pricing": {},
+    "quota_reset_at": "@1800m",
+    "updated_at": "@-60m",
+    "version": 1
+   }
+  ]
+ },
+ "/audit": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "seq": 1200,
+     "at": "@0m",
+     "actor": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "principal_kind": "owner",
+     "company": "TY",
+     "action": "decision.approve",
+     "action_class": "A1",
+     "target": {
+      "kind": "work",
+      "ref": "W-00090"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": true,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    },
+    {
+     "seq": 1199,
+     "at": "@-13m",
+     "actor": {
+      "kind": "agent",
+      "code": "TY-GROWTH-01",
+      "display_fa": ""
+     },
+     "principal_kind": "agent",
+     "company": "FX",
+     "action": "work.deliver",
+     "action_class": "A2",
+     "target": {
+      "kind": "work",
+      "ref": "W-00091"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": false,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    },
+    {
+     "seq": 1198,
+     "at": "@-26m",
+     "actor": {
+      "kind": "agent",
+      "code": "HQ-ADV",
+      "display_fa": ""
+     },
+     "principal_kind": "agent",
+     "company": "PC",
+     "action": "message.post",
+     "action_class": "A0",
+     "target": {
+      "kind": "work",
+      "ref": "W-00092"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": false,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    },
+    {
+     "seq": 1197,
+     "at": "@-39m",
+     "actor": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "principal_kind": "owner",
+     "company": "HQ",
+     "action": "work.delegate",
+     "action_class": "A2",
+     "target": {
+      "kind": "work",
+      "ref": "W-00093"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": false,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    },
+    {
+     "seq": 1196,
+     "at": "@-52m",
+     "actor": {
+      "kind": "agent",
+      "code": "TY-GROWTH-01",
+      "display_fa": ""
+     },
+     "principal_kind": "agent",
+     "company": "TY",
+     "action": "kill_switch.engage",
+     "action_class": "A2",
+     "target": {
+      "kind": "work",
+      "ref": "W-00094"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": false,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    },
+    {
+     "seq": 1195,
+     "at": "@-65m",
+     "actor": {
+      "kind": "agent",
+      "code": "HQ-ADV",
+      "display_fa": ""
+     },
+     "principal_kind": "agent",
+     "company": "FX",
+     "action": "deliverable.rate",
+     "action_class": "A1",
+     "target": {
+      "kind": "work",
+      "ref": "W-00095"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": false,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    },
+    {
+     "seq": 1194,
+     "at": "@-78m",
+     "actor": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "principal_kind": "owner",
+     "company": "PC",
+     "action": "decision.approve",
+     "action_class": "A1",
+     "target": {
+      "kind": "work",
+      "ref": "W-00096"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": true,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    },
+    {
+     "seq": 1193,
+     "at": "@-91m",
+     "actor": {
+      "kind": "agent",
+      "code": "TY-GROWTH-01",
+      "display_fa": ""
+     },
+     "principal_kind": "agent",
+     "company": "HQ",
+     "action": "work.deliver",
+     "action_class": "A2",
+     "target": {
+      "kind": "work",
+      "ref": "W-00097"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": false,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    },
+    {
+     "seq": 1192,
+     "at": "@-104m",
+     "actor": {
+      "kind": "agent",
+      "code": "HQ-ADV",
+      "display_fa": ""
+     },
+     "principal_kind": "agent",
+     "company": "TY",
+     "action": "message.post",
+     "action_class": "A0",
+     "target": {
+      "kind": "work",
+      "ref": "W-00098"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": false,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    },
+    {
+     "seq": 1191,
+     "at": "@-117m",
+     "actor": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "principal_kind": "owner",
+     "company": "FX",
+     "action": "work.delegate",
+     "action_class": "A2",
+     "target": {
+      "kind": "work",
+      "ref": "W-00099"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": false,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    },
+    {
+     "seq": 1190,
+     "at": "@-130m",
+     "actor": {
+      "kind": "agent",
+      "code": "TY-GROWTH-01",
+      "display_fa": ""
+     },
+     "principal_kind": "agent",
+     "company": "PC",
+     "action": "kill_switch.engage",
+     "action_class": "A2",
+     "target": {
+      "kind": "work",
+      "ref": "W-000100"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": false,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    },
+    {
+     "seq": 1189,
+     "at": "@-143m",
+     "actor": {
+      "kind": "agent",
+      "code": "HQ-ADV",
+      "display_fa": ""
+     },
+     "principal_kind": "agent",
+     "company": "HQ",
+     "action": "deliverable.rate",
+     "action_class": "A1",
+     "target": {
+      "kind": "work",
+      "ref": "W-000101"
+     },
+     "request_id": null,
+     "ip_hash": null,
+     "step_up": false,
+     "summary": "ok",
+     "prev_hash": "a3f1…",
+     "hash": "9c2e…"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/audit/verify": {
+  "status": 200,
+  "body": {
+   "ok": true,
+   "checked": 1200,
+   "first_bad_seq": null,
+   "verified_at": "@-360m",
+   "anchor": "ok"
+  }
+ },
+ "/auth/devices": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "dev1",
+     "name": "Chrome · Android",
+     "kind": "passkey",
+     "created_at": "@-1200m",
+     "last_used_at": "@0m",
+     "current": true
+    },
+    {
+     "id": "dev2",
+     "name": "Safari · macOS",
+     "kind": "passkey",
+     "created_at": "@-1140m",
+     "last_used_at": "@-180m"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/decisions/D-000014": {
+  "status": 200,
+  "body": {
+   "ref": "D-000014",
+   "kind": "hire",
+   "company": "TY",
+   "action_class": "A1",
+   "risk": "low",
+   "reversible": true,
+   "status": "pending",
+   "title": "استخدام SRE تریدیار",
+   "proposer": {
+    "kind": "agent",
+    "code": "TY-TECH-MGR",
+    "display_fa": "مدیر فنی تریدیار"
+   },
+   "created_at": "@-42m",
+   "what": "یک **مهندس پایداری (SRE)** برای پایش سلامت سایت و پنل کاربری تریدیار. فقط وقتی پایش‌های قاعده‌محور خطا پیدا کنند بیدار میشود.",
+   "why": "در ۷ روز گذشته `user.tradeyar.trade-future.ir` دو بار بیش از ۵ دقیقه کند بود و کسی پیگیری نکرد (شاهد: I-0002، I-0005).",
+   "quota_estimate": {
+    "tokens": 420000,
+    "usd": "6.80"
+   },
+   "risk_note": "فقط‌خواندنی؛ هیچ اقدام بیرونی ندارد.",
+   "payload": {
+    "department": "TECH",
+    "title_fa": "مهندس پایداری (SRE)",
+    "title_en": "Site Reliability Engineer",
+    "role": "sre",
+    "model": "claude-haiku-5-5",
+    "effort": "high",
+    "duties": [
+     "بررسی هشدارهای سایت و پنل",
+     "خلاصه‌ی روزانه‌ی سلامت",
+     "پیشنهاد اصلاح آستانه‌ها"
+    ],
+    "permissions": [
+     "health.sites",
+     "deliver",
+     "notify"
+    ],
+    "quota_estimate_month": 420000
+   },
+   "seal": null,
+   "decided_at": null,
+   "decided_by": null,
+   "note": null,
+   "resolution": null,
+   "thread": "TY-TECH-MGR",
+   "expires_at": "@2760m",
+   "version": 1,
+   "effect_status": "none",
+   "work_id": null,
+   "id": "d14",
+   "reason_code": null
+  }
+ },
+ "/decisions/D-000015": {
+  "status": 200,
+  "body": {
+   "ref": "D-000015",
+   "kind": "hire",
+   "company": "FX",
+   "action_class": "A1",
+   "risk": "low",
+   "reversible": true,
+   "status": "pending",
+   "title": "استخدام SRE کوینه‌پرو FX",
+   "proposer": {
+    "kind": "agent",
+    "code": "FX-TECH-MGR",
+    "display_fa": "مدیر فنی FX"
+   },
+   "created_at": "@-38m",
+   "what": "یک SRE برای پایش `coineprofx.com` و `fx.trade-future.ir`، با خلاصه‌ی روزانه و تحلیل هشدارها.",
+   "why": "سیگنال‌ها و ربات تلگرام به سلامت سرویس وابسته‌اند؛ امروز هیچ نقشی مسئول پایش نیست.",
+   "quota_estimate": {
+    "tokens": 380000,
+    "usd": "6.10"
+   },
+   "risk_note": null,
+   "payload": {
+    "department": "TECH",
+    "title_fa": "مهندس پایداری (SRE)",
+    "role": "sre",
+    "model": "claude-haiku-5-5",
+    "effort": "high",
+    "duties": [
+     "تحلیل هشدار",
+     "خلاصه‌ی روزانه"
+    ],
+    "permissions": [
+     "health.sites",
+     "deliver",
+     "notify"
+    ],
+    "quota_estimate_month": 380000
+   },
+   "seal": null,
+   "decided_at": null,
+   "decided_by": null,
+   "note": null,
+   "resolution": null,
+   "thread": "FX-TECH-MGR",
+   "expires_at": "@2820m",
+   "version": 1,
+   "effect_status": "none",
+   "work_id": null,
+   "id": "d15",
+   "reason_code": null
+  }
+ },
+ "/decisions/D-000016": {
+  "status": 200,
+  "body": {
+   "ref": "D-000016",
+   "kind": "hire",
+   "company": "HQ",
+   "action_class": "A1",
+   "risk": "medium",
+   "reversible": true,
+   "status": "pending",
+   "title": "تیم نظارت: مسئول ایمنی هوش مصنوعی",
+   "proposer": {
+    "kind": "agent",
+    "code": "HQ-OVS-MGR",
+    "display_fa": "بازرس کل"
+   },
+   "created_at": "@-33m",
+   "what": "مسئول ایمنی هوش مصنوعی برای بررسی اینکه ایجنت‌ها در محدوده‌ی اختیارشان میمانند.",
+   "why": "با شروع کار ایجنت‌ها، یک نقش مستقل باید audit و پیشنهادهای A3 را مرور کند.",
+   "quota_estimate": {
+    "tokens": 900000,
+    "usd": "14.20"
+   },
+   "risk_note": "دسترسی به audit (فقط متادیتا).",
+   "payload": {
+    "department": "OVS",
+    "title_fa": "مسئول ایمنی هوش مصنوعی",
+    "role": "ai_safety",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "duties": [
+     "مرور audit",
+     "گزارش هفتگی ایمنی"
+    ],
+    "permissions": [
+     "audit.recent",
+     "deliver",
+     "notify"
+    ],
+    "quota_estimate_month": 900000
+   },
+   "seal": null,
+   "decided_at": null,
+   "decided_by": null,
+   "note": null,
+   "resolution": null,
+   "thread": "HQ-OVS-MGR",
+   "expires_at": "@2820m",
+   "version": 1,
+   "effect_status": "none",
+   "work_id": null,
+   "id": "d16",
+   "reason_code": null
+  }
+ },
+ "/decisions/D-000017": {
+  "status": 200,
+  "body": {
+   "ref": "D-000017",
+   "kind": "deploy",
+   "company": "PC",
+   "action_class": "A3",
+   "risk": "high",
+   "reversible": true,
+   "status": "pending",
+   "title": "انتشار نسخه‌ی تازه‌ی ترمینال پرو-چارت",
+   "proposer": {
+    "kind": "agent",
+    "code": "PC-TECH-MGR",
+    "display_fa": "مدیر فنی پرو-چارت"
+   },
+   "created_at": "@-15m",
+   "what": "انتشار `terminal` نسخه‌ی 1017ce2 با canary ۱۰٪ و بازگشت خودکار.",
+   "why": "رفع کندی بارگذاری نمودارها (میانگین ۲٫۴ ثانیه).",
+   "quota_estimate": {
+    "tokens": 60000,
+    "usd": "1.10"
+   },
+   "risk_note": "اگر canary شکست بخورد، بازگشت خودکار حدود ۴ دقیقه طول میکشد.",
+   "payload": {
+    "repo": "pro-chart",
+    "pr_url": "https://github.com/…/pull/42",
+    "diff_stat": "+412 −188",
+    "ci": {
+     "status": "passed"
+    },
+    "tests": {
+     "passed": 286,
+     "failed": 0
+    },
+    "rollout": "canary 10%"
+   },
+   "seal": null,
+   "decided_at": null,
+   "decided_by": null,
+   "note": null,
+   "resolution": null,
+   "thread": "PC-TECH-MGR",
+   "expires_at": "@360m",
+   "version": 1,
+   "effect_status": "none",
+   "work_id": null,
+   "id": "d17",
+   "reason_code": null
+  }
+ },
+ "/decisions/D-000011": {
+  "status": 200,
+  "body": {
+   "ref": "D-000011",
+   "kind": "recurring_approval",
+   "company": "TY",
+   "action_class": "A2",
+   "risk": "low",
+   "reversible": true,
+   "status": "approved",
+   "title": "گزارش هفتگی سئوی فنی",
+   "proposer": {
+    "kind": "agent",
+    "code": "TY-GROWTH-MGR",
+    "display_fa": "مدیر رشد تریدیار"
+   },
+   "created_at": "@-1200m",
+   "what": "بررسی هفتگی ۴۰ صفحه‌ی اصلی.",
+   "why": "ورودی ارگانیک ۱۲٪ افت کرده.",
+   "quota_estimate": {
+    "tokens": 200000,
+    "usd": "3.20"
+   },
+   "risk_note": null,
+   "payload": {},
+   "seal": {
+    "method": "passkey_uv",
+    "sealed_at": "@-1140m",
+    "step_up_id": null
+   },
+   "decided_at": "@-1140m",
+   "decided_by": {
+    "kind": "owner",
+    "code": "owner",
+    "display_fa": "مدیر کل"
+   },
+   "note": null,
+   "resolution": "M-0003",
+   "thread": null,
+   "expires_at": null,
+   "version": 2,
+   "effect_status": "applied",
+   "work_id": null,
+   "id": "d11",
+   "reason_code": null
+  }
+ },
+ "/deliverables/O-000031": {
+  "status": 200,
+  "body": {
+   "id": "o0",
+   "body": "۴۰ صفحه بررسی شد؛ ۷ صفحه بیرون از ایندکس به خاطر canonical اشتباه. ۳ اصلاح فوری و ۵ پیشنهاد CR.\n\n### جزئیات\n- شاهد: پایش ۷ روزه\n- پیشنهاد: …",
+   "attachments": [],
+   "evidence": [
+    {
+     "kind": "metric",
+     "ref": "health.sites",
+     "note": "7d"
+    }
+   ],
+   "produced_with": {
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "label_fa": "Sonnet 5.5 · high"
+   },
+   "usage": {
+    "tokens": 48200,
+    "usd": "0.84"
+   },
+   "work_id": "w0",
+   "ref": "O-000031",
+   "company": "TY",
+   "title": "گزارش سئوی فنی هفته‌ی ۴",
+   "summary": "۴۰ صفحه بررسی شد؛ ۷ صفحه بیرون از ایندکس به خاطر canonical اشتباه. ۳ اصلاح فوری و ۵ پیشنهاد CR.",
+   "producer": {
+    "code": "TY-GROWTH-01",
+    "company": "TY",
+    "kind": "employee",
+    "department": "GROWTH",
+    "title_fa": "تحلیلگر سئوی فنی"
+   },
+   "rating": null,
+   "created_at": "@-70m",
+   "work_ref": "W-000102"
+  }
+ },
+ "/deliverables/O-000030": {
+  "status": 200,
+  "body": {
+   "id": "o1",
+   "body": "دیروز ۴۱ کار تمام شد؛ ۴ تصمیم منتظر مُهر؛ مصرف توکن ۱۸٪ زیر میانگین هفته.\n\n### جزئیات\n- شاهد: پایش ۷ روزه\n- پیشنهاد: …",
+   "attachments": [],
+   "evidence": [
+    {
+     "kind": "metric",
+     "ref": "health.sites",
+     "note": "7d"
+    }
+   ],
+   "produced_with": {
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "label_fa": "Sonnet 5.5 · high"
+   },
+   "usage": {
+    "tokens": 48200,
+    "usd": "0.84"
+   },
+   "work_id": "w1",
+   "ref": "O-000030",
+   "company": "HQ",
+   "title": "گزارش صبحگاهی",
+   "summary": "دیروز ۴۱ کار تمام شد؛ ۴ تصمیم منتظر مُهر؛ مصرف توکن ۱۸٪ زیر میانگین هفته.",
+   "producer": {
+    "code": "HQ-SYS",
+    "company": "HQ",
+    "kind": "system",
+    "department": null,
+    "title_fa": "سیستم"
+   },
+   "rating": {
+    "score": 8,
+    "comment": null,
+    "history_count": 1,
+    "rated_at": "@-180m"
+   },
+   "created_at": "@-300m",
+   "work_ref": "W-000099"
+  }
+ },
+ "/deliverables/O-000029": {
+  "status": 200,
+  "body": {
+   "id": "o2",
+   "body": "دقت ۷ روز گذشته ۶۱٪ (میانگین ۶۸٪). علت احتمالی: تغییر رژیم نوسان بعد از خبر فدرال. پیشنهاد: کاهش وزن مدل LSTM.\n\n### جزئیات\n- شاهد: پایش ۷ روزه\n- پیشنهاد: …",
+   "attachments": [],
+   "evidence": [
+    {
+     "kind": "metric",
+     "ref": "health.sites",
+     "note": "7d"
+    }
+   ],
+   "produced_with": {
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "label_fa": "Sonnet 5.5 · high"
+   },
+   "usage": {
+    "tokens": 48200,
+    "usd": "0.84"
+   },
+   "work_id": "w2",
+   "ref": "O-000029",
+   "company": "FX",
+   "title": "تحلیل افت دقت سیگنال‌های طلا",
+   "summary": "دقت ۷ روز گذشته ۶۱٪ (میانگین ۶۸٪). علت احتمالی: تغییر رژیم نوسان بعد از خبر فدرال. پیشنهاد: کاهش وزن مدل LSTM.",
+   "producer": {
+    "code": "FX-QUANT-02",
+    "company": "FX",
+    "kind": "employee",
+    "department": "QUANT",
+    "title_fa": "پایشگر سیگنال"
+   },
+   "rating": null,
+   "created_at": "@-540m",
+   "work_ref": "W-000096"
+  }
+ },
+ "/companies/HQ": {
+  "status": 200,
+  "body": {
+   "id": "co-HQ",
+   "code": "HQ",
+   "kind": "holding",
+   "name_fa": "هلدینگ کوینه‌پرو",
+   "name_en": "CoinePro HQ",
+   "color_index": null,
+   "status": "active",
+   "template": "holding",
+   "kill_switch": "released",
+   "deploy_freeze_until": null,
+   "version": 3,
+   "created_at": "@-4320m",
+   "counts": {
+    "decisions_pending": 1,
+    "employees_active": 5,
+    "work_open": 3
+   }
+  }
+ },
+ "/companies/HQ/departments": {
+  "status": 200,
+  "body": [
+   {
+    "id": "HQ-TECH",
+    "code": "TECH",
+    "company": "HQ",
+    "name_fa": "فنی",
+    "name_en": "TECH",
+    "manager_title_fa": "مدیر فنی",
+    "manager_title_en": "TECH",
+    "manager": {
+     "code": "HQ-TECH-MGR",
+     "company": "HQ",
+     "department": "TECH",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 0,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "HQ-GROWTH",
+    "code": "GROWTH",
+    "company": "HQ",
+    "name_fa": "رشد و مارکتینگ",
+    "name_en": "GROWTH",
+    "manager_title_fa": "مدیر مارکتینگ",
+    "manager_title_en": "GROWTH",
+    "manager": {
+     "code": "HQ-GROWTH-MGR",
+     "company": "HQ",
+     "department": "GROWTH",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 1,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "HQ-SALES",
+    "code": "SALES",
+    "company": "HQ",
+    "name_fa": "فروش و پشتیبانی",
+    "name_en": "SALES",
+    "manager_title_fa": "مدیر فروش",
+    "manager_title_en": "SALES",
+    "manager": {
+     "code": "HQ-SALES-MGR",
+     "company": "HQ",
+     "department": "SALES",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 2,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "HQ-PRODUCT",
+    "code": "PRODUCT",
+    "company": "HQ",
+    "name_fa": "محصول",
+    "name_en": "PRODUCT",
+    "manager_title_fa": "مدیر محصول",
+    "manager_title_en": "PRODUCT",
+    "manager": {
+     "code": "HQ-PRODUCT-MGR",
+     "company": "HQ",
+     "department": "PRODUCT",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 3,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "HQ-FIN",
+    "code": "FIN",
+    "company": "HQ",
+    "name_fa": "مالی",
+    "name_en": "FIN",
+    "manager_title_fa": "مدیر مالی",
+    "manager_title_en": "FIN",
+    "manager": {
+     "code": "HQ-FIN-MGR",
+     "company": "HQ",
+     "department": "FIN",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 4,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "HQ-QUANT",
+    "code": "QUANT",
+    "company": "HQ",
+    "name_fa": "کوانت",
+    "name_en": "QUANT",
+    "manager_title_fa": "مدیر کوانت",
+    "manager_title_en": "QUANT",
+    "manager": {
+     "code": "HQ-QUANT-MGR",
+     "company": "HQ",
+     "department": "QUANT",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 5,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "HQ-AIOPS",
+    "code": "AIOPS",
+    "company": "HQ",
+    "name_fa": "عملیات هوش مصنوعی",
+    "name_en": "AIOPS",
+    "manager_title_fa": "مدیر عملیات AI",
+    "manager_title_en": "AIOPS",
+    "manager": {
+     "code": "HQ-AIOPS-MGR",
+     "company": "HQ",
+     "department": "AIOPS",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 6,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "HQ-HR",
+    "code": "HR",
+    "company": "HQ",
+    "name_fa": "منابع انسانی",
+    "name_en": "HR",
+    "manager_title_fa": "مدیر منابع انسانی",
+    "manager_title_en": "HR",
+    "manager": {
+     "code": "HQ-HR-MGR",
+     "company": "HQ",
+     "department": "HR",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 7,
+    "status": "active",
+    "version": 1
+   }
+  ]
+ },
+ "/org/HQ/chart": {
+  "status": 200,
+  "body": {
+   "company": "HQ",
+   "roots": [
+    {
+     "code": "HQ-OVS-MGR",
+     "kind": "inspector",
+     "title_fa": "بازرس کل",
+     "display_name": null,
+     "department": "OVS",
+     "activity": "sleeping",
+     "status": "active",
+     "children": []
+    },
+    {
+     "code": "HQ-AIOPS-MGR",
+     "kind": "manager",
+     "title_fa": "مدیر عملیات هوش مصنوعی",
+     "display_name": null,
+     "department": "AIOPS",
+     "activity": "idle",
+     "status": "active",
+     "children": []
+    },
+    {
+     "code": "HQ-ADV",
+     "kind": "advisor",
+     "title_fa": "مشاور کل",
+     "display_name": null,
+     "department": null,
+     "activity": "idle",
+     "status": "active",
+     "children": []
+    }
+   ]
+  }
+ },
+ "/employees?company=HQ": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "e11",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-77m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "HQ-OVS-MGR",
+     "company": "HQ",
+     "kind": "inspector",
+     "department": "OVS",
+     "title_fa": "بازرس کل",
+     "title_en": "Inspector General",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e12",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-84m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "HQ-AIOPS-MGR",
+     "company": "HQ",
+     "kind": "manager",
+     "department": "AIOPS",
+     "title_fa": "مدیر عملیات هوش مصنوعی",
+     "title_en": "Head of AI Ops",
+     "activity": "idle"
+    },
+    {
+     "id": "e13",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-91m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-opus-5-5",
+      "effort": "xhigh"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "HQ-ADV",
+     "company": "HQ",
+     "kind": "advisor",
+     "department": null,
+     "title_fa": "مشاور کل",
+     "title_en": "Chief Advisor",
+     "activity": "idle"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/companies/TY": {
+  "status": 200,
+  "body": {
+   "id": "co-TY",
+   "code": "TY",
+   "kind": "company",
+   "name_fa": "تریدیار",
+   "name_en": "TradeYar",
+   "color_index": 3,
+   "status": "active",
+   "template": "standard",
+   "kill_switch": "released",
+   "deploy_freeze_until": null,
+   "version": 3,
+   "created_at": "@-4320m",
+   "counts": {
+    "decisions_pending": 2,
+    "employees_active": 9,
+    "work_open": 7
+   }
+  }
+ },
+ "/companies/TY/departments": {
+  "status": 200,
+  "body": [
+   {
+    "id": "TY-TECH",
+    "code": "TECH",
+    "company": "TY",
+    "name_fa": "فنی",
+    "name_en": "TECH",
+    "manager_title_fa": "مدیر فنی",
+    "manager_title_en": "TECH",
+    "manager": {
+     "code": "TY-TECH-MGR",
+     "company": "TY",
+     "department": "TECH",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 0,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "TY-GROWTH",
+    "code": "GROWTH",
+    "company": "TY",
+    "name_fa": "رشد و مارکتینگ",
+    "name_en": "GROWTH",
+    "manager_title_fa": "مدیر مارکتینگ",
+    "manager_title_en": "GROWTH",
+    "manager": {
+     "code": "TY-GROWTH-MGR",
+     "company": "TY",
+     "department": "GROWTH",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 1,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "TY-SALES",
+    "code": "SALES",
+    "company": "TY",
+    "name_fa": "فروش و پشتیبانی",
+    "name_en": "SALES",
+    "manager_title_fa": "مدیر فروش",
+    "manager_title_en": "SALES",
+    "manager": {
+     "code": "TY-SALES-MGR",
+     "company": "TY",
+     "department": "SALES",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 2,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "TY-PRODUCT",
+    "code": "PRODUCT",
+    "company": "TY",
+    "name_fa": "محصول",
+    "name_en": "PRODUCT",
+    "manager_title_fa": "مدیر محصول",
+    "manager_title_en": "PRODUCT",
+    "manager": {
+     "code": "TY-PRODUCT-MGR",
+     "company": "TY",
+     "department": "PRODUCT",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 3,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "TY-FIN",
+    "code": "FIN",
+    "company": "TY",
+    "name_fa": "مالی",
+    "name_en": "FIN",
+    "manager_title_fa": "مدیر مالی",
+    "manager_title_en": "FIN",
+    "manager": {
+     "code": "TY-FIN-MGR",
+     "company": "TY",
+     "department": "FIN",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 4,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "TY-QUANT",
+    "code": "QUANT",
+    "company": "TY",
+    "name_fa": "کوانت",
+    "name_en": "QUANT",
+    "manager_title_fa": "مدیر کوانت",
+    "manager_title_en": "QUANT",
+    "manager": {
+     "code": "TY-QUANT-MGR",
+     "company": "TY",
+     "department": "QUANT",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 5,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "TY-AIOPS",
+    "code": "AIOPS",
+    "company": "TY",
+    "name_fa": "عملیات هوش مصنوعی",
+    "name_en": "AIOPS",
+    "manager_title_fa": "مدیر عملیات AI",
+    "manager_title_en": "AIOPS",
+    "manager": {
+     "code": "TY-AIOPS-MGR",
+     "company": "TY",
+     "department": "AIOPS",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 6,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "TY-HR",
+    "code": "HR",
+    "company": "TY",
+    "name_fa": "منابع انسانی",
+    "name_en": "HR",
+    "manager_title_fa": "مدیر منابع انسانی",
+    "manager_title_en": "HR",
+    "manager": {
+     "code": "TY-HR-MGR",
+     "company": "TY",
+     "department": "HR",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 7,
+    "status": "active",
+    "version": 1
+   }
+  ]
+ },
+ "/org/TY/chart": {
+  "status": 200,
+  "body": {
+   "company": "TY",
+   "roots": [
+    {
+     "code": "TY-CEO",
+     "kind": "ceo",
+     "title_fa": "مدیرعامل",
+     "display_name": null,
+     "department": null,
+     "activity": "sleeping",
+     "status": "active",
+     "children": [
+      {
+       "code": "TY-TECH-MGR",
+       "kind": "manager",
+       "title_fa": "مدیر فنی",
+       "display_name": null,
+       "department": "TECH",
+       "activity": "sleeping",
+       "status": "active",
+       "children": []
+      },
+      {
+       "code": "TY-GROWTH-MGR",
+       "kind": "manager",
+       "title_fa": "مدیر مارکتینگ",
+       "display_name": null,
+       "department": "GROWTH",
+       "activity": "sleeping",
+       "status": "active",
+       "children": []
+      },
+      {
+       "code": "TY-GROWTH-01",
+       "kind": "employee",
+       "title_fa": "تحلیلگر سئوی فنی",
+       "display_name": null,
+       "department": "GROWTH",
+       "activity": "working",
+       "status": "active",
+       "children": []
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "/employees?company=TY": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "e0",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@0m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "TY-CEO",
+     "company": "TY",
+     "kind": "ceo",
+     "department": null,
+     "title_fa": "مدیرعامل",
+     "title_en": "CEO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e1",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-7m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "TY-TECH-MGR",
+     "company": "TY",
+     "kind": "manager",
+     "department": "TECH",
+     "title_fa": "مدیر فنی",
+     "title_en": "CTO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e2",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-14m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "TY-GROWTH-MGR",
+     "company": "TY",
+     "kind": "manager",
+     "department": "GROWTH",
+     "title_fa": "مدیر مارکتینگ",
+     "title_en": "CMO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e9",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-63m",
+     "activity_note": "خواندن Search Console",
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-haiku-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": 7.9,
+      "owner_avg": 8.2,
+      "rank_in_department": 1,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "TY-GROWTH-01",
+     "company": "TY",
+     "kind": "employee",
+     "department": "GROWTH",
+     "title_fa": "تحلیلگر سئوی فنی",
+     "title_en": "Technical SEO analyst",
+     "activity": "working"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/companies/FX": {
+  "status": 200,
+  "body": {
+   "id": "co-FX",
+   "code": "FX",
+   "kind": "company",
+   "name_fa": "کوینه‌پرو FX",
+   "name_en": "CoinePro FX",
+   "color_index": 2,
+   "status": "active",
+   "template": "standard",
+   "kill_switch": "released",
+   "deploy_freeze_until": "@95m",
+   "version": 3,
+   "created_at": "@-4320m",
+   "counts": {
+    "decisions_pending": 1,
+    "employees_active": 10,
+    "work_open": 11
+   }
+  }
+ },
+ "/companies/FX/departments": {
+  "status": 200,
+  "body": [
+   {
+    "id": "FX-TECH",
+    "code": "TECH",
+    "company": "FX",
+    "name_fa": "فنی",
+    "name_en": "TECH",
+    "manager_title_fa": "مدیر فنی",
+    "manager_title_en": "TECH",
+    "manager": {
+     "code": "FX-TECH-MGR",
+     "company": "FX",
+     "department": "TECH",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 0,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "FX-GROWTH",
+    "code": "GROWTH",
+    "company": "FX",
+    "name_fa": "رشد و مارکتینگ",
+    "name_en": "GROWTH",
+    "manager_title_fa": "مدیر مارکتینگ",
+    "manager_title_en": "GROWTH",
+    "manager": {
+     "code": "FX-GROWTH-MGR",
+     "company": "FX",
+     "department": "GROWTH",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 1,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "FX-SALES",
+    "code": "SALES",
+    "company": "FX",
+    "name_fa": "فروش و پشتیبانی",
+    "name_en": "SALES",
+    "manager_title_fa": "مدیر فروش",
+    "manager_title_en": "SALES",
+    "manager": {
+     "code": "FX-SALES-MGR",
+     "company": "FX",
+     "department": "SALES",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 2,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "FX-PRODUCT",
+    "code": "PRODUCT",
+    "company": "FX",
+    "name_fa": "محصول",
+    "name_en": "PRODUCT",
+    "manager_title_fa": "مدیر محصول",
+    "manager_title_en": "PRODUCT",
+    "manager": {
+     "code": "FX-PRODUCT-MGR",
+     "company": "FX",
+     "department": "PRODUCT",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 3,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "FX-FIN",
+    "code": "FIN",
+    "company": "FX",
+    "name_fa": "مالی",
+    "name_en": "FIN",
+    "manager_title_fa": "مدیر مالی",
+    "manager_title_en": "FIN",
+    "manager": {
+     "code": "FX-FIN-MGR",
+     "company": "FX",
+     "department": "FIN",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 4,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "FX-QUANT",
+    "code": "QUANT",
+    "company": "FX",
+    "name_fa": "کوانت",
+    "name_en": "QUANT",
+    "manager_title_fa": "مدیر کوانت",
+    "manager_title_en": "QUANT",
+    "manager": {
+     "code": "FX-QUANT-MGR",
+     "company": "FX",
+     "department": "QUANT",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 5,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "FX-AIOPS",
+    "code": "AIOPS",
+    "company": "FX",
+    "name_fa": "عملیات هوش مصنوعی",
+    "name_en": "AIOPS",
+    "manager_title_fa": "مدیر عملیات AI",
+    "manager_title_en": "AIOPS",
+    "manager": {
+     "code": "FX-AIOPS-MGR",
+     "company": "FX",
+     "department": "AIOPS",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 6,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "FX-HR",
+    "code": "HR",
+    "company": "FX",
+    "name_fa": "منابع انسانی",
+    "name_en": "HR",
+    "manager_title_fa": "مدیر منابع انسانی",
+    "manager_title_en": "HR",
+    "manager": {
+     "code": "FX-HR-MGR",
+     "company": "FX",
+     "department": "HR",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 7,
+    "status": "active",
+    "version": 1
+   }
+  ]
+ },
+ "/org/FX/chart": {
+  "status": 200,
+  "body": {
+   "company": "FX",
+   "roots": [
+    {
+     "code": "FX-CEO",
+     "kind": "ceo",
+     "title_fa": "مدیرعامل",
+     "display_name": null,
+     "department": null,
+     "activity": "working",
+     "status": "active",
+     "children": [
+      {
+       "code": "FX-TECH-MGR",
+       "kind": "manager",
+       "title_fa": "مدیر فنی",
+       "display_name": null,
+       "department": "TECH",
+       "activity": "sleeping",
+       "status": "active",
+       "children": []
+      },
+      {
+       "code": "FX-GROWTH-MGR",
+       "kind": "manager",
+       "title_fa": "مدیر مارکتینگ",
+       "display_name": null,
+       "department": "GROWTH",
+       "activity": "sleeping",
+       "status": "active",
+       "children": []
+      },
+      {
+       "code": "FX-QUANT-02",
+       "kind": "employee",
+       "title_fa": "پایشگر سیگنال",
+       "display_name": null,
+       "department": "QUANT",
+       "activity": "waiting",
+       "status": "active",
+       "children": []
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "/employees?company=FX": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "e3",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-21m",
+     "activity_note": "خواندن Search Console",
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "FX-CEO",
+     "company": "FX",
+     "kind": "ceo",
+     "department": null,
+     "title_fa": "مدیرعامل",
+     "title_en": "CEO",
+     "activity": "working"
+    },
+    {
+     "id": "e4",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-28m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "FX-TECH-MGR",
+     "company": "FX",
+     "kind": "manager",
+     "department": "TECH",
+     "title_fa": "مدیر فنی",
+     "title_en": "CTO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e5",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-35m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "FX-GROWTH-MGR",
+     "company": "FX",
+     "kind": "manager",
+     "department": "GROWTH",
+     "title_fa": "مدیر مارکتینگ",
+     "title_en": "CMO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e10",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-70m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-haiku-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": 7.9,
+      "owner_avg": 8.2,
+      "rank_in_department": 1,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "FX-QUANT-02",
+     "company": "FX",
+     "kind": "employee",
+     "department": "QUANT",
+     "title_fa": "پایشگر سیگنال",
+     "title_en": "Signal monitor",
+     "activity": "waiting"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/companies/PC": {
+  "status": 200,
+  "body": {
+   "id": "co-PC",
+   "code": "PC",
+   "kind": "company",
+   "name_fa": "پرو-چارت",
+   "name_en": "Pro-Chart",
+   "color_index": 1,
+   "status": "active",
+   "template": "standard",
+   "kill_switch": "released",
+   "deploy_freeze_until": null,
+   "version": 3,
+   "created_at": "@-4320m",
+   "counts": {
+    "decisions_pending": 1,
+    "employees_active": 9,
+    "work_open": 4
+   }
+  }
+ },
+ "/companies/PC/departments": {
+  "status": 200,
+  "body": [
+   {
+    "id": "PC-TECH",
+    "code": "TECH",
+    "company": "PC",
+    "name_fa": "فنی",
+    "name_en": "TECH",
+    "manager_title_fa": "مدیر فنی",
+    "manager_title_en": "TECH",
+    "manager": {
+     "code": "PC-TECH-MGR",
+     "company": "PC",
+     "department": "TECH",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 0,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "PC-GROWTH",
+    "code": "GROWTH",
+    "company": "PC",
+    "name_fa": "رشد و مارکتینگ",
+    "name_en": "GROWTH",
+    "manager_title_fa": "مدیر مارکتینگ",
+    "manager_title_en": "GROWTH",
+    "manager": {
+     "code": "PC-GROWTH-MGR",
+     "company": "PC",
+     "department": "GROWTH",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 1,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "PC-SALES",
+    "code": "SALES",
+    "company": "PC",
+    "name_fa": "فروش و پشتیبانی",
+    "name_en": "SALES",
+    "manager_title_fa": "مدیر فروش",
+    "manager_title_en": "SALES",
+    "manager": {
+     "code": "PC-SALES-MGR",
+     "company": "PC",
+     "department": "SALES",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 2,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "PC-PRODUCT",
+    "code": "PRODUCT",
+    "company": "PC",
+    "name_fa": "محصول",
+    "name_en": "PRODUCT",
+    "manager_title_fa": "مدیر محصول",
+    "manager_title_en": "PRODUCT",
+    "manager": {
+     "code": "PC-PRODUCT-MGR",
+     "company": "PC",
+     "department": "PRODUCT",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 3,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "PC-FIN",
+    "code": "FIN",
+    "company": "PC",
+    "name_fa": "مالی",
+    "name_en": "FIN",
+    "manager_title_fa": "مدیر مالی",
+    "manager_title_en": "FIN",
+    "manager": {
+     "code": "PC-FIN-MGR",
+     "company": "PC",
+     "department": "FIN",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 4,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "PC-QUANT",
+    "code": "QUANT",
+    "company": "PC",
+    "name_fa": "کوانت",
+    "name_en": "QUANT",
+    "manager_title_fa": "مدیر کوانت",
+    "manager_title_en": "QUANT",
+    "manager": {
+     "code": "PC-QUANT-MGR",
+     "company": "PC",
+     "department": "QUANT",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 5,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "PC-AIOPS",
+    "code": "AIOPS",
+    "company": "PC",
+    "name_fa": "عملیات هوش مصنوعی",
+    "name_en": "AIOPS",
+    "manager_title_fa": "مدیر عملیات AI",
+    "manager_title_en": "AIOPS",
+    "manager": {
+     "code": "PC-AIOPS-MGR",
+     "company": "PC",
+     "department": "AIOPS",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 6,
+    "status": "active",
+    "version": 1
+   },
+   {
+    "id": "PC-HR",
+    "code": "HR",
+    "company": "PC",
+    "name_fa": "منابع انسانی",
+    "name_en": "HR",
+    "manager_title_fa": "مدیر منابع انسانی",
+    "manager_title_en": "HR",
+    "manager": {
+     "code": "PC-HR-MGR",
+     "company": "PC",
+     "department": "HR",
+     "kind": "manager",
+     "title_fa": "مدیر"
+    },
+    "sort": 7,
+    "status": "active",
+    "version": 1
+   }
+  ]
+ },
+ "/org/PC/chart": {
+  "status": 200,
+  "body": {
+   "company": "PC",
+   "roots": [
+    {
+     "code": "PC-CEO",
+     "kind": "ceo",
+     "title_fa": "مدیرعامل",
+     "display_name": null,
+     "department": null,
+     "activity": "sleeping",
+     "status": "active",
+     "children": [
+      {
+       "code": "PC-TECH-MGR",
+       "kind": "manager",
+       "title_fa": "مدیر فنی",
+       "display_name": null,
+       "department": "TECH",
+       "activity": "sleeping",
+       "status": "active",
+       "children": []
+      },
+      {
+       "code": "PC-GROWTH-MGR",
+       "kind": "manager",
+       "title_fa": "مدیر مارکتینگ",
+       "display_name": null,
+       "department": "GROWTH",
+       "activity": "sleeping",
+       "status": "active",
+       "children": []
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "/employees?company=PC": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "e6",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-42m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "PC-CEO",
+     "company": "PC",
+     "kind": "ceo",
+     "department": null,
+     "title_fa": "مدیرعامل",
+     "title_en": "CEO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e7",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-49m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "PC-TECH-MGR",
+     "company": "PC",
+     "kind": "manager",
+     "department": "TECH",
+     "title_fa": "مدیر فنی",
+     "title_en": "CTO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e8",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-56m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "PC-GROWTH-MGR",
+     "company": "PC",
+     "kind": "manager",
+     "department": "GROWTH",
+     "title_fa": "مدیر مارکتینگ",
+     "title_en": "CMO",
+     "activity": "sleeping"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/employees": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "e0",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@0m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "TY-CEO",
+     "company": "TY",
+     "kind": "ceo",
+     "department": null,
+     "title_fa": "مدیرعامل",
+     "title_en": "CEO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e1",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-7m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "TY-TECH-MGR",
+     "company": "TY",
+     "kind": "manager",
+     "department": "TECH",
+     "title_fa": "مدیر فنی",
+     "title_en": "CTO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e2",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-14m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "TY-GROWTH-MGR",
+     "company": "TY",
+     "kind": "manager",
+     "department": "GROWTH",
+     "title_fa": "مدیر مارکتینگ",
+     "title_en": "CMO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e3",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-21m",
+     "activity_note": "خواندن Search Console",
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "FX-CEO",
+     "company": "FX",
+     "kind": "ceo",
+     "department": null,
+     "title_fa": "مدیرعامل",
+     "title_en": "CEO",
+     "activity": "working"
+    },
+    {
+     "id": "e4",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-28m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "FX-TECH-MGR",
+     "company": "FX",
+     "kind": "manager",
+     "department": "TECH",
+     "title_fa": "مدیر فنی",
+     "title_en": "CTO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e5",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-35m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "FX-GROWTH-MGR",
+     "company": "FX",
+     "kind": "manager",
+     "department": "GROWTH",
+     "title_fa": "مدیر مارکتینگ",
+     "title_en": "CMO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e6",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-42m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "PC-CEO",
+     "company": "PC",
+     "kind": "ceo",
+     "department": null,
+     "title_fa": "مدیرعامل",
+     "title_en": "CEO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e7",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-49m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "PC-TECH-MGR",
+     "company": "PC",
+     "kind": "manager",
+     "department": "TECH",
+     "title_fa": "مدیر فنی",
+     "title_en": "CTO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e8",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-56m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "PC-GROWTH-MGR",
+     "company": "PC",
+     "kind": "manager",
+     "department": "GROWTH",
+     "title_fa": "مدیر مارکتینگ",
+     "title_en": "CMO",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e9",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-63m",
+     "activity_note": "خواندن Search Console",
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-haiku-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": 7.9,
+      "owner_avg": 8.2,
+      "rank_in_department": 1,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "TY-GROWTH-01",
+     "company": "TY",
+     "kind": "employee",
+     "department": "GROWTH",
+     "title_fa": "تحلیلگر سئوی فنی",
+     "title_en": "Technical SEO analyst",
+     "activity": "working"
+    },
+    {
+     "id": "e10",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-70m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-haiku-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": 7.9,
+      "owner_avg": 8.2,
+      "rank_in_department": 1,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "FX-QUANT-02",
+     "company": "FX",
+     "kind": "employee",
+     "department": "QUANT",
+     "title_fa": "پایشگر سیگنال",
+     "title_en": "Signal monitor",
+     "activity": "waiting"
+    },
+    {
+     "id": "e11",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-77m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "HQ-OVS-MGR",
+     "company": "HQ",
+     "kind": "inspector",
+     "department": "OVS",
+     "title_fa": "بازرس کل",
+     "title_en": "Inspector General",
+     "activity": "sleeping"
+    },
+    {
+     "id": "e12",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-84m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-sonnet-5-5",
+      "effort": "high"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "HQ-AIOPS-MGR",
+     "company": "HQ",
+     "kind": "manager",
+     "department": "AIOPS",
+     "title_fa": "مدیر عملیات هوش مصنوعی",
+     "title_en": "Head of AI Ops",
+     "activity": "idle"
+    },
+    {
+     "id": "e13",
+     "status": "active",
+     "display_name": null,
+     "duties": [],
+     "permissions": [],
+     "hired_at": "@-2880m",
+     "hired_by_decision": null,
+     "dismissed_at": null,
+     "activity_at": "@-91m",
+     "activity_note": null,
+     "reports_to": null,
+     "version": 1,
+     "model": {
+      "connection": "claude-max",
+      "model": "claude-opus-5-5",
+      "effort": "xhigh"
+     },
+     "score": {
+      "value": null,
+      "owner_avg": null,
+      "rank_in_department": null,
+      "trend": [
+       7.1,
+       7.4,
+       7.9
+      ]
+     },
+     "code": "HQ-ADV",
+     "company": "HQ",
+     "kind": "advisor",
+     "department": null,
+     "title_fa": "مشاور کل",
+     "title_en": "Chief Advisor",
+     "activity": "idle"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/employees/TY-CEO": {
+  "status": 200,
+  "body": {
+   "id": "e0",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@0m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-sonnet-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "TY-CEO",
+   "company": "TY",
+   "kind": "ceo",
+   "department": null,
+   "title_fa": "مدیرعامل",
+   "title_en": "CEO",
+   "activity": "sleeping",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/FX-CEO": {
+  "status": 200,
+  "body": {
+   "id": "e3",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-21m",
+   "activity_note": "خواندن Search Console",
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-sonnet-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "FX-CEO",
+   "company": "FX",
+   "kind": "ceo",
+   "department": null,
+   "title_fa": "مدیرعامل",
+   "title_en": "CEO",
+   "activity": "working",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/PC-CEO": {
+  "status": 200,
+  "body": {
+   "id": "e6",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-42m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-sonnet-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "PC-CEO",
+   "company": "PC",
+   "kind": "ceo",
+   "department": null,
+   "title_fa": "مدیرعامل",
+   "title_en": "CEO",
+   "activity": "sleeping",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/TY-TECH-MGR": {
+  "status": 200,
+  "body": {
+   "id": "e1",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-7m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-sonnet-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "TY-TECH-MGR",
+   "company": "TY",
+   "kind": "manager",
+   "department": "TECH",
+   "title_fa": "مدیر فنی",
+   "title_en": "CTO",
+   "activity": "sleeping",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/FX-TECH-MGR": {
+  "status": 200,
+  "body": {
+   "id": "e4",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-28m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-sonnet-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "FX-TECH-MGR",
+   "company": "FX",
+   "kind": "manager",
+   "department": "TECH",
+   "title_fa": "مدیر فنی",
+   "title_en": "CTO",
+   "activity": "sleeping",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/PC-TECH-MGR": {
+  "status": 200,
+  "body": {
+   "id": "e7",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-49m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-sonnet-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "PC-TECH-MGR",
+   "company": "PC",
+   "kind": "manager",
+   "department": "TECH",
+   "title_fa": "مدیر فنی",
+   "title_en": "CTO",
+   "activity": "sleeping",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/TY-GROWTH-MGR": {
+  "status": 200,
+  "body": {
+   "id": "e2",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-14m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-sonnet-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "TY-GROWTH-MGR",
+   "company": "TY",
+   "kind": "manager",
+   "department": "GROWTH",
+   "title_fa": "مدیر مارکتینگ",
+   "title_en": "CMO",
+   "activity": "sleeping",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/FX-GROWTH-MGR": {
+  "status": 200,
+  "body": {
+   "id": "e5",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-35m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-sonnet-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "FX-GROWTH-MGR",
+   "company": "FX",
+   "kind": "manager",
+   "department": "GROWTH",
+   "title_fa": "مدیر مارکتینگ",
+   "title_en": "CMO",
+   "activity": "sleeping",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/PC-GROWTH-MGR": {
+  "status": 200,
+  "body": {
+   "id": "e8",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-56m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-sonnet-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "PC-GROWTH-MGR",
+   "company": "PC",
+   "kind": "manager",
+   "department": "GROWTH",
+   "title_fa": "مدیر مارکتینگ",
+   "title_en": "CMO",
+   "activity": "sleeping",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/TY-GROWTH-01": {
+  "status": 200,
+  "body": {
+   "id": "e9",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-63m",
+   "activity_note": "خواندن Search Console",
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-haiku-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": 7.9,
+    "owner_avg": 8.2,
+    "rank_in_department": 1,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "TY-GROWTH-01",
+   "company": "TY",
+   "kind": "employee",
+   "department": "GROWTH",
+   "title_fa": "تحلیلگر سئوی فنی",
+   "title_en": "Technical SEO analyst",
+   "activity": "working",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/FX-QUANT-02": {
+  "status": 200,
+  "body": {
+   "id": "e10",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-70m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-haiku-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": 7.9,
+    "owner_avg": 8.2,
+    "rank_in_department": 1,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "FX-QUANT-02",
+   "company": "FX",
+   "kind": "employee",
+   "department": "QUANT",
+   "title_fa": "پایشگر سیگنال",
+   "title_en": "Signal monitor",
+   "activity": "waiting",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/HQ-OVS-MGR": {
+  "status": 200,
+  "body": {
+   "id": "e11",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-77m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-sonnet-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "HQ-OVS-MGR",
+   "company": "HQ",
+   "kind": "inspector",
+   "department": "OVS",
+   "title_fa": "بازرس کل",
+   "title_en": "Inspector General",
+   "activity": "sleeping",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/HQ-AIOPS-MGR": {
+  "status": 200,
+  "body": {
+   "id": "e12",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-84m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-sonnet-5-5",
+    "effort": "high"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "HQ-AIOPS-MGR",
+   "company": "HQ",
+   "kind": "manager",
+   "department": "AIOPS",
+   "title_fa": "مدیر عملیات هوش مصنوعی",
+   "title_en": "Head of AI Ops",
+   "activity": "idle",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/employees/HQ-ADV": {
+  "status": 200,
+  "body": {
+   "id": "e13",
+   "status": "active",
+   "display_name": null,
+   "duties": [],
+   "permissions": [],
+   "hired_at": "@-2880m",
+   "hired_by_decision": null,
+   "dismissed_at": null,
+   "activity_at": "@-91m",
+   "activity_note": null,
+   "reports_to": null,
+   "version": 1,
+   "model": {
+    "connection": "claude-max",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh"
+   },
+   "score": {
+    "value": null,
+    "owner_avg": null,
+    "rank_in_department": null,
+    "trend": [
+     7.1,
+     7.4,
+     7.9
+    ]
+   },
+   "code": "HQ-ADV",
+   "company": "HQ",
+   "kind": "advisor",
+   "department": null,
+   "title_fa": "مشاور کل",
+   "title_en": "Chief Advisor",
+   "activity": "idle",
+   "recent_ratings": [
+    {
+     "deliverable": "O-000031",
+     "score": 8,
+     "rated_at": "@-60m"
+    }
+   ],
+   "recent_work": [
+    {
+     "ref": "W-000104",
+     "title": "رفع کندی ثبت‌نام",
+     "status": "in_progress"
+    },
+    {
+     "ref": "W-000102",
+     "title": "سئوی فنی ۴۰ صفحه",
+     "status": "delivered"
+    }
+   ]
+  }
+ },
+ "/work/w0": {
+  "status": 200,
+  "body": {
+   "id": "w0",
+   "kind": "one_off",
+   "brief": "جزئیات کار…",
+   "created_at": "@-120m",
+   "updated_at": "@0m",
+   "created_by": {
+    "kind": "owner",
+    "code": "owner",
+    "display_fa": "مدیر کل"
+   },
+   "department": "TECH",
+   "overdue": false,
+   "escalation_level": 0,
+   "parent_id": null,
+   "root_id": "w0",
+   "requested_by_work_id": null,
+   "budget": {
+    "tokens": 200000,
+    "tokens_used": 46000,
+    "usd": null,
+    "usd_used": "0.80"
+   },
+   "escrow": null,
+   "schedule": null,
+   "deliverable_ids": [],
+   "evidence": [],
+   "progress_note": null,
+   "version": 1,
+   "ref": "W-000104",
+   "title": "رفع کندی ثبت‌نام",
+   "company": "FX",
+   "status": "in_progress",
+   "priority": "P1",
+   "depth": 1,
+   "assignee": {
+    "code": "FX-TECH-MGR",
+    "company": "FX",
+    "kind": "manager",
+    "department": "TECH",
+    "title_fa": "مدیر فنی"
+   },
+   "due_at": "@300m",
+   "progress_pct": 60,
+   "chain": [
+    {
+     "id": "c0",
+     "ref": "W-000104",
+     "depth": 0,
+     "status": "delivered",
+     "assignee": {
+      "code": "FX-CEO",
+      "company": "FX",
+      "kind": "ceo",
+      "title_fa": "مدیرعامل"
+     },
+     "created_at": "@-300m",
+     "tokens_used": 6200,
+     "usd_used": 0.1
+    },
+    {
+     "id": "c1",
+     "ref": "W-000104",
+     "depth": 1,
+     "status": "in_progress",
+     "assignee": {
+      "code": "FX-TECH-MGR",
+      "company": "FX",
+      "kind": "manager",
+      "department": "TECH",
+      "title_fa": "مدیر فنی"
+     },
+     "created_at": "@-280m",
+     "tokens_used": 41000,
+     "usd_used": 0.7
+    }
+   ],
+   "children": []
+  }
+ },
+ "/work/w1": {
+  "status": 200,
+  "body": {
+   "id": "w1",
+   "kind": "one_off",
+   "brief": "جزئیات کار…",
+   "created_at": "@-180m",
+   "updated_at": "@-11m",
+   "created_by": {
+    "kind": "owner",
+    "code": "owner",
+    "display_fa": "مدیر کل"
+   },
+   "department": "GROWTH",
+   "overdue": false,
+   "escalation_level": 0,
+   "parent_id": null,
+   "root_id": "w1",
+   "requested_by_work_id": null,
+   "budget": {
+    "tokens": 200000,
+    "tokens_used": 55000,
+    "usd": null,
+    "usd_used": "0.80"
+   },
+   "escrow": null,
+   "schedule": null,
+   "deliverable_ids": [],
+   "evidence": [],
+   "progress_note": null,
+   "version": 1,
+   "ref": "W-000102",
+   "title": "سئوی فنی ۴۰ صفحه",
+   "company": "TY",
+   "status": "delivered",
+   "priority": "P3",
+   "depth": 2,
+   "assignee": {
+    "code": "TY-GROWTH-01",
+    "company": "TY",
+    "kind": "employee",
+    "department": "GROWTH",
+    "title_fa": "تحلیلگر سئوی فنی"
+   },
+   "due_at": "@60m",
+   "progress_pct": 100,
+   "chain": [
+    {
+     "id": "c0",
+     "ref": "W-000102",
+     "depth": 0,
+     "status": "delivered",
+     "assignee": {
+      "code": "TY-CEO",
+      "company": "TY",
+      "kind": "ceo",
+      "title_fa": "مدیرعامل"
+     },
+     "created_at": "@-300m",
+     "tokens_used": 6200,
+     "usd_used": 0.1
+    },
+    {
+     "id": "c1",
+     "ref": "W-000102",
+     "depth": 1,
+     "status": "delivered",
+     "assignee": {
+      "code": "TY-GROWTH-01",
+      "company": "TY",
+      "kind": "employee",
+      "department": "GROWTH",
+      "title_fa": "تحلیلگر سئوی فنی"
+     },
+     "created_at": "@-280m",
+     "tokens_used": 41000,
+     "usd_used": 0.7
+    }
+   ],
+   "children": []
+  }
+ },
+ "/work/w2": {
+  "status": 200,
+  "body": {
+   "id": "w2",
+   "kind": "one_off",
+   "brief": "جزئیات کار…",
+   "created_at": "@-240m",
+   "updated_at": "@-22m",
+   "created_by": {
+    "kind": "owner",
+    "code": "owner",
+    "display_fa": "مدیر کل"
+   },
+   "department": "TECH",
+   "overdue": false,
+   "escalation_level": 0,
+   "parent_id": null,
+   "root_id": "w2",
+   "requested_by_work_id": null,
+   "budget": {
+    "tokens": 200000,
+    "tokens_used": 64000,
+    "usd": null,
+    "usd_used": "0.80"
+   },
+   "escrow": null,
+   "schedule": null,
+   "deliverable_ids": [],
+   "evidence": [],
+   "progress_note": null,
+   "version": 1,
+   "ref": "W-000105",
+   "title": "پیشنهاد تیم فنی ماه ۱",
+   "company": "PC",
+   "status": "queued",
+   "priority": "P3",
+   "depth": 1,
+   "assignee": {
+    "code": "PC-TECH-MGR",
+    "company": "PC",
+    "kind": "manager",
+    "department": "TECH",
+    "title_fa": "مدیر فنی"
+   },
+   "due_at": "@1200m",
+   "progress_pct": null,
+   "chain": [
+    {
+     "id": "c0",
+     "ref": "W-000105",
+     "depth": 0,
+     "status": "delivered",
+     "assignee": {
+      "code": "PC-CEO",
+      "company": "PC",
+      "kind": "ceo",
+      "title_fa": "مدیرعامل"
+     },
+     "created_at": "@-300m",
+     "tokens_used": 6200,
+     "usd_used": 0.1
+    },
+    {
+     "id": "c1",
+     "ref": "W-000105",
+     "depth": 1,
+     "status": "queued",
+     "assignee": {
+      "code": "PC-TECH-MGR",
+      "company": "PC",
+      "kind": "manager",
+      "department": "TECH",
+      "title_fa": "مدیر فنی"
+     },
+     "created_at": "@-280m",
+     "tokens_used": 41000,
+     "usd_used": 0.7
+    }
+   ],
+   "children": []
+  }
+ },
+ "/work/w3": {
+  "status": 200,
+  "body": {
+   "id": "w3",
+   "kind": "one_off",
+   "brief": "جزئیات کار…",
+   "created_at": "@-300m",
+   "updated_at": "@-33m",
+   "created_by": {
+    "kind": "owner",
+    "code": "owner",
+    "display_fa": "مدیر کل"
+   },
+   "department": "OVS",
+   "overdue": true,
+   "escalation_level": 1,
+   "parent_id": null,
+   "root_id": "w3",
+   "requested_by_work_id": null,
+   "budget": {
+    "tokens": 200000,
+    "tokens_used": 73000,
+    "usd": null,
+    "usd_used": "0.80"
+   },
+   "escrow": null,
+   "schedule": null,
+   "deliverable_ids": [],
+   "evidence": [],
+   "progress_note": null,
+   "version": 1,
+   "ref": "W-000098",
+   "title": "ممیزی امنیتی همه‌ی شرکت‌ها",
+   "company": "HQ",
+   "status": "waiting",
+   "priority": "P2",
+   "depth": 0,
+   "assignee": {
+    "code": "HQ-OVS-MGR",
+    "company": "HQ",
+    "kind": "inspector",
+    "department": "OVS",
+    "title_fa": "بازرس کل"
+   },
+   "due_at": "@-120m",
+   "progress_pct": 20,
+   "chain": [
+    {
+     "id": "c0",
+     "ref": "W-000098",
+     "depth": 0,
+     "status": "delivered",
+     "assignee": {
+      "code": "HQ-CEO",
+      "company": "HQ",
+      "kind": "ceo",
+      "title_fa": "مدیرعامل"
+     },
+     "created_at": "@-300m",
+     "tokens_used": 6200,
+     "usd_used": 0.1
+    },
+    {
+     "id": "c1",
+     "ref": "W-000098",
+     "depth": 1,
+     "status": "waiting",
+     "assignee": {
+      "code": "HQ-OVS-MGR",
+      "company": "HQ",
+      "kind": "inspector",
+      "department": "OVS",
+      "title_fa": "بازرس کل"
+     },
+     "created_at": "@-280m",
+     "tokens_used": 41000,
+     "usd_used": 0.7
+    }
+   ],
+   "children": []
+  }
+ },
+ "/threads/A/messages": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "m0",
+     "thread": "A",
+     "kind": "text",
+     "attachments": [],
+     "links": {},
+     "ref": "A-0001",
+     "author": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "body": "وضعیت کلی هلدینگ امروز چطور است؟",
+     "created_at": "@-180m"
+    },
+    {
+     "id": "m1",
+     "thread": "A",
+     "kind": "text",
+     "attachments": [],
+     "links": {
+      "decision": "D-000017"
+     },
+     "ref": "A-0002",
+     "author": {
+      "kind": "agent",
+      "code": "HQ-ADV",
+      "display_fa": "مشاور کل"
+     },
+     "body": "**خلاصه:** چهار تصمیم منتظر مُهر توست؛ سه تا پیشنهاد استخدام ماه ۱ و یکی انتشار پرو-چارت (ریسک بالا).\n\nمصرف توکن امروز `182K` است، ۱۸٪ زیر میانگین هفته (طبق خزانه). پیشنهادم: اول انتشار پرو-چارت را ببین چون تا ۶ ساعت دیگر منقضی میشود (D-000017).",
+     "created_at": "@-179m"
+    },
+    {
+     "id": "m2",
+     "thread": "A",
+     "kind": "text",
+     "attachments": [],
+     "links": {},
+     "ref": "A-0003",
+     "author": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "body": "استخدام SRE برای هر سه شرکت لازم است؟",
+     "created_at": "@-30m"
+    },
+    {
+     "id": "m3",
+     "thread": "A",
+     "kind": "text",
+     "attachments": [],
+     "links": {
+      "decision": "D-000014"
+     },
+     "ref": "A-0004",
+     "author": {
+      "kind": "agent",
+      "code": "HQ-ADV",
+      "display_fa": "مشاور کل"
+     },
+     "body": "برای تریدیار و FX شاهد دارد (دو حادثه‌ی کندی در تریدیار: I-0002، I-0005). برای پرو-چارت هنوز پیشنهادی نیامده. هزینه‌ی هر SRE با Haiku 5.5 حدود `$6–7` در ماه برآورد شده؛ برگشت‌پذیر است.\n\n**توصیه:** دو استخدام اول را مُهر کن؛ سومی را بعد از دیدن پیشنهاد پرو-چارت.",
+     "created_at": "@-25m"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/threads/FX-CEO/messages": {
+  "status": 200,
+  "body": {
+   "items": [],
+   "next_cursor": null
+  }
+ },
+ "/threads/TY-TECH-MGR/messages": {
+  "status": 200,
+  "body": {
+   "items": [],
+   "next_cursor": null
+  }
+ }
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window colours before Compose draws (Divan surface.page); the launcher background is always night. -->
+    <color name="hq_page">#F3EEE3</color>
+    <color name="ic_launcher_background">#0B0D14</color>
+</resources>

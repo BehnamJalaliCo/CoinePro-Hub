@@ -1,0 +1,530 @@
+package com.coinepro.hq.core.net
+
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+
+// Contract models (contracts/HQ_CORE_API_v1.md, apps/api/openapi/hq-api.v1.json). Property names are
+// camelCase; the JSON is snake_case (see Api.json). Every field the app does not need to exist has a
+// default, so a server that adds fields or omits optional ones never breaks the app.
+
+@Serializable
+data class Page<T>(val items: List<T> = emptyList(), val nextCursor: String? = null)
+
+@Serializable
+data class Actor(val code: String, val kind: String, val displayFa: String? = null)
+
+// ------------------------------------------------------------------ auth --
+@Serializable
+data class Device(
+    val id: String,
+    val name: String,
+    val kind: String,
+    val createdAt: String,
+    val lastUsedAt: String? = null,
+    val revokedAt: String? = null,
+    val current: Boolean = false,
+)
+
+@Serializable
+data class DeviceList(val items: List<Device> = emptyList())
+
+@Serializable
+data class SessionOut(
+    val token: String? = null,
+    val client: String,
+    val device: Device,
+    val expiresAt: String,
+    val absoluteExpiresAt: String,
+)
+
+@Serializable
+data class LoginOut(val session: SessionOut)
+
+@Serializable
+data class Principal(val kind: String, val code: String)
+
+@Serializable
+data class SessionInfo(val principal: Principal, val device: Device, val expiresAt: String)
+
+@Serializable
+data class StepUpOut(val stepUpToken: String, val expiresAt: String)
+
+@Serializable
+data class Channels(val inApp: Boolean = true, val webPush: Boolean = false, val fcm: Boolean = false, val telegram: Boolean = false)
+
+@Serializable
+data class Meta(
+    val apiVersion: String,
+    val serviceVersion: String,
+    val loginConfigured: Boolean,
+    val publicOrigin: String? = null,
+    val channels: Channels = Channels(),
+)
+
+// ----------------------------------------------------------------- inbox --
+@Serializable
+data class ByRisk(val low: Int = 0, val medium: Int = 0, val high: Int = 0)
+
+@Serializable
+data class InboxSummary(
+    val decisionsPending: Int = 0,
+    val decisionsByRisk: ByRisk = ByRisk(),
+    val deliverablesUnrated: Int = 0,
+    val messagesUnread: Int = 0,
+    val khalvat: Boolean = false,
+    val notifications: Map<String, Int> = emptyMap(),
+)
+
+@Serializable
+data class Presence(val khalvat: Boolean, val since: String, val until: String? = null)
+
+@Serializable
+data class TopDecision(val ref: String, val company: String, val kind: String, val risk: String, val status: String, val title: String, val createdAt: String)
+
+@Serializable
+data class DecisionsBox(val new: Int = 0, val pending: Int = 0, val top: List<TopDecision> = emptyList())
+
+@Serializable
+data class TopDeliverable(val ref: String, val company: String, val title: String, val createdAt: String)
+
+@Serializable
+data class DeliverablesBox(val new: Int = 0, val unrated: Int = 0, val top: List<TopDeliverable> = emptyList())
+
+@Serializable
+data class TopThread(val thread: String, val company: String, val newMessages: Int = 0, val lastAt: String)
+
+@Serializable
+data class MessagesBox(val new: Int = 0, val unread: Int = 0, val topThreads: List<TopThread> = emptyList())
+
+@Serializable
+data class AwaySummary(
+    val since: String,
+    val until: String,
+    val decisions: DecisionsBox = DecisionsBox(),
+    val deliverables: DeliverablesBox = DeliverablesBox(),
+    val messages: MessagesBox = MessagesBox(),
+)
+
+// ------------------------------------------------------------- decisions --
+@Serializable
+data class QuotaOut(val tokens: Long? = null, val usd: String? = null)
+
+@Serializable
+data class Seal(val method: String, val sealedAt: String, val stepUpId: String? = null)
+
+@Serializable
+data class Decision(
+    val id: String,
+    val ref: String,
+    val company: String,
+    val kind: String,
+    val title: String,
+    val what: String = "",
+    val why: String = "",
+    val risk: String = "medium",
+    val riskNote: String? = null,
+    val actionClass: String = "A1",
+    val reversible: Boolean = true,
+    val status: String,
+    val proposer: Actor,
+    val createdAt: String,
+    val expiresAt: String? = null,
+    val decidedAt: String? = null,
+    val decidedBy: Actor? = null,
+    val note: String? = null,
+    val resolution: String? = null,
+    val seal: Seal? = null,
+    val thread: String? = null,
+    val workId: String? = null,
+    val payload: JsonObject = JsonObject(emptyMap()),
+    val quotaEstimate: QuotaOut = QuotaOut(),
+    val version: Int = 1,
+)
+
+@Serializable
+data class Posted(val thread: String, val messageRef: String)
+
+// ---------------------------------------------------------- deliverables --
+@Serializable
+data class FileRef(val id: String, val name: String, val mime: String, val size: Long, val sha256: String)
+
+@Serializable
+data class Rating(val score: Int, val comment: String? = null, val ratedAt: String, val historyCount: Int = 0)
+
+@Serializable
+data class EmployeeRef(val code: String, val company: String, val kind: String, val titleFa: String, val department: String? = null)
+
+@Serializable
+data class Deliverable(
+    val id: String,
+    val ref: String,
+    val company: String,
+    val title: String,
+    val summary: String = "",
+    val body: String? = null,
+    val producer: EmployeeRef,
+    val workId: String,
+    val workRef: String,
+    val createdAt: String,
+    val rating: Rating? = null,
+    val attachments: List<FileRef> = emptyList(),
+    val producedWith: JsonObject = JsonObject(emptyMap()),
+    val usage: JsonObject = JsonObject(emptyMap()),
+)
+
+// ---------------------------------------------------------- organisation --
+@Serializable
+data class CompanyCounts(val decisionsPending: Int = 0, val employeesActive: Int = 0, val workOpen: Int = 0)
+
+@Serializable
+data class Company(
+    val id: String,
+    val code: String,
+    val kind: String,
+    val nameFa: String? = null,
+    val nameEn: String? = null,
+    val colorIndex: Int? = null,
+    val status: String = "active",
+    val killSwitch: String = "released",
+    val deployFreezeUntil: String? = null,
+    val counts: CompanyCounts = CompanyCounts(),
+    val createdAt: String = "",
+    val version: Int = 1,
+)
+
+@Serializable
+data class Department(
+    val id: String,
+    val code: String,
+    val company: String,
+    val nameFa: String,
+    val nameEn: String = "",
+    val managerTitleFa: String = "",
+    val manager: EmployeeRef? = null,
+    val status: String = "active",
+    val sort: Int = 0,
+)
+
+@Serializable
+data class Score(val value: Double? = null, val ownerAvg: Double? = null, val rankInDepartment: Int? = null, val trend: List<Double?> = emptyList())
+
+@Serializable
+data class ModelChoice(val model: String? = null, val effort: String? = null, val connection: String? = null)
+
+@Serializable
+data class RatingBrief(val deliverable: String, val score: Int, val ratedAt: String)
+
+@Serializable
+data class WorkBrief(val id: String = "", val ref: String = "", val title: String = "", val status: String = "")
+
+@Serializable
+data class Employee(
+    val id: String,
+    val code: String,
+    val company: String,
+    val department: String? = null,
+    val kind: String,
+    val titleFa: String,
+    val titleEn: String = "",
+    val displayName: String? = null,
+    val status: String = "active",
+    val activity: String = "idle",
+    val activityAt: String? = null,
+    val activityNote: String? = null,
+    val reportsTo: EmployeeRef? = null,
+    val model: ModelChoice? = null,
+    val score: Score = Score(),
+    val duties: List<JsonElement> = emptyList(),
+    val permissions: List<JsonElement> = emptyList(),
+    val hiredAt: String = "",
+    val recentRatings: List<RatingBrief> = emptyList(),
+    val recentWork: List<JsonObject> = emptyList(),
+)
+
+@Serializable
+data class ChartNode(
+    val code: String,
+    val kind: String,
+    val titleFa: String,
+    val displayName: String? = null,
+    val department: String? = null,
+    val activity: String = "idle",
+    val status: String = "active",
+    val children: List<ChartNode> = emptyList(),
+)
+
+@Serializable
+data class OrgChart(val company: String, val roots: List<ChartNode> = emptyList())
+
+// ------------------------------------------------------------------ work --
+@Serializable
+data class Budget(val tokens: Long? = null, val tokensUsed: Long = 0, val usd: String? = null, val usdUsed: String = "0")
+
+@Serializable
+data class Schedule(val rrule: String, val timezone: String, val status: String = "active", val nextAt: String? = null)
+
+@Serializable
+data class ChainStep(
+    val id: String,
+    val ref: String,
+    val depth: Int = 0,
+    val status: String,
+    val assignee: EmployeeRef? = null,
+    val createdAt: String = "",
+    val tokensUsed: Long = 0,
+    val usdUsed: Double = 0.0,
+)
+
+@Serializable
+data class Work(
+    val id: String,
+    val ref: String,
+    val company: String,
+    val department: String? = null,
+    val title: String,
+    val brief: String = "",
+    val kind: String = "one_off",
+    val priority: String = "P3",
+    val status: String,
+    val assignee: EmployeeRef? = null,
+    val createdBy: Actor? = null,
+    val createdAt: String = "",
+    val updatedAt: String = "",
+    val dueAt: String? = null,
+    val overdue: Boolean = false,
+    val progressPct: Int? = null,
+    val progressNote: String? = null,
+    val budget: Budget = Budget(),
+    val schedule: Schedule? = null,
+    val depth: Int = 0,
+    val deliverableIds: List<String> = emptyList(),
+    val chain: List<ChainStep> = emptyList(),
+    val children: List<ChainStep> = emptyList(),
+)
+
+@Serializable
+data class WorkEvent(val id: Long, val kind: String, val at: String, val actorCode: String, val actorKind: String, val data: JsonObject = JsonObject(emptyMap()))
+
+@Serializable
+data class BudgetIn(val tokens: Long? = null, val usd: String? = null)
+
+@Serializable
+data class ScheduleIn(val rrule: String, val timezone: String = "Asia/Tehran")
+
+@Serializable
+data class WorkCreate(
+    val company: String,
+    val title: String,
+    val brief: String = "",
+    val kind: String = "one_off",
+    val priority: String = "P3",
+    val department: String? = null,
+    val assignee: String? = null,
+    val dueAt: String? = null,
+    val budget: BudgetIn? = null,
+    val schedule: ScheduleIn? = null,
+)
+
+@Serializable
+data class PlannerItem(
+    val ref: String,
+    val title: String,
+    val company: String,
+    val at: String,
+    val status: String,
+    val priority: String = "P3",
+    val assignee: String? = null,
+    val recurring: Boolean = false,
+)
+
+@Serializable
+data class PlannerDay(val date: String, val items: List<PlannerItem> = emptyList())
+
+@Serializable
+data class Planner(val scope: String, val timezone: String, val days: List<PlannerDay> = emptyList())
+
+// -------------------------------------------------------------- messages --
+@Serializable
+data class Thread(
+    val id: String,
+    val code: String,
+    val kind: String,
+    val company: String? = null,
+    val titleFa: String,
+    val participants: List<Actor> = emptyList(),
+    val lastMessageAt: String? = null,
+    val lastRef: String? = null,
+    val unread: Int = 0,
+)
+
+@Serializable
+data class Citation(val kind: String, val ref: String)
+
+@Serializable
+data class Message(
+    val id: String,
+    val ref: String,
+    val thread: String,
+    val kind: String = "text",
+    val author: Actor,
+    val body: String,
+    val createdAt: String,
+    val attachments: List<FileRef> = emptyList(),
+    val citations: List<Citation> = emptyList(),
+    /** Refs this message points at: decision, work, resolution, corrects (contract §5). */
+    val links: JsonObject = JsonObject(emptyMap()),
+)
+
+// --------------------------------------------------------- notifications --
+@Serializable
+data class Choice(val id: String, val labelFa: String)
+
+@Serializable
+data class Link(val kind: String, val ref: String? = null)
+
+@Serializable
+data class Notification(
+    val id: String,
+    val level: String,
+    val company: String,
+    val titleFa: String,
+    val bodyFa: String = "",
+    val state: String = "delivered",
+    val createdAt: String,
+    val readAt: String? = null,
+    val link: Link? = null,
+    val choices: List<Choice>? = null,
+    val answer: String? = null,
+)
+
+@Serializable
+data class NotificationPage(val items: List<Notification> = emptyList(), val nextCursor: String? = null)
+
+// --------------------------------------------------------------- control --
+@Serializable
+data class KillSwitch(val scope: String, val company: String, val state: String, val reason: String? = null, val changedAt: String, val changedBy: String? = null)
+
+@Serializable
+data class Freeze(val company: String, val reason: String, val until: String, val createdBy: String = "")
+
+@Serializable
+data class ControlState(val holding: KillSwitch, val companies: List<KillSwitch> = emptyList(), val deployFreezes: List<Freeze> = emptyList())
+
+// -------------------------------------------------------------- treasury --
+@Serializable
+data class Totals(
+    val calls: Long = 0,
+    val inputTokens: Long = 0,
+    val outputTokens: Long = 0,
+    val cacheReadTokens: Long = 0,
+    val cacheWriteTokens: Long = 0,
+    val thinkingTokens: Long = 0,
+    val costUsd: String = "0",
+    val equivCostUsd: String = "0",
+)
+
+@Serializable
+data class BudgetUse(
+    val company: String,
+    val scopeType: String,
+    val scopeRef: String,
+    val period: String,
+    val level: Int = 0,
+    val pct: Double? = null,
+    val tokenLimit: Long? = null,
+    val tokensUsed: Long = 0,
+    val usdLimit: String? = null,
+    val usdUsed: String = "0",
+)
+
+@Serializable
+data class Consumer(val actor: String, val company: String, val calls: Long = 0, val tokens: Long = 0, val usd: String = "0")
+
+@Serializable
+data class TreasurySummary(
+    val period: String,
+    val periodStart: String,
+    val company: String? = null,
+    val totals: Totals = Totals(),
+    val budgets: List<BudgetUse> = emptyList(),
+    val topConsumers: List<Consumer> = emptyList(),
+)
+
+@Serializable
+data class BreakdownRow(
+    val key: String? = null,
+    val calls: Long = 0,
+    val inputTokens: Long = 0,
+    val outputTokens: Long = 0,
+    val cacheReadTokens: Long = 0,
+    val cacheWriteTokens: Long = 0,
+    val costUsd: String = "0",
+    val equivCostUsd: String = "0",
+)
+
+@Serializable
+data class Connection(
+    val id: String,
+    val key: String,
+    val displayName: String,
+    val kind: String,
+    val provider: String = "",
+    val status: String,
+    val statusReason: String? = null,
+    val models: List<String> = emptyList(),
+    val defaultModel: String? = null,
+    val quotaResetAt: String? = null,
+)
+
+// ----------------------------------------------------------------- audit --
+@Serializable
+data class AuditEntry(
+    val seq: Long,
+    val at: String,
+    val action: String,
+    val actionClass: String,
+    val actor: Actor,
+    val company: String,
+    val summary: String,
+    val stepUp: Boolean = false,
+    val hash: String = "",
+    val target: Map<String, String?> = emptyMap(),
+)
+
+@Serializable
+data class AuditVerify(val ok: Boolean, val checked: Long = 0, val firstBadSeq: Long? = null, val anchor: String = "none", val verifiedAt: String)
+
+// -------------------------------------------------------------- settings --
+@Serializable
+data class OwnerSettings(
+    val timezone: String = "Asia/Tehran",
+    val morningReportAt: String = "08:00",
+    val digestMinutes: Int = 30,
+    val ceoDailyAttention: Int = 6,
+    val learningDailyCap: Int = 3,
+    val calendars: List<String> = listOf("jalali"),
+    val version: Int = 1,
+)
+
+/** The Problem body of every error (contract §1): a stable [code] and a Persian [messageFa]. */
+@Serializable
+data class Problem(
+    val code: String = "internal_error",
+    val messageFa: String? = null,
+    val title: String? = null,
+    val status: Int? = null,
+    val requestId: String? = null,
+    val fields: Map<String, String>? = null,
+)
+
+/** One event of the holding stream (contract §7). */
+@Serializable
+data class StreamEvent(
+    val id: String = "",
+    val type: String = "",
+    val at: String = "",
+    val company: String? = null,
+    val ref: String? = null,
+    val data: JsonObject = JsonObject(emptyMap()),
+)
