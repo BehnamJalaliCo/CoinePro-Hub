@@ -58,6 +58,7 @@
    - `browser`: Chromium با **Playwright** (Apache-2.0) در کانتینر جدا؛ **حداکثر ۲ نشست همزمان**، هر نشست profile تازه و پاک‌شونده، سقف زمان و حافظه.
 2. **ابزارها در Tool Gateway** (کلاس‌ها طبق tools.md): `web.search`، `web.read` (HTML به متن خوانا، PDF به متن)، `web.browse` (گام‌های navigate، click، type،
    select، scroll، wait، read، screenshot، download؛ اسکرین‌شات و دانلود به فایل‌های §۱۷.۱ تبدیل میشوند)، `http.request`، `egress.recent`.
+   - **کاتالوگ:** `hq_common.charters.parse_tools` امروز فقط یک کلاس در هر ردیف میپذیرد؛ پس `web.browse` و `http.request` (کلاس `A0/A2`) و `mcp.call` (کلاس `per tool`) اعطا نمیشوند. پارسر هر دو شکل را بپذیرد: `A0/A2` یعنی کلاس هر فراخوانی از روی خودش تعیین میشود (روش HTTP یا گام مرورگر؛ نامعلوم = کلاس بالاتر)، و `per tool` یعنی کلاس از ثبت همان ابزار MCP میاید. تست: هر سه برای نقش‌هایی که در منشورشان دارند اعطا میشوند و `lib.problems` برایشان خالی است.
 3. **محافظ SSRF و شبکه (اجباری، با تست):**
    - DNS را خود `egress` حل میکند و **IP نهایی** را چک میکند، و بعد از هر redirect دوباره.
    - مسدود: loopback، link-local، **RFC 1918 (از جمله `10.10.1.0/24` و همسایه‌های production)**، CGNAT، IPv6 خصوصی و ULA، metadata

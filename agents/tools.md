@@ -14,7 +14,7 @@ Classes (OPERATING_MODEL §1.12): **A0** observe · **A1** propose/draft · **A2
 | `knowledge.search` | A0 | `{q, kinds?}` | Search what the role may read. `kinds`: `resolutions`, `deliverables`, `decisions`, `work`; `messages` for the advisor only. Returns refs + short snippets. |
 | `audit.recent` | A0 | `{company?, action?, since?}` | Recent audit rows (metadata only). Oversight roles and the advisor. |
 | `memory.read` | A0 | `{}` | The employee's own memory notes (latest first). |
-| `github.read` | A0 | `{repo, what: "commits"\|"issues"\|"pulls"\|"file", path?}` | Read-only GitHub. **Off** until the owner provides a read-only token (`channel_not_configured`). |
+| `github.read` | A0 | `{repo, what: "commits"/"issues"/"pulls"/"file", path?}` | Read-only GitHub. **Off** until the owner provides a read-only token (`channel_not_configured`). |
 | `deliver` | A1 | `{work_ref, title_fa, body_md, evidence: [{kind, ref, note}]}` | Creates a deliverable (output card) for the owner or the requester. |
 | `propose` | A1 | `{kind, title_fa, what_md, why_md, risk, reversible, quota_estimate, payload}` | Creates a decision card (contract §5.1 kinds). The only path to anything A3, to hiring, and to recurring work. The `payload` shape of each kind is the API's own model, which the runtime puts in the prompt; a `hire` payload names the charter `role` (an `employee` charter that fits the company and department, contract §16.6). |
 | `message.owner` | A1 | `{body_md, links?}` | A message in the role's own thread with the owner. CEOs, managers and the advisor only. Subject to the CEO attention quota; non-urgent messages wait for the next digest. |
@@ -34,8 +34,8 @@ The runtime adds `done` (finish the run) implicitly; there is no other way to en
 | Tool | Class | Input | What it does |
 |---|---|---|---|
 | `web.search` | A0 | `{q, lang?, recency_days?, site?, n?}` | Web search through the holding's own SearXNG. Results: title, url, snippet, date. The query is checked for internal data first. |
-| `web.read` | A0 | `{url, mode?: "text"\|"pdf"\|"html", max_chars?}` | Fetch one page or file and return readable text with its final URL and date. |
-| `web.browse` | A0/A2 | `{steps: [{do: "goto"\|"click"\|"type"\|"select"\|"scroll"\|"wait"\|"read"\|"screenshot"\|"download", target?, text?, url?}], account?}` | A real headless browser session (Chromium, Playwright) in the egress service. Reading is A0; using a holding service `account` is A2. A step that submits a payment, a purchase, a publication, a message to a person, an account creation or a security change is refused with `needs_owner` → `propose`. Screenshots and downloads come back as files. |
+| `web.read` | A0 | `{url, mode?: "text"/"pdf"/"html", max_chars?}` | Fetch one page or file and return readable text with its final URL and date. |
+| `web.browse` | A0/A2 | `{steps: [{do: "goto"/"click"/"type"/"select"/"scroll"/"wait"/"read"/"screenshot"/"download", target?, text?, url?}], account?}` | A real headless browser session (Chromium, Playwright) in the egress service. Reading is A0; using a holding service `account` is A2. A step that submits a payment, a purchase, a publication, a message to a person, an account creation or a security change is refused with `needs_owner` → `propose`. Screenshots and downloads come back as files. |
 | `http.request` | A0/A2 | `{method, url, headers?, json?, body?, account?}` | Any external API. `GET`/`HEAD` are A0; other methods are A2 and allowed only for hosts and paths the service account's policy lists as non-committing; committing calls are refused with `needs_owner`. |
 | `mcp.call` | per tool | `{server, tool, args}` | A tool of an MCP server the owner enabled; its class comes from the server's registration. |
 | `egress.recent` | A0 | `{company?, actor?, since?, blocked?}` | The egress log (overseer, security analyst, AI safety). |

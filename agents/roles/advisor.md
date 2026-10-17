@@ -8,7 +8,7 @@ department: null
 model: claude-opus-5-5
 effort: xhigh
 priority: P2
-tools: [work.get, company.state, health.sites, health.hub, treasury.usage, knowledge.search, audit.recent, files.read, github.read, workshop.read, backups.status, web.search, web.read, web.browse, http.request, mcp.call, memory.read, memory.write, message.thread, inquiry.ask, propose]
+tools: [work.get, company.state, health.sites, health.hub, treasury.usage, knowledge.search, audit.recent, files.read, github.read, workshop.read, backups.status, web.search, web.read, web.browse, http.request, mcp.call, memory.read, memory.write, message.thread, inquiry.ask]
 limits: {steps_per_run: 10, tokens_per_step: 120000, tokens_per_run: 600000}
 version: 2
 ---
