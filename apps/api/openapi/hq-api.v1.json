@@ -111,6 +111,117 @@
         "title": "AgentDecide",
         "type": "object"
       },
+      "AgentFileRef": {
+        "description": "file.view: an owner file attached in the agent's own company (§17.1),\nplus the key frames of a video; the model sees images as vision input.",
+        "properties": {
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "frames": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Frames",
+            "type": "array"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "document",
+            "enum": [
+              "image",
+              "video",
+              "audio",
+              "document"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mime": {
+            "title": "Mime",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "status": {
+            "default": "ready",
+            "enum": [
+              "processing",
+              "ready",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "variants": {
+            "$ref": "#/components/schemas/FileVariants"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mime",
+          "size",
+          "sha256"
+        ],
+        "title": "AgentFileRef",
+        "type": "object"
+      },
       "AgentMessage": {
         "additionalProperties": false,
         "properties": {
@@ -3869,6 +3980,29 @@
         "title": "EmployeeRef",
         "type": "object"
       },
+      "Engine": {
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "model",
+          "version"
+        ],
+        "title": "Engine",
+        "type": "object"
+      },
       "Envelope": {
         "description": "One operating company's monthly token envelope (contract §18.11).",
         "properties": {
@@ -4099,10 +4233,44 @@
         "type": "object"
       },
       "FileRef": {
+        "description": "A stored file (contract §17.1, ⟨1.3⟩ adds kind … transcript).",
         "properties": {
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "document",
+            "enum": [
+              "image",
+              "video",
+              "audio",
+              "document"
+            ],
+            "title": "Kind",
             "type": "string"
           },
           "mime": {
@@ -4120,6 +4288,41 @@
           "size": {
             "title": "Size",
             "type": "integer"
+          },
+          "status": {
+            "default": "ready",
+            "enum": [
+              "processing",
+              "ready",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "variants": {
+            "$ref": "#/components/schemas/FileVariants"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
           }
         },
         "required": [
@@ -4130,6 +4333,36 @@
           "sha256"
         ],
         "title": "FileRef",
+        "type": "object"
+      },
+      "FileVariants": {
+        "properties": {
+          "poster": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poster"
+          },
+          "thumb": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumb"
+          }
+        },
+        "title": "FileVariants",
         "type": "object"
       },
       "Freeze": {
@@ -5336,10 +5569,20 @@
       },
       "MessageIn": {
         "additionalProperties": false,
+        "description": "⟨1.3⟩ up to 10 owner files; `body` may be empty when there is one.",
         "properties": {
+          "attachments": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Attachments",
+            "type": "array"
+          },
           "body": {
+            "default": "",
             "maxLength": 100000,
-            "minLength": 1,
             "title": "Body",
             "type": "string"
           },
@@ -5354,9 +5597,6 @@
             ]
           }
         },
-        "required": [
-          "body"
-        ],
         "title": "MessageIn",
         "type": "object"
       },
@@ -8156,6 +8396,29 @@
         "title": "SecretOut",
         "type": "object"
       },
+      "Segment": {
+        "properties": {
+          "end_s": {
+            "title": "End S",
+            "type": "number"
+          },
+          "start_s": {
+            "title": "Start S",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_s",
+          "end_s",
+          "text"
+        ],
+        "title": "Segment",
+        "type": "object"
+      },
       "Sent": {
         "description": "POST /threads/{code}/messages (contract §16.3): the stored message and,\nwhen the thread's counterpart is an agent, its reply run (woken).",
         "properties": {
@@ -9240,6 +9503,55 @@
           "equiv_cost_usd"
         ],
         "title": "Totals",
+        "type": "object"
+      },
+      "Transcript": {
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/Engine"
+          },
+          "file_id": {
+            "format": "uuid",
+            "title": "File Id",
+            "type": "string"
+          },
+          "language": {
+            "const": "fa",
+            "default": "fa",
+            "title": "Language",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/Segment"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "duration_s",
+          "confidence",
+          "segments",
+          "file_id",
+          "engine"
+        ],
+        "title": "Transcript",
         "type": "object"
       },
       "Usage": {
@@ -14809,11 +15121,21 @@
                     {
                       "attachments": [
                         {
+                          "duration_s": 1.0,
+                          "height": 1,
                           "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                          "kind": "image",
                           "mime": "application/pdf",
                           "name": "report.pdf",
                           "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                          "size": 1
+                          "size": 1,
+                          "status": "processing",
+                          "transcript": "x",
+                          "variants": {
+                            "poster": null,
+                            "thumb": null
+                          },
+                          "width": 1
                         }
                       ],
                       "body": "متن پیام",
@@ -14938,11 +15260,21 @@
                 "example": {
                   "attachments": [
                     {
+                      "duration_s": 1.0,
+                      "height": 1,
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
                       "mime": "application/pdf",
                       "name": "report.pdf",
                       "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                      "size": 1
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
                     }
                   ],
                   "body": "متن پیام",
@@ -15078,11 +15410,21 @@
                 "example": {
                   "attachments": [
                     {
+                      "duration_s": 1.0,
+                      "height": 1,
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
                       "mime": "application/pdf",
                       "name": "report.pdf",
                       "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                      "size": 1
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
                     }
                   ],
                   "body": "متن پیام",
@@ -16284,28 +16626,48 @@
         ]
       }
     },
-    "/api/v1/files/{id}": {
-      "get": {
-        "description": "Streams the file; the row is read under RLS before any byte is.",
-        "operationId": "get_file",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Id",
-              "type": "string"
+    "/api/v1/files": {
+      "post": {
+        "description": "Owner only. Raw body, `Content-Type` = the file's type, `X-File-Name` =\nUTF-8 name, percent-encoded; `Idempotency-Key` as every POST. Images\n(jpeg, png, webp, heic ≤ 20 MB), video (mp4, webm, quicktime ≤ 200 MB,\n≤ 10 min), audio (m4a/aac, ogg/opus, webm, wav, mpeg ≤ 25 MB, ≤ 15 min),\npdf (≤ 30 MB). The type is checked by content, the size while streaming.\n`201 FileRef` (`status: processing` for video and audio).",
+        "operationId": "upload_file",
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
             }
-          }
-        ],
+          },
+          "required": true
+        },
         "responses": {
-          "200": {
+          "201": {
             "content": {
-              "application/octet-stream": {}
+              "application/json": {
+                "example": {
+                  "duration_s": 1.0,
+                  "height": 1,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "image",
+                  "mime": "application/pdf",
+                  "name": "report.pdf",
+                  "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                  "size": 1,
+                  "status": "processing",
+                  "transcript": "x",
+                  "variants": {
+                    "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  },
+                  "width": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FileRef"
+                }
+              }
             },
-            "description": "The file"
+            "description": "Successful Response"
           },
           "401": {
             "content": {
@@ -16340,7 +16702,18 @@
             },
             "description": "Problem"
           },
-          "409": {
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -16363,9 +16736,243 @@
             "description": "Problem"
           }
         },
+        "summary": "Upload File",
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/api/v1/files/{id}": {
+      "get": {
+        "description": "The file or its `thumb`/`poster`; `Range` supported (video playback). The\nrow is read under RLS before any byte is.",
+        "operationId": "get_file",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variant",
+            "required": false,
+            "schema": {
+              "default": "original",
+              "enum": [
+                "original",
+                "thumb",
+                "poster"
+              ],
+              "title": "Variant",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "The file"
+          },
+          "206": {
+            "description": "A byte range of it"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "416": {
+            "description": "Range not satisfiable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
         "summary": "Get File",
         "tags": [
-          "deliverables"
+          "files"
+        ]
+      }
+    },
+    "/api/v1/files/{id}/meta": {
+      "get": {
+        "description": "The FileRef (poll while `processing`; the stream also sends `file.ready`).",
+        "operationId": "file_meta",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "duration_s": 1.0,
+                  "height": 1,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "image",
+                  "mime": "application/pdf",
+                  "name": "report.pdf",
+                  "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                  "size": 1,
+                  "status": "processing",
+                  "transcript": "x",
+                  "variants": {
+                    "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  },
+                  "width": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FileRef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "File Meta",
+        "tags": [
+          "files"
         ]
       }
     },
@@ -19852,11 +20459,21 @@
                     {
                       "attachments": [
                         {
+                          "duration_s": 1.0,
+                          "height": 1,
                           "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                          "kind": "image",
                           "mime": "application/pdf",
                           "name": "report.pdf",
                           "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                          "size": 1
+                          "size": 1,
+                          "status": "processing",
+                          "transcript": "x",
+                          "variants": {
+                            "poster": null,
+                            "thumb": null
+                          },
+                          "width": 1
                         }
                       ],
                       "author": {
@@ -20518,11 +21135,21 @@
                     {
                       "attachments": [
                         {
+                          "duration_s": 1.0,
+                          "height": 1,
                           "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                          "kind": "image",
                           "mime": "application/pdf",
                           "name": "report.pdf",
                           "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                          "size": 1
+                          "size": 1,
+                          "status": "processing",
+                          "transcript": "x",
+                          "variants": {
+                            "poster": null,
+                            "thumb": null
+                          },
+                          "width": 1
                         }
                       ],
                       "author": {
@@ -20654,11 +21281,21 @@
                   "message": {
                     "attachments": [
                       {
+                        "duration_s": 1.0,
+                        "height": 1,
                         "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "image",
                         "mime": "application/pdf",
                         "name": "report.pdf",
                         "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                        "size": 1
+                        "size": 1,
+                        "status": "processing",
+                        "transcript": "x",
+                        "variants": {
+                          "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                          "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                        },
+                        "width": 1
                       }
                     ],
                     "author": {
@@ -20873,9 +21510,155 @@
         ]
       }
     },
+    "/api/v1/transcribe": {
+      "post": {
+        "description": "Owner only. Raw audio (types and limits as for uploads: ≤ 25 MB, ≤ 15 min)\n-> exact Persian text: self-hosted Whisper (nothing leaves the hub), the\ndeterministic normaliser, and the light model's punctuation pass when it\nchanges no more than 8% of the words. The audio is kept as a file\n(`file_id`); attach it to a message and the message is a voice transcript.",
+        "operationId": "transcribe",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "purpose",
+            "required": false,
+            "schema": {
+              "default": "message",
+              "enum": [
+                "message",
+                "order",
+                "note"
+              ],
+              "title": "Purpose",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "confidence": 0.0,
+                  "duration_s": 1.0,
+                  "engine": {
+                    "model": "claude-sonnet-5-5",
+                    "name": "report.pdf",
+                    "version": "x"
+                  },
+                  "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "language": "fa",
+                  "segments": [
+                    {
+                      "end_s": 1.0,
+                      "start_s": 1.0,
+                      "text": "x"
+                    }
+                  ],
+                  "text": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Transcript"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Transcribe",
+        "tags": [
+          "files"
+        ]
+      }
+    },
     "/api/v1/treasury/breakdown": {
       "get": {
-        "description": "Grouped totals; the default window is the current month.",
+        "description": "Grouped totals; the default window is the current month. ⟨1.3⟩ `by=day`:\none row per calendar day in the owner's time zone (key = ISO date),\nascending, days without calls included with zeros, inside [from, to].",
         "operationId": "treasury_breakdown",
         "parameters": [
           {
@@ -20891,7 +21674,8 @@
                 "model",
                 "connection",
                 "task_class",
-                "priority"
+                "priority",
+                "day"
               ],
               "title": "By",
               "type": "string"
@@ -24660,11 +25444,21 @@
             "content": {
               "application/json": {
                 "example": {
+                  "duration_s": 1.0,
+                  "height": 1,
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "image",
                   "mime": "application/pdf",
                   "name": "report.pdf",
                   "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                  "size": 1
+                  "size": 1,
+                  "status": "processing",
+                  "transcript": "x",
+                  "variants": {
+                    "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  },
+                  "width": 1
                 },
                 "schema": {
                   "$ref": "#/components/schemas/FileRef"
@@ -24741,6 +25535,137 @@
           }
         },
         "summary": "Upload File",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/files/{id}/meta": {
+      "get": {
+        "description": "file.view: own company only (never another's, whatever the charter's\nscope); the policy is decided before the lookup, so a missing and a\nforbidden file answer the same 403.",
+        "operationId": "tool_file_meta",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "duration_s": 1.0,
+                  "frames": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "height": 1,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "image",
+                  "mime": "application/pdf",
+                  "name": "report.pdf",
+                  "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                  "size": 1,
+                  "status": "processing",
+                  "transcript": "x",
+                  "variants": {
+                    "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  },
+                  "width": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/AgentFileRef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool File Meta",
         "tags": [
           "internal"
         ]
@@ -25933,11 +26858,21 @@
                 "example": {
                   "attachments": [
                     {
+                      "duration_s": 1.0,
+                      "height": 1,
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
                       "mime": "application/pdf",
                       "name": "report.pdf",
                       "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                      "size": 1
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
                     }
                   ],
                   "author": {
