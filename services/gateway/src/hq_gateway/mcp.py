@@ -131,7 +131,8 @@ class SdkOpener:
                 raise NotConfigured("no egress proxy (EGRESS_PROXY_URL)")
             return spec.url, self.proxy_url
         if spec.transport == "container":
-            if parts.scheme != "http" or not CONTAINER_HOST.fullmatch(parts.hostname or ""):
+            host = parts.hostname or ""
+            if parts.scheme != "http" or not CONTAINER_HOST.fullmatch(host) or not parts.port:
                 raise NotConfigured("a container server is http://mcp-<name>:<port>/...")
             return spec.url, None
         raise NotConfigured("unknown transport")

@@ -356,11 +356,13 @@ async def mcp_listing(key: str, body: ListingIn, ctx: Ctx = Depends(internal_ctx
             )
             status, switched_off = "disabled", True
         if switched_off:
-            holding = await ctx.hub.companies.holding()
+            # In the calling agent's company (its transaction's scope): the
+            # owner sees it either way, and that is where it was noticed.
+            assert ctx.who.company_id is not None
             await notify.raise_notification(
                 tx,
-                company_id=holding.id,
-                company_code=holding.code,
+                company_id=ctx.who.company_id,
+                company_code=ctx.who.company,
                 level="report",
                 title_fa=f"سرور MCP «{row['title_fa']}» خاموش شد",
                 body_fa=(
@@ -372,7 +374,7 @@ async def mcp_listing(key: str, body: ListingIn, ctx: Ctx = Depends(internal_ctx
             )
             await ctx.audit(
                 tx,
-                company_id=holding.id,
+                company_id=ctx.who.company_id,
                 action="mcp.tools_changed",
                 action_class="A1",
                 target_kind="mcp_server",
