@@ -20,7 +20,8 @@ import { ACTOR_FA, DECISION_KIND, DECISION_STATUS, RISK } from '@/lib/labels';
 import { ago, cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
 
 type Decision = Schemas['Decision'];
-const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change']);
+// code_session: its seal creates a Code Workshop grant (contract §5.1 ⟨1.4.3⟩).
+const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session']);
 export const needsStepUp = (d: Decision) => d.action_class === 'A3' || STEP_UP_KINDS.has(d.kind);
 
 function Fact({ label, children, mono }: { label: string; children: ReactNode; mono?: boolean }) {

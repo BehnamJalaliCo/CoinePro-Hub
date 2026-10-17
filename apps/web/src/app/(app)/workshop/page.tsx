@@ -23,7 +23,7 @@ function Runtime() {
       <span className="flex size-9 flex-none items-center justify-center rounded-full bg-warn-soft text-warn"><Icon name="server" size={18} /></span>
       <div className="flex flex-col gap-0.5">
         <span className="text-[14px] font-semibold">اجرای کارگاه هنوز روشن نیست</span>
-        <span className="text-caption text-sec">محل اجرا با توست: Claude Managed Agents با یک API key جدا و سقف ماهانه، یا میزبانی روی هاست جدا. تا آن موقع مجوز و تاریخچه کار میکند و جلسه‌ی تازه باز نمیشود.</span>
+        <span className="text-caption text-sec">کارگاه روی خود هاب و با همان اشتراک Claude اجرا میشود؛ کلید API جدا یا توکن تازه لازم نیست. تا روشن شدنش، مجوز و تاریخچه کار میکند و جلسه‌ی تازه باز نمیشود.</span>
       </div>
     </Card>
   );

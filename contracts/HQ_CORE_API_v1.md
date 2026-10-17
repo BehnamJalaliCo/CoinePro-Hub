@@ -253,7 +253,7 @@ Decision {
 |---|---|---|
 | GET | `/decisions` | `?status&company&kind&risk&q` — default `status=pending`, oldest first |
 | GET | `/decisions/{ref}` | |
-| POST | `/decisions/{ref}/approve` | 🔏 for `A3`, `hire`, `dismissal`, `budget_change`; `{note?, amendments?}` → resolution created |
+| POST | `/decisions/{ref}/approve` | 🔏 for `A3`, `hire`, `dismissal`, `budget_change`, ⟨1.4.3⟩ `code_session` (its seal creates a workshop grant); `{note?, amendments?}` → resolution created |
 | POST | `/decisions/{ref}/reject` | `{reason?, reason_code?: "cost"\|"risk"\|"timing"\|"quality"\|"other"}` |
 | POST | `/decisions/{ref}/return` | «برگشت با یادداشت»: `{note}` (required) → back to the proposer |
 | POST | `/decisions/{ref}/ask` | «توی چت بپرس»: opens or reuses the proposer's thread and posts a linked message; returns `{thread, message_ref}` |
@@ -590,7 +590,7 @@ Workspace { id, code: "FX-APP", company, repo: "<owner>/<name>", default_branch,
 Grant     { id, ref: "G-0001", workspace, actions: ["read","edit","run","push_branch","open_pr"], driver: Actor|null,
             budget_usd, expires_at, granted_by: Actor, decision_ref|null, revoked_at|null }
 CodeSession { id, ref: "S-0001", workspace, grant, title, brief, opened_by: Actor, driver: Actor,
-              runtime: "managed"|"self_hosted", model, effort,
+              runtime: "subscription"|"managed"|"self_hosted", model, effort,
               state: "starting"|"working"|"waiting_approval"|"idle"|"done"|"failed"|"stopped",
               branch|null, pr_url|null, usage: { usd, input_tokens, output_tokens }, created_at, updated_at }
 SessionEvent { seq, at, type: "message"|"progress"|"command"|"file_change"|"approval_request"|"approval_result"|"state"|"error",
@@ -615,8 +615,9 @@ SessionEvent { seq, at, type: "message"|"progress"|"command"|"file_change"|"appr
 **Rules (non-negotiable):**
 1. The workshop **never touches production**: no SSH, no deploy keys, no server credentials, no database URLs. Its only write is a git push to
    `hq/<session-ref>` branches and opening a PR. Merge and deploy stay decisions with the owner's seal (§5.1, OPERATING_MODEL §1.1).
-2. **Credentials never enter the sandbox.** The GitHub credential is per workspace, fine-grained (contents and pull requests on that one
-   repository), kept by the hub (or the managed runtime's vault, substituted at egress), never printed, never shown to a model.
+2. **Credentials never enter the sandbox.** ⟨1.4.3⟩ The hub clones into the sandbox and **the hub itself pushes** the session's `hq/<session-ref>`
+   branch (a fixed refspec, never another ref) and opens the PR, with the git access the owner already gave the hub (owner, 2026-10-17: no new
+   tokens). The credential stays in the hub, is never printed and never shown to a model; a workspace the hub cannot reach shows `no_access`.
 3. Each session runs in **its own sandbox** with a fresh clone, no access to the hub's network or other sessions, outbound limited to GitHub and
    package registries. A session's CLAUDE.md is the repository's own; the repository's rules bind the session.
 4. **Budget:** every session has a USD cap from its grant; at the cap it stops and asks. Usage enters the Token Treasury like every call.
@@ -625,9 +626,10 @@ SessionEvent { seq, at, type: "message"|"progress"|"command"|"file_change"|"appr
 7. **Everything is recorded:** events carry summaries and metadata; the full session transcript is stored in object storage, owner-readable,
    retained with the audit set.
 
-**Runtime.** `managed` = Claude Managed Agents (Anthropic hosts the loop and a per-session container; its permission policy `always_ask` for
-pushes and PRs maps to `approval_request`; the GitHub credential lives in its vault). `self_hosted` = the Claude Agent SDK in disposable
-containers on a separate builder host. The contract is the same for both; the choice is an owner decision recorded in prompt 6.
+**Runtime.** ⟨1.4.3⟩ **`subscription`** (owner, 2026-10-17: the same Claude subscription, no separate API key) = Claude Code under the holding's
+subscription, in a disposable sandbox container on the hub, one session at a time; it shares the subscription's quota with the agents (the
+quota controller and the daily cap see it), and its usage enters the Token Treasury as equivalent cost. `managed` (Claude Managed Agents with a
+separate API key) and `self_hosted` (a separate builder host) stay possible but are not chosen.
 
 ### 17.4 Voice orders (فرمان صوتی)
 | Method | Path | Notes |
@@ -653,7 +655,7 @@ Their `/stream` topics: `files`, `workshop`, `orders` (added to the `topics` lis
 - Step-up actions (🔏 above): `workshop.grant` and `workshop.workspaces` are bound to the SHA-256 of the request body (like
   `/budgets`); `workshop.approval` is bound to `"{session_ref}/{approval_id}"` (e.g. `S-0004/AP-0007`) and is needed only to
   **allow** — a denial (`allow: false`) needs no step-up, like engaging a kill switch.
-- `GET /meta` gains `workshop: { runtime: "managed"|"self_hosted"|null }` — `null` until the owner chooses (then `POST /workshop/sessions`
+- `GET /meta` gains `workshop: { runtime: "subscription"|"managed"|"self_hosted"|null }` — `null` until the owner chooses (then `POST /workshop/sessions`
   answers `503 runtime_not_configured`), so the apps can say so before the owner tries.
 
 ### 17.8 As built in prompt 6 ⟨1.4.3⟩

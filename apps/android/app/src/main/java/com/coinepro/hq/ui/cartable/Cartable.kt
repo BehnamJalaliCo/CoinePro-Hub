@@ -100,7 +100,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
-private val STEP_UP_KINDS = setOf("hire", "dismissal", "budget_change")
+// code_session: its seal creates a Code Workshop grant (contract §5.1 ⟨1.4.3⟩).
+private val STEP_UP_KINDS = setOf("hire", "dismissal", "budget_change", "code_session")
 
 /** A3 actions and hire, dismissal and budget changes are approved with a fresh passkey (contract §4). */
 fun needsStepUp(d: Decision) = d.actionClass == "A3" || d.kind in STEP_UP_KINDS

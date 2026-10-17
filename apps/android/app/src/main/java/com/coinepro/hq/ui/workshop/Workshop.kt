@@ -175,7 +175,7 @@ fun WorkshopScreen(onNewSession: () -> Unit, onGrant: (String?) -> Unit) {
                     DIcon(DivanIcon.SERVER, tint = c.warning)
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("اجرای کارگاه هنوز روشن نیست", style = Divan.type.bodyStrong)
-                        Text("محل اجرا با توست: Claude Managed Agents با یک API key جدا و سقف ماهانه، یا میزبانی روی هاست جدا. تا آن موقع مجوز و تاریخچه کار میکند و جلسه‌ی تازه باز نمیشود.", style = Divan.type.caption, color = c.textSecondary)
+                        Text("کارگاه روی خود هاب و با همان اشتراک Claude اجرا میشود؛ کلید API جدا یا توکن تازه لازم نیست. تا روشن شدنش، مجوز و تاریخچه کار میکند و جلسه‌ی تازه باز نمیشود.", style = Divan.type.caption, color = c.textSecondary)
                     }
                 }
             }
