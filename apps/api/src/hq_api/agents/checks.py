@@ -102,6 +102,8 @@ class Checker:
                 headers={"User-Agent": USER_AGENT},
             ) as http:
                 resp, error = await self._fetch(http, method, url, host)
+        except PrivateAddress:
+            return Result(False, None, None, None, "private_address")
         except httpx.TimeoutException:
             return Result(False, None, None, None, "timeout")
         except httpx.ConnectError as exc:
@@ -129,7 +131,8 @@ class Checker:
     ) -> tuple[httpx.Response | None, str | None]:
         current = url
         for _ in range(MAX_REDIRECTS + 1):
-            resp = await http.request(method, current)
+            # Every connection (redirects too) is checked where it really went.
+            resp = await http.request(method, current, extensions={"trace": peer_guard})
             if resp.status_code not in (301, 302, 303, 307, 308) or "location" not in resp.headers:
                 return resp, None
             nxt = urljoin(current, resp.headers["location"])
@@ -149,6 +152,26 @@ class Checker:
         return days
 
 
+class PrivateAddress(Exception):
+    """The connection reached a private or internal address after all."""
+
+
+async def peer_guard(event: str, info: dict[str, Any]) -> None:
+    """httpx trace hook: the address a connection REALLY reached is checked as
+    soon as it is connected, before a byte of the request is sent. A name
+    resolved once for the check and again for the connection (DNS rebinding)
+    can never point a check into the hub's own network."""
+    if event != "connection.connect_tcp.complete":
+        return
+    stream = info.get("return_value")
+    if stream is None:
+        return
+    addr = stream.get_extra_info("server_addr")
+    if addr and site_seed.not_public(str(addr[0])):
+        await stream.aclose()
+        raise PrivateAddress(str(addr[0]))
+
+
 def _is_dns(exc: Exception) -> bool:
     text = str(exc).lower()
     return (
@@ -162,11 +185,11 @@ def _is_dns(exc: Exception) -> bool:
 def _cert_days_left(host: str) -> int | None:
     ctx = ssl.create_default_context()
     try:
-        with (
-            socket.create_connection((host, 443), timeout=TIMEOUT_S) as sock,
-            ctx.wrap_socket(sock, server_hostname=host) as tls,
-        ):
-            cert = tls.getpeercert()
+        with socket.create_connection((host, 443), timeout=TIMEOUT_S) as sock:
+            if site_seed.not_public(str(sock.getpeername()[0])):
+                return None  # connected somewhere private: no handshake there
+            with ctx.wrap_socket(sock, server_hostname=host) as tls:
+                cert = tls.getpeercert()
     except (OSError, ssl.SSLError):
         return None
     not_after = cert.get("notAfter") if cert else None

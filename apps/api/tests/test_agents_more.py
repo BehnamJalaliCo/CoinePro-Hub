@@ -938,3 +938,35 @@ async def test_month1_bootstrap_is_data_and_applies_once(
     assert again["created"] == [] and again["skipped"] >= len(first["created"])
     with pytest.raises(ValueError):
         bootstrap.load("../etc")
+
+
+async def test_the_checker_checks_where_a_connection_really_went() -> None:
+    """Review of 5.1: a name resolved once for the check and again for the
+    connection (DNS rebinding) is caught on the connected socket itself,
+    before the request is sent; NAT64 and IPv4-in-IPv6 are not public."""
+    from hq_api.domain import sites as site_seed
+
+    for private in ("64:ff9b::a0a:102", "64:ff9b:1::1", "::ffff:10.10.1.2", "2002:a0a:102::1"):
+        assert site_seed.not_public(private), private
+    assert not site_seed.not_public("2606:4700:4700::1111")
+    got: list[bytes] = []
+
+    async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        got.append(await reader.read(100))
+        writer.write(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
+        await writer.drain()
+        writer.close()
+
+    server = await asyncio.start_server(serve, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    try:
+        c = checks.Checker(tls=False, resolver=_public)
+        async with httpx.AsyncClient(timeout=5) as http:
+            with pytest.raises(checks.PrivateAddress):
+                await c._fetch(http, "GET", f"http://127.0.0.1:{port}/", "127.0.0.1")
+        await asyncio.sleep(0.1)
+        assert got in ([], [b""])  # connected, refused, not a byte of the request sent
+    finally:
+        server.close()
+        await server.wait_closed()
+    assert checks._cert_days_left("127.0.0.1") is None
