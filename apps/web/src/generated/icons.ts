@@ -142,6 +142,15 @@ export const ICONS = {
    }
   }
  ],
+ "code": [
+  {
+   "tag": "path",
+   "role": "stroke",
+   "a": {
+    "d": "M8 7L3 12L8 17M16 7L21 12L16 17M13.5 5L10.5 19"
+   }
+  }
+ ],
  "command": [
   {
    "tag": "path",
@@ -317,6 +326,22 @@ export const ICONS = {
    "role": "heart",
    "a": {
     "d": "M8.8 12a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0 -6.4 0Z"
+   }
+  }
+ ],
+ "image": [
+  {
+   "tag": "path",
+   "role": "stroke",
+   "a": {
+    "d": "M5.5 5H18.5L21 7.5V16.5L18.5 19H5.5L3 16.5V7.5ZM3.5 16.5L8.5 11.5L13 16L15.5 13.5L20.5 18M13.9 9a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0Z"
+   }
+  },
+  {
+   "tag": "path",
+   "role": "heart",
+   "a": {
+    "d": "M13.9 9a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0Z"
    }
   }
  ],
@@ -718,6 +743,22 @@ export const ICONS = {
    }
   }
  ],
+ "stop": [
+  {
+   "tag": "path",
+   "role": "stroke",
+   "a": {
+    "d": "M8 6H16L18 8V16L16 18H8L6 16V8Z"
+   }
+  },
+  {
+   "tag": "path",
+   "role": "heart",
+   "a": {
+    "d": "M8 6H16L18 8V16L16 18H8L6 16V8Z"
+   }
+  }
+ ],
  "task": [
   {
    "tag": "path",
@@ -765,6 +806,22 @@ export const ICONS = {
    "role": "stroke",
    "a": {
     "d": "M8.6 3.5H15.4L20.5 8.6V15.4L15.4 20.5H8.6L3.5 15.4V8.6ZM12 7.5V12.5M11.55 16.2a0.45 0.45 0 1 0 0.9 0a0.45 0.45 0 1 0 -0.9 0Z"
+   }
+  }
+ ],
+ "video": [
+  {
+   "tag": "path",
+   "role": "stroke",
+   "a": {
+    "d": "M5 6H14L16 8V16L14 18H5L3 16V8ZM16 10.5L21 7.5V16.5L16 13.5"
+   }
+  },
+  {
+   "tag": "path",
+   "role": "heart",
+   "a": {
+    "d": "M16 10.5L21 7.5V16.5L16 13.5Z"
    }
   }
  ]
