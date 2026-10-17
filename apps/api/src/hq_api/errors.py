@@ -89,6 +89,23 @@ CODES: dict[str, tuple[int, str, str]] = {
         "Runtime not configured",
         "کارگاه کد هنوز روشن نیست: محل اجرای سشن‌ها را مدیر کل باید انتخاب کند.",
     ),
+    # prompt 07 §2: the agents' internet (egress)
+    "needs_owner": (
+        403,
+        "Needs the owner",
+        "این یک تعهد بیرونی به نام هلدینگ است؛ با propose برای مالک پیشنهادش بده.",
+    ),
+    "internal_data": (
+        403,
+        "Internal data",
+        "داده‌ی داخلی (کد کارمند، ارجاع، ایمیل، تلفن یا رمز) نباید از هاب بیرون برود؛ بدون آن تکرار کن.",
+    ),
+    "egress_limit": (429, "Egress limit", "سقف اینترنت این اجرا یا امروز شرکت پر شده است."),
+    "account_not_configured": (
+        409,
+        "Account not configured",
+        "این حساب سرویس هنوز رمز ندارد؛ مالک باید آن را روی سرور بگذارد.",
+    ),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 

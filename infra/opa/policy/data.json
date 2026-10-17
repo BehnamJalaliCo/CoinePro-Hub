@@ -26,7 +26,9 @@
           "work.fail",
           "activity.set",
           "notify",
-          "mcp.call"
+          "mcp.call",
+          "web.browse",
+          "http.request"
         ],
         "manager": [
           "work.delegate",
@@ -37,7 +39,9 @@
           "work.fail",
           "activity.set",
           "notify",
-          "mcp.call"
+          "mcp.call",
+          "web.browse",
+          "http.request"
         ],
         "inspector": [
           "work.delegate",
@@ -45,14 +49,18 @@
           "work.progress",
           "work.fail",
           "activity.set",
-          "notify"
+          "notify",
+          "web.browse",
+          "http.request"
         ],
         "employee": [
           "work.accept",
           "work.progress",
           "work.fail",
           "activity.set",
-          "notify"
+          "notify",
+          "web.browse",
+          "http.request"
         ]
       }
     }

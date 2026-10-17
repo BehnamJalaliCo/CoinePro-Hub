@@ -62,6 +62,20 @@ class Settings:
     mcp_calls_per_company_day: int = field(
         default_factory=lambda: _int("HQ_MCP_CALLS_PER_COMPANY_DAY", 300)
     )
+    # The agents' internet (prompt 07 §2.8): caps per run and per company per day
+    # (requests = egress log rows; browser seconds = web.browse sessions).
+    egress_run_requests: int = field(default_factory=lambda: _int("EGRESS_RUN_REQUESTS", 150))
+    egress_run_bytes: int = field(
+        default_factory=lambda: _int("EGRESS_RUN_BYTES", 64 * 1024 * 1024)
+    )
+    egress_run_browser_s: int = field(default_factory=lambda: _int("EGRESS_RUN_BROWSER_S", 300))
+    egress_day_requests: int = field(default_factory=lambda: _int("EGRESS_DAY_REQUESTS", 5000))
+    egress_day_bytes: int = field(
+        default_factory=lambda: _int("EGRESS_DAY_BYTES", 2 * 1024 * 1024 * 1024)
+    )
+    egress_call_bytes: int = field(
+        default_factory=lambda: _int("EGRESS_CALL_BYTES", 20 * 1024 * 1024)
+    )
     # Sessions (contract §2): sliding 30 days, absolute 90 days.
     session_sliding_days: int = 30
     session_absolute_days: int = 90

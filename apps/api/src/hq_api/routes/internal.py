@@ -218,6 +218,9 @@ OP_CLASS: dict[str, str] = {
     # prompt 07: mcp.call's question to the api (the call's own class is the
     # server's registration, checked by the gateway with hq.actions)
     "mcp.call": "A0",
+    # prompt 07: the agents' internet (reserve + log a request; the egress log)
+    "egress.use": "A0",
+    "egress.read": "A0",
 }
 
 

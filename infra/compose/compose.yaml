@@ -667,18 +667,21 @@ services:
     build:
       context: ../../services
       dockerfile: gateway/Dockerfile
-    networks: [hq-agent]
+    networks: [hq-agent, hq-egress-api]
     depends_on:
       api:
         condition: service_healthy
       opa:
         condition: service_healthy
+      egress:
+        condition: service_healthy
     environment:
       GATEWAY_API_URL: http://api:8000
       OPA_URL: http://opa:8181
-      # MCP servers (prompt 07 §3): an `http` server only through the egress
-      # service's forward proxy (empty: none reachable; set with egress).
-      EGRESS_PROXY_URL: ${EGRESS_PROXY_URL:-}
+      # The internet tools (prompt 07 §2) and the MCP servers' HTTP route out
+      # (an `http` MCP server only through this proxy, prompt 07 §3).
+      EGRESS_URL: http://egress:8090
+      EGRESS_PROXY_URL: http://egress:3129
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=16m,mode=1777"]
@@ -697,6 +700,106 @@ services:
       resources:
         limits:
           memory: ${MEM_GATEWAY:?}
+
+  egress:
+    # The agents' only way to the internet (prompt 07 §2, contract §18.7): the
+    # web tools and MCP servers over HTTP, through its SSRF guard (every name
+    # resolved and every address and redirect checked here). hq-egress is its
+    # route out (with SearXNG); hq-egress-api has the gateway only; hq-browser
+    # the browser only. It reaches no data service, the api, OpenBao, NATS or
+    # Temporal (scripts/quality/live.sh), and holds no secret of its own.
+    <<: *service
+    image: coinepro-hq/egress:0.1.0
+    build:
+      context: ../../services
+      dockerfile: egress/Dockerfile
+    networks: [hq-egress, hq-egress-api, hq-browser]
+    depends_on:
+      searxng:
+        condition: service_healthy
+    environment:
+      EGRESS_SEARXNG_URL: http://searxng:8080
+      EGRESS_BROWSER_URL: http://browser:8095
+      EGRESS_BROWSER_PROXY_URL: http://egress:3128
+      EGRESS_HUB_HOSTS: ${HQ_WEBAUTHN_RP_ID:-hq.coinepro.com}
+      # The fixed subnets below: the gateway's network and the browser's.
+      EGRESS_API_CLIENTS: 172.30.8.0/24
+      EGRESS_GATEWAY_PROXY_CLIENTS: 172.30.8.0/24
+      EGRESS_BROWSER_PROXY_CLIENTS: 172.30.9.0/24
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "python", "-m", "hq_common.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_EGRESS:?}
+
+  searxng:
+    # The holding's own web search (AGPL-3.0), for web.search only: egress is
+    # its only client; it reaches the public engines over hq-egress. No query
+    # is logged (infra/searxng/settings.yml; granian's access log is off).
+    <<: *service
+    image: searxng/searxng:2026.10.4-d48c4b555@sha256:76b0bf285aca014c7191fc4d9234c4bfb358624ac33d8883833d496c059ec072
+    networks: [hq-egress]
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_PASSWORD:?run make env}
+      GRANIAN_BLOCKING_THREADS: "2"
+    user: "977:977"
+    read_only: true
+    tmpfs:
+      - "/tmp:size=16m,mode=1777"
+      - "/var/cache/searxng:size=16m,uid=977,gid=977,mode=0700"
+    cap_drop: [ALL]
+    volumes:
+      - ../searxng/settings.yml:/etc/searxng/settings.yml:ro
+    healthcheck:
+      test: ["CMD", "/usr/local/searxng/.venv/bin/python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_SEARXNG:?}
+
+  browser:
+    # Headless Chromium (Playwright) for web.browse (prompt 07 §2.1): a fresh
+    # context per call, at most BROWSER_MAX_SESSIONS at a time; hq-browser is
+    # internal, so its only way out is egress's proxy. --no-sandbox inside a
+    # cap_drop ALL, read-only, non-root container: no capability is added for
+    # Chromium's own sandbox (the container is the sandbox).
+    <<: *service
+    image: coinepro-hq/browser:0.1.0
+    build:
+      context: ../../services
+      dockerfile: egress/Dockerfile.browser
+    networks: [hq-browser]
+    environment:
+      BROWSER_MAX_SESSIONS: ${BROWSER_MAX_SESSIONS:-2}
+    user: "10001:10001"
+    read_only: true
+    # Chromium's profile, cache and downloads (counted inside the memory limit).
+    tmpfs: ["/tmp:size=${BROWSER_TMPFS:-192m},mode=1777"]
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "python3", "-m", "hq_common.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_BROWSER:?}
 
   web:
     # The owner's web panel (apps/web, owned by the consultation session;
@@ -1145,6 +1248,35 @@ networks:
       config:
         - subnet: 172.30.6.0/24
           gateway: 172.30.6.1
+
+  hq-egress:
+    # egress and SearXNG: the only route out for the agents' tools (prompt 07
+    # §2). Not internal on purpose; nothing else of the hub is on it.
+    name: hq-egress
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.7.0/24
+          gateway: 172.30.7.1
+  hq-egress-api:
+    # The gateway and egress only (egress's API and its MCP proxy). Internal.
+    name: hq-egress-api
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.8.0/24
+          gateway: 172.30.8.1
+  hq-browser:
+    # egress and the browser only. Internal: the browser's only way out is
+    # egress's proxy, with that call's own credential.
+    name: hq-browser
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.9.0/24
+          gateway: 172.30.9.1
 
 volumes:
   hq-tools:

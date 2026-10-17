@@ -1,0 +1,37 @@
+# SearXNG (AGPL-3.0) for the agents' web.search (prompt 07 §2.1). Internal
+# only: egress is its only client, on hq-egress; no port is published. The
+# public engines are SearXNG's defaults; nothing about a query is kept here
+# (no access log, no metrics, no history), and egress already refused any
+# query that carries internal data.
+use_default_settings: true
+
+general:
+  instance_name: "CoinePro HQ search"
+  debug: false
+  enable_metrics: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "auto"
+  formats:
+    - json
+
+server:
+  # Overridden by SEARXNG_SECRET (infra/compose/.env, never in this file).
+  secret_key: "set-by-environment"
+  limiter: false
+  public_instance: false
+  image_proxy: false
+  method: "GET"
+
+outgoing:
+  request_timeout: 4.0
+  max_request_timeout: 8.0
+  pool_connections: 40
+  pool_maxsize: 8
+  enable_http2: true
+
+ui:
+  static_use_hash: true
+  query_in_title: false

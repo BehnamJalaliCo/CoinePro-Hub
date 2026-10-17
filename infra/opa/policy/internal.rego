@@ -26,6 +26,8 @@ ops := {
 	"workshop.read", "workshop.session", "workshop.message",
 	# prompt 07: an MCP tool of a server the owner enabled
 	"mcp.call",
+	# prompt 07: the agents' internet (a request out, its log; the egress log)
+	"egress.use", "egress.read",
 }
 
 # Reads of the gateway's tools: an agent reads its own company; a holding-scope
@@ -39,6 +41,7 @@ work_ops := {"work.accept", "work.progress", "work.deliver", "work.fail"}
 own_company_ops := work_ops | {
 	"work.delegate", "decision.propose", "notification.raise", "file.upload",
 	"workshop.read", "workshop.session", "workshop.message",
+	"egress.use",
 }
 
 # Workshop ops on a grant or a session: its driver only (contract §17.3).
@@ -232,6 +235,20 @@ grant if {
 	agent
 	reads_company(tv("company"))
 	knowledge_kinds_ok
+}
+
+# The internet through the egress service: an agent's own company only.
+grant if {
+	op == "egress.use"
+	agent
+	same_company(tv("company"))
+}
+
+# The egress log of every company (egress.recent): holding-scope roles only.
+grant if {
+	op == "egress.read"
+	agent
+	holding_reader
 }
 
 # The hub's own health, the audit trail: holding-scope roles only.
