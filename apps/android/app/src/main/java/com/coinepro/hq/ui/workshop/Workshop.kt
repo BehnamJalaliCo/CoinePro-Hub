@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -170,14 +171,17 @@ fun WorkshopScreen(onNewSession: () -> Unit, onGrant: (String?) -> Unit) {
             )
         }
         if (meta.data != null && meta.data?.workshop?.runtime == null) item {
-            HqCard(color = c.softWarning) {
+            // The owner's own Claude Code sessions live in claude.ai/code and the Claude app; there is no official API to show them here.
+            val uri = LocalUriHandler.current
+            HqCard(color = c.softGold) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    DIcon(DivanIcon.SERVER, tint = c.warning)
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("اجرای کارگاه هنوز روشن نیست", style = Divan.type.bodyStrong)
-                        Text("کارگاه روی خود هاب و با همان اشتراک Claude اجرا میشود؛ کلید API جدا یا توکن تازه لازم نیست. تا روشن شدنش، مجوز و تاریخچه کار میکند و جلسه‌ی تازه باز نمیشود.", style = Divan.type.caption, color = c.textSecondary)
+                    DIcon(DivanIcon.CODE, tint = c.goldInk)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("جلسه‌های Claude Code تو در اپ Claude هستند", style = Divan.type.bodyStrong)
+                        Text("همین گفت‌وگوها و نشست سرور، با همان اشتراک. اجرای کارگاه داخل هاب کنار گذاشته شد (تصمیم تو)؛ مجوزها و تاریخچه اینجا میمانند.", style = Divan.type.caption, color = c.textSecondary)
                     }
                 }
+                HqButton("باز کردن Claude Code", { uri.openUri("https://claude.ai/code") }, Modifier.fillMaxWidth().padding(top = 10.dp), variant = BtnVariant.PRIMARY, icon = DivanIcon.SHARE)
             }
         }
         item { SectionTitle("در جریان", note = "منتظرِ اجازه‌ها بالاتر") }

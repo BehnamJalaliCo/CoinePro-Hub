@@ -19,12 +19,14 @@ function Runtime() {
   const { data } = useWorkshopMeta();
   if (!data || data.runtime) return null;
   return (
-    <Card className="flex items-start gap-3 p-4">
-      <span className="flex size-9 flex-none items-center justify-center rounded-full bg-warn-soft text-warn"><Icon name="server" size={18} /></span>
-      <div className="flex flex-col gap-0.5">
-        <span className="text-[14px] font-semibold">اجرای کارگاه هنوز روشن نیست</span>
-        <span className="text-caption text-sec">کارگاه روی خود هاب و با همان اشتراک Claude اجرا میشود؛ کلید API جدا یا توکن تازه لازم نیست. تا روشن شدنش، مجوز و تاریخچه کار میکند و جلسه‌ی تازه باز نمیشود.</span>
+    <Card className="flex flex-wrap items-center gap-3 p-4">
+      <span className="flex size-9 flex-none items-center justify-center rounded-full bg-gold-soft text-gold-ink"><Icon name="code" size={18} /></span>
+      <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-0.5">
+        <span className="text-[14px] font-semibold">جلسه‌های Claude Code تو در اپ Claude هستند</span>
+        <span className="text-caption text-sec">همین گفت‌وگوها و نشست سرور، با همان اشتراک. اجرای کارگاه داخل هاب کنار گذاشته شد (تصمیم تو)؛ مجوزها و تاریخچه اینجا میمانند.</span>
       </div>
+      {/* The owner's own Claude Code sessions live in claude.ai/code and the Claude app; there is no official API to show them here. */}
+      <a href="https://claude.ai/code" target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-gold px-4 text-[13px] font-bold text-on-gold">باز کردن Claude Code<Icon name="share" size={16} /></a>
     </Card>
   );
 }

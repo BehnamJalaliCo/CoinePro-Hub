@@ -626,10 +626,11 @@ SessionEvent { seq, at, type: "message"|"progress"|"command"|"file_change"|"appr
 7. **Everything is recorded:** events carry summaries and metadata; the full session transcript is stored in object storage, owner-readable,
    retained with the audit set.
 
-**Runtime.** ⟨1.4.3⟩ **`subscription`** (owner, 2026-10-17: the same Claude subscription, no separate API key) = Claude Code under the holding's
-subscription, in a disposable sandbox container on the hub, one session at a time; it shares the subscription's quota with the agents (the
-quota controller and the daily cap see it), and its usage enters the Token Treasury as equivalent cost. `managed` (Claude Managed Agents with a
-separate API key) and `self_hosted` (a separate builder host) stay possible but are not chosen.
+**Runtime.** ⟨1.4.3⟩ **None is chosen; the in-hub runtime is shelved** (owner, 2026-10-17). The owner wants to see their own Claude Code sessions,
+and those live in claude.ai/code and the Claude app, which no official API exposes to a third-party app; building a look-alike would spend credit
+without giving that. The control plane (workspaces, grants, history) stays and stays dormant: `workshop.runtime` is `null` and
+`POST /workshop/sessions` answers `503 runtime_not_configured`; the apps open claude.ai/code instead. `subscription` (Claude Code under the
+holding's subscription in a sandbox on the hub, the hub pushing), `managed` and `self_hosted` remain designs, not builds.
 
 ### 17.4 Voice orders (فرمان صوتی)
 | Method | Path | Notes |
