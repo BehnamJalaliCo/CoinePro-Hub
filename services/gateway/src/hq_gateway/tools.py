@@ -29,6 +29,7 @@ WORK_REF = r"^W-[0-9]{6,}$"
 CODE = r"^[A-Z][A-Z0-9]{1,9}$"
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
 THREAD = r"^(A|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
+UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 NS = uuid.UUID("6a0f1c3e-5b7d-4e21-9c3a-0d7f2b6e8a41")  # idempotency keys per action
 HINT_CHARS = 300
 
@@ -128,6 +129,10 @@ class Empty(In):
 
 class WorkRef(In):
     ref: str = Field(pattern=WORK_REF)
+
+
+class FileIn(In):
+    file_id: str = Field(pattern=UUID_RE)
 
 
 class CompanyIn(In):
@@ -338,6 +343,51 @@ async def _work_id(api: Api, call: Call, ref: str) -> tuple[str | None, Result |
 
 async def work_get(api: Api, call: Call, a: WorkRef) -> Result:
     return from_response(await api.request("GET", f"/internal/v1/work/ref/{a.ref}", call.token))
+
+
+# What file.view shows of a FileRef (contract §17.1): never its name or hash
+# (a model sees no file name it did not need), nor a variant it cannot use.
+FILE_FIELDS = (
+    "id",
+    "mime",
+    "size",
+    "kind",
+    "status",
+    "width",
+    "height",
+    "duration_s",
+    "transcript",
+)
+MAX_VIEW_IMAGES = 13  # a video's poster and its (up to 12) key frames
+
+
+async def file_view(api: Api, call: Call, a: FileIn) -> Result:
+    """A file of the agent's own company (the api checks the tenant): its
+    metadata and transcript, and `view.image_file_ids`, the pictures the runner
+    attaches to the next step as vision input (an image itself; a video's key
+    frames). Raw video or audio never reaches a model (prompt 06 §2)."""
+    r = from_response(
+        await api.request("GET", f"/internal/v1/files/{a.file_id}/meta", call.token), None
+    )
+    if r.outcome != "ok":
+        return r
+    d = r.data
+    if not isinstance(d, dict) or not isinstance(d.get("id"), str):
+        return Result("error", code="api_bad_answer")
+    meta = {k: d.get(k) for k in FILE_FIELDS if d.get(k) is not None}
+    images: list[str] = []
+    if d.get("status") == "ready":
+        if d.get("kind") == "image":
+            images = [d["id"]]
+        elif d.get("kind") == "video":
+            raw = d.get("frames")
+            frames: list[Any] = raw if isinstance(raw, list) else []
+            images = [f for f in frames if isinstance(f, str)]
+            if not images:
+                poster = (d.get("variants") or {}).get("poster")
+                images = [poster] if isinstance(poster, str) else []
+    meta["view"] = {"image_file_ids": images[:MAX_VIEW_IMAGES]}
+    return Result("ok", ref=f"file:{d['id']}", data=meta)
 
 
 async def company_state(api: Api, call: Call, a: CompanyIn) -> Result:
@@ -688,6 +738,7 @@ TOOLS: dict[str, tuple[type[In], Handler]] = {
     "knowledge.search": (SearchIn, knowledge_search),
     "audit.recent": (AuditIn, audit_recent),
     "memory.read": (Empty, memory_read),
+    "file.view": (FileIn, file_view),
     "github.read": (GithubIn, github_read),
     "deliver": (DeliverIn, deliver),
     "propose": (ProposeIn, propose),
