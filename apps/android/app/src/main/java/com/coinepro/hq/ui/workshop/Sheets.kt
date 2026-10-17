@@ -84,7 +84,7 @@ private fun ChoiceRow(company: String, title: String, sub: String, selected: Boo
 
 /** A multi-line field the owner can also speak into: the exact text is appended for them to read and fix. */
 @Composable
-private fun SpokenField(label: String, value: String, onChange: (String) -> Unit, placeholder: String) {
+fun SpokenField(label: String, value: String, onChange: (String) -> Unit, placeholder: String) {
     val c = Divan.colors
     val vh = rememberVoiceInput("note") { r -> onChange(if (value.isBlank()) r.text else "${value.trimEnd()} ${r.text}") }
     val v = vh.v

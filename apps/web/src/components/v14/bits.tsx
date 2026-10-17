@@ -59,11 +59,11 @@ export function Score({ value, className }: { value: number; className?: string 
   );
 }
 
-const NUMBER = /([≥≤<>~±+−-]?\s?\d[\d.,/:]*\s?[%٪]?)/;
+const NUMBER = /((?:[≥≤<>~±+−-]\s?)?\d[\d.,/:]*(?:\s?[%٪])?)/;
 
 /** Mixed text such as a KPI target ("500 در 90 روز", "≥ 80%"): every number a Latin figure, the words in their right-to-left order. */
 export function Figs({ text }: { text: string }) {
-  return <>{text.split(NUMBER).map((p, i) => (i % 2 === 1 ? <span key={i} className="fig">{p.trim()}{p.endsWith(' ') ? ' ' : ''}</span> : p))}</>;
+  return <>{text.split(NUMBER).map((p, i) => (i % 2 === 1 ? <span key={i} className="fig">{p}</span> : p))}</>;
 }
 
 export const AREA_FA: Record<string, string> = {

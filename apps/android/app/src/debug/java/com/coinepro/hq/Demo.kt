@@ -85,9 +85,15 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     }
 
     private fun read(path: String, query: Map<String, String?>): Pair<Int, JsonElement> {
+        fun key(drop: Set<String>): String {
+            val q = query.filterKeys { it !in drop }.filterValues { it != null }.toSortedMap()
+            return if (q.isEmpty()) path else path + "?" + q.entries.joinToString("&") { "${it.key}=${it.value}" }
+        }
+        Regex("^/provisioning/runs/([^/]+)$").find(path)?.let { m -> return advanceRun(m.groupValues[1]) }
+        // A parameter that selects (⟨1.4⟩ period=month, from=HQ-ADV) matches first; ranges and paging never do.
+        store[key(setOf("limit", "cursor"))]?.let { return it }
         val q = query.filterKeys { it !in setOf("limit", "cursor", "from", "to", "period") }.filterValues { it != null }.toSortedMap()
-        val key = if (q.isEmpty()) path else path + "?" + q.entries.joinToString("&") { "${it.key}=${it.value}" }
-        store[key]?.let { return it }
+        store[key(setOf("limit", "cursor", "from", "to", "period"))]?.let { return it }
         if (path == "/decisions") return 200 to page(list("/decisions?status=all").filter { q["status"] == null || it.jsonObject.str("status") == q["status"] })
         if (path.matches(Regex("^/work/[^/]+/events$"))) return 200 to page(emptyList())
         if (path.startsWith("/work/")) return store["/work/w0"]!!
@@ -173,6 +179,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             return 200 to (list("/threads").firstOrNull { it.jsonObject.str("code") == m.groupValues[1] } ?: JsonObject(emptyMap()))
         }
         workshop(path, body)?.let { return it }
+        v14(path, body)?.let { return it }
         if (path == "/orders") return order(body)
         if (path == "/notifications/read-all") return 200 to buildJsonObject { put("updated", 0) }
         if (path == "/auth/logout") return 204 to JsonObject(emptyMap())
@@ -333,6 +340,174 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             return 200 to JsonObject(g + ("revoked_at" to JsonPrimitive(Instant.now().toString())))
         }
         return null
+    }
+
+    // ------------------------------------------------------------------ ⟨1.4⟩ --
+    private val stamp: JsonPrimitive get() = JsonPrimitive(Instant.now().toString())
+
+    /** Replaces the item with [ref] (or [idKey]) in a list or page stored at [key], returning the updated item. */
+    private fun update(key: String, ref: String, idKey: String = "ref", f: (JsonObject) -> Map<String, JsonElement>): JsonObject? {
+        val (status, cur) = store[key] ?: return null
+        var hit: JsonObject? = null
+        val items = list(key).map { e -> if (e.jsonObject.str(idKey) == ref) JsonObject(f(e.jsonObject)).also { hit = it } else e }
+        store[key] = status to (if (cur is JsonObject && cur.containsKey("items")) page(items) else JsonArray(items))
+        return hit
+    }
+
+    private fun prepend(key: String, item: JsonObject) {
+        val (status, cur) = store[key] ?: (200 to JsonArray(emptyList()))
+        store[key] = status to (if (cur is JsonObject && cur.containsKey("items")) page(listOf(item) + list(key)) else JsonArray(listOf(item) + list(key)))
+    }
+
+    private fun v14(path: String, body: JsonObject?): Pair<Int, JsonElement>? {
+        Regex("^/oversight/holds/(H-\\d+)/(release|cancel)$").find(path)?.let { m ->
+            val (ref, verb) = m.destructured
+            val h = list("/oversight/holds?state=held").firstOrNull { it.jsonObject.str("ref") == ref }?.jsonObject ?: return 404 to problem("not_found", "پیدا نشد.")
+            store["/oversight/holds?state=held"] = 200 to JsonArray(list("/oversight/holds?state=held").filter { it.jsonObject.str("ref") != ref })
+            edit("/oversight/summary") { it + ("holds_waiting" to JsonPrimitive(list("/oversight/holds?state=held").size)) }
+            return 200 to JsonObject(h + mapOf("state" to JsonPrimitive(if (verb == "release") "released" else "cancelled"), "decided_by" to owner, "decided_at" to stamp))
+        }
+        Regex("^/oversight/findings/(FI-\\d+)/status$").find(path)?.let { m ->
+            val st = body?.get("status") ?: JsonPrimitive("closed")
+            val step = buildJsonObject { put("at", stamp); put("by", owner); put("status", st); put("note", body?.get("note") ?: JsonPrimitive("")) }
+            return 200 to (update("/oversight/findings", m.groupValues[1]) { f ->
+                f + mapOf("status" to st, "history" to JsonArray(f["history"]?.jsonArray.orEmpty() + step)) +
+                    (if (st.jsonPrimitive.content in setOf("verified", "closed")) mapOf("closed_at" to stamp) else emptyMap())
+            } ?: return 404 to problem("not_found", "پیدا نشد."))
+        }
+        if (path == "/oversight/orders") {
+            val o = buildJsonObject {
+                put("id", "so${System.nanoTime()}"); put("ref", "SO-%03d".format(list("/oversight/orders").size + 3)); put("text_md", body?.get("text_md") ?: JsonPrimitive(""))
+                put("source", body?.get("source") ?: JsonPrimitive("text")); put("file_id", body?.get("file_id") ?: JsonNull); put("applies_to", body?.get("applies_to") ?: JsonPrimitive("overseer"))
+                put("status", "proposed"); put("version", 1); put("sealed_at", JsonNull); put("created_at", stamp)
+            }
+            prepend("/oversight/orders", o)
+            return 201 to o
+        }
+        Regex("^/oversight/orders/(SO-\\d+)/(seal|retire)$").find(path)?.let { m ->
+            val seal = m.groupValues[2] == "seal"
+            return 200 to (update("/oversight/orders", m.groupValues[1]) { it + mapOf("status" to JsonPrimitive(if (seal) "sealed" else "retired")) + (if (seal) mapOf("sealed_at" to stamp) else emptyMap()) }
+                ?: return 404 to problem("not_found", "پیدا نشد."))
+        }
+        Regex("^/errands/(E-\\d+)/cancel$").find(path)?.let { m ->
+            return 200 to (update("/errands", m.groupValues[1]) { it + ("status" to JsonPrimitive("cancelled")) } ?: return 404 to problem("not_found", "پیدا نشد."))
+        }
+        if (path == "/skills") {
+            val s = buildJsonObject {
+                put("id", "sk${System.nanoTime()}"); put("ref", "SK-%03d".format(list("/skills").size + 1)); put("name_fa", body?.get("name_fa") ?: JsonPrimitive(""))
+                put("summary_fa", JsonPrimitive(body?.str("body_md").orEmpty().take(120))); put("body_md", body?.get("body_md") ?: JsonPrimitive(""))
+                putJsonArray("resources") {}; putJsonObject("scope") { put("roles", body?.get("roles") ?: JsonArray(emptyList())); put("companies", body?.get("companies") ?: JsonPrimitive("all")); putJsonArray("departments") {} }
+                put("version", 1); put("status", "in_review"); put("review", JsonNull); put("eval", JsonNull); put("created_by", owner); put("created_at", stamp); put("activated_at", JsonNull)
+            }
+            prepend("/skills", s)
+            return 201 to s
+        }
+        Regex("^/skills/(SK-\\d+)/(activate|retire)$").find(path)?.let { m ->
+            val (ref, verb) = m.destructured
+            val cur = list("/skills").firstOrNull { it.jsonObject.str("ref") == ref }?.jsonObject ?: return 404 to problem("not_found", "پیدا نشد.")
+            if (verb == "activate" && cur.str("status") != "approved") return 409 to problem("not_approved", "این مهارت هنوز بررسی و آزمون را نگذرانده است.")
+            return 200 to update("/skills", ref) { it + mapOf("status" to JsonPrimitive(if (verb == "activate") "active" else "retired")) + (if (verb == "activate") mapOf("activated_at" to stamp) else emptyMap()) }!!
+        }
+        if (path == "/academy/teach") {
+            val text = body?.str("text").orEmpty()
+            val t = buildJsonObject {
+                put("id", "te${System.nanoTime()}"); put("ref", "TE-%04d".format(list("/academy/teach").size + 1)); put("target", body?.get("target") ?: JsonNull)
+                put("source", body?.get("source") ?: JsonPrimitive("text")); put("text_md", text); put("file_id", body?.get("file_id") ?: JsonNull)
+                // The demo skips the AI-ops rewrite: the proposal and its eval arrive at once.
+                putJsonObject("proposal") { put("kind", "charter_rule"); put("diff_md", "+ $text") }
+                putJsonObject("eval_run") { put("score", 92); put("baseline", 90); put("passed", true) }
+                put("status", "proposed"); put("created_at", stamp)
+            }
+            prepend("/academy/teach", t)
+            return 201 to t
+        }
+        Regex("^/academy/teach/(TE-\\d+)/(approve|reject)$").find(path)?.let { m ->
+            return 200 to (update("/academy/teach", m.groupValues[1]) { it + ("status" to JsonPrimitive(if (m.groupValues[2] == "approve") "approved" else "rejected")) }
+                ?: return 404 to problem("not_found", "پیدا نشد."))
+        }
+        Regex("^/tools/mcp/([^/]+)/(enable|disable)$").find(path)?.let { m ->
+            val on = m.groupValues[2] == "enable"
+            return 200 to (update("/tools/mcp", m.groupValues[1], idKey = "key") { s ->
+                s + mapOf("status" to JsonPrimitive(if (on) "enabled" else "disabled"), "tools" to JsonArray(s["tools"]!!.jsonArray.map { JsonObject(it.jsonObject + ("enabled" to JsonPrimitive(on))) }))
+            } ?: return 404 to problem("not_found", "پیدا نشد."))
+        }
+        if (path == "/foundings") {
+            val src = body?.get("source")?.jsonObject
+            val ref = "C-%04d".format(list("/foundings").size + 1)
+            val f = buildJsonObject {
+                put("id", "fo${System.nanoTime()}"); put("ref", ref); put("name_fa", src?.str("repo")?.substringAfter('/') ?: "شرکت تازه"); put("name_en", ""); put("code", "")
+                put("source", src ?: JsonNull); put("state", "auditing"); put("audit", JsonNull); put("proposal", JsonNull); put("decision_ref", JsonNull); put("plan", JsonNull); put("company", JsonNull)
+                put("created_at", stamp); put("updated_at", stamp)
+            }
+            prepend("/foundings", f)
+            store["/foundings/$ref"] = 200 to f
+            return 201 to f
+        }
+        Regex("^/foundings/(C-\\d+)/(activate|cancel)$").find(path)?.let { m ->
+            val (ref, verb) = m.destructured
+            val f = saveFounding(ref) { it + mapOf("state" to JsonPrimitive(if (verb == "activate") "active" else "cancelled"), "updated_at" to stamp) } ?: return 404 to problem("not_found", "پیدا نشد.")
+            return 200 to f
+        }
+        Regex("^/provisioning/plans/(PV-\\d+)/seal$").find(path)?.let { m ->
+            val ref = m.groupValues[1]
+            val pl = store["/provisioning/plans/$ref"]?.second?.jsonObject ?: return 404 to problem("not_found", "پیدا نشد.")
+            val id = "r${System.nanoTime()}"
+            // The steps a build goes through are the hub's; the finished demo build lends its list.
+            val template = store["/provisioning/runs/r1"]!!.second.jsonObject["steps"]!!.jsonArray
+            store["/provisioning/runs/$id"] = 200 to buildJsonObject {
+                put("id", id); put("plan", ref); put("state", "running"); put("server", JsonNull); put("login", JsonNull)
+                put("steps", JsonArray(template.mapIndexed { i, s ->
+                    JsonObject(s.jsonObject + mapOf("state" to JsonPrimitive(if (i == 0) "running" else "pending"), "started_at" to if (i == 0) stamp else JsonNull, "finished_at" to JsonNull, "log_tail" to JsonPrimitive("")))
+                }))
+            }
+            val sealed = JsonObject(pl + mapOf("state" to JsonPrimitive("running"), "run" to JsonPrimitive(id), "decision_ref" to JsonPrimitive("D-000025")))
+            store["/provisioning/plans/$ref"] = 200 to sealed
+            pl.str("founding")?.let { saveFounding(it) { f -> f + mapOf("state" to JsonPrimitive("provisioning"), "updated_at" to stamp) } }
+            return 200 to sealed
+        }
+        return null
+    }
+
+    private fun saveFounding(ref: String, f: (JsonObject) -> Map<String, JsonElement>): JsonObject? {
+        val next = update("/foundings", ref, f = f) ?: return null
+        store["/foundings/$ref"] = 200 to next
+        return next
+    }
+
+    /** Live demo, as the web's mock: each poll of a running build finishes one step and starts the next; the last one
+     *  leaves the server ready for the owner's own login. Log lines come from the plan being built. */
+    private fun advanceRun(id: String): Pair<Int, JsonElement> {
+        val (_, cur) = store["/provisioning/runs/$id"] ?: return 404 to problem("not_found", "پیدا نشد.")
+        var r = cur.jsonObject
+        if (r.str("state") != "running") return 200 to r
+        val plan = store["/provisioning/plans/${r.str("plan")}"]!!.second.jsonObject
+        val steps = r["steps"]!!.jsonArray.map { it.jsonObject }.toMutableList()
+        val i = steps.indexOfFirst { it.str("state") != "done" }
+        if (i >= 0) {
+            steps[i] = JsonObject(steps[i] + mapOf("state" to JsonPrimitive("done"), "finished_at" to stamp, "log_tail" to JsonPrimitive(logFor(steps[i].str("key")!!, plan))))
+            if (i + 1 < steps.size) steps[i + 1] = JsonObject(steps[i + 1] + mapOf("state" to JsonPrimitive("running"), "started_at" to stamp))
+            r = JsonObject(r + ("steps" to JsonArray(steps)))
+            if (steps[i].str("key") == "server") r = JsonObject(r + ("server" to buildJsonObject { put("name", plan.str("name")); put("ipv4", "203.0.113.31"); put("ipv6", "2001:db8::31"); put("private_ip", "10.10.1.6") }))
+        }
+        if (steps.all { it.str("state") == "done" }) {
+            r = JsonObject(r + mapOf("state" to JsonPrimitive("done"), "login" to buildJsonObject { put("ssh", "ssh ${plan.str("work_user")}@203.0.113.31"); putJsonArray("then") { add(JsonPrimitive("claude")) } }))
+            store["/provisioning/plans/${r.str("plan")}"] = 200 to JsonObject(plan + ("state" to JsonPrimitive("done")))
+            plan.str("founding")?.let { saveFounding(it) { f -> f + mapOf("state" to JsonPrimitive("ready_for_login"), "updated_at" to stamp) } }
+        }
+        store["/provisioning/runs/$id"] = 200 to r
+        return 200 to r
+    }
+
+    private fun logFor(key: String, plan: JsonObject): String = when (key) {
+        "ssh-key" -> "owner key registered (label managed-by=coinepro-hq)"
+        "firewall" -> "firewall fw-${plan.str("name")!!.replace(Regex("-\\d+$"), "")}: " + plan["firewall"]!!.jsonArray.joinToString(", ") { w ->
+            "in ${w.jsonObject.str("port")}/tcp from ${if (w.jsonObject["sources"]!!.jsonArray.any { it.jsonPrimitive.content == "owner" }) "owner IPs" else "any"}"
+        }
+        "server" -> "${plan.str("type")} · ${plan.str("location")} · ${plan.str("image")} · no root password"
+        "boot" -> "running · ssh answers"
+        "cloud-init" -> "apt full-upgrade ✓ · unattended-upgrades ✓ · docker 28.x ✓ · node 22 LTS ✓ · claude-code ✓ · repo cloned ✓"
+        "verify" -> "ssh: keys only, root login off · auto security updates on"
+        else -> "ready"
     }
 
     /** Rules first, like the hub (§17.4): a named company, then the kind of work from known words. */

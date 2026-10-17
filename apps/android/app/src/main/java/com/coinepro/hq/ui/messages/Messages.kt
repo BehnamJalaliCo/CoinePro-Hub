@@ -83,7 +83,21 @@ import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 
-private fun avatarKind(k: String) = when (k) { "advisor" -> "advisor"; "ceo" -> "ceo"; "manager" -> "manager"; else -> "employee" }
+private fun avatarKind(k: String) = when (k) { "advisor" -> "advisor"; "overseer" -> "overseer"; "assistant" -> "assistant"; "ceo" -> "ceo"; "manager" -> "manager"; else -> "employee" }
+
+/** The two personal counterparts beside the advisor (contract §18): their thread, their route, their words. */
+private data class Counterpart(val title: String, val sub: String, val placeholder: String, val suggestions: List<String>)
+
+private val COUNTERPARTS = mapOf(
+    "overseer" to Counterpart(
+        "ناظر کل", "آموزش بده، بپرس یا دستور بده؛ هر دستور دائمی با مُهر تو قطعی میشود.", "آموزش بده، بپرس یا دستور بده…",
+        listOf("امروز کدام شرکت بیشتر از همه از پروتکل‌ها جا ماند؟", "یافته‌های بحرانی باز را با شاهد بگو.", "در نبودم چه چیزی را نگه داشتی و چرا؟"),
+    ),
+    "assistant" to Counterpart(
+        "دستیار شخصی", "کارهای دم‌دستی‌ات را با اینترنت انجام میدهد؛ هر خرید، ارسال یا ثبت‌نام فقط با مُهر تو.", "بگو چه کار کنم… (ویس، عکس یا فایل هم میشود)",
+        listOf("سه پیشنهاد هتل در استانبول زیر ۱۵۰ یورو پیدا کن", "خبرهای امروز بازار طلا را با منبع خلاصه کن", "یک ایمیل مؤدبانه برای عقب انداختن جلسه بنویس"),
+    ),
+)
 
 /** The meeting room: one thread per counterpart (advisor, CEOs, managers). */
 @Composable
@@ -104,11 +118,11 @@ fun ThreadsScreen() {
                     list.sortedByDescending { it.lastMessageAt }.forEachIndexed { i, t ->
                         if (i > 0) HorizontalDivider(color = c.lineDivider)
                         Row(
-                            Modifier.fillMaxWidth().clickable(role = Role.Button) { nav.go(if (t.kind == "advisor") "advisor" else "messages/${t.code}") }.padding(14.dp),
+                            Modifier.fillMaxWidth().clickable(role = Role.Button) { nav.go(when (t.kind) { "advisor" -> "advisor"; "overseer" -> "oversight/chat"; "assistant" -> "assistant"; else -> "messages/${t.code}" }) }.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            if (t.kind == "advisor") Orb(36.dp) else Avatar(avatarKind(t.kind), size = 36.dp)
+                            if (t.kind == "advisor") Orb(36.dp) else Avatar(avatarKind(t.kind), size = 36.dp, label = t.titleFa)
                             Column(Modifier.weight(1f)) {
                                 Text(t.titleFa, style = Divan.type.small.copy(fontWeight = if (t.unread > 0) FontWeight.Bold else FontWeight.SemiBold), color = if (t.unread > 0) c.textPrimary else c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -140,7 +154,7 @@ private suspend fun startLive(scope: CoroutineScope, env: Env, code: String, liv
     live.state = LiveState.THINKING
     live.text = ""
     if (env.demo) {
-        val full = "دریافت شد. در حالت نمایشی پاسخ واقعی ساخته نمیشود؛ روی سرور، مشاور با Opus 5.5 جواب میدهد و ارجاع‌هایش را میاورد."
+        val full = "دریافت شد. در حالت نمایشی پاسخ واقعی ساخته نمیشود؛ روی سرور، جواب واقعی با ارجاع‌ها و شاهدش میاید."
         delay(900)
         var i = 0
         while (i < full.length) { i = minOf(full.length, i + 6); live.state = LiveState.WRITING; live.text = full.take(i); delay(60) }
@@ -205,7 +219,10 @@ private fun Bubble(m: Message, agentKind: String) {
                 Fig(m.ref, style = Divan.type.figureSmall, color = c.textMuted)
                 for ((k, v) in m.links) {
                     val ref = (v as? JsonPrimitive)?.contentOrNull ?: continue
-                    val route = when (k) { "decision" -> "cartable/$ref"; "work" -> "work/$ref"; else -> null }
+                    val route = when (k) {
+                        "decision" -> "cartable/$ref"; "work" -> "work/$ref"; "resolution" -> "audit"; "errand" -> "assistant"; "teaching" -> "academy"
+                        "inquiry" -> "advisor"; "finding" -> "oversight"; "session" -> "workshop/$ref"; else -> null
+                    }
                     Fig(ref, Modifier.clip(CircleShape).background(c.tile).clickable(enabled = route != null) { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.figureSmall, color = c.goldInk)
                 }
             }
@@ -213,9 +230,10 @@ private fun Bubble(m: Message, agentKind: String) {
     }
 }
 
-/** One conversation. The advisor's (thread `A`) opens with suggestions; replies stream in live. */
+/** One conversation. The advisor's (thread `A`), the overseer's (`N`) and the assistant's (`P`) open with suggestions;
+ *  replies stream in live. [headerAction] sits at the end of the header (the advisor's inquiries, the assistant's errands). */
 @Composable
-fun ChatScreen(code: String, advisor: Boolean = false) {
+fun ChatScreen(code: String, advisor: Boolean = false, agent: String? = null, headerAction: (@Composable () -> Unit)? = null) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val c = Divan.colors
@@ -223,7 +241,8 @@ fun ChatScreen(code: String, advisor: Boolean = false) {
     val q = rememberQuery("messages:$code", "messages", maxAgeMs = 5_000) { messages(code) }
     val threads = rememberQuery("threads", "threads") { threads() }
     val thread = threads.data?.firstOrNull { it.code == code }
-    val agentKind = if (advisor) "advisor" else avatarKind(thread?.kind ?: "employee")
+    val agentKind = if (advisor) "advisor" else agent ?: avatarKind(thread?.kind ?: "employee")
+    val who = COUNTERPARTS[agentKind]
     val live = remember(code) { LiveReply() }
     val list = rememberLazyListState()
     val items = q.data?.items.orEmpty()
@@ -253,9 +272,10 @@ fun ChatScreen(code: String, advisor: Boolean = false) {
             if (advisor) Orb(40.dp, state = when (live.state) { LiveState.THINKING -> "thinking"; LiveState.WRITING -> "speaking"; else -> "rest" })
             else Avatar(agentKind, size = 40.dp, state = if (live.state != LiveState.IDLE) "working" else "idle")
             Column(Modifier.weight(1f)) {
-                Text(if (advisor) "مشاور کل" else thread?.titleFa ?: code, style = Divan.type.h3)
-                Text(if (advisor) "بیرون از همه‌ی شرکت‌ها، فقط برای تو. فقط‌خواندنی؛ به همه‌چیز ارجاع میدهد." else "هر پیام شناسه‌ی ثابت دارد و میماند.", style = Divan.type.micro, color = c.textMuted, maxLines = 2)
+                Text(if (advisor) "مشاور کل" else who?.title ?: thread?.titleFa ?: code, style = Divan.type.h3)
+                Text(if (advisor) "رتبه‌ی دوم؛ همه‌چیز را میخواند و از مدیرها رسمی میپرسد. به همه‌چیز ارجاع میدهد." else who?.sub ?: "هر پیام شناسه‌ی ثابت دارد و میماند.", style = Divan.type.micro, color = c.textMuted, maxLines = 2)
             }
+            headerAction?.invoke()
         }
         HorizontalDivider(color = c.lineDivider)
         LazyColumn(Modifier.weight(1f), state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -280,13 +300,14 @@ fun ChatScreen(code: String, advisor: Boolean = false) {
                 }
             }
         }
-        if (advisor && items.isEmpty() && q.data != null) {
+        val suggestions = if (advisor) listOf("امروز اول به کدام تصمیم برسم؟", "مصرف توکن این هفته را با هفته‌ی قبل مقایسه کن.", "کدام شرکت بیشترین ریسک را دارد و چرا؟") else who?.suggestions
+        if (suggestions != null && items.isEmpty() && q.data != null) {
             FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (s in listOf("امروز اول به کدام تصمیم برسم؟", "مصرف توکن این هفته را با هفته‌ی قبل مقایسه کن.", "کدام شرکت بیشترین ریسک را دارد و چرا؟")) {
+                for (s in suggestions) {
                     Text(s, style = Divan.type.small, color = c.textSecondary, modifier = Modifier.clip(CircleShape).border(1.dp, c.lineStrong, CircleShape).clickable { scope.launch { runCatching { send(s, emptyList()) } } }.padding(horizontal = 12.dp, vertical = 6.dp))
                 }
             }
         }
-        Composer(if (advisor) "از مشاور بپرس…" else "پیام…", { b, a -> send(b, a) }, Modifier.padding(12.dp), draftKey = "chat:$code")
+        Composer(if (advisor) "از مشاور بپرس…" else who?.placeholder ?: "پیام…", { b, a -> send(b, a) }, Modifier.padding(12.dp), draftKey = "chat:$code")
     }
 }

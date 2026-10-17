@@ -18,7 +18,16 @@ import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
 import com.coinepro.hq.ui.Nav
 import com.coinepro.hq.ui.Toasts
+import com.coinepro.hq.ui.academy.AcademyScreen
+import com.coinepro.hq.ui.advisor.InquiriesAction
+import com.coinepro.hq.ui.assistant.AssistantScreen
 import com.coinepro.hq.ui.audit.AuditScreen
+import com.coinepro.hq.ui.founding.FoundingScreen
+import com.coinepro.hq.ui.founding.FoundingsScreen
+import com.coinepro.hq.ui.oversight.OversightScreen
+import com.coinepro.hq.ui.skills.SkillsScreen
+import com.coinepro.hq.ui.stars.StarsScreen
+import com.coinepro.hq.ui.tools.ToolsScreen
 import com.coinepro.hq.ui.cartable.CartableScreen
 import com.coinepro.hq.ui.cartable.DecisionScreen
 import com.coinepro.hq.ui.companies.CompaniesScreen
@@ -69,7 +78,6 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "decision-sealed" to { _ -> DecisionScreen("D-000011") },
             "outputs" to { _ -> OutputsScreen() },
             "output" to { _ -> OutputScreen("O-000029") },
-            "advisor" to { _ -> ChatScreen("A", advisor = true) },
             "chat-media" to { _ -> ChatScreen("FX-CEO") },
             "threads" to { _ -> ThreadsScreen() },
             "companies" to { _ -> CompaniesScreen() },
@@ -85,6 +93,18 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "workshop" to { _ -> WorkshopScreen(onNewSession = {}, onGrant = {}) },
             "session-approval" to { _ -> SessionScreen("S-0004") },
             "session-done" to { _ -> SessionScreen("S-0002") },
+            // ⟨1.4⟩
+            "oversight" to { _ -> OversightScreen() },
+            "overseer-chat" to { _ -> ChatScreen("N", agent = "overseer") },
+            "assistant" to { _ -> AssistantScreen() },
+            "advisor" to { _ -> ChatScreen("A", advisor = true, headerAction = { InquiriesAction() }) },
+            "stars" to { _ -> StarsScreen() },
+            "skills" to { _ -> SkillsScreen() },
+            "academy" to { _ -> AcademyScreen() },
+            "foundings" to { _ -> FoundingsScreen() },
+            "founding-proposed" to { _ -> FoundingScreen("C-0002") },
+            "founding-ready" to { _ -> FoundingScreen("C-0001") },
+            "tools" to { _ -> ToolsScreen() },
         )
     }
 

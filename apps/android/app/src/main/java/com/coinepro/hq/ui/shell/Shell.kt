@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,7 +67,16 @@ import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.Nav
+import com.coinepro.hq.ui.academy.AcademyScreen
+import com.coinepro.hq.ui.advisor.InquiriesAction
+import com.coinepro.hq.ui.assistant.AssistantScreen
 import com.coinepro.hq.ui.audit.AuditScreen
+import com.coinepro.hq.ui.founding.FoundingScreen
+import com.coinepro.hq.ui.founding.FoundingsScreen
+import com.coinepro.hq.ui.oversight.OversightScreen
+import com.coinepro.hq.ui.skills.SkillsScreen
+import com.coinepro.hq.ui.stars.StarsScreen
+import com.coinepro.hq.ui.tools.ToolsScreen
 import com.coinepro.hq.ui.cartable.CartableScreen
 import com.coinepro.hq.ui.cartable.DecisionScreen
 import com.coinepro.hq.ui.companies.CompaniesScreen
@@ -108,6 +119,17 @@ private val TABS = listOf(
 
 private data class Tool(val route: String, val label: String, val icon: DivanIcon)
 
+/** The organisation beside the advisor (contract §18): the overseer and the assistant first, then what they run. */
+private val ORG = listOf(
+    Tool("oversight", "ناظر کل", DivanIcon.OVERSEER),
+    Tool("assistant", "دستیار", DivanIcon.ASSISTANT),
+    Tool("stars", "ستاره‌ها", DivanIcon.STAR),
+    Tool("founding", "تأسیس شرکت", DivanIcon.FOUND),
+    Tool("skills", "مهارت‌ها", DivanIcon.SKILL),
+    Tool("academy", "آکادمی", DivanIcon.ACADEMY),
+    Tool("tools", "ابزارها و اینترنت", DivanIcon.GLOBE),
+)
+
 private val TOOLS = listOf(
     Tool("workshop", "کارگاه کد", DivanIcon.CODE),
     Tool("outputs", "خروجی‌ها", DivanIcon.DELIVERABLE),
@@ -119,7 +141,7 @@ private val TOOLS = listOf(
     Tool("settings", "تنظیمات", DivanIcon.SETTINGS),
 )
 
-private val TOP = TABS.map { it.route }.toSet() + TOOLS.map { it.route }
+private val TOP = TABS.map { it.route }.toSet() + ORG.map { it.route } + TOOLS.map { it.route }
 
 private class NavImpl(private val nav: NavHostController) : Nav {
     override fun go(route: String) {
@@ -187,7 +209,16 @@ fun Shell(graph: AppGraph) {
                     composable("cartable/{ref}") { DecisionScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("outputs") { OutputsScreen() }
                     composable("outputs/{ref}") { OutputScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("advisor") { ChatScreen("A", advisor = true) }
+                    composable("advisor") { ChatScreen("A", advisor = true, headerAction = { InquiriesAction() }) }
+                    composable("oversight") { OversightScreen() }
+                    composable("oversight/chat") { ChatScreen("N", agent = "overseer") }
+                    composable("assistant") { AssistantScreen() }
+                    composable("stars") { StarsScreen() }
+                    composable("founding") { FoundingsScreen() }
+                    composable("founding/{ref}") { FoundingScreen(it.arguments?.getString("ref").orEmpty()) }
+                    composable("skills") { SkillsScreen() }
+                    composable("academy") { AcademyScreen() }
+                    composable("tools") { ToolsScreen() }
                     composable("messages") { ThreadsScreen() }
                     composable("messages/{code}") { ChatScreen(it.arguments?.getString("code").orEmpty()) }
                     composable("companies") { CompaniesScreen() }
@@ -291,20 +322,25 @@ private fun BottomBar(route: String, decisions: Int, messages: Int, go: (String)
 
 @Composable
 private fun ToolsSheet(unrated: Int, go: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("سازمان", style = Divan.type.h3, modifier = Modifier.padding(bottom = 8.dp))
+        for (t in ORG) ToolRow(t, null, go)
+        Text("ابزارها", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+        for (t in TOOLS) ToolRow(t, if (t.route == "outputs" && unrated > 0) unrated else null, go)
+    }
+}
+
+@Composable
+private fun ToolRow(t: Tool, badge: Int?, go: (String) -> Unit) {
     val c = Divan.colors
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("ابزارها", style = Divan.type.h3, modifier = Modifier.padding(bottom = 8.dp))
-        for (t in TOOLS) {
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button) { go(t.route) }.padding(horizontal = 12.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                DIcon(t.icon, tint = c.textSecondary)
-                Text(t.label, style = Divan.type.body, modifier = Modifier.weight(1f))
-                if (t.route == "outputs" && unrated > 0) Badge(unrated)
-                DIcon(DivanIcon.NEXT, size = 18.dp, tint = c.textMuted)
-            }
-        }
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button) { go(t.route) }.padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        DIcon(t.icon, tint = c.textSecondary)
+        Text(t.label, style = Divan.type.body, modifier = Modifier.weight(1f))
+        if (badge != null) Badge(badge)
+        DIcon(DivanIcon.NEXT, size = 18.dp, tint = c.textMuted)
     }
 }

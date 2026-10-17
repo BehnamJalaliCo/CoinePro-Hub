@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -38,10 +39,12 @@ import kotlin.math.sin
 
 /** The agent medallion (owner decision 2026-10-17): the ring says rank (1 ring employee, 2 manager, 2 + 8
  *  shamseh ticks CEO) and live state (comet = working, dim = asleep, warn, error); the glyph says the
- *  department. The owner is a gold disc with the CP monogram; the advisor is the orb. */
+ *  department. The owner is a gold disc with the CP monogram; the advisor is the orb; the Chief Overseer
+ *  is the sentinel; the personal assistant wears its own glyph inside a double ring. */
 @Composable
 fun Avatar(kind: String, modifier: Modifier = Modifier, dept: String? = null, size: Dp = 40.dp, state: String = "idle", label: String? = null) {
     if (kind == "advisor") return Orb(size, modifier, label = label)
+    if (kind == "overseer") return Sentinel(size, modifier, state = state, label = label)
     val c = Divan.colors
     if (kind == "owner") {
         Box(
@@ -62,6 +65,7 @@ fun Avatar(kind: String, modifier: Modifier = Modifier, dept: String? = null, si
     val glyph = when {
         kind == "ceo" -> DivanIcon.HOLDING
         kind == "inspector" -> DivanIcon.SEARCH
+        kind == "assistant" -> DivanIcon.ASSISTANT
         else -> DEPT_ICON[dept] ?: DivanIcon.AGENT
     }
     val spin = if (state == "working") {
@@ -74,7 +78,7 @@ fun Avatar(kind: String, modifier: Modifier = Modifier, dept: String? = null, si
             val r = s / 2 - sw / 2
             drawCircle(c.tile, r)
             drawCircle(ring.copy(alpha = ringA), r, style = Stroke(sw))
-            if (kind == "manager" || kind == "ceo" || kind == "inspector") {
+            if (kind == "manager" || kind == "ceo" || kind == "inspector" || kind == "assistant") {
                 drawCircle(ring.copy(alpha = 0.5f * ringA), r - max(3.dp.toPx(), s * 0.1f), style = Stroke(1.dp.toPx()))
             }
             if (kind == "ceo" && size >= 30.dp) {
@@ -97,6 +101,37 @@ fun Avatar(kind: String, modifier: Modifier = Modifier, dept: String? = null, si
         }
         DIcon(glyph, size = size * (if (kind == "ceo") 0.4f else 0.42f), tint = if (state == "sleeping") c.textMuted else c.silverInk)
     }
+}
+
+/** The Chief Overseer's sentinel (rank two, beside the advisor's orb): a silver sphere with a gold rim and the eye.
+ *  It turns its gaze (a slow pulse) while working or waiting, and dims when the holding sleeps. */
+@Composable
+fun Sentinel(size: Dp, modifier: Modifier = Modifier, state: String = "idle", label: String? = null) {
+    val c = Divan.colors
+    val watching = state == "working" || state == "waiting"
+    val k = if (watching) {
+        rememberInfiniteTransition(label = "sentinel").animateFloat(1f, 1.05f, infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "sentinel").value
+    } else 1f
+    Box(
+        modifier
+            .size(size)
+            .scale(k)
+            .alpha(if (state == "sleeping") 0.7f else 1f)
+            .drawBehind {
+                val r = this.size.minDimension / 2
+                if (watching) drawCircle(c.goldFill.copy(alpha = 0.22f), r + 5.dp.toPx())
+                drawCircle(
+                    Brush.radialGradient(
+                        0f to Color(0xFFF1F3F6), 0.46f to Color(0xFFB9C2CE), 1f to Color(0xFF5B6573),
+                        center = Offset(this.size.width * 0.35f, this.size.height * 0.3f), radius = this.size.minDimension * 0.75f,
+                    ),
+                )
+                val rim = max(1.5.dp.toPx(), this.size.minDimension / 28)
+                drawCircle(c.goldFill, r - rim / 2, style = Stroke(rim))
+            }
+            .semantics { contentDescription = label ?: "ناظر کل" },
+        contentAlignment = Alignment.Center,
+    ) { DIcon(DivanIcon.OVERSEER, size = size * 0.52f, tint = Color(0xFF141821)) }
 }
 
 /** The advisor's orb: a gold sphere that breathes when listening and glows when thinking. */

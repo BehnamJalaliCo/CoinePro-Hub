@@ -22,8 +22,13 @@ private val TZ: TimeZone = TimeZone.getTimeZone(OWNER_TZ)
 
 private fun pattern(p: String) = SimpleDateFormat(p, FA).apply { timeZone = TZ }
 
-/** Parses the API's ISO-8601 instants ("2026-10-17T11:06:28.97Z", "+00:00"). */
-fun instant(iso: String?): Instant? = iso?.let { runCatching { OffsetDateTime.parse(it).toInstant() }.getOrNull() ?: runCatching { Instant.parse(it) }.getOrNull() }
+/** Parses the API's ISO-8601 instants ("2026-10-17T11:06:28.97Z", "+00:00"); a bare day ("2026-10-18", a week's key)
+ *  is that day's start in the owner's zone. */
+fun instant(iso: String?): Instant? = iso?.let {
+    runCatching { OffsetDateTime.parse(it).toInstant() }.getOrNull()
+        ?: runCatching { Instant.parse(it) }.getOrNull()
+        ?: runCatching { java.time.LocalDate.parse(it).atStartOfDay(java.time.ZoneId.of(OWNER_TZ)).toInstant() }.getOrNull()
+}
 
 private fun fmt(p: String, iso: String?): String = instant(iso)?.let { pattern(p).format(Date.from(it)) } ?: "—"
 

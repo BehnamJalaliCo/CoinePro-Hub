@@ -51,6 +51,7 @@ import com.coinepro.hq.core.net.StreamEvent
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
 import com.coinepro.hq.designsystem.CompanyMark
+import com.coinepro.hq.designsystem.Avatar
 import com.coinepro.hq.designsystem.DIcon
 import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.Empty
@@ -155,6 +156,7 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
                 }
             }
         }
+        item { OverseerCard() }
         item {
             HqCard(Modifier.fillMaxWidth()) {
                 SectionTitle("کارتابل", note = "فقط چیزهایی که مُهر تو را لازم دارند") {
@@ -347,5 +349,33 @@ fun Orbit(companies: List<Company>, last: StreamEvent?, modifier: Modifier = Mod
                 }
             }
         }
+    }
+}
+
+/** The Chief Overseer at a glance (contract §18.1): what it holds for the owner, how many serious findings are open,
+ *  and the last "while you were away" report. Gold-ringed when something waits on the owner. */
+@Composable
+private fun OverseerCard() {
+    val nav = LocalNav.current
+    val c = Divan.colors
+    val q = rememberQuery("oversight:summary", "oversight", maxAgeMs = 30_000) { oversight() }
+    val s = q.data ?: return
+    val serious = (s.findingsOpen["critical"] ?: 0) + (s.findingsOpen["high"] ?: 0)
+    HqCard(Modifier.fillMaxWidth(), tahrir = s.holdsWaiting > 0, onClick = { nav.go("oversight") }) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Avatar("overseer", size = 44.dp, state = if (s.watch.on) "working" else "idle")
+            Column(Modifier.weight(1f)) {
+                Text("ناظر کل", style = Divan.type.bodyStrong)
+                Text(
+                    listOfNotNull(
+                        s.holdsWaiting.takeIf { it > 0 }?.let { "$it اقدام نگه‌داشته منتظر تو" },
+                        serious.takeIf { it > 0 }?.let { "$it یافته‌ی جدی" },
+                    ).joinToString("، ").ifEmpty { "همه‌چیز زیر نظر است" },
+                    style = Divan.type.caption, color = if (s.holdsWaiting > 0 || serious > 0) c.negative else c.textSecondary,
+                )
+            }
+            DIcon(DivanIcon.NEXT, size = 18.dp, tint = c.textMuted)
+        }
+        if (s.watch.summaryMd.isNotBlank()) com.coinepro.hq.designsystem.Md(s.watch.summaryMd, Modifier.padding(top = 10.dp))
     }
 }

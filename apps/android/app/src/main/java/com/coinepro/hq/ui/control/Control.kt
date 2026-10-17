@@ -52,6 +52,7 @@ import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberCompanies
 import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.refresher
+import com.coinepro.hq.ui.v14.BackupsCard
 
 private data class Target(val scope: String, val name: String, val engaged: Boolean)
 
@@ -122,6 +123,7 @@ fun ControlScreen() {
                 )
             }
         }
+        item { BackupsCard() }
     }
 
     t?.let { target ->

@@ -31,6 +31,24 @@ Every library is free and open source and pinned to an exact version (`gradle/li
   Saturday), **notifications** (five levels; learning questions answered with one touch), **control** (kill
   switches; release needs the passkey), **audit** (hash-chain verification) and **settings** (devices,
   passkeys, theme, Khalvat, this app's signing fingerprint).
+- **Voice, photos and films** ⟨1.3⟩ — voice orders and voice in every composer, turned into exact Persian text for
+  the owner to read before sending; photos, films and PDFs attached to messages and briefs.
+- **Code Workshop** ⟨1.3⟩ — the owner's grants (sealed on the exact body), live sessions, approvals for push and PR.
+- **The organisation** ⟨1.4⟩, from the tools sheet:
+  - **Chief Overseer** — holds waiting on the owner (release with the passkey, or cancel), company compliance with a
+    five-day trend, the last "while you were away" report, findings (verify a fix, reopen, close), the protocol
+    register by area, challenges, standing orders (spoken or written, sealed) and its own thread `N`.
+  - **Assistant** — thread `P` and the errands it runs on the internet, each with its trail; a commitment in the
+    holding's name waits in the cartable.
+  - **Stars** — best company of the week or month, the ranking from its four parts, top employees, lessons from the
+    best company and each CEO's rubric. The owner's 1–10 rating stays separate.
+  - **Skills** and **Academy** — new skills (spoken, with files), the overseer's four checks, the golden eval, and
+    activation sealed on `ref@version`; direct teaching to a role, its diff and score, curricula and eval trends.
+  - **Founding** — from a repository or an idea: audit, proposal, the server plan sealed on its digest, the build live
+    step by step, then the owner's own login (commands to copy) and activation.
+  - **Tools and internet** — egress totals and log, MCP servers enabled by the owner's seal, service accounts, the
+    tool catalogue.
+  - The **advisor** gains its formal inquiries; **home** gains the overseer's card; **control** gains backups.
 - **Live** — one SSE connection to `/api/v1/stream` while the app is in the foreground; events refresh the
   screens that show the touched data (the same invalidation map as the web).
 
@@ -38,7 +56,7 @@ Every library is free and open source and pinned to an exact version (`gradle/li
 
 ```
 app/src/main/java/com/coinepro/hq/
-  core/net/        Api (contract v1.2), Models
+  core/net/        Api (contract v1.4; every 🔏 write names its step-up action and target), Models, Models14
   core/auth/       Auth (sign-in, enrolment, step-up), Passkeys, TokenVault
   core/data/       QueryCache (shared cached queries), HoldingStream (SSE)
   core/format/     Jalali dates, figures, Persian labels
@@ -46,7 +64,7 @@ app/src/main/java/com/coinepro/hq/
   designsystem/generated/   made by scripts/gen_assets.py from design/ — never edited by hand
   ui/              screens
 app/src/debug/     the demo holding (fixtures shared with the web); not in release builds
-app/src/test/      API contract, formatting and screenshot tests; screenshots/ = every screen, night and day
+app/src/test/      API contract, fixture decoding, formatting and screenshot tests; screenshots/ = every screen, night and day
 ```
 
 ## Build

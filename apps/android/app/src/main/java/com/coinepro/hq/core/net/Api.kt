@@ -56,7 +56,10 @@ interface TokenSource {
     fun clear()
 }
 
-/** The hub's public API (contract v1.3) as the Android client sees it: Bearer session, JSON, Problem errors. */
+/** Signs one 🔏 action: the API supplies the contract's action name and target, the caller returns a step-up token. */
+typealias StepUp = suspend (action: String, target: String) -> String
+
+/** The hub's public API (contract v1.4) as the Android client sees it: Bearer session, JSON, Problem errors. */
 class Api(
     origin: String,
     private val tokens: TokenSource,
@@ -252,6 +255,78 @@ class Api(
     suspend fun order(text: String, source: String, fileId: String?): Order =
         post("/orders", buildJsonObject { put("text", text); put("source", source); put("file_id", fileId) })
     suspend fun orders(): Page<Order> = get("/orders")
+
+    // ------------------------------------------------- oversight ⟨1.4⟩ --
+    // Every 🔏 write takes [StepUp]: the API names the action and the exact target (§18.10), the caller only signs.
+    suspend fun oversight(): OversightSummary = get("/oversight/summary")
+    suspend fun protocols(): List<Protocol> = get("/oversight/protocols")
+    suspend fun findings(status: String? = null): Page<Finding> = get("/oversight/findings", mapOf("status" to status))
+    suspend fun challenges(): Page<Challenge> = get("/oversight/challenges")
+    suspend fun standingOrders(): List<StandingOrder> = get("/oversight/orders")
+    suspend fun holds(): List<Hold> = get("/oversight/holds", mapOf("state" to "held"))
+    suspend fun findingStatus(ref: String, status: String, note: String): Finding =
+        post("/oversight/findings/${seg(ref)}/status", buildJsonObject { put("status", status); put("note", note) })
+    suspend fun newStandingOrder(text: String, source: String, fileId: String?, appliesTo: String): StandingOrder =
+        post("/oversight/orders", buildJsonObject { put("text_md", text); put("source", source); put("file_id", fileId); put("applies_to", appliesTo) })
+    suspend fun sealStandingOrder(ref: String, stepUp: StepUp): StandingOrder =
+        post("/oversight/orders/${seg(ref)}/seal", JsonObject(emptyMap()), stepUp("oversight.order", ref))
+    suspend fun retireStandingOrder(ref: String): StandingOrder = post("/oversight/orders/${seg(ref)}/retire", JsonObject(emptyMap()))
+    suspend fun releaseHold(ref: String, stepUp: StepUp): Hold = post("/oversight/holds/${seg(ref)}/release", JsonObject(emptyMap()), stepUp("oversight.release", ref))
+    suspend fun cancelHold(ref: String): Hold = post("/oversight/holds/${seg(ref)}/cancel", JsonObject(emptyMap()))
+    suspend fun inquiries(from: String? = null): Page<Inquiry> = get("/inquiries", mapOf("from" to from))
+
+    // ------------------------------------------------- assistant ⟨1.4⟩ --
+    suspend fun errands(): Page<Errand> = get("/errands")
+    suspend fun cancelErrand(ref: String): Errand = post("/errands/${seg(ref)}/cancel", JsonObject(emptyMap()))
+
+    // ---------------------------------------------------- stars ⟨1.4⟩ --
+    suspend fun rollup(period: String): StarRollup = get("/stars/rollup", mapOf("period" to period))
+    suspend fun rubrics(): List<StarRubric> = get("/stars/rubrics")
+    suspend fun lessons(): Page<Lesson> = get("/lessons")
+
+    // ------------------------------------------- skills, academy ⟨1.4⟩ --
+    suspend fun skills(): List<Skill> = get("/skills")
+    suspend fun newSkill(name: String, body: String, roles: List<String>, companies: List<String>?, fileIds: List<String>): Skill =
+        post("/skills", buildJsonObject {
+            put("name_fa", name); put("body_md", body); put("roles", ids(roles)); put("companies", companies?.let(::ids) ?: JsonPrimitive("all")); put("file_ids", ids(fileIds))
+        })
+    /** Activation is bound to the exact version reviewed and tested: target "SK-005@1". */
+    suspend fun activateSkill(s: Skill, stepUp: StepUp): Skill =
+        post("/skills/${seg(s.ref)}/activate", buildJsonObject { put("version", s.version) }, stepUp("skill.activate", "${s.ref}@${s.version}"))
+    suspend fun retireSkill(ref: String): Skill = post("/skills/${seg(ref)}/retire", JsonObject(emptyMap()))
+    suspend fun curricula(): List<Curriculum> = get("/academy/curricula")
+    suspend fun evals(): List<EvalSuite> = get("/academy/evals")
+    suspend fun teachings(): List<Teaching> = get("/academy/teach")
+    suspend fun teach(targetKind: String, targetRef: String, text: String, source: String, fileId: String?): Teaching =
+        post("/academy/teach", buildJsonObject {
+            put("target", buildJsonObject { put("kind", targetKind); put("ref", targetRef) }); put("text", text); put("source", source); put("file_id", fileId)
+        })
+    suspend fun approveTeaching(ref: String, stepUp: StepUp): Teaching = post("/academy/teach/${seg(ref)}/approve", JsonObject(emptyMap()), stepUp("academy.approve", ref))
+    suspend fun rejectTeaching(ref: String): Teaching = post("/academy/teach/${seg(ref)}/reject", JsonObject(emptyMap()))
+
+    // --------------------------------------------- egress and MCP ⟨1.4⟩ --
+    suspend fun egressSummary(period: String = "day"): EgressSummary = get("/egress/summary", mapOf("period" to period))
+    suspend fun egress(limit: Int = 40): Page<EgressEntry> = get("/egress", mapOf("limit" to limit))
+    suspend fun mcpServers(): List<McpServer> = get("/tools/mcp")
+    suspend fun serviceAccounts(): List<ServiceAccount> = get("/tools/accounts")
+    suspend fun toolCatalog(): List<ToolInfo> = get("/tools/catalog")
+    suspend fun enableMcp(key: String, stepUp: StepUp): McpServer = post("/tools/mcp/${seg(key)}/enable", JsonObject(emptyMap()), stepUp("mcp.enable", key))
+    suspend fun disableMcp(key: String): McpServer = post("/tools/mcp/${seg(key)}/disable", JsonObject(emptyMap()))
+
+    // --------------------------------------- founding, provisioning ⟨1.4⟩ --
+    suspend fun foundings(): Page<Founding> = get("/foundings")
+    suspend fun founding(ref: String): Founding = get("/foundings/${seg(ref)}")
+    suspend fun startFounding(kind: String, repo: String?, brief: String): Founding =
+        post("/foundings", buildJsonObject { put("source", buildJsonObject { put("kind", kind); put("repo", repo); put("brief_md", brief) }) })
+    suspend fun activateFounding(ref: String, stepUp: StepUp): Founding = post("/foundings/${seg(ref)}/activate", JsonObject(emptyMap()), stepUp("founding.activate", ref))
+    suspend fun cancelFounding(ref: String): Founding = post("/foundings/${seg(ref)}/cancel", JsonObject(emptyMap()))
+    suspend fun plan(ref: String): ServerPlan = get("/provisioning/plans/${seg(ref)}")
+    suspend fun run(id: String): ProvisionRun = get("/provisioning/runs/${seg(id)}")
+    /** The seal is bound to the plan the owner saw: its digest, which the server recomputes before anything is built. */
+    suspend fun sealPlan(p: ServerPlan, stepUp: StepUp): ServerPlan = post("/provisioning/plans/${seg(p.ref)}/seal", JsonObject(emptyMap()), stepUp("provision.seal", p.digest))
+
+    // --------------------------------------------------- backups ⟨1.4⟩ --
+    suspend fun backups(): BackupStatus = get("/backups/status")
 
     // -------------------------------------------------------------- audit --
     suspend fun audit(limit: Int = 50): Page<AuditEntry> = get("/audit", mapOf("limit" to limit))

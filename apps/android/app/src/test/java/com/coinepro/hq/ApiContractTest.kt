@@ -3,6 +3,8 @@ package com.coinepro.hq
 import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.ApiException
 import com.coinepro.hq.core.net.GrantIn
+import com.coinepro.hq.core.net.ServerPlan
+import com.coinepro.hq.core.net.Skill
 import com.coinepro.hq.core.net.TokenSource
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
@@ -18,9 +20,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/** The Android client against contract §1–§2 and §17: Bearer session, X-HQ-Client, Idempotency-Key, step-up header,
+/** The Android client against contract §1–§2, §17 and §18: Bearer session, X-HQ-Client, Idempotency-Key, step-up header,
  *  snake_case JSON, Problem errors with a Persian message, a 401 that ends the session, raw-body uploads and voice,
- *  and the workshop's step-up targets. */
+ *  and the step-up action and target of every 🔏 write (workshop, oversight, skills, academy, MCP, founding). */
 @RunWith(RobolectricTestRunner::class)
 class ApiContractTest {
     private val server = MockWebServer()
@@ -166,5 +168,78 @@ class ApiContractTest {
         assertEquals("su", req.headers["X-Step-Up"])
         assertTrue(body.contains("\"budget_usd\":10.0"))
         assertEquals("G-0004", g.ref)
+    }
+
+    /** Runs [call] with a recording signer; returns the (action, target) it was asked to sign and the request sent. */
+    private suspend fun signed(response: String, call: suspend (com.coinepro.hq.core.net.StepUp) -> Unit): Triple<String, String, mockwebserver3.RecordedRequest> {
+        server.enqueue(json(200, response))
+        var action = ""
+        var target = ""
+        call { a, t -> action = a; target = t; "su-$t" }
+        val req = server.takeRequest()
+        assertEquals("su-$target", req.headers["X-Step-Up"])
+        assertNotNull(req.headers["Idempotency-Key"])
+        return Triple(action, target, req)
+    }
+
+    @Test
+    fun releasingAHoldIsSignedOnTheHold() = runTest {
+        val (a, t, req) = signed("""{"ref":"H-0002","company":"PC","action":{"kind":"deploy","summary_fa":"x"},"held_at":"2026-10-17T10:00:00Z","state":"released"}""") { api.releaseHold("H-0002", it) }
+        assertEquals("oversight.release" to "H-0002", a to t)
+        assertEquals("/api/v1/oversight/holds/H-0002/release", req.url.encodedPath)
+        server.enqueue(json(200, """{"ref":"H-0002","company":"PC","action":{"kind":"deploy","summary_fa":"x"},"held_at":"2026-10-17T10:00:00Z","state":"cancelled"}"""))
+        api.cancelHold("H-0002")
+        assertNull(server.takeRequest().headers["X-Step-Up"])
+    }
+
+    @Test
+    fun standingOrderSealIsBoundToItsRef() = runTest {
+        val (a, t, req) = signed("""{"ref":"SO-005","text_md":"x","status":"sealed","created_at":"2026-10-17T10:00:00Z"}""") { api.sealStandingOrder("SO-005", it) }
+        assertEquals("oversight.order" to "SO-005", a to t)
+        assertEquals("/api/v1/oversight/orders/SO-005/seal", req.url.encodedPath)
+    }
+
+    @Test
+    fun skillActivationIsBoundToTheVersionTested() = runTest {
+        val s = Skill(ref = "SK-005", nameFa = "چک‌لیست انتشار", status = "approved", version = 3)
+        val (a, t, req) = signed("""{"ref":"SK-005","name_fa":"x","status":"active","version":3}""") { api.activateSkill(s, it) }
+        assertEquals("skill.activate" to "SK-005@3", a to t)
+        assertEquals("""{"version":3}""", req.body!!.utf8())
+    }
+
+    @Test
+    fun serverPlanSealIsBoundToTheServerDigest() = runTest {
+        val p = ServerPlan(ref = "PV-0002", name = "signal-bot-1", type = "cpx21", location = "fsn1", image = "ubuntu-24.04", workUser = "signalbot", monthlyEur = 9.2, digest = "4e0d7a91c3", state = "proposed")
+        val (a, t, req) = signed("""{"ref":"PV-0002","name":"signal-bot-1","type":"cpx21","location":"fsn1","image":"ubuntu-24.04","work_user":"signalbot","monthly_eur":9.2,"digest":"4e0d7a91c3","state":"running","run":"r2"}""") { api.sealPlan(p, it) }
+        assertEquals("provision.seal" to "4e0d7a91c3", a to t)
+        assertEquals("/api/v1/provisioning/plans/PV-0002/seal", req.url.encodedPath)
+    }
+
+    @Test
+    fun teachingMcpAndFoundingSealsCarryTheirTargets() = runTest {
+        val teach = signed("""{"ref":"TE-0002","target":{"kind":"role","ref":"overseer"},"text_md":"x","status":"approved","created_at":"2026-10-17T10:00:00Z"}""") { api.approveTeaching("TE-0002", it) }
+        assertEquals("academy.approve" to "TE-0002", teach.first to teach.second)
+        val mcp = signed("""{"key":"gsc","title_fa":"x","status":"enabled"}""") { api.enableMcp("gsc", it) }
+        assertEquals("mcp.enable" to "gsc", mcp.first to mcp.second)
+        val found = signed("""{"ref":"C-0001","name_fa":"x","source":{"kind":"idea"},"state":"active","created_at":"2026-10-17T10:00:00Z","updated_at":"2026-10-17T10:00:00Z"}""") { api.activateFounding("C-0001", it) }
+        assertEquals("founding.activate" to "C-0001", found.first to found.second)
+    }
+
+    @Test
+    fun newSkillForAllCompaniesSaysAll() = runTest {
+        server.enqueue(json(201, """{"ref":"SK-006","name_fa":"x","status":"in_review","scope":{"roles":["all"],"companies":"all"}}"""))
+        val s = api.newSkill("روش", "گام یک", listOf("all"), null, listOf("f1"))
+        val body = server.takeRequest().body!!.utf8()
+        assertTrue(body.contains("\"companies\":\"all\""))
+        assertTrue(body.contains("\"file_ids\":[\"f1\"]"))
+        assertNull(com.coinepro.hq.core.net.companiesOf(s.scope.companies))
+    }
+
+    @Test
+    fun foundingStartsFromASource() = runTest {
+        server.enqueue(json(201, """{"ref":"C-0003","name_fa":"new-bot","source":{"kind":"repo","repo":"o/new-bot"},"state":"auditing","created_at":"2026-10-17T10:00:00Z","updated_at":"2026-10-17T10:00:00Z"}"""))
+        val f = api.startFounding("repo", "o/new-bot", "")
+        assertEquals("""{"source":{"kind":"repo","repo":"o/new-bot","brief_md":""}}""", server.takeRequest().body!!.utf8())
+        assertEquals("auditing", f.state)
     }
 }

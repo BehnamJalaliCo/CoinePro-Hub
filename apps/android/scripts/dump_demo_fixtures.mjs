@@ -1,7 +1,7 @@
 // Dumps the web's development fixtures (apps/web/src/lib/api/mock.ts) into the Android debug assets, so the
 // demo on both clients shows the same holding. Instants become offsets from "now" ("@-42m"), which the
 // Android demo resolves at load time, so relative times ("5 minutes ago") stay true.
-// Usage: node --experimental-strip-types scripts/dump_demo_fixtures.mjs
+// Usage: node --experimental-strip-types scripts/dump_demo_fixtures.mjs (from apps/android)
 import { writeFileSync } from 'node:fs';
 import { register } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -32,6 +32,14 @@ const paths = [
   // ⟨1.3⟩ the Code Workshop and voice orders
   '/workshop/workspaces', '/workshop/grants?active=true', '/workshop/sessions', '/orders',
   ...['S-0004', 'S-0003', 'S-0002', 'S-0001'].flatMap((r) => [`/workshop/sessions/${r}`, `/workshop/sessions/${r}/events`]),
+  // ⟨1.4⟩ oversight, inquiries, the assistant, stars, skills, the academy, egress and MCP, founding, backups.
+  // Keys carry only the parameters the Android demo matches on (limit and cursor never; period and from where they select).
+  '/oversight/summary', '/oversight/holds?state=held', '/oversight/findings', '/oversight/protocols', '/oversight/challenges', '/oversight/orders',
+  '/inquiries?from=HQ-ADV', '/errands', '/stars/rollup?period=week', '/stars/rollup?period=month', '/stars/rubrics', '/lessons',
+  '/skills', '/academy/curricula', '/academy/evals', '/academy/teach',
+  '/egress/summary?period=day', '/egress', '/tools/mcp', '/tools/accounts', '/tools/catalog',
+  '/foundings', '/foundings/C-0001', '/foundings/C-0002', '/provisioning/plans/PV-0001', '/provisioning/plans/PV-0002', '/provisioning/runs/r1',
+  '/backups/status', '/threads/N/messages', '/threads/P/messages',
 ];
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;

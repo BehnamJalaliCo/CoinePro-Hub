@@ -70,7 +70,9 @@ val EMPLOYEE_KIND = mapOf(
     "manager" to "مدیر",
     "employee" to "کارمند",
     "advisor" to "مشاور کل",
-    "inspector" to "بازرس",
+    "overseer" to "ناظر کل",
+    "assistant" to "دستیار",
+    "inspector" to "بازرس کیفیت",
     "system" to "سیستم",
 )
 
@@ -100,6 +102,8 @@ fun actorFa(a: Actor?): String = when {
 fun agentKindOf(code: String, kind: String? = null): String = when {
     kind == "owner" -> "owner"
     code == "HQ-ADV" || kind == "advisor" -> "advisor"
+    code == "HQ-OVR" || kind == "overseer" -> "overseer"
+    code == "HQ-PA" || kind == "assistant" -> "assistant"
     code.endsWith("-CEO") -> "ceo"
     code.endsWith("-MGR") -> "manager"
     else -> kind?.takeIf { it in EMPLOYEE_KIND } ?: "employee"
@@ -107,3 +111,16 @@ fun agentKindOf(code: String, kind: String? = null): String = when {
 
 /** Department segment of an agent code ("FX-TECH-MGR" → "TECH"). */
 fun deptOf(code: String): String? = code.split('-').getOrNull(1)
+
+/** Charter role keys (the files in agents/roles) as the owner reads them. */
+val ROLE_FA = mapOf(
+    "ceo" to "مدیرعامل", "manager" to "مدیر", "cto" to "مدیر فنی", "sre" to "مهندس پایداری", "growth" to "مدیر رشد", "sales" to "فروش", "support" to "پشتیبانی",
+    "quant" to "کوانت", "advisor" to "مشاور کل", "overseer" to "ناظر کل", "assistant" to "دستیار", "inspector" to "بازرس کیفیت", "fact_checker" to "راستی‌آزما",
+    "security_analyst" to "تحلیلگر امنیت", "aiops_head" to "مدیر عملیات AI", "ai_safety" to "ایمنی AI", "hub_platform_sre" to "پایداری پلتفرم هاب",
+)
+
+fun roleFa(r: String): String = if (r == "all") "همه" else ROLE_FA[r] ?: r
+
+val DEPT_FA = mapOf(
+    "TECH" to "فنی", "GROWTH" to "رشد", "SALES" to "فروش", "PRODUCT" to "محصول", "FIN" to "مالی", "QUANT" to "کوانت", "AIOPS" to "عملیات AI", "HR" to "منابع انسانی", "OVS" to "نظارت",
+)

@@ -1,11 +1,14 @@
 package com.coinepro.hq
 
 import com.coinepro.hq.core.format.ago
+import com.coinepro.hq.core.format.instant
+import com.coinepro.hq.core.format.jDate
 import com.coinepro.hq.core.format.modelLabel
 import com.coinepro.hq.core.format.pct
 import com.coinepro.hq.core.format.tokens
 import com.coinepro.hq.core.format.until
 import com.coinepro.hq.core.format.usd
+import com.coinepro.hq.ui.v14.figs
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -49,5 +52,19 @@ class FormatTest {
         assertEquals("3 ساعت پیش", ago("2026-10-17T09:00:00+00:00", now))
         assertEquals("30 دقیقه مانده", until("2026-10-17T12:30:00Z", now))
         assertEquals("گذشته", until("2026-10-17T11:00:00Z", now))
+    }
+
+    @Test
+    fun aBareDayIsItsStartInTheOwnersZone() {
+        // A week's key ("2026-10-18") is a day, not an instant; it starts at 00:00 Tehran (20:30 UTC the day before).
+        assertEquals(Instant.parse("2026-10-17T20:30:00Z"), instant("2026-10-18"))
+        assertEquals("26 مهر", jDate("2026-10-18"))
+    }
+
+    @Test
+    fun mixedTextKeepsItsWordsAndLatinNumbers() {
+        // Each number is a left-to-right isolate (U+2066 … U+2069) in the Latin face; spaces stay where they were.
+        assertEquals("⁦500⁩ در ⁦90⁩ روز", figs("500 در 90 روز").text)
+        assertEquals("⁦≥ 80%⁩", figs("≥ 80%").text)
     }
 }
