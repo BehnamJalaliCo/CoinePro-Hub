@@ -4,6 +4,8 @@
 > **مبنا:** `docs/OPERATING_MODEL.md` (§۰ تا §۱.۱۶) و طراحی D1. هر جا این سند با مدل عملیاتی نخواند، مدل عملیاتی درست است و تفاوت باید گزارش شود.
 >
 > بدنه‌ی فنی به انگلیسی است تا نام فیلدها و رفتارها دقیق و بی‌ابهام باشد.
+>
+> **v1.1 (۲۰۲۶-۱۰-۱۷):** «Contract notes» گزارش پرامپت ۴ و نتیجه‌ی بازبینی وارد شد. تغییرها با ⟨1.1⟩ علامت خورده‌اند؛ آن‌هایی که هنوز پیاده نشده‌اند در `docs/server-prompts/PROMPT_04_1_HARDENING.md` هستند.
 
 ---
 
@@ -38,7 +40,7 @@ CEO's model are later versions; their tables are not part of v1 unless listed he
 | Enums | Lower-case strings. Unknown values from the server must be tolerated by clients (forward compatible). |
 | Lists | Cursor pagination: `?limit=50&cursor=<opaque>` → `{ "items": [...], "next_cursor": "..." \| null }`. `limit` max 200. Default sort is newest first unless stated. |
 | Filtering | Query parameters as listed per endpoint; `company` takes a code (`TY`) and may repeat. |
-| Concurrency | Mutable resources carry `version` (int). PATCH requires `If-Match: <version>`; mismatch → `409 version_conflict`. |
+| Concurrency | Mutable resources carry `version` (int). **Every** PATCH requires `If-Match: <version>`; missing → `428 precondition_required` ⟨1.1⟩; mismatch → `409 version_conflict`. |
 | Idempotency | Every POST that changes state accepts `Idempotency-Key` (UUID). **Required** for: decision actions, ratings, messages, work creation, kill switch. Same key + same body within 24 h returns the first result. |
 | Errors | RFC 9457 `application/problem+json`: `{ "type", "title", "status", "code", "detail", "message_fa", "fields"? }`. `code` is stable and machine-readable (list in §14). `message_fa` is a short Persian sentence for the UI. |
 | Rate limits | `429` with `Retry-After`. Auth endpoints are limited per IP and per credential. |
@@ -91,7 +93,10 @@ WebAuthn relying party: `HQ_WEBAUTHN_RP_ID` (the domain) and `HQ_PUBLIC_ORIGIN`.
 ```
 Company {
   id, code: "TY", kind: "holding"|"company",
-  name_fa, name_en, color_index: 1..10 (D1 company palette; wraps for >10),
+  name_fa, name_en,
+  color_index: 1..8|null,         // ⟨1.1⟩ slot in the categorical chart palette v2 (design/tokens). Given at creation,
+                                  // kept forever, never by rank, never cycled. Companies without a slot appear
+                                  // inside "Other" in charts. Companies are identified by their own mark, not a colour.
   status: "active"|"paused"|"archived",
   template: "standard",            // the template it was created from
   kill_switch: "released"|"engaged",
@@ -107,6 +112,8 @@ Company {
 | POST | `/companies` 🔏 | `{code, name_fa, name_en, color_index?, template}` → creates departments and leadership positions **from the template file**, all in one transaction. |
 | PATCH | `/companies/{code}` | `name_*`, `color_index`, `status` (`archived` only with 🔏). Code never changes. |
 | GET | `/templates` | available company templates (from `seed/templates/*.yaml`). |
+
+⟨1.1⟩ **The holding is a company row** (`kind: "holding"`, code from the seed, today `HQ`). Holding-level rows (advisor, OVS, AIOPS, holding-wide work and decisions) carry the holding's `company_id`, so `company` is **never null** in any response. Code never hard-codes the holding's code; it reads the `kind: "holding"` row.
 
 ### 3.2 Department
 ```
@@ -185,7 +192,9 @@ Evidence { kind: "deliverable"|"link"|"metric"|"log", ref, note }
 - ⛓ A child budget can never exceed what remains of its parent; the sum of children ≤ parent.
 - ⛓ `done` only with at least one deliverable or evidence (§1.9 #4); otherwise `422 evidence_required`.
 - Cross-department: a manager creates a new root work in the other department with `requested_by_work_id`; the receiving manager accepts (assigns) or declines. Cross-company: only from CEO to CEO.
-- Recurring work needs an escrow. Created by the owner → active immediately. Created by an agent → a decision `recurring_approval` that the owner **or that company's CEO** may approve, within the company's quota (§1.4).
+- Recurring work needs an escrow. Created by the owner → active immediately. Created by an agent (a CEO, or ⟨1.1⟩ a manager for its own department) → a decision `recurring_approval` that the owner **or that company's CEO** may approve, within the company's monthly quota (§1.4). ⟨1.1⟩ **Nobody approves their own proposal:** a CEO's own proposal goes to the owner.
+- ⟨1.1⟩ `schedule.rrule` accepts only the subset that maps exactly onto a Temporal calendar spec: `HOURLY` with an `INTERVAL` that divides 24, and `DAILY`, `WEEKLY` (`BYDAY`), `MONTHLY` (`BYMONTHDAY`) with `BYHOUR` and `BYMINUTE`. Anything else → `422 validation_failed`.
+- ⟨1.1⟩ `delivered → done` happens when the owner rates the deliverable or completes the work. An agent may decline work through `/internal/v1/work/{id}/fail` with `{decline: true, reason}`.
 - Overdue work escalates one level at a time: manager → CEO → owner (§1.9 #5), each step a notification.
 - Kill switch engaged or deploy freeze on a company → state-changing work for agents in that company is refused (`423 company_locked`); the owner is never locked out.
 
@@ -231,7 +240,11 @@ Decision {
 | `budget_change` | `{scope, period, token_limit?, usd_limit?}` | owner |
 | `evaluation` | `{employee, recommendation: "promote"\|"demote"\|"dismiss", evidence}` (monthly HR) | owner |
 
-**Authority is policy, not code:** the "who may approve" column lives in OPA (`policy/decisions.rego`) and is tested.
+**Authority is policy, not code:** the "who may approve" column lives in OPA (`policy/decisions.rego`) and is tested. ⟨1.1⟩ The proposer is part of the policy input; **proposer = approver is always denied.** `budget_change.scope` must lie inside the proposer's company (owner proposals excepted).
+
+⟨1.1⟩ **A decided decision is sealed:** `status`, `decided_*`, `seal`, `note` and `amendments` are written once, in the decision's own transaction, and never change afterwards. **Owner amendments are applied:** the effect uses the amended payload, and the response returns `amendments` next to the original `payload`.
+
+⟨1.1⟩ `a3_action` of kind publish can be approved by a CEO only once the content calendar exists (a later version); until then it is owner only.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -323,6 +336,7 @@ Behaviour (§1.7):
 - **Per-company, per-level settings:** `GET/PUT /notification-settings` → matrix `{company|*: {level: {in_app, push, sound, muted_until}}}`.
 - **CEO attention quota** (§1.7 #4): non-urgent items from one CEO beyond `n/day` (setting, default 6) wait for the next digest.
 - **Channels:** in-app (stream), Web Push (VAPID), FCM (Android), Telegram bot **as backup only — no approval is ever possible from Telegram**. Channels without credentials are simply off and reported.
+- ⟨1.1⟩ **Agents and `urgent`:** the level is part of the policy input. An agent may raise `urgent` only for an incident category the policy lists (service down, security, data loss, budget hard stop), with a per-company rate limit; anything else is downgraded to `decision`. An agent of a locked company cannot raise notifications except `urgent` incidents.
 
 | Method | Path |
 |---|---|
@@ -351,6 +365,7 @@ Behaviour (§1.7):
 - Types: `work.created|updated|delegated|completed`, `decision.created|decided`, `deliverable.created|rated`, `message.created`, `notification.created`, `presence.changed`, `control.changed`, `employee.updated`, `activity.changed` (runtime), `llm.call.started|finished` (from llm-router, metadata only), `budget.alert`.
 - Backed by NATS JetStream subjects `hq.core.<company>.<type>`; the API is a filtered, tenant-checked bridge. Heartbeat comment every 15 s.
 - Scales to any number of companies: the client subscribes to the holding summary (`company=*` returns only counters and `activity.changed`, never full payloads).
+- ⟨1.1⟩ Events from llm-router: NATS subject `hq.core.<CO>.llm.call_started` / `...llm.call_finished`; the envelope `type` keeps the dotted form `llm.call.started` / `llm.call.finished`.
 
 ---
 
@@ -363,7 +378,7 @@ AuditEntry { seq: bigint, at, actor: Actor, principal_kind, company|null,
              summary, prev_hash, hash }
 ```
 - **Append-only:** the API role has INSERT and SELECT only; a trigger rejects UPDATE and DELETE for everyone.
-- **Hash chain:** `hash = sha256(prev_hash || canonical_json(entry_without_hash))`. A nightly job verifies the chain and raises `urgent` if broken.
+- **Hash chain:** `hash = sha256(prev_hash || canonical_json(entry_without_hash))`. A nightly job verifies the chain and raises `urgent` if broken. ⟨1.1⟩ `at` is always the database clock. The nightly job also **anchors the chain head outside Postgres** (seq + hash, append-only file in the backup set), and `verify` compares against the last anchor, so a rewrite that also rewrites the head is still caught.
 - Bodies of messages and secrets are never copied into audit; only references.
 
 | GET `/audit` `?company&actor&action&action_class&from&to` | GET `/audit/verify` → `{ok, checked, first_bad_seq|null, verified_at}` |
@@ -376,8 +391,8 @@ AuditEntry { seq: bigint, at, actor: Actor, principal_kind, company|null,
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/control/state` | kill switches and deploy freezes for the holding and every company |
-| POST | `/control/kill-switch` | `{scope: "holding"\|"company:TY", state: "engaged"\|"released", reason}`. **Engage needs no step-up** (speed matters); **release is 🔏**. A CEO (agent) may engage or release only its own company (internal API). |
-| POST | `/control/deploy-freeze` | internal/owner: `{company, until, reason}` (§1.5 #5) |
+| POST | `/control/kill-switch` | `{scope: "holding"\|"company:TY", state: "engaged"\|"released", reason}`. **Engage needs no step-up** (speed matters); **release is 🔏**. A CEO (agent) may engage its own company's switch (internal API). ⟨1.1⟩ **Release follows authority:** a switch the owner engaged is released only by the owner with 🔏; a CEO may release only a switch that an agent of its own company engaged. |
+| POST | `/control/deploy-freeze` | internal/owner: `{company, until, reason}` (§1.5 #5). ⟨1.1⟩ Freezes are lifted by authority too: the owner's only by the owner; the pipeline's by the pipeline or the owner; a CEO only its own. |
 
 Engaged holding kill switch: the router refuses every call except P0, the worker pauses every agent workflow, and the stream shows it everywhere.
 
@@ -392,10 +407,10 @@ Engaged holding kill switch: the router refuses every call except P0, the worker
 | GET | `/treasury/calls` | metadata only, paged; never prompt or response text |
 | GET | `/treasury/what-if` | `?from&to&company&model=` → "what would this have cost on model X" from our price table (design list #22) |
 | GET | `/connections` | registry without secrets |
-| PATCH | `/connections/{id}` 🔏 | `status`, `display_name`, price table (each price with `source_url` and `as_of`) |
+| PATCH | `/connections/{id}` 🔏 | `status`, `display_name`, price table (each price with `source_url` and `as_of`); `If-Match` like every PATCH ⟨1.1⟩ |
 | POST | `/connections/{id}/secret` 🔏 | `{secret}` **write-only** → stored in OpenBao; response never contains it; audit records only that it changed |
-| GET/PUT | `/assignments` (PUT 🔏) | holding → company → department → role → task class, with inheritance shown resolved |
-| GET/PUT | `/budgets` (PUT 🔏) | per scope and period |
+| GET/PUT | `/assignments` (PUT 🔏) | holding → company → department → role → task class, with inheritance shown resolved. ⟨1.1⟩ The step-up is bound to a hash of the request body, not to `*`. |
+| GET/PUT | `/budgets` (PUT 🔏) | per scope and period; step-up bound to the body hash ⟨1.1⟩ |
 
 **Cost source:** `equiv_cost_usd` and `cost_usd` come **from our price table** in `llm.connections`. The SDK's own figure is stored in `meta.sdk_cost_usd` for comparison only.
 
@@ -408,7 +423,9 @@ Engaged holding kill switch: the router refuses every call except P0, the worker
 
 ## 12. Internal API for the agent runtime (`/internal/v1`, not public)
 
-Used by the agent runtime in prompt 5 and by tests now (with a fake agent principal). Every call is checked against the agent's company, department and role, and against OPA.
+Used by the agent runtime in prompt 5 and by tests now (with a fake agent principal). Every call is checked against the agent's company, department and role, and against OPA — ⟨1.1⟩ **before** anything outside the agent's company is looked up, so a refusal never reveals whether a code exists elsewhere.
+
+⟨1.1⟩ **Agent principal:** `Authorization: Bearer hqa1.<…>`, an HMAC token (key in OpenBao `kv/hq-api/config`) for one employee and one run, lifetime ≤ 1 h, with a `jti` the API accepts once per request id window (replay refused). The company always comes from the employee row, never from the token. Every agent write also passes the action-class policy (`hq.actions`: A0–A3 by role and escrow; **A4 always denied**).
 
 | Method | Path | Notes |
 |---|---|---|
@@ -420,6 +437,8 @@ Used by the agent runtime in prompt 5 and by tests now (with a fake agent princi
 | POST | `/internal/v1/notifications` | services and agents raise a notification (level rules and attention quota apply) |
 | POST | `/internal/v1/control/kill-switch` | CEO for its own company only |
 | GET | `/internal/v1/context/{employee}` | what the runtime needs to run one step: employee, work, budget left, escrow, company state |
+| POST | `/internal/v1/decisions/{ref}/approve` · `/reject` ⟨1.1⟩ | a CEO decides what the policy lets it decide in its own company (e.g. `recurring_approval` within quota); never its own proposal |
+| POST | `/internal/v1/files` ⟨1.1⟩ | raw-body upload (size limit enforced while streaming) → file id for evidence and deliverables |
 
 ---
 
@@ -432,12 +451,13 @@ Used by the agent runtime in prompt 5 and by tests now (with a fake agent princi
 `unauthenticated`, `forbidden`, `csrf_rejected`, `step_up_required`, `step_up_invalid`, `origin_not_configured`,
 `not_found`, `version_conflict`, `idempotency_conflict`, `validation_failed`, `evidence_required`,
 `delegation_depth_exceeded`, `budget_exceeded`, `company_locked`, `decision_not_pending`, `policy_denied`,
-`rate_limited`, `channel_not_configured`, `internal_error`.
+`rate_limited`, `channel_not_configured`, `internal_error`,
+⟨1.1⟩ `precondition_required` (428, PATCH without `If-Match`), `policy_unavailable` (503, OPA did not answer; the API is fail-closed — distinct from `policy_denied` 403 so clients say "try again" instead of "not allowed").
 
 ---
 
 ## 15. Seeds (data files, not code)
 - `seed/templates/standard.yaml` — the 8 departments with codes, Persian and English names and manager titles; leadership positions (CEO, 8 managers).
 - `seed/templates/holding.yaml` — `OVS`, `AIOPS`, the advisor `HQ-ADV`.
-- `seed/companies.yaml` already exists in llm-router; v1 extends rows (`name_fa`, `color_index`, `template`) without changing codes.
+- `seed/companies.yaml` already exists in llm-router; v1 extends rows (`name_fa`, `color_index`, `template`) without changing codes. ⟨1.1⟩ Today's slots: PC 1, FX 2, TY 3 (chart palette v2); the holding has none (charts draw it in neutral silver); a new company takes the next free slot, or none.
 - Seeds are idempotent and never overwrite rows edited later.
