@@ -395,3 +395,20 @@ async def test_pdf_text_reaches_files_read_masked(
     assert row["status"] == "ready" and "Owner plan for Q4" in row["text"]
     assert r.json()["status"] == "ready"
     await _finish_runs(su, [me])
+
+
+def test_the_proposed_servers_are_valid_registrations() -> None:
+    """apps/api/seed/mcp_proposals.yaml: what the owner may register as it is."""
+    from pathlib import Path
+
+    import yaml
+
+    from hq_api.domain import mcp as M
+
+    data = yaml.safe_load((Path(__file__).parents[1] / "seed" / "mcp_proposals.yaml").read_text())
+    keys = []
+    for p in data["proposals"]:
+        body = {k: p[k] for k in ("key", "title_fa", "transport", "url", "tools", "companies")}
+        M.McpServerIn.model_validate(body)
+        keys.append(p["key"])
+    assert keys == ["github-read", "search-console", "analytics", "time", "fetch"]

@@ -676,6 +676,9 @@ services:
     environment:
       GATEWAY_API_URL: http://api:8000
       OPA_URL: http://opa:8181
+      # MCP servers (prompt 07 §3): an `http` server only through the egress
+      # service's forward proxy (empty: none reachable; set with egress).
+      EGRESS_PROXY_URL: ${EGRESS_PROXY_URL:-}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=16m,mode=1777"]

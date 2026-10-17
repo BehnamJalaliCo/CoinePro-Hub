@@ -641,3 +641,58 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 
 ### راه‌اندازی بعد از merge (Claude سرور)
 `make bootstrap` (پوشه‌های wal و restic، با sudo)، بعد `make up` (image تازه‌ی Postgres؛ **ری‌استارت Postgres** برای `archive_mode`؛ AppRole ‏`hq-backup` و رمز restic)، بعد `make install-systemd` (دو timer تازه).
+## ۲۰. پل MCP و کاتالوگ ابزار (پرامپت ۷ §۳، قرارداد §۱۸.۷)
+- **اصل:** هیچ سرور MCP بدون دو مُهر مالک برای ایجنت‌ها وجود ندارد. پیش‌فرض هیچ سروری روشن نیست.
+- **چرخه‌ی روشن شدن:**
+  1. **ثبت** با `POST /api/v1/tools/mcp` و 🔏 `mcp.add` روی sha256 همان بدنه. بدنه این‌ها را دارد:
+     - `key`
+     - `title_fa`
+     - `transport` (`http` یا `container`)
+     - `url`
+     - `tools`: هر ابزار با `name`، `class` (A0 تا A3) و `enabled`
+     - `companies`: `"all"` یا فهرست کد شرکت‌ها
+     - `auth_header` (اختیاری)
+
+     ثبت دوباره‌ی همان `key` یک نسخه‌ی تازه است و وضعیتش دوباره `pending` میشود.
+  2. **رمز سرور، اگر دارد:** مالک خودش در ترمینال میزند `make mcp-secret KEY=<key>` (ورودی بی‌نمایش). رمز در OpenBao در `kv/hq-api/tools/mcp/<key>` میرود. API فقط `has_secret` را نشان میدهد، هیچ‌وقت خود مقدار را.
+  3. **روشن کردن** با `POST /api/v1/tools/mcp/<key>/enable` و 🔏 `mcp.enable` روی `key`.
+  4. **خاموش کردن** با `POST /api/v1/tools/mcp/<key>/disable`. فوری است و step-up نمیخواهد.
+- **سنجاق فهرست ابزارها:** اولین بار که Gateway بعد از enable سرور را صدا میزند، فهرست ابزارهای آن را با نام، توضیح و schema ورودی ثبت و سنجاق میکند (`listing_sha256`).
+  - اگر بعداً فهرست فرق کند (مثلاً سرور آپدیت شده)، سرور با دلیل `tools changed` **خاموش** میشود و یک اعلان `report` برای مالک میرود. تا ثبت و مُهر دوباره، هیچ ایجنتی از آن استفاده نمیکند.
+  - ابزاری که در ثبت مُهرشده نیست، یا `enabled: false` است، **همیشه** رد میشود.
+- **`mcp.call` در Gateway:** ورودی `{server, tool, args}`.
+  1. Gateway از api میپرسد (`POST /internal/v1/tools/mcp/resolve`): آیا سرور روشن است، برای شرکت همین ایجنت است، ابزار مُهر شده است، و سقف‌ها جا دارد. جواب api کلاس مُهرشده‌ی ابزار است.
+  2. سیاست `hq.actions` روی **همان کلاس** تصمیم میگیرد. A2 فقط برای `ceo` و `manager` مجاز است (`a2_grants` در `infra/opa/policy/data.json`).
+  3. **ابزار A3 هرگز اجرا نمیشود.** api یک تصمیم `a3_action` میسازد: `action: mcp_call`، `target: <server>/<tool>`، ورودی ماسک‌شده و sha256 آن. هر اجرا با ورودی یکسان فقط یک کارت میسازد. پس از تأیید، طبق قاعده‌ی فعلی `a3_action` یک کار پیگیری برای ایجنت ساخته میشود، ولی خود فراخوانی را هنوز چیزی اجرا نمیکند (Contract notes).
+  4. خروجی سرور برچسب `source: "mcp"` و `untrusted: true` میگیرد و مثل همه‌ی خروجی‌ها ماسک میشود. فقط متن به مدل میرسد؛ عکس یا resource فقط نام میبرد (`omitted`).
+  5. هر فراخوانی یک ردیف Audit دارد (`mcp.call`، کلاس واقعی، `ref: mcp:<server>/<tool>`) و یک ردیف `tools.mcp_calls`.
+- **سقف‌ها:**
+  - `HQ_MCP_CALLS_PER_RUN`، پیش‌فرض ۲۰
+  - `HQ_MCP_CALLS_PER_COMPANY_DAY`، پیش‌فرض ۳۰۰ در هر روز مالک
+
+  عبور از سقف ← `429 rate_limited`. ترافیک `http` از سقف‌های egress هم رد میشود.
+- **transport:**
+  - **`http`:** فقط URL با https و نام میزبان عمومی؛ نه IP، نه نام داخلی، نه `hq.coinepro.com`، و بدون اعتبار داخل URL. Gateway آن را **فقط از پراکسی egress** میزند (`EGRESS_PROXY_URL` در env سرویس gateway). محافظ SSRF همان‌جا IP نهایی را چک میکند. بدون پراکسی، جواب `channel_not_configured` است و هرگز اتصال مستقیم برقرار نمیشود.
+  - **`container`:** آدرس `http://mcp-<name>:<port>/...`. یک سرویس compose جدا روی شبکه‌ی internal ‏`hq-mcp`، که فقط با gateway مشترک است. سرورهای stdio پشت یک پل stdio→HTTP بازبینی‌شده اجرا میشوند. هیچ‌جا docker socket نیست.
+  - این سرویس و شبکه **وقتی مالک اولین سرور container را مُهر کند** اضافه میشوند (با قاعده‌های `compose-rules`). الان هیچ‌کدام وجود ندارد.
+- **سرورهای پیشنهادی** (`apps/api/seed/mcp_proposals.yaml`؛ فقط پیشنهاد، هیچ‌کدام ثبت نشده):
+
+  | key | سرور | ابزارها |
+  |---|---|---|
+  | `github-read` | GitHub رسمی، MIT | فقط‌خواندنی، A0 |
+  | `search-console` | Google Search Console (یک سرور متن‌باز جامعه، در زمان مُهر بازبینی شود) | A0 |
+  | `analytics` | Google Analytics، سرور خود Google، Apache-2.0 | A0 |
+  | `time` | سرور مرجع MCP، MIT | A0، بدون شبکه |
+  | `fetch` | سرور مرجع MCP، MIT | A0؛ با `web.read` هم‌پوشانی دارد |
+
+  پیش از مُهر، نام ابزارها را با فهرستی که خود سرور میدهد تطبیق بده.
+- **کاتالوگ:** `GET /api/v1/tools/catalog` (مالک) هر ابزار `agents/tools.md` و هر ابزار مُهرشده‌ی MCP را با این‌ها نشان میدهد: کلاس (`A0/A2` یعنی کلاس هر فراخوانی جدا تعیین میشود؛ `per tool` یعنی از ثبت سرور میاید)، نقش‌هایی که در منشورشان دارند، و وضعیت:
+  - `live`
+  - `off`: هنوز در این build ساخته نشده
+  - `channel_not_configured`: مثل `github.read` تا توکن مالک
+  - `pending`
+
+  فهرست ابزارهای ساخته‌شده‌ی Gateway در `hq_common.tool_status` است. تست Gateway آن را با جدول خودش یکی نگه میدارد.
+- **`files.read`** (`agents/tools.md` v2): `variant` اختیاری است: `original`، `thumb` یا `poster`.
+  - عکس: نسخه‌ی `agent` آن (≤ ۱۵۶۸ پیکسل، بدون EXIF) به مدل میرسد.
+  - PDF: متنش هنگام آپلود با pypdf 6.19.0 (BSD-3) استخراج میشود؛ تا ۲۰۰ صفحه، ۲۰۰ هزار نویسه و ۳۰ ثانیه. متن در `files.processing.text` میماند و در meta ایجنت ماسک‌شده برمیگردد. PDF اسکن‌شده، رمزدار یا خراب متن ندارد و آپلودش هم شکست نمیخورد.
