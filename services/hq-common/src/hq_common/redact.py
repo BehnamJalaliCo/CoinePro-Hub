@@ -336,7 +336,12 @@ RULES: tuple[_Rule, ...] = (
         needles=("@",),
     ),
     _rule(rf"{NB}IR(?:[\s\-.]?{D}){{24}}{NA}", "[iban]", needles=("ir",), flags=re.I),
-    _rule(rf"{ND}{D}{{4}}(?:[\s\-.]{{0,3}}{D}{{4}}){{3}}{NA}", "[card]", check=_luhn),
+    # Not inside a UUID or a hex string: "…-7000-8000-000000000003" is an id.
+    _rule(
+        rf"(?<![0-9A-Fa-f]-){ND}{D}{{4}}(?:[\s\-.]{{0,3}}{D}{{4}}){{3}}{NA}(?![A-Fa-f])",
+        "[card]",
+        check=_luhn,
+    ),
     # Iranian mobiles: 09…, +98 9…, 0098 9…, 98 9… (a bare 9xxxxxxxxx only when spaced
     # like a phone: a 10-digit rial amount is not one).
     _rule(

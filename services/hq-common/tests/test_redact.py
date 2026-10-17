@@ -208,6 +208,26 @@ def test_ordinary_numbers_and_refs_survive() -> None:
     assert scrub(text) == text
 
 
+def test_ids_are_not_cards() -> None:
+    """A UUID's tail can be 16 digits that pass Luhn ("8000-000000000003"):
+    an id in every tool result, never a card (prompt 06: file ids)."""
+    ids = [f"0193e7a1-0000-7000-8000-0000000000{i:02d}" for i in range(100)]
+    assert any(card_like for card_like in ids if _luhn_digits(card_like[-17:]))
+    text = " ".join(ids)
+    assert scrub(text) == text
+    assert scrub("deadbeef8000000000000003cafe") == "deadbeef8000000000000003cafe"
+    valid = card("6037991")
+    assert scrub(f"کارت {valid}") == "کارت [card]"  # a real one still goes
+
+
+def _luhn_digits(s: str) -> bool:
+    digits = [int(c) for c in s if c.isdigit()]
+    total = sum(
+        d if i % 2 == 0 else (d * 2 - 9 if d > 4 else d * 2) for i, d in enumerate(reversed(digits))
+    )
+    return len(digits) == 16 and total % 10 == 0
+
+
 def test_zwnj_and_formatting_of_ordinary_text_are_kept() -> None:
     text = f"می{ZWNJ}خواهم گزارش‌ها را ببینم؛ تماس 09121234567 گرفته شد."
     out = scrub(text)
