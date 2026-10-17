@@ -27,13 +27,15 @@ SCHEMAS = (
     "audit",
     "control",
     "files",
+    "agents",
+    "ops",
 )
 
 
 async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: str) -> None:
     """Rows of company `co` in (nearly) every table, through the real API."""
     h = owner["headers"]
-    mgr, ceo = await agent_headers(f"{co}-GROWTH-MGR"), await agent_headers(f"{co}-CEO")
+    mgr, ceo = await agent_headers(f"{co}-TECH-MGR"), await agent_headers(f"{co}-CEO")
     r = await client.post(
         "/internal/v1/decisions",
         headers={**mgr, **idem()},
@@ -42,7 +44,8 @@ async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: 
             "title": "hire",
             "payload": {
                 "company": co,
-                "department": "GROWTH",
+                "department": "TECH",
+                "role": "sre",
                 "title_fa": "کارشناس",
                 "title_en": "Specialist",
                 "reason": "r",
@@ -71,7 +74,7 @@ async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: 
         await client.post(
             f"/internal/v1/work/{root['id']}/delegate",
             headers=ceo,
-            json={"to": f"{co}-GROWTH-MGR", "title": "c"},
+            json={"to": f"{co}-TECH-MGR", "title": "c"},
         )
     ).json()
     leaf = (
@@ -133,6 +136,38 @@ async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: 
         await scoring.recompute_department(tx, dept)
 
 
+async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 05's tables: rows of `co` the runtime and the checker would write
+    (superuser, test setup only)."""
+    emp = await su.fetchval("SELECT id FROM core.employees WHERE code = $1", f"{co['code']}-CEO")
+    run = await su.fetchval(
+        "SELECT id FROM agents.runs WHERE company_id = $1 ORDER BY queued_at LIMIT 1", co["id"]
+    )
+    assert run is not None  # the owner's message woke the CEO
+    await su.execute(
+        "INSERT INTO agents.steps (run_id, company_id, n) VALUES ($1, $2, 1)", run, co["id"]
+    )
+    await su.execute(
+        "INSERT INTO core.employee_memory (company_id, employee_id, note) VALUES ($1, $2, 'n')",
+        co["id"],
+        emp,
+    )
+    site = await su.fetchval(
+        "INSERT INTO ops.sites (company_id, url) VALUES ($1, $2) RETURNING id",
+        co["id"],
+        f"https://{co['code'].lower()}.example.test/",
+    )
+    await su.execute(
+        "INSERT INTO ops.checks (site_id, company_id, ok) VALUES ($1, $2, false)", site, co["id"]
+    )
+    await su.execute(
+        "INSERT INTO ops.incidents (company_id, site_id) VALUES ($1, $2)", co["id"], site
+    )
+    await su.execute(
+        "INSERT INTO ops.hub_health (company_id, data) VALUES ($1, '{}')", co["id"]
+    )
+
+
 async def test_no_table_leaks_between_companies(
     client: httpx.AsyncClient,
     hub: Hub,
@@ -142,10 +177,15 @@ async def test_no_table_leaks_between_companies(
 ) -> None:
     a, b = await new_company(), await new_company()
     await _fill(client, hub, owner_session, b["code"])
+    await _fill_agents(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
            WHERE c.column_name = 'company_id' AND x.table_type = 'BASE TABLE' AND c.table_schema = ANY($1::text[])
+             AND NOT EXISTS (  -- partitions are reached through their parent only
+                 SELECT 1 FROM pg_inherits i JOIN pg_class k ON k.oid = i.inhrelid
+                 JOIN pg_namespace n ON n.oid = k.relnamespace
+                 WHERE n.nspname = c.table_schema AND k.relname = c.table_name)
            ORDER BY 1, 2""",
         list(SCHEMAS),
     )

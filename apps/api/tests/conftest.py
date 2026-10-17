@@ -32,12 +32,14 @@ from hq_api.db import Database
 from hq_api.domain import templates
 from hq_api.events import Bus
 from hq_api.hub import Hub
+from hq_api.live import LiveHub
 from hq_api.policy import Policy
 from hq_api.secrets import Secrets
 from hq_api.security import agent_tokens
 from hq_api.storage import LocalStorage
 from hq_api.worker.activities import Activities
 from hq_api.worker.workflows import WORKFLOWS
+from hq_common import charters
 from hq_common.tokens import digest
 
 API_DIR = Path(__file__).resolve().parents[1]
@@ -46,6 +48,8 @@ HOST = os.environ.get("TEST_DB_HOST", "postgres")
 ORIGIN = "https://hq.test"
 SERVICE_TOKEN = "test-service-token-" + "0" * 40
 AGENT_KEY = bytes.fromhex("11" * 32)
+ROUTER_TOKEN = "test-router-token-" + "1" * 40
+GATEWAY_TOKEN = "test-gateway-token-" + "2" * 40
 
 if "TEST_DB_HOST" not in os.environ:
     pytest.skip("needs services/scripts/test-env.sh (HQ_TEST_TARGET=api)", allow_module_level=True)
@@ -95,7 +99,10 @@ def settings(**over: Any) -> Settings:
 
 def make_secrets() -> Secrets:
     return Secrets(
-        agent_token_key=AGENT_KEY, service_tokens={"test-service": digest(SERVICE_TOKEN)}
+        agent_token_key=AGENT_KEY,
+        service_tokens={"test-service": digest(SERVICE_TOKEN)},
+        llm_router_token=ROUTER_TOKEN,
+        gateway_token=GATEWAY_TOKEN,
     )
 
 
@@ -113,6 +120,8 @@ async def hub() -> AsyncIterator[Hub]:
         policy=Policy(s.opa_url),
         storage=LocalStorage(s.files_root),
         bus=bus,
+        charters=charters.load(),
+        live=LiveHub(),
     )
     yield h
     await h.policy.aclose()
@@ -318,6 +327,7 @@ async def wk(hub: Hub) -> AsyncIterator[dict[str, Any]]:
         storage=hub.storage,
         bus=hub.bus,
         temporal=client,
+        charters=hub.charters,
     )
     acts = Activities(whub, client, lock_poll_s=1, escalation_gap_s=0)
     async with Worker(client, task_queue=s.task_queue, workflows=WORKFLOWS, activities=acts.all()):
@@ -351,3 +361,13 @@ async def signed_put(
         content=content,
         headers={**owner_session["headers"], **su, "Content-Type": "application/json"},
     )
+
+
+@pytest.fixture(scope="session")
+async def agents(app: Any, wk: dict[str, Any]) -> AsyncIterator[Any]:
+    """llm-router (fake model) + Tool Gateway + api in process; the runner on the worker's hub."""
+    from .agents_env import build
+
+    env = await build(app, wk["hub"], HOST, ROUTER_TOKEN, GATEWAY_TOKEN)
+    yield env
+    await env.close()

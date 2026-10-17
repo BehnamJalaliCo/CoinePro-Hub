@@ -38,7 +38,7 @@ async def _all(h: Hub) -> list[Any]:
     return await h.companies.ids()
 
 
-def agent(co: dict[str, Any], dept: str = "GROWTH") -> Principal:
+def agent(co: dict[str, Any], dept: str = "TECH") -> Principal:
     return Principal(
         kind="agent",
         code=f"{co['code']}-{dept}-MGR",
@@ -52,17 +52,18 @@ def agent(co: dict[str, Any], dept: str = "GROWTH") -> Principal:
 async def propose_hire(hub: Hub, co: dict[str, Any], *, expires_at: datetime | None = None) -> str:
     body = D.DecisionIn(
         kind="hire",
-        title="Hire a growth analyst",
+        title="Hire an SRE",
         what="w",
         why="y",
         expires_at=expires_at,
         payload={
             "company": co["code"],
-            "department": "GROWTH",
-            "title_fa": "کارشناس رشد",
-            "title_en": "Growth analyst",
+            "department": "TECH",
+            "role": "sre",  # an agent's hire names an employee charter (prompt 05)
+            "title_fa": "کارشناس پایش",
+            "title_en": "Site Reliability Engineer",
             "reason": "load",
-            "duties": ["campaigns"],
+            "duties": ["monitoring"],
             "model": "claude-sonnet-5-5",
             "effort": "high",
             "permissions": [],
@@ -75,7 +76,8 @@ async def propose_hire(hub: Hub, co: dict[str, Any], *, expires_at: datetime | N
             company_id=co["id"],
             company_code=co["code"],
             body=body,
-            thread_code=f"{co['code']}-GROWTH-MGR",
+            thread_code=f"{co['code']}-TECH-MGR",
+            charters=hub.charters,
         )
     ref: str = d["ref"]
     return ref
@@ -183,7 +185,7 @@ async def test_hire_effect_via_decision_lifecycle(
     await approve(hub, ref)
     await workflows_client.decision_decided(wk["hub"], ref)
     out = await result_of(wk["client"], f"decision-{ref}")
-    assert out["result"] == "applied" and out["employee"] == f"{co['code']}-GROWTH-01"
+    assert out["result"] == "applied" and out["employee"] == f"{co['code']}-TECH-01"
     async with hub.db.tx(await _all(hub)) as tx:
         emp = await tx.one(
             "SELECT reports_to, hired_by_decision_id, status FROM core.employees WHERE code = :c",
@@ -238,7 +240,7 @@ async def test_pending_decision_expires(
         body = await tx.scalar(
             """SELECT m.body FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
                WHERE t.code = :c ORDER BY m.seq DESC LIMIT 1""",
-            c=f"{co['code']}-GROWTH-MGR",
+            c=f"{co['code']}-TECH-MGR",
         )
         assert ref in body
     # Expiring twice is a no-op.
@@ -276,7 +278,7 @@ async def test_rejected_effect_is_marked_failed_with_an_urgent_notification(
     async with owner_db.raw() as tx:  # superuser, triggers off: test setup only
         await tx.exec("SET LOCAL session_replication_role = replica")
         await tx.exec(
-            "UPDATE core.departments SET code = 'GONE' WHERE company_id = :co AND code = 'GROWTH'",
+            "UPDATE core.departments SET code = 'GONE' WHERE company_id = :co AND code = 'TECH'",
             co=co["id"],
         )
     await workflows_client.decision_decided(wk["hub"], ref)
@@ -623,6 +625,7 @@ async def test_score_job_and_maintenance(hub: Hub, wk: dict[str, Any], owner_db:
         "reconcile_decisions",
         "reconcile_schedules",
         "purge",
+        "requeue_runs",
     }
     assert res["purge"]["idempotency_keys"] >= 1
     async with owner_db.raw() as tx:

@@ -55,8 +55,9 @@ async def _schemathesis(url: str, headers: dict[str, str], *args: str) -> tuple[
         "not_a_server_error",
         "--max-examples",
         os.environ.get("HQ_FUZZ_EXAMPLES", "8"),
-        "--exclude-path",
-        "/api/v1/stream",
+        # The SSE streams never end on their own (heartbeats keep them open).
+        "--exclude-path-regex",
+        "^/api/v1/(stream|threads/[^/]+/live)$",
         "--generation-database",
         "none",
         "--no-color",

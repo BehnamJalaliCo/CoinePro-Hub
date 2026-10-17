@@ -18,11 +18,12 @@ from .conftest import agent_headers, idem, signed_put, step_up
 def hire_body(co: str, **over: Any) -> dict[str, Any]:
     payload = {
         "company": co,
-        "department": "GROWTH",
-        "title_fa": "کارشناس سئو",
-        "title_en": "SEO Specialist",
-        "reason": "رشد ارگانیک",
-        "duties": ["seo"],
+        "department": "TECH",
+        "role": "sre",  # an agent's hire names an employee charter (prompt 05)
+        "title_fa": "کارشناس پایش",
+        "title_en": "Site Reliability Engineer",
+        "reason": "پایش سایت‌ها",
+        "duties": ["پایش"],
         "model": "claude-sonnet-5-5",
         "effort": "high",
         "permissions": ["A0", "A1"],
@@ -31,7 +32,7 @@ def hire_body(co: str, **over: Any) -> dict[str, Any]:
     payload.update(over)
     return {
         "kind": "hire",
-        "title": "استخدام کارشناس سئو",
+        "title": "استخدام کارشناس پایش",
         "what": "یک کارشناس",
         "why": "ترافیک",
         "risk": "low",
@@ -48,7 +49,7 @@ async def test_hire_proposal_approval_and_effect(
 ) -> None:
     h, sid = owner_session["headers"], owner_session["session_id"]
     co = (await new_company())["code"]
-    mgr = await agent_headers(f"{co}-GROWTH-MGR")
+    mgr = await agent_headers(f"{co}-TECH-MGR")
     bad = await client.post(
         "/internal/v1/decisions", headers={**mgr, **idem()}, json=hire_body(co, model="gpt-9")
     )
@@ -61,9 +62,9 @@ async def test_hire_proposal_approval_and_effect(
     assert r.status_code == 201, r.text
     d = r.json()
     assert d["ref"].startswith("D-") and d["status"] == "pending" and d["action_class"] == "A2"
-    assert d["thread"] == f"{co}-GROWTH-MGR" and d["proposer"] == {
+    assert d["thread"] == f"{co}-TECH-MGR" and d["proposer"] == {
         "kind": "agent",
-        "code": f"{co}-GROWTH-MGR",
+        "code": f"{co}-TECH-MGR",
         "display_fa": None,
     }
 
@@ -108,17 +109,17 @@ async def test_hire_proposal_approval_and_effect(
     r = await client.post(f"/api/v1/decisions/{ref}/reject", headers={**h, **idem()}, json={})
     assert r.status_code == 409 and r.json()["code"] == "decision_not_pending"
 
-    msgs = (await client.get(f"/api/v1/threads/{co}-GROWTH-MGR/messages", headers=h)).json()[
+    msgs = (await client.get(f"/api/v1/threads/{co}-TECH-MGR/messages", headers=h)).json()[
         "items"
     ]
     assert msgs[-1]["kind"] == "system" and ok["resolution"] in msgs[-1]["body"]
     res = (await client.get(f"/api/v1/resolutions/{ok['resolution']}", headers=h)).json()
-    assert res["source"]["decision"] == ref and res["sent_to"] == [f"{co}-GROWTH-MGR"]
+    assert res["source"]["decision"] == ref and res["sent_to"] == [f"{co}-TECH-MGR"]
 
     async with hub.db.tx(await hub.companies.ids()) as tx:
         out = await D.apply_effect(tx, ref, SYSTEM)
         assert (await D.apply_effect(tx, ref, SYSTEM))["changed"] is False  # idempotent
-    assert out["employee"] == f"{co}-GROWTH-01"
+    assert out["employee"] == f"{co}-TECH-01"
     emp = (await client.get(f"/api/v1/employees/{out['employee']}", headers=h)).json()
     assert emp["model"]["model"] == "claude-sonnet-5-5" and emp["model"]["effort"] == "high"
     threads = {
@@ -278,8 +279,9 @@ async def test_messages_search_read_and_resolutions(
     r = await client.post(
         f"/api/v1/threads/{thread}/messages", headers={**owner, **idem()}, json=body
     )
-    assert r.status_code == 201 and r.json()["ref"] == f"{thread}-0001"
-    first = r.json()
+    assert r.status_code == 201 and r.json()["message"]["ref"] == f"{thread}-0001"
+    first = r.json()["message"]
+    assert r.json()["reply"]["state"] == "queued"  # the CEO wakes to answer (prompt 05)
     r = await client.post(
         f"/internal/v1/threads/{thread}/messages",
         headers={**await agent_headers(thread), **idem()},
@@ -302,7 +304,7 @@ async def test_messages_search_read_and_resolutions(
         headers={**owner, **idem()},
         json={"body": "اصلاحیه", "links": {"corrects": first["ref"]}},
     )
-    assert corr.json()["links"]["corrects"] == first["ref"]
+    assert corr.json()["message"]["links"]["corrects"] == first["ref"]
 
     page = (await client.get(f"/api/v1/threads/{thread}/messages", headers=owner)).json()
     assert [m["ref"] for m in page["items"]] == [f"{thread}-000{i}" for i in (1, 2, 3)]

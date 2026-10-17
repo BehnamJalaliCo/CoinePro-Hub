@@ -339,13 +339,14 @@ async def test_1_7_owner_amendments_are_applied(
     co = (await new_company())["code"]
     r = await client.post(
         "/internal/v1/decisions",
-        headers={**await agent_headers(f"{co}-GROWTH-MGR"), **idem()},
+        headers={**await agent_headers(f"{co}-TECH-MGR"), **idem()},
         json={
             "kind": "hire",
             "title": "hire",
             "payload": {
                 "company": co,
-                "department": "GROWTH",
+                "department": "TECH",
+                "role": "sre",
                 "title_fa": "کارشناس",
                 "title_en": "Specialist",
                 "reason": "r",
