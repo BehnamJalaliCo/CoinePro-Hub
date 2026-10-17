@@ -532,6 +532,14 @@ async def test_daily_cap_refuses_runs(
     finally:
         agents.runner.s = real
     assert c.code == "daily_cap"
+    # The day's spend counts everything the model read or wrote: through the
+    # subscription most input arrives as cache writes and reads.
+    want = await su.fetchval(
+        """SELECT COALESCE(sum(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens), 0)
+           FROM agents.runs WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"""
+    )
+    async with agents.runner.hub.db.tx(await agents.runner.hub.companies.ids()) as tx:
+        assert await agents.runner._spent_today(tx) == want
 
 
 async def test_bad_output_and_router_refusals(

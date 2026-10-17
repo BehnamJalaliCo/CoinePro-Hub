@@ -163,9 +163,7 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     await su.execute(
         "INSERT INTO ops.incidents (company_id, site_id) VALUES ($1, $2)", co["id"], site
     )
-    await su.execute(
-        "INSERT INTO ops.hub_health (company_id, data) VALUES ($1, '{}')", co["id"]
-    )
+    await su.execute("INSERT INTO ops.hub_health (company_id, data) VALUES ($1, '{}')", co["id"])
 
 
 async def test_no_table_leaks_between_companies(

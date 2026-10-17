@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator
 
 from hq_gateway.redact import redact
 
@@ -162,7 +162,7 @@ class DeliverIn(In):
 
 
 class QuotaIn(In):
-    tokens: int | None = Field(default=None, ge=0)
+    tokens: StrictInt | None = Field(default=None, ge=0)
     usd: float | None = Field(default=None, ge=0)
 
 
@@ -182,7 +182,8 @@ class ProposeIn(In):
     why_md: str = Field(default="", max_length=20000)
     risk: Literal["low", "medium", "high"] = "low"
     reversible: bool = True
-    quota_estimate: QuotaIn | int | None = None
+    # StrictInt: a JSON true is not a token count (it would become 1).
+    quota_estimate: QuotaIn | StrictInt | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
 
 

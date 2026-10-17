@@ -379,6 +379,19 @@ async def test_propose(mock: respx.MockRouter, gw: Gateway, quota: Any) -> None:
     assert sent["quota_estimate"] == ({"tokens": 50000} if quota == 50000 else quota)
 
 
+@pytest.mark.parametrize("quota", [True, {"tokens": True}, "lots"])
+async def test_propose_quota_is_never_guessed(
+    mock: respx.MockRouter, gw: Gateway, quota: Any
+) -> None:
+    Stub(mock)
+    work_route(mock)
+    route = mock.post(f"{API}/internal/v1/decisions")
+    args = {"kind": "proposal", "title_fa": "پیشنهاد", "quota_estimate": quota}
+    out = await call(gw, "propose", args)
+    assert out["outcome"] == "error" and out["code"] == "invalid_args"  # a boolean is not 1 token
+    assert not route.called
+
+
 async def test_messages_owner_and_thread(mock: respx.MockRouter, gw: Gateway) -> None:
     Stub(mock)
     post = mock.post(f"{API}/internal/v1/threads/TY-TECH-MGR/messages").mock(

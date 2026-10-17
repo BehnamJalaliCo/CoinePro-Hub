@@ -26,22 +26,41 @@ pytestmark = pytest.mark.usefixtures("relay")
 
 # ------------------------------------------------------------------ advisor --
 async def test_advisor_answers_live_with_validated_citations(
-    client: httpx.AsyncClient, owner: dict[str, str], su: Any, hub: Any, agents: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    hub: Any,
+    agents: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
     w = await order(client, owner, co, title="کار قابل استناد")
     q = hub.live.subscribe("A")
-    r = await client.post("/api/v1/threads/A/messages", headers={**owner, **idem()}, json={"body": "وضعیت کارها چطور است؟"})
+    r = await client.post(
+        "/api/v1/threads/A/messages",
+        headers={**owner, **idem()},
+        json={"body": "وضعیت کارها چطور است؟"},
+    )
     assert r.status_code == 201
     reply = r.json()["reply"]
     assert reply["state"] == "queued"
-    run_row = await su.fetchrow("SELECT * FROM agents.runs WHERE id = $1", uuid.UUID(reply["run_id"]))
+    run_row = await su.fetchrow(
+        "SELECT * FROM agents.runs WHERE id = $1", uuid.UUID(reply["run_id"])
+    )
     assert run_row["priority"] == "P2" and run_row["trigger"] == "message"
     answer = (
         f"خلاصه: کار {w['ref']} در صف است.\n\nشواهد: همان کار.\n"
         f'{P.CITATIONS_OPEN}[{{"kind": "work", "ref": "{w["ref"]}"}}, {{"kind": "decision", "ref": "D-999999"}}]{P.CITATIONS_CLOSE}'
     )
-    agents.fake.enqueue("HQ-ADV", step("جستجو در سوابق", ("knowledge.search", {"q": "کار قابل استناد"}), ("company.state", {"company": co})), answer)
+    agents.fake.enqueue(
+        "HQ-ADV",
+        step(
+            "جستجو در سوابق",
+            ("knowledge.search", {"q": "کار قابل استناد"}),
+            ("company.state", {"company": co}),
+        ),
+        answer,
+    )
     try:
         out = await run(agents, run_row["id"])
         assert out["state"] == "done", out
@@ -55,26 +74,42 @@ async def test_advisor_answers_live_with_validated_citations(
     text = "".join(d["text"] for t, d in seen if t == "reply.delta")
     assert w["ref"] in text and P.CITATIONS_OPEN not in text  # the citations line never streams
     ref = seen[-1][1]["message_ref"]
-    m = await su.fetchrow("SELECT body, citations, meta, author_code FROM msg.messages WHERE ref = $1", ref)
+    m = await su.fetchrow(
+        "SELECT body, citations, meta, author_code FROM msg.messages WHERE ref = $1", ref
+    )
     assert m["author_code"] == "HQ-ADV" and P.CITATIONS_OPEN not in m["body"]
-    assert json.loads(m["citations"]) == [{"kind": "work", "ref": w["ref"]}]  # the made-up one is dropped
+    assert json.loads(m["citations"]) == [
+        {"kind": "work", "ref": w["ref"]}
+    ]  # the made-up one is dropped
     assert json.loads(m["meta"]) == {"citations_dropped": 1}
     # The owner's API shows them; the live SSE exists for the owner only.
     r = await client.get("/api/v1/threads/A/messages", headers=owner)
     last = r.json()["items"][-1]
-    assert last["citations"] == [{"kind": "work", "ref": w["ref"]}] and last["meta"] == {"citations_dropped": 1}
+    assert last["citations"] == [{"kind": "work", "ref": w["ref"]}] and last["meta"] == {
+        "citations_dropped": 1
+    }
     assert (await client.get("/api/v1/threads/A/live")).status_code == 401
     # The research step's tools ran with the advisor's holding scope (another company read).
-    actions = json.loads(await su.fetchval("SELECT actions FROM agents.steps WHERE run_id = $1 AND n = 1", run_row["id"]))
+    actions = json.loads(
+        await su.fetchval(
+            "SELECT actions FROM agents.steps WHERE run_id = $1 AND n = 1", run_row["id"]
+        )
+    )
     assert [a["outcome"] for a in actions] == ["ok", "ok"]
 
 
 async def test_advisor_writes_nowhere_but_its_thread(
-    client: httpx.AsyncClient, owner: dict[str, str], su: Any, agents: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    agents: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
     w = await order(client, owner, co)
-    r = await client.post("/api/v1/threads/A/messages", headers={**owner, **idem()}, json={"body": "یک کار ساده"})
+    r = await client.post(
+        "/api/v1/threads/A/messages", headers={**owner, **idem()}, json={"body": "یک کار ساده"}
+    )
     run_id = r.json()["reply"]["run_id"]
     agents.fake.enqueue(
         "HQ-ADV",
@@ -90,7 +125,11 @@ async def test_advisor_writes_nowhere_but_its_thread(
         "پاسخ کوتاه.",
     )
     assert (await run(agents, run_id))["state"] == "done"
-    actions = json.loads(await su.fetchval("SELECT actions FROM agents.steps WHERE run_id = $1 AND n = 1", uuid.UUID(run_id)))
+    actions = json.loads(
+        await su.fetchval(
+            "SELECT actions FROM agents.steps WHERE run_id = $1 AND n = 1", uuid.UUID(run_id)
+        )
+    )
     assert [(a["tool"], a["outcome"], a.get("code")) for a in actions] == [
         ("deliver", "denied", "tool_not_in_charter"),
         ("propose", "denied", "tool_not_in_charter"),
@@ -102,7 +141,11 @@ async def test_advisor_writes_nowhere_but_its_thread(
 
 
 async def test_review_with_advisor_gives_the_decision_card(
-    client: httpx.AsyncClient, owner: dict[str, str], su: Any, agents: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    agents: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     from .conftest import agent_headers
 
@@ -110,11 +153,19 @@ async def test_review_with_advisor_gives_the_decision_card(
     r = await client.post(
         "/internal/v1/decisions",
         headers={**await agent_headers(f"{co}-CEO"), **idem()},
-        json={"kind": "proposal", "title": "پیشنهاد رشد", "what": "کمپین", "why": "رشد", "payload": {"okr": "O1"}},
+        json={
+            "kind": "proposal",
+            "title": "پیشنهاد رشد",
+            "what": "کمپین",
+            "why": "رشد",
+            "payload": {"okr": "O1"},
+        },
     )
     assert r.status_code == 201, r.text
     ref = r.json()["ref"]
-    r = await client.post(f"/api/v1/decisions/{ref}/review-with-advisor", headers={**owner, **idem()})
+    r = await client.post(
+        f"/api/v1/decisions/{ref}/review-with-advisor", headers={**owner, **idem()}
+    )
     assert r.status_code == 200, r.text
     row = await su.fetchrow(
         "SELECT r.id FROM agents.runs r JOIN msg.threads t ON t.id = r.thread_id WHERE t.code = 'A' AND r.state = 'queued' ORDER BY r.queued_at DESC LIMIT 1"
@@ -135,11 +186,40 @@ async def test_review_with_advisor_gives_the_decision_card(
     assert ref in agents.fake.calls[-2].messages[0].content
 
 
+def test_propose_section_is_generated_from_the_api_models(hub: Any) -> None:
+    from hq_api.domain import decisions as D
+
+    lib = hub.charters
+    co = P.propose_section(
+        lib, lib.roles["cto"], D.PAYLOADS, {"company_code": "TY", "holding_code": "HQ"}
+    )
+    assert "kind `hire`: payload {company: string, department: string, role?: string" in co
+    assert "`role` must be one of: sre (department TECH)" in co and "`company` is TY" in co
+    assert "work_id: uuid" in co and "effort: low|medium|high|xhigh|max" in co
+    holding = P.propose_section(
+        lib, lib.roles["aiops_head"], D.PAYLOADS, {"company_code": "HQ", "holding_code": "HQ"}
+    )
+    assert (
+        "hub_platform_sre (department AIOPS)" in holding and "sre (department TECH)" not in holding
+    )
+    assert P.propose_section(lib, lib.roles["advisor"], D.PAYLOADS, {}) == ""  # no propose tool
+    system = P.system_prompt(
+        lib,
+        lib.roles["cto"],
+        {"company_code": "TY", "holding_code": "HQ"},
+        max_actions=8,
+        payloads=D.PAYLOADS,
+    )
+    assert system.rstrip().endswith("One decision per hire.")
+
+
 async def test_stream_filter_and_answer_parsing() -> None:
     f = P.StreamFilter()
     out = "".join(f.feed(c) for c in ["سلام ", "مدیر کل", "\n<cita", "tions>[{]"]) + f.flush()
     assert out == "سلام مدیر کل\n"
-    body, cites = P.split_answer('متن\n<citations>[{"kind": "work", "ref": "W-000001"}, {"kind": "x", "ref": "y"}, 5]</citations>')
+    body, cites = P.split_answer(
+        'متن\n<citations>[{"kind": "work", "ref": "W-000001"}, {"kind": "x", "ref": "y"}, 5]</citations>'
+    )
     assert body == "متن" and cites == [{"kind": "work", "ref": "W-000001"}]
     assert P.split_answer("بدون استناد") == ("بدون استناد", [])
     assert P.split_answer("x <citations>not json</citations>") == ("x", [])
@@ -149,7 +229,9 @@ async def test_stream_filter_and_answer_parsing() -> None:
         P.parse_step({"summary_fa": 1}, None, 8)
     with pytest.raises(P.BadOutput):
         P.parse_step({"summary_fa": "x", "actions": [{"args": {}}], "done": True}, None, 8)
-    s = P.parse_step({"summary_fa": "x", "actions": [{"tool": "a", "args": 3}] * 12, "done": False}, None, 8)
+    s = P.parse_step(
+        {"summary_fa": "x", "actions": [{"tool": "a", "args": 3}] * 12, "done": False}, None, 8
+    )
     assert len(s.actions) == 8 and s.actions[0].args == {}
     assert P.trim("a\n\n\n\nb", 100) == "a\n\nb" and P.trim("x" * 20, 5).endswith("[cut]")
 
@@ -169,8 +251,12 @@ async def _site(su: Any, company_id: Any, url: str, **extra: Any) -> Any:
 
 async def _round(hub: Any, su: Any, checker: checks.Checker, company_id: Any) -> dict[str, Any]:
     # Only this company's sites are due (others were checked "just now").
-    await su.execute("UPDATE ops.sites SET last_checked_at = now() WHERE company_id <> $1", company_id)
-    await su.execute("UPDATE ops.sites SET last_checked_at = NULL WHERE company_id = $1", company_id)
+    await su.execute(
+        "UPDATE ops.sites SET last_checked_at = now() WHERE company_id <> $1", company_id
+    )
+    await su.execute(
+        "UPDATE ops.sites SET last_checked_at = NULL WHERE company_id = $1", company_id
+    )
     return await checks.run_round(hub, checker)
 
 
@@ -200,35 +286,56 @@ async def test_site_checks_open_one_incident_and_close_it(
         assert r["checked"] == 2 and r["failed"] == 1
         assert r["opened"] == (1 if i == 3 else 0)  # three in a row -> one incident, then no more
     inc = await su.fetchrow("SELECT * FROM ops.incidents WHERE site_id = $1", down_id)
-    assert inc["closed_at"] is None and inc["checks_failed"] == 5 and inc["last_error"] == "unexpected_status"
+    assert (
+        inc["closed_at"] is None
+        and inc["checks_failed"] == 5
+        and inc["last_error"] == "unexpected_status"
+    )
     work = await su.fetchrow("SELECT * FROM work.work WHERE id = $1", inc["work_id"])
     cto = await su.fetchval("SELECT id FROM core.employees WHERE code = $1", f"{co}-TECH-MGR")
-    assert work["assignee_id"] == cto and work["kind"] == "event" and work["created_by_code"] == "site-checks"
+    assert (
+        work["assignee_id"] == cto
+        and work["kind"] == "event"
+        and work["created_by_code"] == "site-checks"
+    )
     assert work["budget_tokens"] == 60_000  # the responder's run stops at the incident's budget
     assert len(json.loads(work["evidence"])) == 4
     runs = await su.fetch("SELECT trigger FROM agents.runs WHERE work_id = $1", inc["work_id"])
-    assert [r["trigger"] for r in runs] == ["alert"]  # one run woke the CTO; the healthy site woke nobody
-    assert await su.fetchval(
-        "SELECT count(*) FROM work.work WHERE company_id = $1 AND created_by_code = 'site-checks'", company["id"]
-    ) == 1
+    assert [r["trigger"] for r in runs] == [
+        "alert"
+    ]  # one run woke the CTO; the healthy site woke nobody
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM work.work WHERE company_id = $1 AND created_by_code = 'site-checks'",
+            company["id"],
+        )
+        == 1
+    )
     state["down"] = False
     r = await _round(hub, su, checker, company["id"])
     assert r["closed"] == 1
-    assert await su.fetchval("SELECT closed_at IS NOT NULL FROM ops.incidents WHERE id = $1", inc["id"])
+    assert await su.fetchval(
+        "SELECT closed_at IS NOT NULL FROM ops.incidents WHERE id = $1", inc["id"]
+    )
     checks_n = await su.fetchval("SELECT count(*) FROM ops.checks WHERE site_id = $1", down_id)
     assert checks_n == 6
     # Switched off while failing (the canary's way out): the next round closes its incident.
     state["down"] = True
     for _ in range(3):
         await _round(hub, su, checker, company["id"])
-    again = await su.fetchrow("SELECT * FROM ops.incidents WHERE site_id = $1 AND closed_at IS NULL", down_id)
+    again = await su.fetchrow(
+        "SELECT * FROM ops.incidents WHERE site_id = $1 AND closed_at IS NULL", down_id
+    )
     assert again is not None and again["id"] != inc["id"]
     await su.execute("UPDATE ops.sites SET enabled = false WHERE id = $1", down_id)
     r = await _round(hub, su, checker, company["id"])
     assert r["checked"] == 1 and r["closed"] == 1
-    assert await su.fetchval("SELECT closed_at IS NOT NULL FROM ops.incidents WHERE id = $1", again["id"])
+    assert await su.fetchval(
+        "SELECT closed_at IS NOT NULL FROM ops.incidents WHERE id = $1", again["id"]
+    )
     why = await su.fetchval(
-        "SELECT data->>'why' FROM work.work_events WHERE work_id = $1 AND kind = 'incident_closed'", again["work_id"]
+        "SELECT data->>'why' FROM work.work_events WHERE work_id = $1 AND kind = 'incident_closed'",
+        again["work_id"],
     )
     assert why == "monitoring switched off"
 
@@ -253,7 +360,13 @@ async def test_checker_results() -> None:
     c = checks.Checker(transport=httpx.MockTransport(handler), tls=False)
 
     async def check(path: str, **expect: Any) -> checks.Result:
-        return await c.check({"url": f"https://site.test{path}", "method": "GET", "expect": expect or {"status": 200}})
+        return await c.check(
+            {
+                "url": f"https://site.test{path}",
+                "method": "GET",
+                "expect": expect or {"status": 200},
+            }
+        )
 
     assert (await check("/offsite")).error_code == "unexpected_status"
     off = await check("/offsite", status=301)
@@ -263,12 +376,20 @@ async def test_checker_results() -> None:
     assert (await check("/dns")).error_code == "dns_error"
     assert (await check("/refused")).error_code == "connect_error"
     assert (await check("/slow")).error_code == "timeout"
-    head = await c.check({"url": "https://site.test/x", "method": "HEAD", "expect": {"status": 200, "contains": "zzz"}})
+    head = await c.check(
+        {
+            "url": "https://site.test/x",
+            "method": "HEAD",
+            "expect": {"status": 200, "contains": "zzz"},
+        }
+    )
     assert head.ok  # contains is checked on GET only
     assert checks._cert_days_left("invalid.invalid") is None
 
 
-async def test_the_holding_responder_and_hub_snapshot(su: Any, wk: dict[str, Any], hub: Any, tmp_path: Any) -> None:
+async def test_the_holding_responder_and_hub_snapshot(
+    su: Any, wk: dict[str, Any], hub: Any, tmp_path: Any
+) -> None:
     holding = await hub.companies.holding()
     async with hub.db.tx(await hub.companies.ids()) as tx:
         who = await checks.responder(hub, tx, holding.id, "holding")
@@ -277,13 +398,30 @@ async def test_the_holding_responder_and_hub_snapshot(su: Any, wk: dict[str, Any
     def prom(request: httpx.Request) -> httpx.Response:
         q = request.url.params["query"]
         if "hq_container_up" in q:
-            return httpx.Response(200, json={"data": {"result": [
-                {"metric": {"service": "caddy"}, "value": [0, "1"]}, {"metric": {"service": "loki"}, "value": [0, "0"]}]}})
+            return httpx.Response(
+                200,
+                json={
+                    "data": {
+                        "result": [
+                            {"metric": {"service": "caddy"}, "value": [0, "1"]},
+                            {"metric": {"service": "loki"}, "value": [0, "0"]},
+                        ]
+                    }
+                },
+            )
         if "restarts" in q:
-            return httpx.Response(200, json={"data": {"result": [{"metric": {"service": "loki"}, "value": [0, "2"]}]}})
-        return httpx.Response(200, json={"data": {"result": [{"metric": {}, "value": [0, "42.42"]}]}})
+            return httpx.Response(
+                200, json={"data": {"result": [{"metric": {"service": "loki"}, "value": [0, "2"]}]}}
+            )
+        return httpx.Response(
+            200, json={"data": {"result": [{"metric": {}, "value": [0, "42.42"]}]}}
+        )
 
-    (tmp_path / "backup.json").write_text(json.dumps({"at": datetime.now(UTC).isoformat(), "ok": True, "size_bytes": 608000, "stamp": "x"}))
+    (tmp_path / "backup.json").write_text(
+        json.dumps(
+            {"at": datetime.now(UTC).isoformat(), "ok": True, "size_bytes": 608000, "stamp": "x"}
+        )
+    )
     from dataclasses import replace
 
     whub = wk["hub"]
@@ -294,7 +432,11 @@ async def test_the_holding_responder_and_hub_snapshot(su: Any, wk: dict[str, Any
     finally:
         whub.settings = real
     assert data["services_up"] == "1/2" and data["restarts_24h"] == {"loki": 2}
-    assert data["disk_used_pct"] == 42.4 and data["backup"]["ok"] is True and data["restore_test"] is None
+    assert (
+        data["disk_used_pct"] == 42.4
+        and data["backup"]["ok"] is True
+        and data["restore_test"] is None
+    )
     assert data["backup"]["age_hours"] is not None and data["backup"]["age_hours"] < 1
     stored = await su.fetchval("SELECT data FROM ops.hub_health WHERE company_id = $1", holding.id)
     assert json.loads(stored)["services_up"] == "1/2"
@@ -302,7 +444,11 @@ async def test_the_holding_responder_and_hub_snapshot(su: Any, wk: dict[str, Any
 
 # ------------------------------------------------------------- owner's side --
 async def test_roles_runs_sites_incidents_and_quota_endpoints(
-    client: httpx.AsyncClient, hub: Any, owner_session: dict[str, Any], su: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Any,
+    owner_session: dict[str, Any],
+    su: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     h = owner_session["headers"]
     r = await client.get("/api/v1/roles", headers=h)
@@ -313,20 +459,37 @@ async def test_roles_runs_sites_incidents_and_quota_endpoints(
     co = company["code"]
     r = await client.get(f"/api/v1/employees/{co}-TECH-MGR", headers=h)
     assert r.json()["charter"] == {"role": "cto", "version": 1}
-    body = {"company": co, "sites": [{"url": f"https://a-{co.lower()}.test/", "expect": {"status": 200}},
-                                      {"url": f"https://b-{co.lower()}.test/", "kind": "api", "method": "HEAD"}]}
+    body = {
+        "company": co,
+        "sites": [
+            {"url": f"https://a-{co.lower()}.test/", "expect": {"status": 200}},
+            {"url": f"https://b-{co.lower()}.test/", "kind": "api", "method": "HEAD"},
+        ],
+    }
     r = await client.put("/api/v1/ops/sites", headers=h, json=body)
     assert r.status_code == 403  # 🔏
     r = await signed_put(client, hub, owner_session, "/api/v1/ops/sites", body, "sites.update")
     assert r.status_code == 200, r.text
-    assert sorted(s["url"] for s in r.json() if s["enabled"]) == sorted(s["url"] for s in body["sites"])
+    assert sorted(s["url"] for s in r.json() if s["enabled"]) == sorted(
+        s["url"] for s in body["sites"]
+    )
     body2 = {"company": co, "sites": [body["sites"][0]]}
     r = await signed_put(client, hub, owner_session, "/api/v1/ops/sites", body2, "sites.update")
-    assert [s["enabled"] for s in sorted(r.json(), key=lambda s: s["url"])] == [True, False]  # off, not deleted
-    bad = {"company": co, "sites": [{"url": f"https://a-{co.lower()}.test/", "expect": {"status": 999}}]}
-    assert (await signed_put(client, hub, owner_session, "/api/v1/ops/sites", bad, "sites.update")).status_code == 422
+    assert [s["enabled"] for s in sorted(r.json(), key=lambda s: s["url"])] == [
+        True,
+        False,
+    ]  # off, not deleted
+    bad = {
+        "company": co,
+        "sites": [{"url": f"https://a-{co.lower()}.test/", "expect": {"status": 999}}],
+    }
+    assert (
+        await signed_put(client, hub, owner_session, "/api/v1/ops/sites", bad, "sites.update")
+    ).status_code == 422
     dup = {"company": co, "sites": [body["sites"][0], body["sites"][0]]}
-    assert (await signed_put(client, hub, owner_session, "/api/v1/ops/sites", dup, "sites.update")).status_code == 422
+    assert (
+        await signed_put(client, hub, owner_session, "/api/v1/ops/sites", dup, "sites.update")
+    ).status_code == 422
     assert (await client.get(f"/api/v1/ops/sites?company={co}", headers=h)).status_code == 200
     r = await client.get(f"/api/v1/ops/incidents?company={co}&open=true", headers=h)
     assert r.status_code == 200 and r.json() == []
@@ -342,7 +505,10 @@ async def test_roles_runs_sites_incidents_and_quota_endpoints(
     )
     q = (await client.get("/api/v1/treasury/quota", headers=h)).json()
     assert q["subscription"]["status"] == "warning" and q["throttle"]["paused_priorities"] == ["P4"]
-    await su.execute("UPDATE llm.quota_status SET resets_at = now() - interval '1 minute' WHERE connection_id = $1", cid)
+    await su.execute(
+        "UPDATE llm.quota_status SET resets_at = now() - interval '1 minute' WHERE connection_id = $1",
+        cid,
+    )
     q = (await client.get("/api/v1/treasury/quota", headers=h)).json()
     assert q["subscription"]["status"] == "ok" and q["throttle"]["paused_priorities"] == []
     await su.execute("DELETE FROM llm.quota_status WHERE connection_id = $1", cid)
@@ -358,7 +524,9 @@ async def test_live_stream_for_the_owner(app: Any, owner: dict[str, str], hub: A
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
     sock.close()
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error", lifespan="off"))
+    server = uvicorn.Server(
+        uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error", lifespan="off")
+    )
     serving = asyncio.create_task(server.serve())
     try:
         for _ in range(100):
@@ -368,9 +536,10 @@ async def test_live_stream_for_the_owner(app: Any, owner: dict[str, str], hub: A
 
         async def listen() -> list[str]:
             out: list[str] = []
-            async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{port}") as c, c.stream(
-                "GET", "/api/v1/threads/A/live", headers=owner, timeout=10
-            ) as resp:
+            async with (
+                httpx.AsyncClient(base_url=f"http://127.0.0.1:{port}") as c,
+                c.stream("GET", "/api/v1/threads/A/live", headers=owner, timeout=10) as resp,
+            ):
                 assert resp.status_code == 200
                 async for line in resp.aiter_lines():
                     out.append(line)
@@ -397,18 +566,40 @@ async def test_live_stream_for_the_owner(app: Any, owner: dict[str, str], hub: A
 
 # ------------------------------------------------------------------- hiring --
 async def test_a_hire_runs_with_a_real_charter(
-    client: httpx.AsyncClient, hub: Any, owner_session: dict[str, Any], su: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Any,
+    owner_session: dict[str, Any],
+    su: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     from .conftest import agent_headers
 
     co = (await new_company())["code"]
     cto = await agent_headers(f"{co}-TECH-MGR")
-    base = {"kind": "hire", "title": "استخدام SRE", "what": "پایش", "why": "نیاز",
-            "payload": {"company": co, "department": "TECH", "title_fa": "SRE", "title_en": "SRE",
-                        "reason": "پایش", "model": "claude-haiku-5-5", "effort": "high"}}
+    base = {
+        "kind": "hire",
+        "title": "استخدام SRE",
+        "what": "پایش",
+        "why": "نیاز",
+        "payload": {
+            "company": co,
+            "department": "TECH",
+            "title_fa": "SRE",
+            "title_en": "SRE",
+            "reason": "پایش",
+            "model": "claude-haiku-5-5",
+            "effort": "high",
+        },
+    }
     r = await client.post("/internal/v1/decisions", headers={**cto, **idem()}, json=base)
-    assert r.status_code == 422 and "payload.role" in r.json()["fields"]  # an agent must name the charter
-    for role, field in (("nope", "payload.role"), ("cto", "payload.role"), ("ai_safety", "payload.role")):
+    assert (
+        r.status_code == 422 and "payload.role" in r.json()["fields"]
+    )  # an agent must name the charter
+    for role, field in (
+        ("nope", "payload.role"),
+        ("cto", "payload.role"),
+        ("ai_safety", "payload.role"),
+    ):
         bad = json.loads(json.dumps(base))
         bad["payload"]["role"] = role
         r = await client.post("/internal/v1/decisions", headers={**cto, **idem()}, json=bad)
@@ -425,18 +616,24 @@ async def test_a_hire_runs_with_a_real_charter(
     h, sid = owner_session["headers"], owner_session["session_id"]
     st = await step_up(hub, sid, "decision.approve", ref)
     r = await client.post(
-        f"/api/v1/decisions/{ref}/approve", headers={**h, **st, **idem()}, json={"amendments": {"role": "manager"}}
+        f"/api/v1/decisions/{ref}/approve",
+        headers={**h, **st, **idem()},
+        json={"amendments": {"role": "manager"}},
     )
     assert r.status_code == 422  # the amended role is not an employee charter: not approved
     st = await step_up(hub, sid, "decision.approve", ref)
-    r = await client.post(f"/api/v1/decisions/{ref}/approve", headers={**h, **st, **idem()}, json={})
+    r = await client.post(
+        f"/api/v1/decisions/{ref}/approve", headers={**h, **st, **idem()}, json={}
+    )
     assert r.status_code == 200, r.text
     from hq_api.domain import decisions as D
     from hq_api.principal import Principal
 
     async with hub.db.tx(await hub.companies.ids()) as tx:
         out = await D.apply_effect(tx, ref, Principal(kind="service", code="system", role="system"))
-    emp = await su.fetchrow("SELECT role, kind FROM core.employees WHERE code = $1", out["employee"])
+    emp = await su.fetchrow(
+        "SELECT role, kind FROM core.employees WHERE code = $1", out["employee"]
+    )
     assert (emp["role"], emp["kind"]) == ("sre", "employee")
     # The SRE now answers incidents of its company before the CTO.
     company_id = await su.fetchval("SELECT id FROM core.companies WHERE code = $1", co)
@@ -446,7 +643,11 @@ async def test_a_hire_runs_with_a_real_charter(
 
 
 async def test_memory_and_its_transfer_on_dismissal(
-    client: httpx.AsyncClient, hub: Any, owner_session: dict[str, Any], su: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Any,
+    owner_session: dict[str, Any],
+    su: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     from .conftest import agent_headers
 
@@ -466,15 +667,21 @@ async def test_memory_and_its_transfer_on_dismissal(
     )
     me = await agent_headers(emp)
     for note in ("درگاه پرداخت شب‌ها کند است", "پنجره‌ی نگهداری: جمعه‌ها"):
-        r = await client.post("/internal/v1/memory", headers=me, json={"note": note, "tags": ["ops"]})
+        r = await client.post(
+            "/internal/v1/memory", headers=me, json={"note": note, "tags": ["ops"]}
+        )
         assert r.status_code == 201, r.text
     r = await client.get("/internal/v1/memory", headers=me)
-    assert [n["note"] for n in r.json()][0] == "پنجره‌ی نگهداری: جمعه‌ها"
+    assert r.json()[0]["note"] == "پنجره‌ی نگهداری: جمعه‌ها"  # latest first
     other = await agent_headers(f"{co}-TECH-MGR")
-    assert len((await client.get("/internal/v1/memory", headers=other)).json()) == 0  # own memory only
+    assert (
+        len((await client.get("/internal/v1/memory", headers=other)).json()) == 0
+    )  # own memory only
     h, sid = owner_session["headers"], owner_session["session_id"]
     st = await step_up(hub, sid, "employee.dismiss", emp)
-    r = await client.post(f"/api/v1/employees/{emp}/dismiss", headers={**h, **st, **idem()}, json={"reason": "پایان"})
+    r = await client.post(
+        f"/api/v1/employees/{emp}/dismiss", headers={**h, **st, **idem()}, json={"reason": "پایان"}
+    )
     assert r.status_code == 200, r.text
     moved = await su.fetch(
         """SELECT m.note, m.tags, s.code AS source FROM core.employee_memory m JOIN core.employees s
@@ -489,14 +696,20 @@ async def test_memory_and_its_transfer_on_dismissal(
 
 
 # ----------------------------------------------------------- morning report --
-async def test_morning_report_rewrite_keeps_the_numbers(su: Any, wk: dict[str, Any], agents: Any) -> None:
+async def test_morning_report_rewrite_keeps_the_numbers(
+    su: Any, wk: dict[str, Any], agents: Any
+) -> None:
     from hq_api.worker import report
     from hq_api.worker.activities import Activities
 
-    assert report.same_numbers("کار W-000123 و ۳ تصمیم و $2.94", "سه تصمیم، کار W-000123، مبلغ $2.94")
+    assert report.same_numbers(
+        "کار W-000123 و ۳ تصمیم و $2.94", "سه تصمیم، کار W-000123، مبلغ $2.94"
+    )
     assert not report.same_numbers("۳ تصمیم", "۴ تصمیم")
     holding = await wk["hub"].companies.holding()
-    acts = Activities(wk["hub"], None, router=agents.router, gateway=agents.gateway, live=agents.live)
+    acts = Activities(
+        wk["hub"], None, router=agents.router, gateway=agents.gateway, live=agents.live
+    )
     today_title = await su.fetchval("SELECT 1")
     assert today_title
     await su.execute(
@@ -506,22 +719,36 @@ async def test_morning_report_rewrite_keeps_the_numbers(su: Any, wk: dict[str, A
     agents.fake.enqueue(f"{holding.code}-SYS", "گزارش خوش‌خوان امروز: همه چیز آرام است.")
     out = await acts.morning_report()
     assert out["created"] is True and out["rewritten"]
-    pdl = await su.fetchrow("SELECT title, produced_with FROM cartable.deliverables WHERE ref = $1", out["rewritten"])
-    assert pdl["title"].endswith("(متن خوش‌خوان)") and json.loads(pdl["produced_with"])["model"] == "claude-sonnet-5-5"
+    pdl = await su.fetchrow(
+        "SELECT title, produced_with FROM cartable.deliverables WHERE ref = $1", out["rewritten"]
+    )
+    assert (
+        pdl["title"].endswith("(متن خوش‌خوان)")
+        and json.loads(pdl["produced_with"])["model"] == "claude-sonnet-5-5"
+    )
     await su.execute(
         "UPDATE work.work SET title = title || ' (old)' WHERE company_id = $1 AND title LIKE 'Morning report %' AND title NOT LIKE '%(old)'",
         holding.id,
     )
-    agents.fake.enqueue(f"{holding.code}-SYS", "امروز 999999 کار تازه داریم.")  # a number the report never had
+    agents.fake.enqueue(
+        f"{holding.code}-SYS", "امروز 999999 کار تازه داریم."
+    )  # a number the report never had
     out = await acts.morning_report()
     assert out["created"] is True and out["rewritten"] is None
-    noti = await su.fetchval("SELECT link_ref FROM notify.notifications WHERE link_ref = $1", out["deliverable"])
+    noti = await su.fetchval(
+        "SELECT link_ref FROM notify.notifications WHERE link_ref = $1", out["deliverable"]
+    )
     assert noti == out["deliverable"]
 
 
 # ----------------------------------------------------------- through Temporal --
 async def test_a_run_end_to_end_through_temporal(
-    client: httpx.AsyncClient, owner: dict[str, str], su: Any, wk: dict[str, Any], agents: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    wk: dict[str, Any],
+    agents: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     from temporalio.worker import Worker
 
@@ -530,11 +757,20 @@ async def test_a_run_end_to_end_through_temporal(
     from hq_api.worker.workflows import WORKFLOWS
 
     tq = f"agents-test-{uuid.uuid4().hex[:6]}"
-    acts = Activities(wk["hub"], wk["client"], router=agents.router, gateway=agents.gateway, live=agents.live)
+    acts = Activities(
+        wk["hub"], wk["client"], router=agents.router, gateway=agents.gateway, live=agents.live
+    )
     co = (await new_company())["code"]
-    await su.execute("UPDATE agents.runs SET dispatched_at = now() WHERE state = 'queued' AND dispatched_at IS NULL")
+    await su.execute(
+        "UPDATE agents.runs SET dispatched_at = now() WHERE state = 'queued' AND dispatched_at IS NULL"
+    )
     w = await order(client, owner, co, title="از راه تمپورال")
-    agents.fake.enqueue(f"{co}-CEO", step("تحویل", ("deliver", {"work_ref": w["ref"], "title_fa": "تحویل", "body_md": "انجام شد"})))
+    agents.fake.enqueue(
+        f"{co}-CEO",
+        step(
+            "تحویل", ("deliver", {"work_ref": w["ref"], "title_fa": "تحویل", "body_md": "انجام شد"})
+        ),
+    )
     async with Worker(wk["client"], task_queue=tq, workflows=WORKFLOWS, activities=acts.all()):
         d = Dispatcher(wk["hub"], wk["client"], tq)
         assert await d.once() == 1
@@ -543,45 +779,75 @@ async def test_a_run_end_to_end_through_temporal(
         handle = wk["client"].get_workflow_handle(f"agent-run-{row['id']}")
         result = await asyncio.wait_for(handle.result(), timeout=60)
     assert result["state"] == "done", result
-    assert await su.fetchval("SELECT status FROM work.work WHERE id = $1", uuid.UUID(w["id"])) == "delivered"
+    assert (
+        await su.fetchval("SELECT status FROM work.work WHERE id = $1", uuid.UUID(w["id"]))
+        == "delivered"
+    )
 
 
-async def test_quota_alert_reaches_the_stream_and_the_owner(hub: Any, su: Any, wk: dict[str, Any]) -> None:
+async def test_quota_alert_reaches_the_stream_and_the_owner(
+    hub: Any, su: Any, wk: dict[str, Any]
+) -> None:
     from types import SimpleNamespace
 
     from hq_api.worker.bridge import Bridge
 
     bridge = Bridge(wk["hub"])
     marker = datetime.now(UTC).isoformat()
-    payload = {"type": "quota", "connection": "claude-max", "status": "warning", "previous": "ok",
-               "window": "five_hour", "utilization": "0.8500", "resets_at": None, "source": "sdk_rate_limit_event",
-               "paused_priorities": ["P4"], "at": marker}
-    msg = SimpleNamespace(data=json.dumps(payload).encode(), subject="hq.alerts.quota",
-                          metadata=SimpleNamespace(sequence=SimpleNamespace(stream=10**6 + random_code().__hash__() % 1000)))
+    payload = {
+        "type": "quota",
+        "connection": "claude-max",
+        "status": "warning",
+        "previous": "ok",
+        "window": "five_hour",
+        "utilization": "0.8500",
+        "resets_at": None,
+        "source": "sdk_rate_limit_event",
+        "paused_priorities": ["P4"],
+        "at": marker,
+    }
+    msg = SimpleNamespace(
+        data=json.dumps(payload).encode(),
+        subject="hq.alerts.quota",
+        metadata=SimpleNamespace(
+            sequence=SimpleNamespace(stream=10**6 + random_code().__hash__() % 1000)
+        ),
+    )
     await bridge.handle("HQ_ALERTS", msg)
     row = await su.fetchrow(
-        "SELECT level, title_fa FROM notify.notifications WHERE link_ref = $1", f"quota:warning:{marker}"[:100]
+        "SELECT level, title_fa FROM notify.notifications WHERE link_ref = $1",
+        f"quota:warning:{marker}"[:100],
     )
     assert row["level"] == "report" and "هشدار" in row["title_fa"] and "P4" in row["title_fa"]
     await bridge.handle("HQ_ALERTS", msg)  # redelivered: told once
-    assert await su.fetchval(
-        "SELECT count(*) FROM notify.notifications WHERE link_ref = $1", f"quota:warning:{marker}"[:100]
-    ) == 1
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM notify.notifications WHERE link_ref = $1",
+            f"quota:warning:{marker}"[:100],
+        )
+        == 1
+    )
 
 
 def test_charter_problems_are_reported(tmp_path: Any) -> None:
     from hq_common import charters
 
     (tmp_path / "roles").mkdir()
-    (tmp_path / "tools.md").write_text("| `work.get` | A0 | `{ref}` | one item |\n| `x.y` | A4 | `{}` | never |\n")
-    (tmp_path / "roles" / "_common.md").write_text("---\nrole: _common\nversion: 2\n---\nسلام {{employee_code}} {{unknown}}")
+    (tmp_path / "tools.md").write_text(
+        "| `work.get` | A0 | `{ref}` | one item |\n| `x.y` | A4 | `{}` | never |\n"
+    )
+    (tmp_path / "roles" / "_common.md").write_text(
+        "---\nrole: _common\nversion: 2\n---\nسلام {{employee_code}} {{unknown}}"
+    )
     (tmp_path / "roles" / "aa.md").write_text(
         "---\nrole: aa\ntitle_fa: الف\ntitle_en: A\nkind: employee\nscope: company\nmodel: m\neffort: high\n"
         "priority: P3\ntools: [work.get, nope, x.y]\nlimits: {steps_per_run: 2, tokens_per_step: 10, tokens_per_run: 20}\n"
         "version: 3\n---\nبدنه"
     )
     (tmp_path / "roles" / "b.md").write_text("no frontmatter")
-    (tmp_path / "roles" / "c.md").write_text("---\nrole: wrong\ntitle_fa: x\ntitle_en: x\nkind: employee\nmodel: m\neffort: high\npriority: P3\nlimits: {steps_per_run: 1, tokens_per_step: 1, tokens_per_run: 1}\nversion: 1\n---\n")
+    (tmp_path / "roles" / "c.md").write_text(
+        "---\nrole: wrong\ntitle_fa: x\ntitle_en: x\nkind: employee\nmodel: m\neffort: high\npriority: P3\nlimits: {steps_per_run: 1, tokens_per_step: 1, tokens_per_run: 1}\nversion: 1\n---\n"
+    )
     lib = charters.load(tmp_path)
     assert set(lib.roles) == {"aa"} and lib.roles["aa"].tools == ("work.get",)
     assert any("nope" in p for p in lib.problems) and any("A4" in p for p in lib.problems)
@@ -593,7 +859,9 @@ def test_charter_problems_are_reported(tmp_path: Any) -> None:
     assert timedelta  # imported for symmetry with other tests
 
 
-async def test_month1_bootstrap_is_data_and_applies_once(su: Any, hub: Any, new_company: Callable[..., Any]) -> None:
+async def test_month1_bootstrap_is_data_and_applies_once(
+    su: Any, hub: Any, new_company: Callable[..., Any]
+) -> None:
     from hq_api import bootstrap
 
     data = bootstrap.load("month1")
@@ -605,11 +873,15 @@ async def test_month1_bootstrap_is_data_and_applies_once(su: Any, hub: Any, new_
     mine = [c for c in first["created"] if c["assignee"] == f"{company['code']}-TECH-MGR"]
     assert len(mine) == 1  # every company of kind "company", including one added today
     w = await su.fetchrow("SELECT * FROM work.work WHERE ref = $1", mine[0]["ref"])
-    assert (w["created_by_kind"], w["created_by_code"], w["budget_tokens"]) == ("service", "bootstrap", 60000)
+    assert (w["created_by_kind"], w["created_by_code"], w["budget_tokens"]) == (
+        "service",
+        "bootstrap",
+        60000,
+    )
     assert "§6.4" in w["brief"]
-    assert await su.fetchval(
-        "SELECT trigger FROM agents.runs WHERE work_id = $1", w["id"]
-    ) == "work"  # it wakes the CTO like any other work
+    assert (
+        await su.fetchval("SELECT trigger FROM agents.runs WHERE work_id = $1", w["id"]) == "work"
+    )  # it wakes the CTO like any other work
     async with hub.db.tx(await hub.companies.ids()) as tx:
         again = await bootstrap.apply(tx, one)
     assert again["created"] == [] and again["skipped"] >= len(first["created"])

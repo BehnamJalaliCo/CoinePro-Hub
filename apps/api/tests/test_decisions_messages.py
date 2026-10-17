@@ -109,9 +109,7 @@ async def test_hire_proposal_approval_and_effect(
     r = await client.post(f"/api/v1/decisions/{ref}/reject", headers={**h, **idem()}, json={})
     assert r.status_code == 409 and r.json()["code"] == "decision_not_pending"
 
-    msgs = (await client.get(f"/api/v1/threads/{co}-TECH-MGR/messages", headers=h)).json()[
-        "items"
-    ]
+    msgs = (await client.get(f"/api/v1/threads/{co}-TECH-MGR/messages", headers=h)).json()["items"]
     assert msgs[-1]["kind"] == "system" and ok["resolution"] in msgs[-1]["body"]
     res = (await client.get(f"/api/v1/resolutions/{ok['resolution']}", headers=h)).json()
     assert res["source"]["decision"] == ref and res["sent_to"] == [f"{co}-TECH-MGR"]

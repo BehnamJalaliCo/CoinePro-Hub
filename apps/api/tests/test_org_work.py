@@ -305,8 +305,7 @@ async def test_order_delegation_depth_budget_and_delivery(
     # Prompt 05: an agent's token belongs to a run, and a run's usage is booked by
     # the runtime from llm-router's ledger; the usage an agent reports is not counted.
     assert (
-        r.json()["work"]["status"] == "delivered"
-        and r.json()["work"]["budget"]["tokens_used"] == 0
+        r.json()["work"]["status"] == "delivered" and r.json()["work"]["budget"]["tokens_used"] == 0
     )
 
     r = await client.post(

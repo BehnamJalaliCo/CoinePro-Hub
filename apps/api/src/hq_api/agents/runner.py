@@ -40,6 +40,7 @@ from hq_api import audit, events
 from hq_api.agents import protocol as P
 from hq_api.agents.clients import Gateway, LivePush, ModelCall, Router
 from hq_api.db import Tx
+from hq_api.domain import decisions as D
 from hq_api.hub import Hub
 from hq_api.security import agent_tokens
 from hq_api.worker.jalali import jalali_long
@@ -189,7 +190,10 @@ class Runner:
 
     async def _spent_today(self, tx: Tx) -> int:
         n = await tx.scalar(
-            """SELECT COALESCE(sum(input_tokens + output_tokens), 0) FROM agents.runs
+            # Everything the model read or wrote: through the subscription most of the
+            # input arrives as cache writes and reads, not as input_tokens.
+            """SELECT COALESCE(sum(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens), 0)
+               FROM agents.runs
                WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"""
         )
         return int(n or 0)
@@ -299,6 +303,7 @@ class Runner:
             await self._values(rc.emp),
             max_actions=self.s.agent_actions_per_step,
             answer_phase=charter.kind == "advisor" and run["trigger"] == "message",
+            payloads=D.PAYLOADS,
         )
         rc.messages = [{"role": "user", "content": await self._context(rc)}]
         live_thread = await self._reply_thread(rc)

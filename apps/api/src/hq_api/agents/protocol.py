@@ -19,8 +19,16 @@ from __future__ import annotations
 
 import json
 import re
+import types
+import typing
+from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel
 
 from hq_common.charters import Charter, Library
 
@@ -132,6 +140,68 @@ def runtime_section(
 """
 
 
+def _shape(annotation: Any) -> str:
+    """A compact type for the model: string, int, a|b, [..], {..}."""
+    origin = typing.get_origin(annotation)
+    args = typing.get_args(annotation)
+    if origin is typing.Literal:
+        return "|".join(str(a) for a in args)
+    if origin in (typing.Union, types.UnionType):
+        inner = [a for a in args if a is not type(None)]
+        return " or ".join(_shape(a) for a in inner)
+    if origin in (list, tuple, set):
+        return f"[{_shape(args[0]) if args else 'any'}]"
+    if origin is dict:
+        return "{...}"
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return _fields(annotation)
+    if annotation is UUID:
+        return "uuid"
+    return {str: "string", int: "int", bool: "bool", float: "number"}.get(
+        annotation, "string" if annotation in (Decimal, datetime, date) else "any"
+    )
+
+
+def _fields(model: type[BaseModel]) -> str:
+    parts = []
+    for name, f in model.model_fields.items():
+        parts.append(f"{name}{'' if f.is_required() else '?'}: {_shape(f.annotation)}")
+    return "{" + ", ".join(parts) + "}"
+
+
+def propose_section(
+    lib: Library,
+    charter: Charter,
+    payloads: Mapping[str, type[BaseModel]],
+    values: dict[str, str],
+) -> str:
+    """The payload of each decision kind, generated from the API's own models
+    (so the prompt and the validator never drift), and the charters a hire may
+    name in this company."""
+    if "propose" not in charter.tools:
+        return ""
+    scope = "holding" if values.get("company_code") == values.get("holding_code") else "company"
+    hireable = [
+        f"{c.role}" + (f" (department {c.department})" if c.department else "")
+        for c in sorted(lib.roles.values(), key=lambda c: c.role)
+        if c.kind == "employee" and c.scope == scope
+    ]
+    lines = [
+        "# propose: the payload of each decision kind (checked by the API; a wrong field is refused)",
+        '- `quota_estimate`: {"tokens": int, "usd": "decimal string"}: the monthly estimate on the card.',
+    ]
+    for kind, model in payloads.items():
+        lines.append(f"- kind `{kind}`: payload {_fields(model)}")
+    lines.append(
+        f"- For `hire`: `company` is {values.get('company_code')}; `role` must be one of: "
+        + (", ".join(hireable) or "none (no employee charter exists for this company yet)")
+        + "; `model` one of: "
+        + ", ".join(sorted({c.model for c in lib.roles.values()}))
+        + ". One decision per hire."
+    )
+    return "\n".join(lines) + "\n"
+
+
 def system_prompt(
     lib: Library,
     charter: Charter,
@@ -139,12 +209,16 @@ def system_prompt(
     *,
     max_actions: int,
     answer_phase: bool = False,
+    payloads: Mapping[str, type[BaseModel]] | None = None,
 ) -> str:
-    return (
+    out = (
         lib.system_prompt(charter.role, values)
         + "\n\n"
         + runtime_section(lib, charter, max_actions=max_actions, answer_phase=answer_phase)
     )
+    if payloads:
+        out += "\n" + propose_section(lib, charter, payloads, values)
+    return out
 
 
 ANSWER_PHASE = (

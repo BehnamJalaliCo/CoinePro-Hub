@@ -417,7 +417,8 @@ async def hub_snapshot(
                 )
                 if key in ("up", "restarts_24h"):
                     data[key] = {
-                        str(v["metric"].get("service", "?")): float(v["value"][1]) for v in vec[:100]
+                        str(v["metric"].get("service", "?")): float(v["value"][1])
+                        for v in vec[:100]
                     }
                 elif vec:
                     data[key] = round(float(vec[0]["value"][1]), 1)

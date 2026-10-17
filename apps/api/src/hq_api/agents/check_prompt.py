@@ -21,6 +21,7 @@ import httpx
 from hq_api.agents import protocol as P
 from hq_api.config import Settings
 from hq_api.db import Database
+from hq_api.domain import decisions as D
 from hq_common import charters
 
 QUESTIONS = {
@@ -80,7 +81,12 @@ async def check(role: str, token: str) -> dict[str, Any]:
         await db.close()
     advisor = charter.kind == "advisor"
     system = P.system_prompt(
-        lib, charter, values, max_actions=s.agent_actions_per_step, answer_phase=advisor
+        lib,
+        charter,
+        values,
+        max_actions=s.agent_actions_per_step,
+        answer_phase=advisor,
+        payloads=D.PAYLOADS,
     )
     context = (
         "# Trigger\nmessage (prompt check: nothing you do here is stored or carried out)\n\n"
@@ -101,7 +107,9 @@ async def check(role: str, token: str) -> dict[str, Any]:
     }
     out: dict[str, Any] = {"role": role, "charter": charter.ref, "model": charter.model}
     headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient(base_url=s.llm_router_url, timeout=s.agent_step_timeout_s + 30) as c:
+    async with httpx.AsyncClient(
+        base_url=s.llm_router_url, timeout=s.agent_step_timeout_s + 30
+    ) as c:
         messages = [{"role": "user", "content": context}]
         r = await c.post(
             "/v1/run",
@@ -147,7 +155,9 @@ async def check(role: str, token: str) -> dict[str, Any]:
                 "citations_block_streamed": P.CITATIONS_OPEN in text,
             }
     calls = [out["step"], *([out["answer"]] if "answer" in out else [])]
-    out["tokens_in"] = sum(x["input_tokens"] + x["cache_read_tokens"] + x["cache_write_tokens"] for x in calls)
+    out["tokens_in"] = sum(
+        x["input_tokens"] + x["cache_read_tokens"] + x["cache_write_tokens"] for x in calls
+    )
     out["tokens_out"] = sum(x["output_tokens"] for x in calls)
     return out
 
