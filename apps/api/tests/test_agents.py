@@ -359,21 +359,26 @@ async def test_the_charter_token_cap_and_a_partial_deliverable(
     new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
-    w = await order(client, owner, co, budget={"tokens": 4_000})
+    w = await order(client, owner, co, budget={"tokens": 20_000})
     run_row = (await runs_of(su, f"{co}-CEO"))[-1]
     agents.fake.enqueue(f"{co}-CEO", *[step(f"قدم {i}", done=False) for i in range(10)])
     out = await run(agents, run_row["id"])
     assert out == {"state": "done", "code": "limit_reached"}, out
     r = await su.fetchrow("SELECT * FROM agents.runs WHERE id = $1", run_row["id"])
-    assert r["partial"] is True and r["token_cap"] == 4_000
-    per_step = max(
-        json.loads(s["usage"])["input"] + json.loads(s["usage"])["output"]
-        for s in await su.fetch("SELECT usage FROM agents.steps WHERE run_id = $1", run_row["id"])
-    )
+    assert r["partial"] is True and r["token_cap"] == 20_000
+    limits = charters.load().roles["ceo"].limits
+    assert 1 <= r["steps"] < limits.steps_per_run  # the tokens ran out before the steps
     spent = (
         r["input_tokens"] + r["output_tokens"] + r["cache_read_tokens"] + r["cache_write_tokens"]
     )
-    assert spent <= r["token_cap"] + per_step  # never more than one step past the cap
+    assert spent <= r["token_cap"]  # hard (prompt 5.1 §2.6): never past the cap
+    # Every call asked the router for at most what was left of the step and the run.
+    caps = [
+        c.max_output_tokens
+        for c in agents.fake.calls
+        if c.actor_ref == f"{co}-CEO" and c.max_output_tokens is not None
+    ]
+    assert caps and all(0 < cap <= limits.tokens_per_step for cap in caps)
     dl = await su.fetchrow(
         "SELECT title, body FROM cartable.deliverables WHERE work_id = $1", uuid.UUID(w["id"])
     )
@@ -389,7 +394,8 @@ async def test_the_charter_token_cap_and_a_partial_deliverable(
     msg_run = r2.json()["reply"]["run_id"]
     agents.fake.enqueue(f"{co}-CEO", *[step(f"گفتگو {i}", done=False) for i in range(10)])
     assert (await run(agents, msg_run))["state"] == "failed"
-    assert await su.fetchval("SELECT steps FROM agents.runs WHERE id = $1", uuid.UUID(msg_run)) == 6
+    steps = await su.fetchval("SELECT steps FROM agents.runs WHERE id = $1", uuid.UUID(msg_run))
+    assert steps == limits.steps_per_run
 
 
 async def test_kill_switch_mid_run_refuses_the_next_step(
@@ -574,3 +580,4 @@ async def test_bad_output_and_router_refusals(
     )
     agents.service.breakers.clear()
     agents.service.quota.states.clear()
+    agents.service.quota.windows.clear()

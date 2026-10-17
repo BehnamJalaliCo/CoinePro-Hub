@@ -233,7 +233,9 @@ async def test_stream_filter_and_answer_parsing() -> None:
     s = P.parse_step(
         {"summary_fa": "x", "actions": [{"tool": "a", "args": 3}] * 12, "done": False}, None, 8
     )
-    assert len(s.actions) == 8 and s.actions[0].args == {}
+    # Kept as the model wrote it: the Tool Gateway refuses non-object args
+    # (invalid_args), so a malformed action is never run as an empty one.
+    assert len(s.actions) == 8 and s.actions[0].args == 3
     assert P.trim("a\n\n\n\nb", 100) == "a\n\nb" and P.trim("x" * 20, 5).endswith("[cut]")
 
 

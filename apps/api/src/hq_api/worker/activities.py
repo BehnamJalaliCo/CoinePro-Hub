@@ -749,9 +749,10 @@ class Activities:
             for r in rows:
                 if r["state"] != "refused" or r["error_code"] != "locked":
                     continue
-                if await tx.scalar("SELECT control.lock_state(:co)", co=r["company_id"]) in (
-                    "holding",
-                    "company",
+                # still a kill switch or a deploy freeze: stays refused (prompt 5.1 §2.6)
+                if (
+                    await tx.scalar("SELECT control.lock_state(:co)", co=r["company_id"])
+                    is not None
                 ):
                     continue
                 if r["work_id"] is not None and not await tx.scalar(
