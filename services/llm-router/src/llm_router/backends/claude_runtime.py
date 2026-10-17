@@ -36,6 +36,7 @@ def result_from_json(d: dict[str, Any]) -> BackendResult:
             cache_read_tokens=int(u.get("cache_read_tokens") or 0),
             cache_write_tokens=int(u.get("cache_write_tokens") or 0),
             thinking_tokens=u.get("thinking_tokens"),
+            cache_write_1h_tokens=u.get("cache_write_1h_tokens"),
         )
         if u
         else None

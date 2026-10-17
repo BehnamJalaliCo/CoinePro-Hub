@@ -20,6 +20,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+import asyncpg
+
 from llm_router import anomaly, events, ledger
 from llm_router.assignment import AssignmentError, apply_request, resolve, scope_chain
 from llm_router.backends.base import (
@@ -36,6 +38,7 @@ from llm_router.backends.base import (
 from llm_router.breaker import STATE_VALUE, CircuitBreaker, Permit, State
 from llm_router.budget import Check, Consumption, check, decide, period_start
 from llm_router.config import Settings
+from llm_router.cost_ratio import CostRatioWatch
 from llm_router.db import Database
 from llm_router.events import Events
 from llm_router.metrics import Metrics
@@ -131,7 +134,26 @@ class RouterService:
         self.now = now
         self.breakers: dict[str, CircuitBreaker] = {}
         self._anomaly_seen: set[tuple[str, str]] = set()
+        self.cost_ratio = CostRatioWatch(now=now)
+        self._locks: dict[str, tuple[str | None, float]] = {}
         metrics.capacity.set(scheduler.capacity)
+
+    # --------------------------------------------------------- kill switch --
+    async def lock_state(self, company_id: str) -> str | None:
+        """'holding' | 'company' | 'deploy_freeze' | None (control.lock_state,
+        apps/api migration 0005), cached for 2 s. Without the control schema
+        (a router-only database) nothing is locked."""
+        now = time.monotonic()
+        hit = self._locks.get(company_id)
+        if hit is not None and now - hit[1] < 2.0:
+            return hit[0]
+        try:
+            async with self.db.scoped({company_id}) as conn:
+                state = await conn.fetchval("SELECT control.lock_state($1::uuid)", company_id)
+        except (asyncpg.UndefinedFunctionError, asyncpg.InvalidSchemaNameError):
+            state = None
+        self._locks[company_id] = (state, now)
+        return None if state is None else str(state)
 
     # ------------------------------------------------------------ breakers --
     def breaker_for(self, conn: Connection) -> CircuitBreaker:
@@ -156,6 +178,12 @@ class RouterService:
         company = snap.companies.get(req.company_code)
         if company is None or company.status != "active":
             raise RouterError(422, "unknown_company", f"no active company {req.company_code!r}")
+        # Kill switch (contract §9): while the holding's or the company's switch
+        # is engaged only P0 (war room / SEV1) runs. A deploy freeze stops write
+        # actions, not thinking, so it does not block calls.
+        if req.priority > 0 and await self.lock_state(company.id) in ("holding", "company"):
+            self.metrics.queue_rejections.labels(f"P{req.priority}", "kill_switch").inc()
+            raise RouterError(423, "company_locked", "the kill switch is engaged; only P0 runs")
         task = snap.task_classes.get(req.task_class)
         if task is None:
             raise RouterError(422, "unknown_task_class", f"no task class {req.task_class!r}")
@@ -453,16 +481,21 @@ class RouterService:
         latency_ms = int((time.monotonic() - plan.started_mono) * 1000)
         conn = plan.connection
         usage = result.usage
-        cost = equiv = None
+        cost = equiv = priced = None
         if usage is not None:
-            priced = cost_usd(conn.pricing, result.model or plan.model, usage) or cost_usd(
-                conn.pricing, plan.model, usage
-            )
+            # Our price table is the only cost source (owner decision, prompt 04 §9).
+            priced = cost_usd(conn.pricing, result.model or plan.model, usage)
+            if priced is None:
+                priced = cost_usd(conn.pricing, plan.model, usage)
             if conn.kind == "api":
                 cost = priced
             else:
-                equiv = result.sdk_cost_usd if result.sdk_cost_usd is not None else priced
+                equiv = priced
         meta: dict[str, Any] = {}
+        if result.sdk_cost_usd is not None:
+            meta["sdk_cost_usd"] = str(result.sdk_cost_usd)
+        if usage is not None and usage.cache_write_1h_tokens is not None:
+            meta["cache_write_1h_tokens"] = usage.cache_write_1h_tokens
         if result.stop_reason:
             meta["stop_reason"] = result.stop_reason
         if result.effort_applied is not None:
@@ -525,6 +558,8 @@ class RouterService:
             self.metrics.cost.labels(code, conn.key, "real").inc(float(cost))
         if equiv:
             self.metrics.cost.labels(code, conn.key, "equiv").inc(float(equiv))
+        if result.sdk_cost_usd is not None and priced:
+            await self._watch_cost_ratio(conn.key, model, result.sdk_cost_usd, priced)
 
         response = RunResponse(
             call_id=plan.row.id,
@@ -676,6 +711,19 @@ class RouterService:
     async def close_stale(self) -> int:
         async with self.db.scoped(await self._all_companies()) as conn:
             return await ledger.close_stale_running(conn, older_than_s=self.s.max_timeout_s + 300)
+
+    async def _watch_cost_ratio(
+        self, connection: str, model: str, sdk_cost: Decimal, priced: Decimal
+    ) -> None:
+        self.metrics.sdk_cost.labels(connection, model).inc(float(sdk_cost))
+        self.metrics.priced_cost.labels(connection, model).inc(float(priced))
+        ratio, alert = self.cost_ratio.observe(connection, model, sdk_cost, priced)
+        if ratio is not None:
+            self.metrics.sdk_cost_ratio.labels(connection, model).set(float(ratio))
+        if alert is not None:
+            self.metrics.cost_ratio_alerts.inc()
+            log.warning("sdk cost estimate drifts from the price table", extra=alert)
+            await self.events.publish(events.COST_RATIO_SUBJECT, alert)
 
     async def anomaly_scan(self) -> list[dict[str, Any]]:
         snap = await self.registry.get()

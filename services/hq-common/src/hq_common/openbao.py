@@ -82,3 +82,20 @@ class OpenBaoClient:
             data: dict[str, Any] = resp.json()["data"]["data"]
             return data
         raise OpenBaoError(f"KV read {path} failed after re-login")
+
+    async def write_kv(self, path: str, data: dict[str, Any]) -> None:
+        """Write a new version of a KV v2 secret. The value never appears in an
+        error message (only the path and the HTTP status)."""
+        for attempt in (1, 2):
+            resp = await self._http.post(
+                f"/v1/{self._kv_mount}/data/{path}",
+                json={"data": data},
+                headers=await self._headers(),
+            )
+            if resp.status_code == 403 and attempt == 1:
+                self._token = None
+                continue
+            if resp.status_code not in (200, 204):
+                raise OpenBaoError(f"KV write {path} failed (HTTP {resp.status_code})")
+            return
+        raise OpenBaoError(f"KV write {path} failed after re-login")

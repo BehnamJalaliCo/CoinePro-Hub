@@ -4,13 +4,16 @@
 # of short-lived jq/curl processes, or files with mode 600.
 #
 #   - KV v2 at kv/, AppRole auth
-#   - policies: llm-router, claude-runtime (each reads only its own paths), hq-admin
+#   - policies: llm-router, claude-runtime, hq-api, hq-worker (each reads only
+#     its own paths), hq-admin
 #   - a non-root admin token (periodic, 32 days, renewed on every run)
 #       -> $HQ_SECRETS_DIR/openbao-admin.token (600)
 #   - AppRole credentials per service, owned by the container uid (10001)
 #       -> $HQ_SECRETS_DIR/services/<service>/approle.json (600)
 #   - router<->runtime token, Prometheus metrics token, the first API caller
 #   - empty key paths for the (disabled) API connections
+#   - prompt 04: hq-api config (agent token key), Web Push (VAPID) keys,
+#     empty FCM/Telegram credentials (channels stay off until the owner fills them)
 # The root token is used only while the admin token does not exist yet; it is
 # NOT revoked here (owner's decision).
 set -euo pipefail
@@ -27,6 +30,7 @@ PROMETHEUS_UID=65534  # "nobody" in the Prometheus image
 # hq-internal (172.30.0.0/24) + hq-llm (172.30.1.0/24)
 ROUTER_CIDRS='["172.30.0.0/23"]'
 RUNTIME_CIDRS='["172.30.1.0/24"]'
+CORE_CIDRS='["172.30.0.0/24"]'
 API_CONNECTIONS=(anthropic-api openai google-gemini openai-compatible)
 
 umask 077
@@ -124,6 +128,8 @@ approle() { # approle NAME CIDRS
 }
 approle llm-router "$ROUTER_CIDRS"
 approle claude-runtime "$RUNTIME_CIDRS"
+approle hq-api "$CORE_CIDRS"
+approle hq-worker "$CORE_CIDRS"
 
 # ------------------------------------------------------------ KV secrets ----
 kv_exists() { [[ "$(api GET "kv/data/$1" </dev/null)" == 200 ]]; }
@@ -159,4 +165,37 @@ for key in "${API_CONNECTIONS[@]}"; do
   fi
 done
 log "key paths ready: kv/llm-connections/{$(IFS=,; echo "${API_CONNECTIONS[*]}")}"
+
+# ------------------------------------------------------ holding core (p04) --
+# Agent tokens are HMAC-signed per run by the agent runtime (prompt 05) and
+# verified by the api; service tokens are added per caller when needed.
+if ! kv_exists hq-api/config; then
+  AK="$(openssl rand -hex 32)" jq -n '{data: {agent_token_key: env.AK, service_tokens: {}}}' |
+    kv_put hq-api/config
+  log "hq-api config created (agent token key)"
+fi
+
+# Web Push (VAPID): an EC P-256 key pair; the public key is the raw point,
+# base64url. The subject falls back to the public origin once there is a domain.
+if ! kv_exists hq-api/webpush; then
+  openssl ecparam -name prime256v1 -genkey -noout -out "$WORK/vapid.pem" 2>/dev/null
+  pub="$(openssl ec -in "$WORK/vapid.pem" -pubout -outform DER 2>/dev/null | tail -c 65 |
+    base64 -w0 | tr '+/' '-_' | tr -d '=')"
+  PEM="$(cat "$WORK/vapid.pem")" PUB="$pub" jq -n '{data: {private_key_pem: env.PEM, public_key: env.PUB, subject: ""}}' |
+    kv_put hq-api/webpush
+  rm -f "$WORK/vapid.pem"
+  unset pub
+  log "Web Push (VAPID) keys created"
+fi
+
+for channel in fcm telegram; do
+  if ! kv_exists "hq-api/channels/$channel"; then
+    case "$channel" in
+      fcm) placeholder='{"data": {"service_account_json": "", "note": "set by the owner to switch FCM on"}}' ;;
+      telegram) placeholder='{"data": {"bot_token": "", "chat_id": "", "note": "set by the owner; backup only, never approvals"}}' ;;
+    esac
+    printf '%s' "$placeholder" | kv_put "hq-api/channels/$channel"
+  fi
+done
+log "channel paths ready: kv/hq-api/channels/{fcm,telegram} (off until filled)"
 log "done"

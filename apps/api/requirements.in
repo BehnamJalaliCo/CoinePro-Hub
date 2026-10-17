@@ -1,0 +1,21 @@
+# apps/api (api + worker) runtime dependencies (exact pins; resolved + hashed in
+# requirements.lock). Shared packages are constrained to the services' lock.
+fastapi==0.142.2
+uvicorn==0.54.0
+pydantic==2.13.5
+sqlalchemy[asyncio]==2.1.2
+asyncpg==0.31.0
+alembic==1.20.0
+nats-py==2.16.0
+httpx==0.28.1
+pyyaml==6.0.3
+prometheus-client==0.26.0
+cryptography==50.0.2
+# Durable workflows (MIT)
+temporalio==1.34.0
+# Passkeys / WebAuthn (py_webauthn, BSD-3-Clause)
+webauthn==3.0.1
+# Web Push with VAPID (MPL-2.0)
+pywebpush==2.5.0
+# RRULE parsing for recurring work (Apache-2.0 / BSD)
+python-dateutil==2.9.0.post0

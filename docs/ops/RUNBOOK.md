@@ -29,7 +29,9 @@
 | `make claude-token` | **فقط مالک:** ثبت توکن `claude setup-token` در OpenBao (ورودی پنهان) |
 | `make llm-smoke` | یک فراخوانی واقعی خیلی کوچک (Haiku، «OK»)، همراه ردیف ledger و رویداد NATS |
 | `make test-services` | سرویس‌های Python: hadolint، ruff، mypy، pytest و pip-audit |
-| `make lock` | ساختن دوباره‌ی lock فایل‌های Python (با hash) |
+| `make lock` | ساختن دوباره‌ی lock فایل‌های Python (با hash)، شامل `apps/api` |
+| `make owner-enroll` | **فقط مالک، در ترمینال خودش:** لینک یک‌بارمصرف ثبت کلید عبور (۱۵ دقیقه). همین دستور مسیر بازیابی هم هست. بدون دامنه کار نمیکند |
+| `make openapi` | ساختن دوباره‌ی `apps/api/openapi/hq-api.v1.json` از روی کد (CI بررسی میکند که با کد بخواند) |
 
 ## ۲. بالا آوردن و پایین آوردن
 
@@ -213,7 +215,23 @@ ssh -p 1367 -L 3000:127.0.0.1:3000 -L 8233:127.0.0.1:8233 -L 9090:127.0.0.1:9090
   - بعد از ریست، خودکار برمیگردد.
 - **ledger:** `llm.calls`. خواندنش فقط با نقش‌های RLS ممکن است. viewها: `llm.v_usage_daily` و `llm.v_top_actors_30d`.
 
-## ۱۰. ملاحظات امنیتی این مرحله
+## ۱۰. هسته‌ی هلدینگ (پرامپت ۴)
+- **مستندات کامل:** `docs/ops/CORE.md` (معماری، جدول‌ها، قاعده‌های دیتابیس، سیاست‌ها، گردش‌کارها و افزودن شرکت).
+- **سرویس‌ها:** `api` و `worker` (یک ایمیج: `apps/api`)، `opa` و کار یک‌باره‌ی `api-migrate`. هیچ‌کدام پورت منتشرشده ندارند.
+- **ورود:** فقط با دامنه. یک خط `HQ_SITE_ADDRESS=<دامنه>` در `.env`، سپس `make up` و بعد `make owner-enroll` (خود مالک). بدون دامنه، `/api` در Caddy ۴۰۴ است و endpointهای ورود جواب `503 origin_not_configured` میدهند.
+- **سلامت:**
+  - `make ps`؛ لاگ `api ready` در `make logs s=api`؛ `schedules ensured` در `make logs s=worker`
+  - از داخل شبکه: `infra/compose/hq.sh exec -T caddy wget -qO- http://api:8000/api/v1/health`
+- **کلید توقف اضطراری** (اگر اپ در دسترس نیست):
+  - از اپ: `POST /api/v1/control/kill-switch`. روشن کردن step-up نمیخواهد، آزاد کردنش 🔏 میخواهد.
+  - بدون اپ (فقط مالک): `infra/compose/hq.sh exec -T postgres psql -U postgres -d hq -c "UPDATE control.kill_switches k SET state='engaged', reason='manual', changed_by_kind='owner', changed_by_code='owner', changed_at=now() FROM core.companies c WHERE c.id=k.company_id AND c.kind='holding'"`
+  - اثر: router فقط P0 را اجرا میکند، اقدام نوشتنی ایجنت‌ها ۴۲۳ میگیرد و اجراهای دائمی صبر میکنند.
+- **Audit:** `GET /api/v1/audit/verify`. گردش‌کار شبانه هم آن را بررسی میکند و اگر زنجیره شکسته باشد اعلان 🔴 میدهد.
+- **کانال‌های اعلان:**
+  - FCM و تلگرام وقتی مالک credential را در OpenBao بگذارد روشن میشوند (`kv/hq-api/channels/fcm` و `kv/hq-api/channels/telegram`). api و worker ظرف ۵ دقیقه آن را میخوانند.
+  - Web Push کلید VAPID دارد و با دامنه کار میکند.
+
+## ۱۱. ملاحظات امنیتی این مرحله
 - **Alloy** پوشه‌ی `/var/lib/docker/containers` را فقط‌خواندنی میخواند. این پوشه env کانتینرها را هم دارد، پس دسترسی Alloy عملاً در حد خواندن رمزهاست. به Docker socket دسترسی ندارد.
 - **cAdvisor** (فقط `full`) به Docker socket و socket containerd دسترسی دارد، که عملاً هم‌ارز root است. این روش رسمی خود cAdvisor است.
 - **claude-runtime** فقط روی شبکه‌ی `hq-llm` است. به Postgres، Valkey، NATS، Temporal و Grafana دسترسی ندارد (آزمایش شده). اینترنت برای API ‏Anthropic باز است.

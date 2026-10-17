@@ -67,7 +67,8 @@ async def test_run_ok_usage_and_safety_flags(runner: ClaudeRunner, tmp_path: Pat
         "output_tokens": 3,
         "cache_read_tokens": 5,
         "cache_write_tokens": 7,
-        "thinking_tokens": None,
+        "cache_write_1h_tokens": 4,
+        "thinking_tokens": 2,
     }
     assert out.total_cost_usd == pytest.approx(0.0000123)
     assert out.effort_applied is True
@@ -143,6 +144,10 @@ def test_quota_classifier_and_render() -> None:
     assert "<assistant>\nhello\n</assistant>" in text and text.endswith("as the assistant.")
     assert render([Message("user", "solo")]) == "solo"
     assert usage_from(None) is None
+    # Older CLIs report neither the cache TTL split nor thinking tokens.
+    bare = usage_from({"input_tokens": 3, "output_tokens": 1})
+    assert bare is not None
+    assert (bare["cache_write_1h_tokens"], bare["thinking_tokens"]) == (None, None)
 
 
 async def test_http_api_auth_and_endpoints(runner: ClaudeRunner) -> None:

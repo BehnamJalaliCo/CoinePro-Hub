@@ -8,7 +8,7 @@ HQ       := infra/compose/hq.sh
 ENV_FILE := infra/compose/.env
 
 .PHONY: help env profile up down ps logs backup restore-test check openbao-init unseal install-systemd \
-	llm-provision claude-token llm-smoke test-services lock
+	llm-provision claude-token llm-smoke test-services lock owner-enroll openapi
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -71,3 +71,9 @@ test-services: ## Python services: lint, types, tests (throwaway Postgres/NATS)
 
 lock: ## Re-resolve the hash-pinned Python lock files
 	@services/scripts/lock.sh
+
+owner-enroll: ## OWNER: one-time passkey enrolment link (printed only in your terminal; also recovery)
+	$(HQ) exec api python -m hq_api.enroll
+
+openapi: ## Rewrite apps/api/openapi/hq-api.v1.json from the code (CI checks it matches)
+	@scripts/quality/python.sh openapi

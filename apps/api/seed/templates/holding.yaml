@@ -1,0 +1,37 @@
+# The holding (HQ): oversight (independent, veto, directly under the owner)
+# and AI operations serve every company; the general advisor sits outside
+# every company and talks only to the owner (OPERATING_MODEL §1.1, contract
+# §3.2). The owner is the general manager, so the holding has no CEO.
+# HQ-SYS is the rule-based system author of reports (no model behind it).
+key: holding
+name_fa: قالب هلدینگ
+name_en: Holding
+departments:
+  - code: OVS
+    name_fa: نظارت
+    name_en: Oversight
+    manager_title_fa: بازرس کل (نظارت و AI Safety)
+    manager_title_en: Inspector General (Oversight and AI Safety)
+    head_kind: inspector
+    sort: 10
+  - code: AIOPS
+    name_fa: عملیات هوش مصنوعی
+    name_en: AI Operations
+    manager_title_fa: مدیر عملیات AI هلدینگ
+    manager_title_en: Head of AI Operations (holding)
+    sort: 20
+leadership:
+  ceo: null
+  managers: true
+  extra:
+    - code_suffix: ADV
+      kind: advisor
+      title_fa: مشاور کل
+      title_en: General Advisor
+      thread: A
+      thread_kind: advisor
+      thread_title_fa: مشاور کل
+    - code_suffix: SYS
+      kind: system
+      title_fa: سامانه‌ی گزارش
+      title_en: Report system

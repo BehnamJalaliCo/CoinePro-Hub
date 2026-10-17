@@ -1,0 +1,4 @@
+# Dockerfile.test needs the test lock; keep caches out.
+**/__pycache__
+**/*.pyc
+.cache

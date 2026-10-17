@@ -1,10 +1,14 @@
-from datetime import UTC, date, datetime
+import importlib.util
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
+import yaml
 
 from llm_router import anomaly, budget
 from llm_router.budget import Budget, Consumption
+from llm_router.cost_ratio import CostRatioWatch
 from llm_router.pricing import Usage, cost_usd
 from llm_router.uuid7 import uuid7
 
@@ -98,6 +102,80 @@ def test_pricing_per_million() -> None:
     assert cost_usd(pricing, "claude-haiku-5-5", u) == Decimal("1.110001")
     assert cost_usd(pricing, "unknown", u) is None
     assert u.total == 4_000_008
+
+
+ROUTER_DIR = Path(__file__).resolve().parents[1]
+
+
+def _seed_pricing() -> dict[str, object]:
+    data = yaml.safe_load((ROUTER_DIR / "seed" / "connections.yaml").read_text())
+    pricing: dict[str, object] = next(
+        c["pricing"] for c in data["connections"] if c["key"] == "claude-max"
+    )
+    return pricing
+
+
+def test_official_prices_tiers_and_one_hour_writes() -> None:
+    pricing = _seed_pricing()
+    for model in ("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"):
+        entry = pricing[model]
+        assert isinstance(entry, dict)
+        assert entry["source_url"].startswith("https://platform.claude.com/")
+        assert entry["as_of"] == "2026-10-16"
+    # The real smoke call of prompt 03: 2 in, 4 out, 525 cache writes (5-minute).
+    smoke = Usage(input_tokens=2, output_tokens=4, cache_write_tokens=525)
+    assert cost_usd(pricing, "claude-haiku-5-5", smoke) == Decimal("0.000068")
+    # The same writes with the 1-hour TTL cost 0.20 instead of 0.125 per 1M.
+    one_hour = Usage(
+        input_tokens=2, output_tokens=4, cache_write_tokens=525, cache_write_1h_tokens=525
+    )
+    assert cost_usd(pricing, "claude-haiku-5-5", one_hour) == Decimal("0.000107")
+    # A prompt over 100,000 tokens pays every long-prompt rate (cache reads count).
+    long = Usage(input_tokens=60_000, output_tokens=1_000, cache_read_tokens=50_000)
+    assert cost_usd(pricing, "claude-haiku-5-5", long) == Decimal("0.035000")
+    at_limit = Usage(input_tokens=50_000, output_tokens=1_000, cache_read_tokens=50_000)
+    assert cost_usd(pricing, "claude-haiku-5-5", at_limit) == Decimal("0.006000")
+    # A 1h count larger than the writes never prices more than the writes.
+    odd = Usage(cache_write_tokens=10, cache_write_1h_tokens=99)
+    assert cost_usd(pricing, "claude-sonnet-5-5", odd) == Decimal("0.000040")
+    # No 1-hour rate: 1-hour writes are priced as 5-minute writes.
+    no_1h_rate = {"m": {"input": 1, "output": 1, "cache_write": 2}}
+    assert cost_usd(no_1h_rate, "m", odd) == Decimal("0.000020")
+    assert cost_usd({"m": {"input": 1}}, "m", smoke) is None  # incomplete entry
+
+
+def test_migration_0005_matches_the_seed() -> None:
+    path = ROUTER_DIR / "migrations" / "versions" / "0005_official_prices.py"
+    spec = importlib.util.spec_from_file_location("m0005", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert _seed_pricing() == module.PRICES
+
+
+def test_cost_ratio_alert_after_one_hour_and_rearm() -> None:
+    t = [datetime(2026, 10, 16, 8, 0, tzinfo=UTC)]
+    watch = CostRatioWatch(now=lambda: t[0])
+
+    def step(minutes: int, sdk: str, ours: str) -> tuple[Decimal | None, dict[str, object] | None]:
+        t[0] += timedelta(minutes=minutes)
+        return watch.observe("claude-max", "claude-haiku-5-5", Decimal(sdk), Decimal(ours))
+
+    assert step(0, "0.001", "0.001") == (Decimal(1), None)
+    ratio, alert = step(1, "0.010", "0.001")  # 0.011 / 0.002 = 5.5: above since now
+    assert ratio == Decimal("5.5") and alert is None
+    assert step(30, "0.003", "0.001")[1] is None  # 30 min above: not yet
+    ratio, alert = step(30, "0.003", "0.001")  # 60 min above: one alert
+    assert alert is not None and alert["type"] == "llm.cost_ratio"
+    assert alert["window_minutes"] == 60 and alert["since"] == "2026-10-16T08:01:00+00:00"
+    assert alert["ratio"] == "5.33"  # 0.016 / 0.003: the 08:00 sample left the window
+    assert step(5, "0.003", "0.001")[1] is None  # still above: no repeat
+    assert step(5, "0.000", "0.010")[1] is None  # back below 2: re-armed
+    assert step(1, "0.500", "0.001")[1] is None  # above again: the hour starts over
+    assert step(61, "0.500", "0.001")[1] is not None
+    # No priced cost in the window: no ratio, nothing to judge.
+    assert watch.ratio("claude-max", "other") is None
+    assert watch.observe("claude-max", "free", Decimal("0.1"), Decimal(0)) == (None, None)
 
 
 def test_uuid7_layout_and_order() -> None:

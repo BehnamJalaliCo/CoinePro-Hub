@@ -3,14 +3,20 @@
 # No domain yet: HQ_SITE_ADDRESS defaults to ":80" (plain HTTP).
 # To switch on automatic HTTPS (Let's Encrypt), set ONE line in
 # infra/compose/.env:   HQ_SITE_ADDRESS=hq.example.com
-# then `make up`. Caddy obtains and renews the certificate itself.
+# then `make up`. Caddy obtains and renews the certificate itself, and the
+# public API (/api) opens with it (HQ_API_EDGE, derived by infra/compose/hq.sh).
 
 {
 	metrics
 }
 
 {$HQ_SITE_ADDRESS} {
-	encode zstd gzip
+	# Compressed types are listed so the SSE stream (text/event-stream) is not.
+	encode zstd gzip {
+		match {
+			header Content-Type application/json* application/problem+json* text/html* text/plain* text/css* application/javascript* image/svg+xml*
+		}
+	}
 
 	header {
 		-Server
@@ -18,6 +24,14 @@
 		X-Frame-Options DENY
 		Referrer-Policy no-referrer
 	}
+
+	# /internal is never routed from the edge (contract §1, §12).
+	handle /internal/* {
+		respond 404
+	}
+
+	# /api only with a domain over HTTPS: api-on.caddy or api-off.caddy.
+	import /etc/caddy/api-{$HQ_API_EDGE}.caddy
 
 	handle /health {
 		header Content-Type application/json

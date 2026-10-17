@@ -1,6 +1,6 @@
 # claude-runtime dependencies (exact pins; resolved + hashed in requirements.lock)
-# Official Claude Agent SDK; bundles Claude Code CLI 2.1.286.
-claude-agent-sdk==0.2.163
+# Official Claude Agent SDK; bundles Claude Code CLI 2.1.294 (knows claude-haiku-5-5).
+claude-agent-sdk==0.2.165
 fastapi==0.142.2
 uvicorn==0.54.0
 httpx==0.28.1

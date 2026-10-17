@@ -1,0 +1,170 @@
+"""RLS between companies for EVERY new table (prompt 04 §10): a session scoped
+to company A sees no row of company B, whatever the table."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import httpx
+
+from hq_api.audit import SYSTEM
+from hq_api.domain import decisions as D
+from hq_api.domain import scoring
+from hq_api.hub import Hub
+
+from .conftest import agent_headers, idem, step_up
+
+SCHEMAS = (
+    "core",
+    "work",
+    "cartable",
+    "msg",
+    "notify",
+    "auth",
+    "owner",
+    "audit",
+    "control",
+    "files",
+)
+
+
+async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: str) -> None:
+    """Rows of company `co` in (nearly) every table, through the real API."""
+    h = owner["headers"]
+    mgr, ceo = agent_headers(f"{co}-GROWTH-MGR"), agent_headers(f"{co}-CEO")
+    r = await client.post(
+        "/internal/v1/decisions",
+        headers={**mgr, **idem()},
+        json={
+            "kind": "hire",
+            "title": "hire",
+            "payload": {
+                "company": co,
+                "department": "GROWTH",
+                "title_fa": "کارشناس",
+                "title_en": "Specialist",
+                "reason": "r",
+                "model": "claude-sonnet-5-5",
+                "effort": "medium",
+            },
+        },
+    )
+    ref = r.json()["ref"]
+    su = await step_up(hub, owner["session_id"], "decision.approve", ref)
+    await client.post(f"/api/v1/decisions/{ref}/approve", headers={**h, **su, **idem()}, json={})
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        emp = (await D.apply_effect(tx, ref, SYSTEM))["employee"]
+    root = (
+        await client.post(
+            "/api/v1/work",
+            headers={**h, **idem()},
+            json={
+                "company": co,
+                "title": "t",
+                "due_at": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
+            },
+        )
+    ).json()
+    child = (
+        await client.post(
+            f"/internal/v1/work/{root['id']}/delegate",
+            headers=ceo,
+            json={"to": f"{co}-GROWTH-MGR", "title": "c"},
+        )
+    ).json()
+    leaf = (
+        await client.post(
+            f"/internal/v1/work/{child['id']}/delegate", headers=mgr, json={"to": emp, "title": "l"}
+        )
+    ).json()
+    file = (
+        await client.post(
+            "/internal/v1/files",
+            params={"name": "a.txt"},
+            headers={**agent_headers(emp), "Content-Type": "text/plain"},
+            content=b"hello",
+        )
+    ).json()
+    out = (
+        await client.post(
+            f"/internal/v1/work/{leaf['id']}/deliver",
+            headers={**agent_headers(emp), **idem()},
+            json={"title": "o", "attachments": [file["id"]]},
+        )
+    ).json()["deliverable"]
+    await client.post(
+        f"/api/v1/deliverables/{out}/rating", headers={**h, **idem()}, json={"score": 7}
+    )
+    await client.post(
+        f"/api/v1/threads/{co}-CEO/messages", headers={**h, **idem()}, json={"body": "سلام"}
+    )
+    await client.post(
+        "/internal/v1/notifications", headers=ceo, json={"level": "info", "title_fa": "اطلاع"}
+    )
+    await client.post(
+        "/api/v1/control/deploy-freeze",
+        headers=h,
+        json={
+            "company": co,
+            "until": (datetime.now(UTC) + timedelta(minutes=5)).isoformat(),
+            "reason": "x",
+        },
+    )
+    await client.post(
+        "/api/v1/work",
+        headers={**h, **idem()},
+        json={
+            "company": co,
+            "department": "GROWTH",
+            "title": "rec",
+            "kind": "recurring",
+            "escrow": {
+                "token_cap_per_run": 1000,
+                "usd_cap_per_month": "1",
+                "expires_at": (datetime.now(UTC) + timedelta(days=30)).isoformat(),
+            },
+            "schedule": {"rrule": "FREQ=DAILY", "timezone": "UTC"},
+        },
+    )
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        dept = await tx.scalar("SELECT department_id FROM core.employees WHERE code = :c", c=emp)
+        await scoring.recompute_department(tx, dept)
+
+
+async def test_no_table_leaks_between_companies(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    a, b = await new_company(), await new_company()
+    await _fill(client, hub, owner_session, b["code"])
+    tables = await su.fetch(
+        """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
+           JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
+           WHERE c.column_name = 'company_id' AND x.table_type = 'BASE TABLE' AND c.table_schema = ANY($1::text[])
+           ORDER BY 1, 2""",
+        list(SCHEMAS),
+    )
+    assert len(tables) >= 18
+    populated = []
+    for row in tables:
+        name = f"{row['s']}.{row['t']}"
+        in_b = await su.fetchval(f"SELECT count(*) FROM {name} WHERE company_id = $1", b["id"])
+        if in_b:
+            populated.append(name)
+        async with hub.db.tx([a["id"]]) as tx:
+            seen = await tx.scalar(f"SELECT count(*) FROM {name} WHERE company_id = :b", b=b["id"])
+        assert seen == 0, f"{name}: {seen} row(s) of another company visible"
+        async with hub.db.tx([b["id"]]) as tx:
+            assert (
+                await tx.scalar(f"SELECT count(*) FROM {name} WHERE company_id = :b", b=b["id"])
+                == in_b
+            ), name
+    # Nearly every tenant table really held rows of B during the check.
+    assert len(populated) >= len(tables) - 2, sorted(
+        {f"{r['s']}.{r['t']}" for r in tables} - set(populated)
+    )

@@ -1,0 +1,102 @@
+# Action classes A0..A4 (OPERATING_MODEL §1.12).
+#   owner:   everything, A0..A4, never locked out
+#   agent:   own company only; A0 and A1; A2 only inside its escrow; A3 only
+#            through a decision; A4 never
+#   service: A0..A2; A3 and A4 never
+#   company_locked (kill switch or deploy freeze): every non-owner action >= A1
+package hq.actions
+
+import data.hq.lib
+import rego.v1
+
+classes := {"A0", "A1", "A2", "A3", "A4"}
+
+p := lib.principal
+
+action := lib.obj(object.get(lib.doc, "action", {}))
+
+ctx := lib.obj(object.get(lib.doc, "context", {}))
+
+class := object.get(action, "class", "")
+
+company := object.get(action, "company", null)
+
+escrow := object.get(ctx, "escrow_classes", [])
+
+locked := object.get(ctx, "company_locked", false) == true
+
+default allow := false
+
+allow if {
+	grant
+	count(deny_reasons) == 0
+}
+
+grant if {
+	p.kind == "owner"
+	class in classes
+}
+
+grant if {
+	p.kind == "agent"
+	class in {"A0", "A1"}
+}
+
+grant if {
+	p.kind == "agent"
+	class == "A2"
+	"A2" in escrow
+}
+
+grant if {
+	p.kind == "service"
+	class in {"A0", "A1", "A2"}
+}
+
+deny_reasons contains "unknown_class" if not class in classes
+
+deny_reasons contains "unknown_principal" if not p.kind in lib.principal_kinds
+
+deny_reasons contains "a4_forbidden_for_ai" if {
+	class == "A4"
+	p.kind != "owner"
+}
+
+deny_reasons contains "a3_requires_decision" if {
+	class == "A3"
+	p.kind == "agent"
+}
+
+deny_reasons contains "a3_not_for_services" if {
+	class == "A3"
+	p.kind == "service"
+}
+
+deny_reasons contains "a2_outside_escrow" if {
+	class == "A2"
+	p.kind == "agent"
+	not "A2" in escrow
+}
+
+deny_reasons contains "other_company" if {
+	p.kind == "agent"
+	p.company != company
+}
+
+deny_reasons contains "other_company" if {
+	p.kind == "agent"
+	p.company == null
+}
+
+deny_reasons contains "company_locked" if {
+	p.kind != "owner"
+	locked
+	class in classes
+	class != "A0"
+}
+
+deny_reasons contains "agent_inactive" if {
+	p.kind == "agent"
+	p.status in lib.inactive_statuses
+	class != "A0"
+}

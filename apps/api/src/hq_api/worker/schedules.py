@@ -1,0 +1,211 @@
+"""Temporal Schedules: the fixed jobs of the holding and one schedule per
+active recurring work item, kept in line with the database.
+
+Schedule ids:
+    hq-maintenance            every 5 min   Maintenance (escalation, reconciliation, purge)
+    hq-notification-digest    every 5 min   NotificationDigest
+    hq-morning-report         daily, owner.settings.morning_report_at in the owner's zone
+    hq-audit-verify           daily 02:30 (owner's zone)  AuditVerify
+    hq-score-job              daily 03:00 (owner's zone)  ScoreJob
+    recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
+                              end = min(UNTIL, escrow expiry); paused while the
+                              company or the holding is locked
+Each schedule carries a signature of its desired spec in `state.note`; a
+schedule is updated only when the signature changes.
+"""
+
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass
+from datetime import datetime, time, timedelta
+from typing import Any
+
+from temporalio.client import (
+    Client,
+    Schedule,
+    ScheduleActionStartWorkflow,
+    ScheduleCalendarSpec,
+    ScheduleIntervalSpec,
+    SchedulePolicy,
+    ScheduleRange,
+    ScheduleSpec,
+    ScheduleState,
+    ScheduleUpdate,
+)
+from temporalio.service import RPCError, RPCStatusCode
+
+from hq_api.domain.recurrence import Rule
+
+RECURRING_PREFIX = "recurring-"
+MAINTENANCE = "hq-maintenance"
+DIGEST = "hq-notification-digest"
+MORNING = "hq-morning-report"
+AUDIT = "hq-audit-verify"
+SCORE = "hq-score-job"
+FIXED = (MAINTENANCE, DIGEST, MORNING, AUDIT, SCORE)
+
+
+@dataclass(frozen=True)
+class Desired:
+    id: str
+    workflow: str
+    args: tuple[Any, ...]
+    spec: ScheduleSpec
+    catchup: timedelta
+    execution_timeout: timedelta
+    paused: bool = False
+
+    def signature(self) -> str:
+        raw = repr((self.workflow, self.args, self.spec, self.catchup, self.execution_timeout))
+        return "hq:" + hashlib.sha256(raw.encode()).hexdigest()[:24]
+
+
+def _ranges(values: tuple[int, ...]) -> list[ScheduleRange]:
+    return [ScheduleRange(start=v, end=v) for v in values]
+
+
+def calendar_for(rule: Rule) -> ScheduleCalendarSpec:
+    """The Rule as one calendar spec. Every supported rule restarts at local
+    midnight, so the calendar matches recurrence.occurrences() exactly."""
+    minute = _ranges(rule.by_minute)
+    second = [ScheduleRange(start=0, end=0)]
+    if rule.freq == "HOURLY":
+        return ScheduleCalendarSpec(
+            second=second, minute=minute, hour=[ScheduleRange(start=0, end=23, step=rule.interval)]
+        )
+    hour = _ranges(rule.by_hour)
+    if rule.freq == "DAILY":
+        return ScheduleCalendarSpec(second=second, minute=minute, hour=hour)
+    if rule.freq == "WEEKLY":
+        # Rule: 0 = Monday; Temporal: 0 = Sunday.
+        days = tuple(sorted((d + 1) % 7 for d in rule.by_day))
+        return ScheduleCalendarSpec(
+            second=second, minute=minute, hour=hour, day_of_week=_ranges(days)
+        )
+    return ScheduleCalendarSpec(
+        second=second, minute=minute, hour=hour, day_of_month=_ranges(rule.by_month_day)
+    )
+
+
+def recurring_spec(rule: Rule, tz: str, escrow_expires_at: datetime) -> ScheduleSpec:
+    end = escrow_expires_at if rule.until is None else min(rule.until, escrow_expires_at)
+    return ScheduleSpec(calendars=[calendar_for(rule)], time_zone_name=tz, end_at=end)
+
+
+def daily_at(at: time, tz: str) -> ScheduleSpec:
+    return ScheduleSpec(
+        calendars=[
+            ScheduleCalendarSpec(
+                second=[ScheduleRange(start=0, end=0)],
+                minute=[ScheduleRange(start=at.minute, end=at.minute)],
+                hour=[ScheduleRange(start=at.hour, end=at.hour)],
+            )
+        ],
+        time_zone_name=tz,
+    )
+
+
+def every(minutes: int) -> ScheduleSpec:
+    return ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=minutes))])
+
+
+def fixed(morning_at: time, tz: str) -> list[Desired]:
+    return [
+        Desired(
+            MAINTENANCE, "Maintenance", (), every(5), timedelta(minutes=10), timedelta(minutes=10)
+        ),
+        Desired(
+            DIGEST, "NotificationDigest", (), every(5), timedelta(minutes=10), timedelta(minutes=5)
+        ),
+        Desired(
+            MORNING,
+            "MorningReport",
+            (),
+            daily_at(morning_at, tz),
+            timedelta(hours=6),
+            timedelta(minutes=15),
+        ),
+        Desired(
+            AUDIT,
+            "AuditVerify",
+            (),
+            daily_at(time(2, 30), tz),
+            timedelta(hours=12),
+            timedelta(hours=1),
+        ),
+        Desired(
+            SCORE, "ScoreJob", (), daily_at(time(3, 0), tz), timedelta(hours=12), timedelta(hours=1)
+        ),
+    ]
+
+
+def recurring(ref: str, work_id: str, spec: ScheduleSpec, paused: bool) -> Desired:
+    return Desired(
+        f"{RECURRING_PREFIX}{ref}",
+        "RecurringRun",
+        (work_id,),
+        spec,
+        timedelta(hours=1),
+        timedelta(minutes=10),
+        paused,
+    )
+
+
+def build(d: Desired, task_queue: str) -> Schedule:
+    return Schedule(
+        action=ScheduleActionStartWorkflow(
+            d.workflow,
+            args=list(d.args),
+            id=f"{d.id}-run",
+            task_queue=task_queue,
+            execution_timeout=d.execution_timeout,
+        ),
+        spec=d.spec,
+        policy=SchedulePolicy(catchup_window=d.catchup),
+        state=ScheduleState(note=d.signature(), paused=d.paused),
+    )
+
+
+async def upsert(client: Client, d: Desired, task_queue: str) -> str:
+    """create | update | pause | unpause | unchanged."""
+    handle = client.get_schedule_handle(d.id)
+    try:
+        desc = await handle.describe()
+    except RPCError as exc:
+        if exc.status != RPCStatusCode.NOT_FOUND:
+            raise
+        await client.create_schedule(d.id, build(d, task_queue))
+        return "created"
+    result = "unchanged"
+    if desc.schedule.state.note != d.signature():
+        await handle.update(lambda _: ScheduleUpdate(schedule=build(d, task_queue)))
+        desc = await handle.describe()
+        result = "updated"
+    if desc.schedule.state.paused != d.paused:
+        if d.paused:
+            await handle.pause(note=d.signature())
+            result = "paused" if result == "unchanged" else result
+        else:
+            await handle.unpause(note=d.signature())
+            result = "unpaused" if result == "unchanged" else result
+    return result
+
+
+async def delete(client: Client, schedule_id: str) -> bool:
+    try:
+        await client.get_schedule_handle(schedule_id).delete()
+    except RPCError as exc:
+        if exc.status == RPCStatusCode.NOT_FOUND:
+            return False
+        raise
+    return True
+
+
+async def existing_recurring(client: Client) -> set[str]:
+    """Recurring schedule ids Temporal knows (eventually consistent listing)."""
+    ids: set[str] = set()
+    async for s in await client.list_schedules():
+        if s.id.startswith(RECURRING_PREFIX):
+            ids.add(s.id)
+    return ids

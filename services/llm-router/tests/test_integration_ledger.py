@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -137,7 +138,9 @@ async def test_run_records_ledger_usage_and_events(
     resp = await svc.run(req(work_ref="W-1", role="lead-dev", effort="low"), "tests", 10_000)
     assert resp.status == "ok" and resp.text == "OK" and resp.connection == "claude-max"
     assert resp.model == "claude-sonnet-5-5" and resp.effort == "low"
-    assert resp.equiv_cost_usd == "0.000400" and resp.cost_usd is None
+    # From our price table (Sonnet 5.5: 1200x2 + 30x10 + 500x0.10 + 100x2.50 per 1M),
+    # never the SDK's own figure, which stays in meta for comparison.
+    assert resp.equiv_cost_usd == "0.003000" and resp.cost_usd is None
     call = backend.calls[0]
     assert call.effort == "low" and call.messages[0].content == "Say OK"
 
@@ -150,7 +153,9 @@ async def test_run_records_ledger_usage_and_events(
         row["cache_write_tokens"],
     ) == (1200, 30, 500, 100)
     assert row["thinking_tokens"] is None
-    assert row["equiv_cost_usd"] == Decimal("0.000400") and row["cost_usd"] is None
+    assert row["equiv_cost_usd"] == Decimal("0.003000") and row["cost_usd"] is None
+    meta = json.loads(row["meta"]) if isinstance(row["meta"], str) else row["meta"]
+    assert meta["sdk_cost_usd"] == "0.000400"
     assert row["department"] == "TECH" and row["work_ref"] == "W-1" and row["caller"] == "tests"
     assert row["meta"]  # assignment trail, stop reason
     assert str(row["id"])[14] == "7"  # uuid v7
@@ -376,3 +381,27 @@ async def test_anomaly_alert(su: asyncpg.Connection, make_service: Any, captured
     assert [a["actor_ref"] for a in alerts] == ["TY-OPS-09"]
     assert await svc.anomaly_scan() == []  # once per actor and hour
     assert (await wait_for(captured, "llm.anomaly"))[0]["calls_this_hour"] == 40
+
+
+async def test_sdk_cost_drift_alerts_once_after_an_hour(
+    su: asyncpg.Connection, make_service: Any, captured: Captured
+) -> None:
+    t = [datetime(2026, 10, 16, 8, 0, tzinfo=UTC)]
+    drifting = ok_result(model="claude-haiku-5-5", input_tokens=2, output_tokens=4)
+    drifting.sdk_cost_usd = Decimal("0.002144")  # ~1000x our Haiku price (0.000002)
+    backend = FakeBackend(*[drifting] * 3)
+    svc = make_service(subscription=backend, now=lambda: t[0])
+    for minutes in (0, 30, 31):
+        t[0] += timedelta(minutes=minutes)
+        resp = await svc.run(req(model="claude-haiku-5-5"), "tests", 10_000)
+        assert resp.equiv_cost_usd == "0.000002"  # ours, not the SDK's
+    alerts = await wait_for(captured, "llm.cost_ratio")
+    assert len(alerts) == 1
+    alert = alerts[0]
+    assert (alert["connection"], alert["model"], alert["window_minutes"]) == (
+        "claude-max",
+        "claude-haiku-5-5",
+        60,
+    )
+    assert set(alert) == {"type", "connection", "model", "ratio", "since", "window_minutes", "at"}
+    assert Decimal(alert["ratio"]) > 2

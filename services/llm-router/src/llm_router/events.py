@@ -6,6 +6,7 @@ subscribe per company):
     hq.llm.<COMPANY>.call.finished
     hq.alerts.budget.<COMPANY>
     hq.alerts.llm.anomaly
+    hq.alerts.llm.cost_ratio   (SDK estimate vs our price table, see cost_ratio.py)
 A publish failure never fails a call; it is counted and logged.
 """
 
@@ -95,3 +96,4 @@ def budget_subject(company_code: str) -> str:
 
 
 ANOMALY_SUBJECT = "hq.alerts.llm.anomaly"
+COST_RATIO_SUBJECT = "hq.alerts.llm.cost_ratio"
