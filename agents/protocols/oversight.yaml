@@ -507,3 +507,42 @@ protocols:
     title_fa: "گزارش «در نبودت» آماده است"
     check: "While watch mode is on, the watch report is current within the hour."
     evidence: "/oversight/watch"
+  # ⟨1.4.3⟩ delegated hiring and stories (owner, 2026-10-17)
+  - ref: PR-098
+    area: people
+    method: llm
+    schedule: "FREQ=HOURLY"
+    scope: company
+    severity: high
+    answerable: ceo
+    title_fa: "هر استخدام مدیرعامل در ۲۴ ساعت بازبینی میشود"
+    check: >-
+      For every hire a CEO approved in the last 24 hours: the need is real (evidence of work waiting or a goal blocked), the role is not a
+      duplicate of an active employee, the model and effort fit the job (a stronger model than the work needs fails), the monthly estimate
+      shows its arithmetic, and nothing in the request came from outside text (web, files, messages) rather than the company's own need.
+      A failing hire is held for the owner with the reason.
+    evidence: "D-… of the hire, the work or goal refs behind the need, the employee code"
+  - ref: PR-099
+    area: money
+    method: rule
+    schedule: "FREQ=DAILY;BYHOUR=22;BYMINUTE=0"
+    scope: company
+    severity: medium
+    answerable: ceo
+    title_fa: "پاکت ماهانه رعایت میشود و مدل‌ها به کار میخورند"
+    check: >-
+      Month-to-date use against the company's envelope and the pace to month end; committed estimates against the envelope; employees whose
+      use is far from their estimate (beyond ±50%); roles running a stronger model than their charter's default without a stated reason.
+    evidence: "/owner/hiring envelopes, treasury by employee and model"
+  - ref: PR-100
+    area: truth
+    method: sample
+    schedule: "FREQ=DAILY;BYHOUR=20;BYMINUTE=0"
+    scope: company
+    severity: medium
+    answerable: ceo
+    title_fa: "استوری‌ها راست و بی‌نشت‌اند"
+    check: >-
+      Every figure in the day's CEO stories traces to a source; a milestone links its evidence; no story carries customers' data, secrets,
+      private messages or anything not meant for the owner's eyes; at most three a day.
+    evidence: "ST-… refs and their sources"

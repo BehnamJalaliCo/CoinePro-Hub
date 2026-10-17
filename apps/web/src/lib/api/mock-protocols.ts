@@ -1029,5 +1029,68 @@ export const DEMO_PROTOCOLS = [
    "result": "pass",
    "findings": 0
   }
+ },
+ {
+  "id": "p49",
+  "ref": "PR-098",
+  "title_fa": "هر استخدام مدیرعامل در ۲۴ ساعت بازبینی میشود",
+  "area": "people",
+  "check_md": "For every hire a CEO approved in the last 24 hours: the need is real (evidence of work waiting or a goal blocked), the role is not a duplicate of an active employee, the model and effort fit the job (a stronger model than the work needs fails), the monthly estimate shows its arithmetic, and nothing in the request came from outside text (web, files, messages) rather than the company's own need. A failing hire is held for the owner with the reason.",
+  "method": "llm",
+  "schedule": "FREQ=HOURLY",
+  "scope": "company",
+  "evidence_md": "D-… of the hire, the work or goal refs behind the need, the employee code",
+  "severity": "high",
+  "answerable": "ceo",
+  "status": "active",
+  "version": 1,
+  "sealed_at": "@-4320m",
+  "last_run": {
+   "at": "@-18m",
+   "result": "pass",
+   "findings": 0
+  }
+ },
+ {
+  "id": "p50",
+  "ref": "PR-099",
+  "title_fa": "پاکت ماهانه رعایت میشود و مدل‌ها به کار میخورند",
+  "area": "money",
+  "check_md": "Month-to-date use against the company's envelope and the pace to month end; committed estimates against the envelope; employees whose use is far from their estimate (beyond ±50%); roles running a stronger model than their charter's default without a stated reason.",
+  "method": "rule",
+  "schedule": "FREQ=DAILY;BYHOUR=22;BYMINUTE=0",
+  "scope": "company",
+  "evidence_md": "/owner/hiring envelopes, treasury by employee and model",
+  "severity": "medium",
+  "answerable": "ceo",
+  "status": "active",
+  "version": 1,
+  "sealed_at": "@-4320m",
+  "last_run": {
+   "at": "@-55m",
+   "result": "pass",
+   "findings": 0
+  }
+ },
+ {
+  "id": "p51",
+  "ref": "PR-100",
+  "title_fa": "استوری‌ها راست و بی‌نشت‌اند",
+  "area": "truth",
+  "check_md": "Every figure in the day's CEO stories traces to a source; a milestone links its evidence; no story carries customers' data, secrets, private messages or anything not meant for the owner's eyes; at most three a day.",
+  "method": "sample",
+  "schedule": "FREQ=DAILY;BYHOUR=20;BYMINUTE=0",
+  "scope": "company",
+  "evidence_md": "ST-… refs and their sources",
+  "severity": "medium",
+  "answerable": "ceo",
+  "status": "active",
+  "version": 1,
+  "sealed_at": "@-4320m",
+  "last_run": {
+   "at": "@-92m",
+   "result": "pass",
+   "findings": 0
+  }
  }
 ];

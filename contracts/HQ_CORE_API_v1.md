@@ -7,7 +7,7 @@
 >
 > **v1.1 (۲۰۲۶-۱۰-۱۷):** «Contract notes» گزارش پرامپت ۴ و نتیجه‌ی بازبینی وارد شد. تغییرها با ⟨1.1⟩ علامت خورده‌اند؛ آن‌هایی که هنوز پیاده نشده‌اند در `docs/server-prompts/PROMPT_04_1_HARDENING.md` هستند.
 >
-> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱).
+> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴).
 
 ---
 
@@ -143,7 +143,7 @@ Employee {
   activity_note: string|null, activity_at: datetime|null,
   model: { connection, model, effort } ,                // resolved from llm.assignments, read-only here
   score: { value: 0..10|null, owner_avg: number|null, rank_in_department: int|null, trend: [..12 monthly] },
-  hired_at, dismissed_at|null, hired_by_decision: "D-000123"|null,
+  hired_at, dismissed_at|null, hired_by_decision: "D-000123"|null, probation_until|null,   // ⟨1.4.3⟩ +7 days after a delegated hire
   version
 }
 EmployeeRef { code, title_fa, kind, company, department }
@@ -227,6 +227,7 @@ Decision {
   expires_at|null, decided_at|null, decided_by: Actor|null,
   seal: { sealed_at, method: "passkey_uv", step_up_id }|null,
   note|null, resolution: "M-0001"|null, thread: "TY-CEO"|null,
+  approver: Actor|null,   // ⟨1.4.3⟩ who decides it: null = the owner; a company's CEO for delegated hires (§18.11)
   digital_ceo_prediction: { verdict: "approve"|"reject", confidence }|null,   // shown only when §1.8 enables it
   version, created_at
 }
@@ -362,7 +363,7 @@ Behaviour (§1.7):
 
 ## 7. Live stream
 
-`GET /stream` — Server-Sent Events. `?topics=work,decisions,deliverables,messages,notifications,activity,llm,control,runs&company=TY` (repeatable; ⟨1.4.1⟩ `runs` carries `run.*`).
+`GET /stream` — Server-Sent Events. `?topics=work,decisions,deliverables,messages,notifications,activity,llm,control,runs,stories&company=TY` (repeatable; ⟨1.4.1⟩ `runs` carries `run.*`).
 - ⟨1.4.2⟩ **Unknown topics are ignored**, not refused: a client may name topics a newer server adds (`files`, `workshop`, `orders`, the §18 topics). The first SSE comment lists the topics actually served (`: topics work,decisions,…`). Only a malformed `topics` (pattern, length) is `422`.
 - Envelope: `event: <type>` and `data: {id, type, at, company, ref, data}`; `id:` is the JetStream sequence so `Last-Event-ID` resumes without loss.
 - Types: `work.created|updated|delegated|completed`, `decision.created|decided`, `deliverable.created|rated`, `message.created`, `notification.created`, `presence.changed`, `control.changed`, `employee.updated`, `activity.changed` (runtime), `llm.call.started|finished` (from llm-router, metadata only), `budget.alert`.
@@ -458,6 +459,7 @@ Used by the agent runtime in prompt 5 and by tests now (with a fake agent princi
 ⟨1.1⟩ `precondition_required` (428, PATCH without `If-Match`), `policy_unavailable` (503, OPA did not answer; the API is fail-closed — distinct from `policy_denied` 403 so clients say "try again" instead of "not allowed").
 ⟨1.4.1⟩ `live_unavailable` (503, live replies are switched off; the stored reply still arrives in the thread).
 ⟨1.4.2⟩ `hiring_closed` (403, an agent proposed a hire while hiring is closed, §18.11).
+⟨1.4.3⟩ `envelope_required` (422, delegated hiring needs a monthly envelope for every operating company), `envelope_exceeded` (409, the hire's monthly estimate does not fit the company's envelope), `story_limit` (429, a company's three stories a day). `not_ready` (409, a feature the contract names that this server build does not serve yet, e.g. `delegated` before prompt 8).
 
 ---
 
@@ -734,8 +736,8 @@ StarRubric { company, version, criteria: [{key, name_fa, weight, description_md}
 Star       { id, employee, company, week (Saturday, YYYY-MM-DD, owner TZ), stars: 0..5, by: Actor (CEO), reason_md, evidence: [{kind, ref, note}],
              criteria: {key: 0..5}, counted: bool, overseer_note|null, created_at }
 StarRollup { period: "week"|"month", key, best_company,
-             companies: [{company, stars: 0..5, score: 0..100, parts: {kpi, challenges, compliance, people}, rank, trend: [0..100]}],
-             employees: [{code, company, title_fa, stars: 0..5, count, rank_company, rank_holding, trend: [0..5]}],
+             companies: [{company, stars: 0..5, score: 0..100, parts: {kpi, challenges, compliance, people, efficiency}, rank, trend: [0..100]}],
+             employees: [{code, company, title_fa, stars: 0..5, count, rank_company, rank_holding, trend: [0..5], efficiency: 0..100|null}],
              lessons: [L-…] }
 Lesson     { id, ref: "L-0001", source_company, period, title_fa, body_md, evidence, adoption: [{company, status: "proposed"|"adopted"|"rejected", decision_ref}] }
 ```
@@ -744,7 +746,11 @@ Lesson     { id, ref: "L-0001", source_company, period, title_fa, body_md, evide
 | GET | `/stars/rollup` | `?period=week\|month&key` (default: the last closed period) |
 | GET | `/lessons` | `?company&period` |
 - Week = Saturday to Friday, owner TZ; the roll-up runs **Saturday 08:00 Tehran**, the month on the 1st (Jalali month).
-- **Company score** = 40% KPI attainment + 25% overseer challenges + 20% compliance + 15% people (employees' stars); **company stars** = score ÷ 20.
+- **Company score** ⟨1.4.3⟩ = 35% KPI attainment + 20% overseer challenges + 15% compliance + 15% people (employees' stars) + **15% efficiency**; **company stars** = score ÷ 20.
+- **Efficiency** ⟨1.4.3⟩ (owner, 2026-10-17: stars for spending the budget well and reaching the result, without waste), 0–100, computed by the system from the ledger, never self-reported:
+  - company: 40% envelope discipline (month use ≤ envelope; above 100% scores 0) + 30% waste (tokens of failed, cancelled or abandoned runs and of work that never delivered, as a share of the month; lower is better) + 30% cost per accepted deliverable against the holding's median;
+  - employee: 50% tokens per accepted deliverable against its department's median + 25% failed-run share + 25% estimate accuracy (actual month use within ±25% of its hire estimate scores full);
+  - every CEO's rubric carries an **efficiency** criterion of at least 15% weight, scored from these figures; picking a stronger model than the job needs shows up here.
 - A star without a reason or evidence is not counted; the overseer flags inflation (e.g. more than 70% fives in a company).
 - The owner gives no stars. The owner's 1–10 rating stays a separate part of the employee score (§1.16).
 
@@ -843,19 +849,60 @@ BackupStatus { hourly: {last_at, next_at, ok, snapshot, size_bytes}, wal: {last_
 - **Step-up targets:** `oversight.protocol` (body hash), `oversight.order` (ref), `oversight.release` (ref), `skill.activate` (`ref@version`),
   `academy.approve` (ref), `mcp.add` (body hash), `mcp.enable` (key), `provision.seal` (the plan's `digest`), `founding.activate` (ref).
 
-### 18.11 Hiring starts with the owner ⟨1.4.2⟩
-Owner decision, 2026-10-17: no hire now. When the owner brings the hub up for real work, the owner either hires from zero personally or asks the CEOs to propose their teams at that moment. Until then nobody proposes a hire.
+### 18.11 Hiring: the owner opens it, the CEOs hire ⟨1.4.2⟩ ⟨1.4.3⟩
+Owner decisions, 2026-10-17: no hire now; hiring opens when the owner brings the hub up for real work. From then on **each company's CEO hires with full authority inside the company's monthly token envelope**: departments ask for the people they need, the CEO decides, and **the CEO chooses the model each job needs** (not every role on Opus). The owner is kept informed through stories (§18.12) and the digest, and can undo any hire. Spending the envelope well, with results and without waste, earns stars (§18.4).
 ```
-Hiring { state: "closed"|"open", mode: "self"|"proposals"|null, changed_at|null, changed_by: Actor|null,
-         withdrawn: ["D-000001", …] }     // hire cards the system withdrew when hiring closed
+Hiring { state: "closed"|"open", mode: "delegated"|"proposals"|null, changed_at|null, changed_by: Actor|null,
+         withdrawn: ["D-000001", …],                    // hire cards the system withdrew (never deleted)
+         envelopes: [{company, tokens_month|null,         // the company's monthly budget (§9 /budgets, scope company, period month)
+                      committed_month,                   // monthly estimates of its active employees (from their hire decisions)
+                      used_month,                        // tokens used this (Jalali) month
+                      hires_month}] }                    // hires approved this month
 ```
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/owner/hiring` | the state above; `closed` by default |
-| POST | `/owner/hiring/start` 🔏 | `{mode: "proposals"|"self"}` · step-up `hiring.start`, target `holding`. `proposals`: hiring opens to agents and each CEO (and each holding head with a hiring duty) gets **one** work item, "propose your first month's team", at its normal priority. `self`: hiring stays closed to agents; the owner hires directly |
+| POST | `/owner/hiring/start` 🔏 | `{mode: "delegated"\|"proposals"}` · step-up `hiring.start`, target `holding`. Each operating company's CEO (and each holding head with a hiring duty) gets **one** work item, "build your first month's team", at its normal priority (idempotent). `delegated` needs a monthly envelope for every active operating company: otherwise `422 envelope_required` with `fields: {envelopes: "TY, FX"}`. ⟨1.4.3⟩ |
 | POST | `/owner/hiring/close` | no step-up (closing is always safe); pending agent hire cards are withdrawn |
-| POST | `/org/hires` 🔏 | owner only · `{company, department, role, title_fa, title_en?, model?, effort?, reason?, duties?, reports_to?, quota_estimate_month?}` · step-up `hire.direct`, target = SHA-256 of the exact body. Writes a `hire` decision proposed **and sealed by the owner** in one transaction (status `approved`, resolution `M-…`), then the employee; the same checks as §16.6 (the charter `role` must fit the company and department). `model`/`effort`/`title_en` default to the charter's; `reason` defaults to «استخدام مستقیم مالک». → `201 {employee, decision}` |
-- While `closed`, an agent's `propose` of kind `hire` is refused before any card exists: `403 hiring_closed` (new stable code, §14). Dismissal, budget and every other kind are unaffected.
-- Closing hiring (and the decision itself, 2026-10-17) **withdraws** pending agent hire cards: status `withdrawn`, `decided_by` system, note «مالک: استخدام با شروع خود مالک». Nothing is deleted; the cards stay in history and in `withdrawn`.
+| POST | `/org/hires` 🔏 | owner only, in any state · `{company, department, role, title_fa, title_en?, model?, effort?, reason?, duties?, reports_to?, quota_estimate_month?}` · step-up `hire.direct`, target = SHA-256 of the exact body. Writes a `hire` decision proposed **and sealed by the owner** in one transaction (status `approved`, resolution `M-…`), then the employee; the same checks as §16.6 (the charter `role` must fit the company and department). `model`/`effort`/`title_en` default to the charter's; `reason` defaults to «استخدام مستقیم مالک». → `201 {employee, decision}` |
+| GET | `/budgets` · PUT 🔏 | the envelopes are company budgets: `{company, scope_type: "company", scope_ref: <code>, period: "month", token_limit}` (§9, step-up bound to the body hash) |
+
+**Who decides a hire card** — `Decision` gains `approver: Actor|null` (null = the owner) ⟨1.4.3⟩:
+| State | An operating company's card | A holding card (HQ) |
+|---|---|---|
+| `closed` | refused before any card exists: `403 hiring_closed` | same |
+| `open`, `proposals` | the owner (as every A2 hire before) | the owner |
+| `open`, `delegated` | **its CEO** (`approver` = that CEO); the owner may still decide it first | the owner (the holding has no CEO) |
+
+- **The CEO decides** with the tool `hire.decide` `{ref, verdict: "approve"|"reject"|"return", note}` (A2, own company only, only cards whose `approver` is this CEO; also for the CEO's own proposals). A manager asks by `propose` kind `hire`; the CEO is woken by a work item for the card.
+- **Hard checks on every approval** (whoever approves, in one transaction; a refusal is a stable code and no employee is made):
+  the charter fits (§16.6) · the model is offered by an enabled connection · `quota_estimate_month` is present and at least the charter's `limits.tokens_per_run` · `committed_month + estimate ≤ tokens_month` else **`409 envelope_exceeded`** · the company's kill switch is released · at most **5 hires per company per day** (a loop guard, `429 rate_limited`).
+- **After a delegated hire:** the employee starts at once with `probation_until` = +7 days; a `hire` story is posted (§18.12); the owner gets one `report`-level notification in the digest (never an urgent push); the Chief Overseer gets a review item (protocol "hire review", 24 h) and may hold it or open a finding.
+- **The owner undoes** a hire from its story or the employee page: `POST /employees/{code}/dismiss` 🔏 (§4) with reason «مالک: از استوری».
+- `GET /decisions` for the owner's cartable shows by default only cards the owner decides (`approver` null); `?approver=all` shows the CEOs' too. `/inbox/summary.decisions_pending` counts the owner's only.
+- While `closed`, an agent's `propose` of kind `hire` is refused: `403 hiring_closed` (§14). Dismissal, budget and every other kind are unaffected.
+- Closing hiring (and the decision itself, 2026-10-17) **withdraws** pending agent hire cards: status `withdrawn`, `decided_by` system, note «مالک: استخدام با شروع خود مالک».
 - The daily agent token cap stays at 600K until the owner sets it from the first week's outputs (owner decision, 2026-10-17).
 - Stream: `hiring.changed` on topic `control`. Step-up targets: `hiring.start` (`holding`), `hire.direct` (body hash).
+
+### 18.12 Stories ⟨1.4.3⟩
+Owner decision, 2026-10-17: the owner follows the companies the way one follows accounts on Instagram — a row of circles at the top of «فرمان», one per company, ringed in gold while something is unseen. A story is a designed card in the company's colours (no generated imagery): the system posts one for each notable event, and each CEO may post up to three a day in its own words. Stories are pulled, never pushed.
+```
+Story     { id, ref: "ST-000123", company, kind: "hire"|"deliverable"|"stars"|"milestone"|"post",
+            author: Actor,                                  // system, or the company's CEO
+            title_fa (≤ 60), body_fa (≤ 280), figures: [{label_fa, value}] (≤ 3; value is a short figure: "1.6M", "$4.20", "86"),
+            media: MediaRef|null,                           // an image from the company's own files (§17), images only
+            links: {employee?, deliverable?, decision?, work?, period?},
+            created_at, expires_at (= created_at + 24 h), seen: bool, welcomed: bool }
+StoryRing { company, unseen, latest_at, items: [Story] }    // items oldest first, as they play
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/stories` | live stories (not expired), one ring per company with any; rings with unseen first, then by `latest_at` |
+| GET | `/stories/archive` | `?company&cursor` — expired stories, newest first (the company's highlights) |
+| POST | `/stories/seen` | `{refs: ["ST-…"]}` → marks them seen; no step-up |
+| POST | `/stories/{ref}/welcome` | a `hire` story only: the owner's welcome; the new employee's manager and CEO see it (a positive signal in the employee score); no step-up |
+- **System stories:** `hire` (every approved hire, with role, model, effort and monthly estimate as figures, and the CEO's reason as the body); `deliverable` (a deliverable the owner rated 9–10); `stars` (Saturday's roll-up: the best company and its best employee); `milestone` (a KPI target reached, with the figure).
+- **CEO stories:** the tool `story.post` `{kind: "post"|"milestone", title_fa, body_fa, figures?, file_id?, links?}` (A1; CEOs and holding heads): at most **3 per company per day** (`429 story_limit`), redacted like every agent output, an image only from the company's own files, no outside links; a `milestone` must link the evidence (work, deliverable or metric).
+- The owner never gets a push for a story; a `hire` story also appears in the digest (above).
+- Stream: `story.created` on topic `stories`.
