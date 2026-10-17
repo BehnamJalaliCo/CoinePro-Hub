@@ -36,3 +36,5 @@ PROMPT_05_1 REPORT
 - Nits hiring/budget ok: work.request from a spent work -> 409 budget_exceeded; daily cap from today's ledger calls (a run that began before midnight UTC counts); open children of the cancelled month-1 work cancelled (none on the hub)
 - Tests ok: the migration test proves a decided hire card and a pending non-hire card are untouched
 - Small ok: OpenAPI start lists 409; ": topics" without a trailing space; anchor-dir.sh --check only verifies
+- Gates and live: make check 14/14 (213 api + 266 services tests); deployed (api 0012): 21/21 healthy, 7 decision.decided events backfilled, hiring closed with envelopes FX/PC/TY (tokens_month null: no company monthly budget is set yet, the owner's before delegated), verify-live pass, /__canary 404; no real-model call in this round
+- Owner decisions unchanged (see above); new: each operating company's monthly envelope (PUT /budgets) before delegated hiring can be used
