@@ -210,3 +210,39 @@ def has_metadata(data: bytes) -> bool:
     """For tests and checks: does an image still carry EXIF (or GPS) data?"""
     img = _open(data)
     return bool(img.info.get("exif")) or bool(img.getexif())
+
+
+# ------------------------------------------------------------------- PDF --
+MAX_PDF_PAGES = 200
+MAX_PDF_CHARS = 200_000  # files.processing.text's cap
+PDF_TEXT_S = 30.0
+
+
+def _pdf_text(data: bytes) -> str | None:
+    from pypdf import PdfReader
+
+    reader = PdfReader(io.BytesIO(data))
+    if reader.is_encrypted and not reader.decrypt(""):
+        return None  # a password-protected PDF: no text
+    parts: list[str] = []
+    total = 0
+    for page in reader.pages[:MAX_PDF_PAGES]:
+        text = (page.extract_text() or "").strip()
+        if text:
+            parts.append(text)
+            total += len(text)
+        if total >= MAX_PDF_CHARS:
+            break
+    out = "\n\n".join(parts).strip()[:MAX_PDF_CHARS]
+    return out or None
+
+
+async def pdf_text(data: bytes) -> str | None:
+    """The text of a PDF for files.read (prompt 07 §3), or None: a scanned,
+    encrypted or broken PDF has none, and that never fails the upload."""
+    if not data.startswith(b"%PDF-"):
+        return None
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(_pdf_text, data), PDF_TEXT_S)
+    except Exception:  # noqa: BLE001 - pypdf on a hostile or broken file: no text
+        return None

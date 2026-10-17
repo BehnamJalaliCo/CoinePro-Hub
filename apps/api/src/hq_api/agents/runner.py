@@ -852,7 +852,8 @@ class Runner:
         async with self.hub.db.tx(await self.read_scope(rc)) as tx:
             rows = await tx.all(
                 """SELECT id, mime, storage_key FROM files.files
-                   WHERE id = ANY(:ids) AND kind = 'image' AND variant IN ('agent', 'frame', 'poster')""",
+                   WHERE id = ANY(:ids) AND kind = 'image'
+                     AND variant IN ('agent', 'frame', 'poster', 'thumb')""",
                 ids=ids,
             )
         by_id = {r["id"]: r for r in rows}

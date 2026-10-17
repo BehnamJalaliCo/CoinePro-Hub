@@ -7,7 +7,10 @@ charter   tool outside the role's charter (agents/roles/<role>.md) -> denied
 policy    hq.actions (OPA): the tool's class by role and escrow, A4 never,
           a locked company (kill switch or deploy freeze) refuses writes
 validate  the tool's input model (field errors back, never the values)
-carry out through the internal API with the run's agent token
+carry out through the internal API with the run's agent token; mcp.call
+          (class `per tool`) first asks the api for the server and the class
+          the owner sealed for that tool, then the policy decides on that
+          class; an A3 tool becomes the owner's decision instead (hq_gateway.mcp)
 redact    the result (keys, tokens, e-mails, phones, ...), size-capped
 audit     one row per call, whatever happened (a refusal at reserve, a cap,
           an exception, a timeout): tool, class, outcome, code, ref - no
@@ -22,15 +25,19 @@ write that was carried out.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
 from hq_common.charters import IMPLICIT_TOOLS, Library
-from hq_common.redact import fit_async
+from hq_common.redact import fit_async, scrub_async
+from hq_gateway import mcp as M
 from hq_gateway import tools as T
 
 log = logging.getLogger("hq_gateway")
@@ -99,10 +106,12 @@ class Gateway:
         tool_timeout_s: float = 25.0,
         deadline_s: float = 30.0,
         audit_timeout_s: float = 4.0,
+        mcp_opener: M.Opener | None = None,
     ) -> None:
         self.lib = library
         self.api = api
         self.opa = opa
+        self.mcp_opener = mcp_opener
         self.max_result_chars = max_result_chars
         self.tool_timeout_s = tool_timeout_s
         self.deadline_s = deadline_s
@@ -126,8 +135,10 @@ class Gateway:
             out = Outcome("error", cls, "internal_error", None, None, {})
         finally:
             # Whatever happened, cancellation included, the call has its audit row
-            # (shielded: a second cancel does not lose it).
-            out.cls = cls
+            # (shielded: a second cancel does not lose it). A per-call class (an
+            # MCP tool's sealed class) stays; otherwise the catalog's.
+            per_call = catalog is not None and catalog.per_tool and out.cls
+            out.cls = out.cls if per_call else cls
             if out.code != "run_not_running":  # the api audits nothing for a dead run's token
                 await asyncio.shield(self._record(token, name, out, step))
         log.info(
@@ -184,38 +195,11 @@ class Gateway:
             return Outcome("denied", catalog.cls, code, None, None, {})
         if name not in self.lib.allowed(gate.get("role")):
             return Outcome("denied", catalog.cls, "tool_not_in_charter", None, None, {})
-        allowed, reasons = await self.opa.actions(
-            {
-                "principal": {
-                    "kind": "agent",
-                    "code": gate["employee"],
-                    "role": gate["kind"],
-                    "company": gate["company"],
-                    "department": gate.get("department"),
-                    "status": gate.get("status", "active"),
-                    "scope": gate.get("scope", "company"),
-                },
-                "action": {"class": catalog.cls, "name": name, "company": gate["company"]},
-                "context": {
-                    "escrow_classes": gate.get("escrow_classes") or [],
-                    # An answer without its lock field counts as locked (the safe side).
-                    "company_locked": "lock" not in gate or gate["lock"] is not None,
-                    "incident": name == "notify"
-                    and isinstance(args, dict)
-                    and args.get("level") == "urgent"
-                    and bool(args.get("category")),
-                },
-            }
-        )
-        if not allowed:
-            code = (
-                "company_locked"
-                if reasons == ["company_locked"]
-                else ("policy_unavailable" if "policy_unavailable" in reasons else "policy_denied")
-            )
-            return Outcome(
-                "denied", catalog.cls, code, None, None, {"reasons": ",".join(reasons)[:200]}
-            )
+        if catalog.per_tool:
+            return await self._mcp(token, gate, step, index, name, args)
+        denied = await self._policy(gate, name, catalog.cls, args)
+        if denied is not None:
+            return denied
         parsed, fields = T.validate(name, args)
         if parsed is None:
             return Outcome("error", catalog.cls, "invalid_args", None, None, fields)
@@ -233,6 +217,151 @@ class Gateway:
         return Outcome(
             r.outcome, catalog.cls, r.code, r.ref, result, r.fields, truncated, hint_fa=r.hint_fa
         )
+
+    async def _policy(self, gate: dict[str, Any], name: str, cls: str, args: Any) -> Outcome | None:
+        """hq.actions for one call of class `cls`: None when allowed."""
+        allowed, reasons = await self.opa.actions(
+            {
+                "principal": {
+                    "kind": "agent",
+                    "code": gate["employee"],
+                    "role": gate["kind"],
+                    "company": gate["company"],
+                    "department": gate.get("department"),
+                    "status": gate.get("status", "active"),
+                    "scope": gate.get("scope", "company"),
+                },
+                "action": {"class": cls, "name": name, "company": gate["company"]},
+                "context": {
+                    "escrow_classes": gate.get("escrow_classes") or [],
+                    # An answer without its lock field counts as locked (the safe side).
+                    "company_locked": "lock" not in gate or gate["lock"] is not None,
+                    "incident": name == "notify"
+                    and isinstance(args, dict)
+                    and args.get("level") == "urgent"
+                    and bool(args.get("category")),
+                },
+            }
+        )
+        if not allowed:
+            code = (
+                "company_locked"
+                if reasons == ["company_locked"]
+                else ("policy_unavailable" if "policy_unavailable" in reasons else "policy_denied")
+            )
+            return Outcome("denied", cls, code, None, None, {"reasons": ",".join(reasons)[:200]})
+        return None
+
+    # -------------------------------------------------------------- mcp.call --
+    async def _mcp(
+        self, token: str, gate: dict[str, Any], step: int, index: int, name: str, args: Any
+    ) -> Outcome:
+        """resolve (api: enabled, the company may, the sealed class; an A3 tool
+        becomes a decision there) -> policy on that class -> open the server ->
+        its listing must be the pinned one -> call -> labelled, redacted data."""
+        parsed, fields = T.validate(name, args)
+        if parsed is None:
+            return Outcome("error", None, "invalid_args", None, None, fields)
+        canon = json.dumps(parsed.args, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        resp = await self.api.request(
+            "POST",
+            "/internal/v1/tools/mcp/resolve",
+            token,
+            json={
+                "server": parsed.server,
+                "tool": parsed.tool,
+                "args_sha256": hashlib.sha256(canon.encode()).hexdigest(),
+                "preview": (await scrub_async(canon))[:20000],
+            },
+        )
+        ref = f"mcp:{parsed.server}/{parsed.tool}"[:80]
+        r = T.from_response(resp, None)
+        if r.outcome != "ok" or not isinstance(r.data, dict):
+            code = r.code or "api_bad_answer"
+            return Outcome(r.outcome, None, code, ref, None, r.fields, hint_fa=r.hint_fa)
+        d = r.data
+        cls = str(d.get("class") or "")
+        if d.get("decision"):  # an A3 tool: the owner decides; nothing ran
+            decision = str(d["decision"])[:40]
+            return Outcome(
+                "denied",
+                "A3",
+                "a3_requires_decision",
+                decision,
+                {"decision": decision},
+                {},
+                hint_fa=str(d.get("message_fa") or "")[:300] or None,
+            )
+        if cls not in ("A0", "A1", "A2"):
+            return Outcome("error", None, "api_bad_answer", ref, None, {})
+        denied = await self._policy(gate, name, cls, args)
+        if denied is not None:
+            denied.ref = ref
+            return denied
+        srv = d.get("server") or {}
+        spec = M.ServerSpec(
+            key=str(srv.get("key") or parsed.server),
+            transport=str(srv.get("transport") or ""),
+            url=str(srv.get("url") or ""),
+            listing_sha256=srv.get("listing_sha256"),
+            auth_header=srv.get("auth_header"),
+            secret=srv.get("secret"),
+        )
+        del d, srv, r, resp  # the secret lives in `spec` only
+        if self.mcp_opener is None:
+            return Outcome("denied", cls, "channel_not_configured", ref, None, {})
+        started = time.monotonic()
+        try:
+            out = await asyncio.wait_for(
+                self._mcp_session(token, spec, parsed.tool, parsed.args), self.tool_timeout_s
+            )
+        except M.NotConfigured:
+            return Outcome("denied", cls, "channel_not_configured", ref, None, {})
+        except TimeoutError:
+            return Outcome("error", cls, "tool_timeout", ref, None, {})
+        except Exception:  # noqa: BLE001 - a server's failure: never its details or the secret
+            log.warning("mcp call failed", extra={"server": spec.key, "tool": parsed.tool})
+            return Outcome("error", cls, "mcp_unreachable", ref, None, {})
+        ms = int((time.monotonic() - started) * 1000)
+        log.info("mcp call", extra={"server": spec.key, "tool": parsed.tool, "ms": ms})
+        if isinstance(out, str):
+            return Outcome("denied", cls, out, ref, None, {})
+        result, truncated = await fit_async(out, self.max_result_chars)
+        failed = bool(out.get("is_error"))
+        return Outcome(
+            "error" if failed else "ok",
+            cls,
+            "mcp_tool_error" if failed else None,
+            ref,
+            result,
+            {},
+            truncated,
+        )
+
+    async def _mcp_session(
+        self, token: str, spec: M.ServerSpec, tool: str, args: dict[str, Any]
+    ) -> dict[str, Any] | str:
+        """The call itself, or a refusal code: the server's listing differs from
+        the one pinned after the owner's enable (the api switches it off), or the
+        tool is not on the server."""
+        assert self.mcp_opener is not None
+        async with self.mcp_opener(spec) as session:
+            listed = await session.list_tools()
+            listing = M.listing_of(list(getattr(listed, "tools", None) or []))
+            if spec.listing_sha256 != listing.sha256:
+                resp = await self.api.request(
+                    "POST",
+                    f"/internal/v1/tools/mcp/{spec.key}/listing",
+                    token,
+                    json={"listing_sha256": listing.sha256, "tools": listing.names[:200]},
+                )
+                body = resp.json() if resp.status_code == 200 else {}
+                if not (isinstance(body, dict) and body.get("status") == "enabled"):
+                    return "mcp_tools_changed"
+            if tool not in listing.names:
+                return "mcp_tool_missing"
+            result = await session.call_tool(tool, args)
+        return M.render(spec.key, tool, result)
 
     async def _record(self, token: str, name: str, out: Outcome, step: int) -> None:
         try:

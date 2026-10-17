@@ -57,6 +57,11 @@ class Settings:
     )
     # How long POST /transcribe waits for the worker (a 15-minute recording on CPU).
     transcribe_wait_s: int = field(default_factory=lambda: _int("HQ_TRANSCRIBE_WAIT_S", 600))
+    # MCP calls (prompt 07 §3): per run and per company per owner day.
+    mcp_calls_per_run: int = field(default_factory=lambda: _int("HQ_MCP_CALLS_PER_RUN", 20))
+    mcp_calls_per_company_day: int = field(
+        default_factory=lambda: _int("HQ_MCP_CALLS_PER_COMPANY_DAY", 300)
+    )
     # Sessions (contract §2): sliding 30 days, absolute 90 days.
     session_sliding_days: int = 30
     session_absolute_days: int = 90

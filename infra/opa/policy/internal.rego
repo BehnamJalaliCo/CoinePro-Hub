@@ -24,6 +24,8 @@ ops := {
 	"backup.read",
 	# prompt 06: the Code Workshop, for the driver of a grant
 	"workshop.read", "workshop.session", "workshop.message",
+	# prompt 07: an MCP tool of a server the owner enabled
+	"mcp.call",
 }
 
 # Reads of the gateway's tools: an agent reads its own company; a holding-scope
@@ -243,6 +245,14 @@ grant if {
 # another company's, whatever the agent's charter scope.
 grant if {
 	op == "file.read"
+	agent
+	same_company(tv("company"))
+}
+
+# An MCP server's tool (prompt 07 §3): for the agent's own company only; which
+# server and tool, and at which class, is the owner's sealed registration.
+grant if {
+	op == "mcp.call"
 	agent
 	same_company(tv("company"))
 }

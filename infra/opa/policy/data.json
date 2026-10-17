@@ -25,7 +25,8 @@
           "work.progress",
           "work.fail",
           "activity.set",
-          "notify"
+          "notify",
+          "mcp.call"
         ],
         "manager": [
           "work.delegate",
@@ -35,7 +36,8 @@
           "work.progress",
           "work.fail",
           "activity.set",
-          "notify"
+          "notify",
+          "mcp.call"
         ],
         "inspector": [
           "work.delegate",

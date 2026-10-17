@@ -23,6 +23,7 @@ from hq_common import charters, heartbeat, tokens
 from hq_gateway import __version__
 from hq_gateway.config import Settings
 from hq_gateway.gateway import Gateway, Opa
+from hq_gateway.mcp import SdkOpener
 from hq_gateway.tools import Api
 
 log = logging.getLogger("hq_gateway")
@@ -152,6 +153,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             max_result_chars=s.max_result_chars,
             tool_timeout_s=s.tool_timeout_s,
             deadline_s=s.deadline_s,
+            # MCP servers (prompt 07 §3): http ones only through the egress proxy.
+            mcp_opener=SdkOpener(s.egress_proxy_url, s.mcp_timeout_s),
         )
 
         async def check() -> dict[str, Any]:

@@ -19,11 +19,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
-from hq_api import idempotency, workflows_client
+from hq_api import idempotency, media, workflows_client
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
 from hq_api.domain import control, hiring, notify, org
 from hq_api.domain import decisions as D
+from hq_api.domain import files as F
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
 from hq_api.principal import Principal
@@ -214,6 +215,9 @@ OP_CLASS: dict[str, str] = {
     "workshop.read": "A0",
     "workshop.session": "A1",
     "workshop.message": "A1",
+    # prompt 07: mcp.call's question to the api (the call's own class is the
+    # server's registration, checked by the gateway with hq.actions)
+    "mcp.call": "A0",
 }
 
 
@@ -1216,6 +1220,8 @@ async def upload_file(
             key=key,
             by=ctx.who.code,
         )
+        if mime == "application/pdf" and (text := await media.pdf_text(data)):
+            await F.document_text(tx, row["id"], ctx.who.company_id, text)
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,

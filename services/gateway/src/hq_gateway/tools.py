@@ -13,6 +13,7 @@ short Persian explanation (`hint_fa`) so the model knows what to do instead.
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from collections.abc import Awaitable, Callable
@@ -133,6 +134,29 @@ class WorkRef(In):
 
 class FileIn(In):
     file_id: str = Field(pattern=UUID_RE)
+    # What to look at (agents/tools.md): the picture as the model may see it
+    # (an image's agent copy, a video's key frames), its small thumb, or a
+    # video's poster frame only.
+    variant: Literal["original", "thumb", "poster"] = "original"
+
+
+MCP_SERVER = r"^[a-z][a-z0-9-]{1,39}$"
+MCP_TOOL = r"^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,127}$"
+
+
+class McpCallIn(In):
+    """mcp.call (class `per tool`): one tool of an MCP server the owner enabled."""
+
+    server: str = Field(pattern=MCP_SERVER)
+    tool: str = Field(pattern=MCP_TOOL)
+    args: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("args")
+    @classmethod
+    def _small(cls, v: dict[str, Any]) -> dict[str, Any]:
+        if len(json.dumps(v, ensure_ascii=False, default=str)) > 20_000:
+            raise ValueError("at most 20000 characters of arguments")
+        return v
 
 
 class CompanyIn(In):
@@ -357,6 +381,7 @@ FILE_FIELDS = (
     "height",
     "duration_s",
     "transcript",
+    "text",
 )
 MAX_VIEW_IMAGES = 13  # a video's poster and its (up to 12) key frames
 
@@ -375,19 +400,32 @@ async def files_read(api: Api, call: Call, a: FileIn) -> Result:
     if not isinstance(d, dict) or not isinstance(d.get("id"), str):
         return Result("error", code="api_bad_answer")
     meta = {k: d.get(k) for k in FILE_FIELDS if d.get(k) is not None}
+    raw_variants = d.get("variants")
+    variants: dict[str, Any] = raw_variants if isinstance(raw_variants, dict) else {}
+
+    def one(value: Any) -> list[str]:
+        return [value] if isinstance(value, str) else []
+
     images: list[str] = []
     if d.get("status") == "ready":
-        if d.get("kind") == "image":
-            images = [d["id"]]
+        if a.variant == "thumb":
+            images = one(variants.get("thumb"))
+        elif a.variant == "poster":
+            images = one(variants.get("poster"))
+        elif d.get("kind") == "image":
+            images = one(d.get("agent"))  # the copy a model sees (<= 1568 px, no EXIF)
         elif d.get("kind") == "video":
             raw = d.get("frames")
             frames: list[Any] = raw if isinstance(raw, list) else []
-            images = [f for f in frames if isinstance(f, str)]
-            if not images:
-                poster = (d.get("variants") or {}).get("poster")
-                images = [poster] if isinstance(poster, str) else []
-    meta["view"] = {"image_file_ids": images[:MAX_VIEW_IMAGES]}
+            images = [f for f in frames if isinstance(f, str)] or one(variants.get("poster"))
+    meta["view"] = {"variant": a.variant, "image_file_ids": images[:MAX_VIEW_IMAGES]}
     return Result("ok", ref=f"file:{d['id']}", data=meta)
+
+
+async def mcp_call(api: Api, call: Call, a: McpCallIn) -> Result:
+    """Never reached: the gateway carries mcp.call out itself (its class comes
+    from the server's registration, before the policy; hq_gateway.mcp)."""
+    raise RuntimeError("mcp.call is carried out by the gateway")
 
 
 async def company_state(api: Api, call: Call, a: CompanyIn) -> Result:
@@ -758,6 +796,7 @@ TOOLS: dict[str, tuple[type[In], Handler]] = {
     "work.request": (RequestIn, work_request),
     "activity.set": (ActivityIn, activity_set),
     "notify": (NotifyIn, notify),
+    "mcp.call": (McpCallIn, mcp_call),
 }
 
 

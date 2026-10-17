@@ -42,3 +42,9 @@ class Settings:
         default_factory=lambda: _int("GATEWAY_MAX_BODY_BYTES", 2 * 1024 * 1024)
     )
     log_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL", "info"))
+    # MCP (prompt 07 §3): an `http` server is reached only through the egress
+    # service's forward proxy; empty = such servers are not configured.
+    egress_proxy_url: str = field(default_factory=lambda: os.environ.get("EGRESS_PROXY_URL", ""))
+    mcp_timeout_s: float = field(
+        default_factory=lambda: float(os.environ.get("MCP_CALL_TIMEOUT_S", "20"))
+    )

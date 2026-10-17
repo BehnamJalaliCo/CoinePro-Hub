@@ -103,9 +103,15 @@ class DeployPayload(Model):
 
 
 class A3Payload(Model):
-    action: Literal["publish", "customer_message", "group_message", "restart", "price_change"]
+    # mcp_call (prompt 07 §3): an MCP tool the owner registered as A3; made by
+    # the api itself when an agent calls it (target "<server>/<tool>", the
+    # masked arguments as the preview and their SHA-256), never run before.
+    action: Literal[
+        "publish", "customer_message", "group_message", "restart", "price_change", "mcp_call"
+    ]
     target: str = Field(min_length=1, max_length=300)
     preview: str = Field(default="", max_length=20000)
+    args_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class ProposalPayload(Model):
