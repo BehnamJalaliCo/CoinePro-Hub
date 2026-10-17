@@ -14,6 +14,7 @@ import httpx
 import pytest
 
 from hq_api.security import agent_tokens
+from hq_common import charters
 
 from .conftest import AGENT_KEY, idem
 
@@ -192,9 +193,10 @@ async def test_the_line_ceo_to_cto_and_back(
     ]
     assert actions[0]["ref"].startswith("O-")
     finished = await su.fetchrow("SELECT * FROM agents.runs WHERE id = $1", cto_run["id"])
-    assert finished["charter_role"] == "cto" and finished["charter_version"] == 1
+    cto = charters.load().roles["cto"]
+    assert finished["charter_role"] == "cto" and finished["charter_version"] == cto.version
     assert finished["input_tokens"] > 0 and finished["steps"] == 2 and finished["tool_calls"] == 4
-    assert finished["model"] == "claude-sonnet-5-5" and finished["effort"] == "high"
+    assert finished["model"] == cto.model and finished["effort"] == cto.effort
     used = await su.fetchval("SELECT tokens_used FROM work.work WHERE ref = $1", child_ref)
     assert used == sum(
         json.loads(s["usage"])["input"] + json.loads(s["usage"])["output"] for s in steps

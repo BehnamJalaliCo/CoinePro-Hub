@@ -153,7 +153,7 @@ async def test_employees_chart_pause_and_dismiss(
         "effort": "high",
     }
     assert e["reports_to"]["code"] == f"{co}-TECH-MGR" and e["hired_by_decision"].startswith("D-")
-    assert e["charter"] == {"role": "sre", "version": 1}
+    assert e["charter"] == {"role": "sre", "version": hub.charters.roles["sre"].version}
     page = (
         await client.get("/api/v1/employees", headers=h, params={"company": co, "limit": 3})
     ).json()

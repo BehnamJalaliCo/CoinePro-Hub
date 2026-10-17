@@ -47,7 +47,8 @@ async def test_advisor_answers_live_with_validated_citations(
     run_row = await su.fetchrow(
         "SELECT * FROM agents.runs WHERE id = $1", uuid.UUID(reply["run_id"])
     )
-    assert run_row["priority"] == "P2" and run_row["trigger"] == "message"
+    advisor = hub.charters.roles["advisor"]
+    assert run_row["priority"] == advisor.priority and run_row["trigger"] == "message"
     answer = (
         f"خلاصه: کار {w['ref']} در صف است.\n\nشواهد: همان کار.\n"
         f'{P.CITATIONS_OPEN}[{{"kind": "work", "ref": "{w["ref"]}"}}, {{"kind": "decision", "ref": "D-999999"}}]{P.CITATIONS_CLOSE}'
@@ -454,11 +455,13 @@ async def test_roles_runs_sites_incidents_and_quota_endpoints(
     r = await client.get("/api/v1/roles", headers=h)
     roles = {x["role"]: x for x in r.json()}
     assert {"ceo", "cto", "sre", "advisor", "inspector", "aiops_head"} <= set(roles)
-    assert roles["advisor"]["model"] == "claude-opus-5-5" and roles["advisor"]["priority"] == "P2"
+    advisor = hub.charters.roles["advisor"]
+    assert roles["advisor"]["model"] == advisor.model
+    assert roles["advisor"]["priority"] == advisor.priority
     company = await new_company()
     co = company["code"]
     r = await client.get(f"/api/v1/employees/{co}-TECH-MGR", headers=h)
-    assert r.json()["charter"] == {"role": "cto", "version": 1}
+    assert r.json()["charter"] == {"role": "cto", "version": hub.charters.roles["cto"].version}
     body = {
         "company": co,
         "sites": [
