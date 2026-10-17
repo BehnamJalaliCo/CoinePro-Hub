@@ -20,6 +20,8 @@ ops := {
 	"run.reserve", "run.record", "thread.live",
 	# prompt 06: files.read (an owner file attached in the agent's own company)
 	"file.read",
+	# prompt 07: backups.status (holding-scope roles: the overseer, the platform SRE)
+	"backup.read",
 	# prompt 06: the Code Workshop, for the driver of a grant
 	"workshop.read", "workshop.session", "workshop.message",
 }
@@ -232,7 +234,7 @@ grant if {
 
 # The hub's own health, the audit trail: holding-scope roles only.
 grant if {
-	op in {"hub.read", "audit.read"}
+	op in {"hub.read", "audit.read", "backup.read"}
 	agent
 	holding_reader
 }

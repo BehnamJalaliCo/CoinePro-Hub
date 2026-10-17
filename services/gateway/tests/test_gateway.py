@@ -287,6 +287,32 @@ async def test_holding_reads(mock: respx.MockRouter, gw: Gateway) -> None:
     assert [r["class"] for r in s.records] == ["A0", "A0"]
 
 
+async def test_backups_status_is_a_holding_read(mock: respx.MockRouter, gw: Gateway) -> None:
+    """backups.status (prompt 07 §1): the platform SRE's charter has it; the
+    answer is the api's metadata; a company role is not given the tool."""
+    s = Stub(
+        mock,
+        gate(
+            employee="HQ-SRE-01",
+            company="HQ",
+            kind="employee",
+            department="AIOPS",
+            role="hub_platform_sre",
+            scope="holding",
+        ),
+    )
+    route = mock.get(f"{API}/internal/v1/backups/status")
+    route.mock(return_value=httpx.Response(200, json={"hourly": {"ok": True}, "encryption": "restic (AES-256)"}))
+    out = await call(gw, "backups.status")
+    assert out["outcome"] == "ok" and out["class"] == "A0"
+    assert out["result"]["hourly"] == {"ok": True}
+    assert s.records[-1]["tool"] == "backups.status"
+    Stub(mock, gate(role="cto"))
+    out = await call(gw, "backups.status")
+    assert (out["outcome"], out["code"]) == ("denied", "tool_not_in_charter")
+    assert route.call_count == 1
+
+
 async def test_work_get_and_api_errors(mock: respx.MockRouter, gw: Gateway) -> None:
     Stub(mock)
     work_route(mock)

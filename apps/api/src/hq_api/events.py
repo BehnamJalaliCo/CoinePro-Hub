@@ -47,6 +47,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # ⟨1.3⟩ the Code Workshop (workshop.session, workshop.approval) and voice orders
     "workshop": ("workshop.",),
     "orders": ("order.",),
+    # ⟨1.4⟩ the hourly backup: backup.done, backup.failed (contract §18.10)
+    "backups": ("backup.",),
 }
 
 

@@ -25,6 +25,7 @@ from hq_api.routes import (
     agent_tools,
     audit_control,
     auth,
+    backups,
     decisions,
     deliverables,
     files,
@@ -137,6 +138,7 @@ def create_app(
         runs,
         workshop,
         orders,
+        backups,
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")

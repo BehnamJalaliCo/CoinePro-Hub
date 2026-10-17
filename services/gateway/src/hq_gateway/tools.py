@@ -410,6 +410,11 @@ async def health_hub(api: Api, call: Call, a: Empty) -> Result:
     return from_response(await api.request("GET", "/internal/v1/health/hub", call.token), None)
 
 
+async def backups_status(api: Api, call: Call, a: Empty) -> Result:
+    """The backup status (contract §18.9): metadata only; restore is never a tool."""
+    return from_response(await api.request("GET", "/internal/v1/backups/status", call.token), None)
+
+
 async def treasury_usage(api: Api, call: Call, a: UsageIn) -> Result:
     params = {"scope": a.scope, "period": a.period}
     return from_response(
@@ -734,6 +739,7 @@ TOOLS: dict[str, tuple[type[In], Handler]] = {
     "company.state": (CompanyIn, company_state),
     "health.sites": (SitesIn, health_sites),
     "health.hub": (Empty, health_hub),
+    "backups.status": (Empty, backups_status),
     "treasury.usage": (UsageIn, treasury_usage),
     "knowledge.search": (SearchIn, knowledge_search),
     "audit.recent": (AuditIn, audit_recent),

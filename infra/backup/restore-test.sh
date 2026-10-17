@@ -9,7 +9,14 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HQ="$REPO_DIR/infra/compose/hq.sh"
+HQ="${HQ_COMPOSE_CMD:-$REPO_DIR/infra/compose/hq.sh}"
+# Prompt 07 §1.5: the weekly test restores an hourly snapshot and checks it
+# here: HQ_RESTORE_SET = that set's directory, HQ_RESTORE_FILES_DIR = the
+# restored api files (checked against files.sha256), HQ_RESTORE_STATUS = the
+# status file to write (default restore-test).
+RESTORE_SET="${HQ_RESTORE_SET:-}"
+RESTORE_FILES_DIR="${HQ_RESTORE_FILES_DIR:-}"
+STATUS_NAME="${HQ_RESTORE_STATUS:-restore-test}"
 BACKUP_ROOT="${HQ_BACKUP_DIR:-/home/Hub/backups}"
 # shellcheck source=files.sh
 source "$REPO_DIR/infra/backup/files.sh"
@@ -21,16 +28,21 @@ status() { # status OK STAMP
   mkdir -p "$BACKUP_ROOT/status" && chmod 755 "$BACKUP_ROOT/status"
   jq -n --arg at "$(date -u +%FT%TZ)" --argjson ok "$1" --arg stamp "$2" \
     --argjson dur "$(($(date +%s) - started_s))" \
-    '{at: $at, ok: $ok, stamp: $stamp, duration_s: $dur}' >"$BACKUP_ROOT/status/restore-test.json.tmp"
-  chmod 644 "$BACKUP_ROOT/status/restore-test.json.tmp"
-  mv "$BACKUP_ROOT/status/restore-test.json.tmp" "$BACKUP_ROOT/status/restore-test.json"
+    '{at: $at, ok: $ok, stamp: $stamp, duration_s: $dur}' >"$BACKUP_ROOT/status/$STATUS_NAME.json.tmp"
+  chmod 644 "$BACKUP_ROOT/status/$STATUS_NAME.json.tmp"
+  mv "$BACKUP_ROOT/status/$STATUS_NAME.json.tmp" "$BACKUP_ROOT/status/$STATUS_NAME.json"
 }
 fail() { printf 'restore-test: FAIL: %s\n' "$*" >&2; status false "${latest:-}"; exit 1; }
 
-latest="$(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -regextype posix-extended \
-  -regex '.*/[0-9]{8}T[0-9]{6}Z' -printf '%f\n' | sort | tail -n1)"
-[[ -n "$latest" ]] || fail "no backup found in $BACKUP_ROOT (run make backup)"
-dir="$BACKUP_ROOT/$latest"
+if [[ -n "$RESTORE_SET" ]]; then
+  latest="$(basename "$RESTORE_SET")"
+  dir="$RESTORE_SET"
+else
+  latest="$(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -regextype posix-extended \
+    -regex '.*/[0-9]{8}T[0-9]{6}Z' -printf '%f\n' | sort | tail -n1)"
+  [[ -n "$latest" ]] || fail "no backup found in $BACKUP_ROOT (run make backup)"
+  dir="$BACKUP_ROOT/$latest"
+fi
 log "backup $latest"
 
 (cd "$dir" && sha256sum --quiet -c SHA256SUMS) || fail "checksum mismatch"
@@ -97,7 +109,13 @@ done
 files_vol="hq-restore-files-$(date -u +%s)"
 docker volume create "$files_vol" >/dev/null
 volumes+=("$files_vol")
-if [[ -s "$dir/files.sha256" ]]; then
+if [[ -n "$RESTORE_FILES_DIR" && -s "$dir/files.sha256" ]]; then
+  # An hourly snapshot keeps the files themselves (restic deduplicates them).
+  docker run --rm -i --network none -v "$RESTORE_FILES_DIR:/data:ro" "$tools_image" \
+    sh -c 'cd /data && sha256sum -c -s -' <"$dir/files.sha256" ||
+    fail "files: a restored file does not match its sha256"
+  log "files ok ($(wc -l <"$dir/files.sha256") file(s), every sha256 verified)"
+elif [[ -s "$dir/files.sha256" ]]; then
   files_restore_verify "$dir/files.tar.gz" "$dir/files.sha256" "$files_vol" "$tools_image" ||
     fail "files: a restored file does not match its sha256"
   log "files ok ($(wc -l <"$dir/files.sha256") file(s), every sha256 verified)"

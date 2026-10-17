@@ -332,6 +332,13 @@ test_hub_and_audit_for_holding_scope_only if {
 	not allowed(f.ty_ceo, "hub.read", {})
 }
 
+test_backups_status_for_holding_scope_only if {
+	allowed(f.hq_ovs, "backup.read", {})
+	allowed(f.hq_adv, "backup.read", {})
+	reasons(f.ty_ceo, "backup.read", {}) == {"backup.read_not_permitted"}
+	not allowed(f.ty_growth_01, "backup.read", {})
+}
+
 test_own_memory_run_and_live_thread if {
 	allowed(f.ty_growth_01, "file.read", {"company": "TY"})
 	not allowed(f.ty_growth_01, "file.read", {"company": "FX"})

@@ -9,7 +9,8 @@ ENV_FILE := infra/compose/.env
 
 .PHONY: help env bootstrap profile up down ps logs backup restore-test check openbao-init unseal \
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
-	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval
+	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval \
+	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -53,6 +54,25 @@ backup: ## Dump every database now (pg_dump -Fc) into /home/Hub/backups
 
 restore-test: ## Restore the latest backup into a throwaway Postgres and verify it
 	@infra/backup/restore-test.sh
+
+backup-hourly: ## Run the hourly encrypted backup now (restic: local, Google Drive when connected)
+	@infra/backup/hourly.sh
+
+restore-weekly: ## Run the weekly restore test now (newest snapshot, every check, PITR to a random moment)
+	@infra/backup/restore-weekly.sh
+
+pitr-test: ## Point-in-time recovery into a THROWAWAY Postgres: at="2026-10-18 09:41" (UTC)
+	@[[ -n "$(at)" ]] || { echo 'usage: make pitr-test at="YYYY-MM-DD HH:MM[:SS] [zone]"' >&2; exit 2; }
+	@infra/backup/pitr.sh "$(at)"
+
+gdrive-auth: ## OWNER: connect the hourly backup to your Google Drive (hidden input -> OpenBao)
+	@infra/backup/gdrive-auth.sh
+
+backup-password: ## OWNER: show the restic password once, in your own terminal, for the paper copy
+	@infra/backup/show-password.sh
+
+openbao-snapshot-token: ## OWNER: store your OpenBao snapshot-only token (hidden input -> OpenBao)
+	@infra/openbao/snapshot-token.sh
 
 bootstrap-month1: ## Month-1 setup work (seed/bootstrap/month1.yaml) as service "bootstrap"; wakes real runs
 	$(HQ) exec -T worker python -m hq_api.bootstrap month1

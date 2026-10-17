@@ -29,10 +29,11 @@ from pydantic import BaseModel, Field
 from hq_api import audit, idempotency
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
+from hq_api.domain import backups, hiring
 from hq_api.domain import files as F
-from hq_api.domain import hiring
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
+from hq_api.routes.backups import BackupStatus
 from hq_api.routes.internal import allow, escrow_of
 from hq_api.routes.treasury import TOTALS, period_start
 from hq_api.schemas import CODE, FileRef, Model
@@ -421,6 +422,18 @@ async def tool_health_hub(ctx: Ctx = Depends(internal_ctx)) -> HubHealth:
             "SELECT at, data FROM ops.hub_health WHERE company_id = :co", co=holding.id
         )
     return HubHealth(at=row["at"] if row else None, data=dict(row["data"]) if row else {})
+
+
+# ------------------------------------------------------------ backups.status --
+@router.get("/backups/status", response_model=BackupStatus, responses=E)
+async def tool_backups_status(ctx: Ctx = Depends(internal_ctx)) -> BackupStatus:
+    """backups.status: the backup status of §18.9 (holding-scope roles: the
+    overseer, the platform SRE); metadata only, never a restore."""
+    _agent(ctx)
+    await allow(ctx, "backup.read", {})
+    holding = await ctx.hub.companies.holding()
+    async with read_tx(ctx) as tx:
+        return BackupStatus(**await backups.status(tx, holding.id))
 
 
 # ------------------------------------------------------------ treasury.usage --
