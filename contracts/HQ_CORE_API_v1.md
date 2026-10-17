@@ -73,7 +73,7 @@ CEO's model are later versions; their tables are not part of v1 unless listed he
 |---|---|---|---|
 | POST | `/auth/passkey/register/options` | `{enrolment_token?}` (or an existing session + 🔏) | WebAuthn creation options |
 | POST | `/auth/passkey/register/verify` | attestation, `{device_name}` | `{device}` |
-| POST | `/auth/passkey/login/options` | — | WebAuthn request options |
+| POST | `/auth/passkey/login/options` | — | WebAuthn request options; ⟨1.1⟩ discoverable credentials, `allowCredentials` empty, so no passkey id is revealed before login |
 | POST | `/auth/passkey/login/verify` | assertion | `{session}` (+ cookie on web) |
 | POST | `/auth/step-up/options` | `{action, target}` | request options |
 | POST | `/auth/step-up/verify` | assertion | `{step_up_token, expires_at}` |
@@ -83,7 +83,7 @@ CEO's model are later versions; their tables are not part of v1 unless listed he
 | POST | `/auth/devices/{id}/revoke` 🔏 | — | 204 (revocation is a state, the row stays) |
 
 `device`: `{id, name, kind: "passkey"|"session", created_at, last_used_at, revoked_at?}`.
-WebAuthn relying party: `HQ_WEBAUTHN_RP_ID` (the domain) and `HQ_PUBLIC_ORIGIN`. **Without a domain and HTTPS, login is disabled** and the endpoints answer `503 origin_not_configured`.
+WebAuthn relying party: `HQ_WEBAUTHN_RP_ID` (the domain) and `HQ_PUBLIC_ORIGIN`. **Without a domain and HTTPS, login is disabled** and the endpoints answer `503 origin_not_configured`. ⟨1.1⟩ Owner decision 2026-10-17: the domain is **`hq.coinepro.com`** (RP ID = that host). A sign-count regression flags the passkey, writes an audit row and raises `urgent`. The Android app's origin (`android:apk-key-hash:…`) is an allow-list setting, empty until the app ships.
 
 ---
 
@@ -336,7 +336,7 @@ Behaviour (§1.7):
 - **Per-company, per-level settings:** `GET/PUT /notification-settings` → matrix `{company|*: {level: {in_app, push, sound, muted_until}}}`.
 - **CEO attention quota** (§1.7 #4): non-urgent items from one CEO beyond `n/day` (setting, default 6) wait for the next digest.
 - **Channels:** in-app (stream), Web Push (VAPID), FCM (Android), Telegram bot **as backup only — no approval is ever possible from Telegram**. Channels without credentials are simply off and reported.
-- ⟨1.1⟩ **Agents and `urgent`:** the level is part of the policy input. An agent may raise `urgent` only for an incident category the policy lists (service down, security, data loss, budget hard stop), with a per-company rate limit; anything else is downgraded to `decision`. An agent of a locked company cannot raise notifications except `urgent` incidents.
+- ⟨1.1⟩ **Agents and `urgent`:** the level is part of the policy input. An agent may raise `urgent` only with a `category` the policy lists (service down, security, data loss, budget hard stop), at most **5 per hour per company**; anything else is downgraded to `decision`. An agent of a locked company cannot raise notifications except `urgent` incidents.
 
 | Method | Path |
 |---|---|
@@ -381,7 +381,7 @@ AuditEntry { seq: bigint, at, actor: Actor, principal_kind, company|null,
 - **Hash chain:** `hash = sha256(prev_hash || canonical_json(entry_without_hash))`. A nightly job verifies the chain and raises `urgent` if broken. ⟨1.1⟩ `at` is always the database clock. The nightly job also **anchors the chain head outside Postgres** (seq + hash, append-only file in the backup set), and `verify` compares against the last anchor, so a rewrite that also rewrites the head is still caught.
 - Bodies of messages and secrets are never copied into audit; only references.
 
-| GET `/audit` `?company&actor&action&action_class&from&to` | GET `/audit/verify` → `{ok, checked, first_bad_seq|null, verified_at}` |
+| GET `/audit` `?company&actor&action&action_class&from&to` | GET `/audit/verify` → `{ok, checked, first_bad_seq|null, verified_at, anchor: {seq, hash, at, matches}|null}` ⟨1.1⟩ |
 |---|---|
 
 ---
@@ -407,7 +407,7 @@ Engaged holding kill switch: the router refuses every call except P0, the worker
 | GET | `/treasury/calls` | metadata only, paged; never prompt or response text |
 | GET | `/treasury/what-if` | `?from&to&company&model=` → "what would this have cost on model X" from our price table (design list #22) |
 | GET | `/connections` | registry without secrets |
-| PATCH | `/connections/{id}` 🔏 | `status`, `display_name`, price table (each price with `source_url` and `as_of`); `If-Match` like every PATCH ⟨1.1⟩ |
+| PATCH | `/connections/{id}` 🔏 | `status`, `display_name`, price table (each price with `source_url` and `as_of`); `Connection.version` and `If-Match` like every PATCH ⟨1.1⟩ |
 | POST | `/connections/{id}/secret` 🔏 | `{secret}` **write-only** → stored in OpenBao; response never contains it; audit records only that it changed |
 | GET/PUT | `/assignments` (PUT 🔏) | holding → company → department → role → task class, with inheritance shown resolved. ⟨1.1⟩ The step-up is bound to a hash of the request body, not to `*`. |
 | GET/PUT | `/budgets` (PUT 🔏) | per scope and period; step-up bound to the body hash ⟨1.1⟩ |
