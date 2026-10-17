@@ -252,10 +252,11 @@ class RouterService:
         rls = {company.id, holding.id}
 
         # Quota Controller (prompt 05 §8): at `warning` P4 waits, at `limited` P3-P4.
-        # While the quota guard has the connection open (usage limit hit), the
-        # breaker path below decides instead (alternatives, quota_exhausted).
+        # While the breaker is open and cooling (usage limit hit), the breaker path
+        # below decides instead (alternatives, quota_exhausted); a half-open probe
+        # is checked like any request (prompt 5.1 §2.4).
         try:
-            if self.breaker_for(connection).state is State.CLOSED:
+            if not self.breaker_for(connection).cooling():
                 self.quota.check(connection.id, connection.kind, req.priority)
         except Throttled as exc:
             self.metrics.queue_rejections.labels(f"P{req.priority}", f"quota_{exc.status}").inc()
@@ -520,7 +521,15 @@ class RouterService:
                     if result.quota_resets_at
                     else None
                 )
-                await self.quota.on_quota_guard(conn.id, conn.key, resets)
+                # No reset time in the error (every billing_error): the hold ends
+                # when the breaker probes again, never "for good".
+                snap = self.breaker_for(conn).snapshot
+                retry = (
+                    datetime.fromtimestamp(snap.retry_at, UTC)
+                    if snap.state is State.OPEN and snap.retry_at is not None
+                    else None
+                )
+                await self.quota.on_quota_guard(conn.id, conn.key, resets, fallback=retry)
         except Exception:
             log.exception("quota state not updated", extra={"connection": conn.key})
 
