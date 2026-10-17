@@ -12,7 +12,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY requirements.lock /tmp/requirements.lock
 RUN pip install --require-hashes --no-deps -r /tmp/requirements.lock \
     && rm /tmp/requirements.lock \
-    && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hq
+    && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hq \
+    && install -d -o 10001 -g 10001 -m 0700 /data/files
 
 # hadolint ignore=DL3022
 COPY --from=services hq-common/src /app/hq-common/src

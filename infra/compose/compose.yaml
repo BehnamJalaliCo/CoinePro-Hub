@@ -7,8 +7,8 @@
 #   healthcheck, a memory limit, named volumes, network hq-internal, and
 #   ports published on 127.0.0.1 only. The single exception is Caddy (80/443).
 # Documented exceptions:
-#   - hq-tools, temporal-schema, temporal-namespace, db-provision and
-#     llm-migrate are one-shot jobs (restart "no", no healthcheck).
+#   - hq-tools, temporal-schema, temporal-namespace, db-provision,
+#     llm-migrate and api-migrate are one-shot jobs (restart "no", no healthcheck).
 #   - claude-runtime sits only on hq-llm (llm-router, OpenBao, Prometheus):
 #     it can reach the internet for the Claude API but not the data services.
 #   - node-exporter uses the host network (to see the host's real NICs) and
@@ -303,6 +303,8 @@ services:
       PGUSER: postgres
       PGPASSWORD: ${POSTGRES_PASSWORD:?run make env}
       LLM_ROUTER_DB_PASSWORD: ${LLM_ROUTER_DB_PASSWORD:?run make env}
+      HQ_API_DB_PASSWORD: ${HQ_API_DB_PASSWORD:?run make env}
+      HQ_WORKER_DB_PASSWORD: ${HQ_WORKER_DB_PASSWORD:?run make env}
     entrypoint: ["bash", "/hq/provision.sh"]
     volumes:
       - ../postgres/provision.sh:/hq/provision.sh:ro
@@ -346,6 +348,8 @@ services:
     networks: [hq-internal, hq-llm]
     depends_on:
       llm-migrate:
+        condition: service_completed_successfully
+      api-migrate:
         condition: service_completed_successfully
       nats:
         condition: service_healthy
@@ -413,6 +417,140 @@ services:
         limits:
           memory: ${MEM_CLAUDE_RUNTIME:?}
 
+  # ------------------------------------------------------------- core (p04) --
+  api-migrate:
+    # Alembic (version table alembic_version_api) + YAML seed, as the owner hq.
+    <<: *job
+    image: coinepro-hq/api:0.1.0
+    build:
+      context: ../../apps/api
+      additional_contexts:
+        services: ../../services
+    networks: [hq-internal]
+    depends_on:
+      llm-migrate:
+        condition: service_completed_successfully
+    environment:
+      DB_HOST: postgres
+      DB_USER: hq
+      DB_PASSWORD: ${HQ_DB_PASSWORD:?run make env}
+    command: ["python", "-m", "hq_api.migrate"]
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_API_MIGRATE:?}
+
+  opa:
+    # Policies of infra/opa/policy (decisions, action classes, internal API).
+    # The api is fail-closed: no answer from OPA means "denied".
+    <<: *service
+    image: ${OPA_IMAGE:?use hq.sh}
+    depends_on:
+      hq-tools:
+        condition: service_completed_successfully
+    command: ["run", "--server", "--addr", "0.0.0.0:8181", "--log-level", "error", "--disable-telemetry", "/policy"]
+    read_only: true
+    cap_drop: [ALL]
+    volumes:
+      - ../opa/policy:/policy:ro
+      - hq-tools:/hq-tools:ro
+    healthcheck:
+      test: ["CMD", "/hq-tools/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8181/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_OPA:?}
+
+  api:
+    # /api/v1 (behind Caddy, only with a domain) and /internal/v1 (hq-internal).
+    <<: *service
+    image: coinepro-hq/api:0.1.0
+    build:
+      context: ../../apps/api
+      additional_contexts:
+        services: ../../services
+    depends_on:
+      api-migrate:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+      openbao:
+        condition: service_healthy
+      opa:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    environment: &api-env
+      DB_HOST: postgres
+      DB_USER: hq_api
+      DB_PASSWORD: ${HQ_API_DB_PASSWORD:?run make env}
+      NATS_URL: nats://nats:4222
+      NATS_USER: hq
+      NATS_PASSWORD: ${NATS_PASSWORD:?run make env}
+      OPENBAO_ADDR: http://openbao:8200
+      OPENBAO_APPROLE_FILE: /run/secrets/hq/approle.json
+      OPA_URL: http://opa:8181
+      TEMPORAL_ADDRESS: temporal:7233
+      HQ_PUBLIC_ORIGIN: ${HQ_PUBLIC_ORIGIN:-}
+      HQ_WEBAUTHN_RP_ID: ${HQ_WEBAUTHN_RP_ID:-}
+      HQ_FILES_ROOT: /data/files
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/hq-api:/run/secrets/hq:ro
+      - hq-files:/data/files
+    healthcheck:
+      test: ["CMD", "python", "-m", "hq_common.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_API:?}
+
+  worker:
+    # Temporal worker (task queue hq-core) + the NATS bridge into HQ_CORE.
+    <<: *service
+    image: coinepro-hq/api:0.1.0
+    depends_on:
+      api:
+        condition: service_healthy
+      temporal-namespace:
+        condition: service_completed_successfully
+    command: ["python", "-m", "hq_api.worker"]
+    environment:
+      <<: *api-env
+      DB_USER: hq_worker
+      DB_PASSWORD: ${HQ_WORKER_DB_PASSWORD:?run make env}
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/hq-worker:/run/secrets/hq:ro
+    healthcheck:
+      test: ["CMD", "python", "-m", "hq_common.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_WORKER:?}
+
   # ------------------------------------------------------------------- edge --
   caddy:
     <<: *service
@@ -420,12 +558,16 @@ services:
     environment:
       # Empty -> ":80" (plain HTTP). A domain here switches on automatic HTTPS.
       HQ_SITE_ADDRESS: ${HQ_SITE_ADDRESS:-:80}
+      # "on" only with a domain (infra/compose/hq.sh): /api reaches the api.
+      HQ_API_EDGE: ${HQ_API_EDGE:?use hq.sh}
     ports:
       # The only ports published on all interfaces.
       - "80:80"
       - "443:443"
     volumes:
       - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../caddy/api-on.caddy:/etc/caddy/api-on.caddy:ro
+      - ../caddy/api-off.caddy:/etc/caddy/api-off.caddy:ro
       - ../caddy/site:/srv/site:ro
       - caddy-data:/data
       - caddy-config:/config
@@ -707,3 +849,4 @@ volumes:
   alloy-data:
   grafana-data:
   tempo-data:
+  hq-files:
