@@ -3,6 +3,8 @@
 # every company and talks only to the owner (OPERATING_MODEL §1.1, contract
 # §3.2). The owner is the general manager, so the holding has no CEO.
 # HQ-SYS is the rule-based system author of reports (no model behind it).
+# head_role / role: the charter each position runs with (agents/roles/<role>.md,
+# prompt 05). HQ-SYS has none: it is never woken.
 key: holding
 name_fa: قالب هلدینگ
 name_en: Holding
@@ -13,12 +15,14 @@ departments:
     manager_title_fa: بازرس کل (نظارت و AI Safety)
     manager_title_en: Inspector General (Oversight and AI Safety)
     head_kind: inspector
+    head_role: inspector
     sort: 10
   - code: AIOPS
     name_fa: عملیات هوش مصنوعی
     name_en: AI Operations
     manager_title_fa: مدیر عملیات AI هلدینگ
     manager_title_en: Head of AI Operations (holding)
+    head_role: aiops_head
     sort: 20
 leadership:
   ceo: null
@@ -26,6 +30,7 @@ leadership:
   extra:
     - code_suffix: ADV
       kind: advisor
+      role: advisor
       title_fa: مشاور کل
       title_en: General Advisor
       thread: A

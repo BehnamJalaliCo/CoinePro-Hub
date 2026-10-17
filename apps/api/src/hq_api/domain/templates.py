@@ -32,6 +32,23 @@ def template(key: str) -> dict[str, Any] | None:
     return templates().get(key)
 
 
+def leadership_roles(company_code: str, key: str) -> dict[str, str | None]:
+    """Employee code -> charter role of every leadership position of a template."""
+    t = template(key)
+    if t is None:
+        raise ValueError(f"unknown template {key}")
+    lead = t.get("leadership") or {}
+    roles: dict[str, str | None] = {}
+    if lead.get("ceo"):
+        roles[f"{company_code}-CEO"] = lead["ceo"].get("role")
+    if lead.get("managers"):
+        for d in t.get("departments") or []:
+            roles[f"{company_code}-{d['code']}-MGR"] = d.get("head_role")
+    for x in lead.get("extra") or []:
+        roles[f"{company_code}-{x['code_suffix']}"] = x.get("role")
+    return roles
+
+
 async def apply(tx: Tx, company_id: UUID, company_code: str, key: str) -> dict[str, int]:
     """Create the template's departments, leadership positions, their threads
     and the company's kill-switch row (released). Returns what was added."""
@@ -70,6 +87,7 @@ async def apply(tx: Tx, company_id: UUID, company_code: str, key: str) -> dict[s
             lead["ceo"]["title_en"],
             None,
             added,
+            role=lead["ceo"].get("role"),
         )
         await _thread(tx, company_id, None, ceo_id, ceo_code, "ceo", lead["ceo"]["title_fa"], added)
 
@@ -91,6 +109,7 @@ async def apply(tx: Tx, company_id: UUID, company_code: str, key: str) -> dict[s
                 d["manager_title_en"],
                 ceo_id,
                 added,
+                role=d.get("head_role"),
             )
             await _thread(
                 tx, company_id, None, mgr_id, code, "manager", d["manager_title_fa"], added
@@ -109,7 +128,16 @@ async def apply(tx: Tx, company_id: UUID, company_code: str, key: str) -> dict[s
     for x in lead.get("extra") or []:
         code = f"{company_code}-{x['code_suffix']}"
         emp_id = await _position(
-            tx, company_id, None, code, x["kind"], x["title_fa"], x["title_en"], None, added
+            tx,
+            company_id,
+            None,
+            code,
+            x["kind"],
+            x["title_fa"],
+            x["title_en"],
+            None,
+            added,
+            role=x.get("role"),
         )
         if x.get("thread"):
             await _thread(
@@ -140,11 +168,13 @@ async def _position(
     title_en: str,
     reports_to: UUID | None,
     added: dict[str, int],
+    *,
+    role: str | None = None,
 ) -> UUID:
     row = await tx.first(
         """INSERT INTO core.employees (company_id, department_id, code, kind, title_fa, title_en,
-               reports_to, activity)
-           VALUES (:co, :dept, :code, :kind, :tfa, :ten, :rt, 'sleeping')
+               reports_to, activity, role)
+           VALUES (:co, :dept, :code, :kind, :tfa, :ten, :rt, 'sleeping', :role)
            ON CONFLICT (code) DO NOTHING RETURNING id""",
         co=company_id,
         dept=department_id,
@@ -153,6 +183,7 @@ async def _position(
         tfa=title_fa,
         ten=title_en,
         rt=reports_to,
+        role=role,
     )
     if row is not None:
         added["employees"] += 1
