@@ -6,6 +6,7 @@ nothing of the conversation reaches logs, audit or NATS."""
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections.abc import Callable
 from typing import Any
@@ -107,7 +108,9 @@ async def test_the_line_ceo_to_cto_and_back(
     su: Any,
     agents: Any,
     new_company: Callable[..., Any],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    caplog.set_level(logging.DEBUG)  # every log line of api, gateway, router and runner
     co = (await new_company())["code"]
     marker = f"PROMPT-MARKER-{uuid.uuid4().hex[:8]}"
     w = await order(
@@ -218,7 +221,9 @@ async def test_the_line_ceo_to_cto_and_back(
         "memory.write",
         "work.accept",
     ]
-    # Never the conversation: not in audit, steps, the outbox (NATS) or the employee's activity.
+    # Never the conversation: not in the logs (prompt 5.1 §3), audit, steps, the
+    # outbox (NATS) or the employee's activity.
+    assert caplog.records and marker not in caplog.text
     for table, col in (
         ("audit.entries", "summary"),
         ("agents.steps", "summary_fa"),

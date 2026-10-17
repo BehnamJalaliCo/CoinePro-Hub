@@ -282,7 +282,7 @@ async def test_site_checks_open_one_incident_and_close_it(
             return httpx.Response(200, text="all ok")
         return httpx.Response(503) if state["down"] else httpx.Response(200)
 
-    checker = checks.Checker(transport=httpx.MockTransport(handler), tls=False)
+    checker = checks.Checker(transport=httpx.MockTransport(handler), tls=False, resolver=_public)
     hub = wk["hub"]
     for i in range(1, 6):
         r = await _round(hub, su, checker, company["id"])
@@ -360,7 +360,7 @@ async def test_checker_results() -> None:
             raise httpx.ReadTimeout("slow")
         return httpx.Response(200, text="ok")
 
-    c = checks.Checker(transport=httpx.MockTransport(handler), tls=False)
+    c = checks.Checker(transport=httpx.MockTransport(handler), tls=False, resolver=_public)
 
     async def check(path: str, **expect: Any) -> checks.Result:
         return await c.check(
@@ -388,6 +388,46 @@ async def test_checker_results() -> None:
     )
     assert head.ok  # contains is checked on GET only
     assert checks._cert_days_left("invalid.invalid") is None
+
+
+async def _public(host: str) -> list[str]:
+    """A resolver for the checker's tests: every test name is a public address."""
+    return ["203.0.113.10"] if host.endswith(".test") else []
+
+
+async def test_the_checker_never_reaches_a_private_network() -> None:
+    """Prompt 5.1 §3: a monitored URL on a private or internal address, as
+    written or as resolved, is refused before any request is made."""
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(200)
+
+    async def resolver(host: str) -> list[str]:
+        return {"inner.example.com": ["10.10.1.2"], "mixed.example.com": ["8.8.8.8", "::1"]}.get(
+            host, ["8.8.8.8"]
+        )
+
+    c = checks.Checker(transport=httpx.MockTransport(handler), tls=False, resolver=resolver)
+    for url in (
+        "http://10.10.1.3/",
+        "http://127.0.0.1:8000/",
+        "http://[::1]/",
+        "http://169.254.169.254/latest/meta-data",
+        "http://172.30.0.5/",
+        "http://192.168.1.1/",
+        "http://100.64.0.1/",
+        "http://postgres:5432/",
+        "http://api:8000/internal/v1/x",
+        "https://printer.local/",
+        "https://inner.example.com/",
+        "https://mixed.example.com/",
+    ):
+        r = await c.check({"url": url, "method": "GET", "expect": {"status": 200}})
+        assert (r.ok, r.error_code) == (False, "private_address"), url
+    assert seen == []
+    assert (await c.check({"url": "https://public.example.com/", "method": "GET", "expect": {}})).ok
 
 
 async def test_the_holding_responder_and_hub_snapshot(
@@ -491,6 +531,10 @@ async def test_roles_runs_sites_incidents_and_quota_endpoints(
     assert (
         await signed_put(client, hub, owner_session, "/api/v1/ops/sites", bad, "sites.update")
     ).status_code == 422
+    for url in ("http://10.10.1.2/", "http://postgres:5432/", "https://x.internal/"):
+        inner = {"company": co, "sites": [body["sites"][0], {"url": url}]}
+        r = await signed_put(client, hub, owner_session, "/api/v1/ops/sites", inner, "sites.update")
+        assert r.status_code == 422 and "sites.1.url" in r.json()["fields"], url
     dup = {"company": co, "sites": [body["sites"][0], body["sites"][0]]}
     assert (
         await signed_put(client, hub, owner_session, "/api/v1/ops/sites", dup, "sites.update")

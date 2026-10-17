@@ -365,6 +365,12 @@ async def put_sites(request: Request, body: SitesPut, ctx: Ctx = Depends(owner_c
     urls = [s.url for s in body.sites]
     if len(set(urls)) != len(urls):
         raise ApiError(422, "validation_failed", fields={"sites": "a URL appears twice"})
+    # Only public addresses are checked (prompt 5.1 §3): never the hub's own
+    # network, a neighbour, loopback or an internal service name.
+    reasons = await asyncio.gather(*(site_seed.internal_reason(u) for u in urls))
+    bad = {f"sites.{i}.url": r for i, r in enumerate(reasons) if r}
+    if bad:
+        raise ApiError(422, "validation_failed", fields=bad)
     target = hashlib.sha256(await request.body()).hexdigest()
     async with ctx.tx() as tx:
         await stepup.consume(tx, request, ctx.who, "sites.update", target)
@@ -511,7 +517,7 @@ async def thread_live(code: str, request: Request, ctx: Ctx = Depends(owner_ctx)
         await tx.one("SELECT 1 FROM msg.threads WHERE code = :c", c=code)
     live = ctx.hub.live
     if live is None:
-        raise ApiError(503, "internal_error", "live replies are off")
+        raise ApiError(503, "live_unavailable", "live replies are off")
     q = live.subscribe(code)
 
     async def events() -> AsyncIterator[str]:

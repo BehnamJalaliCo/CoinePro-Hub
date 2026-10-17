@@ -62,7 +62,9 @@ def prompt_tokens(system: str, messages: list[dict[str, str]]) -> int:
 FINAL = ("done", "failed", "refused")
 CONTEXT_CHARS = 24_000
 THREAD_MESSAGES = 12
-TASK_CLASS = {"advisor": "advisor"}
+# The router's task class of a run comes from the charter's KIND (data in
+# agents/roles), never from a role name (contract hard rule 1).
+TASK_CLASS_OF_KIND = {"advisor": "advisor"}
 ALERT_TASK = "ops_alert"
 HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
 MIN_OUTPUT_TOKENS = 256  # a step needs at least this much room to answer at all
@@ -474,8 +476,8 @@ class Runner:
         return await self._with_heartbeat(self.router.run(body, self.s.agent_step_timeout_s))
 
     def _task_class(self, rc: RunCtx) -> str:
-        if rc.charter.role in TASK_CLASS:
-            return TASK_CLASS[rc.charter.role]
+        if rc.charter.kind in TASK_CLASS_OF_KIND:
+            return TASK_CLASS_OF_KIND[rc.charter.kind]
         return ALERT_TASK if rc.run["trigger"] == "alert" else "general"
 
     async def _with_heartbeat(self, aw: Awaitable[ModelCall]) -> ModelCall:

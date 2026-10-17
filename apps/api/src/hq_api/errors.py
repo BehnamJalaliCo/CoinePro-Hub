@@ -72,6 +72,12 @@ CODES: dict[str, tuple[int, str, str]] = {
     ),
     "rate_limited": (429, "Rate limited", "درخواست‌ها زیاد است؛ کمی بعد دوباره امتحان کن."),
     "channel_not_configured": (503, "Channel not configured", "این کانال هنوز تنظیم نشده است."),
+    # ⟨1.4.1⟩ live replies are switched off; the stored reply still arrives in the thread
+    "live_unavailable": (
+        503,
+        "Live unavailable",
+        "پاسخ زنده خاموش است؛ پاسخ در همین گفت‌وگو ذخیره میشود.",
+    ),
     # ⟨1.4.2⟩ an agent proposed a hire while hiring is closed (contract §18.11); this
     # text reaches the model through the Tool Gateway
     "hiring_closed": (403, "Hiring closed", "استخدام بسته است؛ کمبود تیم را در خروجی‌ات بنویس."),
