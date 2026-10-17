@@ -21,7 +21,7 @@ env: $(ENV_FILE) ## Create infra/compose/.env with random secrets (never overwri
 
 bootstrap: $(ENV_FILE) ## Once (needs sudo): anchor dir + the containers' secret files; then make up needs no sudo
 	@infra/backup/anchor-dir.sh
-	$(HQ) up -d --wait openbao
+	$(HQ) up -d openbao
 	@infra/openbao/init.sh
 	@infra/openbao/unseal.sh
 	@infra/openbao/provision.sh
