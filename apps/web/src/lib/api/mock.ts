@@ -1,6 +1,8 @@
 // Development-only fixtures (npm run dev:mock). Never bundled in production:
 // the client imports this module only when NEXT_PUBLIC_HQ_MOCK=1.
 
+import { DEMO_CHART, DEMO_SKETCH, DEMO_VOICE } from './mock-media';
+
 const now = Date.now();
 const iso = (minAgo: number) => new Date(now - minAgo * 60_000).toISOString();
 const ahead = (min: number) => new Date(now + min * 60_000).toISOString();
@@ -98,9 +100,19 @@ const work: any[] = [
 
 const threads: any[] = [
   { code: 'A', kind: 'advisor', company: 'HQ', title_fa: 'مشاور کل', unread: 0, last_message_at: iso(25), last_ref: 'A-0004', participants: [owner, actor('HQ-ADV', 'مشاور کل')] },
-  { code: 'FX-CEO', kind: 'ceo', company: 'FX', title_fa: 'مدیرعامل FX', unread: 2, last_message_at: iso(12), last_ref: 'FX-CEO-0009', participants: [owner, actor('FX-CEO', 'مدیرعامل FX')] },
+  { code: 'FX-CEO', kind: 'ceo', company: 'FX', title_fa: 'مدیرعامل FX', unread: 1, last_message_at: iso(12), last_ref: 'FX-CEO-0010', participants: [owner, actor('FX-CEO', 'مدیرعامل FX')] },
   { code: 'TY-TECH-MGR', kind: 'manager', company: 'TY', title_fa: 'مدیر فنی تریدیار', unread: 1, last_message_at: iso(42), last_ref: 'TY-TECH-MGR-0002', participants: [owner, actor('TY-TECH-MGR', 'مدیر فنی تریدیار')] },
 ].map((t, i) => ({ id: `t${i}`, ...t }));
+
+// ⟨1.3⟩ files: demo attachments are data URLs (the client's fileUrl passes them through); uploads made in mock
+// mode are object URLs registered here by the client, so a sent message can show what was attached.
+const ref = (id: string, kind: string, mime: string, name: string, size: number, extra: Record<string, unknown> = {}) =>
+  ({ id, name, mime, size, sha256: 'demo', kind, status: 'ready', variants: {}, ...extra });
+const CHART = ref(DEMO_CHART.url, 'image', 'image/webp', 'xauusd-h1.webp', 418_221, { width: DEMO_CHART.width, height: DEMO_CHART.height });
+const SKETCH = ref(DEMO_SKETCH.url, 'image', 'image/webp', 'signup-sketch.webp', 1_912_004, { width: DEMO_SKETCH.width, height: DEMO_SKETCH.height });
+const VOICE = ref(DEMO_VOICE.url, 'audio', 'audio/mp4', 'voice.m4a', 13_163, { duration_s: DEMO_VOICE.seconds, transcript: 'صفحه‌ی ثبت‌نام هنوز کند است…' });
+const files = new Map<string, any>();
+export function register(f: { id: string; [k: string]: unknown }): void { files.set(f.id, f); }
 
 const messages: Record<string, any[]> = {
   A: [
@@ -109,6 +121,13 @@ const messages: Record<string, any[]> = {
     { ref: 'A-0003', author: owner, body: 'استخدام SRE برای هر سه شرکت لازم است؟', created_at: iso(30) },
     { ref: 'A-0004', author: actor('HQ-ADV', 'مشاور کل'), body: 'برای تریدیار و FX شاهد دارد (دو حادثه‌ی کندی در تریدیار: I-0002، I-0005). برای پرو-چارت هنوز پیشنهادی نیامده. هزینه‌ی هر SRE با Haiku 5.5 حدود `$6–7` در ماه برآورد شده؛ برگشت‌پذیر است.\n\n**توصیه:** دو استخدام اول را مُهر کن؛ سومی را بعد از دیدن پیشنهاد پرو-چارت.', created_at: iso(25), links: { decision: 'D-000014' } },
   ].map((m, i) => ({ id: `m${i}`, thread: 'A', kind: 'text', attachments: [], links: {}, ...m })),
+  'FX-CEO': [
+    { ref: 'FX-CEO-0006', author: owner, body: 'این افت را ببین. دلیلش چه بود و سیگنال ما همان موقع چه گفت؟', created_at: iso(60 * 5), attachments: [CHART] },
+    { ref: 'FX-CEO-0007', author: actor('FX-CEO', 'مدیرعامل FX'), body: '**خلاصه:** افت ۹ دلاری طلا درست بعد از داده‌ی اشتغال آمریکا بود. سیگنال ما ۲۰ دقیقه قبلش «فروش» داده بود و حد سود اول خورد.\n\nافت دقت این هفته (۶۱٪) از همین خبرهاست؛ تحلیل کامل در `O-000029` آمده.', created_at: iso(60 * 5 - 3) },
+    { ref: 'FX-CEO-0008', author: owner, kind: 'voice_transcript', body: 'صفحه‌ی ثبت‌نام هنوز کند است. به مدیر فنی بگو تا فردا ظهر علتش را پیدا کند و اصلاح را در کارگاه کد، روی شاخه‌ی جدا، آماده کند. قبل از ادغام خودم نگاه میکنم.', created_at: iso(41), attachments: [VOICE] },
+    { ref: 'FX-CEO-0009', author: owner, body: 'این طرح فرم کوتاه‌تر است؛ دکمه‌ی آخر همان جایی است که کاربرها رها میکنند.', created_at: iso(40), attachments: [SKETCH] },
+    { ref: 'FX-CEO-0010', author: actor('FX-CEO', 'مدیرعامل FX'), body: 'دریافت شد. کار به مدیر فنی سپرده شد و جلسه‌ی کد `S-0004` روی شاخه‌ی `hq/S-0004` باز است؛ طرح فرم هم ضمیمه‌ی همان کار شد. قبل از push اجازه‌ی تو را میخواهد.', created_at: iso(12), links: { work: 'W-000104' } },
+  ].map((m, i) => ({ id: `mf${i}`, thread: 'FX-CEO', kind: 'text', attachments: [], links: {}, ...m })),
 };
 
 const notifications: any[] = [
@@ -175,6 +194,127 @@ const audit = Array.from({ length: 12 }, (_, i) => ({
   request_id: null, ip_hash: null, step_up: i % 6 === 0, summary: 'ok', prev_hash: 'a3f1…', hash: '9c2e…',
 }));
 
+// ------------------------------------------------- ⟨1.3⟩ workshop, voice, orders --
+const tech = (c: string) => actor(`${c}-TECH-MGR`, `مدیر فنی ${c === 'TY' ? 'تریدیار' : c === 'PC' ? 'پرو-چارت' : c}`, 'manager');
+const workspaces = [
+  { code: 'HQ-HUB', company: 'HQ', repo: 'behnamjalalico/CoinePro-Hub', default_branch: 'claude/coinepro-hub-setup-hsvnw7', title_fa: 'ستاد کوینه‌پرو (همین هاب)' },
+  { code: 'TY-WEB', company: 'TY', repo: 'behnamjalalico/TradeYar', default_branch: 'main', title_fa: 'سایت و پنل تریدیار' },
+  { code: 'FX-APP', company: 'FX', repo: 'behnamjalalico/CoineProFx', default_branch: 'main', title_fa: 'پلتفرم سیگنال کوینه‌پرو FX' },
+  { code: 'PC-APP', company: 'PC', repo: 'behnamjalalico/CoinePro-App', default_branch: 'main', title_fa: 'اپ اندروید پرو-چارت' },
+].map((w, i) => ({ id: `ws${i}`, policy: { branch_prefix: 'hq/', may_open_pr: true, merge: 'owner_seal', deploy: 'owner_seal' }, status: 'active', ...w }));
+
+const grants: any[] = [
+  { ref: 'G-0003', workspace: 'FX-APP', actions: ['read', 'edit', 'run', 'push_branch', 'open_pr'], driver: tech('FX'), budget_usd: 25, expires_at: ahead(60 * 70), decision_ref: 'D-000019' },
+  { ref: 'G-0002', workspace: 'TY-WEB', actions: ['read', 'edit', 'run', 'push_branch', 'open_pr'], driver: tech('TY'), budget_usd: 10, expires_at: ahead(60 * 20), decision_ref: null },
+  { ref: 'G-0001', workspace: 'HQ-HUB', actions: ['read', 'run'], driver: actor('HQ-AIOPS-MGR', 'مدیر عملیات هوش مصنوعی', 'manager'), budget_usd: 5, expires_at: ahead(60 * 24 * 5), decision_ref: null },
+].map((g, i) => ({ id: `g${i}`, granted_by: owner, revoked_at: null, ...g }));
+
+type Ev = { seq: number; at: string; type: string; actor: any; summary_fa: string; data: Record<string, unknown> };
+const ev = (minAgo: number, type: string, who: any, summary_fa: string, data: Record<string, unknown> = {}): Omit<Ev, 'seq'> => ({ at: iso(minAgo), type, actor: who, summary_fa, data });
+const sys = { kind: 'system', code: 'HQ-SYS', display_fa: 'سیستم' };
+const number = (xs: Array<Omit<Ev, 'seq'>>): Ev[] => xs.map((e, i) => ({ seq: i + 1, ...e }));
+
+const sessions: any[] = [
+  {
+    ref: 'S-0004', workspace: 'FX-APP', grant: 'G-0003', title: 'رفع کندی ثبت‌نام', brief: 'از فرمان صوتی F-0002: علت کندی صفحه‌ی ثبت‌نام را پیدا کن و اصلاح را روی شاخه‌ی جدا آماده کن.',
+    opened_by: owner, driver: tech('FX'), state: 'waiting_approval', branch: 'hq/S-0004', pr_url: null, usage: { usd: 3.12, input_tokens: 412_000, output_tokens: 38_400 }, created_at: iso(38),
+    events: number([
+      ev(38, 'state', sys, 'جلسه شروع شد؛ کلون تازه از main', { state: 'working' }),
+      ev(37, 'message', tech('FX'), 'از فرمان صوتی F-0002: کندی صفحه‌ی ثبت‌نام. اول اندازه میگیرم، بعد اصلاح.'),
+      ev(33, 'command', tech('FX'), 'تست‌های فعلی ثبت‌نام سبز است', { cmd: 'pytest tests/test_phase7_auth.py -q', exit_code: 0, duration_s: 41 }),
+      ev(27, 'progress', tech('FX'), 'پیدا شد: هر ثبت‌نام سه بار جدول کاربران را بدون ایندکس روی ایمیل میگردد (۲.۸ ثانیه).'),
+      ev(21, 'file_change', tech('FX'), 'ایندکس یکتا روی ایمیل', { path: 'alembic/versions/0042_users_email_index.py', added: 24, removed: 0 }),
+      ev(19, 'file_change', tech('FX'), 'حذف دو کوئری تکراری', { path: 'src/api/routes/auth.py', added: 11, removed: 17 }),
+      ev(12, 'command', tech('FX'), '۴۶ تست سبز؛ ثبت‌نام در تست بار از ۲.۹ به ۰.۳۱ ثانیه رسید', { cmd: 'pytest tests/ -q -k "auth or signup"', exit_code: 0, duration_s: 96 }),
+      ev(9, 'message', tech('FX'), '**آماده است.** دو commit روی `hq/S-0004`: ایندکس یکتا روی `users.email` و حذف دو کوئری تکراری. migration برگشت‌پذیر است. برای push اجازه میخواهم.'),
+      ev(9, 'approval_request', tech('FX'), 'اجازه‌ی push به شاخه‌ی hq/S-0004', { approval_id: 'AP-0007', action: 'push_branch', detail: 'git push origin hq/S-0004 · 2 commits · +35 −17' }),
+    ]),
+    script: [],
+  },
+  {
+    ref: 'S-0003', workspace: 'TY-WEB', grant: 'G-0002', title: 'اصلاح canonical هفت صفحه', brief: 'از گزارش O-000031: هفت صفحه canonical اشتباه دارند؛ اصلاح و تست سئو.',
+    opened_by: tech('TY'), driver: tech('TY'), state: 'working', branch: 'hq/S-0003', pr_url: null, usage: { usd: 0.84, input_tokens: 96_000, output_tokens: 7_100 }, created_at: iso(14),
+    events: number([
+      ev(14, 'state', sys, 'جلسه شروع شد؛ کلون تازه از main', { state: 'working' }),
+      ev(13, 'message', tech('TY'), 'از گزارش O-000031: هفت صفحه canonical اشتباه دارند. قالب‌ها را میگردم.'),
+      ev(11, 'command', tech('TY'), '۵۸ تگ canonical پیدا شد', { cmd: 'grep -rn \'rel="canonical"\' templates/ | wc -l', exit_code: 0, duration_s: 1 }),
+    ]),
+    script: [
+      { type: 'progress', actor: tech('TY'), summary_fa: '۷ قالب canonical را به صفحه‌ی اصلی میدهند، نه به خودشان.', data: {} },
+      { type: 'file_change', actor: tech('TY'), summary_fa: 'canonical به نشانی خود صفحه', data: { path: 'templates/blog/post.html', added: 1, removed: 1 } },
+      { type: 'file_change', actor: tech('TY'), summary_fa: 'canonical به نشانی خود صفحه', data: { path: 'templates/markets/symbol.html', added: 1, removed: 1 } },
+      { type: 'command', actor: tech('TY'), summary_fa: 'ساخت و تست سئو سبز', data: { cmd: 'npm run build && npm run test:seo', exit_code: 0, duration_s: 74 } },
+      { type: 'approval_request', actor: tech('TY'), summary_fa: 'اجازه‌ی باز کردن PR', data: { approval_id: 'AP-0008', action: 'open_pr', detail: 'PR: hq/S-0003 → main · 7 فایل · +7 −7' } },
+    ],
+  },
+  {
+    ref: 'S-0002', workspace: 'HQ-HUB', grant: 'G-0001', title: 'بررسی هزینه‌ی مدل‌ها در خزانه', brief: 'فقط خواندن: کدام نقش‌ها با مدل سنگین‌تر از لازم کار میکنند؟',
+    opened_by: owner, driver: actor('HQ-AIOPS-MGR', 'مدیر عملیات هوش مصنوعی', 'manager'), state: 'done', branch: null, pr_url: null, usage: { usd: 0.41, input_tokens: 58_000, output_tokens: 4_900 }, created_at: iso(60 * 26),
+    events: number([
+      ev(60 * 26, 'state', sys, 'جلسه شروع شد (فقط خواندن)', { state: 'working' }),
+      ev(60 * 25, 'message', actor('HQ-AIOPS-MGR', 'مدیر عملیات هوش مصنوعی', 'manager'), '**نتیجه:** دو نقش پایشگر با Sonnet کار میکنند ولی Haiku کافی است؛ صرفه‌جویی تقریبی ۱۸٪ بودجه‌ی FX. پیشنهادش را به کارتابل فرستادم.'),
+      ev(60 * 25, 'state', sys, 'تمام شد', { state: 'done' }),
+    ]),
+    script: [],
+  },
+  {
+    ref: 'S-0001', workspace: 'FX-APP', grant: 'G-0003', title: 'به‌روزرسانی وابستگی‌ها', brief: 'به‌روزرسانی وابستگی‌های پایتون با تست کامل.',
+    opened_by: tech('FX'), driver: tech('FX'), state: 'stopped', branch: 'hq/S-0001', pr_url: null, usage: { usd: 1.06, input_tokens: 131_000, output_tokens: 9_800 }, created_at: iso(60 * 50),
+    events: number([
+      ev(60 * 50, 'state', sys, 'جلسه شروع شد', { state: 'working' }),
+      ev(60 * 49, 'command', tech('FX'), 'دو تست بک‌تست قرمز شد', { cmd: 'pytest tests/test_phase12_backtest.py -q', exit_code: 1, duration_s: 212 }),
+      ev(60 * 48, 'state', owner, 'مدیر کل متوقف کرد: «اول افت دقت سیگنال‌ها»', { state: 'stopped' }),
+    ]),
+    script: [],
+  },
+].map((x, i) => ({ id: `s${i}`, runtime: 'managed', model: 'claude-sonnet-5-5', effort: 'high', updated_at: x.events.at(-1)?.at ?? x.created_at, ...x }));
+
+const sessionOut = (x: any) => { const { events: _e, script: _s, ...rest } = x; return rest; };
+function reveal(x: any, e: Omit<Ev, 'seq' | 'at'>) {
+  const out: Ev = { seq: x.events.length + 1, at: new Date().toISOString(), ...e };
+  x.events.push(out);
+  x.updated_at = out.at;
+  if (e.type === 'approval_request') x.state = 'waiting_approval';
+  if (e.type === 'state' && typeof e.data.state === 'string') x.state = e.data.state;
+  if (e.type !== 'approval_request' && e.type !== 'state' && x.state === 'starting') x.state = 'working';
+  x.usage.usd = Math.round((x.usage.usd + 0.07) * 100) / 100;
+  return out;
+}
+
+const TRANSCRIPTS = {
+  message: [
+    'سلام. گزارش امروز دقت سیگنال‌های طلا را تا ساعت پنج بفرست و اگر افت ادامه داشت، دو پیشنهاد اصلاح هم کنارش بگذار.',
+    'این عکس را ببین؛ رنگ دکمه‌ی خرید در حالت شب خوانا نیست. با تیم طراحی هماهنگ کن و نسخه‌ی اصلاح‌شده را نشانم بده.',
+  ],
+  order: [
+    'به مدیر فنی کوینه‌پرو FX بگو کندی صفحه‌ی ثبت‌نام را تا فردا ظهر بررسی کند و اصلاحش را در کارگاه کد روی شاخه‌ی جدا آماده کند.',
+    'برای پنجشنبه یک جلسه با مدیرعامل‌های تریدیار و پرو-چارت بگذار؛ موضوع: برنامه‌ی رشد سه ماه آینده.',
+  ],
+  note: ['یادداشت: از مشاور کل بپرس هزینه‌ی کارگاه کد در ماه اول چقدر شد.'],
+};
+const said = { message: 0, order: 0, note: 0 };
+
+const orders: any[] = [
+  { ref: 'F-0002', text: 'صفحه‌ی ثبت‌نام FX کند است؛ مدیر فنی علتش را پیدا کند و اصلاح را در کارگاه کد روی شاخه‌ی جدا آماده کند.', source: 'voice', file_id: VOICE.id, created_at: iso(40),
+    summary_fa: 'به مدیر فنی FX رسید: کار W-000104 و جلسه‌ی کد S-0004.', routes: [{ company: 'FX', to: 'FX-TECH-MGR', kind: 'work', work_ref: 'W-000104' }, { company: 'FX', to: 'FX-TECH-MGR', kind: 'code', session_ref: 'S-0004' }] },
+  { ref: 'F-0001', text: 'خلاصه‌ی وضعیت سئوی تریدیار را برای جلسه‌ی هفتگی آماده کنید.', source: 'text', file_id: null, created_at: iso(60 * 30),
+    summary_fa: 'به مدیر مارکتینگ تریدیار رسید: کار W-000102.', routes: [{ company: 'TY', to: 'TY-GROWTH-MGR', kind: 'work', work_ref: 'W-000102' }] },
+];
+
+/** Rules first, like the hub (§17.4): a named company, then the kind of work from known words. */
+function routeOrder(text: string) {
+  const co = /تریدیار|tradeyar/i.test(text) ? 'TY' : /پرو-?چارت|pro-?chart/i.test(text) ? 'PC' : /FX|اف‌?ایکس|کوینه‌پرو FX/i.test(text) ? 'FX' : null;
+  const routes: any[] = [];
+  if (/جلسه/.test(text)) routes.push({ company: 'HQ', to: 'HQ-ADV', kind: 'meeting', decision_ref: null });
+  if (co && /کد|شاخه|باگ|اصلاح|کارگاه/.test(text)) {
+    const live = sessions.find((x) => x.workspace.startsWith(co) && ['working', 'waiting_approval', 'idle'].includes(x.state));
+    routes.push({ company: co, to: `${co}-TECH-MGR`, kind: 'work', work_ref: 'W-000106' }, { company: co, to: `${co}-TECH-MGR`, kind: 'code', ...(live ? { session_ref: live.ref } : { decision_ref: 'D-000020' }) });
+  } else if (co) routes.push({ company: co, to: `${co}-CEO`, kind: 'work', work_ref: 'W-000106' });
+  if (!routes.length) routes.push({ company: 'HQ', to: 'HQ-ADV', kind: 'question' });
+  const who: Record<string, string> = { work: 'کار', code: 'کارگاه کد', meeting: 'جلسه', question: 'پرسش از مشاور کل' };
+  return { routes, summary_fa: `رسید: ${routes.map((r) => `${who[r.kind]} (${r.company})`).join('، ')}.` };
+}
+
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const page = (items: unknown[]) => ({ items, next_cursor: null });
 
@@ -203,18 +343,110 @@ export async function handle(req: Request): Promise<Response> {
     }
     const t = /^\/threads\/([^/]+)\/messages$/.exec(p);
     if (t) {
-      const body = (await req.json()) as { body: string };
+      const body = (await req.json()) as { body: string; attachments?: string[] };
       const list = (messages[t[1]!] ??= []);
-      const msg = { id: `m${Date.now()}`, ref: `${t[1]}-${String(list.length + 1).padStart(4, '0')}`, thread: t[1], author: owner, body: body.body, created_at: new Date().toISOString(), kind: 'text', attachments: [], links: {} };
+      const attachments = (body.attachments ?? []).map((id) => files.get(id) ?? ref(id, 'document', 'application/octet-stream', 'file', 0));
+      const kind = body.body && attachments.some((a) => a.kind === 'audio') ? 'voice_transcript' : 'text';
+      const msg = { id: `m${Date.now()}`, ref: `${t[1]}-${String(list.length + 1).padStart(4, '0')}`, thread: t[1], author: owner, body: body.body, created_at: new Date().toISOString(), kind, attachments, links: {} };
       list.push(msg);
       return json({ message: msg, reply: { state: 'queued' } }, 201);
+    }
+    if (p === '/transcribe') {
+      await new Promise((r) => setTimeout(r, 700));
+      const purpose = (u.searchParams.get('purpose') ?? 'message') as keyof typeof TRANSCRIPTS;
+      const list = TRANSCRIPTS[purpose] ?? TRANSCRIPTS.message;
+      const text = list[said[purpose]++ % list.length]!;
+      return json({ text, language: 'fa', duration_s: 6.4, confidence: 0.94, segments: [{ start_s: 0, end_s: 6.4, text }], file_id: 'mock', engine: { name: 'faster-whisper', model: 'large-v3-turbo', version: 'mock' } });
+    }
+    if (p === '/orders') {
+      const b = (await req.json()) as { text: string; source: string; file_id: string | null };
+      const o = { ref: `F-${String(orders.length + 1).padStart(4, '0')}`, text: b.text, source: b.source, file_id: b.file_id, created_at: new Date().toISOString(), ...routeOrder(b.text) };
+      orders.unshift(o);
+      return json(o, 201);
+    }
+    if (p === '/workshop/grants') {
+      const b = (await req.json()) as { workspace: string; actions: string[]; driver: string | null; budget_usd: number; expires_at: string };
+      const d = employees.find((e) => e.code === b.driver);
+      const g = { id: `g${grants.length}`, ref: `G-${String(grants.length + 1).padStart(4, '0')}`, ...b, driver: d ? actor(d.code, d.title_fa, d.kind) : null, granted_by: owner, decision_ref: null, revoked_at: null };
+      grants.unshift(g);
+      return json(g, 201);
+    }
+    const gr = /^\/workshop\/grants\/(G-\d+)\/revoke$/.exec(p);
+    if (gr) {
+      const g = grants.find((x) => x.ref === gr[1]);
+      if (!g) return json({ code: 'not_found', message_fa: 'پیدا نشد.' }, 404);
+      g.revoked_at = new Date().toISOString();
+      for (const x of sessions) if (x.grant === g.ref && !['done', 'failed', 'stopped'].includes(x.state)) reveal(x, { type: 'state', actor: owner, summary_fa: `مجوز ${g.ref} لغو شد؛ جلسه متوقف شد`, data: { state: 'stopped' } });
+      return json(g);
+    }
+    if (p === '/workshop/sessions') {
+      const b = (await req.json()) as { grant: string; title: string; brief: string; attachments?: string[] };
+      const g = grants.find((x) => x.ref === b.grant && !x.revoked_at);
+      if (!g) return json({ code: 'grant_not_active', message_fa: 'این مجوز فعال نیست.' }, 409);
+      const x: any = {
+        id: `s${sessions.length}`, ref: `S-${String(sessions.length + 1).padStart(4, '0')}`, workspace: g.workspace, grant: g.ref, title: b.title, brief: b.brief, opened_by: owner, driver: g.driver ?? owner,
+        runtime: 'managed', model: 'claude-sonnet-5-5', effort: 'high', state: 'starting', branch: null, pr_url: null, usage: { usd: 0, input_tokens: 0, output_tokens: 0 },
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(), events: [],
+      };
+      const who = g.driver ?? owner;
+      x.branch = `hq/${x.ref}`;
+      x.script = [
+        { type: 'state', actor: sys, summary_fa: 'جلسه شروع شد؛ کلون تازه', data: { state: 'working' } },
+        { type: 'message', actor: who, summary_fa: `شروع کردم: ${b.title}. اول کد مربوط را میخوانم و اندازه میگیرم.`, data: {} },
+        { type: 'command', actor: who, summary_fa: 'نقشه‌ی ریپو خوانده شد', data: { cmd: 'git log --oneline -20 && ls', exit_code: 0, duration_s: 2 } },
+        { type: 'progress', actor: who, summary_fa: 'فایل‌های مرتبط پیدا شد؛ در حال نوشتن اصلاح.', data: {} },
+      ];
+      sessions.unshift(x);
+      return json(sessionOut(x), 201);
+    }
+    const sm = /^\/workshop\/sessions\/(S-\d+)\/(messages|stop|approvals\/([^/]+))$/.exec(p);
+    if (sm) {
+      const x = sessions.find((y) => y.ref === sm[1]);
+      if (!x) return json({ code: 'not_found', message_fa: 'پیدا نشد.' }, 404);
+      if (sm[2] === 'stop') { x.script = []; reveal(x, { type: 'state', actor: owner, summary_fa: 'مدیر کل متوقف کرد؛ شاخه میماند', data: { state: 'stopped' } }); return json(sessionOut(x)); }
+      if (sm[2] === 'messages') {
+        const b = (await req.json()) as { body: string };
+        const e = reveal(x, { type: 'message', actor: owner, summary_fa: b.body, data: {} });
+        if (!['done', 'failed', 'stopped'].includes(x.state)) x.script.unshift({ type: 'message', actor: x.driver, summary_fa: 'دریافت شد؛ همین را اعمال میکنم و نتیجه را میگویم.', data: {} });
+        return json(e, 201);
+      }
+      const b = (await req.json()) as { allow: boolean; note: string | null };
+      const req0 = x.events.find((e: Ev) => e.type === 'approval_request' && e.data.approval_id === sm[3]);
+      if (!req0 || x.events.some((e: Ev) => e.type === 'approval_result' && e.data.approval_id === sm[3])) return json({ code: 'conflict', message_fa: 'این درخواست قبلاً جواب گرفته.' }, 409);
+      const e = reveal(x, { type: 'approval_result', actor: owner, summary_fa: b.allow ? 'مدیر کل اجازه داد' : 'مدیر کل اجازه نداد', data: { approval_id: sm[3], allow: b.allow, note: b.note } });
+      x.state = 'working';
+      if (!b.allow) x.script.push({ type: 'message', actor: x.driver, summary_fa: 'باشد؛ دست نگه میدارم. اگر راه دیگری مد نظرت است بگو.', data: {} }, { type: 'state', actor: sys, summary_fa: 'منتظر راهنمایی', data: { state: 'idle' } });
+      else if (req0.data.action === 'push_branch') x.script.push(
+        { type: 'command', actor: x.driver, summary_fa: `push شد به ${x.branch}`, data: { cmd: `git push origin ${x.branch}`, exit_code: 0, duration_s: 3 } },
+        { type: 'approval_request', actor: x.driver, summary_fa: 'اجازه‌ی باز کردن PR', data: { approval_id: `AP-${String(Number(String(sm[3]).slice(3)) + 10).padStart(4, '0')}`, action: 'open_pr', detail: `PR: ${x.branch} → main` } },
+      );
+      else {
+        const w = workspaces.find((y) => y.code === x.workspace)!;
+        x.pr_url = `https://github.com/${w.repo}/pull/${40 + sessions.indexOf(x)}`;
+        x.script.push({ type: 'progress', actor: x.driver, summary_fa: 'PR باز شد؛ ادغام و انتشار با مُهر تو', data: { pr_url: x.pr_url } }, { type: 'state', actor: sys, summary_fa: 'تمام شد', data: { state: 'done' } });
+      }
+      return json(e, 201);
     }
     if (p === '/owner/presence') { const b = (await req.json()) as { khalvat: boolean }; presence.khalvat = b.khalvat; presence.since = new Date().toISOString(); return json(presence); }
     if (p === '/control/kill-switch') { const b = (await req.json()) as { scope: string; state: string; reason: string }; const k = b.scope === 'holding' ? control.holding : control.companies.find((c) => c.scope === b.scope); if (k) Object.assign(k, { state: b.state, reason: b.reason, changed_at: new Date().toISOString(), changed_by: 'owner' }); return json(control); }
     return json({}, 200);
   }
+  if (p === '/workshop/workspaces') return json(workspaces);
+  if (p === '/workshop/grants') return json(u.searchParams.get('active') === 'true' ? grants.filter((g) => !g.revoked_at && g.expires_at > new Date().toISOString()) : grants);
+  if (p === '/workshop/sessions') return json(page(sessions.map(sessionOut)));
+  const ss = /^\/workshop\/sessions\/(S-\d+)(\/events)?$/.exec(p);
+  if (ss) {
+    const x = sessions.find((y) => y.ref === ss[1]);
+    if (!x) return json({ code: 'not_found', message_fa: 'این جلسه پیدا نشد.' }, 404);
+    if (!ss[2]) return json(sessionOut(x));
+    const after = Number(u.searchParams.get('after') ?? 0);
+    // Live mock: each poll reveals the next scripted step, so a working session visibly moves.
+    if (after && x.script.length && Math.random() < 0.8) reveal(x, x.script.shift());
+    return json(page(x.events.filter((e: Ev) => e.seq > after)));
+  }
+  if (p === '/orders') return json(page(orders));
   if (p === '/auth/session') return json({ principal: { kind: 'owner', code: 'owner' }, device: { id: 'dev1', name: 'Chrome · Android', kind: 'session', created_at: iso(600), last_used_at: iso(0), current: true }, expires_at: ahead(60 * 24 * 30) });
-  if (p === '/meta') return json({ api_version: '1.1', service_version: 'mock', login_configured: true, public_origin: u.origin, stream_retention_days: 30, channels: { in_app: true, web_push: true, fcm: false, telegram: false } });
+  if (p === '/meta') return json({ api_version: '1.3', service_version: 'mock', login_configured: true, public_origin: u.origin, stream_retention_days: 30, channels: { in_app: true, web_push: true, fcm: false, telegram: false }, workshop: { runtime: 'managed' } });
   if (p === '/inbox/summary') return json({ decisions_pending: decisions.filter((d) => d.status === 'pending').length, decisions_by_risk: { low: 2, medium: 1, high: 1 }, deliverables_unrated: deliverables.filter((d) => !d.rating).length, messages_unread: 3, khalvat: presence.khalvat, notifications: { urgent: 0, decision: 1, report: 0, info: 2, learning: 1 } });
   if (p === '/owner/presence') return json(presence);
   if (p === '/owner/away-summary') return json({ since: iso(60 * 9), until: iso(0), companies: CO.map((c, i) => ({ company: c.code, decisions_new: [1, 1, 1, 1][i], deliverables_new: [1, 1, 1, 0][i], messages_new: [0, 1, 2, 0][i], notifications_new: [1, 1, 0, 1][i] })), decisions: { new: 4, pending: 4, top: decisions.filter((d) => d.status === 'pending').map((d) => ({ ref: d.ref, company: d.company, kind: d.kind, risk: d.risk, status: d.status, title: d.title, created_at: d.created_at })) }, deliverables: { new: 3, unrated: 2, top: deliverables.map((d) => ({ ref: d.ref, company: d.company, title: d.title, created_at: d.created_at })) }, messages: { new: 3, unread: 3, top_threads: threads.map((t) => ({ thread: t.code, company: t.company, new_messages: t.unread, last_at: t.last_message_at })) }, notifications: { by_level: { decision: 1, report: 1, learning: 1 }, held: 2, top: [] } });

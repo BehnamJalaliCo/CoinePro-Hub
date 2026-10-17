@@ -16,9 +16,10 @@ import { useHoldingStream, type StreamEvent, type StreamState } from '@/lib/stre
 import { LiveContext } from '@/lib/live';
 import { useTheme } from '@/lib/theme';
 import { cx } from '@/lib/format';
+import { VoiceOrder, VoiceOrderContext } from '@/components/work/voice-order';
 import { CommandPalette } from './command-palette';
 import { NotificationsSheet } from './notifications';
-import { NAV_MOBILE, NAV_TOOLS, isActive } from './nav';
+import { NAV_MAIN, NAV_MOBILE, NAV_TOOLS, isActive } from './nav';
 import { ScopeSwitcher, Sidebar } from './sidebar';
 
 function LiveDot({ state }: { state: StreamState }) {
@@ -37,7 +38,7 @@ function ThemeToggle() {
   return <IconButton icon={t === 'day' ? 'sleeping' : 'time'} label={next === 'day' ? 'تم روز' : 'تم شب'} onClick={() => set(next)} />;
 }
 
-function TopBar({ onPalette, onBell, onMore, stream, urgent }: { onPalette: () => void; onBell: () => void; onMore: () => void; stream: StreamState; urgent: number }) {
+function TopBar({ onPalette, onBell, onMore, onVoice, stream, urgent }: { onPalette: () => void; onBell: () => void; onMore: () => void; onVoice: () => void; stream: StreamState; urgent: number }) {
   return (
     <div className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-div bg-page/90 px-4 backdrop-blur-md md:px-6">
       <Link href="/" className="flex items-center gap-2 lg:hidden" aria-label="ستاد کوینه‌پرو"><Monogram size={26} /><span className="text-[15px] font-semibold">ستاد</span></Link>
@@ -47,11 +48,13 @@ function TopBar({ onPalette, onBell, onMore, stream, urgent }: { onPalette: () =
       <span className="flex-1" />
       <LiveDot state={stream} />
       <IconButton icon="search" label="جستجو" onClick={onPalette} className="md:hidden" />
+      <IconButton icon="mic" label="فرمان صوتی" onClick={onVoice} className="text-gold-ink" />
       <span className="relative">
         <IconButton icon="bell" label="اعلان‌ها" onClick={onBell} />
         {urgent > 0 ? <span className="pointer-events-none absolute right-1.5 top-1.5 size-2.5 rounded-full border-2 border-page bg-neg" /> : null}
       </span>
-      <ThemeToggle />
+      {/* Phones: the theme lives in settings and the palette, so the bar keeps room for voice. */}
+      <span className="hidden sm:inline-flex"><ThemeToggle /></span>
       <IconButton icon="more" label="بیشتر" onClick={onMore} className="lg:hidden" />
     </div>
   );
@@ -105,6 +108,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [palette, setPalette] = useState(false);
   const [bell, setBell] = useState(false);
   const [more, setMore] = useState(false);
+  const [voice, setVoice] = useState(false);
 
   useEffect(() => {
     if (session.error instanceof ApiError && session.error.status === 401) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
@@ -118,29 +122,32 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <ScopeProvider>
       <LiveContext.Provider value={{ state: stream, last: feed[0] ?? null, feed }}>
+      <VoiceOrderContext.Provider value={() => setVoice(true)}>
       <div className="flex min-h-dvh">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar onPalette={() => setPalette(true)} onBell={() => setBell(true)} onMore={() => setMore(true)} stream={stream} urgent={urgent} />
+          <TopBar onPalette={() => setPalette(true)} onBell={() => setBell(true)} onMore={() => setMore(true)} onVoice={() => setVoice(true)} stream={stream} urgent={urgent} />
           <main id="main" className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 px-4 pb-28 pt-5 md:px-6 lg:pb-10">{children}</main>
         </div>
       </div>
       <BottomNav counts={counts} />
-      <CommandPalette open={palette} onOpenChange={setPalette} />
+      <CommandPalette open={palette} onOpenChange={setPalette} onVoice={() => setVoice(true)} />
+      <VoiceOrder open={voice} onOpenChange={setVoice} />
       <NotificationsSheet open={bell} onOpenChange={setBell} />
       <Sheet open={more} onOpenChange={setMore} title="بیشتر" width={360}>
         <div className="flex flex-col gap-3">
           <ScopeSwitcher />
           <nav className="flex flex-col gap-1">
-            {NAV_TOOLS.map((n) => (
+            {/* Everything the bottom bar has no room for: the rest of the main pages, then the tools. */}
+            {[...NAV_MAIN.filter((n) => !NAV_MOBILE.some((m) => m.href === n.href)), ...NAV_TOOLS].map((n) => (
               <Link key={n.href} href={n.href} onClick={() => setMore(false)} className="flex h-12 items-center gap-3 rounded-[10px] px-3 text-[15px] text-ink hover:bg-hover">
                 <span className="text-sec"><Icon name={n.icon} size={20} /></span>{n.label}
               </Link>
             ))}
-            <Link href="/outputs" onClick={() => setMore(false)} className="flex h-12 items-center gap-3 rounded-[10px] px-3 text-[15px] text-ink hover:bg-hover"><span className="text-sec"><Icon name="deliverable" size={20} /></span>خروجی‌ها</Link>
           </nav>
         </div>
       </Sheet>
+      </VoiceOrderContext.Provider>
       </LiveContext.Provider>
     </ScopeProvider>
   );

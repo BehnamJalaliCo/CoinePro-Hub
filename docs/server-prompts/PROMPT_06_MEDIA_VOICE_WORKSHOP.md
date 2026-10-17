@@ -54,7 +54,8 @@
 ### ۴.۱ کنترل‌پلن در هاب (این پرامپت کامل میسازد)
 - جدول‌ها: `workshop.workspaces`، `workshop.grants`، `workshop.sessions`، `workshop.events` (append-only)، با RLS شرکت مثل بقیه و audit برای هر تغییر.
 - **seed workspaceها از فایل** (`apps/api/seed/workspaces.yaml`؛ داده، نه کد): هر شرکت ریپوی محصول خودش، به‌علاوه‌ی `HQ-HUB` برای همین ریپو. مالک بعداً از اپ عوض میکند.
-- همه‌ی endpointهای §۱۷.۳ با step-up در جاهای 🔏، رویدادهای stream (`workshop.session`، `workshop.approval`)، و SSE `/live` با `Last-Event-ID`.
+- همه‌ی endpointهای §۱۷.۳ با step-up در جاهای 🔏 (هدف step-up طبق §۱۷.۷: `workshop.grant` و `workshop.workspaces` روی sha256 بدنه، `workshop.approval` روی `S-0004/AP-0007` و فقط برای اجازه دادن؛ رد کردن step-up نمیخواهد)، رویدادهای stream (`workshop.session`، `workshop.approval`؛ topicهای `files`، `workshop`، `orders`)، و SSE `/live` با `Last-Event-ID`.
+- **`GET /meta`** فیلد `workshop: {runtime}` میگیرد (`null` تا تصمیم مالک) تا اپ‌ها پیش از تلاش بگویند کارگاه هنوز روشن نیست.
 - **تصمیم `code_session`** (A1) برای ایجنت‌ها: پیشنهاد سشن با workspace، کارها، بودجه و دلیل؛ مُهر مالک ← grant.
 - **قوانین ۱ تا ۷ قرارداد** با کد اجرا میشوند: بودجه‌ی دلاری هر سشن، کلید توقف و توقف deploy، قفل کاری (یک سشن نوشتنی در هر بخش ریپو)، و نگه‌داری transcript کامل در object storage.
 - **adapter اجرا** با یک interface و سه پیاده‌سازی:

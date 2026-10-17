@@ -14,6 +14,8 @@ export function proxy(request: NextRequest) {
     // React renders `style` attributes; attributes cannot run code.
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' blob: data:",
+    // Owner attachments: videos and voice notes play from the API, or from a local preview before upload.
+    "media-src 'self' blob: data:",
     "font-src 'self'",
     "connect-src 'self'",
     "manifest-src 'self'",

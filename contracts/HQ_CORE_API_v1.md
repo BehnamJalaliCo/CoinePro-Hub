@@ -623,4 +623,12 @@ owner's own sign-in; the hub never stores, proxies or reads them.
 
 ### 17.6 Stream types added
 `file.ready`, `file.failed`, `workshop.session` (state changes), `workshop.approval` (a new approval request), `order.routed`.
+Their `/stream` topics: `files`, `workshop`, `orders` (added to the `topics` list of §7).
+
+### 17.7 Step-up targets and discovery
+- Step-up actions (🔏 above): `workshop.grant` and `workshop.workspaces` are bound to the SHA-256 of the request body (like
+  `/budgets`); `workshop.approval` is bound to `"{session_ref}/{approval_id}"` (e.g. `S-0004/AP-0007`) and is needed only to
+  **allow** — a denial (`allow: false`) needs no step-up, like engaging a kill switch.
+- `GET /meta` gains `workshop: { runtime: "managed"|"self_hosted"|null }` — `null` until the owner chooses (then `POST /workshop/sessions`
+  answers `503 runtime_not_configured`), so the apps can say so before the owner tries.
 
