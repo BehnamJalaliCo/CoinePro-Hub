@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034 # the variables are used by the scripts that source this file
 # Shared by hourly.sh, restore-weekly.sh and gdrive-auth.sh (prompt 07 §1).
 # Sourced, never run. Nothing here prints a secret: the restic password, the
 # Google Drive token and the bucket keys only ever exist in OpenBao and, for

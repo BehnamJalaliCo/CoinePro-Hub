@@ -12,7 +12,7 @@
 # and raises an urgent notification when it failed). Nothing touches production.
 set -euo pipefail
 
-BLOG_NAME=restore-weekly
+BLOG_NAME="restore-weekly"
 # shellcheck source=restic-lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/restic-lib.sh"
 

@@ -16,7 +16,7 @@
 # exits non-zero; the worker raises the alerts (older than 2 h: urgent).
 set -euo pipefail
 
-BLOG_NAME=backup-hourly
+BLOG_NAME="backup-hourly"
 # shellcheck source=restic-lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/restic-lib.sh"
 # shellcheck source=files.sh

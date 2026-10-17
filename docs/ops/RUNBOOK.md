@@ -553,3 +553,91 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   3. مشاور کل، فقط وقتی فرمان مبهم است
 
   رویداد `order.routed` روی topic ‏`orders` میرود.
+
+## ۱۸. backup ساعتی رمزنگاری‌شده، WAL پیوسته و PITR (پرامپت ۷ §۱، قرارداد §۱۸.۹)
+**هدف:** در بدترین حالت بیرونی حداکثر **یک ساعت** داده از دست برود، و روی خود سرور فقط **چند دقیقه**. همه‌چیز رمزنگاری‌شده است و بازیابی هر هفته خودکار آزموده میشود. backup شبانه‌ی قبلی (§۳، محلی، ۷ روز) هم سر جایش میماند.
+
+### WAL پیوسته و PITR
+- **image تازه‌ی Postgres:** `coinepro-hq/postgres:0.1.0` همان pgvector پین‌شده است، به‌علاوه‌ی **WAL-G v3.0.9** (Apache-2.0، با sha256).
+- **تنظیم آرشیو:**
+  - `archive_mode=on`
+  - `archive_timeout=60s`: آرشیو هیچ‌وقت بیش از یک دقیقه عقب نمیماند.
+  - `archive_command = wal-g wal-push %p`
+  - مقصد: `/home/Hub/backups/wal`، با مالک uid 999 (postgres) و دسترسی `0700`.
+  - فشرده‌سازی zstd. اندازه‌گیری روی همین سرور: حدود ۲۰۰ KB در دقیقه، یعنی حدود ۳ GB در ۷ روز.
+- **ساخت و چک پوشه‌ها:** پوشه‌ی WAL و مخزن محلی restic (`/home/Hub/backups/restic`، مالک root، `0700`) را `make bootstrap` میسازد. `make up` فقط چک میکند. بدون این پوشه‌ها `make up` جلو نمیرود، چون اگر Docker پوشه را خودش بسازد، آرشیو شکست میخورد و `pg_wal` بزرگ میشود.
+- **base backup روزانه:** در اجرای ساعتی، وقتی آخرینش بیش از ۲۳ ساعت قبل باشد. **۸ base backup نگه داشته میشود:** PITR تا هر دقیقه‌ی ۷ روز گذشته (`HQ_WAL_KEEP_FULL`).
+- **تمرین PITR** (هرگز روی production نیست):
+  ```bash
+  make pitr-test at="2026-10-18 09:41"    # UTC، مگر منطقه‌ی زمانی بنویسی
+  ```
+  base backup پیش از آن لحظه به‌علاوه‌ی WAL تا همان لحظه، در یک Postgres موقت بدون شبکه بازیابی میشود. نتیجه یک خط JSON است: `recovered_to`، دیتابیس‌ها و تعداد جدول‌های `hq`. بعد همه‌چیز پاک میشود.
+- **بازیابی واقعی PITR روی production** فقط با اجازه‌ی مالک انجام میشود، در ترمینال خودش و از روی همین اسکریپت. API هیچ راه restore ندارد.
+
+### backup ساعتی (`coinepro-hq-backup-hourly.timer`)
+- **زمان:** هر ساعت، با تأخیر تصادفی تا ۳ دقیقه. اجرای دستی: `make backup-hourly`.
+- **مجموعه‌ی هر ساعت:**
+  - `pg_dump -Fc` هر دیتابیس، به‌علاوه‌ی `globals.sql`
+  - کپی لنگرهای Audit
+  - sha256 همه‌ی فایل‌های api
+  - snapshot ‏OpenBao، فقط با توکن مالک (پایین)
+  - `manifest.json` و `SHA256SUMS`
+- **snapshot ‏restic:** از مجموعه، آرشیو WAL و خود فایل‌های `hq-files`:
+  1. اول در مخزن محلی
+  2. بعد با `restic copy` به **Google Drive** (`rclone:gdrive:CoinePro-HQ/restic`)
+  3. و اگر روشن باشد، به Hetzner
+- **نگهداری:**
+  - Drive و Hetzner: `--keep-hourly 168 --keep-daily 90 --keep-weekly 52 --keep-monthly 36 --keep-yearly 10`
+  - محلی: ۴۸ ساعتی و ۷ روزانه
+  - روزی یک بار: `prune` و `restic check --read-data-subset 5%`
+- **رمزها:**
+  - رمز restic در `kv/backup/restic` است. `make up` آن را یک بار میسازد و هیچ‌وقت عوض نمیکند.
+  - اسکریپت با AppRole ‏`hq-backup` (فقط خواندن `kv/backup/*`؛ `~/.secrets/backup/approle.json`، ‏600) فقط برای همان اجرا رمزها را در یک پوشه‌ی tmpfs (`/dev/shm`، ‏0700) میگذارد.
+  - container ‏restic آن را فقط‌خواندنی mount میکند.
+  - **هیچ رمزی در argv، env کانتینر، لاگ یا فایل وضعیت نیست.** gate ‏`backup` همین را اسکن میکند.
+- **container:** `coinepro-hq/backup:0.1.0`، یعنی rclone ‏1.75.2 (digest) به‌علاوه‌ی restic ‏0.19.1 (sha256).
+  - چرا root: ورودی‌ها مال چند uid هستند (WAL مال 999، فایل‌های api مال 10001، dumpها مال Hub).
+  - ولی محدود است: فقط capabilityهای فایل (`DAC_READ_SEARCH`، `DAC_OVERRIDE`، `CHOWN`، `FOWNER`)، rootfs فقط‌خواندنی، `no-new-privileges`.
+  - شبکه فقط وقتی مقصد بیرونی دارد.
+  - سقف حافظه `MEM_BACKUP`: ‏384m در full و 192m در lean. ‏restic با ۴۰۰ MB ورودی در 192m بی‌خطا تمام شد.
+- **وضعیت:**
+  - فایل‌های `status/hourly.json`، `status/snapshots.json` و `status/restore-weekly.json` فقط فراداده دارند.
+  - worker هر ۵ دقیقه (Maintenance) آن‌ها را در `backup.*` میخواند.
+  - رویدادها: `backup.done` و `backup.failed` روی topic ‏`backups`.
+  - مشاهده: `GET /api/v1/backups/status`، `/backups/snapshots`، و ابزار `backups.status` برای ناظر و platform SRE.
+  - `systemctl list-timers 'coinepro-hq-*'` و `journalctl -u coinepro-hq-backup-hourly.service`.
+- **هشدارها** (هر کدام یک بار در هر رخداد):
+  - مقصد بیرونی شکست بخورد ← اعلان `decision`
+  - **آخرین backup موفق قدیمی‌تر از ۲ ساعت** ← **فوری** (از دست رفتن داده)
+  - **شکست تست بازیابی** ← **فوری**
+  - یافته‌ی ناظر (`PR-070`) در پرامپت ۸ به `oversight_finding()` در `domain/backups.py` وصل میشود.
+- **مقصد دوم، Hetzner Object Storage (اختیاری، خاموش):** با `HQ_BACKUP_S3_ENABLED=true` و `HQ_BACKUP_S3_*` در `.env` روشن میشود. یک مخزن restic دوم است با همان رمز. `offsite.sh` دیگر کپی خام شبانه نمیفرستد.
+
+### تست بازیابی هفتگی (`coinepro-hq-restore-weekly.timer`)
+- **زمان:** یکشنبه ۰۶:۰۰ تهران (۰۲:۳۰ UTC). اجرای دستی: `make restore-weekly`.
+- **روند:**
+  1. آخرین snapshot از Drive (اگر وصل نیست، از مخزن محلی) در پوشه‌ای موقت بازیابی میشود.
+  2. همه‌ی بررسی‌های `restore-test.sh` روی مجموعه‌اش اجرا میشود.
+  3. sha256 همه‌ی فایل‌ها چک میشود.
+  4. **PITR به یک لحظه‌ی تصادفی ۲۴ ساعت گذشته** از آرشیو WAL بازیابی‌شده انجام میشود.
+- **نتیجه:** در `backup.restore_tests` ثبت میشود. شکست ← اعلان فوری.
+
+### کارهای مالک (به ترتیب، در ترمینال SSH خودش)
+1. **`make gdrive-auth`:**
+   - توضیح فارسی چاپ میکند.
+   - مالک روی کامپیوتر خودش این را اجرا میکند (scope ‏`drive.file`: rclone فقط فایل‌های خودش را میبیند):
+     `rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"`
+   - JSON را بی‌نمایش میچسباند ← `kv/backup/gdrive`. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro-HQ/restic` را میسازد.
+   - **پیشنهاد (اختیاری):** یک OAuth client ID اختصاصی (نوع Desktop) در Google Cloud خود مالک، برای سهمیه‌ی جدا از client عمومی rclone. در این صورت: `rclone authorize "drive" "<client_id>" "<client_secret>"` و همان client ID در پرسش اسکریپت.
+   - تا این کار نشده، backup ساعتی فقط محلی است و وضعیت Drive «پیکربندی نشده» است.
+2. **نسخه‌ی کاغذی رمز restic:** `make backup-password`.
+   - فقط در ترمینال خود مالک، با تایپ `show`. بعد از Enter صفحه پاک میشود.
+   - **بدون این رمز هیچ snapshotی، از هیچ مقصدی، باز نمیشود.** Claude سرور آن را نمیبیند و چاپ نمیکند.
+3. **توکن فقط-snapshot برای OpenBao:**
+   - مالک خودش میسازد: `bao token create -policy=backup-snapshot -orphan -period=768h -display-name=hq-backup-snapshot` (policy ‏`infra/openbao/policies/backup-snapshot.hcl` فقط `sys/storage/raft/snapshot` را میخواند).
+   - بعد `make openbao-snapshot-token` و چسباندن بی‌نمایش.
+   - اسکریپت چک میکند توکن **فقط** همین policy را داشته باشد.
+   - تا آن موقع، این بخش از backup «منتظر مالک» است.
+
+### راه‌اندازی بعد از merge (Claude سرور)
+`make bootstrap` (پوشه‌های wal و restic، با sudo)، بعد `make up` (image تازه‌ی Postgres؛ **ری‌استارت Postgres** برای `archive_mode`؛ AppRole ‏`hq-backup` و رمز restic)، بعد `make install-systemd` (دو timer تازه).

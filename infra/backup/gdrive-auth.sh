@@ -5,7 +5,7 @@
 # it is never printed, never written to disk and never put in argv.
 set -euo pipefail
 
-BLOG_NAME=gdrive-auth
+BLOG_NAME="gdrive-auth"
 # shellcheck source=restic-lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/restic-lib.sh"
 ADMIN_FILE="$SECRETS_DIR/openbao-admin.token"

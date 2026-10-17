@@ -32,6 +32,7 @@ SCHEMAS = (
     "agents",
     "ops",
     "workshop",
+    "backup",
 )
 
 
@@ -142,6 +143,22 @@ async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: 
 async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     """Prompt 05's tables: rows of `co` the runtime and the checker would write
     (superuser, test setup only)."""
+    # Prompt 07: the backup's status, runs, snapshots and restore tests (the
+    # holding's in production; any company's here, to prove the isolation).
+    await su.execute(
+        "INSERT INTO backup.status (company_id) VALUES ($1) ON CONFLICT DO NOTHING", co["id"]
+    )
+    await su.execute(
+        "INSERT INTO backup.runs (company_id, at, ok) VALUES ($1, now(), true)", co["id"]
+    )
+    await su.execute(
+        """INSERT INTO backup.snapshots (company_id, destination, snapshot_id, time)
+           VALUES ($1, 'local', 'abcdef0123456789', now())""",
+        co["id"],
+    )
+    await su.execute(
+        "INSERT INTO backup.restore_tests (company_id, at, ok) VALUES ($1, now(), true)", co["id"]
+    )
     # Prompt 06: the processing state of an upload.
     await su.execute(
         """INSERT INTO files.processing (file_id, company_id)

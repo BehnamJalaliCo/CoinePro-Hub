@@ -27,6 +27,7 @@ SCHEMAS = (
     "control",
     "files",
     "workshop",
+    "backup",
 )
 
 
