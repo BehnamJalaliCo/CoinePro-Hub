@@ -275,6 +275,8 @@ async def _account_out(ctx: Ctx, r: dict[str, Any]) -> ServiceAccount:
 
 @router.get("/tools/accounts", response_model=list[ServiceAccount], responses=E)
 async def list_accounts(ctx: Ctx = Depends(owner_ctx)) -> list[ServiceAccount]:
+    """Every holding service account with its policy and whether the owner has
+    stored its secret (`has_secret`); never the secret itself."""
     async with ctx.tx() as tx:
         rows = await tx.all("SELECT * FROM tools.accounts ORDER BY key")
     return [await _account_out(ctx, r) for r in rows]

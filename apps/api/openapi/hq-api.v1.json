@@ -23825,6 +23825,7 @@
     },
     "/api/v1/tools/accounts": {
       "get": {
+        "description": "Every holding service account with its policy and whether the owner has\nstored its secret (`has_secret`); never the secret itself.",
         "operationId": "list_accounts",
         "responses": {
           "200": {

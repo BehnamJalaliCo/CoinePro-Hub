@@ -124,12 +124,19 @@ async def test_log_limits_and_who_reads_the_log(
     # egress.recent: a holding-scope reader, not a company's CTO.
     r = await client.get("/internal/v1/egress/recent", headers=h)
     assert r.status_code == 403
-    r = await client.get(
-        "/internal/v1/egress/recent",
-        headers=await agent_headers("HQ-ADV"),
-        params={"company": co["code"]},
-    )
-    assert r.status_code == 200 and len(r.json()["items"]) >= 5
+    try:
+        r = await client.get(
+            "/internal/v1/egress/recent",
+            headers=await agent_headers("HQ-ADV"),
+            params={"company": co["code"]},
+        )
+        assert r.status_code == 200 and len(r.json()["items"]) >= 5
+    finally:  # the advisor's test run must not stay running for the next tests
+        await su.execute(
+            """UPDATE agents.runs r SET state = 'done', finished_at = now() FROM core.employees e
+               WHERE e.id = r.employee_id AND e.code = 'HQ-ADV' AND r.state = 'running'
+                 AND r.reason = 'test'"""
+        )
 
 
 async def test_service_accounts(
