@@ -1,0 +1,651 @@
+"""The tools of agents/tools.md, each validated and carried out through the
+internal API with the run's own agent token (so RLS, OPA and audit are the
+api's, as for any agent call). Inputs are Pydantic models (extra keys are
+refused, so a model learns the exact shape); text an agent writes is redacted
+before it leaves.
+
+A tool returns a Result: outcome ok | denied | error, a stable `code` on
+anything but ok, a `ref` (W-…, D-…, O-…, the message ref, ...) and the data
+for the model (redacted again by the gateway).
+"""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Literal
+
+import httpx
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+from hq_gateway.redact import redact
+
+WORK_REF = r"^W-[0-9]{6,}$"
+CODE = r"^[A-Z][A-Z0-9]{1,9}$"
+EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
+THREAD = r"^(A|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
+NS = uuid.UUID("6a0f1c3e-5b7d-4e21-9c3a-0d7f2b6e8a41")  # idempotency keys per action
+
+
+@dataclass
+class Result:
+    outcome: Literal["ok", "denied", "error"]
+    code: str | None = None
+    ref: str | None = None
+    data: Any = None
+    fields: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class Call:
+    """One tool call in context: the run's token and gate, the step, the action index."""
+
+    token: str
+    gate: dict[str, Any]
+    step: int
+    index: int
+
+    def idem(self, tool: str) -> str:
+        return str(uuid.uuid5(NS, f"{self.gate['run_id']}:{self.step}:{self.index}:{tool}"))
+
+
+class Api:
+    """The internal API (api:8000 on hq-core), always with the agent's token."""
+
+    def __init__(
+        self, base_url: str, timeout: float, transport: httpx.AsyncBaseTransport | None = None
+    ) -> None:
+        self._http = httpx.AsyncClient(base_url=base_url, timeout=timeout, transport=transport)
+
+    async def aclose(self) -> None:
+        await self._http.aclose()
+
+    async def request(
+        self,
+        method: str,
+        path: str,
+        token: str,
+        *,
+        json: Any = None,
+        params: dict[str, Any] | None = None,
+        idem: str | None = None,
+    ) -> httpx.Response:
+        headers = {"Authorization": f"Bearer {token}", "X-Request-ID": str(uuid.uuid4())}
+        if idem:
+            headers["Idempotency-Key"] = idem
+        clean = {k: v for k, v in (params or {}).items() if v is not None}
+        return await self._http.request(method, path, json=json, params=clean, headers=headers)
+
+
+def from_response(resp: httpx.Response, ref_key: str | None = "ref") -> Result:
+    """The api's answer as a tool result (problem+json -> denied/error + code)."""
+    try:
+        body: Any = resp.json()
+    except ValueError:
+        body = None
+    if resp.status_code < 300:
+        ref = None
+        if ref_key and isinstance(body, dict):
+            ref = body.get(ref_key) if isinstance(body.get(ref_key), str) else None
+        return Result("ok", ref=ref, data=body)
+    code = body.get("code") if isinstance(body, dict) else None
+    fields = body.get("fields") if isinstance(body, dict) else None
+    denied = resp.status_code in (401, 403, 423, 429)
+    if resp.status_code == 401:
+        code = "run_not_running"  # the agent token is accepted only while its run runs
+    return Result(
+        "denied" if denied else "error",
+        code=str(code or f"http_{resp.status_code}"),
+        fields={str(k): str(v)[:200] for k, v in (fields or {}).items()}
+        if isinstance(fields, dict)
+        else {},
+    )
+
+
+# ------------------------------------------------------------------ inputs --
+class In(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class Empty(In):
+    pass
+
+
+class WorkRef(In):
+    ref: str = Field(pattern=WORK_REF)
+
+
+class CompanyIn(In):
+    company: str | None = Field(default=None, pattern=CODE)
+
+
+class SitesIn(CompanyIn):
+    since: datetime | None = None
+
+
+class UsageIn(In):
+    scope: str = Field(default="company", pattern=r"^(company|holding|[A-Z][A-Z0-9]{1,9})$")
+    period: Literal["day", "month"] = "month"
+
+
+class SearchIn(In):
+    q: str = Field(min_length=2, max_length=200)
+    kinds: list[Literal["resolutions", "deliverables", "decisions", "work", "messages"]] | None = (
+        None
+    )
+
+
+class AuditIn(CompanyIn):
+    action: str | None = Field(default=None, pattern=r"^[a-z_]+(\.[a-z_]+)?$")
+    since: datetime | None = None
+
+
+class GithubIn(In):
+    repo: str = Field(min_length=1, max_length=200)
+    what: Literal["commits", "issues", "pulls", "file"]
+    path: str | None = Field(default=None, max_length=500)
+
+
+class EvidenceIn(In):
+    kind: Literal["deliverable", "link", "metric", "log"]
+    ref: str = Field(min_length=1, max_length=500)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class DeliverIn(In):
+    work_ref: str = Field(pattern=WORK_REF)
+    title_fa: str = Field(min_length=1, max_length=300)
+    body_md: str = Field(min_length=1, max_length=200_000)
+    evidence: list[EvidenceIn] = Field(default_factory=list, max_length=50)
+
+
+class QuotaIn(In):
+    tokens: int | None = Field(default=None, ge=0)
+    usd: float | None = Field(default=None, ge=0)
+
+
+class ProposeIn(In):
+    kind: Literal[
+        "hire",
+        "dismissal",
+        "recurring_approval",
+        "deploy",
+        "a3_action",
+        "proposal",
+        "budget_change",
+        "evaluation",
+    ]
+    title_fa: str = Field(min_length=1, max_length=300)
+    what_md: str = Field(default="", max_length=20000)
+    why_md: str = Field(default="", max_length=20000)
+    risk: Literal["low", "medium", "high"] = "low"
+    reversible: bool = True
+    quota_estimate: QuotaIn | int | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class LinksIn(In):
+    decision: str | None = Field(default=None, max_length=20)
+    work: str | None = Field(default=None, max_length=20)
+    resolution: str | None = Field(default=None, max_length=20)
+    corrects: str | None = Field(default=None, max_length=40)
+
+
+class CitationIn(In):
+    kind: Literal["decision", "resolution", "deliverable", "work", "message", "audit"]
+    ref: str = Field(min_length=1, max_length=40)
+
+
+class OwnerMessageIn(In):
+    body_md: str = Field(min_length=1, max_length=20000)
+    links: LinksIn | None = None
+
+
+class ThreadMessageIn(In):
+    thread: str = Field(pattern=THREAD)
+    body_md: str = Field(min_length=1, max_length=50000)
+    links: LinksIn | None = None
+    citations: list[CitationIn] = Field(default_factory=list, max_length=50)
+
+
+class MemoryIn(In):
+    note_md: str = Field(min_length=1, max_length=4000)
+    tags: list[str] = Field(default_factory=list, max_length=10)
+
+    @field_validator("tags")
+    @classmethod
+    def _tags(cls, v: list[str]) -> list[str]:
+        return [t[:40] for t in v if t.strip()]
+
+
+class AcceptIn(In):
+    ref: str = Field(pattern=WORK_REF)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class ProgressIn(In):
+    ref: str = Field(pattern=WORK_REF)
+    note: str = Field(min_length=1, max_length=2000)
+    pct: int | None = Field(default=None, ge=0, le=100)
+
+
+class FailIn(In):
+    ref: str = Field(pattern=WORK_REF)
+    reason: str = Field(min_length=1, max_length=2000)
+    decline: bool = False
+
+
+class BudgetIn(In):
+    tokens: int | None = Field(default=None, ge=0)
+    usd: float | None = Field(default=None, ge=0)
+
+
+class DelegateIn(In):
+    ref: str = Field(pattern=WORK_REF)
+    to: str = Field(pattern=EMP)
+    title_fa: str = Field(min_length=1, max_length=300)
+    brief_md: str = Field(default="", max_length=50000)
+    budget: BudgetIn | int | None = None
+
+
+class RequestIn(In):
+    to: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+(-[A-Z0-9]+)?)?$")
+    title_fa: str = Field(min_length=1, max_length=300)
+    brief_md: str = Field(default="", max_length=50000)
+
+
+class ActivityIn(In):
+    state: Literal["working", "waiting", "idle"]
+    note: str | None = Field(default=None, max_length=500)
+
+
+class LinkIn(In):
+    kind: str = Field(pattern=r"^[a-z_]{2,30}$")
+    ref: str = Field(min_length=1, max_length=100)
+
+
+class NotifyIn(In):
+    level: Literal["urgent", "decision", "report", "info", "learning"]
+    category: Literal["service_down", "security", "data_loss", "budget_hard_stop"] | None = None
+    title_fa: str = Field(min_length=1, max_length=300)
+    body_fa: str = Field(default="", max_length=4000)
+    link: LinkIn | None = None
+
+
+# ------------------------------------------------------------ the tools ---
+Handler = Callable[[Api, Call, Any], Awaitable[Result]]
+
+
+def _text(value: Any) -> Any:
+    """Outgoing text of a write tool, redacted (a key or a customer's data the
+    model may have echoed never leaves)."""
+    return redact(value)
+
+
+async def _work_id(api: Api, call: Call, ref: str) -> tuple[str | None, Result | None]:
+    resp = await api.request("GET", f"/internal/v1/work/ref/{ref}", call.token)
+    r = from_response(resp, None)
+    if r.outcome != "ok":
+        return None, r
+    return str(r.data["id"]), None
+
+
+async def work_get(api: Api, call: Call, a: WorkRef) -> Result:
+    return from_response(await api.request("GET", f"/internal/v1/work/ref/{a.ref}", call.token))
+
+
+async def company_state(api: Api, call: Call, a: CompanyIn) -> Result:
+    return from_response(
+        await api.request(
+            "GET", "/internal/v1/company/state", call.token, params={"company": a.company}
+        ),
+        None,
+    )
+
+
+async def health_sites(api: Api, call: Call, a: SitesIn) -> Result:
+    params = {"company": a.company, "since": a.since.isoformat() if a.since else None}
+    return from_response(
+        await api.request("GET", "/internal/v1/health/sites", call.token, params=params), None
+    )
+
+
+async def health_hub(api: Api, call: Call, a: Empty) -> Result:
+    return from_response(await api.request("GET", "/internal/v1/health/hub", call.token), None)
+
+
+async def treasury_usage(api: Api, call: Call, a: UsageIn) -> Result:
+    params = {"scope": a.scope, "period": a.period}
+    return from_response(
+        await api.request("GET", "/internal/v1/treasury/usage", call.token, params=params), None
+    )
+
+
+async def knowledge_search(api: Api, call: Call, a: SearchIn) -> Result:
+    params: dict[str, Any] = {"q": a.q, "kinds": a.kinds}
+    return from_response(
+        await api.request("GET", "/internal/v1/knowledge/search", call.token, params=params), None
+    )
+
+
+async def audit_recent(api: Api, call: Call, a: AuditIn) -> Result:
+    params = {
+        "company": a.company,
+        "action": a.action,
+        "since": a.since.isoformat() if a.since else None,
+    }
+    return from_response(
+        await api.request("GET", "/internal/v1/audit/recent", call.token, params=params), None
+    )
+
+
+async def memory_read(api: Api, call: Call, a: Empty) -> Result:
+    return from_response(await api.request("GET", "/internal/v1/memory", call.token), None)
+
+
+async def github_read(api: Api, call: Call, a: GithubIn) -> Result:
+    # Off until the owner provides a read-only token (agents/tools.md).
+    return Result("error", code="channel_not_configured")
+
+
+async def deliver(api: Api, call: Call, a: DeliverIn) -> Result:
+    wid, err = await _work_id(api, call, a.work_ref)
+    if err is not None:
+        return err
+    body = _text(a.body_md)
+    summary = next((p.strip() for p in body.split("\n\n") if p.strip()), "")[:500]
+    g = call.gate
+    produced = {
+        k: v
+        for k, v in {"model": g.get("model"), "effort": g.get("effort")}.items()
+        if v is not None
+    }
+    resp = await api.request(
+        "POST",
+        f"/internal/v1/work/{wid}/deliver",
+        call.token,
+        json={
+            "title": _text(a.title_fa),
+            "summary": summary,
+            "body": body,
+            "evidence": [e.model_dump(exclude_none=True) for e in a.evidence],
+            "produced_with": produced,
+        },
+        idem=call.idem("deliver"),
+    )
+    r = from_response(resp, None)
+    if r.outcome == "ok":
+        r.ref = r.data.get("deliverable") if isinstance(r.data, dict) else None
+        r.data = {
+            "deliverable": r.ref,
+            "work": a.work_ref,
+            "closed_children": r.data.get("closed_children"),
+        }
+    return r
+
+
+async def propose(api: Api, call: Call, a: ProposeIn) -> Result:
+    work_id = None
+    if call.gate.get("work_ref"):
+        work_id, _ = await _work_id(api, call, call.gate["work_ref"])
+    quota: dict[str, Any] | None
+    if isinstance(a.quota_estimate, int):
+        quota = {"tokens": a.quota_estimate}
+    elif a.quota_estimate is not None:
+        quota = a.quota_estimate.model_dump(exclude_none=True)
+    else:
+        quota = None
+    resp = await api.request(
+        "POST",
+        "/internal/v1/decisions",
+        call.token,
+        json={
+            "kind": a.kind,
+            "title": _text(a.title_fa),
+            "what": _text(a.what_md),
+            "why": _text(a.why_md),
+            "risk": a.risk,
+            "reversible": a.reversible,
+            "quota_estimate": quota,
+            "payload": _text(a.payload),
+            **({"work_id": work_id} if work_id else {}),
+        },
+        idem=call.idem("propose"),
+    )
+    r = from_response(resp)
+    if r.outcome == "ok" and isinstance(r.data, dict):
+        r.data = {"decision": r.ref, "status": r.data.get("status"), "kind": a.kind}
+    return r
+
+
+async def _post_message(
+    api: Api, call: Call, thread: str, body: str, links: Any, citations: list[Any], key: str
+) -> Result:
+    resp = await api.request(
+        "POST",
+        f"/internal/v1/threads/{thread}/messages",
+        call.token,
+        json={
+            "body": _text(body),
+            **({"links": links.model_dump(exclude_none=True)} if links else {}),
+            **({"citations": [c.model_dump() for c in citations]} if citations else {}),
+        },
+        idem=call.idem(key),
+    )
+    r = from_response(resp)
+    if r.outcome == "ok" and isinstance(r.data, dict):
+        r.data = {
+            "message": r.ref,
+            "thread": thread,
+            "citations_kept": len(r.data.get("citations") or []),
+            "citations_dropped": (r.data.get("meta") or {}).get("citations_dropped", 0),
+        }
+    return r
+
+
+async def message_owner(api: Api, call: Call, a: OwnerMessageIn) -> Result:
+    thread = call.gate.get("own_thread")
+    if not thread:
+        return Result("error", code="no_thread")
+    r = await _post_message(api, call, thread, a.body_md, a.links, [], "message.owner")
+    if r.outcome == "ok":
+        # The owner hears of it on the report rhythm; a CEO's attention quota
+        # applies (non-urgent items beyond it wait for the next digest).
+        await api.request(
+            "POST",
+            "/internal/v1/notifications",
+            call.token,
+            json={
+                "level": "report",
+                "title_fa": f"پیام تازه از {call.gate['employee']}",
+                "link_kind": "message",
+                "link_ref": r.ref,
+            },
+        )
+    return r
+
+
+async def message_thread(api: Api, call: Call, a: ThreadMessageIn) -> Result:
+    return await _post_message(
+        api, call, a.thread, a.body_md, a.links, a.citations, f"message.thread:{a.thread}"
+    )
+
+
+async def memory_write(api: Api, call: Call, a: MemoryIn) -> Result:
+    resp = await api.request(
+        "POST", "/internal/v1/memory", call.token, json={"note": _text(a.note_md), "tags": a.tags}
+    )
+    r = from_response(resp, None)
+    if r.outcome == "ok" and isinstance(r.data, dict):
+        r.ref = f"memory:{r.data.get('id')}"
+        r.data = {"note": r.data.get("id")}
+    return r
+
+
+async def _on_work(
+    api: Api, call: Call, ref: str, action: str, body: dict[str, Any] | None
+) -> Result:
+    wid, err = await _work_id(api, call, ref)
+    if err is not None:
+        return err
+    r = from_response(
+        await api.request("POST", f"/internal/v1/work/{wid}/{action}", call.token, json=body), None
+    )
+    if r.outcome == "ok":
+        r.ref = ref
+        r.data = {"work": ref, "status": r.data.get("status") if isinstance(r.data, dict) else None}
+    return r
+
+
+async def work_accept(api: Api, call: Call, a: AcceptIn) -> Result:
+    r = await _on_work(api, call, a.ref, "accept", None)
+    if r.outcome == "ok" and a.note:
+        await _on_work(api, call, a.ref, "progress", {"note": _text(a.note)})
+    return r
+
+
+async def work_progress(api: Api, call: Call, a: ProgressIn) -> Result:
+    return await _on_work(api, call, a.ref, "progress", {"note": _text(a.note), "pct": a.pct})
+
+
+async def work_fail(api: Api, call: Call, a: FailIn) -> Result:
+    return await _on_work(
+        api, call, a.ref, "fail", {"reason": _text(a.reason), "decline": a.decline}
+    )
+
+
+async def work_delegate(api: Api, call: Call, a: DelegateIn) -> Result:
+    wid, err = await _work_id(api, call, a.ref)
+    if err is not None:
+        return err
+    budget: dict[str, Any] | None
+    if isinstance(a.budget, int):
+        budget = {"tokens": a.budget}
+    elif a.budget is not None:
+        budget = a.budget.model_dump(exclude_none=True)
+    else:
+        budget = None
+    resp = await api.request(
+        "POST",
+        f"/internal/v1/work/{wid}/delegate",
+        call.token,
+        json={
+            "to": a.to,
+            "title": _text(a.title_fa),
+            "brief": _text(a.brief_md),
+            **({"budget": budget} if budget else {}),
+        },
+        idem=call.idem("work.delegate"),
+    )
+    r = from_response(resp)
+    if r.outcome == "ok" and isinstance(r.data, dict):
+        r.data = {"work": r.ref, "parent": a.ref, "assignee": a.to}
+    return r
+
+
+async def work_request(api: Api, call: Call, a: RequestIn) -> Result:
+    parts = a.to.split("-")
+    target: dict[str, Any]
+    if len(parts) == 1:
+        target = {"company": a.to}  # CEO to another company's CEO
+    elif len(parts) == 2:
+        target = {"company": parts[0], "department": parts[1]}  # a department (its manager)
+    else:
+        target = {"to": a.to}  # an employee (a manager) by code
+    if "company" in target and target["company"] == call.gate.get("company"):
+        target.pop("company")
+    req_by = None
+    if call.gate.get("work_ref"):
+        req_by, _ = await _work_id(api, call, call.gate["work_ref"])
+    resp = await api.request(
+        "POST",
+        "/internal/v1/work",
+        call.token,
+        json={
+            **target,
+            "title": _text(a.title_fa),
+            "brief": _text(a.brief_md),
+            **({"requested_by_work_id": req_by} if req_by else {}),
+        },
+        idem=call.idem("work.request"),
+    )
+    r = from_response(resp, None)
+    if r.outcome == "ok" and isinstance(r.data, dict):
+        work = r.data.get("work") or {}
+        r.ref = work.get("ref")
+        r.data = {"work": r.ref, "assignee": (work.get("assignee") or {}).get("code")}
+    return r
+
+
+async def activity_set(api: Api, call: Call, a: ActivityIn) -> Result:
+    state = "sleeping" if a.state == "idle" else a.state
+    r = from_response(
+        await api.request(
+            "POST",
+            "/internal/v1/activity",
+            call.token,
+            json={"employee": call.gate["employee"], "activity": state, "note": _text(a.note)},
+        ),
+        None,
+    )
+    if r.outcome == "ok":
+        r.data = {"activity": state}
+    return r
+
+
+async def notify(api: Api, call: Call, a: NotifyIn) -> Result:
+    resp = await api.request(
+        "POST",
+        "/internal/v1/notifications",
+        call.token,
+        json={
+            "level": a.level,
+            "title_fa": _text(a.title_fa),
+            "body_fa": _text(a.body_fa),
+            **({"category": a.category} if a.category else {}),
+            **({"link_kind": a.link.kind, "link_ref": a.link.ref} if a.link else {}),
+        },
+    )
+    r = from_response(resp, None)
+    if r.outcome == "ok" and isinstance(r.data, dict):
+        r.ref = f"notification:{r.data.get('id')}"
+        r.data = {"level": r.data.get("level"), "state": r.data.get("state")}
+    return r
+
+
+TOOLS: dict[str, tuple[type[In], Handler]] = {
+    "work.get": (WorkRef, work_get),
+    "company.state": (CompanyIn, company_state),
+    "health.sites": (SitesIn, health_sites),
+    "health.hub": (Empty, health_hub),
+    "treasury.usage": (UsageIn, treasury_usage),
+    "knowledge.search": (SearchIn, knowledge_search),
+    "audit.recent": (AuditIn, audit_recent),
+    "memory.read": (Empty, memory_read),
+    "github.read": (GithubIn, github_read),
+    "deliver": (DeliverIn, deliver),
+    "propose": (ProposeIn, propose),
+    "message.owner": (OwnerMessageIn, message_owner),
+    "message.thread": (ThreadMessageIn, message_thread),
+    "memory.write": (MemoryIn, memory_write),
+    "work.accept": (AcceptIn, work_accept),
+    "work.progress": (ProgressIn, work_progress),
+    "work.fail": (FailIn, work_fail),
+    "work.delegate": (DelegateIn, work_delegate),
+    "work.request": (RequestIn, work_request),
+    "activity.set": (ActivityIn, activity_set),
+    "notify": (NotifyIn, notify),
+}
+
+
+def validate(tool: str, args: Any) -> tuple[Any, dict[str, str]]:
+    """(parsed input, {}) or (None, field errors without the submitted values)."""
+    model, _ = TOOLS[tool]
+    try:
+        return model.model_validate(args if isinstance(args, dict) else {}), {}
+    except ValidationError as exc:
+        return None, {
+            ".".join(str(p) for p in e["loc"]) or "args": e["msg"][:160] for e in exc.errors()[:10]
+        }

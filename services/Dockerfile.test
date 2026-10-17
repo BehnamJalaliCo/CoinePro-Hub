@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
-    PYTHONPATH=/w/hq-common/src:/w/llm-router/src:/w/claude-runtime/src
+    PYTHONPATH=/w/hq-common/src:/w/llm-router/src:/w/claude-runtime/src:/w/gateway/src
 
 COPY requirements-test.lock /tmp/requirements-test.lock
 RUN pip install --require-hashes --no-deps -r /tmp/requirements-test.lock \

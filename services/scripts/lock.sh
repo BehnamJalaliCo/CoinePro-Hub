@@ -18,9 +18,11 @@ uv() {
 }
 
 S=services
-uv $S/llm-router/requirements.in $S/claude-runtime/requirements.in $S/requirements-dev.in -o $S/requirements-test.lock
+uv $S/llm-router/requirements.in $S/claude-runtime/requirements.in $S/gateway/requirements.in \
+  $S/requirements-dev.in -o $S/requirements-test.lock
 uv $S/llm-router/requirements.in -c $S/requirements-test.lock -o $S/llm-router/requirements.lock
 uv $S/claude-runtime/requirements.in -c $S/requirements-test.lock -o $S/claude-runtime/requirements.lock
+uv $S/gateway/requirements.in -c $S/requirements-test.lock -o $S/gateway/requirements.lock
 uv apps/api/requirements.in apps/api/requirements-dev.in -c $S/requirements-test.lock -o apps/api/requirements-test.lock
 uv apps/api/requirements.in -c apps/api/requirements-test.lock -o apps/api/requirements.lock
-echo "lock: services (test, llm-router, claude-runtime) and apps/api (test, runtime)"
+echo "lock: services (test, llm-router, claude-runtime, gateway) and apps/api (test, runtime)"
