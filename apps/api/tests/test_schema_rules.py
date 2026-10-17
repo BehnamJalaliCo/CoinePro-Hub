@@ -341,7 +341,9 @@ async def test_resolution_refs_are_gapless(hub: Hub) -> None:
     ("raw", "normal"),
     [
         ("كيك", "کیک"),
-        ("می‌روم", "میروم"),
+        ("می‌روم", "می روم"),  # ZWNJ becomes a space (v2)
+        ("أحمد إمام آمد", "احمد امام امد"),
+        ("مدرسة مؤسسه", "مدرسه موسسه"),
         ("سَلام", "سلام"),
         ("۱۲۳ و ١٢٣", "123 و 123"),
         ("  Hello   World ", "hello world"),

@@ -169,7 +169,7 @@ def new_company(hub: Hub, owner_db: Database) -> Callable[..., Any]:
             await tx.exec("SET LOCAL ROLE hq")
             row = await tx.one(
                 """INSERT INTO core.companies (code, name, kind, name_fa, name_en, color_index, template)
-                   VALUES (:code, :name, 'company', :nfa, :name, 5, :tpl) RETURNING id, code""",
+                   VALUES (:code, :name, 'company', :nfa, :name, NULL, :tpl) RETURNING id, code""",
                 code=code,
                 name=f"Test {code}",
                 nfa=f"شرکت آزمایشی {code}",
@@ -281,3 +281,31 @@ async def wk(hub: Hub) -> AsyncIterator[dict[str, Any]]:
     async with Worker(client, task_queue=s.task_queue, workflows=WORKFLOWS, activities=acts.all()):
         yield {"hub": whub, "client": client, "acts": acts, "tq": s.task_queue}
     await db.close()
+
+
+def body_bytes(body: Any) -> bytes:
+    import json as _json
+
+    return _json.dumps(body, ensure_ascii=False).encode()
+
+
+async def signed_put(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    path: str,
+    body: Any,
+    action: str,
+) -> httpx.Response:
+    """PUT whose step-up is bound to the SHA-256 of the exact body (contract §10 v1.1)."""
+    import hashlib
+
+    content = body_bytes(body)
+    su = await step_up(
+        hub, owner_session["session_id"], action, hashlib.sha256(content).hexdigest()
+    )
+    return await client.put(
+        path,
+        content=content,
+        headers={**owner_session["headers"], **su, "Content-Type": "application/json"},
+    )

@@ -22,7 +22,7 @@ from hq_api.app import create_app
 from hq_api.hub import Hub
 from hq_api.policy import Policy
 
-from .conftest import agent_headers, idem, step_up
+from .conftest import agent_headers, idem, signed_put, step_up
 
 
 async def _work_for_ceo(
@@ -224,7 +224,7 @@ async def test_policy_down_means_denied(hub: Hub, new_company: Callable[..., Any
             headers={**agent_headers(f"{co}-CEO"), **idem()},
             json={"kind": "proposal", "title": "x", "payload": {}},
         )
-    assert r.status_code == 503 and r.json()["code"] == "policy_denied"
+    assert r.status_code == 503 and r.json()["code"] == "policy_unavailable"
     await dead.policy.aclose()
 
 
@@ -312,10 +312,18 @@ async def test_treasury_read_side_and_owner_controls(
     api = next(c for c in conns if c["key"] == "anthropic-api")
     patch = {"display_name": "Anthropic API (owner)"}
     assert (
-        await client.patch(f"/api/v1/connections/{api['id']}", headers=h, json=patch)
+        await client.patch(
+            f"/api/v1/connections/{api['id']}",
+            headers={**h, "If-Match": str(api["version"])},
+            json=patch,
+        )
     ).status_code == 403
     st = await step_up(hub, sid, "connection.update", api["id"])
-    r = await client.patch(f"/api/v1/connections/{api['id']}", headers={**h, **st}, json=patch)
+    r = await client.patch(
+        f"/api/v1/connections/{api['id']}",
+        headers={**h, **st, "If-Match": str(api["version"])},
+        json=patch,
+    )
     assert r.status_code == 200 and r.json()["display_name"] == "Anthropic API (owner)"
 
     secret = "sk-test-SECRET-MARKER-" + uuid.uuid4().hex
@@ -345,11 +353,13 @@ async def test_treasury_read_side_and_owner_controls(
         x["company"] == co["code"] and x["department"] is None and x["connection"] == "claude-max"
         for x in a["resolved"]
     )
-    st = await step_up(hub, sid, "assignments.update", "*")
-    r = await client.put(
+    r = await signed_put(
+        client,
+        hub,
+        owner_session,
         "/api/v1/assignments",
-        headers={**h, **st},
-        json={"assignments": [{"scope_type": "company", "scope_ref": co["code"], "effort": "low"}]},
+        {"assignments": [{"scope_type": "company", "scope_ref": co["code"], "effort": "low"}]},
+        "assignments.update",
     )
     assert r.status_code == 200
     assert (
