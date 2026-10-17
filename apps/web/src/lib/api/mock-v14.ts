@@ -109,17 +109,18 @@ const errands: any[] = [
 const rollup = (period: 'week' | 'month') => ({
   period, key: period === 'week' ? '2026-10-10' : '1405-07', best_company: 'TY',
   companies: [
-    { company: 'TY', stars: 4.3, score: 86, parts: { kpi: 88, challenges: 86, compliance: 84, people: 82 }, rank: 1, trend: [74, 78, 80, 83, 86] },
-    { company: 'FX', stars: 3.6, score: 72, parts: { kpi: 78, challenges: 72, compliance: 71, people: 68 }, rank: 2, trend: [76, 75, 73, 71, 72] },
-    { company: 'PC', stars: 3.1, score: 61, parts: { kpi: 66, challenges: 58, compliance: 58, people: 64 }, rank: 3, trend: [68, 66, 63, 62, 61] },
-  ].map((c) => (period === 'month' ? { ...c, score: c.score - 2, stars: Math.round(((c.score - 2) / 20) * 10) / 10 } : c)),
+    { company: 'TY', stars: 4.3, score: 86, parts: { kpi: 88, challenges: 86, compliance: 84, people: 82, efficiency: 88 }, rank: 1, trend: [74, 78, 80, 83, 86] },
+    { company: 'FX', stars: 3.6, score: 72, parts: { kpi: 78, challenges: 72, compliance: 71, people: 68, efficiency: 66 }, rank: 2, trend: [76, 75, 73, 71, 72] },
+    { company: 'PC', stars: 3.1, score: 61, parts: { kpi: 66, challenges: 58, compliance: 58, people: 64, efficiency: 55 }, rank: 3, trend: [68, 66, 63, 62, 61] },
+  ].map((c) => ({ ...c, score: Math.round(0.35 * c.parts.kpi + 0.2 * c.parts.challenges + 0.15 * c.parts.compliance + 0.15 * c.parts.people + 0.15 * c.parts.efficiency) }))
+    .map((c) => (period === 'month' ? { ...c, score: c.score - 2 } : c)).map((c) => ({ ...c, stars: Math.round((c.score / 20) * 10) / 10 })),
   employees: [
-    { code: 'TY-GROWTH-01', company: 'TY', title_fa: 'تحلیلگر سئوی فنی', stars: 4.5, count: 1, rank_company: 1, rank_holding: 1, trend: [3.5, 4, 4, 4.5] },
-    { code: 'TY-TECH-MGR', company: 'TY', title_fa: 'مدیر فنی', stars: 4, count: 1, rank_company: 2, rank_holding: 2, trend: [3.5, 3.5, 4, 4] },
-    { code: 'FX-QUANT-02', company: 'FX', title_fa: 'پایشگر سیگنال', stars: 4, count: 1, rank_company: 1, rank_holding: 3, trend: [4, 4.5, 4, 4] },
-    { code: 'FX-TECH-MGR', company: 'FX', title_fa: 'مدیر فنی', stars: 3.5, count: 1, rank_company: 2, rank_holding: 4, trend: [3, 3, 3.5, 3.5] },
-    { code: 'PC-TECH-MGR', company: 'PC', title_fa: 'مدیر فنی', stars: 3, count: 1, rank_company: 1, rank_holding: 5, trend: [3.5, 3, 3, 3] },
-    { code: 'PC-GROWTH-MGR', company: 'PC', title_fa: 'مدیر مارکتینگ', stars: 2.5, count: 1, rank_company: 2, rank_holding: 6, trend: [3, 3, 2.5, 2.5] },
+    { code: 'TY-GROWTH-01', company: 'TY', title_fa: 'تحلیلگر سئوی فنی', stars: 4.5, count: 1, rank_company: 1, rank_holding: 1, trend: [3.5, 4, 4, 4.5], efficiency: 92 },
+    { code: 'TY-TECH-MGR', company: 'TY', title_fa: 'مدیر فنی', stars: 4, count: 1, rank_company: 2, rank_holding: 2, trend: [3.5, 3.5, 4, 4], efficiency: 81 },
+    { code: 'FX-QUANT-02', company: 'FX', title_fa: 'پایشگر سیگنال', stars: 4, count: 1, rank_company: 1, rank_holding: 3, trend: [4, 4.5, 4, 4], efficiency: 74 },
+    { code: 'FX-TECH-MGR', company: 'FX', title_fa: 'مدیر فنی', stars: 3.5, count: 1, rank_company: 2, rank_holding: 4, trend: [3, 3, 3.5, 3.5], efficiency: 63 },
+    { code: 'PC-TECH-MGR', company: 'PC', title_fa: 'مدیر فنی', stars: 3, count: 1, rank_company: 1, rank_holding: 5, trend: [3.5, 3, 3, 3], efficiency: 58 },
+    { code: 'PC-GROWTH-MGR', company: 'PC', title_fa: 'مدیر مارکتینگ', stars: 2.5, count: 1, rank_company: 2, rank_holding: 6, trend: [3, 3, 2.5, 2.5], efficiency: 47 },
   ],
   lessons: ['L-0003'],
 });
@@ -129,7 +130,7 @@ const rubrics = ['TY', 'FX', 'PC'].map((c) => ({
   criteria: [
     { key: 'evidence', name_fa: 'تحویل با شاهد', weight: 30, description_md: 'خروجی‌های قبول‌شده با منبع' },
     { key: 'on_time', name_fa: 'به‌موقع', weight: 20, description_md: 'تحویل پیش از موعد' },
-    { key: 'cost', name_fa: 'هزینه‌ی هر خروجی', weight: 20, description_md: 'در برابر میانگین دپارتمان' },
+    { key: 'efficiency', name_fa: 'کارایی', weight: 20, description_md: 'توکن هر خروجی پذیرفته‌شده در برابر میانه‌ی دپارتمان، اجرای هدررفته، دقت برآورد' },
     { key: 'owner', name_fa: 'امتیاز مالک', weight: 20, description_md: 'میانگین ۱ تا ۱۰ مالک' },
     { key: 'initiative', name_fa: 'ابتکار', weight: 10, description_md: 'پیشنهاد مفید بی‌درخواست' },
   ],

@@ -93,8 +93,9 @@ export function useErrandAction() {
 
 // --------------------------------------------------------------- stars --
 export type StarRubric = { company: string; version: number; criteria: Array<{ key: string; name_fa: string; weight: number; description_md: string }>; rules_md: string; by: Actor; status: string; updated_at: string };
-export type CompanyStanding = { company: string; stars: number; score: number; parts: { kpi: number; challenges: number; compliance: number; people: number }; rank: number; trend: number[] };
-export type EmployeeStanding = { code: string; company: string; title_fa: string; stars: number; count: number; rank_company: number; rank_holding: number; trend: number[] };
+// ⟨1.4.3⟩ efficiency: spending the envelope well, with results and without waste (0–100, from the ledger).
+export type CompanyStanding = { company: string; stars: number; score: number; parts: { kpi: number; challenges: number; compliance: number; people: number; efficiency: number }; rank: number; trend: number[] };
+export type EmployeeStanding = { code: string; company: string; title_fa: string; stars: number; count: number; rank_company: number; rank_holding: number; trend: number[]; efficiency?: number | null };
 export type StarRollup = { period: 'week' | 'month'; key: string; best_company: string; companies: CompanyStanding[]; employees: EmployeeStanding[]; lessons: string[] };
 export type Lesson = { id: string; ref: string; source_company: string; period: string; title_fa: string; body_md: string; evidence: Evidence[]; adoption: Array<{ company: string; status: 'proposed' | 'adopted' | 'rejected'; decision_ref: string | null }> };
 export const useRollup = (period: 'week' | 'month') => useQuery({ queryKey: ['stars', 'rollup', period], queryFn: () => call<StarRollup>('GET', `/stars/rollup?period=${period}`) });
@@ -208,8 +209,10 @@ export type BackupStatus = {
 export const useBackups = () => useQuery({ queryKey: ['backups'], queryFn: () => call<BackupStatus>('GET', '/backups/status'), refetchInterval: 120_000 });
 
 // -------------------------------------------------------------- hiring --
-// Contract §18.11 (v1.4.2): hiring starts with the owner. Closed by default; the owner opens it to the CEOs' proposals or hires directly.
-export type Hiring = { state: 'closed' | 'open'; mode: 'self' | 'proposals' | null; changed_at: string | null; changed_by: Actor | null; withdrawn: string[] };
+// Contract §18.11 (v1.4.2, v1.4.3): closed until the owner opens it. `delegated`: each company's CEO hires with full authority inside the
+// company's monthly token envelope (its month budget) and picks the model each job needs; `proposals`: every hire is the owner's card.
+export type Envelope = { company: string; tokens_month: number | null; committed_month: number; used_month: number; hires_month: number };
+export type Hiring = { state: 'closed' | 'open'; mode: 'delegated' | 'proposals' | null; changed_at: string | null; changed_by: Actor | null; withdrawn: string[]; envelopes: Envelope[] };
 export type RoleInfo = {
   role: string; title_fa: string; title_en: string; kind: string; scope: 'company' | 'holding' | string; department: string | null;
   model: string; effort: string; priority: string; tools: string[]; limits: { steps_per_run: number; tokens_per_step: number; tokens_per_run: number }; version: number;
@@ -230,12 +233,49 @@ export function useHiringAction() {
   const qc = useQueryClient();
   const done = () => Promise.all([qc.invalidateQueries({ queryKey: ['hiring'] }), qc.invalidateQueries({ queryKey: ['decisions'] }), qc.invalidateQueries({ queryKey: ['inbox'] })]);
   return {
-    start: useMutation({ mutationFn: async (mode: 'proposals' | 'self') => call<Hiring>('POST', '/owner/hiring/start', { mode }, { 'X-Step-Up': await stepUp('hiring.start', 'holding') }), onSuccess: done }),
+    start: useMutation({ mutationFn: async (mode: 'delegated' | 'proposals') => call<Hiring>('POST', '/owner/hiring/start', { mode }, { 'X-Step-Up': await stepUp('hiring.start', 'holding') }), onSuccess: done }),
+    // The envelopes are company month budgets (§9 PUT /budgets): the seal is bound to the exact body.
+    envelopes: useMutation({
+      mutationFn: async (items: Array<{ company: string; tokens_month: number }>) => {
+        const body = { budgets: items.map((e) => ({ company: e.company, scope_type: 'company', scope_ref: e.company, period: 'month', token_limit: e.tokens_month, enabled: true })) };
+        return call<unknown>('PUT', '/budgets', body, { 'X-Step-Up': await stepUp('budgets.update', await bodyTarget(JSON.stringify(body))) });
+      },
+      onSuccess: () => Promise.all([done(), qc.invalidateQueries({ queryKey: ['treasury'] })]),
+    }),
     close: useMutation({ mutationFn: () => call<Hiring>('POST', '/owner/hiring/close', {}), onSuccess: done }),
     // The seal is bound to the exact body: the server hashes what it received and compares.
     hire: useMutation({
       mutationFn: async (body: HireIn) => call<HireOut>('POST', '/org/hires', body, { 'X-Step-Up': await stepUp('hire.direct', await bodyTarget(JSON.stringify(body))) }),
       onSuccess: async () => { await done(); await qc.invalidateQueries({ queryKey: ['employees'] }); await qc.invalidateQueries({ queryKey: ['companies'] }); },
+    }),
+  };
+}
+
+// ------------------------------------------------------------- stories --
+// Contract §18.12 (v1.4.3): designed cards per company, system and CEO posts, 24 hours, pulled and never pushed.
+export type StoryKind = 'hire' | 'deliverable' | 'stars' | 'milestone' | 'post';
+export type Story = {
+  id: string; ref: string; company: string; kind: StoryKind; author: Actor; title_fa: string; body_fa: string;
+  figures: Array<{ label_fa: string; value: string }>; media: MediaRef | null;
+  links: { employee?: string; deliverable?: string; decision?: string; work?: string; period?: string };
+  created_at: string; expires_at: string; seen: boolean; welcomed: boolean;
+};
+export type StoryRing = { company: string; unseen: number; latest_at: string; items: Story[] };
+export const useStories = () => useQuery({ queryKey: ['stories'], queryFn: () => call<StoryRing[]>('GET', '/stories'), refetchInterval: 120_000 });
+export function useStoryAction() {
+  const qc = useQueryClient();
+  return {
+    // Seen is quiet: the rings update without refetching the open viewer's data.
+    seen: useMutation({ mutationFn: (refs: string[]) => call<unknown>('POST', '/stories/seen', { refs }),
+      onSuccess: (_d, refs) => qc.setQueryData<StoryRing[]>(['stories'], (rings) => rings?.map((r) => {
+        const items = r.items.map((it) => (refs.includes(it.ref) ? { ...it, seen: true } : it));
+        return { ...r, items, unseen: items.filter((it) => !it.seen).length };
+      })) }),
+    welcome: useMutation({ mutationFn: (ref: string) => call<Story>('POST', `/stories/${ref}/welcome`, {}), onSuccess: () => qc.invalidateQueries({ queryKey: ['stories'] }) }),
+    // Undoing a hire is the employee's dismissal (§4), sealed on the code.
+    dismiss: useMutation({
+      mutationFn: async (code: string) => call<unknown>('POST', `/employees/${code}/dismiss`, { reason: 'مالک: از استوری' }, { 'X-Step-Up': await stepUp('employee.dismiss', code) }),
+      onSuccess: () => Promise.all(['stories', 'employees', 'companies', 'hiring'].map((k) => qc.invalidateQueries({ queryKey: [k] }))),
     }),
   };
 }

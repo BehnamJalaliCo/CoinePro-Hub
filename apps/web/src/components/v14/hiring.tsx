@@ -10,53 +10,62 @@ import { Card, FilterChip, Pill, SectionTitle, Segmented, Skeleton } from '@/com
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api/client';
 import { useCompanies, useConnections, useDepartments } from '@/lib/api/hooks';
-import { hireableRoles, useHiring, useHiringAction, useRoles, type HireIn, type RoleInfo } from '@/lib/api/v14';
+import { hireableRoles, useHiring, useHiringAction, useRoles, type HireIn, type Hiring, type RoleInfo } from '@/lib/api/v14';
+import type { Company } from '@/lib/company';
+import { companyOf } from '@/lib/company';
+import type { IconName } from '@/generated/icons';
 import { ago, cx, modelLabel, tokens } from '@/lib/format';
 
 const field = 'h-11 w-full rounded-[10px] border border-strong bg-tile px-3 text-[15px] text-ink outline-none focus:border-gold-ink';
 const EFFORTS = ['low', 'medium', 'high', 'xhigh'] as const;
 const MODELS = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5'];
 
-/** Contract §18.11: hiring starts with the owner (owner, 2026-10-17). Closed until the owner opens it, by hiring directly or by asking the CEOs. */
+/** Contract §18.11 (owner, 2026-10-17): closed until the owner brings the hub up; then each company's CEO hires with full authority inside
+ *  the company's monthly envelope and picks the model each job needs, or every hire is the owner's card. The owner can always hire directly. */
 export function HiringCard() {
   const { data: h, isLoading } = useHiring();
+  const { data: companies } = useCompanies();
   const act = useHiringAction();
   const toast = useToast();
   const [sheet, setSheet] = useState(false);
+  const [envelopes, setEnvelopes] = useState<null | 'edit' | 'open'>(null);
   const [confirm, setConfirm] = useState(false);
   const open = h?.state === 'open';
+  const delegated = open && h?.mode === 'delegated';
+  const fail = (e: unknown, fa: string) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : e instanceof Error ? e.message : fa });
 
   const startProposals = async () => {
     try {
       await act.start.mutateAsync('proposals');
       setConfirm(false);
-      toast({ tone: 'ok', text: 'استخدام باز شد؛ هر مدیرعامل یک کار «تیم ماه اول» گرفت.' });
-    } catch (e) { toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : e instanceof Error ? e.message : 'باز نشد.' }); }
+      toast({ tone: 'ok', text: 'استخدام باز شد؛ هر استخدام یک کارت برای مُهر توست.' });
+    } catch (e) { fail(e, 'باز نشد.'); }
   };
   const close = async () => {
     try {
       await act.close.mutateAsync();
       toast({ tone: 'info', text: 'استخدام بسته شد؛ پیشنهادهای منتظر پس گرفته شدند.' });
-    } catch (e) { toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'بسته نشد.' }); }
+    } catch (e) { fail(e, 'بسته نشد.'); }
   };
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <SectionTitle title="استخدام" note="تا خودت شروع نکنی، هیچ ایجنتی استخدام پیشنهاد نمیدهد."
-        action={h ? <Pill tone={open ? 'pos' : 'neutral'} dot>{open ? 'باز برای پیشنهاد' : 'بسته'}</Pill> : undefined} />
+      <SectionTitle title="استخدام" note={delegated ? 'مدیرعامل‌ها با اختیار کامل، داخل پاکت ماهانه‌ی هر شرکت' : 'تا خودت باز نکنی، هیچ ایجنتی استخدام پیشنهاد نمیدهد.'}
+        action={h ? <Pill tone={open ? 'pos' : 'neutral'} dot>{delegated ? 'با مدیرعامل‌ها' : open ? 'با مُهر من' : 'بسته'}</Pill> : undefined} />
       {isLoading || !h ? <Skeleton className="h-28" /> : (
         <>
           <p className="text-[13px] leading-6 text-sec">
-            {open ? 'مدیرعامل‌ها تیم ماه اول را پیشنهاد میدهند؛ هر پیشنهاد با برآورد توکن به کارتابل تو میرسد.'
-              : h.mode === 'self' ? 'فقط خودت استخدام میکنی؛ ایجنت‌ها پیشنهاد نمیدهند و کمبود تیم را در خروجی کارشان مینویسند.'
-                : 'وقتی هاب را برای کار واقعی بالا آوردی، یکی از دو راه را انتخاب کن. تا آن موقع ایجنت‌ها کمبود تیم را فقط در خروجی کارشان مینویسند.'}
+            {delegated ? 'هر دپارتمان به اندازه‌ی نیازش نیرو میخواهد و مدیرعامل تصمیم میگیرد و مدل هر کار را خودش انتخاب میکند. هر استخدام یک استوری میسازد؛ از همان‌جا خوش‌آمد میگویی یا برمیگردانی. مصرف درست بودجه ستاره میگیرد.'
+              : open ? 'هر استخدام یک کارت در کارتابل توست، با برآورد توکن.'
+                : 'وقتی هاب را برای کار واقعی بالا آوردی، اختیار را به مدیرعامل‌ها بده. تا آن موقع ایجنت‌ها کمبود تیم را فقط در خروجی کارشان مینویسند.'}
             {h.changed_at ? <span className="text-muted">{' '}({h.changed_by?.kind === 'owner' ? 'تو' : 'سیستم'}، {ago(h.changed_at)})</span> : null}
           </p>
+          <Envelopes h={h} companies={companies} onEdit={() => setEnvelopes('edit')} />
           <div className="grid gap-2 sm:grid-cols-2">
+            {!delegated ? <Choice icon="seal" title="اختیار استخدام با مدیرعامل‌ها" note="پاکت ماهانه‌ی هر شرکت را تعیین کن؛ از آن به بعد استخدام با خود مدیرعامل‌هاست." onClick={() => setEnvelopes('open')} primary /> : null}
             <Choice icon="hire" title="خودم استخدام میکنم" note="نقش، دپارتمان، مدل و effort را خودت انتخاب میکنی و با گذرکلید مُهر میکنی." onClick={() => setSheet(true)} />
-            {open
-              ? <Choice icon="close" title="بستن استخدام" note="پیشنهادهای منتظر پس گرفته میشوند؛ چیزی حذف نمیشود." onClick={close} busy={act.close.isPending} />
-              : <Choice icon="seal" title="مدیرعامل‌ها پیشنهاد بدهند" note="هر مدیرعامل یک کار «تیم ماه اول» میگیرد؛ پیشنهادها همان لحظه در کارتابل." onClick={() => setConfirm(true)} />}
+            {!open ? <Choice icon="decision" title="هر استخدام با مُهر من" note="مدیرها پیشنهاد میدهند و هر استخدام یک کارت در کارتابل توست." onClick={() => setConfirm(true)} /> : null}
+            {open ? <Choice icon="close" title="بستن استخدام" note="پیشنهادهای منتظر پس گرفته میشوند؛ چیزی حذف نمیشود." onClick={close} busy={act.close.isPending} /> : null}
           </div>
           {h.withdrawn.length ? (
             <div className="flex flex-col gap-2">
@@ -69,21 +78,101 @@ export function HiringCard() {
         </>
       )}
       <HireSheet open={sheet} onOpenChange={setSheet} />
-      <Dialog open={confirm} onOpenChange={setConfirm} title="استخدام برای مدیرعامل‌ها باز شود؟"
+      {h && envelopes ? <EnvelopeSheet h={h} mode={envelopes} onClose={() => setEnvelopes(null)} /> : null}
+      <Dialog open={confirm} onOpenChange={setConfirm} title="هر استخدام با مُهر تو؟"
         actions={<>
           <Button variant="primary" icon="seal" loading={act.start.isPending} onClick={startProposals}>با گذرکلید باز کن</Button>
           <Button variant="ghost" onClick={() => setConfirm(false)}>نه حالا</Button>
         </>}>
-        هر مدیرعامل (و هر نقش هلدینگ با وظیفه‌ی استخدام) یک کار «تیم ماه اولت را پیشنهاد بده» میگیرد. هیچ استخدامی بدون مُهر تو انجام نمیشود و هر وقت بخواهی میبندی.
+        هر مدیرعامل یک کار «تیم ماه اولت را پیشنهاد بده» میگیرد و هر استخدام یک کارت در کارتابل توست. هر وقت بخواهی اختیار را به مدیرعامل‌ها میدهی یا میبندی.
       </Dialog>
     </Card>
   );
 }
 
-function Choice({ icon, title, note, onClick, busy }: { icon: 'hire' | 'seal' | 'close'; title: string; note: string; onClick: () => void; busy?: boolean }) {
+/** Each operating company's month: used and committed against its envelope. */
+function Envelopes({ h, companies, onEdit }: { h: Hiring; companies: Company[] | undefined; onEdit: () => void }) {
+  if (!h.envelopes.length) return null;
+  return (
+    <div className="flex flex-col gap-2 rounded-[12px] bg-tile p-3">
+      <div className="flex items-center gap-2"><span className="flex-1 text-[12px] text-muted">پاکت ماهانه‌ی هر شرکت (توکن)</span><Button variant="ghost" size="sm" icon="budget" onClick={onEdit}>پاکت‌ها</Button></div>
+      {h.envelopes.map((e) => {
+        const cap = e.tokens_month ?? 0;
+        const usedPct = cap ? Math.min(100, (e.used_month / cap) * 100) : 0;
+        const committedPct = cap ? Math.min(100, (e.committed_month / cap) * 100) : 0;
+        return (
+          <div key={e.company} className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2 text-[13px]">
+              <CompanyMark code={e.company} height={13} mono />
+              <span className="min-w-0 flex-1 truncate">{companyOf(companies, e.company).nameFa}</span>
+              {e.tokens_month ? <span className="fig text-[12px] text-sec">{tokens(e.used_month)} / {tokens(e.tokens_month)}</span> : <span className="text-[12px] text-warn">پاکت تعیین نشده</span>}
+            </div>
+            {e.tokens_month ? (
+              <span className="relative h-1.5 overflow-hidden rounded-full bg-page" dir="ltr" title={`تعهد ماهانه‌ی کارمندها ${tokens(e.committed_month)}`}>
+                <span className="absolute inset-y-0 left-0 rounded-full bg-gold-soft" style={{ width: `${committedPct}%` }} />
+                <span className={cx('absolute inset-y-0 left-0 rounded-full', usedPct >= 90 ? 'bg-neg' : usedPct >= 70 ? 'bg-warn' : 'bg-pos')} style={{ width: `${usedPct}%` }} />
+              </span>
+            ) : null}
+            {e.tokens_month ? <span className="text-[11px] text-muted">تعهد کارمندها <span className="fig">{tokens(e.committed_month)}</span>، استخدام این ماه {e.hires_month}</span> : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The envelopes: each operating company's monthly token budget (contract §9 /budgets, §18.11). With `open`, opening delegated hiring follows. */
+function EnvelopeSheet({ h, mode, onClose }: { h: Hiring; mode: null | 'edit' | 'open'; onClose: () => void }) {
+  const act = useHiringAction();
+  const toast = useToast();
+  const { data: companies } = useCompanies();
+  const initial = useMemo(() => Object.fromEntries(h.envelopes.map((e) => [e.company, e.tokens_month ? String(e.tokens_month / 1_000_000) : ''])), [h.envelopes]);
+  const [vals, setVals] = useState<Record<string, string>>(initial);
+  const [busy, setBusy] = useState(false);
+  const parsed = h.envelopes.map((e) => ({ company: e.company, m: Number((vals[e.company] ?? '').replace(/[٫,]/g, '.').replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))) }));
+  const valid = parsed.every((x) => Number.isFinite(x.m) && x.m > 0);
+  const changed = parsed.filter((x) => Number.isFinite(x.m) && x.m > 0 && x.m * 1_000_000 !== (h.envelopes.find((e) => e.company === x.company)?.tokens_month ?? 0));
+  const total = parsed.reduce((a, x) => a + (Number.isFinite(x.m) && x.m > 0 ? x.m : 0), 0);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      if (changed.length) await act.envelopes.mutateAsync(changed.map((x) => ({ company: x.company, tokens_month: Math.round(x.m * 1_000_000) })));
+      if (mode === 'open') {
+        await act.start.mutateAsync('delegated');
+        toast({ tone: 'ok', text: 'اختیار استخدام با مدیرعامل‌هاست؛ هر استخدام یک استوری میسازد.' });
+      } else toast({ tone: 'ok', text: 'پاکت‌ها ثبت شد.' });
+      onClose();
+    } catch (e) { toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : e instanceof Error ? e.message : 'ثبت نشد.' }); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Sheet open={mode !== null} onOpenChange={(v) => { if (!v) onClose(); }} title={mode === 'open' ? 'اختیار استخدام با مدیرعامل‌ها' : 'پاکت ماهانه‌ی شرکت‌ها'}
+      description="هر شرکت تا سقف پاکت ماهانه‌اش استخدام میکند؛ استخدامی که در پاکت جا نشود پذیرفته نمیشود. پاکت همان بودجه‌ی ماهانه‌ی شرکت در خزانه است." width={520}
+      footer={<Button variant="primary" icon="seal" className="w-full" disabled={!valid || (mode === 'edit' && !changed.length)} loading={busy} onClick={submit}>{mode === 'open' ? 'با گذرکلید ثبت کن و باز کن' : 'با گذرکلید ثبت کن'}</Button>}>
+      <div className="flex flex-col gap-4">
+        {h.envelopes.map((e) => (
+          <label key={e.company} className="flex flex-col gap-1.5">
+            <span className="flex items-center gap-2 text-[13px] text-sec"><CompanyMark code={e.company} height={13} mono />{companyOf(companies, e.company).nameFa}</span>
+            <span className="flex items-center gap-2">
+              <input value={vals[e.company] ?? ''} onChange={(ev) => setVals((v) => ({ ...v, [e.company]: ev.target.value }))} inputMode="decimal" dir="ltr" placeholder="—" aria-label={`پاکت ماهانه‌ی ${companyOf(companies, e.company).nameFa} به میلیون توکن`}
+                className="fig h-11 w-28 rounded-[10px] border border-strong bg-tile px-3 text-[15px] text-ink outline-none focus:border-gold-ink" />
+              <span className="fig text-[13px] text-muted">M</span>
+              <span className="flex-1 text-end text-[11px] text-muted">تعهد <span className="fig">{tokens(e.committed_month)}</span>، مصرف این ماه <span className="fig">{tokens(e.used_month)}</span></span>
+            </span>
+          </label>
+        ))}
+        <p className="rounded-[12px] bg-tile p-3 text-[12px] leading-6 text-sec">جمع پاکت‌ها <span className="fig font-semibold text-ink">{tokens(Math.round(total * 1_000_000))}</span> در ماه. استخدام‌های خود هلدینگ همیشه با مُهر توست.</p>
+      </div>
+    </Sheet>
+  );
+}
+
+function Choice({ icon, title, note, onClick, busy, primary }: { icon: IconName; title: string; note: string; onClick: () => void; busy?: boolean; primary?: boolean }) {
   return (
     <button type="button" onClick={onClick} disabled={busy}
-      className="flex items-start gap-3 rounded-[12px] bg-tile p-3 text-start transition-colors hover:bg-hover disabled:opacity-60">
+      className={cx('flex items-start gap-3 rounded-[12px] p-3 text-start transition-colors disabled:opacity-60', primary ? 'bg-gold-soft ring-1 ring-[var(--hq-gold-ink)] hover:brightness-105' : 'bg-tile hover:bg-hover')}>
       <span className="mt-0.5 text-gold-ink"><Icon name={icon} size={20} /></span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="text-[14px] font-semibold text-ink">{title}</span><span className="text-[12px] leading-5 text-muted">{note}</span></span>
     </button>

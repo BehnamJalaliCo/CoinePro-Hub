@@ -13,7 +13,8 @@ import { useLessons, useRollup, useRubrics } from '@/lib/api/v14';
 import { companyOf } from '@/lib/company';
 import { cx, jDate } from '@/lib/format';
 
-const PARTS: Array<[keyof import('@/lib/api/v14').CompanyStanding['parts'], string, number]> = [['kpi', 'KPI', 40], ['challenges', 'چالش‌ها', 25], ['compliance', 'انطباق', 20], ['people', 'ستاره‌ی کارمندها', 15]];
+// Contract §18.4 ⟨1.4.3⟩: efficiency (the envelope kept, little waste, a fair cost per accepted output) is 15% of a company's score.
+const PARTS: Array<[keyof import('@/lib/api/v14').CompanyStanding['parts'], string, number]> = [['kpi', 'KPI', 35], ['challenges', 'چالش‌ها', 20], ['compliance', 'انطباق', 15], ['people', 'ستاره‌ی کارمندها', 15], ['efficiency', 'کارایی', 15]];
 
 /** ستاره‌ها (contract §18.4): CEOs give their people 0–5 stars weekly under their own rubric; companies are ranked from KPIs,
  *  the overseer's challenges, compliance and their people. The owner gives no stars; the owner's 1–10 rating stays separate. */
@@ -48,7 +49,7 @@ export default function StarsPage() {
           ) : null}
           <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
             <Card className="flex flex-col gap-1 p-4">
-              <SectionTitle title="رتبه‌ی شرکت‌ها" note="امتیاز = ۴۰٪ KPI + ۲۵٪ چالش‌ها + ۲۰٪ انطباق + ۱۵٪ ستاره‌ی کارمندها" />
+              <SectionTitle title="رتبه‌ی شرکت‌ها" note="امتیاز = ۳۵٪ KPI + ۲۰٪ چالش‌ها + ۱۵٪ انطباق + ۱۵٪ ستاره‌ی کارمندها + ۱۵٪ کارایی (مصرف درست بودجه)" />
               {r.companies.map((c) => (
                 <div key={c.company} className="flex flex-col gap-2 border-b border-div py-3 last:border-0">
                   <div className="flex flex-wrap items-center gap-3">
@@ -57,7 +58,7 @@ export default function StarsPage() {
                     <Stars value={c.stars} />
                     <Spark values={c.trend} min={40} max={100} />
                   </div>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 ps-9 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 ps-9 sm:grid-cols-5">
                     {PARTS.map(([k, fa, w]) => (
                       <span key={k} className="flex flex-col gap-0.5"><span className="text-[11px] text-muted">{fa} <span className="fig">{w}%</span></span><Score value={c.parts[k]} /></span>
                     ))}
@@ -78,6 +79,7 @@ export default function StarsPage() {
                       <span className="fig w-5 text-[12px] text-muted">{co ? e.rank_company : e.rank_holding}</span>
                       <Avatar kind={e.code.endsWith('-MGR') ? 'manager' : 'employee'} dept={e.code.split('-')[1]} size={30} />
                       <span className="flex min-w-0 flex-1 flex-col"><span className="truncate text-[13px]">{e.title_fa}</span><span className="fig text-[11px] text-muted">{e.code}</span></span>
+                      {e.efficiency != null ? <span className="flex flex-col items-end" title="کارایی: توکن هر خروجی پذیرفته‌شده، اجرای هدررفته، دقت برآورد"><span className="fig text-[12px] text-sec">{e.efficiency}</span><span className="text-[10px] text-muted">کارایی</span></span> : null}
                       <Stars value={e.stars} size={13} />
                     </Link>
                   </li>

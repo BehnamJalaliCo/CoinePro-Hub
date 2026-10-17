@@ -13,6 +13,7 @@ import { Bar, Card, Empty, ErrorState, Pill, SectionTitle, Skeleton, StatTile, b
 import { useAway, useCompanies, useDecisions, useInbox, usePlanner, usePresence, useTreasury } from '@/lib/api/hooks';
 import { useGrants, useSessions, useWorkspaces } from '@/lib/api/v13';
 import { useOversight } from '@/lib/api/v14';
+import { StoriesBar } from '@/components/v14/stories';
 import { Sentinel } from '@/components/brand/avatar';
 import { MdInline } from '@/components/ui/md';
 import { useLive } from '@/lib/live';
@@ -205,6 +206,7 @@ export default function CommandCenter() {
   return (
     <>
       <Greeting />
+      <StoriesBar />
       <AwayBanner />
       <Stats />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">

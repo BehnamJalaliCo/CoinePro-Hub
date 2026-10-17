@@ -22,6 +22,7 @@ const companies = CO.map((c, i) => ({
 }));
 
 const actor = (code: string, display_fa: string, kind = 'agent') => ({ kind, code, display_fa });
+const modelName = (id: string) => id.replace(/^claude-([a-z]+)-(\d+)-(\d+).*/, (_m, f: string, a: string, b: string) => `${f[0]!.toUpperCase()}${f.slice(1)} ${a}.${b}`);
 const owner = { kind: 'owner', code: 'owner', display_fa: 'مدیر کل' };
 const system = { kind: 'system', code: 'system', display_fa: 'سیستم' };
 
@@ -76,7 +77,7 @@ const employees: any[] = [
     { code: `${c}-GROWTH-MGR`, company: c, kind: 'manager', department: 'GROWTH', title_fa: 'مدیر مارکتینگ', title_en: 'CMO', activity: 'sleeping' },
   ]),
   { code: 'TY-GROWTH-01', company: 'TY', kind: 'employee', department: 'GROWTH', title_fa: 'تحلیلگر سئوی فنی', title_en: 'Technical SEO analyst', activity: 'working' },
-  { code: 'FX-QUANT-02', company: 'FX', kind: 'employee', department: 'QUANT', title_fa: 'پایشگر سیگنال', title_en: 'Signal monitor', activity: 'waiting' },
+  { code: 'FX-QUANT-02', company: 'FX', kind: 'employee', department: 'QUANT', title_fa: 'پایشگر سیگنال', title_en: 'Signal monitor', activity: 'waiting', hired_at: iso(60 * 5), probation_until: ahead(60 * 24 * 7) },
   { code: 'HQ-OVS-MGR', company: 'HQ', kind: 'inspector', department: 'OVS', title_fa: 'بازرس کل', title_en: 'Inspector General', activity: 'sleeping' },
   { code: 'HQ-AIOPS-MGR', company: 'HQ', kind: 'manager', department: 'AIOPS', title_fa: 'مدیر عملیات هوش مصنوعی', title_en: 'Head of AI Ops', activity: 'idle' },
   { code: 'HQ-ADV', company: 'HQ', kind: 'advisor', department: null, title_fa: 'مشاور کل', title_en: 'Chief Advisor', activity: 'idle' },
@@ -348,16 +349,18 @@ export async function handle(req: Request): Promise<Response> {
     if (p === '/auth/step-up/verify') return json({ step_up_token: 'mock-step-up', expires_at: ahead(2) });
     if (p === '/auth/passkey/login/verify') return json({ session: { expires_at: ahead(60 * 24 * 30) } });
     if (p === '/owner/hiring/start') {
-      const b = (await req.json().catch(() => ({}))) as { mode: 'self' | 'proposals' };
-      Object.assign(hiring, { state: b.mode === 'proposals' ? 'open' : 'closed', mode: b.mode, changed_at: iso(0), changed_by: owner });
-      // Proposals: one "propose your first month's team" item for each CEO, once.
-      if (b.mode === 'proposals') for (const c of CO.filter((x) => x.kind !== 'holding')) if (!work.some((w) => w.title === 'پیشنهاد تیم ماه اول' && w.company === c.code)) work.unshift({ ...work[0], id: `wh-${c.code}`, ref: `W-0002${work.length}`, title: 'پیشنهاد تیم ماه اول', company: c.code, status: 'queued', priority: 'P3', depth: 0, assignee: { code: `${c.code}-CEO`, company: c.code, kind: 'ceo', department: null, title_fa: 'مدیرعامل' }, created_at: iso(0) });
-      return json(hiring);
+      const b = (await req.json().catch(() => ({}))) as { mode: 'delegated' | 'proposals' };
+      const missing = CO.filter((c) => c.kind !== 'holding' && !envelope[c.code]).map((c) => c.code);
+      if (b.mode === 'delegated' && missing.length) return json({ code: 'envelope_required', message_fa: `برای ${missing.join('، ')} پاکت ماهانه تعیین نشده است.`, status: 422, title: 'Unprocessable', type: 'about:blank', fields: { envelopes: missing.join(', ') } }, 422);
+      Object.assign(hiring, { state: 'open', mode: b.mode, changed_at: iso(0), changed_by: owner });
+      // One "build your first month's team" item for each CEO, once.
+      if (b.mode) for (const c of CO.filter((x) => x.kind !== 'holding')) if (!work.some((w) => w.title === 'پیشنهاد تیم ماه اول' && w.company === c.code)) work.unshift({ ...work[0], id: `wh-${c.code}`, ref: `W-0002${work.length}`, title: 'پیشنهاد تیم ماه اول', company: c.code, status: 'queued', priority: 'P3', depth: 0, assignee: { code: `${c.code}-CEO`, company: c.code, kind: 'ceo', department: null, title_fa: 'مدیرعامل' }, created_at: iso(0) });
+      return json(hiringView());
     }
     if (p === '/owner/hiring/close') {
       for (const d of decisions) if (d.kind === 'hire' && d.status === 'pending') { Object.assign(d, { status: 'withdrawn', decided_at: iso(0), decided_by: system, note: 'مالک: استخدام با شروع خود مالک' }); hiring.withdrawn.push(d.ref); }
       Object.assign(hiring, { state: 'closed', mode: null, changed_at: iso(0), changed_by: owner });
-      return json(hiring);
+      return json(hiringView());
     }
     if (p === '/org/hires') {
       const b = (await req.json().catch(() => ({}))) as { company: string; department: string; role: string; title_fa: string; title_en?: string; model?: string; effort?: string; reason?: string; duties?: string[] };
@@ -369,8 +372,24 @@ export async function handle(req: Request): Promise<Response> {
       const emp = { ...employees.find((e) => e.kind === 'employee'), id: `e-${ref}`, code: `${b.company}-${b.department}-${String(n).padStart(2, '0')}`, company: b.company, department: b.department, kind: 'employee', title_fa: b.title_fa, title_en: b.title_en ?? r.title_en, activity: 'idle', activity_at: iso(0), activity_note: null, hired_at: iso(0), hired_by_decision: ref, model: { connection: 'claude-max', model: b.model ?? r.model, effort: b.effort ?? r.effort }, score: { value: null, owner_avg: null, rank_in_department: null, trend: [] } };
       const dec = { ...decisions[0], id: `d-${ref}`, ref, company: b.company, status: 'approved', title: `استخدام ${b.title_fa}`, proposer: owner, created_at: iso(0), what: `${b.title_fa} (${r.title_en}) در دپارتمان ${b.department}.`, why: b.reason ?? 'استخدام مستقیم مالک', payload: { ...b, role: r.role, title_en: b.title_en ?? r.title_en, model: b.model ?? r.model, effort: b.effort ?? r.effort }, seal: { method: 'passkey_uv', sealed_at: iso(0), step_up_id: null }, decided_at: iso(0), decided_by: owner, note: null, resolution: `M-00${decisions.length + 10}`, effect_status: 'applied', thread: null, expires_at: null };
       employees.push(emp); decisions.unshift(dec);
+      stories.push({ id: `st-${ref}`, ref: `ST-${String(stories.length + 101).padStart(6, '0')}`, company: b.company, kind: 'hire', author: system, title_fa: `${b.title_fa} به تیم پیوست`, body_fa: b.reason ?? 'استخدام مستقیم مالک', figures: [{ label_fa: 'مدل', value: modelName(b.model ?? r.model) }, { label_fa: 'effort', value: b.effort ?? r.effort }], links: { employee: emp.code, decision: ref }, media: null, created_at: iso(0), expires_at: iso(-60 * 24), seen: false, welcomed: false });
+      hiresMonth[b.company] = (hiresMonth[b.company] ?? 0) + 1;
       return json({ employee: emp, decision: dec }, 201);
     }
+    if (p === '/budgets') {
+      const b = (await req.json().catch(() => ({ budgets: [] }))) as { budgets: Array<{ company: string; scope_type: string; period: string; token_limit: number | null }> };
+      for (const x of b.budgets) if (x.scope_type === 'company' && x.period === 'month') envelope[x.company] = x.token_limit;
+      return json(b.budgets.map((x) => ({ ...x, scope_ref: x.company, tokens_used: usedMonth[x.company] ?? 0, usd_limit: null, usd_used: '0', pct: 0, level: 0 })));
+    }
+    if (p === '/stories/seen') {
+      const b = (await req.json().catch(() => ({ refs: [] }))) as { refs: string[] };
+      for (const x of stories) if (b.refs.includes(x.ref)) x.seen = true;
+      return json({ updated: b.refs.length });
+    }
+    const sw = /^\/stories\/(ST-\d+)\/welcome$/.exec(p);
+    if (sw) { const x = stories.find((y) => y.ref === sw[1]); if (!x) return json({}, 404); if (x.kind !== 'hire') return json({ code: 'validation_failed', message_fa: 'فقط استوری استخدام خوش‌آمد دارد.', status: 422, title: 'Unprocessable', type: 'about:blank' }, 422); x.welcomed = true; return json(x); }
+    const ed = /^\/employees\/([A-Z0-9-]+)\/dismiss$/.exec(p);
+    if (ed) { const e = employees.find((y) => y.code === ed[1]); if (!e) return json({}, 404); Object.assign(e, { status: 'dismissed', dismissed_at: iso(0) }); return json({ employee: e, work_returned: 0, transfer_work: null }); }
     const d = /^\/decisions\/(D-\d+)\/(approve|reject|return)$/.exec(p);
     if (d) {
       const x = decisions.find((y) => y.ref === d[1]);
@@ -520,7 +539,8 @@ export async function handle(req: Request): Promise<Response> {
   if (p === '/audit/verify') return json({ ok: true, checked: 1200, first_bad_seq: null, verified_at: iso(60 * 6), anchor: 'ok' });
   if (p === '/resolutions') return json(page([{ ref: 'M-0003', title: 'گزارش هفتگی سئوی فنی تریدیار', body: '…', company: 'TY', sealed_at: iso(60 * 19), sealed_by: owner, sent_to: ['TY-GROWTH-MGR'], source: { decision: 'D-000011' }, follow_up_work_id: null, id: 'r3' }]));
   if (p === '/auth/devices') return json({ items: [{ id: 'dev1', name: 'Chrome · Android', kind: 'passkey', created_at: iso(60 * 20), last_used_at: iso(0), current: true }, { id: 'dev2', name: 'Safari · macOS', kind: 'passkey', created_at: iso(60 * 19), last_used_at: iso(60 * 3) }], next_cursor: null });
-  if (p === '/owner/hiring') return json(hiring);
+  if (p === '/owner/hiring') return json(hiringView());
+  if (p === '/stories') return json(rings());
   if (p === '/roles') return json(roles);
   if (p === '/owner/settings') return json({ timezone: 'Asia/Tehran', calendars: ['jalali', 'gregorian'], morning_report_at: '08:00', digest_minutes: 30, ceo_daily_attention: 6, learning_daily_cap: 3, version: 1 });
   const ch = /^\/org\/([A-Z0-9]+)\/chart$/.exec(p);
@@ -529,6 +549,30 @@ export async function handle(req: Request): Promise<Response> {
 }
 
 // Contract §18.11: hiring is closed until the owner opens it; the owner's decision withdrew the pending hire cards.
-const hiring = { state: 'closed' as 'closed' | 'open', mode: null as 'self' | 'proposals' | null, changed_at: iso(20) as string | null, changed_by: system as typeof system | typeof owner, withdrawn: ['D-000014', 'D-000015', 'D-000016'] };
+const hiring = { state: 'closed' as 'closed' | 'open', mode: null as 'delegated' | 'proposals' | null, changed_at: iso(20) as string | null, changed_by: system as typeof system | typeof owner, withdrawn: ['D-000014', 'D-000015', 'D-000016'] };
+// Envelopes are company month budgets (§9 /budgets); the demo sets two and leaves one for the owner.
+const envelope: Record<string, number | null> = { TY: 6_000_000, FX: 5_000_000, PC: null };
+const committed: Record<string, number> = { TY: 2_400_000, FX: 1_900_000, PC: 1_100_000 };
+const usedMonth: Record<string, number> = { TY: 3_100_000, FX: 2_200_000, PC: 1_400_000 };
+const hiresMonth: Record<string, number> = { TY: 0, FX: 1, PC: 0 };
+const hiringView = () => ({ ...hiring, envelopes: CO.filter((c) => c.kind !== 'holding').map((c) => ({ company: c.code, tokens_month: envelope[c.code] ?? null, committed_month: committed[c.code] ?? 0, used_month: usedMonth[c.code] ?? 0, hires_month: hiresMonth[c.code] ?? 0 })) });
+
+// ---------------------------------------------------------------- stories (§18.12) --
+const ceoOf = (c: string) => ({ kind: 'agent', code: `${c}-CEO`, display_fa: 'مدیرعامل' });
+const stories: any[] = [
+  { company: 'TY', kind: 'stars', author: system, at: 60 * 7, title_fa: 'تریدیار، شرکت برتر هفته', body_fa: 'بهترین کارمند هفته تحلیلگر سئوی فنی است. کمترین هزینه‌ی هر خروجی پذیرفته‌شده در هلدینگ هم مال تریدیار بود.', figures: [{ label_fa: 'امتیاز', value: '86' }, { label_fa: 'ستاره', value: '4.3' }, { label_fa: 'کارایی', value: '88' }], links: { period: '2026-10-10' } },
+  { company: 'TY', kind: 'deliverable', author: system, at: 60 * 3, title_fa: 'گزارش سئوی فنی، امتیاز ۹ تو', body_fa: '۷ صفحه‌ی بیرون از ایندکس پیدا شد که علتش canonical اشتباه بود؛ ۳ اصلاح فوری انجام شد.', figures: [{ label_fa: 'صفحه', value: '40' }, { label_fa: 'اصلاح فوری', value: '3' }, { label_fa: 'امتیاز تو', value: '9' }], links: { deliverable: 'O-000031' } },
+  { company: 'TY', kind: 'post', author: ceoOf('TY'), at: 45, title_fa: 'پنل کاربری سریع‌تر شد', body_fa: 'تیم فنی دو کوئری سنگین داشبورد کاربر را cache کرد و زمان بارگذاری نصف شد.', figures: [{ label_fa: 'قبل', value: '2.4s' }, { label_fa: 'بعد', value: '1.1s' }], links: {} },
+  { company: 'FX', kind: 'hire', author: system, at: 60 * 5, title_fa: 'پایشگر سیگنال به تیم کوانت پیوست', body_fa: 'برای پایش دقت سیگنال‌های طلا بعد از خبرهای مهم؛ ارزان‌ترین مدلی که این کار را خوب انجام میدهد.', figures: [{ label_fa: 'مدل', value: 'Haiku 5.5' }, { label_fa: 'effort', value: 'high' }, { label_fa: 'برآورد ماهانه', value: '420K' }], links: { employee: 'FX-QUANT-02' } },
+  { company: 'FX', kind: 'milestone', author: ceoOf('FX'), at: 60 * 2, title_fa: 'دقت سیگنال طلا برگشت', body_fa: 'فیلتر رژیم نوسان بعد از خبر فدرال رزرو اضافه شد؛ دقت ۷ روزه دوباره به میانگین رسید.', figures: [{ label_fa: 'قبل', value: '61%' }, { label_fa: 'حالا', value: '68%' }], links: { deliverable: 'O-000029' } },
+  { company: 'PC', kind: 'post', author: ceoOf('PC'), at: 60 * 4, seen: true, title_fa: 'ترمینال آماده‌ی انتشار', body_fa: 'نسخه‌ی تازه‌ی ترمینال با canary ۱۰٪ آماده است و در کارتابل تو منتظر مُهر است.', figures: [{ label_fa: 'تست', value: '286' }, { label_fa: 'شکست', value: '0' }], links: { decision: 'D-000017' } },
+].map((x, i) => ({ id: `st${i}`, ref: `ST-${String(i + 101).padStart(6, '0')}`, media: null, created_at: iso(x.at), expires_at: iso(x.at - 60 * 24), seen: false, welcomed: false, ...x }));
+const rings = () => {
+  const by = new Map<string, any[]>();
+  for (const x of [...stories].sort((a, b) => a.created_at.localeCompare(b.created_at))) by.set(x.company, [...(by.get(x.company) ?? []), x]);
+  return [...by].map(([company, items]) => ({ company, unseen: items.filter((x) => !x.seen).length, latest_at: items.at(-1).created_at, items }))
+    .sort((a, b) => Number(b.unseen > 0) - Number(a.unseen > 0) || b.latest_at.localeCompare(a.latest_at));
+};
+
 
 const presence = { khalvat: false, since: iso(60 * 9), until: null as string | null };
