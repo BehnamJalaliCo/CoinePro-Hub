@@ -413,3 +413,15 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - `/__canary` همیشه ۵۰۳ میدهد.
   - سایت قناری در seed با `enabled: false` خاموش است.
   - برای آزمودن دوباره‌ی خط کامل: `enabled: true` در `sites.yaml` و `make up`. این کار یک اجرای واقعی مدل الزامی میکند.
+
+## ۱۴. تصمیم‌های ثبت‌شده‌ی مالک و اپ اندروید (پرامپت ۶ §۱)
+- **سه سؤال گزارش ۴.۱** (تصمیم مالک، ۲۰۲۶-۱۰-۱۷):
+  - نقش NOLOGIN برای مالک دیتابیس **بعداً**.
+  - سقف **۵ اعلان فوری در ساعت** برای هر شرکت **میماند**.
+  - Valkey **بدون persistence** میماند.
+  - هیچ کاری لازم نیست، فقط همین ثبت.
+- **passkey در اپ اندروید:** `HQ_ANDROID_ORIGINS` در `infra/compose/.env` (به api میرود) برابر `android:apk-key-hash:<SHA-256 گواهی امضا، base64url>` است.
+  - این مقدار **عمومی** است و رمز نیست.
+  - فایل `/.well-known/assetlinks.json` را خود وب میسازد.
+  - بررسی: `curl -sI https://hq.coinepro.com/.well-known/assetlinks.json` (Content-Type `application/json`، اثر انگشت `D6:D4:…:15:BF`).
+- **وب** از پرامپت ۵ بالاست. Caddy مسیر `/api/*` را به api میفرستد و بقیه را به web. CSP را خود web میگذارد.

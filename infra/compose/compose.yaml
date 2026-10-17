@@ -537,6 +537,9 @@ services:
       OPA_URL: http://opa:8181
       TEMPORAL_ADDRESS: temporal:7233
       HQ_PUBLIC_ORIGIN: ${HQ_PUBLIC_ORIGIN:-}
+      # The Android app's passkey origin(s), comma separated: the PUBLIC hash of
+      # its signing certificate (prompt 6 §1.2), not a secret.
+      HQ_ANDROID_ORIGINS: ${HQ_ANDROID_ORIGINS:-}
       HQ_WEBAUTHN_RP_ID: ${HQ_WEBAUTHN_RP_ID:-}
       HQ_FILES_ROOT: /data/files
       # Audit chain anchors (prompt 04.1 §1.11): the worker appends, the api reads.
