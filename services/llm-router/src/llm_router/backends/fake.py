@@ -22,11 +22,18 @@ from collections import defaultdict, deque
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
-from llm_router.backends.base import OK, BackendCall, BackendResult, Delta
+from hq_common import vision
+from llm_router.backends.base import OK, BackendCall, BackendResult, Delta, ImagePart
 from llm_router.pricing import Usage
 
 Answer = dict[str, Any] | str | BackendResult
 DEFAULT_STEP = {"summary_fa": "پاسخ آزمایشی", "actions": [], "done": True}
+
+
+def image_tokens(call: BackendCall) -> int:
+    """A rough count for the images a call carries (hq_common.vision)."""
+    n = sum(1 for m in call.messages for p in m.parts if isinstance(p, ImagePart))
+    return n * vision.TOKENS_PER_IMAGE
 
 
 def tokens(text: str) -> int:
@@ -72,7 +79,9 @@ class FakeBackend:
             text=text,
             structured=structured,
             model=call.model,
-            usage=Usage(input_tokens=tokens(prompt), output_tokens=tokens(text)),
+            usage=Usage(
+                input_tokens=tokens(prompt) + image_tokens(call), output_tokens=tokens(text)
+            ),
             stop_reason=stop,
             effort_applied=call.effort is not None,
         )

@@ -2,19 +2,107 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
+
+from hq_common import vision
+from llm_router.backends.base import ImagePart, Part
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 # Ledger metadata an agent call may carry (never content).
 META_KEYS = frozenset({"charter", "run_id", "step", "trigger", "purpose"})
 
 
+class TextBlock(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["text"]
+    text: str = Field(min_length=1)
+
+
+class ImageBlock(BaseModel):
+    """An image a model may see (prompt 06 §2): bytes only, never a URL."""
+
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["image"]
+    media_type: Literal["image/jpeg", "image/png", "image/webp"]
+    data: str = Field(min_length=1, repr=False)  # base64
+    _size: int = PrivateAttr(default=0)
+
+    @model_validator(mode="after")
+    def _bytes(self) -> ImageBlock:
+        self._size = len(vision.decode(self.media_type, self.data))
+        return self
+
+    @property
+    def size(self) -> int:
+        return self._size
+
+
+Block = Annotated[TextBlock | ImageBlock, Field(discriminator="type")]
+
+
 class Message(BaseModel):
+    """A turn: a text, or (user turns only) text and image blocks in order."""
+
     model_config = ConfigDict(extra="forbid")
     role: Literal["user", "assistant"]
-    content: str = Field(min_length=1)
+    content: str | list[Block]
+
+    @field_validator("content")
+    @classmethod
+    def _not_empty(cls, v: str | list[Any]) -> str | list[Any]:
+        if not v:
+            raise ValueError("content must not be empty")
+        return v
+
+    @model_validator(mode="after")
+    def _images_from_the_user(self) -> Message:
+        if self.role != "user" and self.images():
+            raise ValueError("only a user turn may carry images")
+        return self
+
+    def text(self) -> str:
+        """The message's text (all text blocks, in order)."""
+        if isinstance(self.content, str):
+            return self.content
+        return "\n\n".join(b.text for b in self.content if isinstance(b, TextBlock))
+
+    def images(self) -> list[ImageBlock]:
+        if isinstance(self.content, str):
+            return []
+        return [b for b in self.content if isinstance(b, ImageBlock)]
+
+    def parts(self) -> tuple[Part, ...]:
+        """The ordered parts for a backend when the turn has images, else ()."""
+        if not self.images():
+            return ()
+        assert not isinstance(self.content, str)
+        return tuple(
+            b.text if isinstance(b, TextBlock) else ImagePart(b.media_type, b.data)
+            for b in self.content
+        )
+
+    def without_bytes(self) -> dict[str, Any]:
+        """For a stored transcript: an image is kept as its type and size only."""
+        if isinstance(self.content, str):
+            return {"role": self.role, "content": self.content}
+        return {
+            "role": self.role,
+            "content": [
+                {"type": "text", "text": b.text}
+                if isinstance(b, TextBlock)
+                else {"type": "image", "media_type": b.media_type, "bytes": b.size}
+                for b in self.content
+            ],
+        }
 
 
 class RunRequest(BaseModel):
@@ -72,7 +160,15 @@ class RunRequest(BaseModel):
             raise ValueError("send exactly one of `messages` or `prompt`")
         if self.messages is not None and self.messages[-1].role != "user":
             raise ValueError("the last message must come from the user")
+        images = self.images()
+        if len(images) > vision.MAX_IMAGES:
+            raise ValueError(f"at most {vision.MAX_IMAGES} images per request")
+        if sum(i.size for i in images) > vision.MAX_TOTAL_BYTES:
+            raise ValueError("images are larger than 20 MiB together")
         return self
+
+    def images(self) -> list[ImageBlock]:
+        return [i for m in self.messages or [] for i in m.images()]
 
     def as_messages(self) -> list[Message]:
         if self.messages is not None:
@@ -81,7 +177,8 @@ class RunRequest(BaseModel):
         return [Message(role="user", content=self.prompt)]
 
     def input_chars(self) -> int:
-        return len(self.system or "") + sum(len(m.content) for m in self.as_messages())
+        """Text only: images have their own limits (hq_common.vision)."""
+        return len(self.system or "") + sum(len(m.text()) for m in self.as_messages())
 
 
 class UsageOut(BaseModel):

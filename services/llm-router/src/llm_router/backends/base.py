@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Protocol
 
@@ -22,9 +22,22 @@ OK, ERROR, REFUSAL, TIMEOUT, RATE_LIMITED, QUOTA = (
 
 
 @dataclass(frozen=True)
+class ImagePart:
+    """An image of a user turn (prompt 06 §2): its media type and base64 bytes."""
+
+    media_type: str
+    data: str = field(repr=False)
+
+
+Part = str | ImagePart
+
+
+@dataclass(frozen=True)
 class ChatMessage:
     role: str
-    content: str
+    content: str  # the turn's text (every text part, in order)
+    # The ordered text and image parts when the turn carries images, else ().
+    parts: tuple[Part, ...] = ()
 
 
 @dataclass(frozen=True)
