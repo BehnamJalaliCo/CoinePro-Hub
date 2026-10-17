@@ -362,7 +362,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - فایل hash توکن gateway
   - هیچ‌کدام چاپ نمیشود.
 - **سقف مصرف:**
-  - `AGENT_DAILY_TOKEN_CAP` در `.env` (پیش‌فرض ۲٬۰۰۰٬۰۰۰ در روز UTC، برای همه‌ی اجراها)
+  - `AGENT_DAILY_TOKEN_CAP` در `.env` (پیش‌فرض ۲٬۰۰۰٬۰۰۰ در روز UTC، برای همه‌ی اجراها؛ ورودی، خروجی و cache با هم شمرده میشوند). **روی هاب از ۲۰۲۶-۱۰-۱۷: ‏600000** (سقف پرامپت ۵). بالا بردنش تصمیم مالک است.
   - `AGENT_INCIDENT_BUDGET_TOKENS` (۶۰٬۰۰۰ برای هر کار حادثه)
   - سقف منشور هر نقش
 - **کلیدها:**
