@@ -7,6 +7,8 @@ Schedule ids:
     hq-morning-report         daily, owner.settings.morning_report_at in the owner's zone
     hq-audit-verify           daily 02:30 (owner's zone)  AuditVerify
     hq-score-job              daily 03:00 (owner's zone)  ScoreJob
+    hq-site-checks            every 5 min   SiteChecks (rule-based checks + the hub's snapshot)
+    hq-ceo-daily              daily 07:30 (owner's zone)  CeoDaily, paused unless HQ_CEO_DAILY_REPORTS=on
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -43,7 +45,9 @@ DIGEST = "hq-notification-digest"
 MORNING = "hq-morning-report"
 AUDIT = "hq-audit-verify"
 SCORE = "hq-score-job"
-FIXED = (MAINTENANCE, DIGEST, MORNING, AUDIT, SCORE)
+SITE_CHECKS = "hq-site-checks"
+CEO_DAILY = "hq-ceo-daily"
+FIXED = (MAINTENANCE, DIGEST, MORNING, AUDIT, SCORE, SITE_CHECKS, CEO_DAILY)
 
 
 @dataclass(frozen=True)
@@ -110,8 +114,20 @@ def every(minutes: int) -> ScheduleSpec:
     return ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=minutes))])
 
 
-def fixed(morning_at: time, tz: str) -> list[Desired]:
+def fixed(morning_at: time, tz: str, *, ceo_daily: bool = False) -> list[Desired]:
     return [
+        Desired(
+            SITE_CHECKS, "SiteChecks", (), every(5), timedelta(minutes=10), timedelta(minutes=4)
+        ),
+        Desired(
+            CEO_DAILY,
+            "CeoDaily",
+            (),
+            daily_at(time(7, 30), tz),
+            timedelta(hours=2),
+            timedelta(minutes=10),
+            paused=not ceo_daily,
+        ),
         Desired(
             MAINTENANCE, "Maintenance", (), every(5), timedelta(minutes=10), timedelta(minutes=10)
         ),

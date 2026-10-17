@@ -135,3 +135,27 @@ def render(data: dict[str, Any]) -> tuple[str, str]:
     if engaged:
         lines += ["", f"**کلید توقف فعال:** {', '.join(engaged)}"]
     return summary, "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------- the rewrite (prompt 05 §6)
+REWRITE_SYSTEM = (
+    "You are the editor of the owner's morning report of the CoinePro holding. Rewrite the report "
+    "you are given as clear, warm, concise Persian prose for the owner (مدیر کل): lead with what "
+    "matters, group related items, keep every heading's meaning. Rules: use ONLY the facts and the "
+    "numbers that are in the report - never add, drop, round or recompute a number; keep every code "
+    "and ref (W-…, D-…, O-…, TY-CEO) exactly as written; write numbers, money, tokens and codes in "
+    "Latin digits as they are. No preamble, no closing remarks: only the report in markdown."
+)
+_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+
+
+def _numbers(text: str) -> set[str]:
+    import re
+
+    return set(re.findall(r"\d+(?:[.,/]\d+)*", text.translate(_DIGITS)))
+
+
+def same_numbers(source: str, rewrite: str) -> bool:
+    """Every number of the rewrite appears in the source (no new figures)."""
+    allowed = _numbers(source)
+    return all(n in allowed or n.replace(",", "") in allowed for n in _numbers(rewrite))

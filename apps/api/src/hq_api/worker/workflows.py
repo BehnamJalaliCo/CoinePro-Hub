@@ -124,6 +124,7 @@ class Maintenance:
             "end_expired_escrows",
             "reconcile_decisions",
             "reconcile_schedules",
+            "requeue_runs",
             "purge",
         ):
             try:
@@ -175,7 +176,76 @@ class ScoreJob:
         return result
 
 
+# Agent runs (prompt 05 §2). The conversation lives inside run_execute only:
+# activity inputs and results (kept in Temporal's history) carry ids and
+# metadata, never a prompt, a model output or a tool payload.
+RUN_LIMIT = timedelta(minutes=58)
+BUSY_WAIT = timedelta(seconds=30)
+BUSY_MAX_S = 2 * 3600
+
+
+@workflow.defn(name="AgentRun")
+class AgentRun:
+    """claim (wait while the employee is busy) -> execute -> finished."""
+
+    @workflow.run
+    async def run(self, run_id: str) -> dict[str, Any]:
+        waited = 0
+        while True:
+            claim: dict[str, Any] = await _act("run_claim", run_id)
+            if claim["state"] != "busy":
+                break
+            if waited >= BUSY_MAX_S:
+                result: dict[str, Any] = await _act(
+                    "run_finalize", run_id, "refused", "busy_timeout"
+                )
+                return result
+            await workflow.sleep(BUSY_WAIT)
+            waited += int(BUSY_WAIT.total_seconds())
+        if claim["state"] != "running":
+            return claim
+        try:
+            result = await workflow.execute_activity(
+                "run_execute",
+                args=[run_id],
+                start_to_close_timeout=RUN_LIMIT,
+                heartbeat_timeout=timedelta(minutes=3),
+                retry_policy=RetryPolicy(maximum_attempts=1),
+            )
+        except ActivityError:
+            result = await _act("run_finalize", run_id, "failed", "runtime_error")
+        return result
+
+
+@workflow.defn(name="SiteChecks")
+class SiteChecks:
+    """Every 5 minutes: the rule-based site checks, then the hub's own snapshot."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for name in ("site_checks", "hub_health"):
+            try:
+                out[name] = await _act(name, limit=LONG, retry=RetryPolicy(maximum_attempts=2))
+            except ActivityError:
+                out[name] = {"error": True}
+        return out
+
+
+@workflow.defn(name="CeoDaily")
+class CeoDaily:
+    """The CEOs' daily report runs (prompt 05 §6): built, switched off by default."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("ceo_daily", limit=LONG)
+        return result
+
+
 WORKFLOWS = [
+    AgentRun,
+    SiteChecks,
+    CeoDaily,
     DecisionLifecycle,
     RecurringRun,
     Maintenance,

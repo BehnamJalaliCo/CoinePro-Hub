@@ -7,6 +7,8 @@ Durable pull consumers on llm-router's JetStream streams:
                                                      + owner notification (70/90 report, 100 urgent)
                hq.alerts.llm.anomaly               -> urgent owner notification
                hq.alerts.llm.cost_ratio            -> 🔵 report owner notification (prompt 04 §9.1)
+               hq.alerts.quota                     -> hq.core.<HQ>.budget.alert (kind quota)
+                                                     + 🔵 report, once per change (prompt 05 §8)
 Only allow-listed metadata keys are forwarded; no text field ever crosses.
 Nats-Msg-Id = <source stream>:<sequence>, so redeliveries are de-duplicated.
 New consumers start at new messages (old retained events are not replayed).
@@ -66,6 +68,19 @@ USAGE_KEYS = frozenset(
         "cache_write_1h_tokens",
     }
 )
+QUOTA_KEYS = frozenset(
+    {
+        "status",
+        "previous",
+        "connection",
+        "window",
+        "utilization",
+        "resets_at",
+        "source",
+        "at",
+    }
+)
+QUOTA_FA = {"ok": "عادی", "warning": "هشدار", "limited": "محدود"}
 BUDGET_KEYS = frozenset(
     {
         "level",
@@ -227,6 +242,32 @@ class Bridge:
                 f"مصرف غیرعادی مدل: {actor} ({payload.get('calls_this_hour')} فراخوانی در ساعت)",
                 "treasury",
                 f"actor:{actor}",
+            )
+        elif msg.subject == "hq.alerts.quota":
+            company = await self.hub.companies.holding()
+            data = pick(payload, QUOTA_KEYS)
+            paused = payload.get("paused_priorities")
+            data["paused_priorities"] = (
+                [p for p in paused if isinstance(p, str)][:5] if isinstance(paused, list) else []
+            )
+            data["kind"] = "quota"
+            ref = f"quota:{data.get('connection')}"
+            env = events.envelope(company.code, "budget.alert", ref, data)
+            await self.hub.bus.publish(f"hq.core.{company.code}.budget.alert", env, msg_id=msg_id)
+            status = str(data.get("status") or "ok")
+            util = data.get("utilization")
+            pct = (
+                f" ({round(float(util) * 100)}٪ {data.get('window') or ''})"
+                if util not in (None, "")
+                else ""
+            )
+            paused_fa = "، ".join(data["paused_priorities"]) or "هیچ"
+            await self._notify(
+                company,
+                "report",
+                f"سهمیه‌ی اشتراک: {QUOTA_FA.get(status, status)}{pct}؛ متوقف: {paused_fa}"[:300],
+                "treasury",
+                f"quota:{status}:{data.get('at')}"[:100],
             )
         elif msg.subject == "hq.alerts.llm.cost_ratio":
             company = await self.hub.companies.holding()

@@ -19,6 +19,7 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from hq_api import secrets as secret_store
+from hq_api.agents.dispatch import Dispatcher
 from hq_api.companies import Companies
 from hq_api.config import Settings
 from hq_api.db import Database
@@ -30,7 +31,7 @@ from hq_api.storage import LocalStorage
 from hq_api.worker.activities import Activities
 from hq_api.worker.bridge import Bridge
 from hq_api.worker.workflows import WORKFLOWS
-from hq_common import heartbeat, logs
+from hq_common import charters, heartbeat, logs
 from hq_common.openbao import OpenBaoClient, OpenBaoError
 
 log = logging.getLogger("hq_api.worker")
@@ -41,7 +42,7 @@ async def load_secrets(bao: OpenBaoClient | None) -> Secrets:
     if bao is None:
         return Secrets()
     try:
-        return await secret_store.load(bao, api_config=False)
+        return await secret_store.load(bao, api_config=False, runtime=True)
     except OpenBaoError:
         log.warning("openbao unavailable; push channels stay off until the next refresh")
         return Secrets()
@@ -57,7 +58,7 @@ async def refresh_secrets(hub: Hub, bao: OpenBaoClient | None) -> None:
     while True:
         await asyncio.sleep(SECRETS_REFRESH_S)
         try:
-            hub.secrets = await secret_store.load(bao, api_config=False)
+            hub.secrets = await secret_store.load(bao, api_config=False, runtime=True)
         except OpenBaoError:
             continue
         hub.channels = None  # rebuilt lazily with the new credentials
@@ -97,6 +98,7 @@ async def main(stop: asyncio.Event | None = None) -> None:
         bus=bus,
         temporal=client,
     )
+    hub.charters = charters.load()
     acts = Activities(hub, client)
     try:
         result = await acts.reconcile_schedules()
@@ -115,6 +117,9 @@ async def main(stop: asyncio.Event | None = None) -> None:
         workflows=WORKFLOWS,
         activities=acts.all(),
         max_cached_workflows=100,
+        # Agent runs wait on the model most of the time; the router's own queue
+        # (LLM_MAX_CONCURRENCY) is the real limit on concurrent model calls.
+        max_concurrent_activities=40,
     )
     if stop is None:
         stop = asyncio.Event()
@@ -124,6 +129,10 @@ async def main(stop: asyncio.Event | None = None) -> None:
     tasks = [
         asyncio.create_task(worker.run(), name="temporal-worker"),
         asyncio.create_task(Bridge(hub).run(), name="bridge"),
+        asyncio.create_task(
+            Dispatcher(hub, client, s.task_queue, s.agent_dispatch_interval_s).run(),
+            name="dispatch",
+        ),
         asyncio.create_task(heartbeat.run(health(hub, client)), name="heartbeat"),
         asyncio.create_task(refresh_secrets(hub, bao), name="secrets"),
     ]

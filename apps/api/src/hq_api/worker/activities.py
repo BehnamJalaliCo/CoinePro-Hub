@@ -7,6 +7,7 @@ authored by the system principal (audit actor_kind 'system').
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -17,6 +18,9 @@ from temporalio.client import Client
 from temporalio.exceptions import ApplicationError
 
 from hq_api import audit, events, workflows_client
+from hq_api.agents import checks
+from hq_api.agents.clients import Gateway, LivePush, Router
+from hq_api.agents.runner import Runner
 from hq_api.db import Tx
 from hq_api.domain import decisions as D
 from hq_api.domain import notify, recurrence, recurring, scoring
@@ -40,12 +44,23 @@ class Activities:
         lock_poll_s: float = 60.0,
         escalation_gap_s: float = 3600.0,
         effect_max_attempts: int = 5,
+        router: Router | None = None,
+        gateway: Gateway | None = None,
+        live: LivePush | None = None,
+        checker: checks.Checker | None = None,
     ) -> None:
         self.hub = hub
         self.client = client or hub.temporal
         self.lock_poll_s = lock_poll_s
         self.escalation_gap_s = escalation_gap_s
         self.effect_max_attempts = effect_max_attempts
+        s = hub.settings
+        # The agent runtime's clients; their tokens are read at call time, so a
+        # refresh of the secrets is picked up.
+        self.router = router or Router(s.llm_router_url, lambda: self.hub.secrets.llm_router_token)
+        self.gateway = gateway or Gateway(s.gateway_url, lambda: self.hub.secrets.gateway_token)
+        self.live = live or LivePush(s.api_internal_url)
+        self.checker = checker or checks.Checker()
 
     def all(self) -> list[Any]:
         return [
@@ -64,6 +79,13 @@ class Activities:
             self.morning_report,
             self.audit_verify,
             self.score_job,
+            self.run_claim,
+            self.run_execute,
+            self.run_finalize,
+            self.requeue_runs,
+            self.site_checks,
+            self.hub_health,
+            self.ceo_daily,
         ]
 
     def _tx(self) -> Any:
@@ -331,7 +353,11 @@ class Activities:
                    JOIN work.escrows e ON e.work_id = w.id"""
             )
         out: dict[str, Any] = {"fixed": {}, "recurring": {}, "deleted": []}
-        for d in schedules.fixed(owner["morning_report_at"], owner["timezone"]):
+        for d in schedules.fixed(
+            owner["morning_report_at"],
+            owner["timezone"],
+            ceo_daily=self.hub.settings.ceo_daily_reports,
+        ):
             out["fixed"][d.id] = await schedules.upsert(client, d, tq)
         wanted: set[str] = set()
         now = datetime.now(UTC)
@@ -443,9 +469,11 @@ class Activities:
 
     @activity.defn(name="morning_report")
     async def morning_report(self) -> dict[str, Any]:
-        """Once per owner-local day (a second run that day is a no-op)."""
+        """Once per owner-local day (a second run that day is a no-op). The
+        rule-based report first; then (prompt 05 §6) a short Sonnet 5.5 pass
+        rewrites it as fluent Persian - with no new number (every figure must
+        come from the rule-based text, else the rewrite is dropped)."""
         now = datetime.now(UTC)
-        pushed: list[dict[str, Any]] = []
         async with self._tx() as tx:
             tz = (
                 await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
@@ -496,18 +524,6 @@ class Activities:
                 {"work": w["ref"], "producer": f"{holding.code}-SYS"},
             )
             await events.emit(tx, holding.code, "work.completed", w["ref"], {"by": "system"})
-            pushed.append(
-                await notify.raise_notification(
-                    tx,
-                    company_id=holding.id,
-                    company_code=holding.code,
-                    level="report",
-                    title_fa=title,
-                    body_fa=summary,
-                    link_kind="deliverable",
-                    link_ref=dl["ref"],
-                )
-            )
             await audit.record(
                 tx,
                 SYSTEM,
@@ -518,13 +534,111 @@ class Activities:
                 target_ref=dl["ref"],
                 summary="rule-based morning report",
             )
+        polished = (
+            await self._polish_report(holding.code, body)
+            if self.hub.settings.morning_report_llm
+            else None
+        )
+        pushed: list[dict[str, Any]] = []
+        link = dl["ref"]
+        async with self._tx() as tx:
+            if polished is not None:
+                text, call = polished
+                pdl = await tx.one(
+                    """INSERT INTO cartable.deliverables (company_id, work_id, producer_id, title, summary, body,
+                           produced_with, usage)
+                       VALUES (:co, :w, :p, :title, :summary, :body, CAST(:pw AS jsonb), CAST(:u AS jsonb))
+                       RETURNING id, ref""",
+                    co=holding.id,
+                    w=w["id"],
+                    p=sys_id,
+                    title=title + " (متن خوش‌خوان)",
+                    summary=summary,
+                    body=text,
+                    pw=json.dumps(
+                        {
+                            "model": call.model,
+                            "effort": call.effort,
+                            "connection": call.connection,
+                            "label_fa": f"انجام‌شده با {call.model}; عددها از {dl['ref']}",
+                        },
+                        ensure_ascii=False,
+                    ),
+                    u=json.dumps(
+                        {
+                            "input_tokens": call.input_tokens,
+                            "output_tokens": call.output_tokens,
+                            "cache_read_tokens": call.cache_read_tokens,
+                            "cache_write_tokens": call.cache_write_tokens,
+                            "equiv_cost_usd": call.equiv_cost_usd or "0",
+                        }
+                    ),
+                )
+                link = pdl["ref"]
+                await events.emit(
+                    tx,
+                    holding.code,
+                    "deliverable.created",
+                    pdl["ref"],
+                    {"work": w["ref"], "producer": f"{holding.code}-SYS"},
+                )
+                await audit.record(
+                    tx,
+                    SYSTEM,
+                    company_id=holding.id,
+                    action="report.morning_rewrite",
+                    action_class="A1",
+                    target_kind="deliverable",
+                    target_ref=pdl["ref"],
+                    summary=f"rewritten from {dl['ref']} with {call.model}",
+                )
+            pushed.append(
+                await notify.raise_notification(
+                    tx,
+                    company_id=holding.id,
+                    company_code=holding.code,
+                    level="report",
+                    title_fa=title,
+                    body_fa=summary,
+                    link_kind="deliverable",
+                    link_ref=link,
+                )
+            )
         rhythm = await notify.flush_rhythm(self.hub)
         return {
             "created": True,
             "deliverable": dl["ref"],
+            "rewritten": link if link != dl["ref"] else None,
             "work": w["ref"],
             "rhythm": _plain(rhythm),
         }
+
+    async def _polish_report(self, holding_code: str, body: str) -> tuple[str, Any] | None:
+        if not self.hub.secrets.llm_router_token:
+            return None
+        call = await self.router.run(
+            {
+                "company_code": holding_code,
+                "actor_ref": f"{holding_code}-SYS",
+                "task_class": "summarize",
+                "priority": 3,
+                "model": "claude-sonnet-5-5",
+                "effort": "medium",
+                "system": report.REWRITE_SYSTEM,
+                "prompt": body,
+                "timeout_s": 180,
+                "meta": {"purpose": "morning_report"},
+            },
+            180,
+        )
+        text = (call.text or "").strip()
+        if not call.ok or not text or len(text) > 3 * len(body) + 500:
+            log.info("morning report kept rule-based", extra={"status": call.status})
+            return None
+        if not report.same_numbers(body, text):
+            log.warning("morning report rewrite dropped: it introduced a number")
+            return None
+        return text, call
 
     @activity.defn(name="audit_verify")
     async def audit_verify(self) -> dict[str, Any]:
@@ -562,6 +676,112 @@ class Activities:
         async with self._tx() as tx:
             n = await scoring.recompute_all(tx)
         return {"employees": n}
+
+    # ------------------------------------------------------ agent runs --
+    def _runner(self, *, heartbeat: bool = False) -> Runner:
+        return Runner(
+            self.hub,
+            self.router,
+            self.gateway,
+            self.live,
+            heartbeat=activity.heartbeat if heartbeat else None,
+        )
+
+    @activity.defn(name="run_claim")
+    async def run_claim(self, run_id: str) -> dict[str, Any]:
+        c = await self._runner().claim(run_id)
+        return {"state": c.state, "final": c.final, "code": c.code}
+
+    @activity.defn(name="run_execute")
+    async def run_execute(self, run_id: str) -> dict[str, Any]:
+        """Every step of one run, in this one activity (heartbeats in between)."""
+        if not self.hub.secrets.runtime_ready:
+            return await self._runner().finish(run_id, "failed", "runtime_not_configured")
+        return await self._runner(heartbeat=True).execute(run_id)
+
+    @activity.defn(name="run_finalize")
+    async def run_finalize(self, run_id: str, state: str, code: str) -> dict[str, Any]:
+        return await self._runner().finish(run_id, state, code)
+
+    @activity.defn(name="requeue_runs")
+    async def requeue_runs(self) -> dict[str, Any]:
+        """Runs refused while a kill switch was engaged come back once it is
+        released (the cause - open work, an unanswered message - still there);
+        queued runs whose workflow never started are dispatched again."""
+        requeued = 0
+        async with self._tx() as tx:
+            rows = await tx.all(
+                """SELECT DISTINCT ON (r.employee_id, r.work_id, r.thread_id)
+                          r.employee_id, r.work_id, r.thread_id, r.trigger, r.priority, r.state, r.error_code,
+                          r.company_id, r.reason
+                   FROM agents.runs r WHERE r.queued_at > now() - interval '24 hours'
+                   ORDER BY r.employee_id, r.work_id, r.thread_id, r.queued_at DESC"""
+            )
+            for r in rows:
+                if r["state"] != "refused" or r["error_code"] != "locked":
+                    continue
+                if await tx.scalar("SELECT control.lock_state(:co)", co=r["company_id"]) in (
+                    "holding",
+                    "company",
+                ):
+                    continue
+                if r["work_id"] is not None and not await tx.scalar(
+                    "SELECT 1 FROM work.work WHERE id = :w AND status IN ('queued', 'in_progress', 'waiting')",
+                    w=r["work_id"],
+                ):
+                    continue
+                if r["thread_id"] is not None and await tx.scalar(
+                    """SELECT author_kind <> 'owner' FROM msg.messages WHERE thread_id = :t
+                       ORDER BY seq DESC LIMIT 1""",
+                    t=r["thread_id"],
+                ):
+                    continue  # answered meanwhile
+                if await tx.scalar(
+                    "SELECT agents.queue_run(:e, :tr, :w, :t, :reason, :p)",
+                    e=r["employee_id"],
+                    tr=r["trigger"],
+                    w=r["work_id"],
+                    t=r["thread_id"],
+                    reason="requeue:" + (r["reason"] or "")[:180],
+                    p=r["priority"],
+                ):
+                    requeued += 1
+            stuck = await tx.exec(
+                """UPDATE agents.runs SET dispatched_at = NULL
+                   WHERE state = 'queued' AND dispatched_at < now() - interval '10 minutes'"""
+            )
+        return {"requeued": requeued, "redispatched": stuck}
+
+    @activity.defn(name="site_checks")
+    async def site_checks(self) -> dict[str, Any]:
+        result = await checks.run_round(self.hub, self.checker)
+        result["partitions_dropped"] = await checks.purge_old_checks(self.hub)
+        return result
+
+    @activity.defn(name="hub_health")
+    async def hub_health(self) -> dict[str, Any]:
+        data = await checks.hub_snapshot(self.hub)
+        return {"services_up": data.get("services_up"), "keys": sorted(data)}
+
+    @activity.defn(name="ceo_daily")
+    async def ceo_daily(self) -> dict[str, Any]:
+        """A short daily-report run for every company's CEO (off unless switched on)."""
+        if not self.hub.settings.ceo_daily_reports:
+            return {"queued": 0, "off": True}
+        async with self._tx() as tx:
+            ceos = await tx.all(
+                """SELECT e.id FROM core.employees e JOIN core.companies c ON c.id = e.company_id
+                   WHERE e.kind = 'ceo' AND e.status = 'active' AND c.status = 'active' AND c.kind = 'company'"""
+            )
+            queued = 0
+            for c in ceos:
+                queued += bool(
+                    await tx.scalar(
+                        "SELECT agents.queue_run(:e, 'schedule', NULL, NULL, 'daily_report', NULL)",
+                        e=c["id"],
+                    )
+                )
+        return {"queued": queued}
 
     # ---------------------------------------------------------- helpers --
     def _client(self) -> Client:
