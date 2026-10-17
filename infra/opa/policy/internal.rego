@@ -153,6 +153,14 @@ grant if {
 	engaged_by_own_agent
 }
 
+# Releasing a switch that is already released changes nothing (idempotent).
+grant if {
+	op == "kill_switch.set"
+	own_switch
+	tv("state") == "released"
+	already_released
+}
+
 # Setting a freeze: services (the deploy pipeline) for any company, a CEO for
 # its own company.
 grant if {
@@ -169,13 +177,15 @@ grant if {
 	same_company(tv("company"))
 }
 
-# Lifting follows authority: the pipeline lifts the pipeline's freezes, a CEO
-# only its own; an owner freeze is lifted only by the owner (public API).
+# Lifting follows authority: a service (the pipeline) lifts only the freezes
+# it set itself, a CEO only its own; an owner freeze is lifted only by the
+# owner (public API).
 grant if {
 	op == "deploy_freeze.set"
 	lifting
 	service
 	object.get(freeze, "created_by_kind", "") == "service"
+	object.get(freeze, "created_by_code", "") == p.code
 }
 
 grant if {
@@ -309,6 +319,8 @@ engaged_by_own_agent if {
 	object.get(current, "changed_by_company", null) == p.company
 }
 
+already_released if object.get(current, "state", "") == "released"
+
 lifting if tv("lift") == true
 
 freeze := lib.obj(tv("freeze"))
@@ -376,6 +388,7 @@ deny_reasons contains "released_only_by_engager_authority" if {
 	own_switch
 	tv("state") == "released"
 	not engaged_by_own_agent
+	not already_released
 }
 
 deny_reasons contains "lifted_only_by_setter_authority" if {

@@ -64,6 +64,11 @@ test_agent_other_company if {
 
 test_company_locked if {
 	reasons(f.ty_growth_01, act("A1", "TY"), ctx([], true)) == {"company_locked"}
+	allowed(f.ty_ceo, named("A1", "notification.raise", "TY"), {"escrow_classes": [], "company_locked": true, "incident": true})
+	reasons(f.ty_ceo, named("A1", "notification.raise", "TY"), ctx([], true)) == {"company_locked"}
+	reasons(f.ty_ceo, named("A1", "work.deliver", "TY"), {"escrow_classes": [], "company_locked": true, "incident": true}) == {"company_locked"}
+	allowed(f.ty_ceo, named("A2", "kill_switch.set", "TY"), ctx([], true))
+	allowed(f.ty_ceo, named("A2", "deploy_freeze.set", "TY"), ctx([], true))
 	allowed(f.ty_growth_01, act("A0", "TY"), ctx([], true))
 	reasons(f.svc, act("A2", "TY"), ctx([], true)) == {"company_locked"}
 }

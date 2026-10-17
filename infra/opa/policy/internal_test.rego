@@ -232,6 +232,13 @@ test_release_follows_the_engager_authority if {
 	not allowed(f.ty_ceo, "kill_switch.set", switch("holding", "released", "agent", "TY-CEO", "TY"))
 }
 
+test_releasing_a_released_switch_is_a_no_op if {
+	released := {"scope": "company:TY", "state": "released", "current": {"state": "released", "changed_by_kind": "owner", "changed_by_code": "owner", "changed_by_company": null}}
+	allowed(f.ty_ceo, "kill_switch.set", released)
+	not allowed(f.fx_ceo, "kill_switch.set", released)
+	not allowed(f.ty_growth_mgr, "kill_switch.set", released)
+}
+
 freeze(company, lift, by_kind, by_code) := {
 	"company": company, "lift": lift,
 	"freeze": {"created_by_kind": by_kind, "created_by_code": by_code, "created_by_company": company},
@@ -246,7 +253,8 @@ test_deploy_freeze_set if {
 }
 
 test_deploy_freeze_lift_follows_authority if {
-	allowed(f.svc, "deploy_freeze.set", freeze("TY", true, "service", "deploy-pipeline"))
+	allowed(f.svc, "deploy_freeze.set", freeze("TY", true, "service", "llm-router"))
+	reasons(f.svc, "deploy_freeze.set", freeze("TY", true, "service", "deploy-pipeline")) == {"lifted_only_by_setter_authority", "deploy_freeze.set_not_permitted"}
 	reasons(f.svc, "deploy_freeze.set", freeze("TY", true, "owner", "owner")) == {"lifted_only_by_setter_authority", "deploy_freeze.set_not_permitted"}
 	reasons(f.svc, "deploy_freeze.set", freeze("TY", true, "agent", "TY-CEO")) == {"lifted_only_by_setter_authority", "deploy_freeze.set_not_permitted"}
 	allowed(f.ty_ceo, "deploy_freeze.set", freeze("TY", true, "agent", "TY-CEO"))
