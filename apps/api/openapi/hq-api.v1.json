@@ -888,6 +888,95 @@
         "title": "AwaySummary",
         "type": "object"
       },
+      "BackupStatus": {
+        "description": "⟨1.4⟩ §18.9 BackupStatus (+ wal.failed_count, base_backup, check,\nhourly.last_ok_at/error/stale, the destination's last ok/error).",
+        "properties": {
+          "base_backup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BaseBackup"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Check"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destinations": {
+            "items": {
+              "$ref": "#/components/schemas/DestinationStatus"
+            },
+            "title": "Destinations",
+            "type": "array"
+          },
+          "encryption": {
+            "title": "Encryption",
+            "type": "string"
+          },
+          "hourly": {
+            "$ref": "#/components/schemas/Hourly"
+          },
+          "openbao_snapshot": {
+            "$ref": "#/components/schemas/OpenbaoSnapshot"
+          },
+          "restore_test": {
+            "$ref": "#/components/schemas/RestoreTest"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/Retention"
+          },
+          "wal": {
+            "$ref": "#/components/schemas/Wal"
+          }
+        },
+        "required": [
+          "hourly",
+          "wal",
+          "base_backup",
+          "destinations",
+          "retention",
+          "restore_test",
+          "openbao_snapshot",
+          "check",
+          "encryption"
+        ],
+        "title": "BackupStatus",
+        "type": "object"
+      },
+      "BaseBackup": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          }
+        },
+        "required": [
+          "last_at",
+          "count"
+        ],
+        "title": "BaseBackup",
+        "type": "object"
+      },
       "BreakdownRow": {
         "properties": {
           "cache_read_tokens": {
@@ -1648,6 +1737,38 @@
           "version"
         ],
         "title": "CharterRef",
+        "type": "object"
+      },
+      "Check": {
+        "properties": {
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          }
+        },
+        "required": [
+          "last_at",
+          "ok"
+        ],
+        "title": "Check",
         "type": "object"
       },
       "Choice": {
@@ -3460,6 +3581,87 @@
         "title": "DepartmentPatch",
         "type": "object"
       },
+      "DestinationStatus": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "key": {
+            "enum": [
+              "local",
+              "gdrive",
+              "hetzner"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "last_ok_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ok At"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          },
+          "quota_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quota Bytes"
+          },
+          "used_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used Bytes"
+          }
+        },
+        "required": [
+          "key",
+          "configured",
+          "last_ok_at",
+          "used_bytes",
+          "quota_bytes"
+        ],
+        "title": "DestinationStatus",
+        "type": "object"
+      },
       "DeviceList": {
         "properties": {
           "items": {
@@ -5197,6 +5399,101 @@
         "title": "HoldingState",
         "type": "object"
       },
+      "Hourly": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "last_ok_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ok At"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot"
+          },
+          "stale": {
+            "default": true,
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "last_at",
+          "next_at",
+          "ok",
+          "snapshot",
+          "size_bytes"
+        ],
+        "title": "Hourly",
+        "type": "object"
+      },
       "HubHealth": {
         "properties": {
           "at": {
@@ -6429,6 +6726,43 @@
         "title": "NotificationsBox",
         "type": "object"
       },
+      "OpenbaoSnapshot": {
+        "properties": {
+          "configured": {
+            "default": false,
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          }
+        },
+        "required": [
+          "last_at",
+          "ok"
+        ],
+        "title": "OpenbaoSnapshot",
+        "type": "object"
+      },
       "OrderIn": {
         "additionalProperties": false,
         "properties": {
@@ -7128,6 +7462,33 @@
           "items"
         ],
         "title": "Page[SessionEvent]",
+        "type": "object"
+      },
+      "Page_Snapshot_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Snapshot"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Snapshot]",
         "type": "object"
       },
       "Page_WorkEvent_": {
@@ -8309,6 +8670,122 @@
           "effort"
         ],
         "title": "Resolved",
+        "type": "object"
+      },
+      "RestoreTest": {
+        "properties": {
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          },
+          "pitr_target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitr Target"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "local",
+                  "gdrive",
+                  "hetzner"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "last_at",
+          "ok",
+          "duration_s",
+          "notes"
+        ],
+        "title": "RestoreTest",
+        "type": "object"
+      },
+      "Retention": {
+        "properties": {
+          "daily": {
+            "title": "Daily",
+            "type": "integer"
+          },
+          "hourly": {
+            "title": "Hourly",
+            "type": "integer"
+          },
+          "monthly": {
+            "title": "Monthly",
+            "type": "integer"
+          },
+          "weekly": {
+            "title": "Weekly",
+            "type": "integer"
+          },
+          "yearly": {
+            "title": "Yearly",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hourly",
+          "daily",
+          "weekly",
+          "monthly",
+          "yearly"
+        ],
+        "title": "Retention",
         "type": "object"
       },
       "Return": {
@@ -9621,6 +10098,55 @@
         "title": "SitesPut",
         "type": "object"
       },
+      "Snapshot": {
+        "properties": {
+          "destination": {
+            "enum": [
+              "local",
+              "gdrive",
+              "hetzner"
+            ],
+            "title": "Destination",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "time": {
+            "format": "date-time",
+            "title": "Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "destination",
+          "time",
+          "size_bytes",
+          "tags"
+        ],
+        "title": "Snapshot",
+        "type": "object"
+      },
       "Step": {
         "properties": {
           "actions": {
@@ -10566,6 +11092,49 @@
           "verified_at"
         ],
         "title": "Verify",
+        "type": "object"
+      },
+      "Wal": {
+        "properties": {
+          "failed_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed Count"
+          },
+          "lag_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lag S"
+          },
+          "last_archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Archived At"
+          }
+        },
+        "required": [
+          "last_archived_at",
+          "lag_s"
+        ],
+        "title": "Wal",
         "type": "object"
       },
       "WebPushKeys": {
@@ -13342,6 +13911,210 @@
         "summary": "Step Up Verify",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/backups/snapshots": {
+      "get": {
+        "description": "The snapshots each repository lists now, newest first.",
+        "operationId": "backup_snapshots",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "destination",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "local",
+                    "gdrive",
+                    "hetzner"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Destination"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "destination": "local",
+                      "id": "x",
+                      "size_bytes": 1,
+                      "tags": [
+                        "x"
+                      ],
+                      "time": "2026-10-17T05:42:00Z"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Snapshot_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Backup Snapshots",
+        "tags": [
+          "backups"
+        ]
+      }
+    },
+    "/api/v1/backups/status": {
+      "get": {
+        "description": "The hourly backup, the WAL archive, each destination, the retention, the\nlast restore test and the OpenBao snapshot (metadata only).",
+        "operationId": "backup_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "base_backup": {
+                    "count": 1,
+                    "last_at": "x"
+                  },
+                  "check": {
+                    "last_at": "x",
+                    "ok": false
+                  },
+                  "destinations": [
+                    {
+                      "configured": false,
+                      "error": "x",
+                      "key": "local",
+                      "last_ok_at": "x",
+                      "ok": false,
+                      "quota_bytes": 1,
+                      "used_bytes": 1
+                    }
+                  ],
+                  "encryption": "x",
+                  "hourly": {
+                    "error": "x",
+                    "last_at": "x",
+                    "last_ok_at": "x",
+                    "next_at": "x",
+                    "ok": false,
+                    "size_bytes": 1,
+                    "snapshot": "x",
+                    "stale": false
+                  },
+                  "openbao_snapshot": {
+                    "configured": false,
+                    "last_at": "x",
+                    "ok": false
+                  },
+                  "restore_test": {
+                    "duration_s": 1,
+                    "last_at": "x",
+                    "notes": "x",
+                    "ok": false,
+                    "pitr_target": "x",
+                    "source": "local"
+                  },
+                  "retention": {
+                    "daily": 1,
+                    "hourly": 1,
+                    "monthly": 1,
+                    "weekly": 1,
+                    "yearly": 1
+                  },
+                  "wal": {
+                    "failed_count": 1,
+                    "lag_s": 1,
+                    "last_archived_at": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/BackupStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Backup Status",
+        "tags": [
+          "backups"
         ]
       }
     },
@@ -27373,6 +28146,162 @@
           }
         },
         "summary": "Tool Audit Recent",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/backups/status": {
+      "get": {
+        "description": "backups.status: the backup status of §18.9 (holding-scope roles: the\noverseer, the platform SRE); metadata only, never a restore.",
+        "operationId": "tool_backups_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "base_backup": {
+                    "count": 1,
+                    "last_at": "x"
+                  },
+                  "check": {
+                    "last_at": "x",
+                    "ok": false
+                  },
+                  "destinations": [
+                    {
+                      "configured": false,
+                      "error": "x",
+                      "key": "local",
+                      "last_ok_at": "x",
+                      "ok": false,
+                      "quota_bytes": 1,
+                      "used_bytes": 1
+                    }
+                  ],
+                  "encryption": "x",
+                  "hourly": {
+                    "error": "x",
+                    "last_at": "x",
+                    "last_ok_at": "x",
+                    "next_at": "x",
+                    "ok": false,
+                    "size_bytes": 1,
+                    "snapshot": "x",
+                    "stale": false
+                  },
+                  "openbao_snapshot": {
+                    "configured": false,
+                    "last_at": "x",
+                    "ok": false
+                  },
+                  "restore_test": {
+                    "duration_s": 1,
+                    "last_at": "x",
+                    "notes": "x",
+                    "ok": false,
+                    "pitr_target": "x",
+                    "source": "local"
+                  },
+                  "retention": {
+                    "daily": 1,
+                    "hourly": 1,
+                    "monthly": 1,
+                    "weekly": 1,
+                    "yearly": 1
+                  },
+                  "wal": {
+                    "failed_count": 1,
+                    "lag_s": 1,
+                    "last_archived_at": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/BackupStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tool Backups Status",
         "tags": [
           "internal"
         ]
