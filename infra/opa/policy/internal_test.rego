@@ -366,6 +366,16 @@ test_inspector_delegates_to_its_team_and_proposes_hires if {
 	not allowed(f.hq_ovs_01, "work.delegate", {"assignee": "HQ-OVS-01", "company": "HQ", "to_role": "employee", "to_department": "OVS"})
 }
 
+# Prompt 07 §2: the internet through egress (own company); its log (holding scope).
+test_egress_use_and_read if {
+	allowed(f.ty_growth_01, "egress.use", {"company": "TY"})
+	not allowed(f.ty_growth_01, "egress.use", {"company": "FX"})
+	allowed(f.hq_adv, "egress.read", {"company": "TY"})
+	allowed(f.hq_ovs, "egress.read", {})
+	not allowed(f.ty_ceo, "egress.read", {"company": "TY"})
+	not allowed(f.ty_growth_01, "egress.read", {"company": "TY"})
+}
+
 # --------------------------------------------------------------- workshop --
 
 session(driver, company) := {"company": company, "driver": driver, "grant": "G-0001"}
