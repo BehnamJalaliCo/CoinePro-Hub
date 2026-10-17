@@ -13,8 +13,10 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ensure_env
 
-JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch"]'
-HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch"]'
+JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch",
+  "backup-tools"]'
+HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch",
+  "backup-tools"]'
 NOT_INTERNAL='["temporal","opa","gateway","web","stt"]'
 # Services whose networks are exactly these.
 ONLY_ON='{"gateway":["hq-agent"],"opa":["hq-agent"],"web":["hq-edge"],"claude-runtime":["hq-llm"],
