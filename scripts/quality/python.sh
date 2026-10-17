@@ -35,23 +35,24 @@ api_image() { # api_image <cmd...>: apps/api's test image without the test depen
 case "${1:-}" in
   lint)
     "$TE" run sh -c 'ruff check --no-cache . && ruff format --no-cache --check . &&
-      mypy hq-common/src llm-router/src claude-runtime/src claude-runtime/testing gateway/src'
+      mypy hq-common/src llm-router/src claude-runtime/src claude-runtime/testing gateway/src stt/src'
     api_image -v "$API_DIR:/api:ro" -w /api "$API_IMAGE" sh -c \
       'ruff check --no-cache . && ruff format --no-cache --check . && mypy src'
     ;;
   test)
-    "$TE" run sh -c 'pytest hq-common/tests llm-router/tests claude-runtime/tests gateway/tests \
-      --cov=hq_common --cov=llm_router --cov=claude_runtime --cov=hq_gateway --cov-report=term \
+    "$TE" run sh -c 'pytest hq-common/tests llm-router/tests claude-runtime/tests gateway/tests stt/tests \
+      --cov=hq_common --cov=llm_router --cov=claude_runtime --cov=hq_gateway --cov=hq_stt --cov-report=term \
       --cov-fail-under=80 &&
       coverage report --fail-under=85 \
-        --include="*/llm_router/assignment.py,*/llm_router/budget.py,*/llm_router/scheduler.py,*/llm_router/breaker.py,*/llm_router/quota.py,*/hq_gateway/gateway.py,*/hq_gateway/tools.py,*/hq_common/redact.py"'
+        --include="*/llm_router/assignment.py,*/llm_router/budget.py,*/llm_router/scheduler.py,*/llm_router/breaker.py,*/llm_router/quota.py,*/hq_gateway/gateway.py,*/hq_gateway/tools.py,*/hq_common/redact.py,*/hq_common/persian.py,*/hq_stt/engine.py,*/hq_stt/main.py,*/hq_stt/lock.py,*/hq_stt/fetch.py,*/hq_stt/eval.py"'
     HQ_TEST_TARGET=api "$TE" run sh -c "cd /api && HQ_FUZZ_EXAMPLES=${HQ_FUZZ_EXAMPLES:-8} pytest tests \
       --cov=hq_api --cov-report=term \
       --cov-fail-under=80 && coverage report --fail-under=85 --include='$API_DOMAIN'"
     ;;
   audit)
     "$TE" run pip-audit --progress-spinner off --require-hashes --disable-pip \
-      -r llm-router/requirements.lock -r claude-runtime/requirements.lock -r gateway/requirements.lock
+      -r llm-router/requirements.lock -r claude-runtime/requirements.lock -r gateway/requirements.lock \
+      -r stt/requirements.lock
     api_image -v "$API_DIR:/api:ro" -w /api "$API_IMAGE" pip-audit --progress-spinner off \
       --require-hashes --disable-pip -r requirements.lock
     ;;
