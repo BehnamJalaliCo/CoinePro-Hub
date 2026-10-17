@@ -88,6 +88,7 @@ class Activities:
             self.requeue_runs,
             self.site_checks,
             self.hub_health,
+            self.order_route,
             self.ceo_daily,
         ]
 
@@ -835,6 +836,31 @@ class Activities:
                     )
                 )
         return {"queued": queued}
+
+    # ---------------------------------------------------------- orders --
+    @activity.defn(name="order_route")
+    async def order_route(self, req: dict[str, Any]) -> dict[str, Any]:
+        """The light model's routes for one owner order (prompt 06 §5). The
+        request is built (and its text masked) by the api, which also checks
+        the answer against the directory; nothing is trusted here."""
+        if not self.hub.secrets.llm_router_token:
+            return {"routes": None, "status": "no_router"}
+        call = await self.router.run(req, int(req.get("timeout_s", 40)))
+        if not call.ok:
+            return {"routes": None, "status": call.status}
+        out = call.structured
+        if out is None and call.text:
+            try:
+                out = json.loads(call.text)
+            except ValueError:
+                out = None
+        return {
+            "routes": out.get("routes") if isinstance(out, dict) else None,
+            "status": "ok",
+            "model": call.model,
+            "input_tokens": call.input_tokens,
+            "output_tokens": call.output_tokens,
+        }
 
     # ---------------------------------------------------------- helpers --
     def _client(self) -> Client:

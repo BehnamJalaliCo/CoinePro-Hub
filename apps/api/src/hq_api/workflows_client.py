@@ -5,11 +5,13 @@ periodic reconciliation (workflow `Maintenance`) catches up, so a request
 never fails because of Temporal. Workflows are addressed by name:
     DecisionLifecycle(ref)   id decision-<ref>, signal "decided"
     Reconcile()              id hq-reconcile (schedules, morning report)
+    OrderRouting(req)        id order-route-<uuid>, awaited (the only one awaited)
 """
 
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import timedelta
 from typing import Any
 
@@ -20,6 +22,7 @@ log = logging.getLogger("hq_api.workflows_client")
 
 DECISION_WORKFLOW = "DecisionLifecycle"
 RECONCILE_WORKFLOW = "Reconcile"
+ORDER_WORKFLOW = "OrderRouting"
 
 
 async def connect(address: str, namespace: str) -> Client:
@@ -63,6 +66,28 @@ async def decision_decided(hub: Any, ref: str) -> None:
         )
     except Exception:  # noqa: BLE001 - reconciled later by Maintenance
         log.warning("could not signal the decision workflow", extra={"ref": ref})
+
+
+async def route_order(
+    hub: Any, req: dict[str, Any], timeout_s: float = 60.0
+) -> dict[str, Any] | None:
+    """The light model's routing of an order (workflow OrderRouting on the
+    worker), awaited; None when Temporal or the model is not there."""
+    client = _client(hub)
+    if client is None:
+        return None
+    try:
+        out: dict[str, Any] = await client.execute_workflow(
+            ORDER_WORKFLOW,
+            req,
+            id=f"order-route-{uuid.uuid4()}",
+            task_queue=hub.settings.task_queue,
+            execution_timeout=timedelta(seconds=timeout_s),
+        )
+    except Exception:  # noqa: BLE001 - the order then goes to the advisor
+        log.warning("could not route the order with the model")
+        return None
+    return out
 
 
 async def reconcile(hub: Any) -> None:

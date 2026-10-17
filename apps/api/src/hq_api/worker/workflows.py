@@ -281,12 +281,33 @@ class Transcribe:
         return result
 
 
+@workflow.defn(name="OrderRouting")
+class OrderRouting:
+    """The light model's routing of one owner order (prompt 06 §5), awaited by
+    the api (which cannot reach llm-router). A failure is an empty answer: the
+    order then goes to the advisor."""
+
+    @workflow.run
+    async def run(self, req: dict[str, Any]) -> dict[str, Any]:
+        try:
+            out: dict[str, Any] = await _act(
+                "order_route",
+                req,
+                limit=timedelta(seconds=90),
+                retry=RetryPolicy(maximum_attempts=2),
+            )
+        except ActivityError:
+            out = {"routes": None, "status": "error"}
+        return out
+
+
 WORKFLOWS = [
     FileProcess,
     Transcribe,
     AgentRun,
     SiteChecks,
     CeoDaily,
+    OrderRouting,
     DecisionLifecycle,
     RecurringRun,
     Maintenance,

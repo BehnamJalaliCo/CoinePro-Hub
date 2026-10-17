@@ -33,12 +33,14 @@ from hq_api.routes import (
     messages,
     meta,
     notifications,
+    orders,
     org,
     owner,
     runs,
     stream,
     treasury,
     work,
+    workshop,
 )
 
 log = logging.getLogger("hq_api.access")
@@ -133,10 +135,13 @@ def create_app(
         treasury,
         stream,
         runs,
+        workshop,
+        orders,
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
     app.include_router(agent_tools.router, prefix="/internal/v1")
+    app.include_router(workshop.internal_router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

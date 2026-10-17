@@ -1,0 +1,30 @@
+# Voice orders (contract §17.4): the rules tried before any model. Data, not
+# code. Matching is on the normalised text (Arabic ي/ك as Persian, ZWNJ and
+# punctuation as spaces, lower case), whole words only.
+#
+# companies: names that mean a company besides its code, its name_fa and its
+#   name_en, which always count (so a new company needs no entry here).
+# roles: words that name who should receive the order: `ceo`, `advisor`, or a
+#   department code (its manager receives it: the CEO-skipping shortcut, §4).
+# kinds: words that make an order one of code | meeting | question; anything
+#   else is `work`. A question mark also makes it a question.
+companies:
+  HQ: [هلدینگ, ستاد, هاب]
+  TY: [تریدیار, ترید یار]
+  FX: [اف ایکس, افایکس, کوینه پرو اف ایکس]
+  PC: [پروچارت, پرو چارت]
+roles:
+  advisor: [مشاور کل, مشاور]
+  ceo: [مدیرعامل, مدیر عامل, ceo]
+  TECH: [مدیر فنی, cto, فنی]
+  GROWTH: [مدیر مارکتینگ, cmo, مارکتینگ, بازاریابی]
+  SALES: [مدیر فروش, cso, فروش, پشتیبانی]
+  PRODUCT: [مدیر محصول, cpo]
+  FIN: [مدیر مالی, cfo, مالی, حسابداری]
+  QUANT: [مدیر کوانت, کوانت]
+  AIOPS: [مدیر عملیات ai, عملیات هوش مصنوعی]
+  HR: [مدیر منابع انسانی, منابع انسانی]
+kinds:
+  code: [باگ, ریپو, ریپوی, کامیت, پول ریکوئست, pr, ریفکتور, refactor, کارگاه کد, کدنویسی, کد برنامه, برنچ]
+  meeting: [جلسه, میتینگ]
+  question: [چرا, چطور, چگونه, آیا, چه خبر, سوال, سؤال, نظرت]
