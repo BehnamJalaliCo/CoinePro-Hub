@@ -5,6 +5,7 @@ from the ledger."""
 from __future__ import annotations
 
 import asyncio
+import itertools
 import json
 import time
 import uuid
@@ -142,7 +143,7 @@ async def test_a_long_streamed_answer_keeps_beating_and_is_stored(
             lambda: None,
             R.HEARTBEAT_EVERY_S,
         )
-    gaps = [b - a for a, b in zip(beats, beats[1:], strict=False)]
+    gaps = [b - a for a, b in itertools.pairwise(beats)]
     assert len(beats) >= 10 and max(gaps) < 0.5
     stored = await su.fetchval(
         """SELECT count(*) FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
@@ -259,7 +260,9 @@ async def test_a_failed_calls_tokens_are_booked(
     )
     out = await run(agents, row["id"])
     assert out["state"] == "failed"
-    r = await su.fetchrow("SELECT input_tokens, output_tokens FROM agents.runs WHERE id = $1", row["id"])
+    r = await su.fetchrow(
+        "SELECT input_tokens, output_tokens FROM agents.runs WHERE id = $1", row["id"]
+    )
     assert (r["input_tokens"], r["output_tokens"]) == (1234, 7)
 
 
@@ -339,7 +342,12 @@ async def test_agent_requests_get_a_budget_and_a_bounded_chain(
         return await client.post(
             "/internal/v1/work",
             headers={**ceo, **idem()},
-            json={"department": "TECH", "title": "درخواست", "requested_by_work_id": origin, **extra},
+            json={
+                "department": "TECH",
+                "title": "درخواست",
+                "requested_by_work_id": origin,
+                **extra,
+            },
         )
 
     r1 = await request(w0["id"])

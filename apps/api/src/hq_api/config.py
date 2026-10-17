@@ -87,9 +87,7 @@ class Settings:
     agent_request_budget_tokens: int = field(
         default_factory=lambda: _int("AGENT_REQUEST_BUDGET_TOKENS", 60_000)
     )
-    agent_request_chain_max: int = field(
-        default_factory=lambda: _int("AGENT_REQUEST_CHAIN_MAX", 2)
-    )
+    agent_request_chain_max: int = field(default_factory=lambda: _int("AGENT_REQUEST_CHAIN_MAX", 2))
     agent_step_timeout_s: int = field(default_factory=lambda: _int("AGENT_STEP_TIMEOUT_S", 300))
     agent_actions_per_step: int = field(default_factory=lambda: _int("AGENT_ACTIONS_PER_STEP", 8))
     agent_tool_calls_per_run: int = field(
