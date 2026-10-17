@@ -85,4 +85,4 @@ export const ROLE_FA: Record<string, string> = {
 };
 
 export const ACTOR_FA =(a: { kind: string; code: string; display_fa?: string | null } | null | undefined): string =>
-  !a ? '—' : a.display_fa ?? (a.kind === 'owner' ? 'مدیر کل' : a.kind === 'system' ? 'سیستم' : a.code);
+  !a ? '—' : a.display_fa ?? (a.kind === 'owner' ? 'مدیر کل' : a.kind === 'system' || a.kind === 'service' ? 'سیستم' : a.code);

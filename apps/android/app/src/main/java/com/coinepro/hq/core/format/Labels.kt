@@ -94,7 +94,7 @@ fun actorFa(a: Actor?): String = when {
     a == null -> "—"
     !a.displayFa.isNullOrBlank() -> a.displayFa
     a.kind == "owner" -> "مدیر کل"
-    a.kind == "system" -> "سیستم"
+    a.kind == "system" || a.kind == "service" -> "سیستم"
     else -> a.code
 }
 

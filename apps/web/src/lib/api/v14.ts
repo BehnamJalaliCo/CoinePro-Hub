@@ -220,7 +220,8 @@ export type RoleInfo = {
 export type HireIn = { company: string; department: string; role: string; title_fa: string; title_en?: string; model?: string; effort?: string; reason?: string; duties?: string[] };
 export type HireOut = { employee: { code: string; company: string; department: string | null; title_fa: string; status: string }; decision: { ref: string; status: string; resolution: string | null } };
 
-export const useHiring = () => useQuery({ queryKey: ['hiring'], queryFn: () => call<Hiring>('GET', '/owner/hiring'), staleTime: 30_000 });
+// A server before contract v1.4.3 sends no envelopes; the card then shows none rather than failing.
+export const useHiring = () => useQuery({ queryKey: ['hiring'], queryFn: async () => { const h = await call<Hiring>('GET', '/owner/hiring'); return { ...h, envelopes: h.envelopes ?? [], withdrawn: h.withdrawn ?? [] }; }, staleTime: 30_000 });
 export const useRoles = () => useQuery({ queryKey: ['roles'], queryFn: () => call<RoleInfo[]>('GET', '/roles'), staleTime: 300_000 });
 
 /** The roles the owner can hire into a department: `employee` charters whose scope fits the company and whose department (if any) is this one. */
