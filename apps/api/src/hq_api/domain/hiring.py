@@ -38,7 +38,7 @@ from hq_api.worker.jalali import to_jalali
 NOTE = "مالک: استخدام با شروع خود مالک"
 PROPOSALS_KEY = "hiring_proposals"
 
-Mode = Literal["delegated", "proposals"]
+Mode = Literal["proposals", "delegated"]  # proposals first: the one served (examples)
 
 
 class Envelope(BaseModel):
