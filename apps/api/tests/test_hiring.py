@@ -191,7 +191,9 @@ async def test_company_state_tells_agents_the_hiring_state(
         assert (await client.get("/internal/v1/company/state", headers=h)).json()[
             "hiring"
         ] == "open"
-        r = await client.get("/internal/v1/company/state", headers=await agent_headers("HQ-OVS-MGR"))
+        r = await client.get(
+            "/internal/v1/company/state", headers=await agent_headers("HQ-OVS-MGR")
+        )
         assert r.json()["hiring"] == "open" and r.json()["companies"]
     finally:
         await _set_hiring(su, "closed")

@@ -25133,7 +25133,7 @@
         ]
       },
       "post": {
-        "description": "memory.write: append one note to the employee's own memory (append-only).",
+        "description": "memory.write: append one note to the employee's own memory (append-only).\nHonours `Idempotency-Key` (a retried call writes the note once).",
         "operationId": "tool_memory_write",
         "requestBody": {
           "content": {
