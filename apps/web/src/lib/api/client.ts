@@ -39,15 +39,16 @@ const contract: Middleware = {
   },
 };
 
-async function mockFetch(input: Request): Promise<Response> {
-  const { handle } = await import('./mock');
-  return handle(input);
-}
+// Inlined at build time: in production the branch and the fixtures module are compiled away.
+const mockFetch =
+  process.env.NEXT_PUBLIC_HQ_MOCK === '1'
+    ? async (input: Request): Promise<Response> => (await import('@/lib/api/mock')).handle(input)
+    : undefined;
 
 export const api = createClient<paths>({
   baseUrl: typeof window === 'undefined' ? 'http://localhost' : window.location.origin,
   credentials: 'same-origin',
-  ...(MOCK ? { fetch: mockFetch } : {}),
+  ...(mockFetch ? { fetch: mockFetch } : {}),
 });
 api.use(contract);
 

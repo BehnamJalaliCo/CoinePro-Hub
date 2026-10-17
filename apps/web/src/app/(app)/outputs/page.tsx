@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/toast';
 import { ApiError, type Schemas } from '@/lib/api/client';
 import { useDeliverable, useDeliverables, useRate } from '@/lib/api/hooks';
 import { useScope } from '@/lib/scope';
-import { ago, cx, jDate, tokens, usd } from '@/lib/format';
+import { ago, cx, jDate, modelLabel, tokens, usd } from '@/lib/format';
 
 type D = Schemas['Deliverable'];
 
@@ -60,7 +60,7 @@ function Detail({ refId }: { refId: string }) {
           <h2 className="text-h2 font-semibold">{d.title}</h2>
           <div className="flex flex-wrap gap-2 pt-1">
             <Pill tone="neutral"><CompanyMark code={d.company} height={12} mono /></Pill>
-            {pw.model ? <Pill tone="silver"><span className="fig">{pw.label_fa ?? `${pw.model.replace('claude-', '')} · ${pw.effort ?? ''}`}</span></Pill> : null}
+            {pw.model ? <Pill tone="silver"><span className="fig">{`${modelLabel(pw.model)} · ${pw.effort ?? ''}`}</span></Pill> : null}
             {usage.tokens ? <Pill tone="neutral"><span className="fig">{tokens(Number(usage.tokens))} tok · {usd(String(usage.usd ?? ''))}</span></Pill> : null}
             <Link href={`/work/${d.work_ref}`} className="inline-flex h-6 items-center gap-1 rounded-full bg-tile px-2.5 text-[12px] text-sec hover:text-ink"><span className="fig">{d.work_ref}</span><Icon name="next" size={12} mirror /></Link>
           </div>

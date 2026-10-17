@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/icon';
 import { CompanyMark } from '@/components/brand/marks';
 import { Orbit } from '@/components/live/orbit';
@@ -69,11 +70,12 @@ function Stats() {
 }
 
 function Cartable() {
+  const router = useRouter();
   const { company } = useScope();
   const q = useDecisions({ status: 'pending', company: company ? [company] : undefined });
   return (
     <Card className="flex flex-col gap-2 p-4">
-      <SectionTitle title="کارتابل" note="فقط چیزهایی که مُهر تو را لازم دارند" action={<Button variant="text" size="sm" iconEnd="next" onClick={() => location.assign('/cartable')}>همه</Button>} />
+      <SectionTitle title="کارتابل" note="فقط چیزهایی که مُهر تو را لازم دارند" action={<Button variant="text" size="sm" iconEnd="next" onClick={() => router.push('/cartable')}>همه</Button>} />
       {q.isLoading ? <div className="flex flex-col gap-2">{Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-[72px]" />)}</div>
         : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : !q.data?.items.length ? <Empty icon="seal" title="کارتابل خالی است" body="هر تصمیمی که امضای تو را بخواهد این‌جا میاید." />
@@ -106,12 +108,13 @@ function Live() {
 }
 
 function Today() {
+  const router = useRouter();
   const { company } = useScope();
   const { data } = usePlanner({});
   const items = (data?.days[0]?.items ?? []).filter((i) => !company || i.company === company);
   return (
     <Card className="flex flex-col gap-2 p-4">
-      <SectionTitle title="امروز" note="از پلنر" action={<Button variant="text" size="sm" iconEnd="next" onClick={() => location.assign('/planner')}>پلنر</Button>} />
+      <SectionTitle title="امروز" note="از پلنر" action={<Button variant="text" size="sm" iconEnd="next" onClick={() => router.push('/planner')}>پلنر</Button>} />
       {!data ? <Skeleton className="h-24" /> : !items.length ? <p className="py-4 text-center text-caption text-muted">برای امروز کاری ثبت نشده.</p> : (
         <ol className="flex flex-col">
           {items.map((i) => (
@@ -131,11 +134,12 @@ function Today() {
 }
 
 function Budgets() {
+  const router = useRouter();
   const { data } = useTreasury({ period: 'month' });
   const { data: companies } = useCompanies();
   return (
     <Card className="flex flex-col gap-3 p-4">
-      <SectionTitle title="بودجه‌ی ماه" note="هشدار در ۷۰٪ و ۹۰٪" action={<Button variant="text" size="sm" iconEnd="next" onClick={() => location.assign('/treasury')}>خزانه</Button>} />
+      <SectionTitle title="بودجه‌ی ماه" note="هشدار در ۷۰٪ و ۹۰٪" action={<Button variant="text" size="sm" iconEnd="next" onClick={() => router.push('/treasury')}>خزانه</Button>} />
       {!data ? <Skeleton className="h-28" /> : data.budgets.map((b) => (
         <div key={`${b.scope_type}-${b.scope_ref}`} className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2 text-[12px]">

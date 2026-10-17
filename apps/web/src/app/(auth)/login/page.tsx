@@ -1,13 +1,14 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Icon } from '@/components/icon';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/primitives';
 import { ApiError, isMock } from '@/lib/api/client';
 import { useMeta } from '@/lib/api/hooks';
 import { passkeysSupported, signIn } from '@/lib/auth';
+import { useIsClient } from '@/lib/store';
 
 function LoginInner() {
   const router = useRouter();
@@ -15,8 +16,8 @@ function LoginInner() {
   const meta = useMeta();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [supported, setSupported] = useState(true);
-  useEffect(() => setSupported(passkeysSupported()), []);
+  const client = useIsClient();
+  const supported = !client || passkeysSupported();
 
   const next = params.get('next');
   const target = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';

@@ -84,7 +84,7 @@ function useLiveReply(code: string) {
 export function Chat({ code, agentKind, placeholder, suggestions }: { code: string; agentKind: string; placeholder: string; suggestions?: string[] }) {
   const q = useMessages(code);
   const send = useSend(code);
-  const read = useMarkRead(code);
+  const { mutate: markRead } = useMarkRead(code);
   const toast = useToast();
   const { live, start } = useLiveReply(code);
   const [text, setText] = useState('');
@@ -93,8 +93,7 @@ export function Chat({ code, agentKind, placeholder, suggestions }: { code: stri
   const last = items.at(-1)?.ref;
 
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [items.length, live.text]);
-  useEffect(() => { if (last) read.mutate(last); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [last]);
-  useEffect(() => { if (live.state === 'idle') return; const lastMsg = items.at(-1); if (lastMsg && lastMsg.author.kind !== 'owner' && live.state === 'thinking') { /* reply already stored */ } }, [items, live.state]);
+  useEffect(() => { if (last) markRead(last); }, [last, markRead]);
 
   const submit = async (body: string) => {
     const b = body.trim();

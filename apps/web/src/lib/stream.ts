@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isMock } from './api/client';
 
@@ -35,13 +35,12 @@ export type StreamState = 'connecting' | 'live' | 'offline';
 /** One SSE connection for the whole app; resumes with Last-Event-ID (the browser does it). */
 export function useHoldingStream(onEvent?: (e: StreamEvent) => void): StreamState {
   const qc = useQueryClient();
-  const [state, setState] = useState<StreamState>('connecting');
+  const [state, setState] = useState<StreamState>(isMock ? 'live' : 'connecting');
   const cb = useRef(onEvent);
-  cb.current = onEvent;
+  useLayoutEffect(() => { cb.current = onEvent; });
 
   useEffect(() => {
     if (isMock) {
-      setState('live');
       let n = 0;
       const t = setInterval(() => {
         n += 1;

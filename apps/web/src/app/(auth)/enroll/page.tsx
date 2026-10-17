@@ -1,28 +1,35 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { Icon } from '@/components/icon';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/primitives';
 import { ApiError } from '@/lib/api/client';
 import { deviceName, enrol, passkeysSupported, signIn } from '@/lib/auth';
 
+// The enrolment token arrives in the URL fragment. It is read once, kept in memory, and the fragment is
+// removed from the address bar immediately so it never sits in history or a screenshot.
+let enrolToken: string | null | undefined;
+function readToken(): string | null {
+  if (enrolToken === undefined) {
+    const m = /token=([^&]+)/.exec(window.location.hash);
+    enrolToken = m?.[1] ? decodeURIComponent(m[1]) : null;
+    if (window.location.hash) history.replaceState(null, '', window.location.pathname);
+  }
+  return enrolToken;
+}
+const noSubscribe = () => () => {};
+
 /** One-time enrolment from the link `make owner-enroll` prints (…/enroll#token=…). The token lives in the
  *  URL fragment, so it never reaches a server log; we remove it from the address bar at once. */
 export default function EnrollPage() {
   const router = useRouter();
-  const [token, setToken] = useState<string | null>(null);
+  const token = useSyncExternalStore(noSubscribe, readToken, () => null);
   const [name, setName] = useState('');
   const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle');
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    const m = /token=([^&]+)/.exec(window.location.hash);
-    if (m?.[1]) setToken(decodeURIComponent(m[1]));
-    history.replaceState(null, '', window.location.pathname);
-    setName(deviceName());
-  }, []);
 
   const go = async () => {
     if (!token) return;
@@ -63,7 +70,7 @@ export default function EnrollPage() {
         <>
           <label className="flex flex-col gap-1.5">
             <span className="text-[13px] text-sec">نام این دستگاه</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} className="h-12 rounded-[10px] border border-strong bg-tile px-3 text-[15px] text-ink outline-none focus:border-gold-ink" />
+            <input value={name} placeholder={deviceName()} onChange={(e) => setName(e.target.value)} maxLength={100} className="h-12 rounded-[10px] border border-strong bg-tile px-3 text-[15px] text-ink outline-none focus:border-gold-ink" />
           </label>
           <Button variant="primary" size="lg" icon="lock" onClick={go} loading={state === 'busy'} className="w-full">ثبت با اثر انگشت یا چهره</Button>
         </>

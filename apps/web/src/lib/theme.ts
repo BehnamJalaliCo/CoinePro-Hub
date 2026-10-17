@@ -1,19 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { usePersisted } from './store';
 
 export type ThemeChoice = 'night' | 'day' | 'system';
 
 export function useTheme(): [ThemeChoice, (t: ThemeChoice) => void] {
-  const [t, setT] = useState<ThemeChoice>('system');
-  useEffect(() => {
-    try { const v = localStorage.getItem('hq-theme'); if (v === 'night' || v === 'day') setT(v); } catch { /* ignore */ }
-  }, []);
-  const set = (v: ThemeChoice) => {
-    setT(v);
+  const [v, setV] = usePersisted('hq-theme', 'system');
+  const t: ThemeChoice = v === 'night' || v === 'day' ? v : 'system';
+  const set = (next: ThemeChoice) => {
     const el = document.documentElement;
-    if (v === 'system') { delete el.dataset.theme; try { localStorage.removeItem('hq-theme'); } catch { /* ignore */ } }
-    else { el.dataset.theme = v; try { localStorage.setItem('hq-theme', v); } catch { /* ignore */ } }
+    if (next === 'system') delete el.dataset.theme;
+    else el.dataset.theme = next;
+    setV(next === 'system' ? null : next);
   };
   return [t, set];
 }

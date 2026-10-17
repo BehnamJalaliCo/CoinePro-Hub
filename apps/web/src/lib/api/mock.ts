@@ -1,6 +1,5 @@
 // Development-only fixtures (npm run dev:mock). Never bundled in production:
 // the client imports this module only when NEXT_PUBLIC_HQ_MOCK=1.
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 const now = Date.now();
 const iso = (minAgo: number) => new Date(now - minAgo * 60_000).toISOString();

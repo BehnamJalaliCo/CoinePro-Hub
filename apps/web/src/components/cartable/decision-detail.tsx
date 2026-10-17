@@ -14,9 +14,10 @@ import { SealButton } from './seal-button';
 import { ApiError, type Schemas } from '@/lib/api/client';
 import { useAskAboutDecision, useCompanies, useDecide, useReviewWithAdvisor } from '@/lib/api/hooks';
 import { stepUp } from '@/lib/auth';
+import { useNow } from '@/lib/store';
 import { companyOf } from '@/lib/company';
 import { ACTOR_FA, DECISION_KIND, DECISION_STATUS, RISK } from '@/lib/labels';
-import { ago, cx, jDateTime, tokens, until, usd } from '@/lib/format';
+import { ago, cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
 
 type Decision = Schemas['Decision'];
 const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change']);
@@ -49,7 +50,7 @@ function Payload({ d }: { d: Decision }) {
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Fact label="نقش">{String(p.title_fa ?? p.role ?? '—')}</Fact>
           <Fact label="دپارتمان" mono>{String(p.department ?? '—')}</Fact>
-          <Fact label="مدل و فکر" mono>{String(p.model ?? '—').replace('claude-', '')} · {String(p.effort ?? '—')}</Fact>
+          <Fact label="مدل و فکر" mono>{modelLabel(String(p.model ?? ''))} · {String(p.effort ?? '—')}</Fact>
           <Fact label="برآورد ماهانه" mono>{tokens(Number(p.quota_estimate_month ?? d.quota_estimate.tokens ?? 0))} tok</Fact>
         </div>
         {list(p.duties).length ? <ul className="mt-1 flex list-disc flex-col gap-1 pr-5 text-[13px] leading-6 text-sec marker:text-muted">{list(p.duties).map((x) => <li key={x}>{x}</li>)}</ul> : null}
@@ -105,6 +106,7 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
   const k = DECISION_KIND[d.kind] ?? { fa: d.kind, icon: 'decision' as const };
   const r = RISK[d.risk] ?? RISK.medium!;
   const pending = d.status === 'pending';
+  const now = useNow();
 
   const fail = (e: unknown) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'انجام نشد.' });
 
@@ -146,7 +148,7 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
           <span className="text-[13px] font-semibold">{ACTOR_FA(d.proposer)}</span>
           <span className="text-[12px] text-muted"><span className="fig">{d.proposer.code}</span>، {ago(d.created_at)}</span>
         </div>
-        {d.expires_at && pending ? <span className={cx('text-[12px]', new Date(d.expires_at).getTime() - Date.now() < 12 * 3600_000 ? 'text-warn' : 'text-muted')}>{until(d.expires_at)}</span> : null}
+        {d.expires_at && pending ? <span className={cx('text-[12px]', !!now && new Date(d.expires_at).getTime() - now < 12 * 3600_000 ? 'text-warn' : 'text-muted')}>{until(d.expires_at)}</span> : null}
       </div>
 
       <Section title="چی"><Md text={d.what} /></Section>

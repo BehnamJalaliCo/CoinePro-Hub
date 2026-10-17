@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useNow } from '@/lib/store';
 import { Icon } from '@/components/icon';
 import { CompanyMark } from '@/components/brand/marks';
 import { Pill } from '@/components/ui/primitives';
@@ -11,7 +14,8 @@ type Row = { ref: string; title: string; kind: string; risk: string; company: st
 export function DecisionRow({ d, href, selected, onSelect }: { d: Row; href?: string; selected?: boolean; onSelect?: () => void }) {
   const k = DECISION_KIND[d.kind] ?? { fa: d.kind, icon: 'decision' as const };
   const r = RISK[d.risk] ?? RISK.medium!;
-  const soon = d.expires_at && new Date(d.expires_at).getTime() - Date.now() < 12 * 3600_000;
+  const now = useNow();
+  const soon = !!now && !!d.expires_at && new Date(d.expires_at).getTime() - now < 12 * 3600_000;
   const inner = (
     <div className={cx('flex items-start gap-3 rounded-[12px] p-3 transition-colors', selected ? 'tahrir bg-gold-soft' : 'hover:bg-hover')}>
       <span className="mt-0.5 flex size-9 flex-none items-center justify-center rounded-[10px] bg-tile text-gold-ink"><Icon name={k.icon} size={18} /></span>

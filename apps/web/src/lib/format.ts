@@ -78,3 +78,11 @@ export function until(iso: string | null | undefined, now = Date.now()): string 
 export function cx(...a: Array<string | false | null | undefined>): string {
   return a.filter(Boolean).join(' ');
 }
+
+/** "claude-sonnet-5-5" → "Sonnet 5.5" (model names stay Latin). */
+export function modelLabel(id: string | null | undefined): string {
+  if (!id) return '—';
+  const m = /^claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(id);
+  if (!m) return id;
+  return `${m[1]!.charAt(0).toUpperCase()}${m[1]!.slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ''}`;
+}
