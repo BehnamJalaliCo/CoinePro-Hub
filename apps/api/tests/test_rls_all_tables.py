@@ -141,6 +141,12 @@ async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: 
 async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     """Prompt 05's tables: rows of `co` the runtime and the checker would write
     (superuser, test setup only)."""
+    # Prompt 06: the processing state of an upload.
+    await su.execute(
+        """INSERT INTO files.processing (file_id, company_id)
+           SELECT id, company_id FROM files.files WHERE company_id = $1 LIMIT 1""",
+        co["id"],
+    )
     emp = await su.fetchval("SELECT id FROM core.employees WHERE code = $1", f"{co['code']}-CEO")
     run = await su.fetchval(
         "SELECT id FROM agents.runs WHERE company_id = $1 ORDER BY queued_at LIMIT 1", co["id"]

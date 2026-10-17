@@ -536,3 +536,20 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 3. **سرور بزرگ‌تر** (فقط عدد؛ هزینه با مالک): Hetzner ‏CPX52 (12 vCPU، 24 GB) یا CCX33 (8 vCPU اختصاصی، 32 GB).
    - یک پروفایل تازه با `HQ_BUDGET_REF_RAM_MB` همان RAM لازم است. مثلاً 24576 ← بودجه‌ی 19660، که `full` + stt با حدود 6 GB جای خالی در آن جا میشود.
    - vCPU اختصاصی رونویسی را هم تندتر میکند.
+
+## ۱۷. کارگاه کد و فرمان صوتی (پرامپت ۶ §۴ و §۵)
+- راهنمای کامل: **`docs/ops/WORKSHOP.md`**. آنجا adapterها، قوانین ۱ تا ۷، طراحی `self_hosted` و مسیریابی فرمان آمده است.
+- **وضعیت:**
+  - کنترل‌پلن کامل است: workspace، grant، سشن، رویداد، approval، قفل کاری، بودجه و transcript.
+  - `WORKSHOP_RUNTIME` خالی است. پس `GET /meta` مقدار `workshop.runtime = null` میدهد و `POST /workshop/sessions` جواب `503 runtime_not_configured` میدهد.
+  - workspaceها از `apps/api/seed/workspaces.yaml` میایند: ریپوی هر شرکت، به‌علاوه‌ی `HQ-HUB`.
+- **منتظر مالک:**
+  - انتخاب محل اجرا: `managed` با یک API key جدا و سقف ماهانه، یا `self_hosted` روی هاستی جدا.
+  - توکن GitHub مخصوص هر workspace (fine-grained، فقط همان ریپو). مالک خودش آن را در OpenBao میگذارد.
+  - ری‌استارت api بعد از تنظیم.
+- **فرمان صوتی:** `POST /api/v1/orders` سه مرحله دارد:
+  1. قاعده (`apps/api/seed/order_rules.yaml`)
+  2. مدل سبک (`order_routing`، P1)
+  3. مشاور کل، فقط وقتی فرمان مبهم است
+
+  رویداد `order.routed` روی topic ‏`orders` میرود.
