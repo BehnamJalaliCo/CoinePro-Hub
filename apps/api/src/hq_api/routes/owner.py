@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field, field_validator
 
-from hq_api import pagination, workflows_client
+from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import hiring, notify
 from hq_api.errors import ApiError, responses
@@ -386,7 +386,7 @@ async def list_owner_interactions(
 
 # ------------------------------------------------------------------ hiring --
 class HiringStart(BaseModel):
-    mode: Literal["proposals", "self"]
+    mode: hiring.Mode
 
 
 class HiringStarted(hiring.Hiring):
@@ -403,17 +403,24 @@ async def get_hiring(ctx: Ctx = Depends(owner_ctx)) -> hiring.Hiring:
 
 
 @router.post(
-    "/owner/hiring/start", response_model=HiringStarted, responses=responses(401, 403, 422)
+    "/owner/hiring/start",
+    response_model=HiringStarted,
+    responses=responses(401, 403, 409, 422),
 )
-async def start_hiring(
-    body: HiringStart, request: Request, ctx: Ctx = Depends(owner_ctx)
-) -> HiringStarted:
-    """🔏 (`hiring.start`, target `holding`). `proposals`: hiring opens to agents
-    and each CEO (and each holding head with a hiring duty) gets one work item
-    "propose your first month's team" (a second start adds none). `self`: hiring
-    stays closed to agents; the owner hires directly (`POST /org/hires`)."""
+async def start_hiring(body: HiringStart, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+    """🔏 (`hiring.start`, target `holding`). `proposals`: hiring opens to agents,
+    the owner decides every card, and each CEO (and each holding head with a
+    hiring duty) gets one work item "propose your first month's team" (a second
+    start adds none). `delegated` (each CEO hires inside its monthly envelope)
+    answers `409 not_ready` until prompt 8, before any step-up is consumed and
+    without changing anything. Honours `Idempotency-Key` (a retry after a lost
+    answer gets the same answer, not a spent step-up)."""
+    hiring.require_mode(body.mode)
     holding = await ctx.hub.companies.holding()
     async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who)
+        if idem and idem.replay:
+            return idem.replay
         await stepup.consume(tx, request, ctx.who, "hiring.start", "holding")
         out = await hiring.start(
             tx,
@@ -444,7 +451,10 @@ async def start_hiring(
             data={"mode": body.mode, "work": work},
         )
         state = await hiring.load(tx, holding.id)
-    return HiringStarted(**state.model_dump(), work=work)
+        result = HiringStarted(**state.model_dump(), work=work)
+        if idem:
+            await idem.store(tx, 200, result.model_dump(mode="json"))
+    return result
 
 
 @router.post("/owner/hiring/close", response_model=hiring.Hiring, responses=responses(401))

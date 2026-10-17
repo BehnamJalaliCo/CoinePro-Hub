@@ -724,23 +724,24 @@ async def propose_decision(
         raise ApiError(403, "policy_denied", "agents only")
     assert ctx.who.company is not None
     assert ctx.who.company_id is not None
-    # Hiring starts with the owner (§18.11): a hire while closed is refused before
-    # anything else, and OPA gets the state too (a second, fail-closed layer).
-    async with ctx.hub.db.raw() as rtx:
-        hiring_state = await hiring.state(rtx)
-    if body.kind == "hire" and hiring_state != "open":
-        raise ApiError(403, "hiring_closed")
-    payload = D.validate_payload(body.kind, body.payload)  # 422 before the policy
-    scope = payload.get("scope") if body.kind == "budget_change" else None
-    await allow(
-        ctx,
-        "decision.propose",
-        {"company": ctx.who.company, "kind": body.kind, "scope": scope, "hiring": hiring_state},
-    )
     async with ctx.tx() as tx:
+        # The key first: a retried request gets the answer it already got.
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
+        # Hiring starts with the owner (§18.11): a hire while closed is refused
+        # before anything else; OPA gets the state too (a second, fail-closed
+        # layer), and D.propose reads it again FOR SHARE (a close waits).
+        hiring_state = await hiring.state(tx)
+        if body.kind == "hire" and hiring_state != "open":
+            raise ApiError(403, "hiring_closed")
+        payload = D.validate_payload(body.kind, body.payload)  # 422 before the policy
+        scope = payload.get("scope") if body.kind == "budget_change" else None
+        await allow(
+            ctx,
+            "decision.propose",
+            {"company": ctx.who.company, "kind": body.kind, "scope": scope, "hiring": hiring_state},
+        )
         await ctx.ensure_unlocked(tx, ctx.who.company_id)
         d = await D.propose(
             tx,

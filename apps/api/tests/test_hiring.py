@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -15,6 +16,7 @@ import pytest
 
 from hq_api import bootstrap
 from hq_api.domain import hiring
+from hq_api.domain import work as W
 
 from .conftest import API_DIR, HOST, agent_headers, body_bytes, idem, step_up
 
@@ -69,7 +71,11 @@ async def _set_hiring(su: Any, state: str) -> None:
 
 # ------------------------------------------------------------- migration --
 async def test_migration_withdraws_pending_hire_cards_once(
-    client: httpx.AsyncClient, hub: Any, su: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Any,
+    su: Any,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
     mgr = await agent_headers(f"{co}-TECH-MGR")
@@ -81,12 +87,45 @@ async def test_migration_withdraws_pending_hire_cards_once(
         )
         assert r.status_code == 201, r.text
         refs.append(r.json()["ref"])
+    # Cards that must not move: a decided hire card and a pending card of another kind.
+    r = await client.post("/internal/v1/decisions", headers={**mgr, **idem()}, json=_hire(co, 99))
+    decided = r.json()["ref"]
+    r = await client.post(
+        f"/api/v1/decisions/{decided}/reject", headers={**owner, **idem()}, json={}
+    )
+    assert r.status_code == 200, r.text
+    r = await client.post(
+        "/internal/v1/decisions",
+        headers={**await agent_headers(f"{co}-CEO"), **idem()},
+        json={"kind": "proposal", "title": "پیشنهاد", "payload": {}},
+    )
+    other = r.json()["ref"]
+    untouched = (
+        """SELECT ref, status, version FROM cartable.decisions WHERE ref = ANY($1) ORDER BY ref"""
+    )
+    kept = [dict(x) for x in await su.fetch(untouched, [decided, other])]
     await _set_hiring(su, "closed")
-    # A month-1 setup item still open: cancelled by the migration, its queued run refused.
+    # A month-1 setup item still open, with an open child: both cancelled by the
+    # migrations, their queued runs refused.
     async with hub.db.tx(await hub.companies.ids()) as tx:
         out = await bootstrap.apply(tx, bootstrap.load("month1"), charters=hub.charters)
-    mine = [c["ref"] for c in out["created"] if c["assignee"] == f"{co}-TECH-MGR"]
-    assert len(mine) == 1
+        mine = [c["ref"] for c in out["created"] if c["assignee"] == f"{co}-TECH-MGR"]
+        assert len(mine) == 1
+        parent = await W.load(
+            tx, await tx.scalar("SELECT id FROM work.work WHERE ref = :r", r=mine[0])
+        )
+        child = await W.create(
+            tx,
+            bootstrap.BOOTSTRAP,
+            company_id=parent["company_id"],
+            company_code=co,
+            title="بخش فرزند",
+            brief="",
+            kind="one_off",
+            priority="P3",
+            assignee_code=f"{co}-TECH-MGR",
+            parent=parent,
+        )
     before = await su.fetchval("SELECT count(*) FROM cartable.decisions")
 
     _alembic("downgrade", "0009")
@@ -122,6 +161,16 @@ async def test_migration_withdraws_pending_hire_cards_once(
     )
     w = await su.fetchrow("SELECT status, close_reason FROM work.work WHERE ref = $1", mine[0])
     assert (w["status"], w["close_reason"]) == ("cancelled", hiring.NOTE)
+    c = await su.fetchrow("SELECT status, close_reason FROM work.work WHERE id = $1", child["id"])
+    assert (c["status"], c["close_reason"]) == ("cancelled", hiring.NOTE)
+    assert [dict(x) for x in await su.fetch(untouched, [decided, other])] == kept
+    # decision.decided (status withdrawn) is what clients follow (§7), once per card.
+    decided_events = await su.fetch(
+        """SELECT payload FROM core.outbox WHERE subject LIKE '%.decision.decided'
+             AND payload->>'ref' = ANY($1) AND payload->'data'->>'status' = 'withdrawn'""",
+        refs,
+    )
+    assert len(decided_events) == 7
     assert not await su.fetchval(
         """SELECT count(*) FROM agents.runs r JOIN work.work w ON w.id = r.work_id
            WHERE w.ref = $1 AND r.state = 'queued'""",
@@ -260,14 +309,6 @@ async def test_start_needs_its_step_up_and_proposals_wake_each_head_once(
             "SELECT payload FROM core.outbox WHERE subject LIKE '%.hiring.changed' ORDER BY id DESC LIMIT 2"
         )
         assert {json.loads(e["payload"])["data"]["state"] for e in events} == {"open"}
-        # self: hiring stays closed to agents, no work.
-        su_h = await step_up(hub, sid, "hiring.start", "holding")
-        r = await client.post(
-            "/api/v1/owner/hiring/start", headers={**h, **su_h}, json={"mode": "self"}
-        )
-        assert r.status_code == 200
-        assert (r.json()["state"], r.json()["mode"], r.json()["work"]) == ("closed", "self", [])
-        assert await su.fetchval(tagged) == heads
     finally:
         r = await client.post("/api/v1/owner/hiring/close", headers=h)
         assert r.status_code == 200 and r.json()["state"] == "closed"
@@ -390,3 +431,145 @@ async def test_direct_hire_reports_to_and_validation(
         "/api/v1/org/hires", content=bad, headers={**h, **su_h, "Content-Type": "application/json"}
     )
     assert r.status_code == 422 and "payload.reports_to" in r.json()["fields"]
+
+
+# ---------------------------------------------------------- v1.4.3 shape --
+async def test_delegated_is_not_ready_and_spends_no_step_up(
+    client: httpx.AsyncClient, hub: Any, owner_session: dict[str, Any]
+) -> None:
+    h, sid = owner_session["headers"], owner_session["session_id"]
+    su_h = await step_up(hub, sid, "hiring.start", "holding")
+    r = await client.post(
+        "/api/v1/owner/hiring/start", headers={**h, **su_h}, json={"mode": "delegated"}
+    )
+    assert (r.status_code, r.json()["code"]) == (409, "not_ready")
+    assert (await client.get("/api/v1/owner/hiring", headers=h)).json()["state"] == "closed"
+    r = await client.post(
+        "/api/v1/owner/hiring/start", headers={**h, **su_h}, json={"mode": "self"}
+    )
+    assert r.status_code == 422  # v1.4.3: delegated | proposals
+    try:
+        key = idem()
+        r = await client.post(
+            "/api/v1/owner/hiring/start",
+            headers={**h, **su_h, **key},
+            json={"mode": "proposals"},
+        )
+        assert r.status_code == 200, r.text  # the same step-up: never consumed above
+        again = await client.post(
+            "/api/v1/owner/hiring/start",
+            headers={**h, **su_h, **key},
+            json={"mode": "proposals"},
+        )
+        assert again.status_code == 200 and again.json() == r.json()  # replayed, not 403
+    finally:
+        await client.post("/api/v1/owner/hiring/close", headers=h)
+
+
+async def test_hiring_shows_each_companys_envelope(
+    client: httpx.AsyncClient,
+    hub: Any,
+    su: Any,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+) -> None:
+    h, sid = owner_session["headers"], owner_session["session_id"]
+    company = await new_company()
+    co = company["code"]
+    await su.execute(
+        """INSERT INTO llm.budgets (company_id, scope_type, scope_ref, period, token_limit)
+           VALUES ($1, 'company', $2, 'month', 2000000)""",
+        company["id"],
+        co,
+    )
+    body = {
+        "company": co,
+        "department": "TECH",
+        "role": "sre",
+        "title_fa": "کارشناس",
+        "quota_estimate_month": {"tokens": 150000},
+    }
+    content = body_bytes(body)
+    su_h = await step_up(hub, sid, "hire.direct", hashlib.sha256(content).hexdigest())
+    headers = {**h, **su_h, **idem(), "Content-Type": "application/json"}
+    r = await client.post("/api/v1/org/hires", content=content, headers=headers)
+    assert r.status_code == 201, r.text
+    # A retry after a lost answer gets the same answer (the step-up is single-use).
+    again = await client.post("/api/v1/org/hires", content=content, headers=headers)
+    assert again.status_code == 201 and again.json() == r.json()
+    assert r.json()["decision"]["approver"] is None  # the owner decides (§5.1)
+    assert r.json()["employee"]["probation_until"] is None  # not a delegated hire
+    env = {
+        e["company"]: e
+        for e in (await client.get("/api/v1/owner/hiring", headers=h)).json()["envelopes"]
+    }
+    assert env[co] == {
+        "company": co,
+        "tokens_month": 2000000,
+        "committed_month": 150000,
+        "used_month": 0,
+        "hires_month": 1,
+    }
+    holding = (await hub.companies.holding()).code
+    assert holding not in env  # operating companies only
+
+
+async def test_a_close_waits_for_a_hire_proposal_in_flight(
+    hub: Any, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """Review of 5.1: the proposing transaction reads the state FOR SHARE, so a
+    close committing meanwhile waits, then withdraws the card: no pending hire
+    card outlives a close."""
+    from hq_api.domain import decisions as D
+    from hq_api.principal import Principal
+
+    company = await new_company()
+    co = company["code"]
+    await _set_hiring(su, "open")
+    holding = await hub.companies.holding()
+    agent = Principal(
+        kind="agent",
+        code=f"{co}-TECH-MGR",
+        role="manager",
+        company=co,
+        company_id=company["id"],
+    )
+    owner_p = Principal(kind="owner", code="owner", role="owner")
+    ids = await hub.companies.ids()
+
+    async def close() -> list[str]:
+        async with hub.db.tx(ids) as tx2:
+            return await hiring.close(
+                tx2, owner_p, holding_id=holding.id, holding_code=holding.code
+            )
+
+    async with hub.db.tx(ids) as tx1:
+        await hiring.require_open(tx1, agent, "hire")
+        closing = asyncio.create_task(close())
+        await asyncio.sleep(0.5)
+        assert not closing.done()  # waits for the proposal
+        d = await D.propose(
+            tx1,
+            agent,
+            company_id=company["id"],
+            company_code=co,
+            body=D.DecisionIn(**_hire(co)),
+            thread_code=None,
+            charters=hub.charters,
+            company_kind="company",
+        )
+    refs = await asyncio.wait_for(closing, 10)
+    assert d["ref"] in refs
+    assert await su.fetchval("SELECT status FROM cartable.decisions WHERE ref = $1", d["ref"]) == (
+        "withdrawn"
+    )
+
+
+async def test_a_retried_hire_proposal_while_closed_answers_the_same(
+    client: httpx.AsyncClient, new_company: Callable[..., Any]
+) -> None:
+    co = (await new_company())["code"]
+    h = {**await agent_headers(f"{co}-TECH-MGR"), **idem()}
+    first = await client.post("/internal/v1/decisions", headers=h, json=_hire(co))
+    again = await client.post("/internal/v1/decisions", headers=h, json=_hire(co))
+    assert [x.json()["code"] for x in (first, again)] == ["hiring_closed", "hiring_closed"]
