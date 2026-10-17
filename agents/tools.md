@@ -7,7 +7,7 @@ Classes (OPERATING_MODEL §1.12): **A0** observe · **A1** propose/draft · **A2
 | Tool | Class | Input | What it does |
 |---|---|---|---|
 | `work.get` | A0 | `{ref}` | One work item with its delegation chain, brief, budget left, evidence and deliverables. Own company only. |
-| `company.state` | A0 | `{}` (holding roles: `{company?}`) | Snapshot: departments, active employees, open work by status, pending decisions, kill switch, deploy freeze, budget use %. |
+| `company.state` | A0 | `{}` (holding roles: `{company?}`) | Snapshot: departments, active employees, open work by status, pending decisions, kill switch, deploy freeze, budget use %, hiring (`closed`/`open`, contract §18.11). |
 | `health.sites` | A0 | `{company?, since?}` | Latest results of the rule-based site checks (status, latency, TLS days left, consecutive failures) and open incidents. |
 | `health.hub` | A0 | `{}` | The hub's own state: services up/down and restarts, disk, memory, certificate days left, last backup age and restore-test result. |
 | `treasury.usage` | A0 | `{scope, period}` | Tokens and equivalent cost by company/department/role/model, budget use %, anomalies. |
@@ -16,7 +16,7 @@ Classes (OPERATING_MODEL §1.12): **A0** observe · **A1** propose/draft · **A2
 | `memory.read` | A0 | `{}` | The employee's own memory notes (latest first). |
 | `github.read` | A0 | `{repo, what: "commits"/"issues"/"pulls"/"file", path?}` | Read-only GitHub. **Off** until the owner provides a read-only token (`channel_not_configured`). |
 | `deliver` | A1 | `{work_ref, title_fa, body_md, evidence: [{kind, ref, note}]}` | Creates a deliverable (output card) for the owner or the requester. |
-| `propose` | A1 | `{kind, title_fa, what_md, why_md, risk, reversible, quota_estimate, payload}` | Creates a decision card (contract §5.1 kinds). The only path to anything A3, to hiring, and to recurring work. The `payload` shape of each kind is the API's own model, which the runtime puts in the prompt; a `hire` payload names the charter `role` (an `employee` charter that fits the company and department, contract §16.6). |
+| `propose` | A1 | `{kind, title_fa, what_md, why_md, risk, reversible, quota_estimate, payload}` | Creates a decision card (contract §5.1 kinds). The only path to anything A3, to hiring, and to recurring work. The `payload` shape of each kind is the API's own model, which the runtime puts in the prompt; a `hire` payload names the charter `role` (an `employee` charter that fits the company and department, contract §16.6). While hiring is closed a `hire` answers `403 hiring_closed` and no card is made (§18.11). |
 | `message.owner` | A1 | `{body_md, links?}` | A message in the role's own thread with the owner. CEOs, managers and the advisor only. Subject to the CEO attention quota; non-urgent messages wait for the next digest. |
 | `message.thread` | A1 | `{thread, body_md, links?}` | Reply in a thread the employee belongs to. |
 | `memory.write` | A1 | `{note_md, tags?}` | Append one note to the employee's memory (append-only). |

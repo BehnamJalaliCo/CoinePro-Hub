@@ -7,7 +7,7 @@
 >
 > **v1.1 (۲۰۲۶-۱۰-۱۷):** «Contract notes» گزارش پرامپت ۴ و نتیجه‌ی بازبینی وارد شد. تغییرها با ⟨1.1⟩ علامت خورده‌اند؛ آن‌هایی که هنوز پیاده نشده‌اند در `docs/server-prompts/PROMPT_04_1_HARDENING.md` هستند.
 >
-> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`.
+> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱).
 
 ---
 
@@ -456,6 +456,7 @@ Used by the agent runtime in prompt 5 and by tests now (with a fake agent princi
 `rate_limited`, `channel_not_configured`, `internal_error`,
 ⟨1.1⟩ `precondition_required` (428, PATCH without `If-Match`), `policy_unavailable` (503, OPA did not answer; the API is fail-closed — distinct from `policy_denied` 403 so clients say "try again" instead of "not allowed").
 ⟨1.4.1⟩ `live_unavailable` (503, live replies are switched off; the stored reply still arrives in the thread).
+⟨1.4.2⟩ `hiring_closed` (403, an agent proposed a hire while hiring is closed, §18.11).
 
 ---
 
@@ -840,3 +841,20 @@ BackupStatus { hourly: {last_at, next_at, ok, snapshot, size_bytes}, wal: {last_
   `founding.updated`, `provision.step` (`founding`) · `backup.done`, `backup.failed` (`backups`).
 - **Step-up targets:** `oversight.protocol` (body hash), `oversight.order` (ref), `oversight.release` (ref), `skill.activate` (`ref@version`),
   `academy.approve` (ref), `mcp.add` (body hash), `mcp.enable` (key), `provision.seal` (the plan's `digest`), `founding.activate` (ref).
+
+### 18.11 Hiring starts with the owner ⟨1.4.2⟩
+Owner decision, 2026-10-17: no hire now. When the owner brings the hub up for real work, the owner either hires from zero personally or asks the CEOs to propose their teams at that moment. Until then nobody proposes a hire.
+```
+Hiring { state: "closed"|"open", mode: "self"|"proposals"|null, changed_at|null, changed_by: Actor|null,
+         withdrawn: ["D-000001", …] }     // hire cards the system withdrew when hiring closed
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/owner/hiring` | the state above; `closed` by default |
+| POST | `/owner/hiring/start` 🔏 | `{mode: "proposals"|"self"}` · step-up `hiring.start`, target `holding`. `proposals`: hiring opens to agents and each CEO (and each holding head with a hiring duty) gets **one** work item, "propose your first month's team", at its normal priority. `self`: hiring stays closed to agents; the owner hires directly |
+| POST | `/owner/hiring/close` | no step-up (closing is always safe); pending agent hire cards are withdrawn |
+| POST | `/org/hires` 🔏 | owner only · `{company, department, role, title_fa, title_en?, model?, effort?, reports_to?, quota_estimate_month?}` · step-up `hire.direct`, target = SHA-256 of the exact body. Writes a `hire` decision proposed **and sealed by the owner** in one transaction (status `approved`, resolution `M-…`), then the employee; the same checks as §16.6 (the charter `role` must fit the company and department). `model`/`effort` default to the charter's. → `201 {employee, decision}` |
+- While `closed`, an agent's `propose` of kind `hire` is refused before any card exists: `403 hiring_closed` (new stable code, §14). Dismissal, budget and every other kind are unaffected.
+- Closing hiring (and the decision itself, 2026-10-17) **withdraws** pending agent hire cards: status `withdrawn`, `decided_by` system, note «مالک: استخدام با شروع خود مالک». Nothing is deleted; the cards stay in history and in `withdrawn`.
+- The daily agent token cap stays at 600K until the owner sets it from the first week's outputs (owner decision, 2026-10-17).
+- Stream: `hiring.changed` on topic `control`. Step-up targets: `hiring.start` (`holding`), `hire.direct` (body hash).
