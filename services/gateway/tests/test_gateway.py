@@ -117,19 +117,32 @@ async def test_no_running_run_and_caps(mock: respx.MockRouter, gw: Gateway) -> N
     s = Stub(mock)
     s.reserve_status = 401
     assert (await call(gw, "work.get", {"ref": "W-000101"}))["code"] == "run_not_running"
+    assert s.records == []  # a dead run's token: the api would refuse the audit row too
     s.reserve_status = 429
     out = await call(gw, "work.get", {"ref": "W-000101"})
     assert (out["outcome"], out["code"]) == ("denied", "rate_limited")
-    assert s.records == []  # nothing was carried out, nothing to audit as a call
+    # Nothing was carried out, but the refused call has its audit row (prompt 5.1 §2.3).
+    assert s.records == [
+        {
+            "tool": "work.get",
+            "class": "A0",
+            "outcome": "denied",
+            "code": "rate_limited",
+            "ref": None,
+            "step": 1,
+        }
+    ]
 
 
 async def test_unknown_tool_and_the_implicit_done(mock: respx.MockRouter, gw: Gateway) -> None:
     s = Stub(mock)
-    for name in ("trade.execute", "done", "rm -rf /", "x" * 90):
-        out = await call(gw, name)
+    route = mock.get(f"{API}/internal/v1/work/ref/W-000101")
+    for name in ("trade.execute", "done", "rm -rf /", "x" * 90, "work.get\n", "work.get.x", None):
+        out = await call(gw, name, {"ref": "W-000101"})  # type: ignore[arg-type]
         assert (out["outcome"], out["code"]) == ("denied", "unknown_tool"), name
-    assert [r["tool"] for r in s.records] == ["trade.execute", "done", "unknown", "unknown"]
+    assert [r["tool"] for r in s.records] == ["trade.execute", "done"] + ["unknown"] * 5
     assert all(r["outcome"] == "denied" for r in s.records)
+    assert not route.called  # "work.get\n" never reaches the api uncounted
 
 
 async def test_tool_outside_the_charter_is_refused(mock: respx.MockRouter, gw: Gateway) -> None:
@@ -161,6 +174,8 @@ async def test_policy_refusals(mock: respx.MockRouter, gw: Gateway) -> None:
 
 
 async def test_the_policy_input(mock: respx.MockRouter, gw: Gateway) -> None:
+    # The same shape is evaluated by the real policy in infra/opa/policy/actions_test.rego
+    # (test_locked_company_agent_raises_an_incident_from_the_gateway).
     s = Stub(mock, gate(lock="deploy_freeze", escrow_classes=["A0", "A1", "A2"]))
     mock.post(f"{API}/internal/v1/notifications").mock(
         return_value=httpx.Response(201, json={"id": "n1", "level": "urgent", "state": "sent"})
@@ -190,8 +205,18 @@ async def test_invalid_arguments_never_echo_values(mock: respx.MockRouter, gw: G
     assert (out["outcome"], out["code"]) == ("error", "invalid_args")
     assert set(out["fields"]) == {"ref", "extra"}
     assert "sk-ant" not in json.dumps(out)
-    out = await gw.call(TOKEN, 1, 0, "work.get", "not an object")
-    assert out.code == "invalid_args"
+    for not_an_object in ("not an object", None, [], 7):
+        out = await gw.call(TOKEN, 1, 0, "work.get", not_an_object)
+        assert (out.code, out.fields) == ("invalid_args", {"args": "must be a JSON object"})
+    for budget in (True, -5, "40000", {"tokens": True}, {"tokens": -1}, {"usd": "1"}):
+        args = {"ref": "W-000101", "to": "TY-TECH-01", "title_fa": "x", "budget": budget}
+        out = await gw.call(TOKEN, 1, 0, "work.delegate", args)
+        assert out.code == "invalid_args", budget
+    for quota in ({"usd": -1}, {"usd": False}, -3):
+        out = await gw.call(
+            TOKEN, 1, 0, "propose", {"kind": "proposal", "title_fa": "x", "quota_estimate": quota}
+        )
+        assert out.code == "invalid_args", quota
 
 
 # ----------------------------------------------------------------- reads --
@@ -636,6 +661,127 @@ async def test_audit_failures_never_fail_the_call(mock: respx.MockRouter, gw: Ga
     assert (await call(gw, "memory.read"))["outcome"] == "ok"
 
 
+async def test_any_failure_is_an_outcome_with_its_audit_row(
+    mock: respx.MockRouter, gw: Gateway, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prompt 5.1 §2.3: no exception reaches a 500 without an audit row."""
+    s = Stub(mock)
+
+    async def broken(api: T.Api, call: T.Call, a: Any) -> T.Result:
+        raise KeyError("id")
+
+    monkeypatch.setitem(T.TOOLS, "memory.read", (T.Empty, broken))
+    out = await call(gw, "memory.read")
+    assert (out["outcome"], out["code"], out["class"]) == ("error", "internal_error", "A0")
+    assert s.records[-1] == {
+        "tool": "memory.read",
+        "class": "A0",
+        "outcome": "error",
+        "code": "internal_error",
+        "ref": None,
+        "step": 1,
+    }
+    # The api answering something that is not the expected object: the same.
+    monkeypatch.undo()
+    mock.get(f"{API}/internal/v1/work/ref/W-000101").mock(
+        return_value=httpx.Response(200, json=["not", "an", "object"])
+    )
+    out = await call(gw, "deliver", {"work_ref": "W-000101", "title_fa": "t", "body_md": "b"})
+    assert out["code"] == "api_bad_answer" and s.records[-1]["code"] == "api_bad_answer"
+    mock.post(f"{API}/internal/v1/runs/self/reserve").mock(
+        return_value=httpx.Response(200, json=["no gate"])
+    )
+    n = len(s.records)
+    assert (await call(gw, "memory.read"))["code"] == "internal_error"
+    assert len(s.records) == n + 1
+
+
+async def test_one_deadline_for_the_whole_call(mock: respx.MockRouter) -> None:
+    import asyncio
+    import time
+
+    s = Stub(mock)
+
+    async def hang(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(5)
+        return httpx.Response(200, json=s.gate)
+
+    mock.post(f"{API}/internal/v1/runs/self/reserve").mock(side_effect=hang)
+    gw = Gateway(LIB, T.Api(API, 10), Opa(OPA), tool_timeout_s=10, deadline_s=0.8)
+    t0 = time.monotonic()
+    out = await call(gw, "memory.read")
+    assert out["code"] == "tool_timeout" and time.monotonic() - t0 < 1.0
+    assert s.records[-1]["code"] == "tool_timeout"
+    assert Settings().deadline_s < 40  # below the worker's timeout for a gateway call
+
+
+async def test_refusals_carry_the_apis_persian_hint(mock: respx.MockRouter, gw: Gateway) -> None:
+    Stub(mock)
+    work_route(mock)
+    hint = "استخدام بسته است؛ کمبود تیم را در خروجی‌ات بنویس"
+    mock.post(f"{API}/internal/v1/decisions").mock(
+        return_value=httpx.Response(
+            403,
+            json={"code": "hiring_closed", "title": "Hiring is closed", "message_fa": hint},
+        )
+    )
+    args = {
+        "kind": "hire",
+        "title_fa": "استخدام SRE",
+        "payload": {"company": "TY", "department": "TECH", "role": "sre"},
+    }
+    out = await call(gw, "propose", args)
+    assert (out["outcome"], out["code"], out["hint_fa"]) == ("denied", "hiring_closed", hint)
+    # Field errors and hints are scrubbed like everything else the model reads.
+    email = "ali" + "@" + "example.com"
+    mock.get(f"{API}/internal/v1/work/ref/W-000104").mock(
+        return_value=httpx.Response(
+            422,
+            json={
+                "code": "validation_failed",
+                "fields": {"to": f"no employee {email}"},
+                "message_fa": f"ورودی نادرست ({email})" + "ـ" * 400,
+            },
+        )
+    )
+    out = await call(gw, "work.get", {"ref": "W-000104"})
+    assert out["fields"] == {"to": "no employee [email]"}
+    assert email not in out["hint_fa"] and len(out["hint_fa"]) == T.HINT_CHARS
+    assert (await call(gw, "work.get", {"ref": "W-000101"}))["hint_fa"] is None
+
+
+async def test_every_written_field_is_scrubbed(mock: respx.MockRouter, gw: Gateway) -> None:
+    Stub(mock)
+    work_route(mock)
+    email = "ali" + "@" + "example.com"
+    deliver = mock.post(
+        f"{API}/internal/v1/work/11111111-1111-1111-1111-111111111111/deliver"
+    ).mock(return_value=httpx.Response(200, json={"deliverable": "O-000079"}))
+    await call(
+        gw,
+        "deliver",
+        {
+            "work_ref": "W-000101",
+            "title_fa": "گزارش",
+            "body_md": "b",
+            "evidence": [{"kind": "link", "ref": f"mailto:{email}", "note": f"از {email}"}],
+        },
+    )
+    assert email not in deliver.calls.last.request.content.decode()
+    memory = mock.post(f"{API}/internal/v1/memory").mock(
+        return_value=httpx.Response(201, json={"id": 10})
+    )
+    await call(gw, "memory.write", {"note_md": "یادداشت", "tags": [email]})
+    assert json.loads(memory.calls.last.request.content)["tags"] == ["[email]"]
+    note = mock.post(f"{API}/internal/v1/notifications").mock(
+        return_value=httpx.Response(201, json={"id": "n3", "level": "info", "state": "queued"})
+    )
+    await call(
+        gw, "notify", {"level": "info", "title_fa": "t", "link": {"kind": "work", "ref": email}}
+    )
+    assert json.loads(note.calls.last.request.content)["link_ref"] == "[email]"
+
+
 # ------------------------------------------------------------------- http --
 async def test_http_api_authenticates_the_runtime(mock: respx.MockRouter, tmp_path: Path) -> None:
     digest = tmp_path / "worker-token.sha256"
@@ -653,7 +799,9 @@ async def test_http_api_authenticates_the_runtime(mock: respx.MockRouter, tmp_pa
         good = {"Authorization": f"Bearer {WORKER}"}
         assert (await c.get("/v1/health", headers=good)).json()["roles"] == len(LIB.roles)
         r = await c.post(
-            "/v1/tools/call", headers=good, json={"token": TOKEN, "step": 1, "tool": "memory.read"}
+            "/v1/tools/call",
+            headers=good,
+            json={"token": TOKEN, "step": 1, "tool": "memory.read", "args": {}},
         )
         assert r.status_code == 200 and r.json()["outcome"] == "ok"
         r = await c.post(
@@ -669,6 +817,24 @@ async def test_http_api_authenticates_the_runtime(mock: respx.MockRouter, tmp_pa
             params={},
         )
         assert big.status_code == 413
+
+        async def chunked() -> Any:  # no Content-Length: capped while it is read
+            for _ in range(10):
+                yield b" " * 500
+
+        big = await c.post("/v1/tools/call", headers=good, content=chunked())
+        assert big.status_code == 413
+        assert "content-length" not in {k.lower() for k in big.request.headers}
+
+        async def small() -> Any:
+            yield json.dumps(
+                {"token": TOKEN, "step": 1, "tool": "memory.read", "args": {}}
+            ).encode()
+
+        r = await c.post(
+            "/v1/tools/call", headers={**good, "Content-Type": "application/json"}, content=small()
+        )
+        assert r.status_code == 200 and r.json()["outcome"] == "ok", r.text
     no_digest = State(Settings(worker_token_file=str(tmp_path / "missing")))
     no_digest.load_digest()
     async with httpx.AsyncClient(

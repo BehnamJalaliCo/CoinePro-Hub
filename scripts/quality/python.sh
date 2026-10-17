@@ -44,7 +44,7 @@ case "${1:-}" in
       --cov=hq_common --cov=llm_router --cov=claude_runtime --cov=hq_gateway --cov-report=term \
       --cov-fail-under=80 &&
       coverage report --fail-under=85 \
-        --include="*/llm_router/assignment.py,*/llm_router/budget.py,*/llm_router/scheduler.py,*/llm_router/breaker.py,*/llm_router/quota.py,*/hq_gateway/gateway.py,*/hq_gateway/tools.py,*/hq_gateway/redact.py"'
+        --include="*/llm_router/assignment.py,*/llm_router/budget.py,*/llm_router/scheduler.py,*/llm_router/breaker.py,*/llm_router/quota.py,*/hq_gateway/gateway.py,*/hq_gateway/tools.py,*/hq_common/redact.py"'
     HQ_TEST_TARGET=api "$TE" run sh -c "cd /api && HQ_FUZZ_EXAMPLES=${HQ_FUZZ_EXAMPLES:-8} pytest tests \
       --cov=hq_api --cov-report=term \
       --cov-fail-under=80 && coverage report --fail-under=85 --include='$API_DOMAIN'"
