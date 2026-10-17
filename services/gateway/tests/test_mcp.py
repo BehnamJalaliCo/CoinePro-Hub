@@ -19,13 +19,12 @@ import pytest
 import respx
 from mcp import Client
 from mcp.server import MCPServer
+from test_gateway import API, LIB, OPA, TOKEN, Stub, gate
 
 from hq_common import tool_status
 from hq_gateway import mcp as M
 from hq_gateway import tools as T
 from hq_gateway.gateway import Gateway, Opa
-
-from test_gateway import API, LIB, OPA, TOKEN, Stub, gate
 
 SECRET = "mcp-secret-" + "s" * 30  # what the owner put in OpenBao for this server
 PHONE = "0912" + "345" + "6789"
@@ -255,9 +254,10 @@ def test_listing_digest_and_render() -> None:
             self.type, self.text = kind, text
 
     class Res:
-        content = [Block("text", "hello"), Block("image")]
-        structured_content = {"n": 1}
-        is_error = False
+        def __init__(self) -> None:
+            self.content = [Block("text", "hello"), Block("image")]
+            self.structured_content = {"n": 1}
+            self.is_error = False
 
     assert M.render("crm", "t", Res()) == {
         "source": "mcp",
@@ -269,7 +269,9 @@ def test_listing_digest_and_render() -> None:
         "structured": {"n": 1},
         "omitted": ["image"],
     }
-    assert M.ServerSpec("k", "http", "u", None, "X-Api-Key", "abc").headers() == {"X-Api-Key": "abc"}
+    assert M.ServerSpec("k", "http", "u", None, "X-Api-Key", "abc").headers() == {
+        "X-Api-Key": "abc"
+    }
     assert M.ServerSpec("k", "http", "u", None, None, "abc").headers() == {}
 
 

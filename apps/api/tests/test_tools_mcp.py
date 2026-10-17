@@ -189,7 +189,9 @@ async def test_resolve_gives_the_sealed_class_and_makes_a3_a_decision(
     me = f"{co}-TECH-MGR"
     k = key()
     bao.data[f"hq-api/tools/mcp/{k}"] = {"token": SECRET}
-    assert (await add(client, hub, owner_session, server_body(k, companies=[co]))).status_code == 201
+    assert (
+        await add(client, hub, owner_session, server_body(k, companies=[co]))
+    ).status_code == 201
     # Pending: nothing for the agents yet.
     r = await resolve(client, me, k, "lookup")
     assert (r.status_code, r.json()["code"]) == (503, "channel_not_configured")
@@ -242,7 +244,9 @@ async def test_caps(
     real = hub.settings
     hub.settings = replace(real, mcp_calls_per_run=2)
     try:
-        codes = [(await resolve(client, f"{co}-TECH-MGR", k, "lookup")).status_code for _ in range(3)]
+        codes = [
+            (await resolve(client, f"{co}-TECH-MGR", k, "lookup")).status_code for _ in range(3)
+        ]
     finally:
         hub.settings = real
     assert codes == [200, 200, 429]
@@ -317,7 +321,9 @@ async def test_the_catalog(
     await enable(client, hub, owner_session, k)
     items = {
         t["name"]: t
-        for t in (await client.get("/api/v1/tools/catalog", headers=owner_session["headers"])).json()
+        for t in (
+            await client.get("/api/v1/tools/catalog", headers=owner_session["headers"])
+        ).json()
     }
     assert items[f"{k}/lookup"]["status"] == "live" and items["mcp.call"]["status"] == "live"
 
@@ -367,7 +373,9 @@ async def test_pdf_text_reaches_files_read_masked(
     )
     assert r.status_code == 201, r.text
     meta = (
-        await client.get(f"/internal/v1/files/{r.json()['id']}/meta", headers=await agent_headers(me))
+        await client.get(
+            f"/internal/v1/files/{r.json()['id']}/meta", headers=await agent_headers(me)
+        )
     ).json()
     assert "Contract total 500" in meta["text"] and PHONE not in meta["text"]
     # A broken PDF: stored, no text, no error.
@@ -379,7 +387,9 @@ async def test_pdf_text_reaches_files_read_masked(
     )
     assert r.status_code == 201
     meta = (
-        await client.get(f"/internal/v1/files/{r.json()['id']}/meta", headers=await agent_headers(me))
+        await client.get(
+            f"/internal/v1/files/{r.json()['id']}/meta", headers=await agent_headers(me)
+        )
     ).json()
     assert meta["text"] is None
     # The owner's PDF: text at upload, in files.processing (files.files stays append-only).

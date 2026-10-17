@@ -1034,7 +1034,12 @@ async def test_files_read_shows_a_file_and_the_pictures_to_attach(mock: respx.Mo
         ({"kind": "video", "status": "processing"}, {}, []),
         ({"kind": "video", "status": "ready", "variants": {"poster": frames[1]}}, {}, [frames[1]]),
         (
-            {"kind": "video", "status": "ready", "frames": frames, "variants": {"poster": frames[1]}},
+            {
+                "kind": "video",
+                "status": "ready",
+                "frames": frames,
+                "variants": {"poster": frames[1]},
+            },
             {"variant": "poster"},
             [frames[1]],
         ),
