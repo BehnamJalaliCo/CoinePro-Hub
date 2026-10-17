@@ -7,8 +7,9 @@
 
 ```
  مرورگر / اندروید ──HTTPS──► Caddy ──(/api/* فقط وقتی دامنه هست)──► api :8000
-                                     (/internal/* هرگز)                │
- ایجنت‌ها (پرامپت ۵)، سرویس‌ها ──hq-internal──► /internal/v1 ─────────┤
+                                │    (/internal/* هرگز)                │
+                                └──(هر مسیر دیگر)──► web :3000 (پروفایل web)
+ ایجنت‌ها: worker ──► gateway (hq-core) ──► /internal/v1 ───────────────┤
                                                                       ├──► Postgres (RLS FORCE)
                                                                       ├──► OPA (سیاست‌ها، fail-closed)
                                                                       ├──► NATS JetStream HQ_CORE ──► SSE /api/v1/stream
@@ -22,6 +23,8 @@
 | `api` | `/api/v1` و `/internal/v1` | uid 10001؛ rootfs فقط‌خواندنی؛ tmpfs ۳۲MB؛ `cap_drop: ALL`؛ volume ‏`hq-files` | AppRole ‏`hq-api` |
 | `worker` | گردش‌کارهای Temporal و پل NATS | مثل api | AppRole ‏`hq-worker` |
 | `opa` | سیاست‌های `infra/opa/policy` | uid 1000 (ایمیج distroless)؛ rootfs فقط‌خواندنی | — |
+| `gateway` (پرامپت ۵) | Tool Gateway: هر اقدام ایجنت، با توکن `hqa1` همان اجرا (`docs/ops/AGENTS.md`) | uid 10001؛ rootfs فقط‌خواندنی؛ `cap_drop: ALL`؛ **فقط `hq-core`** | فقط SHA-256 توکن worker |
+| `web` (پرامپت ۵) | پنل Next.js (`apps/web`، مال Claude سشن مشورت) | uid 10001؛ rootfs فقط‌خواندنی؛ tmpfs برای `/tmp` و کش | — |
 
 - **شبکه‌ها (۴.۱):**
   - `api` و `worker` روی `hq-internal` و `hq-core` هستند.
@@ -29,7 +32,7 @@
   - هیچ کانتینر دیگری روی `hq-internal` به OPA یا به پورت 7233 ‏Temporal نمیرسد. یک گیت این را بررسی میکند.
   - هیچ‌کدام پورت عمومی ندارند؛ فقط Caddy روی 80/443 است.
 - نقش‌های دیتابیس: `hq_api` و `hq_worker`، هر دو با کمترین دسترسی (`infra/postgres/provision.sh`؛ grantها در migrationها). **هیچ نقشی حق DELETE روی داده‌ی کسب‌وکار ندارد.**
-- OpenBao: policy‌های `hq-api` (خواندن `kv/hq-api/*`؛ کلید اتصال‌ها فقط **نوشتنی**) و `hq-worker` (فقط Web Push و کانال‌ها). `make up` آن‌ها را میسازد (`infra/openbao/provision.sh`).
+- OpenBao: policy‌های `hq-api` (خواندن `kv/hq-api/*`؛ کلید اتصال‌ها فقط **نوشتنی**) و `hq-worker` (Web Push، کانال‌ها، `kv/hq-api/config` و از پرامپت ۵ `kv/hq-agents/runtime`: توکن فراخواننده‌ی `hq-agents` روی llm-router و توکن gateway). `make bootstrap` و `make up` آن‌ها را میسازند (`infra/openbao/provision.sh`).
 
 ## ۲. لبه و ورود
 
@@ -38,7 +41,7 @@
 - **`/internal/*` هرگز از لبه رد نمیشود.**
 - **ثبت کلید عبور (مالک):** `make owner-enroll` در ترمینال خود مالک یک لینک یک‌بارمصرف ۱۵ دقیقه‌ای چاپ میکند (`<origin>/enroll#token=...`). این لینک **هیچ‌جا ذخیره یا لاگ نمیشود** و همین دستور مسیر بازیابی هم هست. دو کلید عبور (گوشی و کامپیوتر) پیشنهاد میشود.
 - **نشست‌ها:** opaque، ذخیره‌شده به‌صورت SHA-256، تمدید لغزنده‌ی ۳۰ روز و سقف مطلق ۹۰ روز. وب: کوکی `hq_session` (`HttpOnly; Secure; SameSite=Strict; Path=/api`) + `X-HQ-Client: web` و Origin درست (وگرنه `403 csrf_rejected`). اندروید: `Authorization: Bearer`.
-- **step-up 🔏:** کلید عبور دوباره با UV. توکن یک‌بارمصرف ۱۲۰ ثانیه‌ای، بسته به نشست، action و target، در هدر `X-Step-Up`:
+- **step-up 🔏:** کلید عبور دوباره با UV. توکن یک‌بارمصرف ۱۲۰ ثانیه‌ای، بسته به نشست، action و target، در هدر `X-Step-Up`. **(پرامپت ۵)** بعد از step-up موفق، توکن کوکی نشست وب عوض میشود (نشست Bearer اپ دست نمیخورد):
 
 | action | target | کجا |
 |---|---|---|
@@ -47,6 +50,7 @@
 | `company.create` / `company.archive` | کد شرکت | ساخت شرکت / بایگانی |
 | `department.create` | کد شرکت | دپارتمان جدید |
 | `kill_switch.release` | `holding` یا `company:XX` | **آزاد کردن** کلید توقف (روشن کردنش step-up نمیخواهد) |
+| `sites.update` (پرامپت ۵) | SHA-256 (hex) بایت‌های بدنه | `PUT /api/v1/ops/sites`، فهرست سایت‌های پایش |
 | `connection.update` / `connection.secret` | id اتصال | تغییر اتصال / ثبت کلید |
 | `assignments.update` / `budgets.update` | SHA-256 (hex) **همان بایت‌های بدنه‌ی درخواست** (۴.۱) | تخصیص مدل / بودجه |
 | `device.revoke` / `passkey.register` | id / `self` | دستگاه‌ها |
@@ -55,7 +59,7 @@
 
 | schema | جدول‌ها |
 |---|---|
-| `core` | `companies` (کامل‌شده)، `departments`، `employees`، `employee_code_seq`، `employee_scores`، `counters`، `outbox`، `idempotency_keys` |
+| `core` | `companies` (کامل‌شده)، `departments`، `employees` (از پرامپت ۵ با `role` = منشور)، `employee_code_seq`، `employee_scores`، `employee_memory` (append-only، پرامپت ۵)، `counters`، `outbox`، `idempotency_keys` |
 | `work` | `work`، `work_events`، `escrows`، `schedules` |
 | `cartable` | `decisions`، `deliverables`، `ratings`، `resolutions` |
 | `msg` | `threads`، `messages` |
@@ -64,11 +68,15 @@
 | `owner` | `presence`، `settings`، `interactions` |
 | `audit` | `entries`، `chain_head` |
 | `control` | `kill_switches`، `deploy_freezes` |
+| `agents` (پرامپت ۵) | `runs` (رجیستری اجراها، ماشین حالت با trigger)، `steps` (append-only: خلاصه، اقدام‌ها، مصرف؛ بدون prompt یا خروجی خام) |
+| `ops` (پرامپت ۵) | `sites`، `checks` (پارتیشن روزانه، ۳۰ روز)، `incidents` (`I-0001`)، `hub_health` |
 | `files` | `files` (محتوا روی volume ‏`hq-files` از راه interface ‏`Storage`؛ بعداً S3) |
 
 **قاعده‌هایی که در خود دیتابیس اجرا میشوند** (trigger و constraint؛ با SQLSTATE کلاس `HQ` که API به کد قرارداد تبدیل میکند):
 1. **عمق ارجاع ≤ ۲:** عمق فرزند همیشه عمق والد + ۱ است (`HQD01` ← `409 delegation_depth_exceeded`).
 2. **بودجه:** بودجه‌ی فرزند ≤ باقیمانده‌ی والد و جمع فرزندها ≤ والد. فرزند بی‌بودجه باقیمانده را به ارث میبرد (`HQB01` ← `409 budget_exceeded`).
+   - **(پرامپت ۵)** `tokens_used` و `usd_used` کار هرگز کم نمیشوند (`HQV01`). وقتی بودجه تمام شده، دیگر بالا نمیروند (`HQB01`).
+   - موتور اجرا سقف توکن هر اجرا را از باقی‌مانده‌ی بودجه میگیرد، پس مصرف واقعی هیچ‌وقت از بودجه رد نمیشود.
 3. **`done` فقط با خروجی یا شاهد** (`HQE01` ← `422 evidence_required`).
 4. **append-only:** `audit.entries`، `msg.messages`، `cartable.resolutions`، `cartable.ratings`، `cartable.deliverables`، `owner.interactions`، `work.work_events` و `files.files`. UPDATE، DELETE و TRUNCATE برای همه رد میشود، حتی مالک دیتابیس.
 5. **کدهای انسانی یکتا و ثابت:** `TY-TECH-01`، `D-000123`، `O-000456`، `W-000789`، `M-0001`، `A-0142`. شماره‌ی کارمند برای هر شرکت و دپارتمان **فقط رو به جلو** میرود و بعد از برکناری دوباره داده نمیشود. مصوبه‌ها یک دنباله‌ی **بی‌فاصله** برای کل هلدینگ دارند.
@@ -80,6 +88,8 @@
 11. **(۴.۱) شاهد `done`** باید `kind` و `ref` غیرخالی داشته باشد (`[{}]` کافی نیست). کدهای انسانی فقط از sequence یا تابع ساخته میشوند (روی `core.counters` حق UPDATE نیست). هیچ تابعی برای `PUBLIC` اجراشدنی نیست.
 
 **RLS:** روی **همه‌ی** جدول‌های دارای `company_id`، با FORCE و همان قرارداد `llm.*`: هر تراکنش با `SET LOCAL app.company_ids` (uuid[]) شروع میشود. مالک همه‌ی شرکت‌ها را میبیند و ایجنت فقط شرکت خودش را. ردیف‌های سطح هلدینگ `company_id` خود هلدینگ (`HQ`) را دارند، هرگز NULL.
+
+**شکل policy (پرامپت ۵، migrationهای api ‏0009 و llm-router ‏0008):** `company_id = ANY ((SELECT core.allowed_company_ids())::uuid[])`. یعنی دامنه‌ی شرکت‌ها **یک بار در هر کوئری** حساب میشود (InitPlan)، نه برای هر ردیف، و ایندکس `company_id` به کار میرود. شکل قدیم (`ANY (core.allowed_company_ids())`) هزینه‌ی ردیف × شرکت داشت. روی دیتابیس تست با ۳۳۰ شرکت، خلاصه‌ی صندوق مالک از 778ms به 46ms رسید. **هر جدول تازه با همین شکل ساخته شود.**
 
 **Audit زنجیره‌ای:** `hash = sha256(prev_hash || canonical_json(entry))`، که trigger (`audit.chain`، SECURITY DEFINER) زیر قفل ردیف سر زنجیره حساب میکند. `at` همیشه ساعت دیتابیس است (۴.۱). ردیف Audit آخرین دستور هر تراکنش است تا قفل سر زنجیره کوتاه بماند.
 
@@ -157,9 +167,12 @@ OPA با `--authorization=basic` و `system.authz` اجرا میشود: فقط `
 |---|---|---|
 | `DecisionLifecycle` (`decision-<ref>`) | با هر تصمیم | انقضا، اثر تأیید با retry (وقتی کلید هلدینگ روشن است صبر میکند)، شکست ← اعلان 🔴 |
 | `recurring-<W-…>` ← `RecurringRun` | از RRULE کار، در منطقه‌ی زمانی خودش | یک اجرا با بودجه‌ی پاکت؛ وقتی شرکت قفل است رد میشود |
-| `hq-maintenance` ← `Maintenance` | هر ۵ دقیقه | پله‌ی بعدی کار عقب‌افتاده (مدیر ← مدیرعامل ← مالک)، همسان‌سازی schedule‌ها و تصمیم‌ها، انقضای پاکت‌ها، پاک‌سازی کلیدهای idempotency، challengeها و outbox منتشرشده |
+| `hq-maintenance` ← `Maintenance` | هر ۵ دقیقه | پله‌ی بعدی کار عقب‌افتاده (مدیر ← مدیرعامل ← مالک)، همسان‌سازی schedule‌ها و تصمیم‌ها، انقضای پاکت‌ها، پاک‌سازی کلیدهای idempotency، challengeها و outbox منتشرشده؛ از پرامپت ۵ صف دوباره‌ی اجراهای `refused` بعد از آزاد شدن قفل و اجراهای گیرکرده (`requeue_runs`) |
 | `hq-notification-digest` | هر ۵ دقیقه | دسته‌های اعلان |
-| `hq-morning-report` | `owner.settings.morning_report_at` در منطقه‌ی زمانی مالک | گزارش صبحگاهی **قاعده‌محور، بدون LLM** (خروجی `HQ-SYS` + اعلان 🔵). نسخه‌ی نوشته‌شده با مدل در پرامپت ۵ |
+| `hq-morning-report` | `owner.settings.morning_report_at` در منطقه‌ی زمانی مالک | گزارش صبحگاهی **قاعده‌محور** (خروجی `HQ-SYS`). بعد (پرامپت ۵) یک بازنویسی فارسی خوش‌خوان با Sonnet 5.5، فقط اگر هیچ عدد تازه‌ای نداشته باشد. اعلان 🔵 به بهترین نسخه لینک میدهد |
+| `AgentRun` (`agent-run-<id>`، پرامپت ۵) | با هر اجرای صف‌شده (Dispatcher) | claim ← قدم‌ها ← finalize (`docs/ops/AGENTS.md`) |
+| `hq-site-checks` ← `SiteChecks` (پرامپت ۵) | هر ۵ دقیقه | پایش قاعده‌محور سایت‌ها، حادثه‌ها، `ops.hub_health` |
+| `hq-ceo-daily` ← `CeoDaily` (پرامپت ۵) | ۰۷:۳۰ | گزارش روزانه‌ی مدیرعامل‌ها؛ **pause** تا `HQ_CEO_DAILY_REPORTS=on` |
 | `hq-audit-verify` | هر شب ۰۲:۳۰ | بررسی زنجیره؛ شکستگی ← 🔴 |
 | `hq-score-job` | هر شب ۰۳:۰۰ | امتیاز کارمندها |
 
@@ -176,11 +189,12 @@ OPA با `--authorization=basic` و `system.authz` اجرا میشود: فقط `
 مالک هیچ‌وقت قفل نمیشود. روشن کردن کلید step-up نمیخواهد، چون سرعت مهم است، ولی **آزاد کردنش 🔏 میخواهد.**
 
 **آزاد کردن به ترتیب اختیار (۴.۱):**
-- کلیدی که **مالک** زده فقط با مالک و step-up آزاد میشود.
+- کلیدی که **مالک** زده فقط با مالک و step-up آزاد میشود. **(پرامپت ۵)** اگر مالک کلیدی را که ایجنت زده دوباره روشن کند، مالکیت کلید به مالک میرسد و مدیرعامل دیگر نمیتواند آزادش کند. وضعیت در مسیر آزادسازی ایجنت با `FOR UPDATE` خوانده میشود.
+- آزاد کردن چیزی که آزاد است idempotent است (`200`). برداشتن توقف deploy وقتی توقف فعالی نیست هم `200` است، اگر فراخواننده اجازه‌ی گذاشتن آن را دارد.
 - مدیرعامل فقط کلید شرکت خودش را میزند، و فقط کلیدی را آزاد میکند که یک ایجنت **همان شرکت** زده باشد.
 - توقف deploy:
   - توقف مالک فقط با مالک برداشته میشود.
-  - توقف pipeline با خود pipeline یا مالک.
+  - توقف pipeline فقط با **همان سرویس** (`created_by_code`) یا مالک.
   - توقف مدیرعامل فقط با خود او.
   - یک توقف تازه توقف‌های دیگر را برنمیدارد.
 
@@ -188,7 +202,7 @@ OPA با `--authorization=basic` و `system.authz` اجرا میشود: فقط `
 
 ## ۱۲. خزانه‌ی توکن (سمت خواندن)
 
-`/api/v1/treasury/summary|breakdown|calls|what-if`، به‌علاوه‌ی `connections`، `assignments` و `budgets`. هزینه **فقط از جدول قیمت خود ما** میاید (`llm.connections.pricing`، با `source_url` و `as_of`). «اگر با مدل X بود چقدر میشد» هم با همان جدول حساب میشود. کلید اتصال‌ها **فقط نوشتنی** است: به OpenBao میرود و هیچ پاسخی آن را برنمیگرداند.
+`/api/v1/treasury/summary|breakdown|calls|what-if|quota` (پرامپت ۵: وضعیت سهمیه‌ی اشتراک و اولویت‌های متوقف)، به‌علاوه‌ی `connections`، `assignments` و `budgets`. هزینه **فقط از جدول قیمت خود ما** میاید (`llm.connections.pricing`، با `source_url` و `as_of`). «اگر با مدل X بود چقدر میشد» هم با همان جدول حساب میشود. کلید اتصال‌ها **فقط نوشتنی** است: به OpenBao میرود و هیچ پاسخی آن را برنمیگرداند.
 
 ## ۱۳. قرارداد OpenAPI
 
@@ -200,7 +214,9 @@ OPA با `--authorization=basic` و `system.authz` اجرا میشود: فقط `
 
 ## ۱۵. حافظه
 
-سقف‌ها در `infra/compose/profiles/*.env`: lean ‏`api` 256m، `worker` 256m، `opa` 96m و `api-migrate` 160m. برای اینکه جمع سقف‌ها زیر ۸۰٪ RAM بماند، سقف valkey، NATS، Prometheus، Loki، Temporal UI و llm-migrate به اندازه‌ی مصرف اندازه‌گیری‌شده به‌علاوه‌ی حاشیه کم شد. جزئیات در گزارش پرامپت ۴ است.
+سقف‌ها در `infra/compose/profiles/*.env`. پروفایل فعال از پرامپت ۵ `full` است (`docs/ops/RUNBOOK.md` §۶):
+- `full`: ‏`api` 384m، `worker` 512m (گفت‌وگوی اجراها در حافظه)، `opa` 128m، `gateway` 128m، `web` 384m.
+- `lean` برای برگشت به سرور کوچک‌تر آماده است: ‏`api` 256m، `worker` 256m، `opa` 96m، `gateway` 96m، `web` 256m.
 
 
 ## تغییرهای ۴.۱ در قرارداد خطا
@@ -210,6 +226,7 @@ OPA با `--authorization=basic` و `system.authz` اجرا میشود: فقط `
   - اگر شمارنده‌ی امضای یک passkey جلو نرود، ورود رد میشود. آن passkey علامت میخورد (`flagged_at`)، یک ردیف Audit ‏A4 ثبت میشود و یک 🔴 میرسد.
   - ورود تازه نشستی را که همان کلاینت فرستاده باطل میکند.
 - **توکن ایجنت** `jti` دارد. همان توکن با همان `X-Request-ID` دوبار رد میشود (replay). درخواستی که به `/internal` با `X-Forwarded-For` برسد هم رد میشود.
+- **(پرامپت ۵) رجیستری اجرا:** توکن فقط وقتی پذیرفته میشود که `run` آن `running` است، مال همان کارمند است و `token_expires_at` نگذشته. وگرنه `401`.
 - **آپلود فایل:**
   - قفل شرکت پیش از نوشتن هر بایتی بررسی میشود.
   - سقف حجم هنگام خواندن جریان اعمال میشود (`413`).

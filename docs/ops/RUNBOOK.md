@@ -19,6 +19,7 @@
 |---|---|
 | `make help` | فهرست دستورها |
 | `make env` | ساختن `.env` با رمزهای تصادفی (هیچ‌وقت فایل موجود را بازنویسی نمیکند) |
+| `make bootstrap` | **یک بار، با sudo** (پرامپت ۵ §۱.۵): پوشه‌ی لنگر Audit و فایل‌های رمز کانتینرها. بعد از آن `make up` هیچ sudo نمیخواهد |
 | `make profile` | پروفایل فعال (`lean` یا `full`) |
 | `make up` | بالا آوردن همه‌ی سرویس‌های پروفایل فعال و صبر تا healthy شدن |
 | `make down` | توقف و حذف کانتینرها؛ **volumeها (داده‌ها) میمانند** |
@@ -37,20 +38,28 @@
 | `make lock` | ساختن دوباره‌ی lock فایل‌های Python (با hash)، شامل `apps/api` |
 | `make owner-enroll` | **فقط مالک، در ترمینال خودش:** لینک یک‌بارمصرف ثبت کلید عبور (۱۵ دقیقه). همین دستور مسیر بازیابی هم هست. بدون دامنه کار نمیکند |
 | `make openapi` | ساختن دوباره‌ی `apps/api/openapi/hq-api.v1.json` از روی کد (CI بررسی میکند که با کد بخواند) |
+| `make verify-live` | تست‌های زنده روی stack در حال اجرا: جدا بودن شبکه‌ها (کانتینر موقت روی `hq-internal` به OPA و Temporal نمیرسد) و نبودن مقدار پارامتر در لاگ Postgres |
+| `make audit-reanchor reason="..."` | فقط بعد از restore دیتابیس: لنگر تازه‌ی زنجیره‌ی Audit، با تأیید تایپی و ردیف audit (§۳) |
+| `make prompt-check role=<role>` | یک فراخوانی **واقعی** با prompt یک منشور (پیش‌فرض مشاور) از راه `hq-ops`؛ schema و پاسخ سنجیده میشوند؛ هیچ چیزی جز ledger ذخیره نمیشود |
+| `make bootstrap-month1` | کارهای راه‌اندازی ماه ۱ (`apps/api/seed/bootstrap/month1.yaml`) به نام سرویس `bootstrap`؛ **اجرای واقعی مدل بیدار میکند** (`docs/ops/AGENTS.md`) |
 
 ## ۲. بالا آوردن و پایین آوردن
 
 **اولین بار روی یک سرور تازه:**
 ```bash
 make env               # .env با رمزهای تصادفی
-make up                # همه‌چیز + init و unseal کردن OpenBao
-make install-systemd   # تایمرهای backup شبانه و unseal خودکار
+make bootstrap         # یک بار با sudo: پوشه‌ی لنگر، init و unseal و provision کردن OpenBao، فایل‌های رمز
+make up                # همه‌چیز (بدون sudo)
+make install-systemd   # تایمرهای backup شبانه، unseal خودکار و متریک کانتینرها
 make check
+make verify-live
 ```
 
 **`make up` به این ترتیب کار میکند:**
 1. `gen-env.sh`: کلیدهایی که پرامپت‌های جدید اضافه کرده‌اند به `.env` اضافه میشوند. رمزها تصادفی‌اند، خط‌های موجود دست نمیخورند و هیچ مقداری چاپ نمیشود.
-2. فقط `openbao` بالا میاید. بعد، اگر لازم باشد: `init.sh`، ‏`unseal.sh`، و در هر حال `provision.sh` (idempotent). این مرحله فایل‌های AppRole و توکن metrics را **قبل** از بالا آمدن سرویس‌ها میسازد. sudo لازم است، چون مالک این فایل‌ها uid کانتینرهاست.
+2. فقط `openbao` بالا میاید. بعد، اگر لازم باشد: `init.sh`، ‏`unseal.sh`، و در هر حال `provision.sh` (idempotent). این مرحله فایل‌های AppRole و توکن metrics را **قبل** از بالا آمدن سرویس‌ها میسازد.
+   - **sudo فقط در `make bootstrap`** (پرامپت ۵ §۱.۵): مالک فایل‌های رمز uid کانتینرهاست. `provision.sh` فهرست فایل‌های نصب‌شده را در `/home/Hub/.secrets/.provisioned` نگه میدارد. در `make up` بعدی، فایلی که هست دوباره نصب نمیشود و sudo نمیخواهد. اگر فایل تازه‌ای لازم باشد و sudo نباشد، **پیش از هر تغییری** با پیام «run make bootstrap» متوقف میشود.
+   - پوشه‌ی لنگر را هم فقط `make bootstrap` میسازد. `make up` فقط وجودش را چک میکند (`anchor-dir.sh --check`).
 3. `up -d --build --wait`: ایمیج‌های خودمان (`coinepro-hq/llm-router` و `coinepro-hq/claude-runtime`) ساخته میشوند و همه‌چیز بالا میاید. ترتیب وابستگی‌ها:
    - `postgres` ← `temporal-schema` ← `temporal` ← `temporal-namespace` ← `temporal-ui`
    - `postgres` ← `db-provision` ← `llm-migrate` ← `llm-router`
@@ -76,10 +85,11 @@ make check
 - **کجا:** `/home/Hub/backups/<YYYYMMDDTHHMMSSZ>/` (دسترسی `700`/`600`). **نگهداری ۷ روز.** فقط پوشه‌هایی با همین الگوی نام پاک میشوند.
 - **لنگر زنجیره‌ی Audit (پرامپت ۴.۱ §۱.۱۱):**
   - فایل: `/home/Hub/backups/audit-anchors/audit-chain.jsonl`. append-only است و بیرون از volume پستگرس.
-  - پوشه را `make up` میسازد (`infra/backup/anchor-dir.sh`، مالک uid 10001، `0750`).
+  - پوشه را `make bootstrap` میسازد (`infra/backup/anchor-dir.sh`، مالک uid 10001، `0750`). `make up` فقط وجودش را چک میکند.
   - `worker` آن را خواندنی و نوشتنی در `/anchors` دارد و `api` فقط خواندنی.
   - retention هرگز این پوشه را پاک نمیکند. هر backup یک کپی از آن را برمیدارد، که offsite هم میرود.
 - **وضعیت:** `systemctl list-timers 'coinepro-hq-*'` و `journalctl -u coinepro-hq-backup.service`.
+- **فایل‌های وضعیت** (پرامپت ۵): `backup.sh` و `restore-test.sh` نتیجه را در `/home/Hub/backups/status/backup.json` و `restore-test.json` مینویسند (زمان، ok، اندازه، مدت؛ بدون مسیر رمز). worker آن را فقط‌خواندنی میبیند (ابزار `health.hub`).
 - **تست بازیابی:** `make restore-test`. آخرین backup را در یک Postgres موقت (همان ایمیج، بدون شبکه، 512MB) بازیابی میکند و این‌ها را چک میکند:
   - checksumها و `pg_restore --exit-on-error` (نقش‌ها اول از `globals.sql` ساخته میشوند)
   - برابر بودن تعداد جدول‌ها با فهرست آرشیو (ردیف‌های `TABLE ATTACH` پارتیشن‌ها شمرده نمیشوند)
@@ -99,6 +109,14 @@ infra/compose/hq.sh exec -T postgres pg_restore -U postgres -d hq --clean --if-e
 infra/compose/hq.sh up -d
 ```
 برای Temporal، قبل از restore سرویس‌های `temporal` و `temporal-ui` را متوقف کن.
+
+**لنگر Audit بعد از restore** (پرامپت ۵ §۱.۴): بعد از restore، سرِ زنجیره در Postgres از آخرین لنگر بیرون آن قدیمی‌تر است، پس `GET /api/v1/audit/verify` جواب `anchor: mismatch` میدهد. این رفتار درست است، چون همین تشخیص میدهد که دیتابیس عقب رفته. وقتی restore عمدی بوده:
+```bash
+make audit-reanchor reason="restore of backup <stamp>"   # باید عبارت re-anchor را تایپ کنی
+```
+- زنجیره‌ی بازیابی‌شده باید خودش سالم باشد، وگرنه کاری انجام نمیشود.
+- یک ردیف audit ‏`audit.reanchor` (A3) با دلیل و هر دو سر زنجیره ثبت میشود.
+- یک خط لنگر تازه اضافه میشود که لنگر قبلی را در فیلد `previous` نگه میدارد. **هیچ خطی از فایل لنگر پاک نمیشود.**
 
 **ارسال به Hetzner Object Storage (فعلاً خاموش):**
 1. مالک bucket را میسازد و این‌ها را میدهد: endpoint (مثلاً `https://fsn1.your-objectstorage.com`)، region، نام bucket، access key و secret key.
@@ -152,18 +170,24 @@ infra/compose/hq.sh up -d
 
 ## ۶. عوض کردن پروفایل `lean` و `full`
 
-- **خودکار:** اگر `HQ_PROFILE` در `.env` خالی باشد، `hq.sh` از روی RAM انتخاب میکند: `MemTotal` کمتر از 11GiB (یعنی سرور کمتر از ۱۲GB اسمی) → `lean`، وگرنه `full`.
+- **خودکار:** اگر `HQ_PROFILE` در `.env` خالی باشد، `hq.sh` از روی RAM انتخاب میکند: `MemTotal` کمتر از 15GiB (یعنی سرور کمتر از ۱۶GB اسمی) → `lean`، وگرنه `full`.
 - **دستی:** `HQ_PROFILE=lean` یا `HQ_PROFILE=full` در `.env`.
-- **فرق پروفایل‌ها:** `full` به‌علاوه‌ی Tempo، otel-collector و cAdvisor است، با سقف‌های حافظه‌ی بیشتر (`infra/compose/profiles/*.env`).
+- **فرق پروفایل‌ها:** `full` به‌علاوه‌ی Tempo و otel-collector است، با سقف‌های حافظه‌ی بیشتر (`infra/compose/profiles/*.env`).
+- **cAdvisor در هیچ پروفایل پیش‌فرضی نیست** (پرامپت ۵ §۱۱): به سوکت Docker و containerd نیاز دارد، یعنی root روی host. فقط با پروفایل جدای `cadvisor` روشن میشود.
+  - **جایگزین بی‌سوکت:** `infra/observability/container-metrics.sh` روی host (تایمر `coinepro-hq-container-metrics.timer`، هر ۳۰ ثانیه) متریک هر کانتینر (`hq_container_up`، حافظه، سقف، CPU، شبکه، ری‌استارت) را در textfile ‏node-exporter مینویسد (`/var/lib/coinepro-hq/textfile`). داشبورد «HQ / Containers» از همین میخواند.
 - **قانون:** جمع سقف حافظه‌ی همه‌ی کانتینرها ≤ **۸۰٪** RAM. این عدد در پرامپت ۳ از ۶۰٪ بالا رفت، چون سرویس‌های لایه‌ی مدل اضافه شدند. `make check` آن را چک میکند.
 
-**وضعیت فعلی (پرامپت ۴.۲، ۲۰۲۶-۱۰-۱۷):**
-- سرور 16GB است، پس انتخاب خودکار `full` میشد.
-- طبق تصمیم مالک، **`HQ_PROFILE=lean` در `.env` صریحاً ثابت شده است.**
-- پرامپت ۵، با بودجه‌ی تازه، درباره‌ی پروفایل و سقف‌ها تصمیم میگیرد.
-- عددها روی این سرور:
-  - جمع سقف‌های `lean` برابر 6192 MiB است، در برابر 12486 MiB (۸۰٪ رم).
-  - مصرف واقعی کانتینرها حدود 2.1GB است.
+**وضعیت فعلی (پرامپت ۵، ۲۰۲۶-۱۰-۱۷): `full`.**
+- **چرا `full`:**
+  - سرور 16GB است.
+  - با `full`، سقف سرویس‌هایی که در ۴.۱ تنگ شده بودند به اندازه‌ی سالم برمیگردد (Valkey، Alloy، Grafana، Loki، Prometheus، OpenBao).
+  - claude-runtime ظرفیت ۵ اجرای همزمان دارد (`LLM_MAX_CONCURRENCY=5`). اندازه‌گیری: هر پروسه‌ی CLI حدود 180MB بیکار و 250 تا 300MB هنگام پاسخ.
+  - Tempo و otel-collector، tracing را برای اجراهای ایجنت‌ها میدهند.
+  - cAdvisor (سوکت Docker) بیرون است.
+- **عددها:**
+  - جمع سقف‌های `full` برابر 10384 MiB است، در برابر 12486 MiB (۸۰٪ رم 15608 MiB).
+  - `lean` هم برای برگشت به سرور کوچک‌تر آماده است: 6192 MiB در برابر ۸۰٪ رم 7.6GiB قدیمی. postgres، temporal و claude-runtime (۳ اجرای همزمان) در آن کوچک‌تر شده‌اند تا `gateway` و `web` جا شوند.
+- `.env` حالا `HQ_PROFILE=full` دارد.
 
 **رفتن به `full`** (فقط وقتی تصمیمش گرفته شد):
 ```bash
@@ -173,7 +197,7 @@ make profile       # باید full باشد
 make up
 make check
 ```
-**برگشت به lean:** همان مراحل با `HQ_PROFILE=lean`. ‏`make down` کانتینرهای Tempo، otel و cAdvisor را هم حذف میکند.
+**برگشت به lean:** همان مراحل با `HQ_PROFILE=lean`. ‏`make down` کانتینرهای Tempo و otel را هم حذف میکند.
 
 ## ۷. پورت‌ها و آدرس‌ها
 
@@ -196,14 +220,16 @@ make check
 | OpenBao | `127.0.0.1:8200` | `openbao:8200` | همه |
 | Tempo | `127.0.0.1:3200` | `tempo:3200`، OTLP: `tempo:4317`/`4318` | full |
 | otel-collector (OTLP) | `127.0.0.1:4317` (gRPC)، `127.0.0.1:4318` (HTTP) | `otel-collector:4317`/`4318` | full |
-| cAdvisor | — | `cadvisor:8080` | full |
+| cAdvisor | — | `cadvisor:8080` | فقط پروفایل `cadvisor` (opt-in) |
+| gateway (Tool Gateway) | — (**بدون پورت منتشرشده**) | **فقط `hq-core`:** `gateway:8080` (فقط worker صدایش میزند) | همه |
+| web (پنل Next.js) | — (**بدون پورت منتشرشده**) | `web:3000` (`hq-internal`)؛ Caddy هر مسیر جز `/api` را به آن میدهد | پروفایل `web` (وقتی `apps/web/Dockerfile` هست) |
 | llm-router | — (**بدون پورت منتشرشده**) | `llm-router:8000` (شبکه‌های `hq-internal` و `hq-llm`) | همه |
 | claude-runtime | — (**بدون پورت منتشرشده**) | `claude-runtime:8100` (**فقط** شبکه‌ی `hq-llm`) | همه |
 | SSH (مال مالک) | `0.0.0.0:1367` | — | — |
 
 **شبکه‌ی `hq-core` (`172.30.2.0/24`، پرامپت ۴.۱):**
 - Temporal (بی‌احراز روی 7233) و OPA فقط اینجا هستند و **روی `hq-internal` نیستند.**
-- اعضای مجاز: `temporal`، `temporal-namespace`، `temporal-ui`، `opa`، `api`، `worker`، `postgres` (دیتابیس Temporal) و `prometheus` (متریک Temporal).
+- اعضای مجاز: `temporal`، `temporal-namespace`، `temporal-ui`، `opa`، `api`، `worker`، `postgres` (دیتابیس Temporal)، `prometheus` (متریک Temporal) و `gateway` (پرامپت ۵؛ **فقط** روی `hq-core`، مثل Temporal و OPA).
 - `scripts/quality/compose-rules.sh` هر عضو دیگر را رد میکند.
 - Valkey فقط cache است و **هیچ persistence ندارد** (نه AOF، نه RDB). پس fork بازنویسی هرگز حافظه را دو برابر نمیکند.
 - Postgres مقدار پارامترهای کوئری را هرگز لاگ نمیکند (`log_parameter_max_length=0`، و همین برای خطاها).
@@ -260,6 +286,9 @@ ssh -p 1367 -L 3000:127.0.0.1:3000 -L 8233:127.0.0.1:8233 -L 9090:127.0.0.1:9090
 - **ورود:** فقط با دامنه. یک خط `HQ_SITE_ADDRESS=<دامنه>` در `.env`، سپس `make up` و بعد `make owner-enroll` (خود مالک). بدون دامنه، `/api` در Caddy ۴۰۴ است و endpointهای ورود جواب `503 origin_not_configured` میدهند.
   - **از ۲۰۲۶-۱۰-۱۷:** `HQ_SITE_ADDRESS=hq.coinepro.com` تنظیم شده است و ورود پیکربندی شده است (§۱۲).
   - **`make owner-enroll` هنوز اجرا نشده است.** مالک خودش، وقتی وب یا اپ آماده شد، اجرایش میکند.
+  - **کلید عبور discoverable** (پرامپت ۵ §۱.۳، تأییدشده): ثبت با `residentKey=required` است (`security/passkeys.py`)، پس ورود هیچ فهرست credential نمیخواهد. هیچ passkey قبلی در production نیست.
+  - **sign-count** فقط **بعد از** تأیید امضا مقایسه میشود. امضای نامعتبر هیچ audit یا 🔴 نمیسازد.
+  - **بعد از step-up** توکن نشست کوکی (وب) عوض میشود. نشست Bearer اپ دست نمیخورد.
 - **سلامت:**
   - `make ps`؛ لاگ `api ready` در `make logs s=api`؛ `schedules ensured` در `make logs s=worker`
   - از داخل شبکه: `infra/compose/hq.sh exec -T caddy wget -qO- http://api:8000/api/v1/health`
@@ -274,7 +303,9 @@ ssh -p 1367 -L 3000:127.0.0.1:3000 -L 8233:127.0.0.1:8233 -L 9090:127.0.0.1:9090
 
 ## ۱۱. ملاحظات امنیتی این مرحله
 - **Alloy** پوشه‌ی `/var/lib/docker/containers` را فقط‌خواندنی میخواند. این پوشه env کانتینرها را هم دارد، پس دسترسی Alloy عملاً در حد خواندن رمزهاست. به Docker socket دسترسی ندارد.
-- **cAdvisor** (فقط `full`) به Docker socket و socket containerd دسترسی دارد، که عملاً هم‌ارز root است. این روش رسمی خود cAdvisor است.
+- **cAdvisor** به Docker socket و socket containerd دسترسی دارد، که عملاً هم‌ارز root است. از پرامپت ۵ در هیچ پروفایل پیش‌فرضی نیست (فقط `--profile cadvisor`). متریک کانتینرها بی‌سوکت از host میاید (§۶).
+- **gateway** فقط روی `hq-core` است، با کاربر 10001، rootfs فقط‌خواندنی و `cap_drop: ALL`. فقط hash توکن worker را دارد، نه خود توکن را. به دیتابیس، NATS، Valkey و OpenBao نمیرسد.
+- **web** کاربر 10001 دارد، rootfs فقط‌خواندنی (tmpfs برای `/tmp` و کش Next) و `cap_drop: ALL`. هیچ رمزی ندارد.
 - **claude-runtime** فقط روی شبکه‌ی `hq-llm` است. به Postgres، Valkey، NATS، Temporal و Grafana دسترسی ندارد (آزمایش شده). اینترنت برای API ‏Anthropic باز است.
 - **llm-router و claude-runtime:** کاربر 10001، rootfs فقط‌خواندنی، `cap_drop: ALL`، بدون پورت منتشرشده، بدون سوکت Docker و بدون mount از ریپوها.
 - **Docker** قوانین iptables خودش را میسازد و از ufw رد میشود. برای همین، هر پورت فقط روی `127.0.0.1` منتشر میشود. مرجع فایروال فقط فایروال هتزنر است.
@@ -307,12 +338,43 @@ curl -s -o /dev/null -w '%{http_code}\n' $H/api/v1/meta            # 401 (بدو
 curl -s -o /dev/null -w '%{http_code}\n' $H/internal/v1/health     # 404
 curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://hq.coinepro.com/   # 308 -> https
 curl -s -D - -o /dev/null $H/api/v1/health | grep -i -E 'strict-transport|content-security|x-frame'
+curl -s -D - -o /dev/null $H/ | grep -i -c alt-svc                   # 0 (HTTP/3 خاموش)
+curl -s -o /dev/null -w '%{http_code}\n' $H/__canary              # 503 (قناری پایش سایت)
 echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com 2>/dev/null | openssl x509 -noout -issuer -enddate
 ```
-- **HTTP/3:**
-  - Caddy در هدر `alt-svc` اعلام میکند که HTTP/3 دارد.
-  - ولی Compose فقط TCP 443 را منتشر میکند، پس مرورگرها بی‌صدا به HTTP/2 برمیگردند.
-  - باز کردن UDP 443 یک پورت عمومی تازه است و تصمیمش با مالک است.
+- **HTTP/3 خاموش است** (پرامپت ۵ §۱.۹): `servers { protocols h1 h2 }` در Caddyfile، پس هدر `alt-svc` هم نیست. هیچ تغییری در فایروال لازم نبود. روشن کردنش (UDP 443) تصمیم مالک است.
 - **برگشت به حالت بی‌دامنه:**
   1. `HQ_SITE_ADDRESS=` خالی شود، سپس `make up`.
   2. نتیجه: ‏`/api` جواب ۴۰۴ میدهد و endpointهای ورود جواب ۵۰۳.
+
+## ۱۳. ایجنت‌ها، پایش سایت‌ها و سهمیه (پرامپت ۵)
+- **مستندات کامل:** `docs/ops/AGENTS.md` (چرخه‌ی اجرا، Tool Gateway، مشاور، پایش سایت‌ها، Quota Controller، افزودن نقش و ابزار).
+- **سرویس‌ها:** `gateway` (فقط `hq-core`) و `web` (پروفایل `web`). هیچ‌کدام پورت منتشرشده ندارند. اجراها داخل `worker` هستند. هیچ پروسه‌ای برای نقش‌ها همیشه روشن نیست.
+- **Caddy و وب:**
+  - `/api/*` ← `api`. هر مسیر دیگر ← `web` (`infra/caddy/web-on.caddy`) وقتی `apps/web/Dockerfile` هست (`HQ_WEB=on` در `hq.sh`).
+  - وگرنه یک صفحه‌ی ثابت «ستاد کوینه‌پرو» (`web-off.caddy`).
+  - CSP صفحه‌های وب را خود وب میگذارد (nonce). Caddy فقط روی `/api` CSP میگذارد.
+  - HSTS، nosniff، Referrer-Policy، COOP و CORP روی کل سایت.
+  - `/internal` همچنان ۴۰۴ است.
+- **رمزهای اجرای ایجنت** (`make bootstrap` یک بار، بعد `make up`):
+  - فراخواننده‌ی `hq-agents` روی llm-router (۲۴۰ درخواست در دقیقه)
+  - `kv/hq-agents/runtime` (`llm_router_token`، `gateway_token`) که worker میخواند
+  - فایل hash توکن gateway
+  - هیچ‌کدام چاپ نمیشود.
+- **سقف مصرف:**
+  - `AGENT_DAILY_TOKEN_CAP` در `.env` (پیش‌فرض ۲٬۰۰۰٬۰۰۰ در روز UTC، برای همه‌ی اجراها)
+  - `AGENT_INCIDENT_BUDGET_TOKENS` (۶۰٬۰۰۰ برای هر کار حادثه)
+  - سقف منشور هر نقش
+- **کلیدها:**
+  - `HQ_CEO_DAILY_REPORTS=on` (پیش‌فرض خاموش)، گزارش روزانه‌ی مدیرعامل‌ها
+  - `HQ_MORNING_REPORT_LLM=off`، فقط نسخه‌ی قاعده‌محور گزارش صبحگاهی
+- **پایش سایت‌ها:**
+  - فهرست در `apps/api/seed/sites.yaml`. مالک از اپ عوض میکند (`PUT /api/v1/ops/sites` 🔏).
+  - Schedule ‏`hq-site-checks` هر ۵ دقیقه. ۳ شکست پشت هم ← حادثه و یک کار.
+  - دیدن: `GET /api/v1/ops/incidents?open=true`
+- **سهمیه:** `GET /api/v1/treasury/quota`. `warning` ← P4 متوقف؛ `limited` ← فقط P0 تا P2.
+- **کارهای ماه ۱:** `make bootstrap-month1`. هر نتیجه‌ی استخدام فقط یک تصمیم `hire` منتظر مُهر مالک است. **هیچ‌کدام خودکار تأیید نمیشود.**
+- **قناری:**
+  - `/__canary` همیشه ۵۰۳ میدهد.
+  - سایت قناری در seed با `enabled: false` خاموش است.
+  - برای آزمودن دوباره‌ی خط کامل: `enabled: true` در `sites.yaml` و `make up`. این کار یک اجرای واقعی مدل الزامی میکند.
