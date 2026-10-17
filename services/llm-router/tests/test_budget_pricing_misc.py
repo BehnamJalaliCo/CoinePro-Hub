@@ -121,7 +121,7 @@ def test_official_prices_tiers_and_one_hour_writes() -> None:
         entry = pricing[model]
         assert isinstance(entry, dict)
         assert entry["source_url"].startswith("https://platform.claude.com/")
-        assert entry["as_of"] == "2026-10-16"
+        assert entry["as_of"] == "2026-10-17"  # re-checked on the official page (prompt 04.1)
     # The real smoke call of prompt 03: 2 in, 4 out, 525 cache writes (5-minute).
     smoke = Usage(input_tokens=2, output_tokens=4, cache_write_tokens=525)
     assert cost_usd(pricing, "claude-haiku-5-5", smoke) == Decimal("0.000068")
@@ -144,9 +144,9 @@ def test_official_prices_tiers_and_one_hour_writes() -> None:
     assert cost_usd({"m": {"input": 1}}, "m", smoke) is None  # incomplete entry
 
 
-def test_migration_0005_matches_the_seed() -> None:
-    path = ROUTER_DIR / "migrations" / "versions" / "0005_official_prices.py"
-    spec = importlib.util.spec_from_file_location("m0005", path)
+def test_latest_price_migration_matches_the_seed() -> None:
+    path = ROUTER_DIR / "migrations" / "versions" / "0006_prices_reverified.py"
+    spec = importlib.util.spec_from_file_location("m0006", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
