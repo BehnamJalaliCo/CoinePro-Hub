@@ -4,7 +4,9 @@
 (owner and services: every company; an agent: its own company only).
 Inside it, handlers write the change, `ctx.audit(...)` (always),
 `ctx.interaction(...)` (owner actions) and `ctx.emit(...)` (events), so all
-of them commit or roll back together.
+of them commit or roll back together. Audit rows are collected and written
+last, just before the commit, so the chain head's row lock (one writer at a
+time for the whole holding) is held for the shortest possible moment.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
@@ -31,6 +33,8 @@ class Ctx:
     hub: Hub
     who: Principal
     request: Request
+    _audit: list[dict[str, Any]] = field(default_factory=list)
+    _in_tx: bool = False
 
     @property
     def request_id(self) -> str:
@@ -45,8 +49,16 @@ class Ctx:
 
     @asynccontextmanager
     async def tx(self) -> AsyncIterator[Tx]:
+        self._audit.clear()
         async with self.hub.db.tx(await self.scope()) as tx:
-            yield tx
+            self._in_tx = True
+            try:
+                yield tx
+                for entry in self._audit:  # last statements before the commit
+                    await audit.record(tx, self.who, **entry)
+            finally:
+                self._in_tx = False
+                self._audit.clear()
 
     async def audit(
         self,
@@ -60,19 +72,23 @@ class Ctx:
         summary: str = "",
         step_up: bool = False,
     ) -> None:
-        await audit.record(
-            tx,
-            self.who,
-            company_id=company_id,
-            action=action,
-            action_class=action_class,
-            target_kind=target_kind,
-            target_ref=target_ref,
-            summary=summary,
-            step_up=step_up,
-            request_id=self.request_id,
-            ip_hash=deps.ip_hash(self.request) if self.who.is_owner else None,
-        )
+        """Inside `ctx.tx()` the row is queued and written just before commit;
+        in a transaction opened elsewhere it is written at once on `tx`."""
+        entry: dict[str, Any] = {
+            "company_id": company_id,
+            "action": action,
+            "action_class": action_class,
+            "target_kind": target_kind,
+            "target_ref": target_ref,
+            "summary": summary,
+            "step_up": step_up,
+            "request_id": self.request_id,
+            "ip_hash": deps.ip_hash(self.request) if self.who.is_owner else None,
+        }
+        if self._in_tx:
+            self._audit.append(entry)
+        else:
+            await audit.record(tx, self.who, **entry)
 
     async def interaction(
         self,

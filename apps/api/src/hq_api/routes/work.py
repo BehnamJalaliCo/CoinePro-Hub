@@ -178,7 +178,7 @@ async def list_work(
                     AND (CAST(:due_to AS timestamptz) IS NULL OR w.due_at < :due_to)
                     AND (CAST(:parent AS uuid) IS NULL OR w.parent_id = :parent)
                     AND (CAST(:q AS text) IS NULL OR w.ref = :q
-                         OR core.fa_normalize(w.title) LIKE '%' || core.fa_normalize(:q) || '%')
+                         OR core.fa_normalize(w.title) LIKE '%' || core.like_escape(core.fa_normalize(:q)) || '%')
                     AND (CAST(:overdue AS boolean) IS NULL
                          OR (w.due_at < now() AND w.status IN ('queued', 'in_progress', 'waiting')) = :overdue)
                     AND (CAST(:after_t AS timestamptz) IS NULL

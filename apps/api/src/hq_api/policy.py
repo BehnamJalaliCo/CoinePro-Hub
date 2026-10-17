@@ -50,7 +50,9 @@ class Policy:
         v = await self.query(package, input_)
         if not v.allow:
             if "policy_unavailable" in v.reasons:
-                raise ApiError(503, "policy_denied", "policy service unavailable (fail-closed)")
+                raise ApiError(
+                    503, "policy_unavailable", "policy service unavailable (fail-closed)"
+                )
             raise ApiError(403, "policy_denied", ", ".join(v.reasons) or "denied")
 
     async def healthy(self) -> bool:

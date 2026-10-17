@@ -117,7 +117,7 @@ MESSAGE_SQL = """
 def _thread(r: dict[str, Any]) -> Thread:
     parts = [Actor(kind="owner", code="owner", display_fa="مدیر کل")]
     if r["kind"] == "advisor":
-        parts.append(Actor(kind="agent", code=r["emp_code"] or "HQ-ADV"))
+        parts.append(Actor(kind="agent", code=r["emp_code"] or f"{r['company']}-ADV"))
     elif r["emp_code"]:
         parts.append(Actor(kind="agent", code=r["emp_code"]))
     last_ref = f"{r['code']}-{r['last_seq']:04d}" if r["last_seq"] else None
@@ -363,7 +363,7 @@ async def search_messages(
             + """ JOIN core.companies c ON c.id = m.company_id,
                     LATERAL (SELECT core.fa_normalize(:q) AS nq) n
                   WHERE (m.search @@ plainto_tsquery('simple', n.nq)
-                         OR core.fa_normalize(m.body) LIKE '%' || n.nq || '%')
+                         OR core.fa_normalize(m.body) LIKE '%' || core.like_escape(n.nq) || '%')
                     AND (CAST(:thread AS text) IS NULL OR t.code = :thread)
                     AND (CAST(:companies AS text[]) IS NULL OR c.code = ANY(:companies))
                     AND (CAST(:from_ AS timestamptz) IS NULL OR m.created_at >= :from_)
@@ -426,7 +426,8 @@ async def list_resolutions(
             RESOLUTION_SQL
             + """ WHERE (CAST(:companies AS text[]) IS NULL OR c.code = ANY(:companies))
                     AND (CAST(:q AS text) IS NULL OR r.ref = :q
-                         OR core.fa_normalize(r.title || ' ' || r.body) LIKE '%' || core.fa_normalize(:q) || '%')
+                         OR core.fa_normalize(r.title || ' ' || r.body)
+                            LIKE '%' || core.like_escape(core.fa_normalize(:q)) || '%')
                     AND (CAST(:after_t AS timestamptz) IS NULL
                          OR (r.sealed_at, r.id) < (CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))
                   ORDER BY r.sealed_at DESC, r.id DESC LIMIT :lim""",

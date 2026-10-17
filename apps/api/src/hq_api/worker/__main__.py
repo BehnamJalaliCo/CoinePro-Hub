@@ -107,7 +107,15 @@ async def main(stop: asyncio.Event | None = None) -> None:
     except Exception:  # noqa: BLE001 - Maintenance retries every 5 minutes
         log.warning("could not ensure schedules at start")
 
-    worker = Worker(client, task_queue=s.task_queue, workflows=WORKFLOWS, activities=acts.all())
+    # A small workflow cache: the holding's workflows are short and few at a time
+    # (measured RSS ~95 MiB with it); the default (1000) would grow without need.
+    worker = Worker(
+        client,
+        task_queue=s.task_queue,
+        workflows=WORKFLOWS,
+        activities=acts.all(),
+        max_cached_workflows=100,
+    )
     if stop is None:
         stop = asyncio.Event()
         loop = asyncio.get_running_loop()

@@ -40,6 +40,7 @@ class Verify(BaseModel):
     ok: bool
     checked: int
     first_bad_seq: int | None
+    anchor: Literal["ok", "mismatch", "none"]
     verified_at: datetime
 
 
@@ -122,12 +123,17 @@ async def list_audit(
 
 @router.get("/audit/verify", response_model=Verify, responses=E)
 async def verify_audit(ctx: Ctx = Depends(owner_ctx)) -> Verify:
-    """Recomputes the whole hash chain (every company)."""
+    """Recomputes the whole hash chain (every company) and compares its head
+    with the last anchor kept outside Postgres (`anchor`)."""
     async with ctx.tx() as tx:
-        r = await audit.verify(tx)
+        r = await audit.verify(tx, anchor_file=ctx.hub.settings.audit_anchor_file or None)
         at = await tx.scalar("SELECT now()")
     return Verify(
-        ok=r["ok"], checked=r["checked"], first_bad_seq=r["first_bad_seq"], verified_at=at
+        ok=r["ok"],
+        checked=r["checked"],
+        first_bad_seq=r["first_bad_seq"],
+        anchor=r["anchor"],
+        verified_at=at,
     )
 
 
@@ -181,11 +187,17 @@ async def set_kill_switch(
 
 @router.post("/control/deploy-freeze", response_model=FreezeOut, responses=E)
 async def set_deploy_freeze(body: FreezeIn, ctx: Ctx = Depends(owner_ctx)) -> FreezeOut:
-    """Freezes agent write actions of one company until `until` (§1.5 #5);
-    a past `until` lifts the freeze."""
+    """Freezes agent write actions of one company until `until` (§1.5 #5); a past
+    `until` lifts freezes. The owner lifts any freeze (pipeline's, CEOs'); a new
+    freeze never lifts another one."""
     async with ctx.tx() as tx:
         company = await control.resolve_scope(tx, f"company:{body.company}")
-        r = await control.set_deploy_freeze(tx, ctx.who, company, body.until, body.reason)
+        if await tx.scalar("SELECT :u > now()", u=body.until):
+            await control.add_deploy_freeze(tx, ctx.who, company, body.until, body.reason)
+        else:
+            ids = [f["id"] for f in await control.active_freezes(tx, company["id"])]
+            await control.lift_deploy_freezes(tx, ctx.who, company, ids)
+        r = {"active": bool(await control.active_freezes(tx, company["id"]))}
         await ctx.audit(
             tx,
             company_id=company["id"],

@@ -40,6 +40,10 @@ class Settings:
     rp_id: str = field(default_factory=lambda: _env("HQ_WEBAUTHN_RP_ID"))
     rp_name: str = field(default_factory=lambda: _env("HQ_WEBAUTHN_RP_NAME", "CoinePro HQ"))
     files_root: str = field(default_factory=lambda: _env("HQ_FILES_ROOT", "/data/files"))
+    # Append-only anchors of the audit chain head, outside Postgres (backup set).
+    audit_anchor_file: str = field(default_factory=lambda: _env("HQ_AUDIT_ANCHOR_FILE"))
+    # Extra WebAuthn origins for the Android app ("android:apk-key-hash:..."), comma-separated.
+    android_origins: str = field(default_factory=lambda: _env("HQ_ANDROID_ORIGINS"))
     listen_port: int = field(default_factory=lambda: _int("PORT", 8000))
     log_level: str = field(default_factory=lambda: _env("LOG_LEVEL", "info"))
     max_body_bytes: int = field(default_factory=lambda: _int("HQ_MAX_BODY_BYTES", 1024 * 1024))

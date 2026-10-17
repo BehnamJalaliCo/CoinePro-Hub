@@ -50,14 +50,14 @@ class CompanyCreate(Model):
     code: str = Field(pattern=CODE)
     name_fa: str = Field(min_length=1, max_length=200)
     name_en: str = Field(min_length=1, max_length=200)
-    color_index: int | None = Field(default=None, ge=1, le=10)
+    color_index: int | None = Field(default=None, ge=1, le=8)
     template: str = Field(default="standard", pattern=r"^[a-z][a-z0-9_]{1,40}$")
 
 
 class CompanyPatch(Model):
     name_fa: str | None = Field(default=None, min_length=1, max_length=200)
     name_en: str | None = Field(default=None, min_length=1, max_length=200)
-    color_index: int | None = Field(default=None, ge=1, le=10)
+    color_index: int | None = Field(default=None, ge=1, le=8)
     status: Literal["active", "paused", "archived"] | None = None
 
 
@@ -209,9 +209,10 @@ async def list_companies(
         rows = await tx.all(
             COMPANY_SQL
             + """ WHERE (CAST(:status AS text) IS NULL OR c.status = :status)
-                    AND (CAST(:q AS text) IS NULL OR c.code ILIKE '%' || :q || '%'
-                         OR core.fa_normalize(COALESCE(c.name_fa, '')) LIKE '%' || core.fa_normalize(:q) || '%'
-                         OR c.name_en ILIKE '%' || :q || '%')
+                    AND (CAST(:q AS text) IS NULL OR c.code ILIKE '%' || core.like_escape(:q) || '%'
+                         OR core.fa_normalize(COALESCE(c.name_fa, ''))
+                            LIKE '%' || core.like_escape(core.fa_normalize(:q)) || '%'
+                         OR c.name_en ILIKE '%' || core.like_escape(:q) || '%')
                   ORDER BY c.kind = 'holding' DESC, c.code""",
             status=status,
             q=q,
@@ -241,7 +242,9 @@ async def create_company(
         row = await tx.one(
             """INSERT INTO core.companies (code, name, kind, name_fa, name_en, color_index, template)
                VALUES (:code, :name_en, 'company', :name_fa, :name_en,
-                       COALESCE(:ci, (SELECT count(*) % 10 + 1 FROM core.companies)), :tpl)
+                       COALESCE(:ci, (SELECT min(slot) FROM generate_series(1, 8) AS slot
+                                     WHERE slot NOT IN (SELECT color_index FROM core.companies
+                                                        WHERE color_index IS NOT NULL))), :tpl)
                RETURNING id""",
             code=body.code,
             name_fa=body.name_fa,
@@ -541,9 +544,9 @@ async def list_employees(
                     AND (CAST(:kind AS text) IS NULL OR e.kind = :kind)
                     AND (CAST(:status AS text) IS NULL OR e.status = :status)
                     AND (CAST(:activity AS text) IS NULL OR e.activity = :activity)
-                    AND (CAST(:q AS text) IS NULL OR e.code ILIKE '%' || :q || '%'
+                    AND (CAST(:q AS text) IS NULL OR e.code ILIKE '%' || core.like_escape(:q) || '%'
                          OR core.fa_normalize(e.title_fa || ' ' || COALESCE(e.display_name, ''))
-                            LIKE '%' || core.fa_normalize(:q) || '%')
+                            LIKE '%' || core.like_escape(core.fa_normalize(:q)) || '%')
                     AND (CAST(:after AS text) IS NULL OR e.code > :after)
                   ORDER BY e.code LIMIT :lim""",
             companies=company,

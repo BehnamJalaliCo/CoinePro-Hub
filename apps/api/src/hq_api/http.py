@@ -12,7 +12,7 @@ def if_match(request: Request) -> int:
     raw = request.headers.get("if-match")
     if raw is None:
         raise ApiError(
-            428, "validation_failed", fields={"If-Match": "required (the current version)"}
+            428, "precondition_required", fields={"If-Match": "required (the current version)"}
         )
     raw = raw.strip().removeprefix("W/").strip('"')
     if not raw.isdigit():

@@ -37,6 +37,11 @@ async def activate(
         "UPDATE work.schedules SET status = 'active' WHERE work_id = :w AND status = 'pending'",
         w=template["id"],
     )
+    if await tx.scalar("SELECT control.lock_state(:co)", co=template["company_id"]) in (
+        "holding",
+        "company",
+    ):
+        return None  # locked: the schedule brings the first run once released
     return await create_next_run(tx, template["id"], approved_by)
 
 
