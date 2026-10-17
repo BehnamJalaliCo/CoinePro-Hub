@@ -1,0 +1,92 @@
+'use client';
+
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { DecisionRow } from '@/components/cartable/decision-row';
+import { DecisionDetail } from '@/components/cartable/decision-detail';
+import { Card, Empty, ErrorState, FilterChip, PageHeader, Segmented, Skeleton } from '@/components/ui/primitives';
+import { Sheet } from '@/components/ui/overlay';
+import { useDecision, useDecisions } from '@/lib/api/hooks';
+import { useScope } from '@/lib/scope';
+
+type Tab = 'pending' | 'approved' | 'rejected' | 'returned';
+
+function useWide() {
+  const [w, setW] = useState(true);
+  useEffect(() => {
+    const m = window.matchMedia('(min-width: 1024px)');
+    const f = () => setW(m.matches);
+    f();
+    m.addEventListener('change', f);
+    return () => m.removeEventListener('change', f);
+  }, []);
+  return w;
+}
+
+function CartableInner() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const { company } = useScope();
+  const wide = useWide();
+  const [tab, setTab] = useState<Tab>('pending');
+  const [risk, setRisk] = useState<string | null>(null);
+  const q = useDecisions({ status: tab, company: company ? [company] : undefined, risk: (risk ?? undefined) as never });
+  const items = useMemo(() => q.data?.items ?? [], [q.data]);
+  const selected = params.get('ref') ?? (wide ? items[0]?.ref ?? null : null);
+  const detail = useDecision(selected);
+  const select = (ref: string | null) => router.replace(ref ? `/cartable?ref=${ref}` : '/cartable', { scroll: false });
+
+  const next = () => {
+    const i = items.findIndex((d) => d.ref === selected);
+    const n = items[i + 1] ?? items[i - 1];
+    select(n?.ref ?? null);
+  };
+
+  const list = (
+    <Card className="flex flex-col gap-1 p-2">
+      {q.isLoading ? Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="m-1 h-[70px]" />)
+        : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        : !items.length ? <Empty icon="seal" title={tab === 'pending' ? 'چیزی منتظر مُهر تو نیست' : 'موردی نیست'} body={tab === 'pending' ? 'وقتی مدیرعامل‌ها یا مدیرها چیزی پیشنهاد کنند، این‌جا میاید.' : undefined} />
+        : items.map((d) => <DecisionRow key={d.ref} d={d} selected={d.ref === selected} onSelect={() => select(d.ref)} />)}
+    </Card>
+  );
+
+  return (
+    <>
+      <PageHeader eyebrow="کارتابل تصمیم" title="کارتابل">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-full max-w-md">
+            <Segmented<Tab> label="وضعیت" value={tab} onChange={(v) => { setTab(v); select(null); }} options={[
+              { value: 'pending', label: 'منتظر مُهر' }, { value: 'approved', label: 'مُهرشده' }, { value: 'returned', label: 'برگشتی' }, { value: 'rejected', label: 'ردشده' },
+            ]} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[['high', 'ریسک بالا'], ['medium', 'متوسط'], ['low', 'کم']].map(([v, l]) => <FilterChip key={v} selected={risk === v} onClick={() => setRisk(risk === v ? null : v!)}>{l}</FilterChip>)}
+          </div>
+        </div>
+      </PageHeader>
+      {wide ? (
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+          <div className="lg:sticky lg:top-20">{list}</div>
+          <Card className="p-5 lg:p-7">
+            {!selected ? <Empty icon="cartable" title="یک مورد را انتخاب کن" />
+              : detail.isLoading ? <div className="flex flex-col gap-3"><Skeleton className="h-16" /><Skeleton className="h-32" /><Skeleton className="h-48" /></div>
+              : detail.error ? <ErrorState error={detail.error} onRetry={() => detail.refetch()} />
+              : detail.data ? <DecisionDetail key={detail.data.ref} d={detail.data} onDone={next} /> : null}
+          </Card>
+        </div>
+      ) : (
+        <>
+          {list}
+          <Sheet open={!!selected} onOpenChange={(v) => !v && select(null)} title={detail.data?.title ?? 'تصمیم'} width={560}>
+            {detail.data ? <DecisionDetail key={detail.data.ref} d={detail.data} onDone={() => select(null)} /> : <Skeleton className="h-64" />}
+          </Sheet>
+        </>
+      )}
+    </>
+  );
+}
+
+export default function CartablePage() {
+  return <Suspense><CartableInner /></Suspense>;
+}

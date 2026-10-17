@@ -8,7 +8,7 @@
    },
    "version": {
     "$type": "string",
-    "$value": "1.1.0-d2"
+    "$value": "1.2.0-d3"
    },
    "themes": {
     "$type": "string",
@@ -310,6 +310,58 @@
     "learning": {
      "$type": "color",
      "$value": "{divan.color.primitive.learning.night}"
+    },
+    "soft": {
+     "gold": {
+      "$type": "color",
+      "$value": "rgba(216,168,72,0.14)"
+     },
+     "positive": {
+      "$type": "color",
+      "$value": "rgba(34,171,148,0.12)"
+     },
+     "negative": {
+      "$type": "color",
+      "$value": "rgba(246,70,93,0.12)"
+     },
+     "warning": {
+      "$type": "color",
+      "$value": "rgba(240,185,11,0.12)"
+     },
+     "lapis": {
+      "$type": "color",
+      "$value": "rgba(110,149,255,0.12)"
+     },
+     "learning": {
+      "$type": "color",
+      "$value": "rgba(139,124,246,0.14)"
+     }
+    },
+    "state": {
+     "scrim": {
+      "$type": "color",
+      "$value": "rgba(5,6,10,0.62)"
+     },
+     "disabledText": {
+      "$type": "color",
+      "$value": "rgba(242,238,228,0.32)"
+     },
+     "disabledFill": {
+      "$type": "color",
+      "$value": "rgba(242,238,228,0.06)"
+     },
+     "focus": {
+      "$type": "color",
+      "$value": "#F0CC60"
+     },
+     "skeleton": {
+      "$type": "color",
+      "$value": "#1A1F2B"
+     },
+     "skeletonHi": {
+      "$type": "color",
+      "$value": "#232938"
+     }
     }
    },
    "day": {
@@ -430,6 +482,58 @@
     "learning": {
      "$type": "color",
      "$value": "{divan.color.primitive.learning.day}"
+    },
+    "soft": {
+     "gold": {
+      "$type": "color",
+      "$value": "rgba(138,99,24,0.10)"
+     },
+     "positive": {
+      "$type": "color",
+      "$value": "rgba(14,119,101,0.09)"
+     },
+     "negative": {
+      "$type": "color",
+      "$value": "rgba(197,47,60,0.09)"
+     },
+     "warning": {
+      "$type": "color",
+      "$value": "rgba(143,96,0,0.09)"
+     },
+     "lapis": {
+      "$type": "color",
+      "$value": "rgba(46,74,158,0.08)"
+     },
+     "learning": {
+      "$type": "color",
+      "$value": "rgba(91,75,196,0.09)"
+     }
+    },
+    "state": {
+     "scrim": {
+      "$type": "color",
+      "$value": "rgba(28,26,23,0.38)"
+     },
+     "disabledText": {
+      "$type": "color",
+      "$value": "rgba(28,26,23,0.34)"
+     },
+     "disabledFill": {
+      "$type": "color",
+      "$value": "rgba(28,26,23,0.05)"
+     },
+     "focus": {
+      "$type": "color",
+      "$value": "#896217"
+     },
+     "skeleton": {
+      "$type": "color",
+      "$value": "#E9E2D2"
+     },
+     "skeletonHi": {
+      "$type": "color",
+      "$value": "#F3EEE3"
+     }
     }
    },
    "level": {

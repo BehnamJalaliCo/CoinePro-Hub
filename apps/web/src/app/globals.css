@@ -1,0 +1,151 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+/* One typeface (IRANYekanX, owner's licence). Two cuts of the same variable font:
+   "text" renders digits as Persian (prose counts), "figures" keeps Latin digits
+   (money, tokens, codes, model names) with tabular widths. */
+@font-face {
+  font-family: "IRANYekanXFaNum";
+  src: url("/fonts/iranyekanx-fanum.woff2") format("woff2");
+  font-weight: 100 1000;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IRANYekanX";
+  src: url("/fonts/iranyekanx-latin.woff2") format("woff2");
+  font-weight: 100 1000;
+  font-display: swap;
+}
+
+/* Two metals of the brand marks: silver + gold by night, graphite + ink gold by day. */
+:root, [data-theme="night"] {
+  --hq-mark-silver: #DBDBDB; --hq-mark-gold: #D8A848; --hq-gold-pressed: #C4953C;
+  --hq-silver-soft: rgba(174,184,199,.12); --hq-silver-soft-hover: rgba(174,184,199,.18); --hq-silver-soft-pressed: rgba(174,184,199,.26);
+  --hq-neg-line: rgba(246,70,93,.45); --hq-switch-off: rgba(242,238,228,.38); --hq-gold-hover-soft: rgba(216,168,72,.30);
+}
+[data-theme="day"] {
+  --hq-mark-silver: #5A5F66; --hq-mark-gold: #896217; --hq-gold-pressed: #C4953C;
+  --hq-silver-soft: rgba(90,95,102,.10); --hq-silver-soft-hover: rgba(90,95,102,.16); --hq-silver-soft-pressed: rgba(90,95,102,.24);
+  --hq-neg-line: rgba(197,47,60,.45); --hq-switch-off: rgba(28,26,23,.20); --hq-gold-hover-soft: rgba(216,168,72,.34);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --hq-mark-silver: #5A5F66; --hq-mark-gold: #896217;
+    --hq-silver-soft: rgba(90,95,102,.10); --hq-silver-soft-hover: rgba(90,95,102,.16); --hq-silver-soft-pressed: rgba(90,95,102,.24);
+    --hq-neg-line: rgba(197,47,60,.45); --hq-switch-off: rgba(28,26,23,.20); --hq-gold-hover-soft: rgba(216,168,72,.34);
+  }
+}
+
+@theme inline {
+  --font-sans: "IRANYekanXFaNum", "IRANYekanX", Tahoma, sans-serif;
+  --font-fig: "IRANYekanX", "IRANYekanXFaNum", Tahoma, sans-serif;
+
+  --color-page: var(--hq-surface-page);
+  --color-card: var(--hq-surface-card);
+  --color-tile: var(--hq-surface-tile);
+  --color-raised: var(--hq-surface-raised);
+  --color-overlay: var(--hq-surface-overlay);
+  --color-hover: var(--hq-surface-hover);
+  --color-pressed: var(--hq-surface-pressed);
+  --color-ink: var(--hq-text-primary);
+  --color-sec: var(--hq-text-secondary);
+  --color-muted: var(--hq-text-muted);
+  --color-on-gold: var(--hq-text-on-gold);
+  --color-gold: var(--hq-gold-fill);
+  --color-gold-ink: var(--hq-gold-ink);
+  --color-gold-bright: var(--hq-gold-bright);
+  --color-gold-deep: var(--hq-gold-deep);
+  --color-gold-soft: var(--hq-soft-gold);
+  --color-silver: var(--hq-silver-fill);
+  --color-silver-ink: var(--hq-silver-ink);
+  --color-lapis: var(--hq-lapis);
+  --color-lapis-soft: var(--hq-soft-lapis);
+  --color-pos: var(--hq-positive);
+  --color-pos-soft: var(--hq-soft-positive);
+  --color-neg: var(--hq-negative);
+  --color-neg-soft: var(--hq-soft-negative);
+  --color-warn: var(--hq-warning);
+  --color-warn-soft: var(--hq-soft-warning);
+  --color-learn: var(--hq-learning);
+  --color-learn-soft: var(--hq-soft-learning);
+  --color-hair: var(--hq-line-hairline);
+  --color-div: var(--hq-line-divider);
+  --color-strong: var(--hq-line-strong);
+  --color-tahrir: var(--hq-line-tahrir);
+  --color-scrim: var(--hq-state-scrim);
+  --color-focus: var(--hq-state-focus);
+  --color-skel: var(--hq-state-skeleton);
+  --color-skel-hi: var(--hq-state-skeleton-hi);
+  --color-disabled: var(--hq-state-disabled-text);
+  --color-disabled-fill: var(--hq-state-disabled-fill);
+
+  --radius-xs: var(--hq-radius-xs);
+  --radius-sm: var(--hq-radius-sm);
+  --radius-md: var(--hq-radius-md);
+  --radius-lg: var(--hq-radius-lg);
+
+  --text-display: var(--hq-text-display);
+  --text-display--line-height: var(--hq-leading-display);
+  --text-h1: var(--hq-text-h1);
+  --text-h1--line-height: var(--hq-leading-h1);
+  --text-h2: var(--hq-text-h2);
+  --text-h2--line-height: var(--hq-leading-h2);
+  --text-h3: var(--hq-text-h3);
+  --text-h3--line-height: var(--hq-leading-h3);
+  --text-body: var(--hq-text-body);
+  --text-body--line-height: var(--hq-leading-body);
+  --text-caption: var(--hq-text-caption);
+  --text-caption--line-height: var(--hq-leading-caption);
+  --text-micro: var(--hq-text-micro);
+  --text-micro--line-height: var(--hq-leading-micro);
+
+  --ease-standard: var(--hq-ease-standard);
+  --ease-ceremony: var(--hq-ease-ceremony);
+}
+
+@layer base {
+  html {
+    background: var(--hq-surface-page);
+    color: var(--hq-text-primary);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 24px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body { min-height: 100dvh; margin: 0; }
+  :focus-visible { outline: 2px solid var(--hq-state-focus); outline-offset: 2px; border-radius: 6px; }
+  ::selection { background: var(--hq-soft-gold); }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  * { scrollbar-width: thin; scrollbar-color: var(--hq-line-strong) transparent; }
+}
+
+@layer utilities {
+  /* Figures: Latin digits, tabular, isolated from the RTL run. */
+  .fig { font-family: var(--font-fig); font-feature-settings: "tnum" 1; unicode-bidi: isolate; direction: ltr; }
+  .tahrir { box-shadow: inset 0 0 0 1px var(--hq-line-tahrir); }
+  .scroll-fade-top { mask-image: linear-gradient(to bottom, transparent 0, #000 28px); }
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+}
+
+@keyframes hq-spin { to { transform: rotate(360deg); } }
+@keyframes hq-breath { 0%, 100% { transform: scale(1); opacity: .92; } 50% { transform: scale(1.04); opacity: 1; } }
+@keyframes hq-live { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes hq-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+@keyframes hq-wave { 0%, 100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
+@keyframes hq-ring { 0% { transform: scale(1); opacity: .55; } 100% { transform: scale(1.5); opacity: 0; } }
+@keyframes hq-flow { to { stroke-dashoffset: -32; } }
+@keyframes hq-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.hq-skeleton {
+  background: linear-gradient(90deg, var(--hq-state-skeleton) 0%, var(--hq-state-skeleton-hi) 50%, var(--hq-state-skeleton) 100%);
+  background-size: 200% 100%;
+  animation: hq-shimmer 1.4s linear infinite;
+}
+.hq-rise { animation: hq-rise var(--hq-dur-transition) var(--hq-ease-standard) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

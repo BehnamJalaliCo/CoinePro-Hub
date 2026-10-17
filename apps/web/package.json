@@ -1,0 +1,49 @@
+{
+  "name": "@coinepro-hq/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CoinePro HQ web panel (Divan design system).",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "gen": "node scripts/gen-assets.mjs && openapi-typescript ../api/openapi/hq-api.v1.json -o src/generated/api.d.ts",
+    "gen:check": "npm run gen && git diff --exit-code -- src/styles/tokens.css src/generated public/fonts",
+    "dev": "next dev --port 3000",
+    "dev:mock": "NEXT_PUBLIC_HQ_MOCK=1 next dev --port 3000",
+    "build": "next build",
+    "start": "node .next/standalone/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "1.1.23",
+    "@radix-ui/react-dropdown-menu": "2.1.24",
+    "@radix-ui/react-popover": "1.1.23",
+    "@radix-ui/react-tooltip": "1.2.16",
+    "@simplewebauthn/browser": "14.0.0",
+    "@tanstack/react-query": "5.104.1",
+    "clsx": "2.1.1",
+    "cmdk": "1.1.1",
+    "motion": "14.0.0",
+    "next": "16.3.8",
+    "openapi-fetch": "0.17.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "24.19.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "10.12.0",
+    "eslint-config-next": "16.3.8",
+    "openapi-typescript": "7.13.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3"
+  }
+}
