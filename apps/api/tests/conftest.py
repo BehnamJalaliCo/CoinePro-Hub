@@ -22,6 +22,8 @@ from typing import Any
 import asyncpg
 import httpx
 import pytest
+from temporalio.client import Client
+from temporalio.worker import Worker
 
 from hq_api.app import create_app
 from hq_api.companies import Companies
@@ -34,6 +36,8 @@ from hq_api.policy import Policy
 from hq_api.secrets import Secrets
 from hq_api.security import agent_tokens
 from hq_api.storage import LocalStorage
+from hq_api.worker.activities import Activities
+from hq_api.worker.workflows import WORKFLOWS
 from hq_common.tokens import digest
 
 API_DIR = Path(__file__).resolve().parents[1]
@@ -252,3 +256,28 @@ async def relay(hub: Hub) -> AsyncIterator[None]:
     task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await task
+
+
+@pytest.fixture(scope="session")
+async def wk(hub: Hub) -> AsyncIterator[dict[str, Any]]:
+    s = settings(
+        db_user="hq_worker",
+        db_password=os.environ["HQ_WORKER_DB_PASSWORD"],
+        task_queue=f"hq-core-test-{uuid.uuid4().hex[:8]}",
+    )
+    db = Database.create(s, pool_size=4)
+    client = await Client.connect(s.temporal_address, namespace=s.temporal_namespace)
+    whub = Hub(
+        settings=s,
+        db=db,
+        companies=Companies(db, ttl_s=0),
+        secrets=make_secrets(),
+        policy=hub.policy,
+        storage=hub.storage,
+        bus=hub.bus,
+        temporal=client,
+    )
+    acts = Activities(whub, client, lock_poll_s=1, escalation_gap_s=0)
+    async with Worker(client, task_queue=s.task_queue, workflows=WORKFLOWS, activities=acts.all()):
+        yield {"hub": whub, "client": client, "acts": acts, "tq": s.task_queue}
+    await db.close()

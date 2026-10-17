@@ -320,7 +320,7 @@ async def test_treasury_read_side_and_owner_controls(
 
     secret = "sk-test-SECRET-MARKER-" + uuid.uuid4().hex
     fake = FakeBao()
-    hub.bao = fake  # type: ignore[attr-defined]
+    hub.bao = fake
     try:
         assert (
             await client.post(
@@ -338,7 +338,7 @@ async def test_treasury_read_side_and_owner_controls(
         ).json()
         assert secret not in json.dumps(audit)
     finally:
-        del hub.bao  # type: ignore[attr-defined]
+        hub.bao = None
 
     a = (await client.get("/api/v1/assignments", headers=h)).json()
     assert any(

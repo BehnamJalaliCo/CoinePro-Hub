@@ -8,7 +8,7 @@ import asyncio
 import json
 import os
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import Callable
 from datetime import UTC, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -17,10 +17,8 @@ import pytest
 from nats.js.api import RetentionPolicy, StorageType, StreamConfig
 from temporalio.client import Client
 from temporalio.service import RPCError, RPCStatusCode
-from temporalio.worker import Worker
 
 from hq_api import audit, workflows_client
-from hq_api.companies import Companies
 from hq_api.db import Database
 from hq_api.domain import decisions as D
 from hq_api.domain import org, recurrence, recurring
@@ -28,42 +26,14 @@ from hq_api.domain import work as W
 from hq_api.hub import Hub
 from hq_api.principal import Principal
 from hq_api.worker import jalali, report, schedules
-from hq_api.worker.activities import Activities, _plain
+from hq_api.worker.activities import _plain
 from hq_api.worker.bridge import Bridge, call_data, pick
-from hq_api.worker.workflows import WORKFLOWS
-
-from .conftest import make_secrets, settings
 
 OWNER = Principal(kind="owner", code="owner", role="owner")
 WAIT = 60
 
 
 # ------------------------------------------------------------------ fixtures --
-@pytest.fixture(scope="session")
-async def wk(hub: Hub) -> AsyncIterator[dict[str, Any]]:
-    s = settings(
-        db_user="hq_worker",
-        db_password=os.environ["HQ_WORKER_DB_PASSWORD"],
-        task_queue=f"hq-core-test-{uuid.uuid4().hex[:8]}",
-    )
-    db = Database.create(s, pool_size=4)
-    client = await Client.connect(s.temporal_address, namespace=s.temporal_namespace)
-    whub = Hub(
-        settings=s,
-        db=db,
-        companies=Companies(db, ttl_s=0),
-        secrets=make_secrets(),
-        policy=hub.policy,
-        storage=hub.storage,
-        bus=hub.bus,
-        temporal=client,
-    )
-    acts = Activities(whub, client, lock_poll_s=1, escalation_gap_s=0)
-    async with Worker(client, task_queue=s.task_queue, workflows=WORKFLOWS, activities=acts.all()):
-        yield {"hub": whub, "client": client, "acts": acts, "tq": s.task_queue}
-    await db.close()
-
-
 async def _all(h: Hub) -> list[Any]:
     return await h.companies.ids()
 
