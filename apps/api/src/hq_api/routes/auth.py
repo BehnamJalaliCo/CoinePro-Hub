@@ -8,6 +8,8 @@ passkey and step-up endpoint answers 503 origin_not_configured.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -194,6 +196,9 @@ async def _assert(hub: Hub, tx: Tx, credential: dict[str, Any], challenge: bytes
     )
     if pk is None:
         raise passkeys.PasskeyError("unknown or revoked credential")
+    counter = passkeys.sign_count_of(credential)
+    if counter is not None and int(pk["sign_count"]) > 0 and counter <= int(pk["sign_count"]):
+        raise passkeys.ClonedPasskey(pk["id"])  # flagged by _clone_guard after the rollback
     verified = passkeys.verify_assertion(
         hub.settings,
         credential,
@@ -210,6 +215,51 @@ async def _assert(hub: Hub, tx: Tx, credential: dict[str, Any], challenge: bytes
         id=pk["id"],
     )
     return pk
+
+
+@asynccontextmanager
+async def _clone_guard(hub: Hub, status: int, code: str) -> AsyncIterator[None]:
+    """Outside the request's transaction: a suspected clone is flagged in a
+    transaction of its own (committed), then the request fails."""
+    try:
+        yield
+    except passkeys.ClonedPasskey as exc:
+        await _flag_clone(hub, exc.passkey_id)
+        raise ApiError(status, code) from exc
+
+
+async def _flag_clone(hub: Hub, passkey_id: UUID) -> None:
+    """A passkey whose counter went backwards: flag it, audit it, raise 🔴."""
+    from hq_api import audit  # local: audit imports the auth layer
+    from hq_api.domain import notify
+
+    holding = await hub.companies.holding()
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await tx.exec(
+            """UPDATE auth.passkeys SET flagged_at = now(), flag_reason = 'sign count did not increase'
+               WHERE id = :id AND flagged_at IS NULL""",
+            id=passkey_id,
+        )
+        await audit.record(
+            tx,
+            Principal(kind="owner", code="owner", role="owner"),
+            company_id=holding.id,
+            action="auth.passkey_clone_suspected",
+            action_class="A4",
+            target_kind="passkey",
+            target_ref=str(passkey_id),
+            summary="sign count did not increase; passkey flagged",
+        )
+        await notify.raise_notification(
+            tx,
+            company_id=holding.id,
+            company_code=holding.code,
+            level="urgent",
+            title_fa="هشدار امنیتی: احتمال کپی شدن کلید عبور",
+            body_fa="شمارنده‌ی یک کلید عبور جلو نرفت. اگر کار خودت نبود، آن دستگاه را باطل کن.",
+            link_kind="device",
+            link_ref=str(passkey_id),
+        )
 
 
 def _passkey_device(row: dict[str, Any]) -> Device:
@@ -370,8 +420,9 @@ async def passkey_login_options(hub: Hub = Depends(get_hub)) -> dict[str, Any]:
             c=challenge,
             ttl=hub.settings.challenge_ttl_s,
         )
-        allow = await _active_credential_ids(tx)
-    return passkeys.authentication_options(hub.settings, challenge=challenge, allow=allow)
+    # No credential list: passkeys are discoverable, so an anonymous caller
+    # learns nothing about which passkeys exist.
+    return passkeys.authentication_options(hub.settings, challenge=challenge, allow=[])
 
 
 @router.post(
@@ -392,7 +443,7 @@ async def passkey_login_verify(
         challenge = passkeys.challenge_of(credential)
     except passkeys.PasskeyError as exc:
         raise ApiError(401, "unauthenticated") from exc
-    async with ctx.tx() as tx:
+    async with _clone_guard(hub, 401, "unauthenticated"), ctx.tx() as tx:
         ch = await tx.first(
             """SELECT id FROM auth.challenges
                WHERE challenge = :c AND purpose = 'login' AND used_at IS NULL AND expires_at > now()
@@ -406,6 +457,15 @@ async def passkey_login_verify(
         except passkeys.PasskeyError as exc:
             raise ApiError(401, "unauthenticated") from exc
         await tx.exec("UPDATE auth.challenges SET used_at = now() WHERE id = :id", id=ch["id"])
+        # A new sign-in ends the session this client presented, if any (no fixation).
+        previous = bearer(request.headers.get("authorization")) or request.cookies.get(
+            sessions.COOKIE
+        )
+        if previous:
+            await tx.exec(
+                "UPDATE auth.sessions SET revoked_at = now() WHERE token_sha256 = :h AND revoked_at IS NULL",
+                h=digest(previous),
+            )
         token, srow = await sessions.create(
             tx,
             hub.settings,
@@ -483,7 +543,7 @@ async def step_up_verify(body: StepUpVerifyIn, ctx: Ctx = Depends(owner_ctx)) ->
     except passkeys.PasskeyError as exc:
         raise ApiError(403, "step_up_invalid") from exc
     token = sessions.new_token()
-    async with ctx.tx() as tx:
+    async with _clone_guard(ctx.hub, 403, "step_up_invalid"), ctx.tx() as tx:
         su = await tx.first(
             """SELECT id, action, target FROM auth.step_ups
                WHERE challenge = :c AND session_id = :s AND verified_at IS NULL

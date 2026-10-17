@@ -8,6 +8,7 @@ one stored, unexpired, unused challenge (no replay).
 
 from __future__ import annotations
 
+import base64
 import json
 from typing import Any
 
@@ -45,6 +46,27 @@ class PasskeyError(ValueError):
     """The response does not verify (any reason; the detail is never shown)."""
 
 
+class ClonedPasskey(Exception):
+    """The signature counter did not increase: the passkey may be cloned. Not a
+    PasskeyError on purpose: it leaves the request's transaction (rollback,
+    row lock released) before the passkey is flagged."""
+
+    def __init__(self, passkey_id: Any) -> None:
+        super().__init__("sign count did not increase")
+        self.passkey_id = passkey_id
+
+
+def origins(s: Settings) -> list[str]:
+    """The web origin plus the Android app's origins ("android:apk-key-hash:...",
+    HQ_ANDROID_ORIGINS, empty until the app exists)."""
+    extra = [
+        o.strip()
+        for o in s.android_origins.split(",")
+        if o.strip().startswith("android:apk-key-hash:")
+    ]
+    return [s.public_origin, *extra]
+
+
 def new_challenge() -> bytes:
     return generate_challenge()
 
@@ -62,7 +84,8 @@ def registration_options(
         timeout=TIMEOUT_MS,
         attestation=AttestationConveyancePreference.NONE,
         authenticator_selection=AuthenticatorSelectionCriteria(
-            resident_key=ResidentKeyRequirement.PREFERRED,
+            # Discoverable (resident) passkeys: sign-in then needs no credential list.
+            resident_key=ResidentKeyRequirement.REQUIRED,
             user_verification=UserVerificationRequirement.REQUIRED,
         ),
         exclude_credentials=[PublicKeyCredentialDescriptor(id=c) for c in exclude],
@@ -93,6 +116,18 @@ def challenge_of(credential: dict[str, Any]) -> bytes:
         raise PasskeyError("malformed clientDataJSON") from exc
 
 
+def sign_count_of(credential: dict[str, Any]) -> int | None:
+    """The authenticator's signature counter (authenticatorData bytes 33..36)."""
+    try:
+        auth = base64.urlsafe_b64decode(
+            str(credential["response"]["authenticatorData"])
+            + "=" * (-len(str(credential["response"]["authenticatorData"])) % 4)
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+    return int.from_bytes(auth[33:37], "big") if len(auth) >= 37 else None
+
+
 def credential_id_of(credential: dict[str, Any]) -> bytes:
     try:
         return base64url_to_bytes(str(credential["rawId"]))
@@ -108,7 +143,7 @@ def verify_registration(
             credential=credential,
             expected_challenge=challenge,
             expected_rp_id=s.rp_id,
-            expected_origin=s.public_origin,
+            expected_origin=origins(s),
             require_user_presence=True,
             require_user_verification=True,
             supported_pub_key_algs=ALGORITHMS,
@@ -130,7 +165,7 @@ def verify_assertion(
             credential=credential,
             expected_challenge=challenge,
             expected_rp_id=s.rp_id,
-            expected_origin=s.public_origin,
+            expected_origin=origins(s),
             credential_public_key=public_key,
             credential_current_sign_count=sign_count,
             require_user_verification=True,

@@ -2,7 +2,7 @@
 run, bound to one employee code. HMAC-SHA256 with a key held in OpenBao
 (kv/hq-api/config agent_token_key), shared only with the agent runtime.
 
-    hqa1.<base64url(json {sub, run, iat, exp})>.<base64url(hmac)>
+    hqa1.<base64url(json {sub, run, jti, iat, exp})>.<base64url(hmac)>
 
 The company is never taken from the token: it comes from the employee row.
 """
@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import json
 import time
+import uuid
 from dataclasses import dataclass
 
 PREFIX = "hqa1"
@@ -29,6 +30,24 @@ class Claims:
     employee: str
     run: str
     exp: int
+    jti: str
+
+
+class ReplayGuard:
+    """Remembers (jti, request id) pairs until the token expires (one api
+    replica today; the same interface fits Valkey later)."""
+
+    def __init__(self) -> None:
+        self._seen: dict[str, int] = {}
+
+    def first_use(self, key: str, exp: int, *, now: float | None = None) -> bool:
+        t = int(time.time() if now is None else now)
+        if len(self._seen) > 100_000:
+            self._seen = {k: v for k, v in self._seen.items() if v > t}
+        if self._seen.get(key, 0) > t:
+            return False
+        self._seen[key] = exp
+        return True
 
 
 def _b64(data: bytes) -> str:
@@ -45,7 +64,13 @@ def mint(key: bytes, employee: str, run: str, *, ttl_s: int = 900, now: float | 
     t = int(time.time() if now is None else now)
     payload = _b64(
         json.dumps(
-            {"sub": employee, "run": run, "iat": t, "exp": t + min(ttl_s, MAX_TTL_S)},
+            {
+                "sub": employee,
+                "run": run,
+                "jti": uuid.uuid4().hex,
+                "iat": t,
+                "exp": t + min(ttl_s, MAX_TTL_S),
+            },
             separators=(",", ":"),
         ).encode()
     )
@@ -69,9 +94,10 @@ def verify(key: bytes, token: str, *, now: float | None = None) -> Claims:
         raise InvalidToken("bad signature")
     t = int(time.time() if now is None else now)
     try:
-        sub, run, iat, exp = (
+        sub, run, jti, iat, exp = (
             str(claims["sub"]),
             str(claims["run"]),
+            str(claims["jti"]),
             int(claims["iat"]),
             int(claims["exp"]),
         )
@@ -79,4 +105,4 @@ def verify(key: bytes, token: str, *, now: float | None = None) -> Claims:
         raise InvalidToken("malformed") from exc
     if exp <= t or exp - iat > MAX_TTL_S or iat > t + 60:
         raise InvalidToken("expired")
-    return Claims(employee=sub, run=run, exp=exp)
+    return Claims(employee=sub, run=run, exp=exp, jti=jti)
