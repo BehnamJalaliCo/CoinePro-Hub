@@ -329,7 +329,131 @@ HOSTILE = {
     "iban": "IR" + "0 " * 100_000,
     "bearer": "Bearer " * 30_000,
     "mixed": ("tel_0912 ۱۲۳ ٤٥٦٧ " + ZWNJ + "ali@x " + "sk-") * 8_000,
+    # prompt 5.1 review
+    "json escapes": ("\\n" + "sk-ant-" + "\\t" + "Bearer ") * 12_000,
+    "pgp headers": ("-----BEGIN PGP " + "PRIVATE KEY BLOCK-----") * 5_200,
+    "ignorables": ("0" + "\ufe0f" + "9" + "\u3164") * 50_000,
+    "url users": ("a://" + "b" * 600 + ":" + "c" * 30) * 320,
+    "decimals": "0." * 100_000,
+    "name value": ('{"name": "DB_PASSWORD", "value": ' * 6_000),
 }
+
+
+# --------------------------------------------------- review of 5.1 (§A) --
+LINE_SECRETS = {
+    k: SECRETS[k] for k in ("anthropic key", "github token", "aws key", "jwt", "openbao token")
+}
+LINE_SECRETS["bearer"] = "Bearer " + "Tk9z" * 6 + "_x"
+
+
+@pytest.mark.parametrize(("name", "secret"), sorted(LINE_SECRETS.items()))
+def test_a_secret_at_the_start_of_a_line_and_inside_json(name: str, secret: str) -> None:
+    """A JSON-dumped text turns a new line into the two characters \\n, which
+    put a Latin letter right before the token (prompt 5.1 review, blocker 1)."""
+    core = secret.split(" ")[-1]
+    for sep in ("\n", "\t", "\r", "\r\n"):
+        text = f"خط اول{sep}{secret} پایان"
+        for form in (
+            text,
+            json.dumps({"brief": text}, ensure_ascii=False),
+            json.dumps({"brief": text}),
+            json.dumps([{"what": f"x{sep}{secret}"}], ensure_ascii=False),
+        ):
+            out = scrub(form)
+            assert core not in out, (name, repr(sep), form[:40])
+
+
+@pytest.mark.parametrize("mark", ["️", "͏", "ㅤ", "ᅟ", "᠋", "︀", "ﾠ", "­"])
+def test_default_ignorable_characters_inside_a_secret(mark: str) -> None:
+    secret = SECRETS["github token"]
+    broken = secret[:6] + mark + secret[6:14] + mark + secret[14:]
+    out = scrub(f"کلید {broken} پایان")
+    assert "[token]" in out and secret[10:24] not in out.replace(mark, ""), repr(mark)
+    kept = scrub(f"می{ZWNJ}خواهم {broken} و می{ZWNJ}روم")
+    assert kept.startswith(f"می{ZWNJ}خواهم ") and kept.endswith(f" و می{ZWNJ}روم")
+
+
+def test_pgp_private_key_blocks() -> None:
+    begin = "-----BEGIN PGP " + "PRIVATE KEY BLOCK-----"
+    end = "-----END PGP " + "PRIVATE KEY BLOCK-----"
+    body = "\n".join(("Version: GnuPG v2", "", "lQOYBF" + "Ab9+/" * 12, "Ab9+" * 10, "=Xy3Q"))
+    for text in (f"قبل\n{begin}\n{body}\n{end}\nبعد", f"قبل\n{begin}\n{body}"):
+        out = scrub(text)
+        assert "lQOYBF" not in out and "Ab9+Ab9+" not in out and "=Xy3Q" not in out, text
+        assert out.startswith("قبل\n") and "[private-key]" in out
+    assert scrub(f"قبل\n{begin}\n{body}\n{end}\nبعد").endswith("\nبعد")
+
+
+def test_name_value_pairs_and_numbers_given_as_json_integers() -> None:
+    v = "q8Zr" * 4
+    env = [
+        {"name": "DB_PASSWORD", "value": v},
+        {"key": "apiKey", "value": v},
+        {"Name": "client-secret", "Value": v},
+        {"name": "LOG_LEVEL", "value": "info"},
+        {"name": "DB_PASSWORD", "value": None},
+    ]
+    assert redact({"env": env}) == {
+        "env": [
+            {"name": "DB_PASSWORD", "value": MASK},
+            {"key": "apiKey", "value": MASK},
+            {"Name": "client-secret", "Value": MASK},
+            {"name": "LOG_LEVEL", "value": "info"},
+            {"name": "DB_PASSWORD", "value": None},
+        ]
+    }
+    numbers = {
+        "n": int(card("6037991")),
+        "m": 989121234567,
+        "tokens": 600_000,
+        "at_ms": 1_760_000_000_000,
+        "amount": 9_500_000_000,
+        "ok": True,
+        "items": [int(card("5022291")), 7],
+    }
+    assert redact(numbers) == {
+        "n": "[card]",
+        "m": "[phone]",
+        "tokens": 600_000,
+        "at_ms": 1_760_000_000_000,
+        "amount": 9_500_000_000,
+        "ok": True,
+        "items": ["[card]", 7],
+    }
+
+
+def test_long_url_users_and_decimal_fractions() -> None:
+    user, password = "u" * 200, "p9Q" * 5
+    out = scrub(f"اتصال https://{user}:{password}@db.example.com/x")
+    assert password not in out and user not in out and "[credentials]@" in out
+    for text in ("ضریب 0.9876543210 است", "x=12.09121234567", "نسبت ۰٫۹۸۷۶۵۴۳۲۱۰", "0.9123456789"):
+        assert scrub(text) == text, text
+    assert scrub("تماس 0912.123.4567") == "تماس [phone]"  # a phone written with dots still is
+
+
+def test_spans_are_the_ranges_scrub_masks() -> None:
+    import re
+
+    from hq_common.redact import spans
+
+    token = SECRETS["github token"]
+    text = f"آ {token} و ۰۹۱۲۱۲۳۴۵۶۷ و ali{ZW}@example.com و x"
+    got = spans(text)
+    assert got == sorted(got) and len(got) == 3
+    pieces, pos = [], 0
+    for s, e in got:
+        assert s < e and s >= pos
+        pieces.append(text[pos:s])
+        pieces.append("#")
+        pos = e
+    pieces.append(text[pos:])
+    assert re.sub(r"\[[a-z\-]+\]@?", "#", scrub(text)) == "".join(pieces)
+    assert spans("") == [] and spans("بدون هیچ راز") == []
+    broken = token[:10] + ZW + token[10:]
+    (only,) = spans(f"ab {broken} cd")
+    assert f"ab {broken} cd"[only[0] : only[1]] == broken  # mapped back to the original
+    two = f"{token} {token}"
+    assert spans(two) == [(0, len(token)), (len(token) + 1, len(two))]
 
 
 @pytest.mark.parametrize("name", sorted(HOSTILE))
