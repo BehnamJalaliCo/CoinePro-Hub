@@ -74,6 +74,17 @@ if [[ -f "$COMPOSE_DIR/../../apps/web/Dockerfile" ]]; then
 else
   export HQ_WEB=off
 fi
+# The site-check canary (prompt 05 §9.1): Caddy's /__canary fails on purpose
+# (503) only while a canary row of the sites seed is enabled; switched off it
+# answers 404 like any unknown path (prompt 05.1 §3). The seed keeps each row
+# on one line, so a canary row is enabled unless it says `enabled: false`.
+SITES_SEED="${HQ_SITES_SEED:-$COMPOSE_DIR/../../apps/api/seed/sites.yaml}"  # override: tests only
+export HQ_CANARY=off
+if [[ -r "$SITES_SEED" ]] &&
+  grep -E '^[[:space:]]*-.*[{,[:space:]]canary:[[:space:]]*true' "$SITES_SEED" |
+  grep -qvE '[{,[:space:]]enabled:[[:space:]]*false'; then
+  export HQ_CANARY=on
+fi
 if [[ "${HQ_ALL_PROFILES:-0}" == "1" ]]; then
   profile_args=(--profile "*")
 fi

@@ -698,6 +698,9 @@ services:
       HQ_API_EDGE: ${HQ_API_EDGE:?use hq.sh}
       # "on" when the web panel is built (infra/compose/hq.sh): other paths reach web.
       HQ_WEB: ${HQ_WEB:?use hq.sh}
+      # "on" while a canary row of apps/api/seed/sites.yaml is enabled (hq.sh):
+      # /__canary answers 503, else 404.
+      HQ_CANARY: ${HQ_CANARY:?use hq.sh}
     ports:
       # The only ports published on all interfaces.
       - "80:80"
@@ -708,6 +711,8 @@ services:
       - ../caddy/api-off.caddy:/etc/caddy/api-off.caddy:ro
       - ../caddy/web-on.caddy:/etc/caddy/web-on.caddy:ro
       - ../caddy/web-off.caddy:/etc/caddy/web-off.caddy:ro
+      - ../caddy/canary-on.caddy:/etc/caddy/canary-on.caddy:ro
+      - ../caddy/canary-off.caddy:/etc/caddy/canary-off.caddy:ro
       - ../caddy/site:/srv/site:ro
       - caddy-data:/data
       - caddy-config:/config

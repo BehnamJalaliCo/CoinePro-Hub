@@ -42,11 +42,11 @@
 		respond 404
 	}
 
-	# Site-check canary (prompt 05 §9.1): fails on purpose so the line
-	# check -> incident -> work -> run can be proven. Carries no data.
-	handle /__canary {
-		respond 503
-	}
+	# Site-check canary (prompt 05 §9.1): while a canary row of
+	# apps/api/seed/sites.yaml is enabled it fails on purpose (503), so the line
+	# check -> incident -> work -> run can be proven; switched off it is an
+	# unknown path (404). HQ_CANARY is derived by infra/compose/hq.sh.
+	import /etc/caddy/canary-{$HQ_CANARY}.caddy
 
 	# /api only with a domain over HTTPS: api-on.caddy or api-off.caddy.
 	import /etc/caddy/api-{$HQ_API_EDGE}.caddy
