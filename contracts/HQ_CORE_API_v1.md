@@ -461,3 +461,51 @@ Used by the agent runtime in prompt 5 and by tests now (with a fake agent princi
 - `seed/templates/holding.yaml` — `OVS`, `AIOPS`, the advisor `HQ-ADV`.
 - `seed/companies.yaml` already exists in llm-router; v1 extends rows (`name_fa`, `color_index`, `template`) without changing codes. ⟨1.1⟩ Today's slots: PC 1, FX 2, TY 3 (chart palette v2); the holding has none (charts draw it in neutral silver); a new company takes the next free slot, or none.
 - Seeds are idempotent and never overwrite rows edited later.
+
+---
+
+## 16. v1.2 — agents at work (prompt 5)
+
+> **v1.2 (2026-10-17).** Agents now run. Everything above still holds; this section adds what the agent runtime, the advisor and the rule-based checks expose. Role charters live in `agents/` (owned by the consultation Claude) and are read, never written, by the server.
+
+### 16.1 Employee charter
+`Employee` gains `charter: { role, version }` — the charter file (`agents/roles/<role>.md`) and version the employee runs with. `GET /roles` lists charters (role, titles, kind, scope, default model and effort, tools, limits, version); read-only. A run records the charter version it used.
+
+### 16.2 Agent runs and steps (the "agent screen")
+```
+Run  { id, employee, work_ref|null, thread|null, trigger: "work"|"message"|"schedule"|"alert",
+       state: "queued"|"running"|"done"|"failed"|"refused", started_at, finished_at|null,
+       steps: int, tokens: {input, output, cache_read, cache_write}, equiv_cost_usd, charter_version }
+Step { run_id, n, at, summary_fa, actions: [{tool, class, outcome: "ok"|"denied"|"error", ref?}] }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/runs` | `?company&employee&state&from&to` |
+| GET | `/runs/{id}` | with `steps` |
+| GET | `/work/{id}/runs` | runs for one work item |
+
+Steps carry **summaries and tool metadata only** — never the prompt, the model's raw output or tool payloads. Stream types added: `run.started`, `run.step`, `run.finished`.
+
+### 16.3 Conversations with agents and the advisor
+- `POST /threads/{code}/messages` on a thread whose counterpart is an agent (the advisor `A`, a CEO, a manager, an employee) returns `{ message, reply: { state: "queued" } }` and wakes that agent (advisor at **P2**, others at their charter priority, CEO attention quota respected for *their* messages, not for the owner's).
+- `GET /threads/{code}/live` — **owner only**, SSE. Events: `reply.started {run_id}`, `reply.delta {text}` (Persian text chunks of the reply being written), `reply.done {message_ref}`, `reply.failed {code}`. The final text is the stored message; deltas are not stored.
+- `Message` gains `citations: [{ kind: "decision"|"resolution"|"deliverable"|"work"|"message"|"audit", ref }]`, validated server-side: a citation to a ref that does not exist or that the author may not read is dropped and counted in `meta.citations_dropped`.
+- The advisor is **read-only**: it can only write in thread `A` and to its own memory.
+
+### 16.4 Rule-based site checks and incidents
+```
+Site      { id, company, url, kind: "web"|"api"|"bot", expect: {status, contains?}, interval_s, enabled }
+Check     { site_id, at, ok, status|null, latency_ms|null, tls_days_left|null, error_code|null }
+Incident  { id, ref: "I-0001", company, site_id, opened_at, closed_at|null, severity: "sev1"|"sev2"|"sev3",
+            work_ref|null, checks_failed }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/ops/sites` | `?company` — sites with their latest check and 24 h uptime |
+| PUT | `/ops/sites` 🔏 | replace the list for one company (owner edits URLs; data, not code) |
+| GET | `/ops/incidents` | `?company&open` |
+
+No model runs for a healthy check. N consecutive failures open an incident and **one** work item for the company's CTO (or its SRE once hired); recovery closes it.
+
+### 16.5 Quota
+`GET /treasury/quota` → `{ subscription: { status: "ok"|"warning"|"limited", window, resets_at|null, source }, throttle: { paused_priorities: ["P4", …] } }`. The Quota Controller is code (no model): at `warning` it pauses P4, at `limited` it lets only P0–P2 through, and it says so on the stream (`budget.alert`).
