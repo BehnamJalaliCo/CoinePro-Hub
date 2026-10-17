@@ -17,6 +17,10 @@ ty_growth_01 := {"kind": "agent", "code": "TY-GROWTH-01", "role": "employee", "c
 
 hq_adv := {"kind": "agent", "code": "HQ-ADV", "role": "advisor", "company": "HQ", "department": null, "scope": "holding"}
 
+hq_ovr := {"kind": "agent", "code": "HQ-OVR", "role": "overseer", "company": "HQ", "department": "OVS", "scope": "holding"}
+
+hq_pa := {"kind": "agent", "code": "HQ-PA", "role": "assistant", "company": "HQ", "department": null, "scope": "holding"}
+
 hq_ovs := {"kind": "agent", "code": "HQ-OVS-MGR", "role": "inspector", "company": "HQ", "department": "OVS", "scope": "holding"}
 
 hq_ovs_01 := {"kind": "agent", "code": "HQ-OVS-01", "role": "employee", "company": "HQ", "department": "OVS", "scope": "holding"}

@@ -22,7 +22,7 @@ import yaml
 
 DEFAULT_DIR = "/app/agents"
 CLASSES = ("A0", "A1", "A2", "A3", "A4")
-KINDS = ("ceo", "manager", "employee", "advisor", "inspector")
+KINDS = ("ceo", "manager", "employee", "advisor", "inspector", "overseer", "assistant")
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 PRIORITIES = ("P0", "P1", "P2", "P3", "P4")
 ROLE = re.compile(r"^[a-z][a-z0-9_]{1,40}$")

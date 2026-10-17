@@ -29,7 +29,7 @@ from hq_api.schemas import Actor, FileRef, Model, Page, actor
 router = APIRouter(tags=["messages"])
 E = responses(401, 403, 404, 409, 422)
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
-THREAD = r"^(A|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
+THREAD = r"^(A|N|P|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
 
 
 class Thread(BaseModel):
@@ -219,7 +219,8 @@ async def render_messages(tx: Tx, rows: list[dict[str, Any]]) -> list[Message]:
 
 @router.get("/threads", response_model=list[Thread], responses=E)
 async def list_threads(
-    kind: Literal["advisor", "ceo", "manager", "department", "employee"] | None = None,
+    kind: Literal["advisor", "overseer", "assistant", "ceo", "manager", "department", "employee"]
+    | None = None,
     company: list[str] | None = Query(default=None),
     ctx: Ctx = Depends(owner_ctx),
 ) -> list[Thread]:

@@ -3831,6 +3831,17 @@
             ],
             "title": "Probation Until"
           },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
           "reports_to": {
             "anyOf": [
               {
@@ -4024,6 +4035,17 @@
               }
             ],
             "title": "Probation Until"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
           },
           "recent_ratings": {
             "items": {
@@ -5963,6 +5985,13 @@
             "title": "Login Configured",
             "type": "boolean"
           },
+          "precedence": {
+            "items": {
+              "$ref": "#/components/schemas/Precedence"
+            },
+            "title": "Precedence",
+            "type": "array"
+          },
           "public_origin": {
             "anyOf": [
               {
@@ -5993,7 +6022,8 @@
           "public_origin",
           "channels",
           "stream_retention_days",
-          "workshop"
+          "workshop",
+          "precedence"
         ],
         "title": "Meta",
         "type": "object"
@@ -7364,6 +7394,32 @@
           "message_ref"
         ],
         "title": "Posted",
+        "type": "object"
+      },
+      "Precedence": {
+        "properties": {
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "note_fa": {
+            "title": "Note Fa",
+            "type": "string"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rank",
+          "kinds",
+          "note_fa"
+        ],
+        "title": "Precedence",
         "type": "object"
       },
       "Presence": {
@@ -16733,6 +16789,8 @@
                     "employee",
                     "advisor",
                     "inspector",
+                    "overseer",
+                    "assistant",
                     "system"
                   ],
                   "type": "string"
@@ -16864,6 +16922,7 @@
                       },
                       "permissions": [],
                       "probation_until": "2026-10-17T05:42:00Z",
+                      "rank": 1,
                       "reports_to": {
                         "code": "TY-GROWTH-01",
                         "company": "TY",
@@ -17000,6 +17059,7 @@
                   },
                   "permissions": [],
                   "probation_until": "2026-10-17T05:42:00Z",
+                  "rank": 1,
                   "recent_ratings": [
                     {
                       "deliverable": "O-000456",
@@ -17162,6 +17222,7 @@
                   },
                   "permissions": [],
                   "probation_until": "2026-10-17T05:42:00Z",
+                  "rank": 1,
                   "reports_to": {
                     "code": "TY-GROWTH-01",
                     "company": "TY",
@@ -17414,6 +17475,7 @@
                   },
                   "permissions": [],
                   "probation_until": "2026-10-17T05:42:00Z",
+                  "rank": 1,
                   "reports_to": {
                     "code": "TY-GROWTH-01",
                     "company": "TY",
@@ -17547,6 +17609,7 @@
                   },
                   "permissions": [],
                   "probation_until": "2026-10-17T05:42:00Z",
+                  "rank": 1,
                   "reports_to": {
                     "code": "TY-GROWTH-01",
                     "company": "TY",
@@ -18079,6 +18142,15 @@
                     "web_push": false
                   },
                   "login_configured": false,
+                  "precedence": [
+                    {
+                      "kinds": [
+                        "one_off"
+                      ],
+                      "note_fa": "x",
+                      "rank": 1
+                    }
+                  ],
                   "public_origin": "x",
                   "service_version": "x",
                   "stream_retention_days": 1,
@@ -19435,6 +19507,7 @@
                     },
                     "permissions": [],
                     "probation_until": "2026-10-17T05:42:00Z",
+                    "rank": 1,
                     "reports_to": {
                       "code": "TY-GROWTH-01",
                       "company": "TY",
@@ -21646,7 +21719,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^(A|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$",
+                  "pattern": "^(A|N|P|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$",
                   "type": "string"
                 },
                 {
@@ -22046,6 +22119,8 @@
                 {
                   "enum": [
                     "advisor",
+                    "overseer",
+                    "assistant",
                     "ceo",
                     "manager",
                     "department",
@@ -27098,6 +27173,7 @@
                   },
                   "permissions": [],
                   "probation_until": "2026-10-17T05:42:00Z",
+                  "rank": 1,
                   "reports_to": {
                     "code": "TY-GROWTH-01",
                     "company": "TY",
@@ -27567,6 +27643,7 @@
                     },
                     "permissions": [],
                     "probation_until": "2026-10-17T05:42:00Z",
+                    "rank": 1,
                     "reports_to": {
                       "code": "TY-GROWTH-01",
                       "company": "TY",

@@ -3,6 +3,8 @@
 # every company and talks only to the owner (OPERATING_MODEL §1.1, contract
 # §3.2). The owner is the general manager, so the holding has no CEO.
 # HQ-SYS is the rule-based system author of reports (no model behind it).
+# head_reports_to: the code suffix of an extra position the department head
+# reports to (set once, only while empty: edits made later survive).
 # head_role / role: the charter each position runs with (agents/roles/<role>.md,
 # prompt 05). HQ-SYS has none: it is never woken.
 key: holding
@@ -16,6 +18,8 @@ departments:
     manager_title_en: Inspector General (Oversight and AI Safety)
     head_kind: inspector
     head_role: inspector
+    # ⟨1.4⟩ the inspector leads QC under the Chief Overseer (contract §18.0)
+    head_reports_to: OVR
     sort: 10
   - code: AIOPS
     name_fa: عملیات هوش مصنوعی
@@ -36,6 +40,25 @@ leadership:
       thread: A
       thread_kind: advisor
       thread_title_fa: مشاور کل
+    # ⟨1.4⟩ the Chief Overseer (rank 2, thread N) and the owner's personal
+    # assistant (thread P), contract §18.0; both talk only to the owner.
+    - code_suffix: OVR
+      kind: overseer
+      role: overseer
+      department: OVS
+      title_fa: ناظر کل
+      title_en: Chief Overseer
+      thread: N
+      thread_kind: overseer
+      thread_title_fa: ناظر کل
+    - code_suffix: PA
+      kind: assistant
+      role: assistant
+      title_fa: دستیار شخصی
+      title_en: Personal Assistant
+      thread: P
+      thread_kind: assistant
+      thread_title_fa: دستیار شخصی
     - code_suffix: SYS
       kind: system
       title_fa: سامانه‌ی گزارش

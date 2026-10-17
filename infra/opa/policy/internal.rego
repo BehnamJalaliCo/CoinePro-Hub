@@ -50,6 +50,9 @@ propose_kinds := {
 	"employee": {"a3_action", "deploy", "recurring_approval", "code_session"},
 	"advisor": {"proposal", "code_session"},
 	"inspector": {"proposal", "hire"},
+	# ⟨1.4⟩ prompt 08 §1; their own kinds (protocol, errand_action, ...) come with §2 and §5
+	"overseer": {"proposal"},
+	"assistant": {"proposal"},
 }
 
 # Data, not code (data.json). Without it nothing that depends on it is allowed.
@@ -434,6 +437,12 @@ message_ok if {
 message_ok if {
 	p.role == "advisor"
 	tv("thread_kind") == "advisor"
+}
+
+# ⟨1.4⟩ the overseer's thread N and the assistant's thread P: only their own agent
+message_ok if {
+	p.role in {"overseer", "assistant"}
+	tv("thread_kind") == p.role
 }
 
 message_ok if {

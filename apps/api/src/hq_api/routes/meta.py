@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from hq_api import __version__
 from hq_api.context import Ctx, owner_ctx
+from hq_api.domain import org
 from hq_api.errors import responses
 from hq_api.hub import Hub, get_hub
 from hq_api.workshop import service as workshop
@@ -31,6 +32,12 @@ class WorkshopMeta(BaseModel):
     runtime: Literal["managed", "self_hosted"] | None
 
 
+class Precedence(BaseModel):
+    rank: int
+    kinds: list[str]
+    note_fa: str
+
+
 class Meta(BaseModel):
     api_version: str
     service_version: str
@@ -40,6 +47,8 @@ class Meta(BaseModel):
     stream_retention_days: int
     # ⟨1.3⟩ null until the owner chooses (then POST /workshop/sessions works)
     workshop: WorkshopMeta
+    # ⟨1.4⟩ who outranks whom (§18.0); Employee.rank follows it
+    precedence: list[Precedence]
 
 
 @router.get("/health", response_model=Health)
@@ -66,4 +75,7 @@ async def get_meta(ctx: Ctx = Depends(owner_ctx)) -> Meta:
         ),
         stream_retention_days=30,
         workshop=WorkshopMeta.model_validate({"runtime": workshop.meta_runtime(ctx.hub)}),
+        precedence=[
+            Precedence(rank=r, kinds=list(kinds), note_fa=note) for r, kinds, note in org.PRECEDENCE
+        ],
     )

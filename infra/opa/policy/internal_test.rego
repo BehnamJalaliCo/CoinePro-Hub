@@ -188,6 +188,14 @@ test_advisor_and_ceo_threads if {
 	allowed(f.ty_ceo, "message.post", {"thread_code": "TY-CEO-2", "thread_kind": "ceo", "thread_company": "TY"})
 	not allowed(f.fx_ceo, "message.post", {"thread_code": "TY-CEO", "thread_kind": "ceo", "thread_company": "TY"})
 	not allowed(f.svc, "message.post", {"thread_code": "A", "thread_kind": "advisor"})
+
+	# ⟨1.4⟩ N is the overseer's, P the assistant's; no one else posts there
+	allowed(f.hq_ovr, "message.post", {"thread_code": "N", "thread_kind": "overseer"})
+	allowed(f.hq_pa, "message.post", {"thread_code": "P", "thread_kind": "assistant"})
+	not allowed(f.hq_pa, "message.post", {"thread_code": "N", "thread_kind": "overseer"})
+	not allowed(f.hq_ovr, "message.post", {"thread_code": "P", "thread_kind": "assistant"})
+	not allowed(f.hq_adv, "message.post", {"thread_code": "N", "thread_kind": "overseer"})
+	not allowed(f.hq_ovs, "message.post", {"thread_code": "N", "thread_kind": "overseer"})
 }
 
 # ----------------------------------------------------- notification.raise --

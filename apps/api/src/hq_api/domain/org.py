@@ -40,7 +40,35 @@ def ref_cols(alias: str, prefix: str) -> str:
 
 
 # Depth of a root work item by who receives it (contract §4: owner -> CEO is 0).
-DEPTH_OF_KIND = {"ceo": 0, "advisor": 0, "system": 0, "manager": 1, "inspector": 1, "employee": 2}
+DEPTH_OF_KIND = {
+    "ceo": 0,
+    "advisor": 0,
+    "overseer": 0,
+    "assistant": 0,
+    "system": 0,
+    "manager": 1,
+    "inspector": 1,
+    "employee": 2,
+}
+# Precedence (contract §18.0): 1 the owner; 2 the overseer and the advisor;
+# 3 CEOs, the inspector (QC) and the AI Ops head; 4 managers; 5 employees.
+# The assistant serves the owner and directs no one: rank 5. The rule-based
+# system author has no rank.
+RANK_OF_KIND = {"overseer": 2, "advisor": 2, "ceo": 3, "inspector": 3, "manager": 4}
+RANK_OF_ROLE = {"aiops_head": 3}
+PRECEDENCE = (
+    (1, ("owner",), "مدیر کل"),
+    (2, ("overseer", "advisor"), "ناظر کل و مشاور کل"),
+    (3, ("ceo", "inspector"), "مدیرعامل‌ها، بازرس کل (QC) و مدیر عملیات AI هلدینگ"),
+    (4, ("manager",), "مدیرها"),
+    (5, ("employee", "assistant"), "کارمندها و دستیار شخصی"),
+)
+
+
+def rank(kind: str, role: str | None) -> int | None:
+    if kind == "system":
+        return None
+    return RANK_OF_ROLE.get(role or "") or RANK_OF_KIND.get(kind, 5)
 
 
 class CharterRef(BaseModel):
@@ -74,6 +102,8 @@ class Employee(BaseModel):
     # ⟨1.4.3⟩ +7 days after a delegated hire (§18.11); null otherwise
     probation_until: datetime | None = None
     charter: CharterRef | None = None
+    # ⟨1.4⟩ computed precedence (§18.0); null for the system author
+    rank: int | None = None
     version: int
 
 
@@ -187,6 +217,7 @@ def render(
         charter=CharterRef(role=role, version=charter.version if charter else None)
         if role
         else None,
+        rank=rank(row["kind"], role),
         version=row["version"],
     )
 
@@ -279,7 +310,7 @@ async def dismiss(
     knowledge-transfer work item for the runtime (§1.3)."""
     if employee["status"] == "dismissed":
         raise ApiError(409, "validation_failed", "already dismissed")
-    if employee["kind"] in ("ceo", "advisor", "system"):
+    if employee["kind"] in ("ceo", "advisor", "overseer", "assistant", "system"):
         raise ApiError(422, "validation_failed", "leadership positions are not dismissed this way")
     target = None
     if transfer_to:
