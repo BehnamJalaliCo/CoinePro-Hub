@@ -254,6 +254,22 @@ async def running_run(code: str) -> str:
     return str(rid or uuid.uuid4())
 
 
+@pytest.fixture
+async def hiring_open() -> AsyncIterator[None]:
+    """Hiring open to agents (contract §18.11) for a test whose agents propose
+    hires; closed again afterwards, as it is by default."""
+    pool = await _su_pool()
+    async with pool.acquire() as c:
+        await c.execute(
+            """INSERT INTO core.hiring (company_id, state, mode)
+               SELECT id, 'open', 'proposals' FROM core.companies WHERE kind = 'holding'
+               ON CONFLICT (company_id) DO UPDATE SET state = 'open', mode = 'proposals'"""
+        )
+    yield
+    async with pool.acquire() as c:
+        await c.execute("UPDATE core.hiring SET state = 'closed', mode = NULL")
+
+
 async def agent_headers(code: str) -> dict[str, str]:
     """An agent token for `code`, bound to a running run in the registry."""
     run = await running_run(code)

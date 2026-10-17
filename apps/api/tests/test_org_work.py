@@ -136,6 +136,7 @@ async def test_companies_templates_and_versions(
     assert r.status_code == 201 and r.json()["manager"]["code"] == f"{code}-LEGALX-MGR"
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_employees_chart_pause_and_dismiss(
     client: httpx.AsyncClient,
     hub: Hub,
@@ -195,6 +196,7 @@ async def test_employees_chart_pause_and_dismiss(
     assert await hire(hub, client, owner_session, co) == f"{co}-TECH-02"
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_order_delegation_depth_budget_and_delivery(
     client: httpx.AsyncClient,
     hub: Hub,

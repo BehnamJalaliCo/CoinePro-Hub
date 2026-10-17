@@ -1886,6 +1886,15 @@
             "title": "Employees",
             "type": "object"
           },
+          "hiring": {
+            "default": "closed",
+            "enum": [
+              "closed",
+              "open"
+            ],
+            "title": "Hiring",
+            "type": "string"
+          },
           "kill_switch": {
             "title": "Kill Switch",
             "type": "string"
@@ -3193,6 +3202,144 @@
         "title": "DeviceOut",
         "type": "object"
       },
+      "DirectHire": {
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/Decision"
+          },
+          "employee": {
+            "$ref": "#/components/schemas/Employee"
+          }
+        },
+        "required": [
+          "employee",
+          "decision"
+        ],
+        "title": "DirectHire",
+        "type": "object"
+      },
+      "DirectHireIn": {
+        "additionalProperties": false,
+        "description": "The owner hires directly (contract §18.11).",
+        "properties": {
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "department": {
+            "pattern": "^[A-Z][A-Z0-9]{1,11}$",
+            "title": "Department",
+            "type": "string"
+          },
+          "duties": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Duties",
+            "type": "array"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh",
+                  "max"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "quota_estimate_month": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quota"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reports_to": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reports To"
+          },
+          "role": {
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "Role",
+            "type": "string"
+          },
+          "title_en": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title En"
+          },
+          "title_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "department",
+          "role",
+          "title_fa"
+        ],
+        "title": "DirectHireIn",
+        "type": "object"
+      },
       "Dismiss": {
         "additionalProperties": false,
         "properties": {
@@ -4185,6 +4332,161 @@
         "title": "Health",
         "type": "object"
       },
+      "Hiring": {
+        "properties": {
+          "changed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed At"
+          },
+          "changed_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Actor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "self",
+                  "proposals"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "state": {
+            "enum": [
+              "closed",
+              "open"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "withdrawn": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Withdrawn",
+            "type": "array"
+          }
+        },
+        "required": [
+          "state",
+          "mode",
+          "changed_at",
+          "changed_by",
+          "withdrawn"
+        ],
+        "title": "Hiring",
+        "type": "object"
+      },
+      "HiringStart": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "proposals",
+              "self"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "HiringStart",
+        "type": "object"
+      },
+      "HiringStarted": {
+        "properties": {
+          "changed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed At"
+          },
+          "changed_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Actor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "self",
+                  "proposals"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "state": {
+            "enum": [
+              "closed",
+              "open"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "withdrawn": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Withdrawn",
+            "type": "array"
+          },
+          "work": {
+            "description": "work items created (proposals)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Work",
+            "type": "array"
+          }
+        },
+        "required": [
+          "state",
+          "mode",
+          "changed_at",
+          "changed_by",
+          "withdrawn"
+        ],
+        "title": "HiringStarted",
+        "type": "object"
+      },
       "Hit": {
         "properties": {
           "at": {
@@ -4232,6 +4534,15 @@
             },
             "title": "Companies",
             "type": "array"
+          },
+          "hiring": {
+            "default": "closed",
+            "enum": [
+              "closed",
+              "open"
+            ],
+            "title": "Hiring",
+            "type": "string"
           }
         },
         "required": [
@@ -16997,6 +17308,192 @@
         ]
       }
     },
+    "/api/v1/org/hires": {
+      "post": {
+        "description": "🔏 (`hire.direct`, target = SHA-256 of the exact body) the owner hires\ndirectly: a `hire` decision proposed **and** sealed by the owner in one\ntransaction (approved, resolution M-…), then the employee. The same checks\nas an agent's proposal (the charter `role` must fit the company and the\ndepartment); `model`, `effort` and `title_en` default to the charter's.",
+        "operationId": "direct_hire",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "department": "GROWTH",
+                "duties": [
+                  "x"
+                ],
+                "effort": "low",
+                "model": "claude-sonnet-5-5",
+                "quota_estimate_month": {
+                  "tokens": 0,
+                  "usd": 0.0
+                },
+                "reason": "دلیل",
+                "reports_to": "x",
+                "role": "x",
+                "title_en": "Weekly growth report",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/DirectHireIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "decision": {
+                    "action_class": "x",
+                    "amendments": {},
+                    "company": "TY",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "decided_at": "2026-10-17T05:42:00Z",
+                    "decided_by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "digital_ceo_prediction": {},
+                    "effect_status": "x",
+                    "expires_at": "2026-10-17T05:42:00Z",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "hire",
+                    "note": "یادداشت",
+                    "payload": {},
+                    "proposer": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "quota_estimate": {
+                      "tokens": 1,
+                      "usd": "2.410000"
+                    },
+                    "reason_code": "x",
+                    "ref": "D-000123",
+                    "resolution": "M-0001",
+                    "reversible": false,
+                    "risk": "low",
+                    "risk_note": "x",
+                    "seal": {
+                      "method": "x",
+                      "sealed_at": "2026-10-17T05:42:00Z",
+                      "step_up_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    },
+                    "status": "pending",
+                    "thread": "TY-CEO",
+                    "title": "گزارش هفتگی رشد",
+                    "version": 1,
+                    "what": "x",
+                    "why": "x",
+                    "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  },
+                  "employee": {
+                    "activity": "working",
+                    "activity_at": "2026-10-17T05:42:00Z",
+                    "activity_note": "x",
+                    "charter": {
+                      "role": "x",
+                      "version": 1
+                    },
+                    "code": "TY-GROWTH-01",
+                    "company": "TY",
+                    "department": "GROWTH",
+                    "dismissed_at": "2026-10-17T05:42:00Z",
+                    "display_name": "آرش",
+                    "duties": [],
+                    "hired_at": "2026-10-17T05:42:00Z",
+                    "hired_by_decision": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "employee",
+                    "model": {
+                      "connection": "claude-max",
+                      "effort": "high",
+                      "model": "claude-sonnet-5-5"
+                    },
+                    "permissions": [],
+                    "reports_to": {
+                      "code": "TY-GROWTH-01",
+                      "company": "TY",
+                      "department": "GROWTH",
+                      "kind": "employee",
+                      "title_fa": "گزارش هفتگی رشد"
+                    },
+                    "score": {
+                      "owner_avg": 1.0,
+                      "rank_in_department": 1,
+                      "trend": [
+                        1.0
+                      ],
+                      "value": 1.0
+                    },
+                    "status": "active",
+                    "title_en": "Weekly growth report",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "version": 1
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/DirectHire"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Direct Hire",
+        "tags": [
+          "organisation"
+        ]
+      }
+    },
     "/api/v1/org/{company}/chart": {
       "get": {
         "description": "CEO -> managers -> employees, with live `activity` (dismissed excluded).",
@@ -17246,6 +17743,182 @@
           }
         },
         "summary": "Get Away Summary",
+        "tags": [
+          "owner"
+        ]
+      }
+    },
+    "/api/v1/owner/hiring": {
+      "get": {
+        "description": "Hiring starts with the owner (contract §18.11): `closed` by default; the\nhire cards the system withdrew are listed in `withdrawn`.",
+        "operationId": "get_hiring",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "changed_at": "2026-10-17T05:42:00Z",
+                  "changed_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "mode": "self",
+                  "state": "closed",
+                  "withdrawn": [
+                    "x"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Hiring"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Hiring",
+        "tags": [
+          "owner"
+        ]
+      }
+    },
+    "/api/v1/owner/hiring/close": {
+      "post": {
+        "description": "No step-up (closing is always safe): hiring closes to agents and every\npending hire card is withdrawn (never deleted; listed in `withdrawn`).",
+        "operationId": "close_hiring",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "changed_at": "2026-10-17T05:42:00Z",
+                  "changed_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "mode": "self",
+                  "state": "closed",
+                  "withdrawn": [
+                    "x"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Hiring"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Close Hiring",
+        "tags": [
+          "owner"
+        ]
+      }
+    },
+    "/api/v1/owner/hiring/start": {
+      "post": {
+        "description": "🔏 (`hiring.start`, target `holding`). `proposals`: hiring opens to agents\nand each CEO (and each holding head with a hiring duty) gets one work item\n\"propose your first month's team\" (a second start adds none). `self`: hiring\nstays closed to agents; the owner hires directly (`POST /org/hires`).",
+        "operationId": "start_hiring",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "mode": "proposals"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/HiringStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "changed_at": "2026-10-17T05:42:00Z",
+                  "changed_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "mode": "self",
+                  "state": "closed",
+                  "withdrawn": [
+                    "x"
+                  ],
+                  "work": [
+                    "x"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/HiringStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Start Hiring",
         "tags": [
           "owner"
         ]
@@ -22695,6 +23368,7 @@
                   ],
                   "deploy_freeze_until": "2026-10-17T05:42:00Z",
                   "employees": {},
+                  "hiring": "closed",
                   "kill_switch": "x",
                   "kind": "one_off",
                   "name_en": "TradeYar",

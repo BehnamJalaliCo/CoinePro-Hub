@@ -56,6 +56,7 @@ async def _collect(
     return events
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: Any) -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=acc), base_url="https://hq.test"

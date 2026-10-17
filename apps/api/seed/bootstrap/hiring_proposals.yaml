@@ -1,0 +1,39 @@
+# Opening hiring in mode "proposals" (contract §18.11, prompt 5.1 §1.3): one
+# work item per entry, "propose your first month's team", created in the
+# owner's name when the owner starts hiring. Applied again (a second start),
+# it adds only what is missing. Same shape as month1.yaml:
+#   for: companies   every company of kind "company" (no fixed list)
+#   for: holding     the holding
+#   role             the charter of the employee who receives it (agents/roles/):
+#                    each CEO, and each holding head whose charter carries a
+#                    hiring duty
+#   budget_tokens    the work's token budget (as prompt 5's setup work)
+#   priority         omitted: the role's own priority (its charter)
+key: hiring_proposals
+reference: "contracts/HQ_CORE_API_v1.md §18.11 (hiring starts with the owner)"
+items:
+  - for: companies
+    role: ceo
+    title: "تیم ماه اولت را پیشنهاد بده"
+    brief: |
+      مدیر کل استخدام را باز کرد و از تو پیشنهاد میخواهد. تیم ماه اول این شرکت را پیشنهاد بده:
+      برای هر نفر یک پیشنهاد استخدام جدا (ابزار propose با kind=hire و payload.role یک منشور
+      کارمندی که با شرکت و دپارتمانش میخواند)، با شرح وظایف، مدل و effort، دسترسی‌ها و برآورد
+      مصرف ماهانه. فقط پیشنهاد بده؛ تصمیم با مدیر کل است.
+    budget_tokens: 90000
+  - for: holding
+    role: inspector
+    title: "تیم نظارت ماه اولت را پیشنهاد بده"
+    brief: |
+      مدیر کل استخدام را باز کرد و از تو پیشنهاد میخواهد. تیم نظارت ماه اول را پیشنهاد بده:
+      برای هر نفر یک پیشنهاد استخدام جدا (ابزار propose با kind=hire و payload.role همان نقش)،
+      با شرح وظایف، مدل و effort، دسترسی‌ها و برآورد مصرف ماهانه. فقط پیشنهاد بده.
+    budget_tokens: 90000
+  - for: holding
+    role: aiops_head
+    title: "تیم عملیات هوش مصنوعی ماه اولت را پیشنهاد بده"
+    brief: |
+      مدیر کل استخدام را باز کرد و از تو پیشنهاد میخواهد. تیم سکوی هاب ماه اول را پیشنهاد بده
+      (ابزار propose با kind=hire و payload.role همان نقش)، با شرح وظایف، مدل و effort،
+      دسترسی‌ها و برآورد مصرف ماهانه. فقط پیشنهاد بده.
+    budget_tokens: 60000

@@ -101,16 +101,27 @@ test_cross_company_only_ceo_to_ceo if {
 
 test_propose_kinds_by_role if {
 	every kind in policy.propose_kinds.ceo - {"budget_change"} {
-		allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": kind})
+		allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": kind, "hiring": "open"})
 	}
 	allowed(f.ty_ceo, "decision.propose", budget("company", "TY"))
-	allowed(f.ty_growth_mgr, "decision.propose", {"company": "TY", "kind": "hire"})
+	allowed(f.ty_growth_mgr, "decision.propose", {"company": "TY", "kind": "hire", "hiring": "open"})
 	allowed(f.ty_growth_01, "decision.propose", {"company": "TY", "kind": "deploy"})
 	allowed(f.hq_adv, "decision.propose", {"company": "HQ", "kind": "proposal"})
 	allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "proposal"})
-	reasons(f.ty_growth_01, "decision.propose", {"company": "TY", "kind": "hire"}) == {"decision.propose_not_permitted"}
-	not allowed(f.hq_adv, "decision.propose", {"company": "HQ", "kind": "hire"})
+	reasons(f.ty_growth_01, "decision.propose", {"company": "TY", "kind": "hire", "hiring": "open"}) == {"decision.propose_not_permitted"}
+	not allowed(f.hq_adv, "decision.propose", {"company": "HQ", "kind": "hire", "hiring": "open"})
 	not allowed(f.svc, "decision.propose", {"company": "TY", "kind": "proposal"})
+}
+
+# Hiring starts with the owner (contract §18.11): closed, or no state at all, refuses
+# an agent's hire; every other kind is unaffected.
+test_hire_refused_while_hiring_is_closed if {
+	reasons(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "hire", "hiring": "closed"}) == {"hiring_closed"}
+	reasons(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "hire"}) == {"hiring_closed"}
+	reasons(f.ty_growth_mgr, "decision.propose", {"company": "TY", "kind": "hire", "hiring": "self"}) == {"hiring_closed"}
+	allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "hire", "hiring": "open"})
+	allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "dismissal", "hiring": "closed"})
+	allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "proposal"})
 }
 
 test_hr_only_kinds_for_managers if {
@@ -336,7 +347,8 @@ test_own_memory_run_and_live_thread if {
 test_inspector_delegates_to_its_team_and_proposes_hires if {
 	allowed(f.hq_ovs, "work.delegate", {"assignee": "HQ-OVS-MGR", "company": "HQ", "to_role": "employee", "to_department": "OVS"})
 	not allowed(f.hq_ovs, "work.delegate", {"assignee": "HQ-OVS-MGR", "company": "HQ", "to_role": "employee", "to_department": "AIOPS"})
-	allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "hire"})
+	allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "hire", "hiring": "open"})
+	not allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "hire"})
 	not allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "deploy"})
 	not allowed(f.hq_ovs_01, "work.delegate", {"assignee": "HQ-OVS-01", "company": "HQ", "to_role": "employee", "to_department": "OVS"})
 }

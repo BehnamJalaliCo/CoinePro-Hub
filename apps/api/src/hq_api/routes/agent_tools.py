@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 from hq_api import audit
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
+from hq_api.domain import hiring
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow, escrow_of
@@ -198,10 +199,14 @@ class CompanyState(BaseModel):
     work_open: dict[str, int]
     decisions_pending: int
     budgets: list[dict[str, Any]]
+    # ⟨1.4.2⟩ hiring starts with the owner (§18.11): while closed, record a team gap
+    # in an output instead of proposing a hire
+    hiring: Literal["closed", "open"] = "closed"
 
 
 class HoldingState(BaseModel):
     companies: list[CompanyState]
+    hiring: Literal["closed", "open"] = "closed"
 
 
 async def _company_state(tx: Tx, co: Any) -> CompanyState:
@@ -246,6 +251,7 @@ async def _company_state(tx: Tx, co: Any) -> CompanyState:
         work_open={r["status"]: int(r["n"]) for r in work},
         decisions_pending=int(pending or 0),
         budgets=budgets,
+        hiring=await hiring.state(tx),
     )
 
 
@@ -291,7 +297,8 @@ async def tool_company_state(
         await allow(ctx, "company.read", {"company": ctx.who.company})
         async with read_tx(ctx) as tx:
             return HoldingState(
-                companies=[await _company_state(tx, c) for c in await ctx.hub.companies.all()]
+                companies=[await _company_state(tx, c) for c in await ctx.hub.companies.all()],
+                hiring=await hiring.state(tx),
             )
     co = await _company(ctx, company)
     await allow(ctx, "company.read", {"company": co.code})

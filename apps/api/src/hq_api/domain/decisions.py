@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import notify, org, recurring
+from hq_api.domain import hiring, notify, org, recurring
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -72,6 +72,9 @@ class HirePayload(Model):
     effort: Effort
     permissions: list[str] = Field(default_factory=list, max_length=50)
     quota_estimate_month: Quota | None = None
+    # Whom the new employee reports to (an active employee of the same company);
+    # by default the department's manager.
+    reports_to: str | None = Field(default=None, pattern=EMP)
 
 
 class DismissalPayload(Model):
@@ -333,7 +336,9 @@ async def propose(
     thread_code: str | None,
     charters: Any = None,
     company_kind: str = "company",
+    notify_owner: bool = True,
 ) -> dict[str, Any]:
+    await hiring.require_open(tx, who, body.kind)  # before any card exists (§18.11)
     payload = validate_payload(body.kind, body.payload)
     if body.kind == "hire":
         check_hire_role(payload, company_kind, charters, required=who.is_agent)
@@ -356,6 +361,17 @@ async def propose(
                 422,
                 "validation_failed",
                 fields={"payload.model": "no connection offers this model"},
+            )
+        if payload.get("reports_to") and not await tx.scalar(
+            """SELECT 1 FROM core.employees
+               WHERE code = :c AND company_id = :co AND status = 'active' AND kind <> 'system'""",
+            c=payload["reports_to"],
+            co=company_id,
+        ):
+            raise ApiError(
+                422,
+                "validation_failed",
+                fields={"payload.reports_to": "an active employee of this company"},
             )
     if body.kind in ("dismissal", "evaluation"):
         emp = await tx.first(
@@ -419,6 +435,8 @@ async def propose(
             "action_class": d["action_class"],
         },
     )
+    if not notify_owner:  # the owner wrote it (a direct hire): nothing to tell them
+        return d
     await notify.raise_notification(
         tx,
         company_id=company_id,
@@ -653,6 +671,7 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
             permissions=p.get("permissions", []),
             decision_id=d["id"],
             role=p.get("role"),
+            reports_to=p.get("reports_to"),
         )
         await tx.exec(
             "SELECT llm.put_assignment('role', :ref, NULL, :model, :effort, :note)",

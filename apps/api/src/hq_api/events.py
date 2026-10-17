@@ -39,7 +39,7 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "notifications": ("notification.",),
     "activity": ("activity.", "employee."),
     "llm": ("llm.", "budget."),
-    "control": ("control.", "presence."),
+    "control": ("control.", "presence.", "hiring."),
 }
 
 

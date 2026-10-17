@@ -58,6 +58,12 @@ async def owner(request: Request, hub: Hub = Depends(get_hub)) -> Principal:
         via_cookie = token is not None
     if not token:
         raise ApiError(401, "unauthenticated")
+    if not via_cookie and token.startswith(agent_tokens.PREFIX + "."):
+        try:  # a valid agent token is a known caller, just not the owner
+            agent_tokens.verify(hub.secrets.agent_token_key, token)
+        except agent_tokens.InvalidToken as exc:
+            raise ApiError(401, "unauthenticated") from exc
+        raise ApiError(403, "forbidden", "the owner's API; agents use /internal/v1")
     if via_cookie:
         check_csrf(hub, request)
     async with hub.db.raw() as tx:

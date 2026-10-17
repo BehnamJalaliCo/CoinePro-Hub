@@ -38,7 +38,12 @@ def load(key: str) -> dict[str, Any]:
     return data
 
 
-async def apply(tx: Tx, data: dict[str, Any]) -> dict[str, Any]:
+async def apply(
+    tx: Tx, data: dict[str, Any], *, who: Principal = BOOTSTRAP, charters: Any = None
+) -> dict[str, Any]:
+    """`who` creates the work (the service "bootstrap", or the owner when the
+    owner opens hiring); an entry without `priority` takes its role's charter
+    priority when `charters` is given (else P3)."""
     created: list[dict[str, str]] = []
     skipped = 0
     for item in data.get("items") or []:
@@ -61,23 +66,23 @@ async def apply(tx: Tx, data: dict[str, Any]) -> dict[str, Any]:
             tag = f"bootstrap:{data['key']}:{item['role']}"
             if await tx.scalar(
                 """SELECT 1 FROM work.work w JOIN work.work_events e ON e.work_id = w.id
-                   WHERE w.company_id = :co AND w.created_by_code = :by
-                     AND e.kind = 'bootstrap' AND e.data->>'tag' = :tag""",
+                   WHERE w.company_id = :co AND e.kind = 'bootstrap' AND e.data->>'tag' = :tag""",
                 co=co["id"],
-                by=BOOTSTRAP.code,
                 tag=tag,
             ):
                 skipped += 1
                 continue
+            charter = charters.get(item["role"]) if charters is not None else None
+            priority = item.get("priority") or (charter.priority if charter else "P3")
             w = await W.create(
                 tx,
-                BOOTSTRAP,
+                who,
                 company_id=co["id"],
                 company_code=co["code"],
                 title=item["title"],
                 brief=f"{item['brief'].strip()}\n\n(Reference: {data['reference']})",
                 kind="one_off",
-                priority=item.get("priority", "P3"),
+                priority=priority,
                 assignee_code=emp["code"],
                 budget=W.BudgetIn(tokens=int(item["budget_tokens"])),
             )
@@ -85,7 +90,7 @@ async def apply(tx: Tx, data: dict[str, Any]) -> dict[str, Any]:
                 tx,
                 {"id": w["id"], "company_id": co["id"]},
                 "bootstrap",
-                BOOTSTRAP,
+                who,
                 {"tag": tag, "reference": data["reference"]},
             )
             created.append({"ref": w["ref"], "assignee": emp["code"]})

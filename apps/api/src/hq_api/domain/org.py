@@ -220,10 +220,12 @@ async def hire(
     permissions: list[Any],
     decision_id: UUID | None,
     role: str | None = None,
+    reports_to: str | None = None,
 ) -> dict[str, Any]:
     """A new numbered employee: next code (never reused), reports to the
-    department's manager, gets a direct thread, runs with its charter `role`.
-    Model assignment is the caller's (it belongs to llm.assignments)."""
+    department's manager (or `reports_to`, an employee code of the company),
+    gets a direct thread, runs with its charter `role`. Model assignment is
+    the caller's (it belongs to llm.assignments)."""
     dept = await tx.one(
         "SELECT id, code FROM core.departments WHERE company_id = :co AND code = :d",
         co=company_id,
@@ -232,6 +234,13 @@ async def hire(
     )
     code = await tx.scalar("SELECT core.issue_employee_code(:co, :d)", co=company_id, d=dept["id"])
     mgr = await manager_of(tx, dept["id"])
+    if reports_to:
+        mgr = await tx.one(
+            "SELECT id FROM core.employees WHERE code = :c AND company_id = :co",
+            c=reports_to,
+            co=company_id,
+            not_found="not_found",
+        )
     row = await tx.one(
         """INSERT INTO core.employees (company_id, department_id, code, kind, title_fa, title_en,
                reports_to, duties, permissions, hired_by_decision_id, role)

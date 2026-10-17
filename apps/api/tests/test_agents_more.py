@@ -568,6 +568,7 @@ async def test_live_stream_for_the_owner(app: Any, owner: dict[str, str], hub: A
 
 
 # ------------------------------------------------------------------- hiring --
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_a_hire_runs_with_a_real_charter(
     client: httpx.AsyncClient,
     hub: Any,
@@ -862,6 +863,7 @@ def test_charter_problems_are_reported(tmp_path: Any) -> None:
     assert timedelta  # imported for symmetry with other tests
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_month1_bootstrap_is_data_and_applies_once(
     su: Any, hub: Any, new_company: Callable[..., Any]
 ) -> None:

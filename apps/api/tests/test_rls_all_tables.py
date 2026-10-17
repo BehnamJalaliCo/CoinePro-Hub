@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+import pytest
 
 from hq_api.audit import SYSTEM
 from hq_api.domain import decisions as D
@@ -147,6 +148,11 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     await su.execute(
         "INSERT INTO agents.steps (run_id, company_id, n) VALUES ($1, $2, 1)", run, co["id"]
     )
+    # core.hiring (prompt 5.1) holds the holding's row only; a row of `co` here just
+    # proves the policy (core.hiring_state() reads the holding's).
+    await su.execute(
+        "INSERT INTO core.hiring (company_id) VALUES ($1) ON CONFLICT DO NOTHING", co["id"]
+    )
     await su.execute(
         "INSERT INTO core.employee_memory (company_id, employee_id, note) VALUES ($1, $2, 'n')",
         co["id"],
@@ -166,6 +172,7 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     await su.execute("INSERT INTO ops.hub_health (company_id, data) VALUES ($1, '{}')", co["id"])
 
 
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_no_table_leaks_between_companies(
     client: httpx.AsyncClient,
     hub: Hub,

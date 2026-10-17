@@ -414,7 +414,36 @@ class Activities:
             await workflows_client.decision_created(hub, r["ref"])
         for r in stuck:
             await workflows_client.decision_decided(hub, r["ref"])
-        return {"pending": len(pending), "effects_resumed": len(stuck)}
+        ended = await self._end_stale_decision_workflows(hub)
+        return {"pending": len(pending), "effects_resumed": len(stuck), "ended": ended}
+
+    async def _end_stale_decision_workflows(self, hub: Any) -> int:
+        """A DecisionLifecycle still waiting for a card that is no longer pending
+        (withdrawn by a migration or any path that could not signal) is woken,
+        sees the card's state and ends with it (prompt 5.1 §1.3)."""
+        client = self._client()
+        refs: list[str] = []
+        try:
+            async for wf in client.list_workflows(
+                f"WorkflowType = '{workflows_client.DECISION_WORKFLOW}' AND ExecutionStatus = 'Running'",
+                limit=500,
+            ):
+                if wf.id.startswith("decision-"):
+                    refs.append(wf.id.removeprefix("decision-"))
+        except Exception:  # noqa: BLE001 - visibility unavailable: try at the next pass
+            log.warning("could not list decision workflows")
+            return 0
+        if not refs:
+            return 0
+        async with self._tx() as tx:
+            done = await tx.all(
+                """SELECT ref FROM cartable.decisions WHERE ref = ANY(:refs)
+                     AND status NOT IN ('pending', 'approved')""",
+                refs=refs,
+            )
+        for r in done:
+            await workflows_client.decision_decided(hub, r["ref"])
+        return len(done)
 
     @activity.defn(name="end_expired_escrows")
     async def end_expired_escrows(self) -> dict[str, Any]:
