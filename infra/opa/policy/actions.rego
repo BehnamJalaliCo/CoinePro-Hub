@@ -36,11 +36,18 @@ a2_ok if name in role_a2
 
 a2_ok if "A2" in escrow
 
-locked := object.get(ctx, "company_locked", false) == true
+# Missing lock information counts as locked (the safe side, as in hq.internal).
+locked := object.get(ctx, "company_locked", true) != false
+
+# The Tool Gateway sends the tool's name (agents/tools.md); the lock rules speak
+# of policy actions. This is the one map from the one to the other.
+tool_actions := {"notify": "notification.raise"}
+
+policy_action := object.get(tool_actions, name, name)
 
 # A locked company's agent may still raise a 🔴 incident (service down, ...).
 lock_exempt if {
-	name == "notification.raise"
+	policy_action == "notification.raise"
 	object.get(ctx, "incident", false) == true
 }
 
