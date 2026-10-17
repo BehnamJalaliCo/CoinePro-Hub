@@ -112,7 +112,7 @@ class HoldingStream(
     }
 
     private companion object {
-        const val TOPICS = "work,decisions,deliverables,messages,notifications,activity,llm,control"
+        const val TOPICS = "work,decisions,deliverables,messages,notifications,activity,llm,control,files,workshop,orders"
 
         // Event type prefix -> query tags to refresh (mirrors apps/web/src/lib/stream.ts).
         val INVALIDATE: List<Pair<String, Array<String>>> = listOf(
@@ -127,6 +127,9 @@ class HoldingStream(
             "budget." to arrayOf("treasury"),
             "llm." to arrayOf("treasury"),
             "run." to arrayOf("runs"),
+            "file." to arrayOf("messages"),
+            "workshop." to arrayOf("workshop"),
+            "order." to arrayOf("orders", "planner", "work"),
         )
     }
 }

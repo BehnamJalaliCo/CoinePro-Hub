@@ -2,6 +2,7 @@ package com.coinepro.hq
 
 import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.ApiException
+import com.coinepro.hq.core.net.GrantIn
 import com.coinepro.hq.core.net.TokenSource
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
@@ -17,8 +18,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/** The Android client against contract §1–§2: Bearer session, X-HQ-Client, Idempotency-Key, step-up header,
- *  snake_case JSON, Problem errors with a Persian message, and a 401 that ends the session. */
+/** The Android client against contract §1–§2 and §17: Bearer session, X-HQ-Client, Idempotency-Key, step-up header,
+ *  snake_case JSON, Problem errors with a Persian message, a 401 that ends the session, raw-body uploads and voice,
+ *  and the workshop's step-up targets. */
 @RunWith(RobolectricTestRunner::class)
 class ApiContractTest {
     private val server = MockWebServer()
@@ -100,5 +102,69 @@ class ApiContractTest {
         assertEquals("q=W-000104&limit=5", server.takeRequest().url.encodedQuery)
         assertEquals("/api/v1/work/6f1c", server.takeRequest().url.encodedPath)
         assertEquals("6f1c", w.id)
+    }
+
+    @Test
+    fun uploadIsARawBodyWithItsNameAndType() = runTest {
+        server.enqueue(json(201, """{"id":"f1","name":"نمودار طلا.webp","mime":"image/webp","size":5,"sha256":"ab","kind":"image","status":"ready","width":960,"height":600,"variants":{"thumb":"f1t"}}"""))
+        var last = 0f
+        val ref = api.upload("نمودار طلا.webp", "image/webp", 5, { "hello".byteInputStream() }) { last = it }
+        val req = server.takeRequest()
+        assertEquals("/api/v1/files", req.url.encodedPath)
+        assertEquals("image/webp", req.headers["Content-Type"])
+        assertEquals("%D9%86%D9%85%D9%88%D8%AF%D8%A7%D8%B1%20%D8%B7%D9%84%D8%A7.webp", req.headers["X-File-Name"])
+        assertNotNull(req.headers["Idempotency-Key"])
+        assertEquals("hello", req.body!!.utf8())
+        assertEquals(1f, last)
+        assertEquals("image", ref.kind)
+        assertEquals("f1t", ref.variants.thumb)
+        assertEquals(960, ref.width)
+    }
+
+    @Test
+    fun transcribeSendsAudioWithPurpose() = runTest {
+        server.enqueue(json(200, """{"text":"سلام","language":"fa","duration_s":2.5,"confidence":0.93,"segments":[{"start_s":0,"end_s":2.5,"text":"سلام"}],"file_id":"a1","engine":{"name":"faster-whisper","model":"large-v3-turbo","version":"1"}}"""))
+        val f = java.io.File.createTempFile("voice", ".m4a").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val t = api.transcribe(f, "audio/mp4", "order")
+        val req = server.takeRequest()
+        assertEquals("/api/v1/transcribe", req.url.encodedPath)
+        assertEquals("purpose=order", req.url.encodedQuery)
+        assertEquals("audio/mp4", req.headers["Content-Type"])
+        assertEquals(3L, req.bodySize)
+        assertEquals("سلام", t.text)
+        assertEquals("a1", t.fileId)
+    }
+
+    @Test
+    fun messageCarriesAttachmentIds() = runTest {
+        server.enqueue(json(201, """{"message":{},"reply":{"state":"queued"}}"""))
+        api.send("FX-CEO", "ببین", listOf("f1", "a1"))
+        assertTrue(server.takeRequest().body!!.utf8().contains("\"attachments\":[\"f1\",\"a1\"]"))
+    }
+
+    @Test
+    fun allowingNeedsAStepUpButDenyingDoesNot() = runTest {
+        val ev = """{"seq":10,"at":"2026-10-17T10:00:00Z","type":"approval_result","actor":{"code":"owner","kind":"owner"},"summary_fa":"x","data":{}}"""
+        server.enqueue(json(201, ev))
+        server.enqueue(json(201, ev))
+        api.answerApproval("S-0004", "AP-0007", true, "su")
+        val allow = server.takeRequest()
+        assertEquals("/api/v1/workshop/sessions/S-0004/approvals/AP-0007", allow.url.encodedPath)
+        assertEquals("su", allow.headers["X-Step-Up"])
+        api.answerApproval("S-0004", "AP-0007", false, null)
+        assertNull(server.takeRequest().headers["X-Step-Up"])
+    }
+
+    @Test
+    fun grantStepUpIsBoundToTheExactBody() = runTest {
+        server.enqueue(json(201, """{"id":"g1","ref":"G-0004","workspace":"FX-APP","actions":["read"],"budget_usd":10,"expires_at":"2026-10-20T10:00:00Z"}"""))
+        var target = ""
+        val g = api.createGrant(GrantIn("FX-APP", listOf("read", "run"), "FX-TECH-MGR", 10.0, "2026-10-20T10:00:00Z")) { target = it; "su" }
+        val req = server.takeRequest()
+        val body = req.body!!.utf8()
+        assertEquals(Api.sha256(body), target)
+        assertEquals("su", req.headers["X-Step-Up"])
+        assertTrue(body.contains("\"budget_usd\":10.0"))
+        assertEquals("G-0004", g.ref)
     }
 }

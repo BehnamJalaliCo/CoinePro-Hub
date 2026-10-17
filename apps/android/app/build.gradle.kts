@@ -104,6 +104,12 @@ dependencies {
     implementation(libs.credentials.play.services)
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
+    // ⟨1.3⟩ owner media: Coil for pictures, Media3 for films and voice notes; both load through the API's OkHttp client.
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.datasource.okhttp)
+    implementation(libs.media3.ui)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     debugImplementation(libs.compose.ui.tooling)

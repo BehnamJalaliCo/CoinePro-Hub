@@ -84,6 +84,11 @@ import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.settings.SettingsScreen
 import com.coinepro.hq.ui.treasury.TreasuryScreen
 import com.coinepro.hq.ui.work.NewOrderSheet
+import com.coinepro.hq.ui.work.VoiceOrderSheet
+import com.coinepro.hq.ui.workshop.GrantSheet
+import com.coinepro.hq.ui.workshop.NewSessionSheet
+import com.coinepro.hq.ui.workshop.SessionScreen
+import com.coinepro.hq.ui.workshop.WorkshopScreen
 
 /** What the live stream looks like to screens: connection state, the last event, a short feed. */
 @Stable
@@ -104,6 +109,7 @@ private val TABS = listOf(
 private data class Tool(val route: String, val label: String, val icon: DivanIcon)
 
 private val TOOLS = listOf(
+    Tool("workshop", "کارگاه کد", DivanIcon.CODE),
     Tool("outputs", "خروجی‌ها", DivanIcon.DELIVERABLE),
     Tool("treasury", "خزانه‌ی توکن", DivanIcon.TREASURY),
     Tool("planner", "پلنر", DivanIcon.PLANNER),
@@ -155,6 +161,10 @@ fun Shell(graph: AppGraph) {
     }
     var tools by remember { mutableStateOf(false) }
     var order by remember { mutableStateOf(false) }
+    var voice by remember { mutableStateOf(false) }
+    var newSession by remember { mutableStateOf(false) }
+    var grantFor by remember { mutableStateOf<String?>(null) }
+    var granting by remember { mutableStateOf(false) }
 
     CompositionLocalProvider(LocalNav provides navApi, LocalLive provides Live(streamState, last, feed.toList())) {
         Column(Modifier.fillMaxSize()) {
@@ -166,10 +176,13 @@ fun Shell(graph: AppGraph) {
                 urgent = (inbox.data?.notifications?.get("urgent") ?: 0) + (inbox.data?.notifications?.get("decision") ?: 0),
                 onBell = { navApi.go("notifications") },
                 onMore = { tools = true },
+                onVoice = { voice = true },
             )
             Box(Modifier.weight(1f)) {
                 NavHost(nav, startDestination = "home", enterTransition = { fadeIn(tween(200)) }, exitTransition = { fadeOut(tween(120)) }) {
-                    composable("home") { HomeScreen(onNewOrder = { order = true }) }
+                    composable("home") { HomeScreen(onNewOrder = { order = true }, onVoiceOrder = { voice = true }) }
+                    composable("workshop") { WorkshopScreen(onNewSession = { newSession = true }, onGrant = { grantFor = it; granting = true }) }
+                    composable("workshop/{ref}") { SessionScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("cartable") { CartableScreen() }
                     composable("cartable/{ref}") { DecisionScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("outputs") { OutputsScreen() }
@@ -197,11 +210,14 @@ fun Shell(graph: AppGraph) {
             }
         }
         if (order) NewOrderSheet(onDismiss = { order = false })
+        if (voice) VoiceOrderSheet(onDismiss = { voice = false })
+        if (newSession) NewSessionSheet(onDismiss = { newSession = false })
+        if (granting) GrantSheet(grantFor, onDismiss = { granting = false })
     }
 }
 
 @Composable
-private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo: Boolean, urgent: Int, onBell: () -> Unit, onMore: () -> Unit) {
+private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo: Boolean, urgent: Int, onBell: () -> Unit, onMore: () -> Unit, onVoice: () -> Unit) {
     val c = Divan.colors
     Column(Modifier.fillMaxWidth().background(c.page).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -223,6 +239,7 @@ private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo:
                 Modifier.size(32.dp).semantics { contentDescription = if (stream == StreamState.LIVE) "استریم زنده وصل است" else "استریم قطع است" },
                 contentAlignment = Alignment.Center,
             ) { LiveDot(if (stream == StreamState.LIVE) c.positive else c.warning, live = stream == StreamState.LIVE, size = 8.dp) }
+            IconBtn(DivanIcon.MIC, "فرمان صوتی", onVoice, tint = c.goldInk)
             IconBtn(DivanIcon.BELL, "اعلان‌ها", onBell, badge = urgent)
             IconBtn(DivanIcon.MORE, "ابزارها", onMore)
         }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only these cache folders are ever shared, and only by a one-time grant: camera captures and opened documents. -->
+<paths>
+    <cache-path name="capture" path="capture/" />
+    <cache-path name="shared" path="shared/" />
+</paths>

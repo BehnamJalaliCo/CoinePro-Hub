@@ -66,6 +66,8 @@ import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
 import com.coinepro.hq.ui.Page
+import com.coinepro.hq.ui.media.Composer
+import com.coinepro.hq.ui.media.MessageMedia
 import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.refresher
 import kotlinx.coroutines.CoroutineScope
@@ -185,12 +187,20 @@ private fun Bubble(m: Message, agentKind: String) {
         if (!mine) {
             Box(Modifier.padding(top = 4.dp, end = 10.dp)) { if (agentKind == "advisor") Orb(32.dp) else Avatar(agentKind, size = 32.dp) }
         }
-        Column(Modifier.widthIn(max = 320.dp), horizontalAlignment = if (mine) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.widthIn(max = 320.dp), horizontalAlignment = if (mine) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val voice = m.kind == "voice_transcript"
+            MessageMedia(m.attachments, transcriptInBody = voice)
             val shape = if (mine) RoundedCornerShape(16.dp, 6.dp, 16.dp, 16.dp) else RoundedCornerShape(6.dp, 16.dp, 16.dp, 16.dp)
-            Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Md(m.body, color = c.textPrimary)
+            if (m.body.isNotBlank()) {
+                Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) {
+                    Md(m.body, color = c.textPrimary)
+                }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (voice) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    DIcon(DivanIcon.MIC, size = 12.dp, tint = c.textMuted)
+                    Text("ویس", style = Divan.type.micro, color = c.textMuted)
+                }
                 Text(jTime(m.createdAt), style = Divan.type.micro, color = c.textMuted)
                 Fig(m.ref, style = Divan.type.figureSmall, color = c.textMuted)
                 for ((k, v) in m.links) {
@@ -215,8 +225,6 @@ fun ChatScreen(code: String, advisor: Boolean = false) {
     val thread = threads.data?.firstOrNull { it.code == code }
     val agentKind = if (advisor) "advisor" else avatarKind(thread?.kind ?: "employee")
     val live = remember(code) { LiveReply() }
-    var text by rememberSaveable(code) { mutableStateOf("") }
-    var sending by remember { mutableStateOf(false) }
     val list = rememberLazyListState()
     val items = q.data?.items.orEmpty()
     val lastRef = items.lastOrNull()?.ref
@@ -229,21 +237,14 @@ fun ChatScreen(code: String, advisor: Boolean = false) {
     }
     LaunchedEffect(items.size, live.text.length) { if (items.isNotEmpty()) list.animateScrollToItem(list.layoutInfo.totalItemsCount.coerceAtLeast(1) - 1) }
 
-    fun submit(body: String) {
-        val b = body.trim()
-        if (b.isEmpty() || sending) return
-        sending = true
-        scope.launch {
-            try {
-                env.api.send(code, b)
-                text = ""
-                env.cache.invalidate("messages", "threads")
-                scope.launch { startLive(scope, env, code, live) }
-            } catch (e: com.coinepro.hq.core.net.ApiException) {
-                toasts.error(e.messageFa)
-            } finally {
-                sending = false
-            }
+    suspend fun send(body: String, attachments: List<String>) {
+        try {
+            env.api.send(code, body, attachments)
+            env.cache.invalidate("messages", "threads")
+            scope.launch { startLive(scope, env, code, live) }
+        } catch (e: com.coinepro.hq.core.net.ApiException) {
+            toasts.error(e.messageFa)
+            throw e
         }
     }
 
@@ -282,33 +283,10 @@ fun ChatScreen(code: String, advisor: Boolean = false) {
         if (advisor && items.isEmpty() && q.data != null) {
             FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (s in listOf("امروز اول به کدام تصمیم برسم؟", "مصرف توکن این هفته را با هفته‌ی قبل مقایسه کن.", "کدام شرکت بیشترین ریسک را دارد و چرا؟")) {
-                    Text(s, style = Divan.type.small, color = c.textSecondary, modifier = Modifier.clip(CircleShape).border(1.dp, c.lineStrong, CircleShape).clickable { submit(s) }.padding(horizontal = 12.dp, vertical = 6.dp))
+                    Text(s, style = Divan.type.small, color = c.textSecondary, modifier = Modifier.clip(CircleShape).border(1.dp, c.lineStrong, CircleShape).clickable { scope.launch { runCatching { send(s, emptyList()) } } }.padding(horizontal = 12.dp, vertical = 6.dp))
                 }
             }
         }
-        Row(
-            Modifier.fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(16.dp)).background(c.card).border(1.dp, c.lineStrong, RoundedCornerShape(16.dp)).padding(6.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            BasicTextField(
-                text, { if (it.length <= 10_000) text = it },
-                Modifier.weight(1f).heightIn(min = 44.dp).padding(horizontal = 8.dp, vertical = 10.dp).semantics { contentDescription = "پیام" },
-                textStyle = Divan.type.body.copy(color = c.textPrimary),
-                cursorBrush = SolidColor(c.goldInk),
-                maxLines = 6,
-                decorationBox = { inner ->
-                    Box {
-                        if (text.isEmpty()) Text(if (advisor) "از مشاور بپرس…" else "پیام…", style = Divan.type.body, color = c.textMuted)
-                        inner()
-                    }
-                },
-            )
-            val can = text.isNotBlank() && !sending
-            Box(
-                Modifier.size(44.dp).clip(CircleShape).background(if (can) c.goldFill else c.disabledFill).clickable(enabled = can, role = Role.Button, onClickLabel = "بفرست") { submit(text) },
-                contentAlignment = Alignment.Center,
-            ) { DIcon(DivanIcon.SEND, size = 20.dp, tint = if (can) c.onGold else c.disabledText) }
-        }
+        Composer(if (advisor) "از مشاور بپرس…" else "پیام…", { b, a -> send(b, a) }, Modifier.padding(12.dp), draftKey = "chat:$code")
     }
 }

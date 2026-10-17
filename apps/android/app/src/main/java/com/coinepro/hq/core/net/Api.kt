@@ -1,6 +1,9 @@
 package com.coinepro.hq.core.net
 
+import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resumeWithException
@@ -11,7 +14,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNamingStrategy
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.serializer
@@ -23,8 +28,11 @@ import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import okio.BufferedSink
 
 /** A failed API call, carrying the contract's stable [code] and Persian [messageFa] (contract §1). */
 class ApiException(
@@ -48,7 +56,7 @@ interface TokenSource {
     fun clear()
 }
 
-/** The hub's public API (contract v1.2) as the Android client sees it: Bearer session, JSON, Problem errors. */
+/** The hub's public API (contract v1.3) as the Android client sees it: Bearer session, JSON, Problem errors. */
 class Api(
     origin: String,
     private val tokens: TokenSource,
@@ -66,6 +74,9 @@ class Api(
 
     /** A client for long-lived SSE streams: no read or call timeout. */
     val streamClient: OkHttpClient = client.newBuilder().readTimeout(0, TimeUnit.SECONDS).callTimeout(0, TimeUnit.SECONDS).build()
+
+    /** Uploads and voice: a ten-minute film on a slow line must not hit the 45 s call limit. */
+    private val transferClient: OkHttpClient = client.newBuilder().writeTimeout(120, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).callTimeout(0, TimeUnit.SECONDS).build()
 
     /** The session is gone (401 outside a normal call, e.g. on the stream). */
     fun unauthorized() = tokens.clear()
@@ -149,7 +160,8 @@ class Api(
     // ----------------------------------------------------------- messages --
     suspend fun threads(): List<Thread> = get("/threads")
     suspend fun messages(code: String, limit: Int = 100): Page<Message> = get("/threads/${seg(code)}/messages", mapOf("limit" to limit))
-    suspend fun send(code: String, body: String): JsonObject = post("/threads/${seg(code)}/messages", buildJsonObject { put("body", body) })
+    suspend fun send(code: String, body: String, attachments: List<String> = emptyList()): JsonObject =
+        post("/threads/${seg(code)}/messages", buildJsonObject { put("body", body); if (attachments.isNotEmpty()) put("attachments", ids(attachments)) })
     suspend fun markRead(code: String, upToRef: String): Thread = post("/threads/${seg(code)}/read", buildJsonObject { put("up_to_ref", upToRef) })
 
     // ------------------------------------------------------ notifications --
@@ -171,12 +183,83 @@ class Api(
         get("/treasury/breakdown", mapOf("by" to by, "from" to from, "to" to to, "company" to company))
     suspend fun connections(): List<Connection> = get("/connections")
 
+    // ------------------------------------------------------ files ⟨1.3⟩ --
+    /** Where a file or one of its variants is served. Demo and local ids (data:, file:) are already loadable. */
+    fun fileUrl(id: String, variant: String? = null): String =
+        if (LOCAL.any { id.startsWith(it) }) id else url("/files/${seg(id)}", mapOf("variant" to variant)).toString()
+
+    /** Raw-body upload (contract §17.1): the file streams from [open] and is never held in memory; [progress] runs on the
+     *  network thread with 0..1. [size] < 0 means unknown (chunked). */
+    suspend fun upload(name: String, mime: String, size: Long, open: () -> InputStream, progress: (Float) -> Unit = {}): FileRef {
+        val body = object : RequestBody() {
+            override fun contentType() = mime.toMediaType()
+            override fun contentLength() = size
+            override fun writeTo(sink: BufferedSink) {
+                open().use { input ->
+                    val buf = ByteArray(64 * 1024)
+                    var sent = 0L
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        sink.write(buf, 0, n)
+                        sent += n
+                        if (size > 0) progress((sent.toFloat() / size).coerceIn(0f, 1f))
+                    }
+                }
+            }
+        }
+        val req = Request.Builder().url(url("/files")).post(body)
+            .header("X-File-Name", seg(name))
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .build()
+        return call(req, serializer(), transferClient)
+    }
+
+    /** Exact Persian text from the owner's voice (contract §17.2). */
+    suspend fun transcribe(audio: File, mime: String, purpose: String): Transcript {
+        val req = Request.Builder().url(url("/transcribe", mapOf("purpose" to purpose))).post(audio.asRequestBody(mime.toMediaType()))
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .build()
+        return call(req, serializer(), transferClient)
+    }
+
+    // --------------------------------------------------- workshop ⟨1.3⟩ --
+    suspend fun workspaces(): List<Workspace> = get("/workshop/workspaces")
+    suspend fun grants(active: Boolean = true): List<Grant> = get("/workshop/grants", mapOf("active" to active))
+    suspend fun sessions(): Page<CodeSession> = get("/workshop/sessions")
+    suspend fun codeSession(ref: String): CodeSession = get("/workshop/sessions/${seg(ref)}")
+    suspend fun sessionEvents(ref: String, after: Long? = null): Page<SessionEvent> = get("/workshop/sessions/${seg(ref)}/events", mapOf("after" to after))
+    suspend fun steer(ref: String, body: String, attachments: List<String>): SessionEvent =
+        post("/workshop/sessions/${seg(ref)}/messages", buildJsonObject { put("body", body); put("attachments", ids(attachments)) })
+    /** An `approval_request` answered. Allowing needs a step-up bound to "S-0004/AP-0007"; a denial needs none (§17.7). */
+    suspend fun answerApproval(ref: String, approvalId: String, allow: Boolean, stepUp: String?, note: String? = null): SessionEvent =
+        post("/workshop/sessions/${seg(ref)}/approvals/${seg(approvalId)}", buildJsonObject { put("allow", allow); put("note", note) }, stepUp)
+    suspend fun stopSession(ref: String): CodeSession = post("/workshop/sessions/${seg(ref)}/stop", JsonObject(emptyMap()))
+    suspend fun createSession(grant: String, title: String, brief: String, attachments: List<String>): CodeSession =
+        post("/workshop/sessions", buildJsonObject { put("grant", grant); put("title", title); put("brief", brief); put("attachments", ids(attachments)) })
+    suspend fun revokeGrant(ref: String): Grant = post("/workshop/grants/${seg(ref)}/revoke", JsonObject(emptyMap()))
+
+    /** The owner's grant (🔏): the step-up is bound to the SHA-256 of the exact body sent, so it is serialised once. */
+    suspend fun createGrant(body: GrantIn, stepUp: suspend (target: String) -> String): Grant {
+        val text = json.encodeToString(GrantIn.serializer(), body)
+        val token = stepUp(sha256(text))
+        val req = Request.Builder().url(url("/workshop/grants")).post(text.toRequestBody(JSON))
+            .header("Idempotency-Key", UUID.randomUUID().toString()).header("X-Step-Up", token).build()
+        return call(req, serializer())
+    }
+
+    // ------------------------------------------------ voice orders ⟨1.3⟩ --
+    suspend fun order(text: String, source: String, fileId: String?): Order =
+        post("/orders", buildJsonObject { put("text", text); put("source", source); put("file_id", fileId) })
+    suspend fun orders(): Page<Order> = get("/orders")
+
     // -------------------------------------------------------------- audit --
     suspend fun audit(limit: Int = 50): Page<AuditEntry> = get("/audit", mapOf("limit" to limit))
     suspend fun auditVerify(): AuditVerify = get("/audit/verify")
 
     // ------------------------------------------------------------ plumbing --
     private fun seg(s: String): String = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+    private fun ids(xs: List<String>) = JsonArray(xs.map(::JsonPrimitive))
 
     private suspend inline fun <reified T> get(path: String, query: Map<String, Any?> = emptyMap()): T =
         call(Request.Builder().url(url(path, query)).get().build(), serializer())
@@ -199,7 +282,7 @@ class Api(
             }
             .build()
 
-    private suspend fun <T> call(request: Request, s: KSerializer<T>): T = execute(request).use { r ->
+    private suspend fun <T> call(request: Request, s: KSerializer<T>, via: OkHttpClient = client): T = execute(request, via).use { r ->
         check(r)
         val text = r.body.string()
         try {
@@ -217,8 +300,8 @@ class Api(
         throw ApiException(r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"))
     }
 
-    private suspend fun execute(request: Request): Response = suspendCancellableCoroutine { cont ->
-        val call = client.newCall(request)
+    private suspend fun execute(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->
+        val call = via.newCall(request)
         cont.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -233,6 +316,9 @@ class Api(
 
     companion object {
         private val JSON = "application/json".toMediaType()
+        private val LOCAL = listOf("data:", "file:", "content:")
+
+        fun sha256(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 
         @OptIn(ExperimentalSerializationApi::class)
         val json = Json {

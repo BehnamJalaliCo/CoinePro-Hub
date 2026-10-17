@@ -10,6 +10,7 @@ import com.coinepro.hq.core.auth.TokenVault
 import com.coinepro.hq.core.auth.VaultTokens
 import com.coinepro.hq.core.data.HoldingStream
 import com.coinepro.hq.core.data.QueryCache
+import com.coinepro.hq.core.media.MediaKit
 import com.coinepro.hq.core.net.Api
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,9 +20,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Everything one session needs: the API, auth, the query cache and the live stream. A demo session (debug
- *  builds) swaps the network for fixtures and lives beside the real one without touching its token. */
-class Env(val api: Api, val auth: Auth, val cache: QueryCache, val stream: HoldingStream, val demo: Boolean, private val scope: CoroutineScope) {
+/** Everything one session needs: the API, auth, the query cache, the live stream and media loading. A demo session
+ *  (debug builds) swaps the network for fixtures and lives beside the real one without touching its token. */
+class Env(val api: Api, val auth: Auth, val cache: QueryCache, val stream: HoldingStream, val media: MediaKit, val demo: Boolean, private val scope: CoroutineScope) {
     fun close() {
         stream.stop()
         scope.cancel()
@@ -56,7 +57,7 @@ class AppGraph(context: Context) {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val api = Api(BuildConfig.HQ_ORIGIN, tokens, if (demo) Demo.interceptor() else null)
         val cache = QueryCache(scope)
-        return Env(api, Auth(api, tokens, demo), cache, HoldingStream(api, cache, scope, demo), demo, scope)
+        return Env(api, Auth(api, tokens, demo), cache, HoldingStream(api, cache, scope, demo), MediaKit(app, api), demo, scope)
     }
 }
 

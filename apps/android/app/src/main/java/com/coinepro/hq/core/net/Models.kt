@@ -60,7 +60,12 @@ data class Meta(
     val loginConfigured: Boolean,
     val publicOrigin: String? = null,
     val channels: Channels = Channels(),
+    /** ⟨1.3⟩ §17.7: null until the owner chooses where the Code Workshop runs. */
+    val workshop: WorkshopMeta? = null,
 )
+
+@Serializable
+data class WorkshopMeta(val runtime: String? = null)
 
 // ----------------------------------------------------------------- inbox --
 @Serializable
@@ -147,7 +152,24 @@ data class Posted(val thread: String, val messageRef: String)
 
 // ---------------------------------------------------------- deliverables --
 @Serializable
-data class FileRef(val id: String, val name: String, val mime: String, val size: Long, val sha256: String)
+data class FileRef(
+    val id: String,
+    val name: String,
+    val mime: String,
+    val size: Long,
+    val sha256: String = "",
+    // ⟨1.3⟩ §17.1
+    val kind: String = "document",
+    val status: String = "ready",
+    val width: Int? = null,
+    val height: Int? = null,
+    val durationS: Double? = null,
+    val variants: FileVariants = FileVariants(),
+    val transcript: String? = null,
+)
+
+@Serializable
+data class FileVariants(val thumb: String? = null, val poster: String? = null)
 
 @Serializable
 data class Rating(val score: Int, val comment: String? = null, val ratedAt: String, val historyCount: Int = 0)
@@ -527,4 +549,113 @@ data class StreamEvent(
     val company: String? = null,
     val ref: String? = null,
     val data: JsonObject = JsonObject(emptyMap()),
+)
+
+// ------------------------------------------------------------------ v1.3 --
+// Contract §17: voice to text, the Code Workshop and voice orders.
+
+@Serializable
+data class Segment(val startS: Double, val endS: Double, val text: String)
+
+@Serializable
+data class Engine(val name: String = "", val model: String = "", val version: String = "")
+
+@Serializable
+data class Transcript(
+    val text: String,
+    val language: String = "fa",
+    val durationS: Double = 0.0,
+    val confidence: Double = 0.0,
+    val segments: List<Segment> = emptyList(),
+    val fileId: String,
+    val engine: Engine = Engine(),
+)
+
+@Serializable
+data class WorkspacePolicy(val branchPrefix: String = "hq/", val mayOpenPr: Boolean = true, val merge: String = "owner_seal", val deploy: String = "owner_seal")
+
+@Serializable
+data class Workspace(
+    val id: String,
+    val code: String,
+    val company: String,
+    val repo: String,
+    val defaultBranch: String = "main",
+    val titleFa: String,
+    val policy: WorkspacePolicy = WorkspacePolicy(),
+    val status: String = "active",
+)
+
+@Serializable
+data class Grant(
+    val id: String,
+    val ref: String,
+    val workspace: String,
+    val actions: List<String> = emptyList(),
+    val driver: Actor? = null,
+    val budgetUsd: Double,
+    val expiresAt: String,
+    val grantedBy: Actor? = null,
+    val decisionRef: String? = null,
+    val revokedAt: String? = null,
+)
+
+@Serializable
+data class GrantIn(val workspace: String, val actions: List<String>, val driver: String?, val budgetUsd: Double, val expiresAt: String)
+
+@Serializable
+data class SessionUsage(val usd: Double = 0.0, val inputTokens: Long = 0, val outputTokens: Long = 0)
+
+@Serializable
+data class CodeSession(
+    val id: String,
+    val ref: String,
+    val workspace: String,
+    val grant: String,
+    val title: String,
+    val brief: String = "",
+    val openedBy: Actor? = null,
+    val driver: Actor,
+    val runtime: String = "managed",
+    val model: String = "",
+    val effort: String = "",
+    val state: String,
+    val branch: String? = null,
+    val prUrl: String? = null,
+    val usage: SessionUsage = SessionUsage(),
+    val createdAt: String,
+    val updatedAt: String,
+) {
+    val open: Boolean get() = state !in setOf("done", "failed", "stopped")
+}
+
+@Serializable
+data class SessionEvent(
+    val seq: Long,
+    val at: String,
+    val type: String,
+    val actor: Actor,
+    val summaryFa: String = "",
+    val data: JsonObject = JsonObject(emptyMap()),
+)
+
+@Serializable
+data class OrderRoute(
+    val company: String,
+    val to: String,
+    val kind: String,
+    val workRef: String? = null,
+    val sessionRef: String? = null,
+    val decisionRef: String? = null,
+)
+
+@Serializable
+data class Order(
+    val ref: String,
+    val summaryFa: String = "",
+    val routes: List<OrderRoute> = emptyList(),
+    val text: String = "",
+    val source: String = "text",
+    val fileId: String? = null,
+    val createdAt: String? = null,
 )

@@ -35,6 +35,8 @@ import com.coinepro.hq.ui.outputs.OutputsScreen
 import com.coinepro.hq.ui.planner.PlannerScreen
 import com.coinepro.hq.ui.settings.SettingsScreen
 import com.coinepro.hq.ui.treasury.TreasuryScreen
+import com.coinepro.hq.ui.workshop.SessionScreen
+import com.coinepro.hq.ui.workshop.WorkshopScreen
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import android.os.Looper
@@ -68,6 +70,7 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "outputs" to { _ -> OutputsScreen() },
             "output" to { _ -> OutputScreen("O-000029") },
             "advisor" to { _ -> ChatScreen("A", advisor = true) },
+            "chat-media" to { _ -> ChatScreen("FX-CEO") },
             "threads" to { _ -> ThreadsScreen() },
             "companies" to { _ -> CompaniesScreen() },
             "company" to { _ -> CompanyScreen("FX") },
@@ -79,6 +82,9 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "notifications" to { _ -> NotificationsScreen() },
             "audit" to { _ -> AuditScreen() },
             "settings" to { g -> SettingsScreen(g) },
+            "workshop" to { _ -> WorkshopScreen(onNewSession = {}, onGrant = {}) },
+            "session-approval" to { _ -> SessionScreen("S-0004") },
+            "session-done" to { _ -> SessionScreen("S-0002") },
         )
     }
 

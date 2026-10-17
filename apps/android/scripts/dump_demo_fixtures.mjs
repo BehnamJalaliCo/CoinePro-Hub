@@ -3,8 +3,14 @@
 // Android demo resolves at load time, so relative times ("5 minutes ago") stay true.
 // Usage: node --experimental-strip-types scripts/dump_demo_fixtures.mjs
 import { writeFileSync } from 'node:fs';
+import { register } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// The fixtures import their siblings without an extension (as the web's bundler allows); Node needs one.
+register('data:text/javascript,' + encodeURIComponent(
+  'export async function resolve(s, c, next) { try { return await next(s, c); } catch (e) { if (s.startsWith(".") && !s.endsWith(".ts")) return next(s + ".ts", c); throw e; } }',
+));
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { handle } = await import(join(here, '../../web/src/lib/api/mock.ts'));
@@ -23,6 +29,9 @@ const paths = [
   ...['TY-CEO', 'FX-CEO', 'PC-CEO', 'TY-TECH-MGR', 'FX-TECH-MGR', 'PC-TECH-MGR', 'TY-GROWTH-MGR', 'FX-GROWTH-MGR', 'PC-GROWTH-MGR', 'TY-GROWTH-01', 'FX-QUANT-02', 'HQ-OVS-MGR', 'HQ-AIOPS-MGR', 'HQ-ADV'].map((c) => `/employees/${c}`),
   ...['w0', 'w1', 'w2', 'w3'].map((w) => `/work/${w}`),
   ...['A', 'FX-CEO', 'TY-TECH-MGR'].map((t) => `/threads/${t}/messages`),
+  // ⟨1.3⟩ the Code Workshop and voice orders
+  '/workshop/workspaces', '/workshop/grants?active=true', '/workshop/sessions', '/orders',
+  ...['S-0004', 'S-0003', 'S-0002', 'S-0001'].flatMap((r) => [`/workshop/sessions/${r}`, `/workshop/sessions/${r}/events`]),
 ];
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
@@ -39,6 +48,20 @@ const out = {};
 for (const p of paths) {
   const r = await handle(new Request(`http://demo/api/v1${p}`));
   out[p] = { status: r.status, body: rel(await r.json()) };
+}
+// A working session's next steps, so the Android demo can play them live (the web's mock reveals one per poll).
+for (const ref of ['S-0003']) {
+  const seen = out[`/workshop/sessions/${ref}/events`].body.items;
+  let last = seen.at(-1)?.seq ?? 0;
+  const script = [];
+  for (let quiet = 0; quiet < 12; ) {
+    const r = await handle(new Request(`http://demo/api/v1/workshop/sessions/${ref}/events?after=${last}`));
+    const items = (await r.json()).items;
+    if (!items.length) { quiet++; continue; }
+    quiet = 0;
+    for (const e of items) { script.push(rel(e)); last = e.seq; }
+  }
+  out[`#script:${ref}`] = { status: 200, body: { items: script } };
 }
 const dst = join(here, '../app/src/debug/assets/demo-fixtures.json');
 writeFileSync(dst, JSON.stringify(out, null, 1) + '\n');

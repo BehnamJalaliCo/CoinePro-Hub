@@ -18,10 +18,11 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 
 // A small, safe Markdown subset for agent-written text (mirrors apps/web/src/components/ui/md.tsx):
-// paragraphs, #-headings, - and 1. lists, **bold**, `code`, and refs (D-…, M-…, O-…, W-…, A-…) as Latin
-// figures in gold. Latin tokens with digits (hashes, versions, model names, money) keep Latin digits.
+// paragraphs, #-headings, - and 1. lists, **bold**, `code`, and refs (D-…, M-…, O-…, W-…, A-…, and ⟨1.3⟩ F-…, S-…,
+// G-…, AP-…) as Latin figures in gold; a ref inside a path (hq/S-0004) stays part of the path. Latin tokens with
+// digits (hashes, versions, model names, money) keep Latin digits.
 
-private val REF = Regex("\\b([DMOWI]-\\d{3,6}|A-\\d{4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\\d{2,3}|MGR|CEO|ADV|SYS)(?:-\\d{4})?)\\b")
+private val REF = Regex("(?<![/\\w-])([DMOWIFSG]-\\d{3,6}|A-\\d{4}|AP-\\d{4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\\d{2,3}|MGR|CEO|ADV|SYS)(?:-\\d{4})?)\\b")
 private val LATIN = Regex("((?:Opus|Sonnet|Haiku|Fable|Claude|GPT|Gemini) \\d+(?:\\.\\d+)*|(?:\\$|[A-Za-z])[A-Za-z0-9._%$/-]*\\d[A-Za-z0-9._%/-]*|\\d+[A-Za-z][A-Za-z0-9._-]*)")
 private val INLINE = Regex("(\\*\\*[^*]+\\*\\*|`[^`]+`)")
 

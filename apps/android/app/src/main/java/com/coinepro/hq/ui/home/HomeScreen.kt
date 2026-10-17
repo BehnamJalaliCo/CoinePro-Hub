@@ -74,6 +74,10 @@ import com.coinepro.hq.ui.cartable.DecisionRow
 import com.coinepro.hq.ui.companyOf
 import com.coinepro.hq.ui.rememberCompanies
 import com.coinepro.hq.ui.rememberQuery
+import com.coinepro.hq.ui.workshop.SessionRow
+import com.coinepro.hq.ui.workshop.rememberGrants
+import com.coinepro.hq.ui.workshop.rememberSessions
+import com.coinepro.hq.ui.workshop.rememberWorkspaces
 import com.coinepro.hq.ui.refresher
 import com.coinepro.hq.ui.shell.LocalLive
 import com.coinepro.hq.core.data.StreamState
@@ -88,7 +92,7 @@ import kotlin.math.sin
 /** The command center (D2): greeting, what happened while away, the four numbers, the cartable, the live
  *  holding orbit, today from the planner, and the month's budgets. */
 @Composable
-fun HomeScreen(onNewOrder: () -> Unit) {
+fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
     val nav = LocalNav.current
     val inbox = rememberQuery("inbox", "inbox", maxAgeMs = 30_000) { inbox() }
     val away = rememberQuery("away", "away") { away() }
@@ -99,7 +103,10 @@ fun HomeScreen(onNewOrder: () -> Unit) {
     val today = java.time.LocalDate.now(ZoneId.of("Asia/Tehran")).toString()
     val planner = rememberQuery("planner:$today", "planner", "work") { planner(today, today) }
     val companies = rememberCompanies()
-    val r = refresher(inbox, away, presence, day, month, pending, planner)
+    val sessions = rememberSessions()
+    val workspaces = rememberWorkspaces()
+    val grants = rememberGrants()
+    val r = refresher(inbox, away, presence, day, month, pending, planner, sessions)
     val c = Divan.colors
 
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
@@ -109,8 +116,9 @@ fun HomeScreen(onNewOrder: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(jWeekday(java.time.Instant.now().toString()), style = Divan.type.caption, color = c.textMuted)
                 Text("$hello، مدیر کل", style = Divan.type.display.copy(fontSize = Divan.type.h1.fontSize, lineHeight = Divan.type.h1.lineHeight))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    HqButton("فرمان تازه", onNewOrder, variant = BtnVariant.PRIMARY, icon = DivanIcon.COMMAND)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                    HqButton("فرمان صوتی", onVoiceOrder, variant = BtnVariant.PRIMARY, icon = DivanIcon.MIC)
+                    HqButton("فرمان تازه", onNewOrder, icon = DivanIcon.COMMAND)
                     if (presence.data?.khalvat == true) Pill("خلوت روشن؛ فقط فوری میرسد", Tone.LEARN, icon = DivanIcon.KHALVAT)
                 }
             }
@@ -157,6 +165,19 @@ fun HomeScreen(onNewOrder: () -> Unit) {
                     else Column(Modifier.padding(top = 6.dp)) {
                         page.items.take(5).forEach { d -> DecisionRow(d, companies) { nav.go("cartable/${d.ref}") } }
                     }
+                }
+            }
+        }
+        // Code Workshop sessions that are moving or waiting for the owner; nothing when none are.
+        val open = sessions.data.orEmpty().filter { it.open }.sortedByDescending { it.state == "waiting_approval" }
+        if (open.isNotEmpty()) item {
+            HqCard(Modifier.fillMaxWidth()) {
+                val waiting = open.count { it.state == "waiting_approval" }
+                SectionTitle("کارگاه کد", note = if (waiting > 0) "$waiting جلسه منتظر اجازه‌ی تو" else "${open.size} جلسه در جریان") {
+                    HqButton("کارگاه", { nav.go("workshop") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
+                }
+                Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    open.take(3).forEach { s -> SessionRow(s, workspaces.data, grants.data?.firstOrNull { it.ref == s.grant }) { nav.go("workshop/${s.ref}") } }
                 }
             }
         }
