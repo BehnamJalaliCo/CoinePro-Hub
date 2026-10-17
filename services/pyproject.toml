@@ -19,6 +19,8 @@ ignore = [
 # Persian and Arabic-Indic digits and the names of secrets are matched on purpose.
 "hq-common/src/hq_common/redact.py" = ["RUF001", "E501", "S105"]
 "*/testing/*" = ["S311"]
+# Persian letters and affixes are the subject of the normaliser.
+"hq-common/src/hq_common/persian.py" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["hq_common", "llm_router", "claude_runtime", "hq_gateway"]
