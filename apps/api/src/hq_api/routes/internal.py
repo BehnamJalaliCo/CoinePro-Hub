@@ -206,6 +206,7 @@ OP_CLASS: dict[str, str] = {
     "run.reserve": "A0",
     "run.record": "A0",
     "thread.live": "A1",
+    "file.read": "A0",
 }
 
 

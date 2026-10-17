@@ -333,6 +333,9 @@ test_hub_and_audit_for_holding_scope_only if {
 }
 
 test_own_memory_run_and_live_thread if {
+	allowed(f.ty_growth_01, "file.read", {"company": "TY"})
+	not allowed(f.ty_growth_01, "file.read", {"company": "FX"})
+	not allowed(f.hq_adv, "file.read", {"company": "TY"})
 	allowed(f.ty_growth_01, "memory.read", {"employee": "TY-GROWTH-01"})
 	allowed(f.ty_growth_01, "memory.write", {"employee": "TY-GROWTH-01"})
 	not allowed(f.ty_growth_01, "memory.read", {"employee": "TY-GROWTH-02"})

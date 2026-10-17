@@ -18,6 +18,8 @@ ops := {
 	"work.read", "company.read", "health.read", "hub.read", "treasury.read",
 	"knowledge.read", "audit.read", "memory.read", "memory.write",
 	"run.reserve", "run.record", "thread.live",
+	# prompt 06: file.view (an owner file attached in the agent's own company)
+	"file.read",
 }
 
 # Reads of the gateway's tools: an agent reads its own company; a holding-scope
@@ -225,6 +227,14 @@ grant if {
 	op in {"hub.read", "audit.read"}
 	agent
 	holding_reader
+}
+
+# A file of the agent's own company only (prompt 06 §2: file.view), never
+# another company's, whatever the agent's charter scope.
+grant if {
+	op == "file.read"
+	agent
+	same_company(tv("company"))
 }
 
 # The employee's own memory, its own run, its own thread's live stream.
