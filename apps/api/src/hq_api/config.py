@@ -113,6 +113,11 @@ class Settings:
     morning_report_llm: bool = field(
         default_factory=lambda: _env("HQ_MORNING_REPORT_LLM", "on") == "on"
     )
+    # The Code Workshop's runtime (contract §17.3): "" until the owner chooses
+    # (managed | self_hosted); the model and effort a session gets by default.
+    workshop_runtime: str = field(default_factory=lambda: _env("WORKSHOP_RUNTIME", ""))
+    workshop_model: str = field(default_factory=lambda: _env("WORKSHOP_MODEL", "claude-opus-5-5"))
+    workshop_effort: str = field(default_factory=lambda: _env("WORKSHOP_EFFORT", "high"))
 
     @property
     def login_configured(self) -> bool:

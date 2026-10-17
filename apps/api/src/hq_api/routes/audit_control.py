@@ -14,6 +14,7 @@ from hq_api.domain import control
 from hq_api.errors import responses
 from hq_api.schemas import Actor, Model, Page
 from hq_api.security import stepup
+from hq_api.workshop import service as workshop
 
 router = APIRouter(tags=["audit and control"])
 E = responses(401, 403, 404, 409, 422)
@@ -182,6 +183,7 @@ async def set_kill_switch(
         result = await control.state(tx)
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
+    await workshop.paused(ctx.hub)  # the paused sessions stop on their runtime too
     return result
 
 
@@ -216,4 +218,5 @@ async def set_deploy_freeze(body: FreezeIn, ctx: Ctx = Depends(owner_ctx)) -> Fr
             target_ref=body.company,
             data={"until": body.until.isoformat(), "reason": body.reason},
         )
+    await workshop.paused(ctx.hub)
     return FreezeOut(company=body.company, active=r["active"], until=body.until)

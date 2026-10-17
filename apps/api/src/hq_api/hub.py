@@ -32,6 +32,7 @@ class Hub:
     bao: Any = None  # hq_common.openbao.OpenBaoClient (write-only connection keys)
     charters: Any = None  # hq_common.charters.Library (agents/, read-only)
     live: Any = None  # hq_api.live.LiveHub (replies being written; api process only)
+    workshop: Any = None  # hq_api.workshop.runtime.Runtime once the owner chose one (api only)
 
 
 def get_hub(request: Request) -> Hub:

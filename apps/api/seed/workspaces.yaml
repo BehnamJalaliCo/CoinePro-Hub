@@ -1,0 +1,33 @@
+# The Code Workshop's workspaces (contract §17.3): data, not code. One product
+# repository per operating company, plus HQ-HUB for this hub's own repository.
+# Seeded only where missing (a workspace of a company the hub does not have is
+# skipped); the owner edits the list in the app afterwards (PUT
+# /workshop/workspaces, 🔏), and those edits are never overwritten here.
+# A repository other than CoinePro-Hub is read-only by rule 2 of CLAUDE.md:
+# a sealed grant of the owner is the explicit permission for that one session.
+# policy: what any session may do there (merge and deploy stay owner_seal).
+workspaces:
+  - code: HQ-HUB
+    company: HQ
+    repo: behnamjalalico/CoinePro-Hub
+    default_branch: claude/coinepro-hub-setup-hsvnw7
+    title_fa: ستاد کوینه‌پرو (همین هاب)
+    policy: {branch_prefix: hq/, may_open_pr: true, merge: owner_seal, deploy: owner_seal}
+  - code: TY-WEB
+    company: TY
+    repo: behnamjalalico/TradeYar
+    default_branch: main
+    title_fa: سایت و پنل تریدیار
+    policy: {branch_prefix: hq/, may_open_pr: true, merge: owner_seal, deploy: owner_seal}
+  - code: FX-APP
+    company: FX
+    repo: behnamjalalico/CoineProFx
+    default_branch: main
+    title_fa: پلتفرم سیگنال کوینه‌پرو FX
+    policy: {branch_prefix: hq/, may_open_pr: true, merge: owner_seal, deploy: owner_seal}
+  - code: PC-APP
+    company: PC
+    repo: behnamjalalico/CoinePro-App
+    default_branch: main
+    title_fa: اپ اندروید پرو-چارت
+    policy: {branch_prefix: hq/, may_open_pr: true, merge: owner_seal, deploy: owner_seal}

@@ -44,6 +44,9 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "runs": ("run.",),
     # ⟨1.3⟩ owner media: file.ready, file.failed
     "files": ("file.",),
+    # ⟨1.3⟩ the Code Workshop (workshop.session, workshop.approval) and voice orders
+    "workshop": ("workshop.",),
+    "orders": ("order.",),
 }
 
 

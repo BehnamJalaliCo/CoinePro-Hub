@@ -37,6 +37,7 @@ from hq_api.routes.messages import (
     validate_citations,
 )
 from hq_api.schemas import EMPLOYEE_CODE, Evidence, FileRef, Model
+from hq_api.workshop import service as workshop_service
 
 router = APIRouter(tags=["internal"])
 E = responses(401, 403, 404, 409, 422, 423)
@@ -207,6 +208,10 @@ OP_CLASS: dict[str, str] = {
     "run.record": "A0",
     "thread.live": "A1",
     "file.read": "A0",
+    # prompt 06: the Code Workshop (the grant's driver)
+    "workshop.read": "A0",
+    "workshop.session": "A1",
+    "workshop.message": "A1",
 }
 
 
@@ -1050,6 +1055,7 @@ async def agent_kill_switch(
         result = await control.state(tx)
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
+    await workshop_service.paused(ctx.hub)
     return result
 
 
@@ -1110,7 +1116,9 @@ async def agent_deploy_freeze(
             target_ref=body.company,
             summary=summary,
         )
-        return await control.state(tx)
+        result = await control.state(tx)
+    await workshop_service.paused(ctx.hub)  # the paused sessions stop on their runtime too
+    return result
 
 
 # ------------------------------------------------------------ context, files --

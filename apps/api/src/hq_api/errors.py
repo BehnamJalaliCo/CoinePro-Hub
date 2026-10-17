@@ -83,6 +83,12 @@ CODES: dict[str, tuple[int, str, str]] = {
     "hiring_closed": (403, "Hiring closed", "استخدام بسته است؛ کمبود تیم را در خروجی‌ات بنویس."),
     # ⟨1.4.3⟩ a feature the contract names that this server build does not serve yet
     "not_ready": (409, "Not ready", "این قابلیت هنوز روی این سرور آماده نیست."),
+    # ⟨1.3⟩ the Code Workshop runs nowhere until the owner chooses its runtime (§17.7)
+    "runtime_not_configured": (
+        503,
+        "Runtime not configured",
+        "کارگاه کد هنوز روشن نیست: محل اجرای سشن‌ها را مدیر کل باید انتخاب کند.",
+    ),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 
