@@ -9,7 +9,8 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HQ="$REPO_DIR/infra/compose/hq.sh"
+# HQ_COMPOSE_CMD: a stand-in for hq.sh, for the script's own tests only.
+HQ="${HQ_COMPOSE_CMD:-$REPO_DIR/infra/compose/hq.sh}"
 # shellcheck source=files.sh
 source "$REPO_DIR/infra/backup/files.sh"
 BACKUP_ROOT="${HQ_BACKUP_DIR:-/home/Hub/backups}"
@@ -32,11 +33,23 @@ status() { # status OK STAMP SIZE
 umask 077
 mkdir -p "$BACKUP_ROOT"
 chmod 700 "$BACKUP_ROOT"
-trap 'status false "" 0' ERR
+# Every way out but a complete set records a failure (prompt 05.1 §3): an
+# EXIT trap with a success flag, not an ERR trap (which misses `exit 1`,
+# failures inside functions and command substitutions, and left a stale
+# ok:true). The partial set is removed on the way out.
+succeeded=false
+record_failure=true
+work=""
+on_exit() {
+  if [[ -n "$work" ]]; then rm -rf "$work"; fi
+  if [[ "$succeeded" != true && "$record_failure" == true ]]; then status false "" 0 || true; fi
+}
+trap on_exit EXIT
 
 # One run at a time.
 exec 9>"$BACKUP_ROOT/.lock"
 if ! flock -n 9; then
+  record_failure=false  # the running backup records its own outcome
   log "another backup is running; exiting"
   exit 1
 fi
@@ -44,7 +57,6 @@ fi
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 work="$BACKUP_ROOT/.$stamp.partial"
 mkdir "$work"
-trap 'rm -rf "$work"' EXIT
 
 psql_admin() { "$HQ" exec -T postgres psql -U postgres -d postgres -X -At -v ON_ERROR_STOP=1 "$@"; }
 
@@ -98,9 +110,10 @@ done
 (cd "$work" && sha256sum -- *.dump globals.sql manifest.json "${extra[@]}" >SHA256SUMS)
 
 mv "$work" "$BACKUP_ROOT/$stamp"
-trap - EXIT
+work=""
 log "complete: $BACKUP_ROOT/$stamp (${#databases[@]} databases)"
 status true "$stamp" "$(du -sb "$BACKUP_ROOT/$stamp" | cut -f1)"
+succeeded=true
 
 # Retention: delete only directories named like a backup stamp and older than
 # the cutoff. Names sort chronologically, so a string compare is exact. The

@@ -12,11 +12,16 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HQ="$REPO_DIR/infra/compose/hq.sh"
+# HQ_COMPOSE_CMD: a stand-in for hq.sh, for the script's own tests only.
+HQ="${HQ_COMPOSE_CMD:-$REPO_DIR/infra/compose/hq.sh}"
 ANCHORS="${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors/audit-chain.jsonl"
 REASON="${1:-}"
 
 [[ -n "$REASON" ]] || { echo 'usage: make audit-reanchor reason="restore of backup <stamp>"' >&2; exit 2; }
+# A person at a terminal only (prompt 05.1 §3): no pipe, cron job or agent
+# re-anchors the audit chain, not even with HQ_REANCHOR_CONFIRM, which only
+# saves the typing in that terminal.
+[[ -t 0 ]] || { echo "audit-reanchor: needs a terminal (the confirmation is a person's)" >&2; exit 1; }
 
 echo "audit-reanchor: the current state"
 "$HQ" exec -T worker python -c '
@@ -42,7 +47,6 @@ asyncio.run(main())'
 echo "audit-reanchor: anchor file $ANCHORS (append-only; nothing is removed)"
 
 if [[ "${HQ_REANCHOR_CONFIRM:-}" != "re-anchor" ]]; then
-  [[ -t 0 ]] || { echo "audit-reanchor: needs a terminal for the confirmation" >&2; exit 1; }
   read -r -p 'Type re-anchor to accept the restored chain as the new base: ' answer
   [[ "$answer" == "re-anchor" ]] || { echo "audit-reanchor: cancelled"; exit 1; }
 fi

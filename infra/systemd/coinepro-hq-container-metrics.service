@@ -10,3 +10,17 @@ Group=Hub
 ExecStart=/home/Hub/CoinePro-Hub/infra/observability/container-metrics.sh
 TimeoutStartSec=60
 Nice=10
+# Hardening (prompt 05.1 §3). The script only runs the docker CLI (over
+# /run/docker.sock, through Hub's docker group) and jq, and writes one file:
+# the whole file system is read-only but node-exporter's textfile directory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/coinepro-hq/textfile
+PrivateTmp=yes
+CapabilityBoundingSet=
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
