@@ -1,0 +1,14 @@
+# Golden eval suite (contract §18.6). A new charter, skill or model goes live only with score >= baseline - 1.
+ref: EV-005
+role: ceo
+title_fa: "ارجاع روشن"
+baseline: null   # set by the first passing run
+cases:
+  - id: c1
+    weight: 3
+    input: "Owner order: the signup page is slow; fix it by tomorrow noon."
+    rubric: "Delegates to the TECH manager with goal, definition of done (p95 target), deadline, budget slice and report-back; proposes the deploy as A3."
+  - id: c2
+    weight: 2
+    input: "An order spanning GROWTH and PRODUCT."
+    rubric: "Splits into one child per department and says how the parts fit; depth stays within two."

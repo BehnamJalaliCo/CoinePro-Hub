@@ -7,7 +7,7 @@
 >
 > **v1.1 (۲۰۲۶-۱۰-۱۷):** «Contract notes» گزارش پرامپت ۴ و نتیجه‌ی بازبینی وارد شد. تغییرها با ⟨1.1⟩ علامت خورده‌اند؛ آن‌هایی که هنوز پیاده نشده‌اند در `docs/server-prompts/PROMPT_04_1_HARDENING.md` هستند.
 >
-> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶).
+> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹).
 
 ---
 
@@ -632,3 +632,191 @@ Their `/stream` topics: `files`, `workshop`, `orders` (added to the `topics` lis
 - `GET /meta` gains `workshop: { runtime: "managed"|"self_hosted"|null }` — `null` until the owner chooses (then `POST /workshop/sessions`
   answers `503 runtime_not_configured`), so the apps can say so before the owner tries.
 
+## 18. v1.4 — the owner's decisions of 2026-10-17, round two (prompts 7–9)
+
+> Owner decisions (`docs/OWNER_REQUESTS_2026-10-17.md`, `OPERATING_MODEL.md` §1.17): a **Chief Overseer** above QC; the advisor at rank two
+> with read access to everything; a **personal assistant**; **full internet** for agents; **MCP** and a **skill library**; the **holding academy**;
+> **stars** given by CEOs; **company founding with server provisioning** that ends with Claude Code ready for the owner's own login; **hourly
+> encrypted backups** to the owner's Google Drive. Everything above still holds: A3 needs the owner's seal, A4 never happens, no secret leaves the server.
+
+### 18.0 Kinds, precedence and threads
+- `Employee.kind` gains `"overseer"` and `"assistant"`; `Thread.kind` gains `"overseer"` and `"assistant"`.
+- Seeds (data): `HQ-OVR` overseer (thread **`N`**, messages `N-0001`), `HQ-PA` personal assistant (thread **`P`**, messages `P-0001`).
+  The inspector `HQ-OVS-MGR` `reports_to` the overseer and leads **QC**.
+- `Employee.rank` (computed, read-only): **1** owner · **2** overseer, advisor · **3** CEO, inspector, AI Ops head · **4** manager · **5** employee.
+  `GET /meta` gains `precedence: [{rank, kinds, note_fa}]`. An inquiry from rank 2 must be answered (§18.2).
+
+### 18.1 Oversight (the Chief Overseer)
+```
+Protocol   { id, ref: "PR-001", title_fa, area: "truth"|"authority"|"money"|"safety"|"quality"|"delivery"|"security"|"data"|"people"|"product"|"owner",
+             check_md, method: "rule"|"sample"|"llm"|"reconcile"|"blind_test"|"mystery"|"drill",
+             schedule: RRULE (owner TZ), scope: "holding"|"company"|"department", evidence_md,
+             severity: "info"|"low"|"medium"|"high"|"critical", answerable: role, status: "active"|"paused"|"draft",
+             version, sealed_at|null, last_run: { at, result: "pass"|"fail"|"partial", findings: int }|null }
+Finding    { id, ref: "FI-0001", company, protocol|null, severity, title_fa, body_md, evidence: [{kind, ref, note}],
+             status: "open"|"acknowledged"|"fixing"|"fixed"|"verified"|"disputed"|"closed", answerable: Actor, due_at,
+             opened_at, closed_at|null, history: [{at, by: Actor, status, note}] }
+Challenge  { id, ref: "CH-0001", company, period: "week"|"month", title_fa, brief_md, criteria: [{name_fa, weight}], due_at,
+             status: "issued"|"accepted"|"submitted"|"scored"|"missed", score: 0..100|null, judge: Actor, work_ref|null }
+StandingOrder { id, ref: "SO-001", text_md, source: "voice"|"text", file_id|null, applies_to: "overseer"|"all",
+             status: "proposed"|"sealed"|"retired", version, sealed_at|null }
+Hold       { id, ref: "H-0001", company, action: { kind, summary_fa, payload_digest }, reason_md, held_by: Actor, held_at,
+             state: "held"|"released"|"cancelled", decided_by|null, decided_at|null }
+Compliance { company, score: 0..100, by_area: {area: 0..100}, findings_open: {critical, high, medium, low}, protocols: {passed, failed}, trend: [0..100] }
+WatchReport { on: bool, since, until|null, summary_md, held: [H-…], urgent: [notification id], findings: [FI-…] }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/oversight/summary` | compliance per company, open findings by severity, holds waiting, this week's challenges, watch mode |
+| GET | `/oversight/protocols` | `?area&status` |
+| POST | `/oversight/protocols` 🔏 | owner adds (body hash); agents propose through a decision of kind `protocol` |
+| PUT | `/oversight/protocols/{ref}` 🔏 | edit, pause or resume = a new version (body hash) |
+| GET | `/oversight/protocols/{ref}/runs` | results with findings |
+| GET | `/oversight/findings` · `/oversight/findings/{ref}` | `?company&status&severity` |
+| POST | `/oversight/findings/{ref}/status` | owner: `verified`, `closed`, `disputed` with a note |
+| GET | `/oversight/challenges` | `?company&period&status` |
+| GET · POST | `/oversight/orders` | owner's standing orders (text or voice); POST creates `proposed` |
+| POST | `/oversight/orders/{ref}/seal` 🔏 · `/retire` | seal target = ref |
+| GET | `/oversight/holds` | `?state=held` |
+| POST | `/oversight/holds/{ref}/release` 🔏 · `/cancel` | release target = ref; cancel needs none |
+| GET | `/oversight/watch` | the current or last watch report |
+| GET | `/oversight/compliance` | per company, with trend |
+
+- **Watch mode** is on while Khalvat is on, after `owner_settings.watch_after_hours` (default 6) without owner activity, or when the owner says so.
+  In watch mode the overseer holds and stops; it never approves (owner decision).
+- **Powers through the internal API** (agents/tools.md): `hold`, `kill_switch.engage` (company scope), `deploy.freeze`, `finding.raise`,
+  `challenge.issue`, `inquiry.ask`, `notify` urgent. **Releasing** a kill switch, a freeze or a hold is the owner's alone.
+
+### 18.2 Inquiries (advisor and overseer ask; everyone answers)
+```
+Inquiry { id, ref: "Q-0001", from: Actor, to: Actor, company, question_md, due_at, status: "open"|"answered"|"late"|"withdrawn",
+          answer_md|null, evidence: [{kind, ref, note}], answered_at|null, thread_ref }
+```
+| GET | `/inquiries` | `?from&to&status` (owner sees all) |
+- The answer appears in the asker's thread (`A-…` or `N-…`) with `links.inquiry`. A late inquiry notifies the owner and counts against compliance.
+
+### 18.3 The personal assistant: errands
+```
+Errand { id, ref: "E-0001", title_fa, brief_md, source: "voice"|"text", file_ids: [id], due_at|null,
+         status: "queued"|"working"|"waiting_owner"|"done"|"failed"|"cancelled",
+         steps: [{at, kind: "search"|"read"|"browse"|"request"|"draft"|"note"|"proposal", summary_fa, data}],
+         result_md|null, attachments: [FileRef], decision_ref|null, usage: {usd, input_tokens, output_tokens}, created_at, updated_at }
+```
+| GET · POST | `/errands` | POST `{brief_md, source, file_ids?, due_at?, title_fa?}` |
+| GET | `/errands/{ref}` | |
+| POST | `/errands/{ref}/cancel` | |
+- Thread **`P`** is the conversation; a message can open an errand (`links.errand`). An external commitment becomes a decision of kind `errand_action` (A3).
+
+### 18.4 Stars
+```
+StarRubric { company, version, criteria: [{key, name_fa, weight, description_md}], rules_md, by: Actor (CEO), status: "draft"|"active", updated_at }
+Star       { id, employee, company, week (Saturday, YYYY-MM-DD, owner TZ), stars: 0..5, by: Actor (CEO), reason_md, evidence: [{kind, ref, note}],
+             criteria: {key: 0..5}, counted: bool, overseer_note|null, created_at }
+StarRollup { period: "week"|"month", key, best_company,
+             companies: [{company, stars: 0..5, score: 0..100, parts: {kpi, challenges, compliance, people}, rank, trend: [0..100]}],
+             employees: [{code, company, title_fa, stars: 0..5, count, rank_company, rank_holding, trend: [0..5]}],
+             lessons: [L-…] }
+Lesson     { id, ref: "L-0001", source_company, period, title_fa, body_md, evidence, adoption: [{company, status: "proposed"|"adopted"|"rejected", decision_ref}] }
+```
+| GET | `/stars/rubrics` · `/stars/rubrics/{company}` | CEOs write them (internal `star.rubric`); the owner reads |
+| GET | `/stars` | `?company&week&employee` |
+| GET | `/stars/rollup` | `?period=week\|month&key` (default: the last closed period) |
+| GET | `/lessons` | `?company&period` |
+- Week = Saturday to Friday, owner TZ; the roll-up runs **Saturday 08:00 Tehran**, the month on the 1st (Jalali month).
+- **Company score** = 40% KPI attainment + 25% overseer challenges + 20% compliance + 15% people (employees' stars); **company stars** = score ÷ 20.
+- A star without a reason or evidence is not counted; the overseer flags inflation (e.g. more than 70% fives in a company).
+- The owner gives no stars. The owner's 1–10 rating stays a separate part of the employee score (§1.16).
+
+### 18.5 Skills
+```
+Skill { id, ref: "SK-001", name_fa, summary_fa, body_md, resources: [FileRef], scope: {roles: [role], companies: "all"|[code], departments: [code]},
+        version, status: "draft"|"in_review"|"approved"|"active"|"retired",
+        review: {by: Actor, at, verdict: "pass"|"changes"|"reject", notes_md, checks: {injection, secrets, conflicts, policy}}|null,
+        eval: {suite, score, baseline}|null, created_by: Actor, created_at, activated_at|null }
+```
+| GET · POST | `/skills` | POST from text, a voice transcript or files; starts as `in_review` |
+| GET | `/skills/{ref}` · `/skills/{ref}/versions` | |
+| PUT | `/skills/{ref}` | new version → `in_review` |
+| POST | `/skills/{ref}/activate` 🔏 · `/retire` | target `ref@version`; only after review `pass` and eval ≥ baseline |
+- The runtime puts active skills after the charter in the system prompt; every run records `skills: ["SK-001@3", …]`.
+
+### 18.6 The holding academy
+```
+Curriculum { role, version, modules: [{key, title_fa, skills: [ref], playbooks: [ref], examples: {good: [O-…], bad: [O-…]}}], updated_at }
+EvalSuite  { ref: "EV-001", role, title_fa, cases: [{id, input_md, rubric_md, weight}], baseline: {subject, version, score} }
+EvalRun    { id, suite, subject: {kind: "charter"|"skill"|"model", ref, version}, score: 0..100, passed: bool, cases: [{id, score, notes}], at }
+Teaching   { id, ref: "TE-0001", target: {kind: "role"|"employee", ref}, source: "voice"|"text", text_md, file_id|null,
+             proposal: {kind: "charter_rule"|"skill"|"memory"|"playbook", diff_md}|null, eval_run|null,
+             status: "drafting"|"proposed"|"approved"|"rejected", created_at }
+TrainingRecord { employee, charter_version, curriculum_version, skills: [ref@version], evals: [{suite, score, at}], lessons: [L-…], trend: [0..100] }
+```
+| GET | `/academy/curricula` · `/academy/curricula/{role}` | |
+| GET | `/academy/evals` · `/academy/evals/{ref}/runs` | |
+| GET · POST | `/academy/teach` | POST `{target, text, source, file_id?}`; the AI Ops head drafts, the overseer reviews, an eval runs |
+| POST | `/academy/teach/{ref}/approve` 🔏 · `/reject` | target = ref |
+| GET | `/academy/records/{employee}` | |
+- **Gate:** a new charter, skill or model assignment goes live only when its eval score ≥ baseline − 1; otherwise it is rejected with the report.
+
+### 18.7 Internet and MCP for agents
+- **Tools** (agents/tools.md v2): `web.search`, `web.read`, `web.browse` (a real browser: navigate, click, type, download), `http.request`
+  (any method to an external host), `mcp.call`. All run in the **egress** service, never in the agent runtime.
+- **Egress guard:** loopback, link-local, RFC 1918 (including `10.10.1.0/24` and its production neighbours), cloud metadata, the hub's own
+  internal names and `/internal` are blocked; per-run and per-company limits; every request is logged.
+- **Credentials** for holding service accounts live in OpenBao and are injected at egress; a model never sees them.
+- **A3 on the web:** an external commitment in the holding's name — paying, publishing, messaging a person outside, creating an account, changing an
+  account's security — becomes a decision. Research, reading and working in tools is A0–A2.
+```
+EgressEntry { id, at, company, actor, run_id, tool, method, host, status, bytes_in, bytes_out, ms, blocked_reason|null, class }
+McpServer   { id, key, title_fa, transport: "http"|"container", url|image, tools: [{name, class: "A0"|"A1"|"A2"|"A3", enabled}],
+              companies: "all"|[code], status: "pending"|"enabled"|"disabled", has_secret: bool, added_at }
+ServiceAccount { id, key, site, title_fa, companies: "all"|[code], has_secret: bool, last_used_at|null }
+```
+| GET | `/egress` · `/egress/summary` | `?company&since&blocked`; `?period=day` |
+| GET | `/tools/catalog` | every tool: class, roles, status |
+| GET · POST | `/tools/mcp` | POST 🔏 adds a server (body hash) |
+| POST | `/tools/mcp/{key}/enable` 🔏 · `/disable` | target = key |
+| GET · POST | `/tools/accounts` | metadata only; the owner writes the secret on the server (`make account-secret`), never through the API |
+
+### 18.8 Company founding and server provisioning
+```
+Founding   { id, ref: "C-0001", name_fa, name_en, code, source: {kind: "repo"|"idea", repo|null, brief_md},
+             state: "auditing"|"proposed"|"sealed"|"provisioning"|"ready_for_login"|"active"|"cancelled",
+             audit: {session_ref, report_md, scores: {architecture, quality, security, tests, debt}}|null,
+             proposal: {departments: [code], kpis: [{name_fa, target}], team: [{role, model, monthly_usd}], roadmap_md, monthly_usd}|null,
+             decision_ref|null, plan|null, company|null, created_at, updated_at }
+ServerPlan { id, ref: "PV-0001", founding|null, company, name, type, location, image: "ubuntu-24.04", private_network: bool,
+             firewall: [{direction: "in", protocol, port, sources: [cidr], note_fa}], software: [key], work_user, repo|null,
+             monthly_eur, state: "proposed"|"sealed"|"running"|"done"|"failed", decision_ref|null, run|null }
+ProvisionRun { id, plan, state: "running"|"done"|"failed",
+             steps: [{key, title_fa, state: "pending"|"running"|"done"|"failed", started_at|null, finished_at|null, log_tail}],
+             server: {name, ipv4, ipv6, private_ip}|null, login: {ssh, then: [cmd]}|null }
+```
+| GET · POST | `/foundings` | POST `{source}` opens a read-only workshop audit |
+| GET | `/foundings/{ref}` | |
+| POST | `/foundings/{ref}/cancel` · `/activate` 🔏 | activate after the owner has logged in on the new server (target = ref) |
+| GET | `/provisioning/plans` · `/provisioning/plans/{ref}` | |
+| POST | `/provisioning/plans/{ref}/seal` 🔏 | target = sha256 of the plan JSON as served; the A3 seal that spends money |
+| GET | `/provisioning/runs/{id}` · `/provisioning/runs/{id}/live` (SSE) | |
+| GET | `/infra/servers` | servers the provisioner made; **no delete** (owner, Hetzner console) |
+- **Software keys** (fixed list, reviewed templates): `system-upgrade`, `unattended-upgrades`, `work-user`, `ssh-hardening` (keys only, no root login),
+  `docker`, `git`, `node-lts`, `claude-code`, `repo-clone`, `private-network`, `hetzner-firewall`, `node-exporter`.
+- No root password is created; the owner's SSH public key is installed. The owner runs `login.ssh`, then `claude` and logs into their own account;
+  the provisioner never sees it.
+
+### 18.9 Backups
+```
+BackupStatus { hourly: {last_at, next_at, ok, snapshot, size_bytes}, wal: {last_archived_at, lag_s},
+               destinations: [{key: "gdrive"|"hetzner"|"local", configured, last_ok_at, used_bytes, quota_bytes|null}],
+               retention: {hourly, daily, weekly, monthly, yearly}, restore_test: {last_at, ok, duration_s, notes},
+               openbao_snapshot: {last_at, ok}, encryption: "restic (AES-256)" }
+```
+| GET | `/backups/status` · `/backups/snapshots` | owner, overseer, platform SRE |
+- Restore never goes through the API: the owner runs it in their own terminal.
+
+### 18.10 Decision kinds, stream types, step-up targets
+- **Decision kinds** added: `protocol`, `tool_enable`, `errand_action`, `company_found`, `server_plan`, `lesson_adoption`.
+- **Stream types** (topics): `oversight.finding`, `oversight.hold`, `oversight.watch` (`oversight`) · `inquiry.answered` (`inquiries`) ·
+  `errand.updated` (`errands`) · `stars.rollup` (`stars`) · `skill.updated` (`skills`) · `academy.eval` (`academy`) ·
+  `founding.updated`, `provision.step` (`founding`) · `backup.done`, `backup.failed` (`backups`).
+- **Step-up targets:** `oversight.protocol` (body hash), `oversight.order` (ref), `oversight.release` (ref), `skill.activate` (`ref@version`),
+  `academy.approve` (ref), `mcp.add` (body hash), `mcp.enable` (key), `provision.seal` (plan digest), `founding.activate` (ref).

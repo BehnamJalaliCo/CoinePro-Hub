@@ -7,9 +7,12 @@
 ## ساختار
 ```
 agents/
-  roles/_common.md        قواعد مشترک همه‌ی نقش‌ها (اول هر system prompt)
-  roles/<role>.md         منشور هر نقش
-  tools.md                فهرست ابزارهای دروازه (نام، کلاس، ورودی)؛ مرجع منشورها
+  roles/_common.md        قواعد مشترک همه‌ی نقش‌ها (اول هر system prompt): تقدم، پرسش رسمی، اینترنت
+  roles/<role>.md         منشور هر نقش (از جمله overseer ناظر کل، advisor مشاور کل، assistant دستیار شخصی)
+  tools.md                فهرست ابزارهای دروازه (نام، کلاس، ورودی)؛ مرجع منشورها. v2: اینترنت، MCP، نظارت، ستاره، آکادمی
+  protocols/oversight.yaml دفتر پروتکل‌های ناظر کل (بذر جدول oversight.protocols)
+  skills/SK-NNN-*/SKILL.md کتابخانه‌ی مهارت (بذر؛ نسخه‌های بعدی در اپ با مُهر مالک)
+  academy/                 برنامه‌ی آموزشی نقش‌ها و آزمون‌های طلایی (EV-…)
 ```
 
 ## frontmatter هر منشور
@@ -17,7 +20,7 @@ agents/
 |---|---|
 | `role` | شناسه‌ی نقش (`ceo`، `cto`، `sre`، …). با `employees.role` یکی است. |
 | `title_fa`, `title_en` | عنوان نمایشی |
-| `kind` | `ceo` · `manager` · `employee` · `advisor` · `inspector` |
+| `kind` | `ceo` · `manager` · `employee` · `advisor` · `inspector` · `overseer` · `assistant` |
 | `scope` | `company` (برای هر شرکت جدا) یا `holding` |
 | `department` | کد دپارتمان یا `null` |
 | `model`, `effort` | پیش‌فرض؛ تخصیص در `llm.assignments` (ارث‌بری §۱.۱۳) بر این غلبه میکند |

@@ -1,0 +1,24 @@
+# Role curricula (contract §18.6). Data: the API seeds `academy.curricula`; later versions come from approved teachings.
+version: 1
+curricula:
+  - role: overseer
+    modules:
+      - {key: methods, title_fa: "روش‌های کشف: تطبیق با داده‌ی خام، زنجیره، نمونه‌برداری، آزمون کور", skills: [SK-003], evals: [EV-003]}
+      - {key: web, title_fa: "پژوهش وب و فعالیت امن", skills: [SK-001], evals: [EV-004]}
+      - {key: findings, title_fa: "یافته‌ی دقیق، منصف و قابل اقدام", skills: [SK-003], evals: [EV-003]}
+  - role: advisor
+    modules:
+      - {key: citation, title_fa: "ارجاع به سوابق و جدا کردن واقعیت، استنتاج و توصیه", skills: [SK-003], evals: [EV-001]}
+      - {key: web, title_fa: "پژوهش وب", skills: [SK-001], evals: [EV-004]}
+  - role: ceo
+    modules:
+      - {key: delegation, title_fa: "ارجاع روشن با معیار تمام شدن", evals: [EV-005]}
+      - {key: stars, title_fa: "ستاره‌ی هفتگی منصفانه", skills: [SK-002], evals: [EV-002]}
+      - {key: evidence, title_fa: "انضباط شاهد", skills: [SK-003], evals: [EV-001]}
+  - role: assistant
+    modules:
+      - {key: errands, title_fa: "کار دم‌دستی سریع و کامل؛ تعهد بیرونی فقط با مُهر", skills: [SK-001], evals: [EV-006]}
+  - role: all
+    modules:
+      - {key: evidence, title_fa: "انضباط شاهد", skills: [SK-003], evals: [EV-001]}
+      - {key: web, title_fa: "پژوهش وب", skills: [SK-001], evals: [EV-004]}

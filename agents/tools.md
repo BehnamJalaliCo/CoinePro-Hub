@@ -1,6 +1,6 @@
-# Tool catalog v1 (Tool Gateway)
+# Tool catalog v2 (Tool Gateway)
 
-Agents have **no network and no shell**. A run returns JSON; the agent runtime turns each requested action into a call to the **Tool Gateway**, which checks the role's allow-list, the action class (OPA `hq.actions`), the company's kill switch and deploy freeze, the run's budget, and writes one audit row per call. Results go back to the model **redacted**: no secrets, keys, tokens, customer personal data or raw message bodies of other threads.
+Agents have **no shell and no direct network**; since v2 (owner decision 2026-10-17) the **internet is reached through tools** that run in the egress service. A run returns JSON; the agent runtime turns each requested action into a call to the **Tool Gateway**, which checks the role's allow-list, the action class (OPA `hq.actions`), the company's kill switch and deploy freeze, the run's budget, and writes one audit row per call. Results go back to the model **redacted**: no secrets, keys, tokens, customer personal data or raw message bodies of other threads.
 
 Classes (OPERATING_MODEL §1.12): **A0** observe · **A1** propose/draft · **A2** internal & reversible (inside the authority envelope) · **A3** external — never executed by an agent; it becomes a decision for the owner · **A4** forbidden for AI — no such tool exists, and any unknown tool name is denied.
 
@@ -27,3 +27,60 @@ Classes (OPERATING_MODEL §1.12): **A0** observe · **A1** propose/draft · **A2
 | `notify` | A2 | `{level, category?, title_fa, body_fa, link?}` | Raise a notification. `urgent` only with an incident `category` (service down, security, data loss, budget hard stop), max 5/hour/company. |
 
 The runtime adds `done` (finish the run) implicitly; there is no other way to end a run.
+
+## v2 tools (2026-10-17; contract §18)
+
+### The internet and MCP (every request goes through the **egress** service and is logged in `/egress`)
+| Tool | Class | Input | What it does |
+|---|---|---|---|
+| `web.search` | A0 | `{q, lang?, recency_days?, site?, n?}` | Web search through the holding's own SearXNG. Results: title, url, snippet, date. The query is checked for internal data first. |
+| `web.read` | A0 | `{url, mode?: "text"\|"pdf"\|"html", max_chars?}` | Fetch one page or file and return readable text with its final URL and date. |
+| `web.browse` | A0/A2 | `{steps: [{do: "goto"\|"click"\|"type"\|"select"\|"scroll"\|"wait"\|"read"\|"screenshot"\|"download", target?, text?, url?}], account?}` | A real headless browser session (Chromium, Playwright) in the egress service. Reading is A0; using a holding service `account` is A2. A step that submits a payment, a purchase, a publication, a message to a person, an account creation or a security change is refused with `needs_owner` → `propose`. Screenshots and downloads come back as files. |
+| `http.request` | A0/A2 | `{method, url, headers?, json?, body?, account?}` | Any external API. `GET`/`HEAD` are A0; other methods are A2 and allowed only for hosts and paths the service account's policy lists as non-committing; committing calls are refused with `needs_owner`. |
+| `mcp.call` | per tool | `{server, tool, args}` | A tool of an MCP server the owner enabled; its class comes from the server's registration. |
+| `egress.recent` | A0 | `{company?, actor?, since?, blocked?}` | The egress log (overseer, security analyst, AI safety). |
+
+**Egress guard:** loopback, link-local, RFC 1918 (the hub's private network and its production neighbours), cloud metadata, the hub's
+internal names and `/internal` are unreachable. Service-account credentials are injected at egress; no model sees them.
+
+### Files, code and the workshop
+| Tool | Class | Input | What it does |
+|---|---|---|---|
+| `files.read` | A0 | `{file_id, variant?}` | An owner or agent file the role may read: images as vision input, video as key frames plus transcript, audio as transcript, PDF as text. |
+| `workshop.read` | A0 | `{session_ref, after?}` | A Code Workshop session and its events. |
+| `backups.status` | A0 | `{}` | The backup status (§18.9). |
+
+### Oversight, inquiries and QC
+| Tool | Class | Input | What it does |
+|---|---|---|---|
+| `inquiry.ask` | A1 | `{to, question_md, due_in_hours}` | A formal question with a due time (overseer, advisor; a CEO inside its company). |
+| `inquiry.answer` | A1 | `{ref, answer_md, evidence}` | The answer, delivered to the asker's thread. |
+| `finding.raise` | A1 | `{company, protocol?, severity, title_fa, body_md, evidence, answerable, due_in_hours}` | A finding (overseer, QC, fact-checker, AI safety, security). |
+| `finding.update` | A2 | `{ref, status, note, evidence?}` | The answerable sets `acknowledged`, `fixing`, `fixed`, `disputed`; the overseer sets `verified`, `closed`. |
+| `protocol.result` | A2 | `{protocol, result, findings, notes}` | The result of one scheduled protocol run (overseer). |
+| `challenge.issue` | A2 | `{company, period, title_fa, brief_md, criteria, due_at, judge?}` | A challenge to a company (overseer). |
+| `challenge.submit` | A1 | `{ref, work_ref, note}` | The company's submission (CEO). |
+| `challenge.score` | A2 | `{ref, score, notes}` | The judge's score (overseer or QC). |
+| `hold` | A2 | `{target: {kind, ref}, reason_md}` | Hold an action pending the owner (overseer, QC, security analyst). Only the owner releases. |
+| `kill_switch.engage` | A2 | `{scope, reason}` | Engage a company's kill switch (overseer: any company; CEO: its own). Release is the owner's. |
+| `deploy.freeze` | A2 | `{company, until, reason}` | Freeze deploys (overseer). |
+| `skill.review` | A2 | `{ref, version, verdict, checks, notes_md}` | Review a skill before activation (overseer, AI safety). |
+| `star.audit` | A2 | `{star_id, counted, note}` | Mark a star counted or not, with the reason (overseer). |
+| `lesson.write` | A1 | `{source_company, period, title_fa, body_md, evidence}` | A lesson from the best company (overseer, AI Ops head). |
+
+### Stars, errands, academy, provisioning
+| Tool | Class | Input | What it does |
+|---|---|---|---|
+| `star.rubric` | A2 | `{criteria: [{key, name_fa, weight, description_md}], rules_md}` | The company's star rubric (CEO). |
+| `star.give` | A2 | `{employee, week, stars, criteria, reason_md, evidence}` | Weekly stars for one employee of the CEO's company. No evidence → not counted. |
+| `errand.step` · `errand.finish` | A2 | `{ref, kind, summary_fa, data}` · `{ref, result_md, file_ids?}` | The personal assistant's errand trail and result. |
+| `planner.add` | A2 | `{title_fa, at, note?}` | An item in the owner's planner (assistant). |
+| `eval.run` | A2 | `{suite, subject: {kind, ref, version}}` | Run a golden eval suite (AI Ops head). |
+| `teach.draft` | A1 | `{ref, proposal: {kind, diff_md}}` | Turn the owner's teaching into a precise proposal (AI Ops head); the overseer reviews, an eval runs, the owner approves. |
+| `server.plan` | A1 | `{founding?, company, name, type, location, private_network, firewall, software, work_user, repo?}` | A server plan with cost; the owner seals it, the provisioner (code, not an agent) builds it. |
+
+### Which role has what (v2)
+Role charters list their tools in frontmatter; the gateway enforces them. In short: the **overseer** has every read tool, the web,
+and the oversight powers; the **advisor** has every read tool, the web and `inquiry.ask`; the **assistant** has the web, files,
+errands and the planner; **CEOs** have the web, files, inquiries inside their company, stars and challenge submissions; managers and
+specialists have the web and files as their work needs.
