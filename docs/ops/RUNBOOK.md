@@ -9,6 +9,11 @@
 - **همیشه از `make` استفاده کن** (یا `infra/compose/hq.sh`). `hq.sh` پروفایل حافظه را انتخاب میکند و `profiles/<profile>.env` و `.env` را بار میکند. `docker compose` خالی، پروفایل و سقف‌های حافظه را نمیشناسد.
 - **رمزها:** `infra/compose/.env` (دسترسی `600`، در gitignore). کلیدهای OpenBao: `/home/Hub/.secrets/openbao-init.json` (دسترسی `600`).
 - **شبکه:** همه‌ی سرویس‌ها روی شبکه‌ی `hq-internal` (`172.30.0.0/24`) هستند. هر پورت فقط روی `127.0.0.1` منتشر میشود. تنها استثنا Caddy روی 80 و 443 است.
+- **سرور (از ۲۰۲۶-۱۰-۱۷، پرامپت ۴.۲):** هتزنر Cloud ‏CPX42، با Rescale «فقط CPU و RAM»:
+  - ۸ vCPU ‏AMD EPYC Genoa، **16GB RAM** (`MemTotal` حدود 15608 MiB)، swap ‏8GB
+  - دیسک همان ۱۵۰GB قبلی است، تا برگشت به پلن کوچک‌تر ممکن بماند.
+  - کرنل `6.8.0-147-generic`، Ubuntu 24.04، منطقه‌ی زمانی UTC
+- **دامنه:** `hq.coinepro.com`، با HTTPS خودکار (§۱۲).
 
 | دستور | کار |
 |---|---|
@@ -59,7 +64,7 @@ make check
 
 **کارهای یک‌باره** (`hq-tools`، `temporal-schema`، `temporal-namespace`، `db-provision`، `llm-migrate`) اجرا میشوند و با کد 0 خارج میشوند. این وضعیت طبیعی است. برای دیدنشان: `infra/compose/hq.sh ps -a`.
 
-**بعد از ریبوت:** Docker کانتینرها را خودش بالا میاورد (`restart: unless-stopped`). تایمر `coinepro-hq-openbao-unseal.timer` یک دقیقه بعد از boot، و بعد هر ۵ دقیقه، OpenBao را unseal میکند. چک کن: `make ps`.
+**بعد از ریبوت:** Docker کانتینرها را خودش بالا میاورد (`restart: unless-stopped`). تایمر `coinepro-hq-openbao-unseal.timer` یک دقیقه بعد از boot، و بعد هر ۵ دقیقه، OpenBao را unseal میکند. چک کن: `make ps`. این مسیر در Rescale ‏۲۰۲۶-۱۰-۱۷ آزموده شد: هر ۱۷ سرویس بدون دخالت healthy شدند. بعد یک `make up` بزن تا کارهای یک‌باره هم دوباره اجرا شوند.
 
 ## ۳. backup و restore
 
@@ -152,14 +157,23 @@ infra/compose/hq.sh up -d
 - **فرق پروفایل‌ها:** `full` به‌علاوه‌ی Tempo، otel-collector و cAdvisor است، با سقف‌های حافظه‌ی بیشتر (`infra/compose/profiles/*.env`).
 - **قانون:** جمع سقف حافظه‌ی همه‌ی کانتینرها ≤ **۸۰٪** RAM. این عدد در پرامپت ۳ از ۶۰٪ بالا رفت، چون سرویس‌های لایه‌ی مدل اضافه شدند. `make check` آن را چک میکند.
 
-**بعد از ارتقای RAM سرور** (مثلاً به ۱۶GB):
+**وضعیت فعلی (پرامپت ۴.۲، ۲۰۲۶-۱۰-۱۷):**
+- سرور 16GB است، پس انتخاب خودکار `full` میشد.
+- طبق تصمیم مالک، **`HQ_PROFILE=lean` در `.env` صریحاً ثابت شده است.**
+- پرامپت ۵، با بودجه‌ی تازه، درباره‌ی پروفایل و سقف‌ها تصمیم میگیرد.
+- عددها روی این سرور:
+  - جمع سقف‌های `lean` برابر 6192 MiB است، در برابر 12486 MiB (۸۰٪ رم).
+  - مصرف واقعی کانتینرها حدود 2.1GB است.
+
+**رفتن به `full`** (فقط وقتی تصمیمش گرفته شد):
 ```bash
+# در .env:  HQ_PROFILE=full   (یا خالی، برای انتخاب خودکار)
 make down          # توقف همه (داده‌ها میمانند)
 make profile       # باید full باشد
 make up
 make check
 ```
-**برگشت به lean:** همان مراحل. `make down` کانتینرهای Tempo، otel و cAdvisor را هم حذف میکند.
+**برگشت به lean:** همان مراحل با `HQ_PROFILE=lean`. ‏`make down` کانتینرهای Tempo، otel و cAdvisor را هم حذف میکند.
 
 ## ۷. پورت‌ها و آدرس‌ها
 
@@ -222,7 +236,8 @@ ssh -p 1367 -L 3000:127.0.0.1:3000 -L 8233:127.0.0.1:8233 -L 9090:127.0.0.1:9090
 | یک سرویس unhealthy است | `make logs s=<service>` و داشبورد «HQ / Containers» |
 | `openbao` unhealthy است | احتمالاً sealed است: `make unseal` |
 | `make up` روی `--wait` شکست خورد | `infra/compose/hq.sh ps -a`؛ کار یک‌باره‌ای که کد غیرصفر دارد را با `make logs s=<job>` ببین |
-| حافظه پر است | `docker stats --no-stream` و قانون ۶۰٪ (`make check`) |
+| حافظه پر است | `docker stats --no-stream` و قانون ۸۰٪ (`make check`) |
+| گواهی HTTPS گرفته یا تمدید نشد | `make logs s=caddy` (خط‌های `tls.obtain`)، رکورد DNS و باز بودن TCP 80 و 443 در فایروال هتزنر (§۱۲) |
 | backup اجرا نشد | `journalctl -u coinepro-hq-backup.service` |
 
 ## ۹. لایه‌ی مدل‌ها (پرامپت ۳)
@@ -243,6 +258,8 @@ ssh -p 1367 -L 3000:127.0.0.1:3000 -L 8233:127.0.0.1:8233 -L 9090:127.0.0.1:9090
 - **مستندات کامل:** `docs/ops/CORE.md` (معماری، جدول‌ها، قاعده‌های دیتابیس، سیاست‌ها، گردش‌کارها و افزودن شرکت).
 - **سرویس‌ها:** `api` و `worker` (یک ایمیج: `apps/api`)، `opa` و کار یک‌باره‌ی `api-migrate`. هیچ‌کدام پورت منتشرشده ندارند.
 - **ورود:** فقط با دامنه. یک خط `HQ_SITE_ADDRESS=<دامنه>` در `.env`، سپس `make up` و بعد `make owner-enroll` (خود مالک). بدون دامنه، `/api` در Caddy ۴۰۴ است و endpointهای ورود جواب `503 origin_not_configured` میدهند.
+  - **از ۲۰۲۶-۱۰-۱۷:** `HQ_SITE_ADDRESS=hq.coinepro.com` تنظیم شده است و ورود پیکربندی شده است (§۱۲).
+  - **`make owner-enroll` هنوز اجرا نشده است.** مالک خودش، وقتی وب یا اپ آماده شد، اجرایش میکند.
 - **سلامت:**
   - `make ps`؛ لاگ `api ready` در `make logs s=api`؛ `schedules ensured` در `make logs s=worker`
   - از داخل شبکه: `infra/compose/hq.sh exec -T caddy wget -qO- http://api:8000/api/v1/health`
@@ -261,3 +278,41 @@ ssh -p 1367 -L 3000:127.0.0.1:3000 -L 8233:127.0.0.1:8233 -L 9090:127.0.0.1:9090
 - **claude-runtime** فقط روی شبکه‌ی `hq-llm` است. به Postgres، Valkey، NATS، Temporal و Grafana دسترسی ندارد (آزمایش شده). اینترنت برای API ‏Anthropic باز است.
 - **llm-router و claude-runtime:** کاربر 10001، rootfs فقط‌خواندنی، `cap_drop: ALL`، بدون پورت منتشرشده، بدون سوکت Docker و بدون mount از ریپوها.
 - **Docker** قوانین iptables خودش را میسازد و از ufw رد میشود. برای همین، هر پورت فقط روی `127.0.0.1` منتشر میشود. مرجع فایروال فقط فایروال هتزنر است.
+
+## ۱۲. دامنه و HTTPS (پرامپت ۴.۲)
+- **دامنه‌ی پنل:** `hq.coinepro.com`. تنظیمش در `.env` فقط یک خط است: `HQ_SITE_ADDRESS=hq.coinepro.com`.
+- **مقدارهایی که `hq.sh` از روی دامنه میسازد:**
+  - `HQ_API_EDGE=on`: ‏`/api` در Caddy باز میشود.
+  - `HQ_PUBLIC_ORIGIN=https://hq.coinepro.com`
+  - `HQ_WEBAUTHN_RP_ID=hq.coinepro.com`
+- **DNS (مال مالک):**
+  - رکورد **A** با نام `hq` در zone ‏`coinepro.com` (Cloudflare)، روی IPv4 عمومی همین سرور
+  - **فقط DNS** (ابر خاکستری)، بدون رکورد AAAA
+  - پراکسی Cloudflare (ابر نارنجی) را بدون تصمیم روشن نکن. با آن، IP واقعی کاربر به api نمیرسد و `X-Forwarded-For` و محدودیت نرخ برای هر IP عوض میشود.
+- **گواهی:**
+  - Caddy گواهی را خودش از Let's Encrypt میگیرد (چالش HTTP-01) و خودش تمدید میکند.
+  - گواهی در volume ‏`caddy-data` نگه داشته میشود.
+  - **TCP 80 و 443 باید در فایروال هتزنر باز بمانند.** بستن 80 تمدید را میشکند.
+  - اولین گواهی ۲۰۲۶-۱۰-۱۷ گرفته شد: issuer ‏Let's Encrypt ‏YE2، انقضا ۲۰۲۷-۰۱-۱۵.
+- **HSTS:** `max-age=31536000; includeSubDomains` روی کل سایت (`infra/caddy/api-on.caddy`). مرورگری که یک بار آن را دیده، تا یک سال `hq.coinepro.com` و زیردامنه‌هایش را فقط با HTTPS باز میکند.
+- **کلید عبور (WebAuthn):** به `rp_id` بسته است. **عوض کردن دامنه یعنی همه‌ی کلیدهای عبور ثبت‌شده از کار میافتند** و ثبت دوباره (`make owner-enroll`) لازم است.
+- **Web Push:**
+  - با دامنه روشن میشود (`meta.channels.web_push`).
+  - subject کلید VAPID خالی است، پس origin دامنه به جایش به کار میرود.
+- **بررسی‌ها** (فقط کد وضعیت و هدر):
+```bash
+H=https://hq.coinepro.com
+curl -s -o /dev/null -w '%{http_code}\n' $H/api/v1/health          # 200
+curl -s -o /dev/null -w '%{http_code}\n' $H/api/v1/meta            # 401 (بدون نشست)
+curl -s -o /dev/null -w '%{http_code}\n' $H/internal/v1/health     # 404
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://hq.coinepro.com/   # 308 -> https
+curl -s -D - -o /dev/null $H/api/v1/health | grep -i -E 'strict-transport|content-security|x-frame'
+echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com 2>/dev/null | openssl x509 -noout -issuer -enddate
+```
+- **HTTP/3:**
+  - Caddy در هدر `alt-svc` اعلام میکند که HTTP/3 دارد.
+  - ولی Compose فقط TCP 443 را منتشر میکند، پس مرورگرها بی‌صدا به HTTP/2 برمیگردند.
+  - باز کردن UDP 443 یک پورت عمومی تازه است و تصمیمش با مالک است.
+- **برگشت به حالت بی‌دامنه:**
+  1. `HQ_SITE_ADDRESS=` خالی شود، سپس `make up`.
+  2. نتیجه: ‏`/api` جواب ۴۰۴ میدهد و endpointهای ورود جواب ۵۰۳.
