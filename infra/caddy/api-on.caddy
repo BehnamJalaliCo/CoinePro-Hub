@@ -4,16 +4,17 @@
 # HSTS for the whole site (HTTPS only, hence only in this snippet).
 header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 
+# The API's own policy (the web pages set their CSP themselves).
 @api path /api/*
 header @api {
 	Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
-	Cross-Origin-Opener-Policy same-origin
-	Cross-Origin-Resource-Policy same-origin
 	Permissions-Policy "camera=(), microphone=(), geolocation=()"
 }
 
-# The live stream (SSE): flushed at once and never timed out by the proxy.
-handle /api/v1/stream {
+# The live streams (SSE: /api/v1/stream and /api/v1/threads/<code>/live):
+# flushed at once and never timed out by the proxy.
+@sse path /api/v1/stream /api/v1/threads/*/live
+handle @sse {
 	reverse_proxy api:8000 {
 		flush_interval -1
 		header_up X-Forwarded-For {remote_host}

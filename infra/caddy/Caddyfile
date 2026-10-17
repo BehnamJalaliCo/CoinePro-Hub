@@ -5,9 +5,19 @@
 # infra/compose/.env:   HQ_SITE_ADDRESS=hq.example.com
 # then `make up`. Caddy obtains and renews the certificate itself, and the
 # public API (/api) opens with it (HQ_API_EDGE, derived by infra/compose/hq.sh).
+#
+# Routing (prompt 05 §10): /api/* -> api; every other path -> web (the owner's
+# panel, HQ_WEB=on when apps/web/Dockerfile exists), else the static page.
+# Headers for the whole site: nosniff, Referrer-Policy, X-Frame-Options, COOP,
+# CORP (and HSTS with a domain). The web sets its own CSP (nonce, middleware);
+# Caddy sets CSP only on /api.
 
 {
 	metrics
+	# HTTP/1.1 and HTTP/2 only: HTTP/3 would need UDP 443, which is not published.
+	servers {
+		protocols h1 h2
+	}
 }
 
 {$HQ_SITE_ADDRESS} {
@@ -23,11 +33,19 @@
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY
 		Referrer-Policy no-referrer
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Resource-Policy same-origin
 	}
 
 	# /internal is never routed from the edge (contract §1, §12).
 	handle /internal/* {
 		respond 404
+	}
+
+	# Site-check canary (prompt 05 §9.1): fails on purpose so the line
+	# check -> incident -> work -> run can be proven. Carries no data.
+	handle /__canary {
+		respond 503
 	}
 
 	# /api only with a domain over HTTPS: api-on.caddy or api-off.caddy.
@@ -38,10 +56,8 @@
 		respond `{"status":"ok","service":"coinepro-hq"}` 200
 	}
 
-	handle {
-		root * /srv/site
-		file_server
-	}
+	# Every other path: the web panel (web-on.caddy) or the static page (web-off.caddy).
+	import /etc/caddy/web-{$HQ_WEB}.caddy
 }
 
 # Internal only (not published): container healthcheck and Prometheus metrics.

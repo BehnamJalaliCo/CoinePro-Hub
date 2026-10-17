@@ -1,0 +1,11 @@
+# The owner's web panel (apps/web, Next.js standalone on web:3000; HQ_WEB=on,
+# set by infra/compose/hq.sh when apps/web/Dockerfile exists). It sets its own
+# CSP with a nonce per response.
+handle {
+	reverse_proxy web:3000 {
+		header_up X-Forwarded-For {remote_host}
+		transport http {
+			read_timeout 60s
+		}
+	}
+}

@@ -7,8 +7,9 @@ SHELL := /usr/bin/env bash
 HQ       := infra/compose/hq.sh
 ENV_FILE := infra/compose/.env
 
-.PHONY: help env profile up down ps logs backup restore-test check openbao-init unseal install-systemd \
-	llm-provision claude-token llm-smoke test-services lock owner-enroll openapi
+.PHONY: help env bootstrap profile up down ps logs backup restore-test check openbao-init unseal \
+	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
+	audit-reanchor verify-live
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -17,6 +18,13 @@ $(ENV_FILE):
 	@infra/compose/gen-env.sh
 
 env: $(ENV_FILE) ## Create infra/compose/.env with random secrets (never overwrites)
+
+bootstrap: $(ENV_FILE) ## Once (needs sudo): anchor dir + the containers' secret files; then make up needs no sudo
+	@infra/backup/anchor-dir.sh
+	$(HQ) up -d --wait openbao
+	@infra/openbao/init.sh
+	@infra/openbao/unseal.sh
+	@infra/openbao/provision.sh
 
 profile: ## Print the active memory profile (lean/full)
 	@$(HQ) --print-profile
@@ -28,7 +36,7 @@ up: $(ENV_FILE) ## Start every service of the active profile and wait until heal
 	@infra/openbao/init.sh
 	@infra/openbao/unseal.sh
 	@infra/openbao/provision.sh
-	@infra/backup/anchor-dir.sh
+	@infra/backup/anchor-dir.sh --check
 	$(HQ) up -d --build --remove-orphans --wait --wait-timeout 300
 
 down: ## Stop and remove the containers of every profile (volumes are kept)
@@ -46,8 +54,14 @@ backup: ## Dump every database now (pg_dump -Fc) into /home/Hub/backups
 restore-test: ## Restore the latest backup into a throwaway Postgres and verify it
 	@infra/backup/restore-test.sh
 
+audit-reanchor: ## After a DB restore: re-anchor the audit chain (typed confirmation + audit row): reason="..."
+	@infra/backup/audit-reanchor.sh "$(reason)"
+
 check: ## Quality gates: gitleaks, compose config, ports, memory budget, shellcheck, yamllint
 	@scripts/quality/check.sh
+
+verify-live: ## Live checks on the running stack: network isolation, no parameters in the Postgres log
+	@scripts/quality/live.sh
 
 openbao-init: ## One-time OpenBao init (keys -> /home/Hub/.secrets, never printed)
 	@infra/openbao/init.sh
