@@ -34,7 +34,7 @@ HINT_CHARS = 300
 
 # Budgets and quotas: strict (a JSON true or "50000" is not a number) and never negative.
 Tokens = Annotated[StrictInt, Field(ge=0)]
-Usd = Annotated[float, Field(ge=0, strict=True)]
+Usd = Annotated[float, Field(ge=0, strict=True, allow_inf_nan=False)]  # inf/nan: invalid_args
 
 
 @dataclass
