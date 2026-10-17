@@ -302,7 +302,11 @@ async def test_backups_status_is_a_holding_read(mock: respx.MockRouter, gw: Gate
         ),
     )
     route = mock.get(f"{API}/internal/v1/backups/status")
-    route.mock(return_value=httpx.Response(200, json={"hourly": {"ok": True}, "encryption": "restic (AES-256)"}))
+    route.mock(
+        return_value=httpx.Response(
+            200, json={"hourly": {"ok": True}, "encryption": "restic (AES-256)"}
+        )
+    )
     out = await call(gw, "backups.status")
     assert out["outcome"] == "ok" and out["class"] == "A0"
     assert out["result"]["hourly"] == {"ok": True}
