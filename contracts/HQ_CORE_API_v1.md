@@ -7,7 +7,7 @@
 >
 > **v1.1 (۲۰۲۶-۱۰-۱۷):** «Contract notes» گزارش پرامپت ۴ و نتیجه‌ی بازبینی وارد شد. تغییرها با ⟨1.1⟩ علامت خورده‌اند؛ آن‌هایی که هنوز پیاده نشده‌اند در `docs/server-prompts/PROMPT_04_1_HARDENING.md` هستند.
 >
-> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`.
+> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`.
 
 ---
 
@@ -253,7 +253,7 @@ Decision {
 |---|---|---|
 | GET | `/decisions` | `?status&company&kind&risk&q` — default `status=pending`, oldest first |
 | GET | `/decisions/{ref}` | |
-| POST | `/decisions/{ref}/approve` | 🔏 for `A3`, `hire`, `dismissal`, `budget_change`, ⟨1.4.3⟩ `code_session` (its seal creates a workshop grant); `{note?, amendments?}` → resolution created |
+| POST | `/decisions/{ref}/approve` | 🔏 for `A3`, `hire`, `dismissal`, `budget_change`, ⟨1.4.3⟩ `code_session` (its seal creates a workshop grant), ⟨1.4.5⟩ `tool_enable`; `{note?, amendments?}` → resolution created |
 | POST | `/decisions/{ref}/reject` | `{reason?, reason_code?: "cost"\|"risk"\|"timing"\|"quality"\|"other"}` |
 | POST | `/decisions/{ref}/return` | «برگشت با یادداشت»: `{note}` (required) → back to the proposer |
 | POST | `/decisions/{ref}/ask` | «توی چت بپرس»: opens or reuses the proposer's thread and posts a linked message; returns `{thread, message_ref}` |
@@ -461,6 +461,7 @@ Used by the agent runtime in prompt 5 and by tests now (with a fake agent princi
 ⟨1.4.2⟩ `hiring_closed` (403, an agent proposed a hire while hiring is closed, §18.11).
 ⟨1.3⟩ `runtime_not_configured` (503, the Code Workshop has no runtime yet, §17.7).
 ⟨1.4.3⟩ `envelope_required` (422, delegated hiring needs a monthly envelope for every operating company), `envelope_exceeded` (409, the hire's monthly estimate does not fit the company's envelope), `story_limit` (429, a company's three stories a day). `not_ready` (409, a feature the contract names that this server build does not serve yet, e.g. `delegated` before prompt 8).
+⟨1.4.5⟩ `needs_owner` (403, a web step or call that would commit the holding outside: the agent proposes it instead), `internal_data` (403, an outgoing query or call carries internal data), `egress_limit` (429 with `Retry-After`, a run's or a company-day's internet limit), `account_not_configured` (409, a service account has no secret yet). The MCP outcomes are not Problem codes: they are step outcomes (§18.13).
 
 ---
 
@@ -873,7 +874,8 @@ BackupStatus { hourly: {last_at, next_at, ok, snapshot, size_bytes}, wal: {last_
   `errand.updated` (`errands`) · `stars.rollup` (`stars`) · `skill.updated` (`skills`) · `academy.eval` (`academy`) ·
   `founding.updated`, `provision.step` (`founding`) · `backup.done`, `backup.failed` (`backups`).
 - **Step-up targets:** `oversight.protocol` (body hash), `oversight.order` (ref), `oversight.release` (ref), `skill.activate` (`ref@version`),
-  `academy.approve` (ref), `mcp.add` (body hash), `mcp.enable` (key), `provision.seal` (the plan's `digest`), `founding.activate` (ref).
+  `academy.approve` (ref), `mcp.add` (body hash), `mcp.enable` (key),
+  `provision.seal` (the plan's `digest`), `founding.activate` (ref), ⟨1.4.5⟩ `account.put` (body hash).
 
 ### 18.11 Hiring: the owner opens it, the CEOs hire ⟨1.4.2⟩ ⟨1.4.3⟩
 Owner decisions, 2026-10-17: no hire now; hiring opens when the owner brings the hub up for real work. From then on **each company's CEO hires with full authority inside the company's monthly token envelope**: departments ask for the people they need, the CEO decides, and **the CEO chooses the model each job needs** (not every role on Opus). The owner is kept informed through stories (§18.12) and the digest, and can undo any hire. Spending the envelope well, with results and without waste, earns stars (§18.4).
@@ -933,3 +935,52 @@ StoryRing { company, unseen, latest_at, items: [Story] }    // items oldest firs
 - **CEO stories:** the tool `story.post` `{kind: "post"|"milestone", title_fa, body_fa, figures?, file_id?, links?}` (A1; CEOs and holding heads): at most **3 per company per day** (`429 story_limit`), redacted like every agent output, an image only from the company's own files, no outside links; a `milestone` must link the evidence (work, deliverable or metric).
 - The owner never gets a push for a story; a `hire` story also appears in the digest (above).
 - Stream: `story.created` on topic `stories`.
+
+### 18.13 As built in prompt 7 ⟨1.4.5⟩
+**Backups (§18.9).** `BackupStatus` as served:
+```
+BackupStatus { hourly: {last_at, last_ok_at, next_at, ok, error|null, stale: bool, snapshot, size_bytes},
+               wal: {last_archived_at, lag_s, failed_count, failing: bool, ready_count},          // failing, ready_count: 7.1
+               base_backup: {last_at, count}|null, check: {last_at, ok}|null,
+               destinations: [{key, configured, ok|null, error|null, last_ok_at, used_bytes, quota_bytes|null}],
+               retention, restore_test: {last_at, ok, duration_s, notes, pitr_target|null, source|null},
+               openbao_snapshot: {configured, last_at, ok}, encryption }
+Snapshot     { id, time, destination: "local"|"gdrive"|"hetzner", size_bytes|null, tags }
+```
+- `GET /backups/snapshots` is a `Page` (`?destination&limit&cursor`).
+- **WAL archiving that fails is a data-loss alarm, not a statistic:** `wal.failing` is true when the last failure is newer than the last success,
+  or more than 5 segments wait (`ready_count`). Then `hourly.ok` is false and the owner gets an urgent alert at once (7.1).
+
+**Internet (§18.7).**
+```
+EgressEntry    { …§18.7, kind: "request"|"connect"|"search"|"browse" }
+EgressDay      { company, day, requests, blocked, bytes, browser_s, hosts }       // GET /egress/summary?period=day|week|month
+ServiceAccount { id, key, site, title_fa, companies, has_secret, last_used_at|null,
+                 policy: { inject: {kind: "bearer"|"header"|"basic"|"cookie", name?, username?},
+                           browse: {kind: "cookie"|"header"|"form", name?, login_url?, username?, user_selector?, pass_selector?, submit_selector?}|null,
+                           allow: [{methods: ["POST"|"PUT"|"PATCH"|"DELETE"|"OPTIONS"], path_prefix, note_fa?}],   // the non-committing calls
+                           ports: [int] } }                                  // extra ports, for the account's own site only (7.1)
+```
+- `POST /tools/accounts` adds or changes an account by `key`. **🔏 `account.put`, target = sha256 of the body** (7.1): a new site, allow rule or
+  port widens what a stored secret can do, so it is a seal like `mcp.add`. Takes `Idempotency-Key`.
+- `web.browse` is capped at 15 s per call. The data guard refuses every e-mail address and phone number in an outgoing query (safe default),
+  after decoding (percent-encoding, full-width forms, Persian digits; 7.1).
+- An agent's internet call that is refused for policy is a step with `outcome: "denied"` and one of the four codes of §14.
+
+**MCP (§18.7).**
+```
+McpServer { …§18.7, status_reason|null, auth_header|null, listed_tools: [{name, description}]|null, listed_at|null, enabled_at|null, version }
+CatalogTool { name, source: "internal"|"web"|"mcp", server|null, class, per_call: bool, roles, status: "live"|"off"|"channel_not_configured"|"pending",
+              description, input }
+```
+- **Step outcomes** of `mcp.call` (in `Step.actions[].ref`, never Problem codes): `mcp_tools_changed` (the server's listing no longer matches the
+  sealed one; the server is switched off), `mcp_tool_missing`, `mcp_unreachable`, `mcp_tool_error`, `a3_requires_decision` (an A3 tool became a card).
+- **A3 tool → card:** the `a3_action` card's payload gains `action: "mcp_call"`, `server`, `tool`, `args_sha256` and the arguments **with secrets
+  masked but recipients and amounts shown** (the owner must see what they approve). **Approving runs the call exactly once** (7.1): the follow-up
+  run's identical call (same company, server, tool, `args_sha256` and registration) consumes the approved card; a changed argument needs a new
+  card; a rejected card answers `denied` with no new card.
+- **A changed listing** switches the server off and raises a `tool_enable` decision card (§18.10) with `{key, listing_sha256, diff: {added, removed,
+  changed}}`. Approving it is the usual 🔏 decision seal (`decision.approve`, target = ref) and re-enables the server with **exactly that listing**;
+  a listing that changes again before the seal supersedes the card (`409 decision_not_pending`) and a new card comes.
+- The three MCP POSTs take `Idempotency-Key` (§1).
+- **Agents' files:** `GET /internal/v1/files/{id}/meta` adds `agent` (the variant id for vision) and `text` (a PDF's extracted text, or null).

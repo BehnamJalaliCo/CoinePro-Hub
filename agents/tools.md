@@ -45,6 +45,15 @@ The runtime adds `done` (finish the run) implicitly; there is no other way to en
 **Egress guard:** loopback, link-local, RFC 1918 (the hub's private network and its production neighbours), cloud metadata, the hub's
 internal names and `/internal` are unreachable. Service-account credentials are injected at egress; no model sees them.
 
+**Refusals you will see** (contract §14, §18.13) — each is a reason to change course, never to retry the same call:
+- `needs_owner` — the step would commit the holding outside (pay, buy, publish, message a person, sign up, change security). `propose` it.
+- `internal_data` — your query or call carries internal data (codes, refs, e-mails, phones, tokens), however encoded. Rewrite it without them.
+- `egress_limit` — the run's or the company's daily internet limit is spent. Stop and report; do not split the work to get round it.
+- `account_not_configured` — the service account has no secret yet; tell your manager.
+- `mcp.call` outcomes: `a3_requires_decision` (the tool is A3: a card went to the owner; when it is approved, the follow-up run makes the **same**
+  call once), `mcp_tools_changed` (the server changed its tools and is off until the owner seals it again), `mcp_tool_missing`, `mcp_unreachable`,
+  `mcp_tool_error`.
+
 ### Files, code and the workshop
 | Tool | Class | Input | What it does |
 |---|---|---|---|
