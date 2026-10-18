@@ -97,6 +97,10 @@ class PlannerItem(BaseModel):
     at: datetime
     assignee: str | None
     recurring: bool
+    # ⟨1.4⟩ "reminder": a dated item of the owner's own (the assistant's
+    # planner.add, contract §18.3), PL-…; it never wakes or escalates anyone.
+    kind: Literal["work", "reminder"] = "work"
+    note: str | None = None
 
 
 class PlannerDay(BaseModel):
@@ -455,6 +459,13 @@ async def planner(
             co=company_code,
             dept=dept_code,
         )
+        reminders = await tx.all(
+            """SELECT p.ref, p.title_fa, p.at, p.note, c.code AS company FROM owner.planner_items p
+               JOIN core.companies c ON c.id = p.company_id
+               WHERE p.at >= :s AND p.at < :e ORDER BY p.at LIMIT 500""",
+            s=start,
+            e=end,
+        )
     items: list[PlannerItem] = [
         PlannerItem(
             ref=r["ref"],
@@ -483,6 +494,22 @@ async def planner(
                     at=at,
                     assignee=t["a_code"],
                     recurring=True,
+                )
+            )
+    if scope == "owner":
+        for r in reminders:
+            items.append(
+                PlannerItem(
+                    ref=r["ref"],
+                    title=r["title_fa"],
+                    company=r["company"],
+                    status="reminder",
+                    priority="P3",
+                    at=r["at"],
+                    assignee=None,
+                    recurring=False,
+                    kind="reminder",
+                    note=r["note"],
                 )
             )
     days: dict[date, list[PlannerItem]] = {}

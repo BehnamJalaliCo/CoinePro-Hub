@@ -39,6 +39,13 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "web.browse",
         "http.request",
         "egress.recent",
+        # prompt 08 §3, §5: inquiries, errands, the owner's planner, workshop.read
+        "inquiry.ask",
+        "inquiry.answer",
+        "errand.step",
+        "errand.finish",
+        "planner.add",
+        "workshop.read",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

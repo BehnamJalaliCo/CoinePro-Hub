@@ -788,6 +788,35 @@ class Runner:
                     )
                     if d:
                         parts.append("# Decision card to review\n" + await masked_json(d))
+                errand = next(
+                    (
+                        m["links"]["errand"]
+                        for m in msgs
+                        if ("errand", (m["links"] or {}).get("errand")) in seen
+                    ),
+                    None,
+                )
+                if errand:  # ⟨1.4⟩ the owner's errand this conversation is about (§18.3)
+                    e = await tx.first(
+                        """SELECT e.ref, e.title_fa, e.brief_md, e.status, e.due_at, e.steps,
+                                  (SELECT d.ref FROM cartable.decisions d WHERE d.id = e.decision_id)
+                                      AS decision
+                           FROM owner.errands e WHERE e.ref = :r AND e.company_id = ANY(:scope)""",
+                        r=errand,
+                        scope=scope,
+                    )
+                    if e:
+                        steps = list(e.pop("steps") or [])
+                        e["brief_md"] = (e["brief_md"] or "")[:4000]
+                        e["steps_done"] = len(steps)
+                        e["last_steps"] = [
+                            {"kind": s.get("kind"), "summary_fa": str(s.get("summary_fa"))[:300]}
+                            for s in steps[-5:]
+                        ]
+                        parts.append(
+                            "# Errand (record its steps with errand.step, end with errand.finish)\n"
+                            + await masked_json(e)
+                        )
             notes = await tx.all(
                 "SELECT note FROM core.employee_memory WHERE employee_id = :e ORDER BY id DESC LIMIT 5",
                 e=emp["id"],

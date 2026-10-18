@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import hiring, notify, org, recurring
+from hq_api.domain import errands, hiring, notify, org, recurring
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -35,6 +35,7 @@ KINDS = (
     "budget_change",
     "evaluation",
     "code_session",
+    "errand_action",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -46,12 +47,14 @@ ACTION_CLASS = {
     "budget_change": "A2",
     "evaluation": "A1",
     "code_session": "A1",
+    # ⟨1.4⟩ an errand's external commitment (contract §18.3): the owner's seal
+    "errand_action": "A3",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
 STEP_UP_KINDS = ("hire", "dismissal", "budget_change", "code_session")
 EFFECT_KINDS = ("hire", "dismissal", "recurring_approval", "budget_change", "code_session")
-FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal")
+FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
 
@@ -158,6 +161,22 @@ class CodeSessionPayload(Model):
     area: str = Field(default="", max_length=300)
 
 
+class ErrandActionPayload(Model):
+    """⟨1.4⟩ The external commitment of an errand (contract §18.3), prepared to
+    the last click: exactly what will happen, what it costs and how it is
+    undone. Approved or not, no agent makes it (the owner takes the step)."""
+
+    errand: str = Field(pattern=r"^E-[0-9]{4,}$")
+    action: Literal["pay", "buy", "book", "sign_up", "send", "security_change", "other"]
+    target: str = Field(min_length=1, max_length=300)  # the site, shop or recipient
+    details_md: str = Field(min_length=1, max_length=20000)
+    cost: str = Field(default="", max_length=300)  # as shown, e.g. "2,400,000 تومان"
+    amount: Decimal | None = Field(default=None, ge=0, max_digits=16, decimal_places=2)
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    undo_md: str = Field(min_length=1, max_length=5000)  # the way back
+    deadline: datetime | None = None
+
+
 PAYLOADS: dict[str, type[Model]] = {
     "hire": HirePayload,
     "dismissal": DismissalPayload,
@@ -168,6 +187,7 @@ PAYLOADS: dict[str, type[Model]] = {
     "budget_change": BudgetChangePayload,
     "evaluation": EvaluationPayload,
     "code_session": CodeSessionPayload,
+    "errand_action": ErrandActionPayload,
 }
 
 
@@ -182,6 +202,7 @@ class DecisionIn(Model):
         "budget_change",
         "evaluation",
         "code_session",
+        "errand_action",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -640,6 +661,8 @@ async def decide(
         body = f"تصمیم {d['ref']} با یادداشت برگشت خورد"
     if note:
         body += f"\n\n{note}"
+    if d["kind"] == "errand_action":  # the errand goes on, whatever the verdict
+        await errands.on_decided(tx, d, verdict)
     links = {"decision": d["ref"]}
     if resolution:
         links["resolution"] = resolution["ref"]

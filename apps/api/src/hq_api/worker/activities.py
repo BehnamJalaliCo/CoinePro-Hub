@@ -22,7 +22,7 @@ from hq_api.agents import checks
 from hq_api.agents.clients import Gateway, LivePush, Router
 from hq_api.agents.runner import Runner
 from hq_api.db import Tx
-from hq_api.domain import backups, notify, recurrence, recurring, scoring
+from hq_api.domain import backups, inquiries, notify, recurrence, recurring, scoring
 from hq_api.domain import decisions as D
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
@@ -79,6 +79,7 @@ class Activities:
             self.end_expired_escrows,
             self.purge,
             self.backups_ingest,
+            self.inquiries_late,
             self.flush_digest,
             self.morning_report,
             self.audit_verify,
@@ -495,6 +496,15 @@ class Activities:
     async def backups_ingest(self) -> dict[str, Any]:
         """The host backup's status files -> backup.*, events and alerts (prompt 07 §1)."""
         return await backups.ingest(self.hub)
+
+    @activity.defn(name="inquiries_late")
+    async def inquiries_late(self) -> dict[str, Any]:
+        """Formal inquiries past their due time (prompt 08 §3): late, the owner
+        told once; they count against the asked company's compliance (PR-051)."""
+        async with self._tx() as tx:
+            rows = await inquiries.mark_late(tx)
+        await self._push(rows)
+        return {"late": len(rows)}
 
     @activity.defn(name="purge")
     async def purge(self) -> dict[str, Any]:

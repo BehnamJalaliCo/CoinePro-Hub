@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, media, workflows_client
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
-from hq_api.domain import control, hiring, notify, org
+from hq_api.domain import control, errands, hiring, inquiries, notify, org
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
 from hq_api.domain import work as W
@@ -221,6 +221,11 @@ OP_CLASS: dict[str, str] = {
     # prompt 07: the agents' internet (reserve + log a request; the egress log)
     "egress.use": "A0",
     "egress.read": "A0",
+    # prompt 08: formal inquiries; the assistant's errands and the owner's planner
+    "inquiry.ask": "A1",
+    "inquiry.answer": "A1",
+    "errand.write": "A2",
+    "planner.add": "A2",
 }
 
 
@@ -601,6 +606,11 @@ async def fail_work(id: UUID, body: Fail, ctx: Ctx = Depends(internal_ctx)) -> W
         w = await work_for(ctx, tx, id, "work.fail")
         if w["status"] in W.CLOSED:
             raise ApiError(409, "validation_failed", f"work is {w['status']}")
+        if inquiry := await inquiries.must_be_answered(tx, w["id"]):
+            # ⟨1.4⟩ an inquiry from rank 2 must be answered (contract §18.0)
+            raise ApiError(
+                409, "validation_failed", f"{inquiry} comes from rank 2: answer it (inquiry.answer)"
+            )
         status = "cancelled" if body.decline else "failed"
         await W.set_status(
             tx, w, status, close_reason=body.reason, closed_at=datetime.now().astimezone()
@@ -773,12 +783,18 @@ async def propose_decision(
             company_id=ctx.who.company_id,
             company_code=ctx.who.company,
             body=body,
-            thread_code=ctx.who.code
-            if await tx.scalar("SELECT 1 FROM msg.threads WHERE code = :c", c=ctx.who.code)
-            else None,
+            thread_code=await tx.scalar(
+                """SELECT code FROM msg.threads WHERE code = :c
+                     OR (employee_id = :e AND kind IN ('advisor', 'overseer', 'assistant'))
+                   ORDER BY code = :c DESC LIMIT 1""",
+                c=ctx.who.code,
+                e=ctx.who.employee_id,
+            ),
             charters=ctx.hub.charters,
             company_kind=(await ctx.hub.companies.by_id(ctx.who.company_id)).kind,
         )
+        if body.kind == "errand_action":  # ⟨1.4⟩ the errand waits for the owner
+            await errands.on_proposed(tx, payload["errand"], d["id"])
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,

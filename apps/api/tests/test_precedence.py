@@ -44,7 +44,9 @@ async def test_ranks_and_precedence(
     client: httpx.AsyncClient, owner: dict[str, str], new_company: Any
 ) -> None:
     co = (await new_company())["code"]
-    r = await client.get("/api/v1/employees", headers=owner, params={"company": ["HQ", co], "limit": 200})
+    r = await client.get(
+        "/api/v1/employees", headers=owner, params={"company": ["HQ", co], "limit": 200}
+    )
     assert r.status_code == 200, r.text
     items = r.json()["items"] if isinstance(r.json(), dict) else r.json()
     ranks = {e["code"]: e["rank"] for e in items}

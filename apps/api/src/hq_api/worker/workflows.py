@@ -127,6 +127,7 @@ class Maintenance:
             "requeue_runs",
             "purge",
             "backups_ingest",
+            "inquiries_late",
         ):
             try:
                 out[name] = await _act(name, limit=LONG, retry=RetryPolicy(maximum_attempts=3))

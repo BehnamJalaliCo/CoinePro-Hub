@@ -29,8 +29,10 @@ from hq_api.routes import (
     decisions,
     deliverables,
     egress,
+    errands,
     files,
     inbox,
+    inquiries,
     internal,
     messages,
     meta,
@@ -143,6 +145,8 @@ def create_app(
         backups,
         tools,
         egress,
+        inquiries,
+        errands,
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
@@ -150,6 +154,8 @@ def create_app(
     app.include_router(workshop.internal_router, prefix="/internal/v1")
     app.include_router(tools.internal_router, prefix="/internal/v1")
     app.include_router(egress.internal_router, prefix="/internal/v1")
+    app.include_router(inquiries.internal_router, prefix="/internal/v1")
+    app.include_router(errands.internal_router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

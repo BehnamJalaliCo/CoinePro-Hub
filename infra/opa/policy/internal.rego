@@ -28,6 +28,8 @@ ops := {
 	"mcp.call",
 	# prompt 07: the agents' internet (a request out, its log; the egress log)
 	"egress.use", "egress.read",
+	# prompt 08: formal inquiries; the assistant's errands and the owner's planner
+	"inquiry.ask", "inquiry.answer", "errand.write", "planner.add",
 }
 
 # Reads of the gateway's tools: an agent reads its own company; a holding-scope
@@ -59,7 +61,7 @@ propose_kinds := {
 	"inspector": {"proposal", "hire"},
 	# ⟨1.4⟩ prompt 08 §1; their own kinds (protocol, errand_action, ...) come with §2 and §5
 	"overseer": {"proposal"},
-	"assistant": {"proposal"},
+	"assistant": {"proposal", "errand_action"},
 }
 
 # Data, not code (data.json). Without it nothing that depends on it is allowed.
@@ -304,6 +306,46 @@ grant if {
 	same_company(tv("company"))
 }
 
+# ⟨1.4⟩ the advisor and the overseer read everything (contract §18.0): any
+# company's sessions, never steering one.
+grant if {
+	op == "workshop.read"
+	agent
+	holding_reader
+	is_string(tv("company"))
+}
+
+# ⟨1.4⟩ formal inquiries (contract §18.2): the overseer and the advisor ask
+# anyone; a CEO asks inside its own company; only the asked one answers.
+grant if {
+	op == "inquiry.ask"
+	agent
+	p.role in {"overseer", "advisor"}
+	is_string(tv("company"))
+}
+
+grant if {
+	op == "inquiry.ask"
+	agent
+	p.role == "ceo"
+	same_company(tv("company"))
+}
+
+grant if {
+	op == "inquiry.answer"
+	agent
+	tv("to") == p.code
+	same_company(tv("company"))
+}
+
+# ⟨1.4⟩ the personal assistant's errands and the owner's planner (§18.3).
+grant if {
+	op in {"errand.write", "planner.add"}
+	agent
+	p.role == "assistant"
+	same_company(tv("company"))
+}
+
 grant if {
 	op in driver_ops
 	agent
@@ -513,6 +555,12 @@ deny_reasons contains "other_company" if {
 	agent
 	op in own_company_ops
 	not same_company(tv("company"))
+	not holding_workshop_read
+}
+
+holding_workshop_read if {
+	op == "workshop.read"
+	holding_reader
 }
 
 deny_reasons contains "not_assignee" if {

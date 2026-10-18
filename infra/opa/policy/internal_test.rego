@@ -198,6 +198,37 @@ test_advisor_and_ceo_threads if {
 	not allowed(f.hq_ovs, "message.post", {"thread_code": "N", "thread_kind": "overseer"})
 }
 
+test_inquiries if {
+	# the overseer and the advisor ask anyone; a CEO inside its own company only
+	allowed(f.hq_ovr, "inquiry.ask", {"company": "FX", "to": "FX-CEO"})
+	allowed(f.hq_adv, "inquiry.ask", {"company": "TY", "to": "TY-TECH-MGR"})
+	allowed(f.ty_ceo, "inquiry.ask", {"company": "TY", "to": "TY-TECH-MGR"})
+	not allowed(f.ty_ceo, "inquiry.ask", {"company": "FX", "to": "FX-CEO"})
+	not allowed(f.ty_growth_mgr, "inquiry.ask", {"company": "TY", "to": "TY-GROWTH-01"})
+	not allowed(f.hq_adv, "inquiry.ask", {"company": null, "to": "XX-CEO"})
+	not allowed(f.svc, "inquiry.ask", {"company": "TY", "to": "TY-CEO"})
+
+	# only the asked one answers, in its own company
+	allowed(f.ty_ceo, "inquiry.answer", {"to": "TY-CEO", "company": "TY"})
+	not allowed(f.ty_growth_mgr, "inquiry.answer", {"to": "TY-CEO", "company": "TY"})
+	not allowed(f.fx_ceo, "inquiry.answer", {"to": "TY-CEO", "company": "TY"})
+}
+
+test_errands_are_the_assistants if {
+	allowed(f.hq_pa, "errand.write", {"company": "HQ"})
+	allowed(f.hq_pa, "planner.add", {"company": "HQ"})
+	not allowed(f.hq_adv, "errand.write", {"company": "HQ"})
+	not allowed(f.ty_ceo, "planner.add", {"company": "TY"})
+	allowed(f.hq_pa, "decision.propose", {"company": "HQ", "kind": "errand_action"})
+	not allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "errand_action"})
+}
+
+test_holding_readers_read_any_workshop if {
+	allowed(f.hq_adv, "workshop.read", {"company": "TY"})
+	allowed(f.hq_ovr, "workshop.read", {"company": "FX"})
+	reasons(f.ty_growth_01, "workshop.read", {"company": "FX"}) == {"other_company", "workshop.read_not_permitted"}
+}
+
 # ----------------------------------------------------- notification.raise --
 
 note(company, level, category, locked) := {"company": company, "level": level, "category": category, "company_locked": locked}

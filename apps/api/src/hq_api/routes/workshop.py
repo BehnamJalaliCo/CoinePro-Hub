@@ -20,7 +20,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
@@ -608,6 +608,38 @@ async def agent_list_sessions(
             me=ctx.who.code,
         )
     return Page(items=[D.render_session(r) for r in rows])
+
+
+class AgentSessionView(BaseModel):
+    session: D.CodeSession
+    events: list[D.SessionEvent]
+
+
+@internal_router.get("/workshop/sessions/{ref}", response_model=AgentSessionView, responses=E)
+async def agent_read_session(
+    ref: str,
+    after: int = Query(default=0, ge=0),
+    ctx: Ctx = Depends(internal_ctx),
+) -> AgentSessionView:
+    """`workshop.read` (agents/tools.md): one session and its events after
+    `after` (a seq; at most 100), the masked summaries rule 7 keeps. The
+    agent's own company; the advisor and the overseer read every company
+    (⟨1.4⟩ §18.0). A missing and a forbidden session answer the same 403."""
+    if not ctx.who.is_agent or ctx.who.company_id is None:
+        raise ApiError(403, "policy_denied", "agents only")
+    scope = await ctx.hub.companies.ids() if ctx.who.scope == "holding" else [ctx.who.company_id]
+    async with ctx.hub.db.tx(scope) as tx:
+        await tx.exec("SET TRANSACTION READ ONLY")
+        s = await tx.first(D.SESSION_SQL + " WHERE s.ref = :r", r=ref)
+        await allow(ctx, "workshop.read", {"company": s["company"] if s else None})
+        if s is None:
+            raise ApiError(403, "policy_denied", "workshop.read_not_permitted")
+        rows = await tx.all(
+            "SELECT * FROM workshop.events WHERE session_id = :s AND seq > :a ORDER BY seq LIMIT 100",
+            s=s["id"],
+            a=after,
+        )
+    return AgentSessionView(session=D.render_session(s), events=[D.render_event(r) for r in rows])
 
 
 @internal_router.post(

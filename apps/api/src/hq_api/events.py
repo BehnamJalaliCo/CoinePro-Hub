@@ -49,6 +49,10 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "orders": ("order.",),
     # ⟨1.4⟩ the hourly backup: backup.done, backup.failed (contract §18.10)
     "backups": ("backup.",),
+    # ⟨1.4⟩ formal inquiries (inquiry.answered, inquiry.late) and the assistant's
+    # errands (errand.updated), contract §18.10
+    "inquiries": ("inquiry.",),
+    "errands": ("errand.",),
 }
 
 

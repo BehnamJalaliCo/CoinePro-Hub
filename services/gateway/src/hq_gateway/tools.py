@@ -255,6 +255,8 @@ class ProposeIn(In):
         "proposal",
         "budget_change",
         "evaluation",
+        "code_session",
+        "errand_action",
     ]
     title_fa: str = Field(min_length=1, max_length=300)
     what_md: str = Field(default="", max_length=20000)
@@ -286,6 +288,8 @@ class LinksIn(In):
     work: str | None = Field(default=None, max_length=20)
     resolution: str | None = Field(default=None, max_length=20)
     corrects: str | None = Field(default=None, max_length=40)
+    inquiry: str | None = Field(default=None, pattern=r"^Q-[0-9]{4,}$")
+    errand: str | None = Field(default=None, pattern=r"^E-[0-9]{4,}$")
 
 
 class CitationIn(In):
