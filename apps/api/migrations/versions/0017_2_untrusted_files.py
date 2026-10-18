@@ -9,15 +9,15 @@ api never finished).
     files.processing (before: company_id only).
   - hq_worker may also UPDATE text.
 
-Revision ID: 0017_1
-Revises: 0017
+Revision ID: 0017_2
+Revises: 0017_1
 Create Date: 2026-10-18
 """
 
 from hq_api.migration_sql import execute_script
 
-revision = "0017_1"
-down_revision = "0017"
+revision = "0017_2"
+down_revision = "0017_1"
 branch_labels = None
 depends_on = None
 
