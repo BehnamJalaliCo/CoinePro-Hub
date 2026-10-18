@@ -293,6 +293,49 @@ async def no_retry_loops(ctx: CheckCtx) -> Checked:
     return Checked(problems, _ops(ctx))
 
 
+@check("PR-050")
+async def overdue_climbs_the_ladder(ctx: CheckCtx) -> Checked:
+    """Work more than an hour past due that never started up the escalation
+    ladder (the Maintenance step escalates on time; this catches a stall)."""
+    rows = await _by_company(
+        ctx,
+        """SELECT company_id, array_agg(ref ORDER BY ref) AS refs FROM work.work
+           WHERE due_at < now() - interval '1 hour' AND escalation_level = 0
+             AND status IN ('queued', 'in_progress', 'waiting')
+           GROUP BY company_id""",
+    )
+    problems = [
+        Problem(
+            r["company_id"],
+            _code_of(ctx, r["company_id"]),
+            "کار عقب‌افتاده بدون پله‌ی پیگیری",
+            "Overdue, not escalated: " + ", ".join(r["refs"][:30]),
+            "overdue:" + ",".join(r["refs"][:5]),
+            [{"kind": "link", "ref": ref, "note": "overdue"} for ref in r["refs"][:10]],
+        )
+        for r in rows
+    ]
+    return Checked(problems, _ops(ctx))
+
+
+# Model-backed protocols that need something to look at first (else skipped).
+Precheck = Callable[[Tx], Awaitable[bool]]
+PRECHECKS: dict[str, Precheck] = {}
+
+
+async def _hires_to_review(tx: Tx) -> bool:
+    """PR-098: a hire a CEO (not the owner) approved in the last 24 hours."""
+    return bool(
+        await tx.scalar(
+            """SELECT 1 FROM cartable.decisions WHERE kind = 'hire' AND status = 'approved'
+                 AND decided_by_kind = 'agent' AND decided_at > now() - interval '24 hours' LIMIT 1"""
+        )
+    )
+
+
+PRECHECKS["PR-098"] = _hires_to_review
+
+
 @check("PR-052")
 async def findings_on_time(ctx: CheckCtx) -> Checked:
     rows = await _by_company(

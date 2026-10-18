@@ -31,6 +31,14 @@ def owner(owner_session: dict[str, Any]) -> dict[str, str]:
     return headers
 
 
+@pytest.fixture(autouse=True)
+async def seeded(hub: Hub, owner_db: Any) -> None:
+    holding = await hub.companies.holding()
+    async with owner_db.raw() as tx:
+        await tx.exec("SET LOCAL ROLE hq")
+        await O.seed_protocols(tx, holding.id, charters.load().root)
+
+
 @pytest.fixture
 async def done_runs(su: Any) -> AsyncIterator[None]:
     """agent_headers() leaves a running test run per employee: end them."""
@@ -177,28 +185,45 @@ async def test_a_rule_protocol_runs_by_code_and_raises_one_finding(
 async def test_a_judgement_protocol_is_the_overseers_work_within_the_daily_cap(
     wk: dict[str, Any], su: Any
 ) -> None:
-    hub = wk["hub"]
-    real = hub.settings
     from dataclasses import replace
 
+    from hq_api.principal import Principal
+
+    hub = wk["hub"]
+    real = hub.settings
     acts = wk["acts"].oversight
+    holding = await hub.companies.holding()
+    owner = Principal(kind="owner", code="owner", role="owner")
+    async with hub.db.tx(await hub.companies.ids()) as tx:  # fresh protocols: no run yet today
+        llm = await O.new_version(
+            tx, owner, holding.id, protocol_body(method="llm"), ref=None, source="owner"
+        )
+        qc = await O.new_version(
+            tx, owner, holding.id, protocol_body(method="sample"), ref=None, source="owner"
+        )
+        capped = await O.new_version(
+            tx, owner, holding.id, protocol_body(method="mystery"), ref=None, source="owner"
+        )
     try:
         hub.settings = replace(real, oversight_model_runs_per_day=10_000)
-        out = await acts.protocol_run("PR-005")  # method llm
+        out = await acts.protocol_run(llm["ref"])
         assert out.get("work") and out["assignee"] == OVR, out
-        w = await su.fetchrow(
-            "SELECT budget_tokens, assignee_id FROM work.work WHERE ref = $1", out["work"]
-        )
+        w = await su.fetchrow("SELECT budget_tokens FROM work.work WHERE ref = $1", out["work"])
         assert w["budget_tokens"] == real.oversight_run_tokens
-        qc = await acts.protocol_run("PR-001")  # method sample: QC
-        assert qc["assignee"] == "HQ-OVS-MGR"
+        assert (await acts.protocol_run(qc["ref"]))["assignee"] == "HQ-OVS-MGR"  # sampling: QC
+        again = await acts.protocol_run(llm["ref"])  # an hourly one would be the same
+        assert again["skipped"] == "once_a_day"
+        assert (await acts.protocol_run("PR-098"))["skipped"] == "nothing_to_review"
         hub.settings = replace(real, oversight_model_runs_per_day=0)
-        capped = await acts.protocol_run("PR-004")
-        assert capped == {"protocol": "PR-004", "skipped": "daily_cap"}
+        assert await acts.protocol_run(capped["ref"]) == {
+            "protocol": capped["ref"],
+            "skipped": "daily_cap",
+        }
     finally:
         hub.settings = real
         await su.execute(
-            """UPDATE agents.runs r SET state = 'refused', error_code = 'test', finished_at = now() FROM core.employees e
+            """UPDATE agents.runs r SET state = 'refused', error_code = 'test', finished_at = now()
+               FROM core.employees e
                WHERE e.id = r.employee_id AND e.code IN ('HQ-OVR', 'HQ-OVS-MGR') AND r.state = 'queued'"""
         )
 

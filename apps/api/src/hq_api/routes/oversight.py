@@ -153,6 +153,7 @@ async def list_protocols(
     status: Literal["active", "paused", "draft"] | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> list[O.Protocol]:
+    """The protocols in force (newest version each), `?area&status`, with their last run."""
     async with ctx.tx() as tx:
         return await O.protocols(tx, area=area, status=status)
 
@@ -219,6 +220,7 @@ async def version_protocol(
 async def protocol_runs(
     ref: str, limit: int = Query(default=50, ge=1, le=200), ctx: Ctx = Depends(owner_ctx)
 ) -> list[ProtocolRun]:
+    """The runs of one protocol, newest first: result, findings, by code or by the overseer."""
     async with ctx.tx() as tx:
         await O.load_protocol(tx, ref)
         rows = await tx.all(
@@ -238,6 +240,7 @@ async def list_findings(
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[O.Finding]:
+    """Findings, newest first, `?company&status&severity` (cursor page)."""
     at, fid = pagination.time_id(cursor)
     async with ctx.tx() as tx:
         rows = await tx.all(
@@ -263,6 +266,7 @@ async def list_findings(
 
 @router.get("/oversight/findings/{ref}", response_model=O.Finding, responses=E)
 async def get_finding(ref: str, ctx: Ctx = Depends(owner_ctx)) -> O.Finding:
+    """One finding with its history (who moved it, when, with what evidence)."""
     async with ctx.tx() as tx:
         f = await O.load_finding(tx, ref)
         return O.render_finding(f, await O.history_of(tx, f["id"]))
@@ -298,6 +302,7 @@ async def list_challenges(
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[O.Challenge]:
+    """The overseer's challenges, newest first, `?company&period&status` (cursor page)."""
     at, cid = pagination.time_id(cursor)
     async with ctx.tx() as tx:
         rows = await tx.all(
@@ -322,14 +327,15 @@ async def list_challenges(
 
 
 @router.get("/oversight/orders", response_model=list[O.StandingOrder], responses=E)
-async def list_orders(ctx: Ctx = Depends(owner_ctx)) -> list[O.StandingOrder]:
+async def list_standing_orders(ctx: Ctx = Depends(owner_ctx)) -> list[O.StandingOrder]:
+    """The owner's standing orders (proposed, sealed, retired)."""
     async with ctx.tx() as tx:
         rows = await tx.all("SELECT * FROM oversight.orders ORDER BY created_at DESC LIMIT 200")
         return [O.render_order(r) for r in rows]
 
 
 @router.post("/oversight/orders", response_model=O.StandingOrder, status_code=201, responses=E)
-async def add_order(body: OrderIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def add_standing_order(body: OrderIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """The owner's standing order (text or a voice transcript), `proposed`
     until sealed; nothing applies before the seal. Requires `Idempotency-Key`."""
     async with ctx.tx() as tx:
@@ -401,16 +407,17 @@ async def _order_state(
 
 
 @router.post("/oversight/orders/{ref}/seal", response_model=O.StandingOrder, responses=E)
-async def seal_order(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> O.StandingOrder:
+async def seal_standing_order(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> O.StandingOrder:
     """🔏 (`oversight.order`, target = ref): from now in the overseer's system
     prompt (applies_to overseer) or every role's (all)."""
     return await _order_state(ctx, request, ref, "sealed")
 
 
 @router.post("/oversight/orders/{ref}/retire", response_model=O.StandingOrder, responses=E)
-async def retire_order(
+async def retire_standing_order(
     ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> O.StandingOrder:
+    """The order stops applying from the next run (no step-up)."""
     return await _order_state(ctx, request, ref, "retired")
 
 
@@ -418,6 +425,7 @@ async def retire_order(
 async def list_holds(
     state: Literal["held", "released", "cancelled"] | None = None, ctx: Ctx = Depends(owner_ctx)
 ) -> list[O.Hold]:
+    """Holds, newest first, `?state=held` for the ones waiting for the owner."""
     async with ctx.tx() as tx:
         rows = await tx.all(
             O.HOLD_SQL
@@ -470,6 +478,7 @@ async def cancel_hold(
 
 @router.get("/oversight/watch", response_model=O.WatchReport, responses=E)
 async def get_watch(ctx: Ctx = Depends(owner_ctx)) -> O.WatchReport:
+    """The current watch report, or the last one ("while you were away")."""
     async with ctx.tx() as tx:
         return await O.watch_report(tx)
 
@@ -497,6 +506,7 @@ async def set_watch(body: WatchIn, ctx: Ctx = Depends(owner_ctx)) -> O.WatchRepo
 
 @router.get("/oversight/compliance", response_model=list[O.Compliance], responses=E)
 async def compliance(ctx: Ctx = Depends(owner_ctx)) -> list[O.Compliance]:
+    """Compliance per operating company (0..100, by area, open findings, trend)."""
     async with ctx.tx() as tx:
         ids = [
             c.id

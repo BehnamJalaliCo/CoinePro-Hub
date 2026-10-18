@@ -635,6 +635,7 @@ async def test_score_job_and_maintenance(hub: Hub, wk: dict[str, Any], owner_db:
         "requeue_runs",
         "backups_ingest",
         "inquiries_late",
+        "oversight_tick",
     }
     assert res["inquiries_late"] == {"late": 0}
     assert res["purge"]["idempotency_keys"] >= 1

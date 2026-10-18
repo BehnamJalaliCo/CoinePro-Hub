@@ -228,6 +228,14 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     )
     # Prompt 08 §2: the overseer's records about this company.
     prot = await su.fetchrow("SELECT id, ref FROM oversight.protocols ORDER BY ref LIMIT 1")
+    if prot is None:  # a migration round-trip test ran before: one protocol row is enough
+        prot = await su.fetchrow(
+            """INSERT INTO oversight.protocols (company_id, ref, version, title_fa, area, check_md, method,
+                   schedule, scope, severity, answerable, status, source, created_by_kind, created_by_code)
+               SELECT id, 'PR-001', 1, 't', 'truth', 'c', 'rule', 'FREQ=DAILY', 'company', 'low', 'ceo',
+                      'active', 'seed', 'service', 'seed' FROM core.companies WHERE kind = 'holding'
+               RETURNING id, ref"""
+        )
     run = await su.fetchval(
         """INSERT INTO oversight.protocol_runs (company_id, protocol_id, protocol_ref, version, method, by_kind,
                by_code) VALUES ($1, $2, $3, 1, 'rule', 'system', 'test') RETURNING id""",
@@ -266,7 +274,8 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
         f"{co['code']}-RLS-HOLD",
     )
     await su.execute(
-        "INSERT INTO oversight.compliance (company_id, day, score) VALUES ($1, current_date, 90)", co["id"]
+        "INSERT INTO oversight.compliance (company_id, day, score) VALUES ($1, current_date, 90)",
+        co["id"],
     )
     await su.execute(
         """INSERT INTO oversight.watch (company_id, reason, since, until)

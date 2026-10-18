@@ -23551,6 +23551,7 @@
     },
     "/api/v1/oversight/challenges": {
       "get": {
+        "description": "The overseer's challenges, newest first, `?company&period&status` (cursor page).",
         "operationId": "list_challenges",
         "parameters": [
           {
@@ -23742,6 +23743,7 @@
     },
     "/api/v1/oversight/compliance": {
       "get": {
+        "description": "Compliance per operating company (0..100, by area, open findings, trend).",
         "operationId": "compliance",
         "responses": {
           "200": {
@@ -23834,6 +23836,7 @@
     },
     "/api/v1/oversight/findings": {
       "get": {
+        "description": "Findings, newest first, `?company&status&severity` (cursor page).",
         "operationId": "list_findings",
         "parameters": [
           {
@@ -24035,6 +24038,7 @@
     },
     "/api/v1/oversight/findings/{ref}": {
       "get": {
+        "description": "One finding with its history (who moved it, when, with what evidence).",
         "operationId": "get_finding",
         "parameters": [
           {
@@ -24297,6 +24301,7 @@
     },
     "/api/v1/oversight/holds": {
       "get": {
+        "description": "Holds, newest first, `?state=held` for the ones waiting for the owner.",
         "operationId": "list_holds",
         "parameters": [
           {
@@ -24696,7 +24701,8 @@
     },
     "/api/v1/oversight/orders": {
       "get": {
-        "operationId": "list_orders",
+        "description": "The owner's standing orders (proposed, sealed, retired).",
+        "operationId": "list_standing_orders",
         "responses": {
           "200": {
             "content": {
@@ -24718,7 +24724,7 @@
                   "items": {
                     "$ref": "#/components/schemas/StandingOrder"
                   },
-                  "title": "Response List Orders",
+                  "title": "Response List Standing Orders",
                   "type": "array"
                 }
               }
@@ -24781,14 +24787,14 @@
             "description": "Problem"
           }
         },
-        "summary": "List Orders",
+        "summary": "List Standing Orders",
         "tags": [
           "oversight"
         ]
       },
       "post": {
         "description": "The owner's standing order (text or a voice transcript), `proposed`\nuntil sealed; nothing applies before the seal. Requires `Idempotency-Key`.",
-        "operationId": "add_order",
+        "operationId": "add_standing_order",
         "requestBody": {
           "content": {
             "application/json": {
@@ -24883,7 +24889,7 @@
             "description": "Problem"
           }
         },
-        "summary": "Add Order",
+        "summary": "Add Standing Order",
         "tags": [
           "oversight"
         ]
@@ -24891,7 +24897,8 @@
     },
     "/api/v1/oversight/orders/{ref}/retire": {
       "post": {
-        "operationId": "retire_order",
+        "description": "The order stops applying from the next run (no step-up).",
+        "operationId": "retire_standing_order",
         "parameters": [
           {
             "in": "path",
@@ -24981,7 +24988,7 @@
             "description": "Problem"
           }
         },
-        "summary": "Retire Order",
+        "summary": "Retire Standing Order",
         "tags": [
           "oversight"
         ]
@@ -24990,7 +24997,7 @@
     "/api/v1/oversight/orders/{ref}/seal": {
       "post": {
         "description": "🔏 (`oversight.order`, target = ref): from now in the overseer's system\nprompt (applies_to overseer) or every role's (all).",
-        "operationId": "seal_order",
+        "operationId": "seal_standing_order",
         "parameters": [
           {
             "in": "path",
@@ -25080,7 +25087,7 @@
             "description": "Problem"
           }
         },
-        "summary": "Seal Order",
+        "summary": "Seal Standing Order",
         "tags": [
           "oversight"
         ]
@@ -25088,6 +25095,7 @@
     },
     "/api/v1/oversight/protocols": {
       "get": {
+        "description": "The protocols in force (newest version each), `?area&status`, with their last run.",
         "operationId": "list_protocols",
         "parameters": [
           {
@@ -25468,6 +25476,7 @@
     },
     "/api/v1/oversight/protocols/{ref}/runs": {
       "get": {
+        "description": "The runs of one protocol, newest first: result, findings, by code or by the overseer.",
         "operationId": "protocol_runs",
         "parameters": [
           {
@@ -25698,6 +25707,7 @@
     },
     "/api/v1/oversight/watch": {
       "get": {
+        "description": "The current watch report, or the last one (\"while you were away\").",
         "operationId": "get_watch",
         "responses": {
           "200": {

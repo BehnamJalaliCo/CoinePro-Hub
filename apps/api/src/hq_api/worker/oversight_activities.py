@@ -119,6 +119,19 @@ class OversightActivities:
             tz = str(
                 await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
             )
+            precheck = C.PRECHECKS.get(ref)
+            if precheck is not None and not await precheck(tx):
+                await O.finish_run(tx, run["id"], "skipped", notes="nothing to review")
+                return {"protocol": ref, "skipped": "nothing_to_review"}
+            if await tx.scalar(
+                """SELECT 1 FROM oversight.protocol_runs WHERE protocol_ref = :r AND work_id IS NOT NULL
+                     AND started_at >= :s LIMIT 1""",
+                r=ref,
+                s=O.day_start(datetime.now(UTC), tz),
+            ):
+                # An hourly judgement protocol goes to a model at most once a day.
+                await O.finish_run(tx, run["id"], "skipped", notes="handed to the overseer today")
+                return {"protocol": ref, "skipped": "once_a_day"}
             if await O.model_runs_today(tx, tz) >= s.oversight_model_runs_per_day:
                 await O.finish_run(
                     tx,

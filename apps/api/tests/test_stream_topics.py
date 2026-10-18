@@ -34,7 +34,7 @@ async def test_unknown_topics_are_ignored_and_named(
     app: Any, client: httpx.AsyncClient, owner: dict[str, str]
 ) -> None:
     async with serve(app) as url:
-        assert await _first_comment(url, owner, "work,oversight") == ": topics work"
+        assert await _first_comment(url, owner, "work,gossip") == ": topics work"
         newer = "files,workshop,orders,runs,oversight"
         served = ",".join(t for t in events.TOPICS if t in newer.split(","))
         assert await _first_comment(url, owner, newer) == f": topics {served}"
