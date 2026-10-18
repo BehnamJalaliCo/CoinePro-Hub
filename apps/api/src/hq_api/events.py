@@ -53,6 +53,9 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # errands (errand.updated), contract §18.10
     "inquiries": ("inquiry.",),
     "errands": ("errand.",),
+    # ⟨1.4⟩ prompt 08: stars.rollup (stars), story.created (stories), contract §18.10
+    "stars": ("stars.",),
+    "stories": ("story.",),
 }
 
 

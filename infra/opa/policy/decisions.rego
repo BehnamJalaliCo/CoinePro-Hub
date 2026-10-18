@@ -15,6 +15,7 @@ kinds := {
 	"hire", "dismissal", "recurring_approval", "deploy",
 	"a3_action", "proposal", "budget_change", "evaluation", "code_session",
 	"errand_action",
+	"lesson_adoption",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

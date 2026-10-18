@@ -46,6 +46,13 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "errand.finish",
         "planner.add",
         "workshop.read",
+        # prompt 08 §4, §8, §9: stars, lessons, stories, the CEOs' hire decisions
+        "star.rubric",
+        "star.give",
+        "star.audit",
+        "lesson.write",
+        "story.post",
+        "hire.decide",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

@@ -411,16 +411,18 @@ async def start_hiring(body: HiringStart, request: Request, ctx: Ctx = Depends(o
     """🔏 (`hiring.start`, target `holding`). `proposals`: hiring opens to agents,
     the owner decides every card, and each CEO (and each holding head with a
     hiring duty) gets one work item "propose your first month's team" (a second
-    start adds none). `delegated` (each CEO hires inside its monthly envelope)
-    answers `409 not_ready` until prompt 8, before any step-up is consumed and
-    without changing anything. Honours `Idempotency-Key` (a retry after a lost
-    answer gets the same answer, not a spent step-up)."""
-    hiring.require_mode(body.mode)
+    start adds none). `delegated`: each CEO hires inside its company's monthly
+    envelope and decides the company's hire cards; every active operating
+    company needs an envelope (`/budgets`, company, month) or `422
+    envelope_required` names the ones without, before any step-up is consumed.
+    Honours `Idempotency-Key` (a retry after a lost answer gets the same
+    answer, not a spent step-up)."""
     holding = await ctx.hub.companies.holding()
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who)
         if idem and idem.replay:
             return idem.replay
+        await hiring.require_envelopes(tx, body.mode)
         await stepup.consume(tx, request, ctx.who, "hiring.start", "holding")
         out = await hiring.start(
             tx,

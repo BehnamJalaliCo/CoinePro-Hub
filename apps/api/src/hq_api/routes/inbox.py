@@ -36,11 +36,15 @@ class InboxSummary(BaseModel):
 
 SUMMARY_SQL = """
 SELECT
-  (SELECT count(*) FROM cartable.decisions WHERE status = 'pending') AS decisions_pending,
-  (SELECT count(*) FROM cartable.decisions WHERE status = 'pending' AND risk = 'low') AS risk_low,
-  (SELECT count(*) FROM cartable.decisions WHERE status = 'pending' AND risk = 'medium')
-    AS risk_medium,
-  (SELECT count(*) FROM cartable.decisions WHERE status = 'pending' AND risk = 'high') AS risk_high,
+  -- ⟨1.4.3⟩ the owner's own cards only (approver null): a CEO's are its to decide (§18.11)
+  (SELECT count(*) FROM cartable.decisions WHERE status = 'pending' AND approver_code IS NULL)
+    AS decisions_pending,
+  (SELECT count(*) FROM cartable.decisions
+    WHERE status = 'pending' AND approver_code IS NULL AND risk = 'low') AS risk_low,
+  (SELECT count(*) FROM cartable.decisions
+    WHERE status = 'pending' AND approver_code IS NULL AND risk = 'medium') AS risk_medium,
+  (SELECT count(*) FROM cartable.decisions
+    WHERE status = 'pending' AND approver_code IS NULL AND risk = 'high') AS risk_high,
   (SELECT count(*) FROM cartable.deliverables d
     WHERE NOT EXISTS (SELECT 1 FROM cartable.ratings r WHERE r.deliverable_id = d.id))
     AS deliverables_unrated,

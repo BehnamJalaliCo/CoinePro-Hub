@@ -106,6 +106,18 @@ CODES: dict[str, tuple[int, str, str]] = {
         "Account not configured",
         "این حساب سرویس هنوز رمز ندارد؛ مالک باید آن را روی سرور بگذارد.",
     ),
+    # ⟨1.4.3⟩ delegated hiring and stories (contract §18.11, §18.12; prompt 08)
+    "envelope_required": (
+        422,
+        "Envelope required",
+        "هر شرکت عملیاتی پیش از استخدام با مدیرعامل‌ها پاکت ماهانه‌ی توکن میخواهد.",
+    ),
+    "envelope_exceeded": (
+        409,
+        "Envelope exceeded",
+        "برآورد این استخدام در پاکت ماهانه‌ی شرکت جا نمیشود.",
+    ),
+    "story_limit": (429, "Story limit", "امروز سه استوری این شرکت گذاشته شده است."),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 

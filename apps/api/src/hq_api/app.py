@@ -40,6 +40,7 @@ from hq_api.routes import (
     orders,
     org,
     owner,
+    people,
     runs,
     stream,
     tools,
@@ -147,6 +148,7 @@ def create_app(
         egress,
         inquiries,
         errands,
+        people,
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
@@ -156,6 +158,7 @@ def create_app(
     app.include_router(egress.internal_router, prefix="/internal/v1")
     app.include_router(inquiries.internal_router, prefix="/internal/v1")
     app.include_router(errands.internal_router, prefix="/internal/v1")
+    app.include_router(people.internal_router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

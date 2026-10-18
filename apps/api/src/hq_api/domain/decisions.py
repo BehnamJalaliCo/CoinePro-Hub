@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import errands, hiring, notify, org, recurring
+from hq_api.domain import errands, hiring, notify, org, recurring, stars
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -36,6 +36,7 @@ KINDS = (
     "evaluation",
     "code_session",
     "errand_action",
+    "lesson_adoption",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -49,11 +50,19 @@ ACTION_CLASS = {
     "code_session": "A1",
     # ⟨1.4⟩ an errand's external commitment (contract §18.3): the owner's seal
     "errand_action": "A3",
+    "lesson_adoption": "A1",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
 STEP_UP_KINDS = ("hire", "dismissal", "budget_change", "code_session")
-EFFECT_KINDS = ("hire", "dismissal", "recurring_approval", "budget_change", "code_session")
+EFFECT_KINDS = (
+    "hire",
+    "dismissal",
+    "recurring_approval",
+    "budget_change",
+    "code_session",
+    "lesson_adoption",
+)
 FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
@@ -177,6 +186,15 @@ class ErrandActionPayload(Model):
     deadline: datetime | None = None
 
 
+class LessonAdoptionPayload(Model):
+    """A CEO's answer to a lesson of the best company (contract §18.4): adopt
+    it with a plan, or not with the reason; the owner decides."""
+
+    lesson: str = Field(pattern=r"^L-[0-9]{4,}$")
+    adopt: bool = True
+    plan_md: str = Field(default="", max_length=10000)
+
+
 PAYLOADS: dict[str, type[Model]] = {
     "hire": HirePayload,
     "dismissal": DismissalPayload,
@@ -188,6 +206,7 @@ PAYLOADS: dict[str, type[Model]] = {
     "evaluation": EvaluationPayload,
     "code_session": CodeSessionPayload,
     "errand_action": ErrandActionPayload,
+    "lesson_adoption": LessonAdoptionPayload,
 }
 
 
@@ -203,6 +222,7 @@ class DecisionIn(Model):
         "evaluation",
         "code_session",
         "errand_action",
+        "lesson_adoption",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -470,19 +490,39 @@ async def propose(
                 "validation_failed",
                 fields={"payload.driver": "an active employee of this company"},
             )
+    if body.kind == "lesson_adoption" and not await tx.scalar(
+        """SELECT 1 FROM knowledge.lesson_adoptions a JOIN knowledge.lessons l ON l.id = a.lesson_id
+           WHERE l.ref = :ref AND a.company_id = :co AND a.status = 'proposed'""",
+        ref=payload["lesson"],
+        co=company_id,
+    ):
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"payload.lesson": "a lesson offered to this company and still open"},
+        )
     if body.work_id and not await tx.scalar(
         "SELECT 1 FROM work.work WHERE id = :id AND company_id = :co",
         id=body.work_id,
         co=company_id,
     ):
         raise ApiError(422, "validation_failed", fields={"work_id": "unknown work of this company"})
+    # ⟨1.4.3⟩ delegated hiring: an operating company's agent hire card is its
+    # CEO's to decide (contract §18.11); the owner's own cards stay the owner's.
+    approver = (
+        await hiring.approver_for(tx, company_id, company_kind)
+        if body.kind == "hire" and who.is_agent
+        else None
+    )
     row = await tx.one(
         """INSERT INTO cartable.decisions (company_id, kind, action_class, title, what, why,
                proposer_kind, proposer_code, work_id, quota_tokens, quota_usd, risk, risk_note,
-               reversible, payload, expires_at, thread_code)
+               reversible, payload, expires_at, thread_code, approver_kind, approver_code)
            VALUES (:co, :kind, :cls, :title, :what, :why, :pk, :pc, :work, :qt, :qu, :risk, :rn, :rev,
-                   CAST(:payload AS jsonb), :exp, :thread)
+                   CAST(:payload AS jsonb), :exp, :thread, :ak, :ac)
            RETURNING ref""",
+        ak="agent" if approver else None,
+        ac=approver,
         co=company_id,
         kind=body.kind,
         cls=ACTION_CLASS[body.kind],
@@ -514,6 +554,25 @@ async def propose(
             "action_class": d["action_class"],
         },
     )
+    if approver:
+        # The CEO is woken by a work item for the card (contract §18.11); the
+        # owner hears of the hire through its story and the digest.
+        await W.create(
+            tx,
+            Principal(kind="service", code="hiring", role="service"),
+            company_id=company_id,
+            company_code=company_code,
+            title=f"تصمیم درباره‌ی {d['ref']}: {d['title']}"[:300],
+            brief=(
+                f"کارت استخدام {d['ref']} ({who.code}) با تو است. با hire.decide "
+                "(approve / reject / return) و یک یادداشت تصمیم بگیر؛ پاکت ماهانه‌ی شرکت، "
+                "برآورد ماهانه و مدل انتخاب‌شده را بسنج (مدل قوی‌تر از نیاز کار، کارایی را کم میکند)."
+            ),
+            kind="one_off",
+            priority="P2",
+            assignee_code=approver,
+        )
+        return d
     if not notify_owner:  # the owner wrote it (a direct hire): nothing to tell them
         return d
     await notify.raise_notification(
@@ -609,9 +668,20 @@ async def decide(
     reason_code: str | None = None,
     amendments: dict[str, Any] | None = None,
     step_up_id: UUID | None = None,
+    charters: Any = None,
 ) -> dict[str, Any]:
     if d["status"] != "pending":
         raise ApiError(409, "decision_not_pending", f"{d['ref']} is {d['status']}")
+    if verdict == "approved" and d["kind"] == "hire":
+        # Every approval, whoever approves (contract §18.11): refused with a
+        # stable code before anything changes, so no employee is made.
+        await hiring.check_approval(
+            tx, d, amended("hire", d["payload"], amendments), charters, by_ceo=who.is_agent
+        )
+    if verdict == "rejected" and d["kind"] == "lesson_adoption":
+        await stars.adoption_decided(
+            tx, d["payload"]["lesson"], d["company_id"], "rejected", d["ref"]
+        )
     effect = "pending" if verdict == "approved" and d["kind"] in EFFECT_KINDS else "none"
     await tx.exec(
         """UPDATE cartable.decisions SET status = :st, decided_at = now(), decided_by_kind = :k,
@@ -774,7 +844,12 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
             emp["code"],
             {"change": "hired", "decision": d["ref"]},
         )
+        await hiring.after_hire(tx, d, emp["code"], p)
         result = {"employee": emp["code"]}
+    elif d["kind"] == "lesson_adoption":
+        status = "adopted" if p.get("adopt", True) else "rejected"
+        await stars.adoption_decided(tx, p["lesson"], d["company_id"], status, d["ref"])
+        result = {"lesson": p["lesson"], "adoption": status}
     elif d["kind"] == "recurring_approval":
         tpl = await W.load(tx, p["work_id"])
         run = await recurring.activate(tx, tpl, actor_principal(d), decision_id=d["id"])

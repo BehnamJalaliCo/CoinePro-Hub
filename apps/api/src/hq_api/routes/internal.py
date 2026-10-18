@@ -226,6 +226,13 @@ OP_CLASS: dict[str, str] = {
     "inquiry.answer": "A1",
     "errand.write": "A2",
     "planner.add": "A2",
+    # prompt 08 §4, §8, §9: stars, lessons, stories, the CEOs' hire decisions
+    "star.rubric": "A2",
+    "star.give": "A2",
+    "star.audit": "A2",
+    "lesson.write": "A1",
+    "story.post": "A1",
+    "hire.decide": "A2",
 }
 
 

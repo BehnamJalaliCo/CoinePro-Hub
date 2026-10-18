@@ -61,20 +61,24 @@ async def list_decisions(
         "budget_change",
         "evaluation",
         "code_session",
+        "lesson_adoption",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,
     q: str | None = Query(default=None, max_length=100),
+    approver: Literal["owner", "all"] = "owner",
     limit: int = Query(default=50, ge=1, le=pagination.MAX_LIMIT),
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[D.Decision]:
-    """Default `status=pending`, oldest first."""
+    """Default `status=pending`, oldest first. ⟨1.4.3⟩ by default only the cards
+    the owner decides (`approver` null); `?approver=all` adds the CEOs' (§18.11)."""
     after_t, after_id = pagination.time_id(cursor)
     async with ctx.tx() as tx:
         rows = await tx.all(
             D.DECISION_SQL
             + """ WHERE d.status = :status
+                    AND (:approver = 'all' OR d.approver_code IS NULL)
                     AND (CAST(:companies AS text[]) IS NULL OR c.code = ANY(:companies))
                     AND (CAST(:kind AS text) IS NULL OR d.kind = :kind)
                     AND (CAST(:risk AS text) IS NULL OR d.risk = :risk)
@@ -84,6 +88,7 @@ async def list_decisions(
                          OR (d.created_at, d.id) > (CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))
                   ORDER BY d.created_at, d.id LIMIT :lim""",
             status=status,
+            approver=approver,
             companies=company,
             kind=kind,
             risk=risk,
@@ -138,6 +143,7 @@ async def _decide(
             reason_code=reason_code,
             amendments=amendments,
             step_up_id=step_up_id,
+            charters=ctx.hub.charters,
         )
         action = {
             "approved": "decision.approve",

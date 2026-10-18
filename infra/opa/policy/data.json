@@ -28,7 +28,10 @@
           "notify",
           "mcp.call",
           "web.browse",
-          "http.request"
+          "http.request",
+          "star.rubric",
+          "star.give",
+          "hire.decide"
         ],
         "manager": [
           "work.delegate",
@@ -70,6 +73,9 @@
           "web.browse",
           "http.request",
           "mcp.call"
+        ],
+        "overseer": [
+          "star.audit"
         ]
       }
     }

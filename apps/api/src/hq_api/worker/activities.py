@@ -29,6 +29,7 @@ from hq_api.errors import ApiError
 from hq_api.hub import Hub
 from hq_api.worker import report, schedules
 from hq_api.worker.media_activities import MediaActivities
+from hq_api.worker.people_activities import PeopleActivities
 
 log = logging.getLogger("hq_api.worker")
 SYSTEM = audit.SYSTEM
@@ -63,10 +64,12 @@ class Activities:
         self.live = live or LivePush(s.api_internal_url)
         self.checker = checker or checks.Checker()
         self.media = MediaActivities(hub, self.router, self._tx)
+        self.people = PeopleActivities(hub, self._tx)
 
     def all(self) -> list[Any]:
         return [
             *self.media.all(),
+            *self.people.all(),
             self.decision_state,
             self.decision_expire,
             self.holding_locked,

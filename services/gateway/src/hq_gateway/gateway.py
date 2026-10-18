@@ -44,6 +44,8 @@ from hq_gateway import (
 )
 from hq_gateway import mcp as M
 from hq_gateway import tools as T
+from hq_gateway import people  # noqa: F401 - registers stars, lessons, stories, hire.decide
+from hq_gateway import web  # noqa: F401 - registers the internet tools (web.*, http.request)
 
 log = logging.getLogger("hq_gateway")
 TOOL_NAME = re.compile(r"[a-z][a-z_]*(?:\.[a-z_]+)?")  # always fullmatch: "work.get\n" is no tool

@@ -30,6 +30,8 @@ ops := {
 	"egress.use", "egress.read",
 	# prompt 08: formal inquiries; the assistant's errands and the owner's planner
 	"inquiry.ask", "inquiry.answer", "errand.write", "planner.add",
+	# prompt 08 §4, §8, §9: stars, lessons, stories, hire decisions (people.rego)
+	"star.rubric", "star.give", "star.audit", "lesson.write", "story.post", "hire.decide",
 }
 
 # Reads of the gateway's tools: an agent reads its own company; a holding-scope
@@ -54,6 +56,7 @@ propose_kinds := {
 	"ceo": {
 		"hire", "dismissal", "recurring_approval", "deploy",
 		"a3_action", "proposal", "budget_change", "evaluation", "code_session",
+		"lesson_adoption",
 	},
 	"manager": {"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session"},
 	"employee": {"a3_action", "deploy", "recurring_approval", "code_session"},

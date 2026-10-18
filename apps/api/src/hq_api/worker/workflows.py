@@ -170,6 +170,27 @@ class AuditVerify:
         return result
 
 
+@workflow.defn(name="StarsReminder")
+class StarsReminder:
+    """Friday 18:00 (owner zone): the CEOs' "this week's stars" (prompt 08 §4)."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("stars_reminder", limit=timedelta(minutes=10))
+        return result
+
+
+@workflow.defn(name="StarsRollup")
+class StarsRollup:
+    """Daily 08:00 (owner zone): Saturday's weekly roll-up, the Jalali month's
+    on its 1st (prompt 08 §4); idempotent per period."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("stars_rollup", limit=timedelta(minutes=30))
+        return result
+
+
 @workflow.defn(name="ScoreJob")
 class ScoreJob:
     @workflow.run
@@ -318,4 +339,6 @@ WORKFLOWS = [
     MorningReport,
     AuditVerify,
     ScoreJob,
+    StarsReminder,
+    StarsRollup,
 ]
