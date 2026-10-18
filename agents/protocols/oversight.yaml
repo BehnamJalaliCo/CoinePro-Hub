@@ -438,7 +438,7 @@ protocols:
     scope: company
     severity: medium
     answerable: manager
-    status: paused  # the monthly HR review arrives in prompt 12
+    status: paused  # the monthly HR review arrives in prompt 12, which also moves it to the 3rd of the Jalali month
     title_fa: "ارزیابی ماهانه با شاهد انجام شد"
     check: "Monthly HR evaluations were made for every employee with evidence and a proposal where needed."
     evidence: "HR deliverables, D-…"
@@ -552,3 +552,142 @@ protocols:
       Every figure in the day's CEO stories traces to a source; a milestone links its evidence; no story carries customers' data, secrets,
       private messages or anything not meant for the owner's eyes; at most three a day.
     evidence: "ST-… refs and their sources"
+  # ⟨1.5⟩ Revenue and support (prompt 10, contract §19). Seeded paused; prompt 10 switches each on when its feature is live.
+  - ref: PR-101
+    area: safety
+    method: rule
+    schedule: "FREQ=DAILY;BYHOUR=8;BYMINUTE=0"
+    scope: company
+    severity: critical
+    answerable: ceo
+    status: paused  # the support desk and its outbound guard arrive in prompt 10
+    title_fa: "صفر کد و لینک اشتباه در پیام‌های مشتری"
+    check: >-
+      Every outbound customer message of the last day carried only approved referral codes and official links; every refusal of the outbound
+      guard for an unknown code or link is explained.
+    evidence: "support message ids, guard results"
+  - ref: PR-102
+    area: quality
+    method: sample
+    schedule: "FREQ=WEEKLY;BYDAY=SU;BYHOUR=10;BYMINUTE=0"
+    scope: company
+    severity: high
+    answerable: ceo
+    status: paused  # automatic answers start only after the shadow test and the owner's go-live (prompt 10)
+    title_fa: "جواب‌های خودکار با دانشنامه میخوانند"
+    check: >-
+      Sample 20 automatically sent answers; each is fully supported by the approved articles it cites, current, safe and in the brand's tone.
+    evidence: "SC-… conversations, KB-…@version"
+  - ref: PR-103
+    area: money
+    method: reconcile
+    schedule: "FREQ=DAILY;BYHOUR=9;BYMINUTE=30"
+    scope: holding
+    severity: high
+    answerable: aiops_head
+    status: paused  # the revenue radar arrives in prompt 10 and needs the owner's affiliate keys
+    title_fa: "ارقام رادار درآمد با داده‌ی خام میخواند"
+    check: >-
+      Reconcile yesterday's revenue rows with the stored raw affiliate pages; a day is marked complete only when every page answered.
+    evidence: "account, day, raw page hashes"
+  - ref: PR-104
+    area: truth
+    method: rule
+    schedule: "FREQ=DAILY;BYHOUR=7;BYMINUTE=0"
+    scope: company
+    severity: medium
+    answerable: ceo
+    status: paused  # the support knowledge base arrives in prompt 10
+    title_fa: "مقاله‌ی منقضی در جواب‌ها به کار نرفته"
+    check: >-
+      No answer of the last day cites an expired or retired article; every article expiring within 14 days has a review task.
+    evidence: "KB-…, SC-…"
+  # ⟨1.5⟩ Governance (prompt 11, contract §20). Seeded paused; prompt 11 switches each on.
+  - ref: PR-111
+    area: truth
+    method: rule
+    schedule: "FREQ=DAILY;BYHOUR=7;BYMINUTE=30"
+    scope: company
+    severity: medium
+    answerable: manager
+    status: paused  # the four-layer knowledge base arrives in prompt 11
+    title_fa: "دانش منبع‌دار و تازه است"
+    check: >-
+      Every approved knowledge entry has a source and a valid_until; no expired entry was cited in the last day; review work exists 14 days
+      before each expiry.
+    evidence: "knowledge entry refs, citing runs or deliverables"
+  - ref: PR-112
+    area: safety
+    method: rule
+    schedule: "FREQ=WEEKLY;BYDAY=SA;BYHOUR=9;BYMINUTE=30"
+    scope: company
+    severity: high
+    answerable: ceo
+    status: paused  # the risk register arrives in prompt 11
+    title_fa: "ریسک‌ها به‌موقع بازبینی میشوند"
+    check: >-
+      Every risk was reviewed by its date; every risk scoring 15 or more has a mitigation in progress or an unexpired acceptance sealed by the owner.
+    evidence: "risk refs, review dates, mitigation work or acceptance D-…"
+  - ref: PR-113
+    area: delivery
+    method: rule
+    schedule: "FREQ=DAILY;BYHOUR=21;BYMINUTE=0"
+    scope: company
+    severity: high
+    answerable: ceo
+    status: paused  # the change calendar arrives in prompt 11
+    title_fa: "هیچ انتشاری با تداخل بالا یا بیرون از تقویم نبود"
+    check: >-
+      No release of the day ran outside the change calendar or with a conflict rated high.
+    evidence: "calendar events, deploy D-…, conflicts"
+  - ref: PR-114
+    area: truth
+    method: rule
+    schedule: "FREQ=DAILY;BYHOUR=22;BYMINUTE=0"
+    scope: holding
+    severity: high
+    answerable: aiops_head
+    status: paused  # the meeting room arrives in prompt 11
+    title_fa: "جلسه‌ها طبق قاعده برگزار شدند"
+    check: >-
+      Every meeting of the day kept its token budget, rounds and speakers; no unsourced claim reached the minutes or a resolution draft; every
+      resolution came from a card the owner sealed.
+    evidence: "meeting refs, budgets, minutes, resolution refs"
+  - ref: PR-115
+    area: truth
+    method: sample
+    schedule: "FREQ=DAILY;BYHOUR=19;BYMINUTE=0"
+    scope: company
+    severity: high
+    answerable: ceo
+    status: paused  # the charter arrives in prompt 11
+    title_fa: "خطوط قرمز اساسنامه رعایت میشود"
+    check: >-
+      Review the day's rule matches of the charter's red lines and sample 5 more items per company; any breach not stopped is a finding.
+    evidence: "charter version, matched items, sampled items"
+  - ref: PR-116
+    area: delivery
+    method: rule
+    schedule: "FREQ=WEEKLY;BYDAY=SA;BYHOUR=9;BYMINUTE=45"
+    scope: company
+    severity: medium
+    answerable: ceo
+    status: paused  # OKRs arrive in prompt 11
+    title_fa: "OKRها به‌موقع check-in دارند"
+    check: >-
+      Every key result has a check-in within the last 14 days; the next quarter's OKRs are proposed 30 days before it starts.
+    evidence: "OKR refs, check-in dates"
+  # ⟨1.5⟩ Management tools (prompt 12, contract §21). Seeded paused; prompt 12 switches it on.
+  - ref: PR-121
+    area: truth
+    method: rule
+    schedule: "FREQ=DAILY;BYHOUR=23;BYMINUTE=0"
+    scope: holding
+    severity: high
+    answerable: aiops_head
+    status: paused  # the digital CEO's predictions arrive in prompt 12
+    title_fa: "پیش‌بینی مدیر کل دیجیتال پیش از تصمیم مالک مُهر شده و پنهان مانده"
+    check: >-
+      Every digital-CEO prediction scored today was made and sealed (sealed_hash) before the owner's decision (made_at < decided_at), and none
+      was shown to anyone before that decision.
+    evidence: "prediction ids, made_at, decided_at, sealed_hash"

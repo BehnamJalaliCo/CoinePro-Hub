@@ -297,7 +297,8 @@ const summary = () => ({
   findings_open: { critical: findings.filter((f) => f.severity === 'critical' && !['verified', 'closed'].includes(f.status)).length, high: findings.filter((f) => f.severity === 'high' && !['verified', 'closed'].includes(f.status)).length, medium: findings.filter((f) => f.severity === 'medium' && !['verified', 'closed'].includes(f.status)).length, low: findings.filter((f) => f.severity === 'low' && !['verified', 'closed'].includes(f.status)).length, info: 0 },
   holds_waiting: holds.filter((h) => h.state === 'held').length,
   challenges_week: { issued: 1, submitted: 1, scored: 0, missed: 0, accepted: 1 } as Record<string, number>,
-  protocols: { active: protocols.length, failed_today: protocols.filter((p) => p.last_run?.result !== 'pass').length },
+  // Paused protocols (⟨1.4.4⟩) are neither active nor failing; a deferred run is not a failure.
+  protocols: { active: protocols.filter((p) => p.status !== 'paused').length, failed_today: protocols.filter((p) => p.status !== 'paused' && p.last_run && !['pass', 'deferred'].includes(p.last_run.result)).length },
 });
 
 let seq = 10;
