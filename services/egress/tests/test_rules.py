@@ -70,6 +70,17 @@ def el(tag: str = "button", **kw: Any) -> dict[str, Any]:
         (el("input", name="q", type="search"), "type", None),
         (el("select", name="country"), "select", None),
         (el(text="Pay"), "scroll", None),
+        # A scripted control inside a form may submit it (7.1).
+        (
+            el("div", role="button", text="Continue", form={"action": "/feedback"}),
+            "click",
+            "form_submit",
+        ),
+        (
+            el("a", role="button", href="#", text="Next", form={"action": "/checkout"}),
+            "click",
+            "commitment_form",
+        ),
     ],
 )
 def test_commitment(facts: dict[str, Any], action: str, want: str | None) -> None:

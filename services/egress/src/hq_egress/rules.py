@@ -123,6 +123,7 @@ def commitment(facts: dict[str, Any], action: str) -> str | None:
     """None if the step is not an external commitment; else the reason."""
     tag = str(facts.get("tag") or "").lower()
     kind = str(facts.get("type") or "").lower()
+    role = str(facts.get("role") or "").lower()
     raw_form, raw_page = facts.get("form"), facts.get("page")
     form: dict[str, Any] | None = raw_form if isinstance(raw_form, dict) else None
     page: dict[str, Any] = raw_page if isinstance(raw_page, dict) else {}
@@ -135,6 +136,7 @@ def commitment(facts: dict[str, Any], action: str) -> str | None:
     submits = form is not None and (
         (tag == "button" and kind in ("", "submit"))
         or (tag == "input" and kind in ("submit", "image"))
+        or role == "button"  # a scripted control in a form: it may submit it
     )
     if submits and form is not None:
         if form.get("password") or form.get("card"):
@@ -157,8 +159,12 @@ def commitment(facts: dict[str, Any], action: str) -> str | None:
 
 
 # What the browser collects about a target (run in the page; no side effect).
+# A click lands on the element's activation target: a span inside a button is
+# the button, a label is the control it labels (7.1).
 FACTS_JS = """
 (el) => {
+  el = el.closest('button,input,select,textarea,a,[role=button],label') || el;
+  if (el.tagName === 'LABEL') { el = el.control || el; }
   const f = el.form || el.closest('form');
   const q = (s) => f ? f.querySelectorAll(s).length : 0;
   const inputs = f ? Array.from(f.querySelectorAll('input,select,textarea'))
@@ -169,7 +175,7 @@ FACTS_JS = """
       names.some(n => /(^|\\s)(q|query|search|s|keyword|keywords|term)(\\s|$)/.test(n)) ||
       /search|جستجو/i.test(f.getAttribute('action') || ''));
   return {
-    tag: el.tagName, type: el.getAttribute('type') || '',
+    tag: el.tagName, type: el.getAttribute('type') || '', role: el.getAttribute('role') || '',
     text: (el.innerText || '').slice(0, 200),
     value: (el.type === 'password' ? '' : (el.value || '')).toString().slice(0, 100),
     label: el.getAttribute('aria-label') || '', title: el.getAttribute('title') || '',

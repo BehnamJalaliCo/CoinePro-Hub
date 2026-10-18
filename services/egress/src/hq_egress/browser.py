@@ -9,7 +9,11 @@ container has no other way out). Before a click, a typed text or a choice,
 the target is examined (rules.commitment): an external commitment stops
 the call with `needs_owner`. A service account signs in as its policy says
 (cookie, header for its host only, or a login form egress fills); the
-secret is masked in screenshots and scrubbed from every text.
+secret is masked in screenshots and scrubbed from every text. While signed
+in, every request is checked on its way out (`_guard`): a call other than
+GET/HEAD the account's policy does not list is aborted and the step is
+`needs_owner`; the account's header goes only to its own host, one hop at a
+time (a redirect comes back to the browser and is checked as a new request).
 """
 
 from __future__ import annotations
@@ -93,7 +97,7 @@ class Browserd:
         except TimeoutError:
             return {"code": "busy"}
         try:
-            return await asyncio.wait_for(self._run(a), timeout=a.time_s + 5)
+            return await asyncio.wait_for(self._run(a), timeout=a.time_s + 3)
         except TimeoutError:
             return {"steps": [], "error": "timeout"}
         finally:
@@ -112,10 +116,14 @@ class Browserd:
         )
         out: dict[str, Any] = {"steps": [], "files": [], "blocked": None}
         mask_selectors = ["input[type=password]"]
+        at = {"step": 0}
         try:
             await _sign_in(ctx, a.account, deadline, mask_selectors)
+            if a.account is not None:
+                await ctx.route("**/*", _guard(a.account, deadline, out, at))
             page = await ctx.new_page()
             for i, step in enumerate(a.steps):
+                at["step"] = i
                 left = deadline - time.monotonic()
                 if left <= 0.5:
                     out["steps"].append(
@@ -123,6 +131,8 @@ class Browserd:
                     )
                     break
                 res = await _step(page, ctx, i, step, min(left, 10) * 1000, a, mask_selectors, out)
+                if (out["blocked"] or {}).get("step") == i:  # a request the guard stopped
+                    res = {**res, "ok": False, "error": "needs_owner"}
                 out["steps"].append(res)
                 if out["blocked"] or not res.get("ok"):
                     break
@@ -156,16 +166,6 @@ async def _sign_in(
                 }
             ]
         )
-    elif b.kind == "header":
-
-        async def add(route: Route) -> None:
-            host = (urlsplit(route.request.url).hostname or "").lower()
-            headers = route.request.headers
-            if account.covers(host):
-                headers = {**headers, (b.name or "authorization").lower(): account.secret}
-            await route.continue_(headers=headers)
-
-        await ctx.route("**/*", add)
     elif b.kind == "form" and b.login_url and b.pass_selector:
         host = (urlsplit(b.login_url).hostname or "").lower()
         if not (b.login_url.startswith("https://") and account.covers(host)):
@@ -182,6 +182,51 @@ async def _sign_in(
             with contextlib.suppress(PwTimeout):
                 await page.wait_for_load_state("domcontentloaded", timeout=ms)
         await page.close()
+
+
+def _guard(account: Account, deadline: float, out: dict[str, Any], at: dict[str, int]) -> Any:
+    """Every request of a signed-in session (contract §18.13, 7.1)."""
+    b = account.browse
+    header = (b.name or "authorization").lower() if b is not None and b.kind == "header" else None
+
+    async def handle(route: Route) -> None:
+        req = route.request
+        method = req.method.upper()
+        if not account.allows(method, req.url):
+            if out["blocked"] is None:
+                out["blocked"] = {
+                    "step": at["step"],
+                    "code": "needs_owner",
+                    "reason": "commitment_request",
+                    "method": method[:10],
+                }
+            await route.abort("blockedbyclient")
+            return
+        host = (urlsplit(req.url).hostname or "").lower().rstrip(".")
+        inject = header is not None and account.covers(host)
+        if not inject and method in ("GET", "HEAD"):
+            await route.continue_()
+            return
+        # The account's own host (or a listed call): sent here one hop at a
+        # time. route.continue_(headers=) would put the header on every
+        # redirect too, to whatever host it names.
+        headers = dict(req.headers)
+        if inject:
+            assert header is not None
+            headers[header] = account.secret
+        try:
+            resp = await route.fetch(
+                headers=headers,
+                max_redirects=0,
+                timeout=max(1000.0, (deadline - time.monotonic()) * 1000),
+            )
+        except Error:
+            with contextlib.suppress(Error):
+                await route.abort("failed")
+            return
+        await route.fulfill(response=resp)
+
+    return handle
 
 
 async def _facts(page: Page, target: str, ms: float) -> dict[str, Any]:
