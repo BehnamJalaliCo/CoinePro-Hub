@@ -182,6 +182,30 @@ async def test_a_rule_protocol_runs_by_code_and_raises_one_finding(
     assert set(C.CHECKS) >= {"PR-010", "PR-011", "PR-033", "PR-070", "PR-072", "PR-073"}
 
 
+async def test_every_code_checker_runs(
+    wk: dict[str, Any], su: Any, new_company: Callable[..., Any]
+) -> None:
+    """Each checker's SQL runs against the real schema (a broken one would fail
+    its protocol in production): a result, never an exception."""
+    co = await new_company()
+    await su.execute(
+        """INSERT INTO ops.hub_health (company_id, at, data)
+           SELECT id, now(), '{"up": {"api": 0}, "disk_used_pct": 91, "certificate_days_left": 5}'
+           FROM core.companies WHERE kind = 'holding'
+           ON CONFLICT (company_id) DO UPDATE SET data = EXCLUDED.data"""
+    )
+    acts = wk["acts"].oversight
+    results = {}
+    for ref in sorted(C.CHECKS):
+        out = await acts.protocol_run(ref)
+        assert out.get("result") in ("pass", "fail"), (ref, out)
+        results[ref] = out["result"]
+    assert (
+        results["PR-062"] == "fail"
+    )  # the hub snapshot above: a service down, disk 91%, cert 5 days
+    assert co["code"]
+
+
 async def test_a_judgement_protocol_is_the_overseers_work_within_the_daily_cap(
     wk: dict[str, Any], su: Any
 ) -> None:
