@@ -152,6 +152,7 @@ fun SettingsScreen(graph: AppGraph) {
                 }
             }
         }
+        if (!env.demo) item { com.coinepro.hq.ui.owner.AppLockCard(graph) }
         item { com.coinepro.hq.ui.owner.NotificationMatrixCard() }
         item {
             HqCard(Modifier.fillMaxWidth()) {

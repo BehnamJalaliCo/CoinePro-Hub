@@ -22,7 +22,17 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /** Everything one session needs: the API, auth, the query cache, the live stream and media loading. A demo session
  *  (debug builds) swaps the network for fixtures and lives beside the real one without touching its token. */
-class Env(val api: Api, val auth: Auth, val cache: QueryCache, val stream: HoldingStream, val media: MediaKit, val demo: Boolean, private val scope: CoroutineScope) {
+class Env(
+    val api: Api,
+    val auth: Auth,
+    val cache: QueryCache,
+    val stream: HoldingStream,
+    val media: MediaKit,
+    val demo: Boolean,
+    private val scope: CoroutineScope,
+    /** When the screens are reading from the phone's offline copy (M13), the instant it was saved; null when live. */
+    val offlineSince: StateFlow<String?> = MutableStateFlow(null),
+) {
     fun close() {
         stream.stop()
         scope.cancel()
@@ -34,6 +44,9 @@ class AppGraph(context: Context) {
     private val app = context.applicationContext
     private val vault = TokenVault(app)
     val prefs = Prefs(app)
+    val lock = com.coinepro.hq.device.AppLock(app, prefs)
+    /** The real session's offline copy; the demo never touches it. */
+    val offline = com.coinepro.hq.core.net.OfflineCache(app)
 
     private val envFlow = MutableStateFlow(build(VaultTokens(vault), demo = false))
     val env: StateFlow<Env> = envFlow.asStateFlow()
@@ -55,13 +68,13 @@ class AppGraph(context: Context) {
 
     private fun build(tokens: SessionTokens, demo: Boolean): Env {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-        val api = Api(BuildConfig.HQ_ORIGIN, tokens, if (demo) Demo.interceptor() else null)
+        val api = Api(BuildConfig.HQ_ORIGIN, tokens, if (demo) Demo.interceptor() else offline)
         val cache = QueryCache(scope)
-        return Env(api, Auth(api, tokens, demo), cache, HoldingStream(api, cache, scope, demo), MediaKit(app, api), demo, scope)
+        return Env(api, Auth(api, tokens, demo), cache, HoldingStream(api, cache, scope, demo), MediaKit(app, api), demo, scope, if (demo) MutableStateFlow(null) else offline.since)
     }
 }
 
-/** Small device-local preferences (theme). Never secrets. */
+/** Small device-local preferences (theme, app lock). Never secrets. */
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("hq.prefs", Context.MODE_PRIVATE)
     private val themeFlow = MutableStateFlow(ThemeMode.entries.firstOrNull { it.name == sp.getString("theme", null) } ?: ThemeMode.SYSTEM)
@@ -70,6 +83,15 @@ class Prefs(context: Context) {
     fun setTheme(mode: ThemeMode) {
         sp.edit().putString("theme", mode.name).apply()
         themeFlow.value = mode
+    }
+
+    private val lockFlow = MutableStateFlow(sp.getBoolean("app_lock", true))
+    /** The app lock (M11); on by default, effective only when the phone has a secure lock screen. */
+    val appLock: StateFlow<Boolean> = lockFlow.asStateFlow()
+
+    fun setAppLock(on: Boolean) {
+        sp.edit().putBoolean("app_lock", on).apply()
+        lockFlow.value = on
     }
 }
 

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">CoinePro HQ</string>
+    <string name="widget_title">Cartable</string>
+    <string name="widget_description">Seals waiting for you and urgent items, as the app last saw them</string>
+    <string name="tile_voice">Voice order</string>
 </resources>

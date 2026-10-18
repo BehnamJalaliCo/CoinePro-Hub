@@ -65,6 +65,13 @@ Every library is free and open source and pinned to an exact version (`gradle/li
   - **Planner**: company and department scopes, a Persian month view. **Cartable** sorted by expiry or waiting time.
   - **Control**: deploy freezes set and lifted. **Settings**: the per-company, per-level notification matrix.
   - **Message search** on the messages screen; **Audit** export.
+- **On the phone** ⟨1.4.4⟩:
+  - **App lock** — with a secure lock screen on the phone, the app opens locked and locks again after a minute away;
+    fingerprint, face or the phone's PIN opens it (Settings switch). Recents never show its content.
+  - **Offline reading** — the last good answer of the screens the owner reads is kept encrypted (Keystore AES-GCM) and
+    shown with a banner when the network is gone; nothing is written offline. Cleared on sign-out.
+  - **Cartable widget** — pending seals and urgent items as the app last saw them (the widget never calls the hub), and
+    a **quick-settings tile** that opens the voice order sheet.
 - **Live** — one SSE connection to `/api/v1/stream` while the app is in the foreground; events refresh the
   screens that show the touched data (the same invalidation map as the web).
 
