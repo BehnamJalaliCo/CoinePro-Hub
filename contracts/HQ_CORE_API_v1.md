@@ -253,7 +253,7 @@ Decision {
 |---|---|---|
 | GET | `/decisions` | `?status&company&kind&risk&q` — default `status=pending`, oldest first |
 | GET | `/decisions/{ref}` | |
-| POST | `/decisions/{ref}/approve` | 🔏 for `A3`, `hire`, `dismissal`, `budget_change`, ⟨1.4.3⟩ `code_session` (its seal creates a workshop grant), ⟨1.4.5⟩ `tool_enable`; `{note?, amendments?}` → resolution created |
+| POST | `/decisions/{ref}/approve` | 🔏 for `A3`, `hire`, `dismissal`, `budget_change`, ⟨1.4.3⟩ `code_session` (its seal creates a workshop grant), ⟨1.4.5⟩ `protocol`, `tool_enable`, `errand_action`, `company_found`, `lesson_adoption` (target = ref; a card is bound to what it proposes, so when that changes the card is superseded: `409 decision_not_pending`, and a new card comes). A `server_plan` card is sealed only on its own route against the plan's `digest` (§18.8); here it answers `409 validation_failed`; `{note?, amendments?}` → resolution created |
 | POST | `/decisions/{ref}/reject` | `{reason?, reason_code?: "cost"\|"risk"\|"timing"\|"quality"\|"other"}` |
 | POST | `/decisions/{ref}/return` | «برگشت با یادداشت»: `{note}` (required) → back to the proposer |
 | POST | `/decisions/{ref}/ask` | «توی چت بپرس»: opens or reuses the proposer's thread and posts a linked message; returns `{thread, message_ref}` |
@@ -869,7 +869,7 @@ BackupStatus { hourly: {last_at, next_at, ok, snapshot, size_bytes}, wal: {last_
 - Restore never goes through the API: the owner runs it in their own terminal.
 
 ### 18.10 Decision kinds, stream types, step-up targets
-- **Decision kinds** added: `protocol`, `tool_enable`, `errand_action`, `company_found`, `server_plan`, `lesson_adoption`.
+- **Decision kinds** added: `protocol`, `tool_enable`, `errand_action`, `company_found`, `server_plan`, `lesson_adoption`. ⟨1.4.5⟩ All are sealed with step-up; how, and the one exception (`server_plan`), is in the approve row of §5.1.
 - **Stream types** (topics): `oversight.finding`, `oversight.hold`, `oversight.watch` (`oversight`) · `inquiry.answered` (`inquiries`) ·
   `errand.updated` (`errands`) · `stars.rollup` (`stars`) · `skill.updated` (`skills`) · `academy.eval` (`academy`) ·
   `founding.updated`, `provision.step` (`founding`) · `backup.done`, `backup.failed` (`backups`).
