@@ -633,7 +633,9 @@ async def test_score_job_and_maintenance(hub: Hub, wk: dict[str, Any], owner_db:
         "purge",
         "requeue_runs",
         "backups_ingest",
+        "inquiries_late",
     }
+    assert res["inquiries_late"] == {"late": 0}
     assert res["purge"]["idempotency_keys"] >= 1
     assert "error" not in res["backups_ingest"]  # no status files here: nothing to read, no failure
     async with owner_db.raw() as tx:

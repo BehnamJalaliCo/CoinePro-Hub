@@ -98,6 +98,7 @@ async def create_errand(body: R.ErrandIn, request: Request, ctx: Ctx = Depends(o
 
 @router.get("/errands/{ref}", response_model=R.Errand, responses=E)
 async def get_errand(ref: str, ctx: Ctx = Depends(owner_ctx)) -> R.Errand:
+    """One errand with its steps, result, files, decision and usage."""
     async with ctx.tx() as tx:
         return await R.render(tx, await R.load(tx, ref))
 

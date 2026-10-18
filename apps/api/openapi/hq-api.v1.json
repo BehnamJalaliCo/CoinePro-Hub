@@ -371,6 +371,26 @@
         "title": "AgentMessage",
         "type": "object"
       },
+      "AgentSessionView": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/SessionEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "session": {
+            "$ref": "#/components/schemas/CodeSession"
+          }
+        },
+        "required": [
+          "session",
+          "events"
+        ],
+        "title": "AgentSessionView",
+        "type": "object"
+      },
       "AgentWorkDetail": {
         "properties": {
           "assignee": {
@@ -568,21 +588,6 @@
           "path_prefix"
         ],
         "title": "AllowRule",
-        "type": "object"
-      },
-      "AnswerIn": {
-        "properties": {
-          "choice_id": {
-            "maxLength": 40,
-            "minLength": 1,
-            "title": "Choice Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "choice_id"
-        ],
-        "title": "AnswerIn",
         "type": "object"
       },
       "ApprovalIn": {
@@ -3235,7 +3240,8 @@
               "proposal",
               "budget_change",
               "evaluation",
-              "code_session"
+              "code_session",
+              "errand_action"
             ],
             "title": "Kind",
             "type": "string"
@@ -4921,6 +4927,202 @@
         "title": "Envelope",
         "type": "object"
       },
+      "Errand": {
+        "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/FileRef"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "brief_md": {
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decision_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Ref"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "file_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "File Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Ref"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "result_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Md"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "working",
+              "waiting_owner",
+              "done",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/hq_api__domain__errands__Step"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/hq_api__domain__errands__Usage"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "title_fa",
+          "brief_md",
+          "source",
+          "file_ids",
+          "due_at",
+          "status",
+          "steps",
+          "result_md",
+          "attachments",
+          "decision_ref",
+          "message_ref",
+          "usage",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Errand",
+        "type": "object"
+      },
+      "ErrandIn": {
+        "additionalProperties": false,
+        "properties": {
+          "brief_md": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "file_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "File Ids",
+            "type": "array"
+          },
+          "source": {
+            "default": "text",
+            "enum": [
+              "voice",
+              "text"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          }
+        },
+        "required": [
+          "brief_md"
+        ],
+        "title": "ErrandIn",
+        "type": "object"
+      },
       "Escrow": {
         "properties": {
           "allowed_action_classes": {
@@ -5240,6 +5442,31 @@
           }
         },
         "title": "FileVariants",
+        "type": "object"
+      },
+      "FinishIn": {
+        "additionalProperties": false,
+        "properties": {
+          "file_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "File Ids",
+            "type": "array"
+          },
+          "result_md": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Result Md",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result_md"
+        ],
+        "title": "FinishIn",
         "type": "object"
       },
       "Freeze": {
@@ -6268,6 +6495,158 @@
         "title": "InjectPolicy",
         "type": "object"
       },
+      "Inquiry": {
+        "properties": {
+          "answer_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Md"
+          },
+          "answer_message_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Message Ref"
+          },
+          "answered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered At"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "due_at": {
+            "format": "date-time",
+            "title": "Due At",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "from": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "question_md": {
+            "title": "Question Md",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "answered",
+              "late",
+              "withdrawn"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "thread_ref": {
+            "title": "Thread Ref",
+            "type": "string"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "from",
+          "to",
+          "company",
+          "question_md",
+          "due_at",
+          "status",
+          "answer_md",
+          "evidence",
+          "answered_at",
+          "thread_ref",
+          "answer_message_ref",
+          "work_ref",
+          "created_at"
+        ],
+        "title": "Inquiry",
+        "type": "object"
+      },
+      "InquiryIn": {
+        "additionalProperties": false,
+        "properties": {
+          "due_in_hours": {
+            "maximum": 336.0,
+            "minimum": 1.0,
+            "title": "Due In Hours",
+            "type": "integer"
+          },
+          "question_md": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Question Md",
+            "type": "string"
+          },
+          "to": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "question_md",
+          "due_in_hours"
+        ],
+        "title": "InquiryIn",
+        "type": "object"
+      },
       "Interaction": {
         "properties": {
           "action": {
@@ -6526,6 +6905,30 @@
               }
             ],
             "title": "Decision"
+          },
+          "errand": {
+            "anyOf": [
+              {
+                "pattern": "^E-[0-9]{4,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errand"
+          },
+          "inquiry": {
+            "anyOf": [
+              {
+                "pattern": "^Q-[0-9]{4,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inquiry"
           },
           "resolution": {
             "anyOf": [
@@ -8365,6 +8768,60 @@
         "title": "Page[Employee]",
         "type": "object"
       },
+      "Page_Errand_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Errand"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Errand]",
+        "type": "object"
+      },
+      "Page_Inquiry_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Inquiry"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Inquiry]",
+        "type": "object"
+      },
       "Page_Message_": {
         "properties": {
           "items": {
@@ -8656,6 +9113,52 @@
         "title": "PlannerDay",
         "type": "object"
       },
+      "PlannerIn": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "errand": {
+            "anyOf": [
+              {
+                "pattern": "^E-[0-9]{4,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errand"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "title_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title_fa",
+          "at"
+        ],
+        "title": "PlannerIn",
+        "type": "object"
+      },
       "PlannerItem": {
         "properties": {
           "assignee": {
@@ -8677,6 +9180,26 @@
           "company": {
             "title": "Company",
             "type": "string"
+          },
+          "kind": {
+            "default": "work",
+            "enum": [
+              "work",
+              "reminder"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           },
           "priority": {
             "title": "Priority",
@@ -8710,6 +9233,42 @@
           "recurring"
         ],
         "title": "PlannerItem",
+        "type": "object"
+      },
+      "PlannerItemOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "title_fa",
+          "at",
+          "note"
+        ],
+        "title": "PlannerItemOut",
         "type": "object"
       },
       "Policy": {
@@ -10327,7 +10886,7 @@
           },
           "steps_detail": {
             "items": {
-              "$ref": "#/components/schemas/Step"
+              "$ref": "#/components/schemas/hq_api__routes__runs__Step"
             },
             "title": "Steps Detail",
             "type": "array"
@@ -11316,44 +11875,6 @@
         "title": "Snapshot",
         "type": "object"
       },
-      "Step": {
-        "properties": {
-          "actions": {
-            "items": {
-              "$ref": "#/components/schemas/StepAction"
-            },
-            "title": "Actions",
-            "type": "array"
-          },
-          "at": {
-            "format": "date-time",
-            "title": "At",
-            "type": "string"
-          },
-          "n": {
-            "title": "N",
-            "type": "integer"
-          },
-          "run_id": {
-            "format": "uuid",
-            "title": "Run Id",
-            "type": "string"
-          },
-          "summary_fa": {
-            "title": "Summary Fa",
-            "type": "string"
-          }
-        },
-        "required": [
-          "run_id",
-          "n",
-          "at",
-          "summary_fa",
-          "actions"
-        ],
-        "title": "Step",
-        "type": "object"
-      },
       "StepAction": {
         "properties": {
           "class": {
@@ -11392,6 +11913,41 @@
           "outcome"
         ],
         "title": "StepAction",
+        "type": "object"
+      },
+      "StepIn": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "kind": {
+            "enum": [
+              "search",
+              "read",
+              "browse",
+              "request",
+              "draft",
+              "note",
+              "proposal"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "summary_fa": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Summary Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "summary_fa"
+        ],
+        "title": "StepIn",
         "type": "object"
       },
       "StepUpOptionsIn": {
@@ -13452,6 +14008,84 @@
         "title": "WorkspaceIn",
         "type": "object"
       },
+      "hq_api__domain__errands__Step": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "summary_fa": {
+            "title": "Summary Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "kind",
+          "summary_fa",
+          "data"
+        ],
+        "title": "Step",
+        "type": "object"
+      },
+      "hq_api__domain__errands__Usage": {
+        "properties": {
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "usd",
+          "input_tokens",
+          "output_tokens"
+        ],
+        "title": "Usage",
+        "type": "object"
+      },
+      "hq_api__domain__inquiries__AnswerIn": {
+        "additionalProperties": false,
+        "properties": {
+          "answer_md": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Answer Md",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "maxItems": 50,
+            "title": "Evidence",
+            "type": "array"
+          }
+        },
+        "required": [
+          "answer_md"
+        ],
+        "title": "AnswerIn",
+        "type": "object"
+      },
       "hq_api__domain__work__BudgetIn": {
         "additionalProperties": false,
         "properties": {
@@ -13698,6 +14332,21 @@
         "title": "ReserveIn",
         "type": "object"
       },
+      "hq_api__routes__notifications__AnswerIn": {
+        "properties": {
+          "choice_id": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Choice Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "choice_id"
+        ],
+        "title": "AnswerIn",
+        "type": "object"
+      },
       "hq_api__routes__notifications__Device": {
         "properties": {
           "created_at": {
@@ -13734,6 +14383,44 @@
           "revoked_at"
         ],
         "title": "Device",
+        "type": "object"
+      },
+      "hq_api__routes__runs__Step": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/StepAction"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "summary_fa": {
+            "title": "Summary Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "n",
+          "at",
+          "summary_fa",
+          "actions"
+        ],
+        "title": "Step",
         "type": "object"
       },
       "hq_api__routes__tools__Resolved": {
@@ -20100,6 +20787,636 @@
         ]
       }
     },
+    "/api/v1/errands": {
+      "get": {
+        "description": "Newest first.",
+        "operationId": "list_errands",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "queued",
+                    "working",
+                    "waiting_owner",
+                    "done",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "attachments": [
+                        {
+                          "duration_s": 1.0,
+                          "height": 1,
+                          "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                          "kind": "image",
+                          "mime": "application/pdf",
+                          "name": "report.pdf",
+                          "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                          "size": 1,
+                          "status": "processing",
+                          "transcript": "x",
+                          "variants": {
+                            "poster": null,
+                            "thumb": null
+                          },
+                          "width": 1
+                        }
+                      ],
+                      "brief_md": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "decision_ref": "x",
+                      "due_at": "2026-10-17T05:42:00Z",
+                      "file_ids": [
+                        "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      ],
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "message_ref": "A-0142",
+                      "ref": "W-000789",
+                      "result_md": "x",
+                      "source": "x",
+                      "status": "queued",
+                      "steps": [
+                        {
+                          "at": "2026-10-17T05:42:00Z",
+                          "data": {},
+                          "kind": "one_off",
+                          "summary_fa": "x"
+                        }
+                      ],
+                      "title_fa": "گزارش هفتگی رشد",
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "usage": {
+                        "input_tokens": 1,
+                        "output_tokens": 1,
+                        "usd": "2.410000"
+                      }
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Errand_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Errands",
+        "tags": [
+          "errands"
+        ]
+      },
+      "post": {
+        "description": "An errand for the assistant: posted in thread P as the owner's message\n(its brief and files), which wakes the assistant. Requires `Idempotency-Key`.",
+        "operationId": "create_errand",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "brief_md": "x",
+                "due_at": "2026-10-17T05:42:00Z",
+                "file_ids": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "source": "voice",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ErrandIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "attachments": [
+                    {
+                      "duration_s": 1.0,
+                      "height": 1,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
+                      "mime": "application/pdf",
+                      "name": "report.pdf",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
+                    }
+                  ],
+                  "brief_md": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decision_ref": "x",
+                  "due_at": "2026-10-17T05:42:00Z",
+                  "file_ids": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "message_ref": "A-0142",
+                  "ref": "W-000789",
+                  "result_md": "x",
+                  "source": "x",
+                  "status": "queued",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "data": {},
+                      "kind": "one_off",
+                      "summary_fa": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "usd": "2.410000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Errand"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Create Errand",
+        "tags": [
+          "errands"
+        ]
+      }
+    },
+    "/api/v1/errands/{ref}": {
+      "get": {
+        "description": "One errand with its steps, result, files, decision and usage.",
+        "operationId": "get_errand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "attachments": [
+                    {
+                      "duration_s": 1.0,
+                      "height": 1,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
+                      "mime": "application/pdf",
+                      "name": "report.pdf",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
+                    }
+                  ],
+                  "brief_md": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decision_ref": "x",
+                  "due_at": "2026-10-17T05:42:00Z",
+                  "file_ids": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "message_ref": "A-0142",
+                  "ref": "W-000789",
+                  "result_md": "x",
+                  "source": "x",
+                  "status": "queued",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "data": {},
+                      "kind": "one_off",
+                      "summary_fa": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "usd": "2.410000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Errand"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Errand",
+        "tags": [
+          "errands"
+        ]
+      }
+    },
+    "/api/v1/errands/{ref}/cancel": {
+      "post": {
+        "description": "The owner stops an open errand (no step-up: stopping is always safe).",
+        "operationId": "cancel_errand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "attachments": [
+                    {
+                      "duration_s": 1.0,
+                      "height": 1,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
+                      "mime": "application/pdf",
+                      "name": "report.pdf",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
+                    }
+                  ],
+                  "brief_md": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decision_ref": "x",
+                  "due_at": "2026-10-17T05:42:00Z",
+                  "file_ids": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "message_ref": "A-0142",
+                  "ref": "W-000789",
+                  "result_md": "x",
+                  "source": "x",
+                  "status": "queued",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "data": {},
+                      "kind": "one_off",
+                      "summary_fa": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "usd": "2.410000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Errand"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Cancel Errand",
+        "tags": [
+          "errands"
+        ]
+      }
+    },
     "/api/v1/files": {
       "post": {
         "description": "Owner only. Raw body, `Content-Type` = the file's type, `X-File-Name` =\nUTF-8 name, percent-encoded; `Idempotency-Key` as every POST. Images\n(jpeg, png, webp, heic ≤ 20 MB), video (mp4, webm, quicktime ≤ 200 MB,\n≤ 10 min), audio (m4a/aac, ogg/opus, webm, wav, mpeg ≤ 25 MB, ≤ 15 min),\npdf (≤ 30 MB). The type is checked by content, the size while streaming.\n`201 FileRef` (`status: processing` for video and audio).",
@@ -20523,6 +21840,196 @@
         "summary": "Get Inbox Summary",
         "tags": [
           "inbox"
+        ]
+      }
+    },
+    "/api/v1/inquiries": {
+      "get": {
+        "description": "Newest first. The owner sees every inquiry.",
+        "operationId": "list_inquiries",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "answered",
+                    "late",
+                    "withdrawn"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "answer_md": "x",
+                      "answer_message_ref": "x",
+                      "answered_at": "2026-10-17T05:42:00Z",
+                      "company": "TY",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "due_at": "2026-10-17T05:42:00Z",
+                      "evidence": [
+                        {}
+                      ],
+                      "from": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "question_md": "x",
+                      "ref": "W-000789",
+                      "status": "open",
+                      "thread_ref": "x",
+                      "to": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
+                      "work_ref": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Inquiry_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Inquiries",
+        "tags": [
+          "inquiries"
         ]
       }
     },
@@ -20953,7 +22460,7 @@
                 "choice_id": "x"
               },
               "schema": {
-                "$ref": "#/components/schemas/AnswerIn"
+                "$ref": "#/components/schemas/hq_api__routes__notifications__AnswerIn"
               }
             }
           },
@@ -22866,6 +24373,8 @@
                           "assignee": "TY-GROWTH-01",
                           "at": "2026-10-17T05:42:00Z",
                           "company": "TY",
+                          "kind": "work",
+                          "note": "یادداشت",
                           "priority": "P2",
                           "recurring": false,
                           "ref": "W-000789",
@@ -32364,6 +33873,333 @@
         ]
       }
     },
+    "/internal/v1/errands/{ref}/finish": {
+      "post": {
+        "description": "The result: the errand is done and the result is posted in thread P.\nRequires `Idempotency-Key`.",
+        "operationId": "errand_finish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "file_ids": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "result_md": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FinishIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "attachments": [
+                    {
+                      "duration_s": 1.0,
+                      "height": 1,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
+                      "mime": "application/pdf",
+                      "name": "report.pdf",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
+                    }
+                  ],
+                  "brief_md": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decision_ref": "x",
+                  "due_at": "2026-10-17T05:42:00Z",
+                  "file_ids": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "message_ref": "A-0142",
+                  "ref": "W-000789",
+                  "result_md": "x",
+                  "source": "x",
+                  "status": "queued",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "data": {},
+                      "kind": "one_off",
+                      "summary_fa": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "usd": "2.410000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Errand"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Errand Finish",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/errands/{ref}/steps": {
+      "post": {
+        "description": "One step of the errand's trail (search, read, browse, request, draft,\nnote, proposal). Requires `Idempotency-Key`.",
+        "operationId": "errand_step",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "data": {},
+                "kind": "search",
+                "summary_fa": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/StepIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "attachments": [
+                    {
+                      "duration_s": 1.0,
+                      "height": 1,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
+                      "mime": "application/pdf",
+                      "name": "report.pdf",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
+                    }
+                  ],
+                  "brief_md": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decision_ref": "x",
+                  "due_at": "2026-10-17T05:42:00Z",
+                  "file_ids": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "message_ref": "A-0142",
+                  "ref": "W-000789",
+                  "result_md": "x",
+                  "source": "x",
+                  "status": "queued",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "data": {},
+                      "kind": "one_off",
+                      "summary_fa": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "usd": "2.410000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Errand"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Errand Step",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/files": {
       "post": {
         "description": "Raw body upload (`Content-Type` = the file's media type) for the agent's\nown company; returns a FileRef to attach to a deliverable or message.",
@@ -32886,6 +34722,282 @@
           }
         },
         "summary": "Tool Health Sites",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/inquiries": {
+      "post": {
+        "description": "A formal question with a due time. Requires `Idempotency-Key`.",
+        "operationId": "ask_inquiry",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "due_in_hours": 1,
+                "question_md": "x",
+                "to": "TY-GROWTH-MGR"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/InquiryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "answer_md": "x",
+                  "answer_message_ref": "x",
+                  "answered_at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "due_at": "2026-10-17T05:42:00Z",
+                  "evidence": [
+                    {}
+                  ],
+                  "from": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "question_md": "x",
+                  "ref": "W-000789",
+                  "status": "open",
+                  "thread_ref": "x",
+                  "to": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Inquiry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Ask Inquiry",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/inquiries/{ref}/answer": {
+      "post": {
+        "description": "The asked one's answer, delivered to the asker's thread with\n`links.inquiry`. Requires `Idempotency-Key`.",
+        "operationId": "answer_inquiry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "answer_md": "x",
+                "evidence": [
+                  {
+                    "kind": "deliverable",
+                    "note": "یادداشت",
+                    "ref": "W-000789"
+                  }
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/hq_api__domain__inquiries__AnswerIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "answer_md": "x",
+                  "answer_message_ref": "x",
+                  "answered_at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "due_at": "2026-10-17T05:42:00Z",
+                  "evidence": [
+                    {}
+                  ],
+                  "from": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "question_md": "x",
+                  "ref": "W-000789",
+                  "status": "open",
+                  "thread_ref": "x",
+                  "to": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Inquiry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Answer Inquiry",
         "tags": [
           "internal"
         ]
@@ -33420,6 +35532,116 @@
           }
         },
         "summary": "Raise Notification",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/planner": {
+      "post": {
+        "description": "A dated item in the owner's planner (GET /planner). Requires `Idempotency-Key`.",
+        "operationId": "planner_add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "at": "2026-10-17T05:42:00Z",
+                "errand": "x",
+                "note": "یادداشت",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PlannerIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "note": "یادداشت",
+                  "ref": "W-000789",
+                  "title_fa": "گزارش هفتگی رشد"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PlannerItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Planner Add",
         "tags": [
           "internal"
         ]
@@ -35920,6 +38142,155 @@
           }
         },
         "summary": "Agent Create Session",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/workshop/sessions/{ref}": {
+      "get": {
+        "description": "`workshop.read` (agents/tools.md): one session and its events after\n`after` (a seq; at most 100), the masked summaries rule 7 keeps. The\nagent's own company; the advisor and the overseer read every company\n(⟨1.4⟩ §18.0). A missing and a forbidden session answer the same 403.",
+        "operationId": "agent_read_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "After",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "events": [
+                    {
+                      "actor": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
+                      "at": "2026-10-17T05:42:00Z",
+                      "data": {},
+                      "seq": 1,
+                      "summary_fa": "x",
+                      "type": "message"
+                    }
+                  ],
+                  "session": {
+                    "area": "x",
+                    "branch": "x",
+                    "brief": "x",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "driver": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "effort": "high",
+                    "grant": "x",
+                    "held": "work_lock",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "model": "claude-sonnet-5-5",
+                    "opened_by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "pr_url": "x",
+                    "ref": "W-000789",
+                    "runtime": "x",
+                    "state": "starting",
+                    "title": "گزارش هفتگی رشد",
+                    "transcript_file": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "updated_at": "2026-10-17T05:42:00Z",
+                    "usage": {
+                      "input_tokens": 1,
+                      "output_tokens": 1,
+                      "usd": 1.0
+                    },
+                    "workspace": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Agent Read Session",
         "tags": [
           "internal"
         ]
