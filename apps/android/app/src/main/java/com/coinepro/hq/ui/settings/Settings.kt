@@ -152,6 +152,7 @@ fun SettingsScreen(graph: AppGraph) {
                 }
             }
         }
+        item { com.coinepro.hq.ui.owner.NotificationMatrixCard() }
         item {
             HqCard(Modifier.fillMaxWidth()) {
                 SectionTitle("این اپ", note = "برای فعال شدن passkey روی اندروید، این دو مقدار باید روی سرور ثبت شوند.")

@@ -114,6 +114,11 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "story-hire" to { _ -> StoryPreview("FX") },
             "story-stars" to { _ -> StoryPreview("TY") },
             "hire" to { _ -> HireForm(onDone = {}, modifier = Modifier.verticalScroll(rememberScrollState()), company0 = "TY", department0 = "TECH", role0 = "sre") },
+            // ⟨1.4.4⟩ the owner's tools on existing APIs
+            "resolutions" to { _ -> com.coinepro.hq.ui.owner.ResolutionsScreen() },
+            "runs" to { _ -> com.coinepro.hq.ui.owner.RunsScreen() },
+            "sites" to { _ -> com.coinepro.hq.ui.owner.SitesScreen() },
+            "employee-manager" to { _ -> EmployeeScreen("FX-TECH-MGR") },
         )
     }
 

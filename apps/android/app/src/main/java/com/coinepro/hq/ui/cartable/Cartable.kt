@@ -149,6 +149,8 @@ fun CartableScreen() {
     val companies = rememberCompanies()
     var tab by rememberSaveable { mutableStateOf("pending") }
     var riskF by rememberSaveable { mutableStateOf<String?>(null) }
+    // Cartable age (M8): what expires first, what has waited longest, or the newest.
+    var sort by rememberSaveable { mutableStateOf("expiry") }
     val q = rememberQuery("decisions:$tab", "decisions") { decisions(if (tab == "pending") "pending" else null, limit = 100) }
     val r = refresher(q)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
@@ -165,7 +167,18 @@ fun CartableScreen() {
                 }
             }
         }
-        val list = all.filter { riskF == null || it.risk == riskF }
+        if (tab == "pending") item {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((key, label) in listOf("expiry" to "زودتر منقضی", "oldest" to "بیشترین انتظار", "newest" to "تازه‌ترین")) FilterChip(label, sort == key, { sort = key })
+            }
+        }
+        val list = all.filter { riskF == null || it.risk == riskF }.let { xs ->
+            when (sort) {
+                "expiry" -> xs.sortedWith(compareBy({ it.expiresAt ?: "9999" }, { it.createdAt }))
+                "oldest" -> xs.sortedBy { it.createdAt }
+                else -> xs.sortedByDescending { it.createdAt }
+            }
+        }
         when {
             q.data == null && q.error == null -> items(4) { Skeleton(Modifier.fillMaxWidth().height(64.dp)) }
             q.data == null -> item { com.coinepro.hq.designsystem.ErrorBlock(q.error, { q.refresh() }) }

@@ -53,6 +53,18 @@ Every library is free and open source and pinned to an exact version (`gradle/li
   - **Tools and internet** — egress totals and log, MCP servers enabled by the owner's seal, service accounts, the
     tool catalogue.
   - The **advisor** gains its formal inquiries; **home** gains the overseer's card; **control** gains backups.
+- **The owner's tools** ⟨1.4.4⟩ on APIs the hub already serves (`docs/GAP_ANALYSIS_v2.md` §5A):
+  - **Resolutions book** with search and Excel export; any message can be recorded as a resolution.
+  - **Agent runs**: every run, live, with its steps and tools, and a health board per employee; runs on each work
+    item and each employee.
+  - **Work**: edit (If-Match), complete with evidence, cancel with a reason. **Employees**: pause, resume, dismiss
+    with the passkey and a work transfer. **New company** straight from the companies list.
+  - **Site checks and incidents**, with the site list editor sealed on the body.
+  - **Treasury**: subscription quota, what-if per model, budget editor (holding, company month and day, dollars),
+    connection name, on/off and write-only key, the calls list with paging and Excel export.
+  - **Planner**: company and department scopes, a Persian month view. **Cartable** sorted by expiry or waiting time.
+  - **Control**: deploy freezes set and lifted. **Settings**: the per-company, per-level notification matrix.
+  - **Message search** on the messages screen; **Audit** export.
 - **Live** — one SSE connection to `/api/v1/stream` while the app is in the foreground; events refresh the
   screens that show the touched data (the same invalidation map as the web).
 

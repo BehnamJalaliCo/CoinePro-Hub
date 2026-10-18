@@ -44,6 +44,13 @@ const paths = [
   '/owner/hiring', '/roles',
   // ⟨1.4.3⟩ the companies' stories
   '/stories',
+  // ⟨1.4.4⟩ the owner's tools on existing APIs (gap analysis v2 §5A); the demo filters these lists itself.
+  '/resolutions', '/notification-settings', '/treasury/quota', '/budgets', '/ops/sites', '/ops/incidents',
+  ...['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'].map((m) => `/treasury/what-if?model=${m}`),
+  ['/runs', '/runs?limit=500'], ...Array.from({ length: 9 }, (_, i) => `/runs/run-${i}`),
+  ['/treasury/calls', '/treasury/calls?limit=500'],
+  // A wide planner (eight weeks either side) the demo cuts to the asked range and scope.
+  ['/planner', `/planner?from=${new Date(Date.now() - 56 * 86_400_000).toISOString().slice(0, 10)}&to=${new Date(Date.now() + 56 * 86_400_000).toISOString().slice(0, 10)}`],
 ];
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
@@ -57,9 +64,11 @@ const rel = (v) => {
 };
 
 const out = {};
-for (const p of paths) {
+for (const entry of paths) {
+  // An entry is a path, or [the key the demo looks up, the request that fills it].
+  const [key, p] = Array.isArray(entry) ? entry : [entry, entry];
   const r = await handle(new Request(`http://demo/api/v1${p}`));
-  out[p] = { status: r.status, body: rel(await r.json()) };
+  out[key] = { status: r.status, body: rel(await r.json()) };
 }
 // A working session's next steps, so the Android demo can play them live (the web's mock reveals one per poll).
 for (const ref of ['S-0003']) {

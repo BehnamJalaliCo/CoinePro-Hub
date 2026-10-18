@@ -74,7 +74,10 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         val path = req.url.encodedPath.removePrefix("/api/v1").let { java.net.URLDecoder.decode(it, "UTF-8") }
         if (req.method == "POST" && (path == "/files" || path == "/transcribe")) return respond(req, binary(req, path))
         val body = req.body?.let { b -> Buffer().also { b.writeTo(it) }.readUtf8() }?.takeIf { it.isNotBlank() }?.let { Api.json.parseToJsonElement(it).jsonObject }
-        return respond(req, if (req.method == "GET") read(path, req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }) else write(path, body))
+        val query = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
+        if (req.method == "GET") ownerToolsRead(path, query)?.let { return respond(req, it) }
+        else ownerToolsWrite(req.method, path, body, req.header("If-Match")?.trim('"')?.toIntOrNull())?.let { return respond(req, it) }
+        return respond(req, if (req.method == "GET") read(path, query) else write(path, body))
     }
 
     private fun respond(req: okhttp3.Request, result: Pair<Int, JsonElement>): Response {
@@ -552,6 +555,172 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             ),
             "note" to listOf("یادداشت: از مشاور کل بپرس هزینه‌ی کارگاه کد در ماه اول چقدر شد."),
         )
+    }
+
+    // ---------------------------------------------------------------- ⟨1.4.4⟩ --
+    // The owner's tools on existing APIs (docs/GAP_ANALYSIS_v2.md §5A): the fixtures hold whole lists, the demo filters and pages them.
+    private fun ownerToolsRead(path: String, q: Map<String, String?>): Pair<Int, JsonElement>? {
+        fun has(o: JsonObject, k: String, v: String?) = v == null || o.str(k) == v
+        when (path) {
+            "/runs" -> return 200 to page(list("/runs").map { it.jsonObject }.filter { has(it, "employee", q["employee"]) && has(it, "state", q["state"]) && has(it, "company", q["company"]) })
+            "/resolutions" -> {
+                val text = q["q"]?.trim().orEmpty()
+                return 200 to page(list("/resolutions").map { it.jsonObject }.filter { r ->
+                    has(r, "company", q["company"]) && (text.isEmpty() || listOf("ref", "title", "body").any { r.str(it).orEmpty().contains(text) })
+                })
+            }
+            "/search/messages" -> {
+                val text = q["q"]?.trim().orEmpty()
+                if (text.length < 2) return 422 to problem("validation_failed", "دست‌کم دو حرف.")
+                val hits = store.keys.filter { it.matches(Regex("^/threads/[^/]+/messages$")) }.flatMap { key ->
+                    val thread = key.removePrefix("/threads/").removeSuffix("/messages")
+                    list(key).map { it.jsonObject }.filter { it.str("body").orEmpty().contains(text) }.map { m ->
+                        buildJsonObject {
+                            put("id", m["id"] ?: JsonPrimitive(m.str("ref"))); put("ref", m["ref"]!!); put("thread", thread); put("author", m["author"]!!)
+                            put("body", m["body"] ?: JsonPrimitive("")); put("kind", m["kind"] ?: JsonPrimitive("text")); put("created_at", m["created_at"]!!); put("rank", 1.0)
+                        }
+                    }
+                }.sortedByDescending { it.str("created_at") }
+                return 200 to page(hits.take(20))
+            }
+            "/ops/sites" -> return 200 to JsonArray(list("/ops/sites").filter { has(it.jsonObject, "company", q["company"]) })
+            "/ops/incidents" -> return 200 to JsonArray(list("/ops/incidents").map { it.jsonObject }.filter { i ->
+                has(i, "company", q["company"]) && (q["open"] == null || (q["open"] == "true") == (i["closed_at"] == null || i["closed_at"] is JsonNull))
+            })
+            "/treasury/calls" -> {
+                val all = list("/treasury/calls").map { it.jsonObject }.filter { has(it, "company", q["company"]) && has(it, "actor", q["actor"]) && has(it, "status", q["status"]) }
+                val at = q["cursor"]?.toIntOrNull() ?: 0
+                val n = q["limit"]?.toIntOrNull() ?: 25
+                return 200 to buildJsonObject { put("items", JsonArray(all.drop(at).take(n))); put("next_cursor", if (at + n < all.size) JsonPrimitive("${at + n}") else JsonNull) }
+            }
+            "/planner" -> {
+                // A view over work (§4): the wide fixture cut to [from, to] and to the scope's company or department.
+                val scope = q["scope"] ?: "owner"
+                val (kind, ref) = if (':' in scope) scope.substringBefore(':') to scope.substringAfter(':') else "owner" to ""
+                val from = q["from"]; val to = q["to"]
+                val days = (store["/planner"]!!.second.jsonObject["days"]!!.jsonArray).map { it.jsonObject }
+                    .filter { d -> (from == null || d.str("date")!! >= from) && (to == null || d.str("date")!! <= to) }
+                    .map { d -> JsonObject(d + ("items" to JsonArray(d["items"]!!.jsonArray.filter { it ->
+                        val i = it.jsonObject
+                        when (kind) { "company" -> i.str("company") == ref; "department" -> "${i.str("company")}-${i.str("department")}" == ref; else -> true }
+                    }))) }
+                return 200 to buildJsonObject { put("scope", scope); put("timezone", "Asia/Tehran"); put("days", JsonArray(days)) }
+            }
+        }
+        Regex("^/work/([^/]+)/runs$").find(path)?.let { m ->
+            val id = m.groupValues[1]
+            val ref = store["/work/$id"]?.second?.jsonObject?.str("ref") ?: list("/work").map { it.jsonObject }.firstOrNull { it.str("id") == id || it.str("ref") == id }?.str("ref")
+            return 200 to JsonArray(store.filterKeys { it.matches(Regex("^/runs/run-\\d+$")) }.values.map { it.second.jsonObject }.filter { it.str("work_ref") == ref })
+        }
+        return null
+    }
+
+    private fun ownerToolsWrite(method: String, path: String, body: JsonObject?, version: Int?): Pair<Int, JsonElement>? {
+        fun conflict() = 409 to buildJsonObject { put("code", "version_conflict"); put("message_fa", "این مورد جای دیگری عوض شده؛ دوباره باز کن."); put("status", 409); put("title", "version_conflict"); put("type", "about:blank") }
+        when {
+            method == "POST" && path == "/resolutions" -> {
+                val r = buildJsonObject {
+                    put("id", "r${System.nanoTime()}"); put("ref", "M-%04d".format(list("/resolutions").size + 4)); put("company", JsonNull)
+                    put("title", body?.get("title") ?: JsonPrimitive("")); put("body", body?.get("body") ?: JsonPrimitive(""))
+                    put("source", buildJsonObject { body?.str("source_message")?.let { put("message", it) } }); put("sealed_by", owner); put("sealed_at", stamp)
+                    put("sent_to", JsonArray(emptyList())); put("follow_up_work_id", JsonNull)
+                }
+                prepend("/resolutions", r)
+                return 201 to r
+            }
+            method == "PUT" && path == "/notification-settings" -> {
+                val cur = store["/notification-settings"]!!.second.jsonObject
+                val v = cur["version"]!!.jsonPrimitive.content.toInt()
+                if (version != v) return conflict()
+                return 200 to edit("/notification-settings") { mapOf("matrix" to (body?.get("matrix") ?: JsonObject(emptyMap())), "version" to JsonPrimitive(v + 1)) }
+            }
+            method == "POST" && path == "/control/deploy-freeze" -> {
+                val co = body?.str("company") ?: return 422 to problem("validation_failed", "شرکت لازم است.")
+                val until = body.str("until")!!
+                val active = Instant.parse(until).isAfter(Instant.now())
+                edit("/control/state") { c ->
+                    val rest = c["deploy_freezes"]!!.jsonArray.filter { it.jsonObject.str("company") != co }
+                    c + ("deploy_freezes" to JsonArray(if (active) rest + buildJsonObject { put("company", co); put("until", until); put("reason", body["reason"] ?: JsonPrimitive("")); put("created_by", "owner") } else rest))
+                }
+                return 200 to buildJsonObject { put("company", co); put("active", active); put("until", until) }
+            }
+            method == "PUT" && path == "/budgets" -> {
+                val rows = body?.get("budgets")?.jsonArray.orEmpty().map { it.jsonObject }
+                store["/budgets"] = 200 to JsonArray(list("/budgets").map { b ->
+                    val o = b.jsonObject
+                    val hit = rows.firstOrNull { it.str("company") == o.str("company") && it.str("scope_type") == o.str("scope_type") && it.str("period") == o.str("period") }
+                    if (hit == null) o else JsonObject(o + mapOf("token_limit" to (hit["token_limit"] ?: JsonNull), "usd_limit" to (hit["usd_limit"] ?: JsonNull)))
+                })
+                hiring(path, body)
+                return 200 to JsonArray(list("/budgets"))
+            }
+        }
+        Regex("^/work/([^/]+)(/cancel|/complete)?$").find(path)?.let { m ->
+            if (method == "GET") return null
+            val id = m.groupValues[1]
+            val key = "/work/$id"
+            val w = store[key]?.second?.jsonObject ?: return 404 to problem("not_found", "این کار پیدا نشد.")
+            val v = w["version"]?.jsonPrimitive?.content?.toIntOrNull() ?: 1
+            val change: Map<String, JsonElement> = when (m.groupValues[2]) {
+                "/cancel" -> mapOf("status" to JsonPrimitive("cancelled"))
+                "/complete" -> mapOf("status" to JsonPrimitive("done"), "progress_pct" to JsonPrimitive(100))
+                else -> { if (version != v) return conflict(); body ?: JsonObject(emptyMap()) }
+            }
+            if (m.groupValues[2].isNotEmpty() && w.str("status") in setOf("done", "cancelled", "failed")) return 409 to problem("validation_failed", "این کار بسته است.")
+            val next = JsonObject(w + change + mapOf("version" to JsonPrimitive(v + 1), "updated_at" to stamp))
+            store[key] = 200 to next
+            update("/work", w.str("ref")!!) { it + change }
+            return 200 to next
+        }
+        Regex("^/employees/([A-Z0-9-]+)/(pause|resume|dismiss)$").find(path)?.let { m ->
+            val (code, verb) = m.destructured
+            val e = store["/employees/$code"]?.second?.jsonObject ?: return 404 to problem("not_found", "این کارمند پیدا نشد.")
+            val status = mapOf("pause" to "paused", "resume" to "active", "dismiss" to "dismissed").getValue(verb)
+            val next = JsonObject(e + ("status" to JsonPrimitive(status)) + (if (verb == "dismiss") mapOf("dismissed_at" to stamp, "activity" to JsonPrimitive("sleeping")) else emptyMap()))
+            store["/employees/$code"] = 200 to next
+            if (verb != "dismiss") return 200 to next
+            val open = list("/work").count { it.jsonObject["assignee"]?.let { a -> (a as? JsonObject)?.str("code") } == code && it.jsonObject.str("status") !in setOf("done", "cancelled", "failed", "delivered") }
+            return 200 to buildJsonObject { put("employee", next); put("work_returned", open); put("transfer_work", "W-0002%02d".format(list("/work").size)) }
+        }
+        Regex("^/connections/([^/]+)(/secret)?$").find(path)?.let { m ->
+            val id = m.groupValues[1]
+            val c = list("/connections").map { it.jsonObject }.firstOrNull { it.str("id") == id } ?: return 404 to problem("not_found", "این اتصال پیدا نشد.")
+            if (m.groupValues[2].isNotEmpty()) {
+                update("/connections", id, idKey = "id") { it + ("has_secret_ref" to JsonPrimitive(true)) }
+                return 200 to buildJsonObject { put("connection", c.str("key")); put("stored", true) }
+            }
+            val v = c["version"]?.jsonPrimitive?.content?.toIntOrNull() ?: 1
+            if (version != v) return conflict()
+            return 200 to update("/connections", id, idKey = "id") { it + (body ?: JsonObject(emptyMap())) + ("version" to JsonPrimitive(v + 1)) }!!
+        }
+        if (method == "PUT" && path == "/ops/sites") {
+            val co = body?.str("company") ?: return 422 to problem("validation_failed", "شرکت لازم است.")
+            val rows = body["sites"]!!.jsonArray.map { it.jsonObject }
+            if (rows.any { r -> listOf("localhost", "127.", "10.", "192.168.").any { r.str("url").orEmpty().contains(it) } }) return 422 to problem("validation_failed", "نشانی داخلی یا خصوصی پایش نمیشود.")
+            val urls = rows.mapNotNull { it.str("url") }.toSet()
+            val kept = list("/ops/sites").map { it.jsonObject }.map { x ->
+                if (x.str("company") != co || x["canary"]?.jsonPrimitive?.content == "true") x
+                else rows.firstOrNull { it.str("url") == x.str("url") }?.let { JsonObject(x + it) } ?: JsonObject(x + ("enabled" to JsonPrimitive(false)))
+            }
+            val added = rows.filter { r -> kept.none { it.str("company") == co && it.str("url") == r.str("url") } }.map { r ->
+                JsonObject(r + mapOf("id" to JsonPrimitive("site-$co-${r.str("url")}"), "company" to JsonPrimitive(co), "canary" to JsonPrimitive(false), "consecutive_failures" to JsonPrimitive(0), "last" to JsonNull, "uptime_24h" to JsonNull, "version" to JsonPrimitive(1)))
+            }
+            store["/ops/sites"] = 200 to JsonArray(kept + added)
+            return 200 to JsonArray((kept + added).filter { it.str("company") == co && (it.str("url") in urls || it["canary"]?.jsonPrimitive?.content == "true") })
+        }
+        if (method == "POST" && path == "/companies") {
+            val code = body?.str("code") ?: return 422 to problem("validation_failed", "کد لازم است.")
+            if (list("/companies").any { it.jsonObject.str("code") == code }) return 409 to problem("conflict", "این کد قبلاً گرفته شده.")
+            val c = buildJsonObject {
+                put("id", "co-$code"); put("code", code); put("kind", "company"); put("name_fa", body["name_fa"]!!); put("name_en", body["name_en"]!!); put("color_index", 4)
+                put("status", "active"); put("template", "standard"); put("kill_switch", "released"); put("deploy_freeze_until", JsonNull); put("version", 1); put("created_at", stamp)
+                put("counts", buildJsonObject { put("decisions_pending", 0); put("employees_active", 0); put("work_open", 0) })
+            }
+            store["/companies"] = 200 to JsonArray(list("/companies") + c)
+            store["/companies/$code"] = 200 to c
+            return 201 to c
+        }
+        return null
     }
 
     // ---------------------------------------------------------------- ⟨1.4.2⟩ --

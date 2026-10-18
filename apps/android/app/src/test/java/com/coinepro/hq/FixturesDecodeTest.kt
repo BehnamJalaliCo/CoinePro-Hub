@@ -30,6 +30,7 @@ import com.coinepro.hq.core.net.StarRubric
 import com.coinepro.hq.core.net.Teaching
 import com.coinepro.hq.core.net.ToolInfo
 import com.coinepro.hq.core.net.hireableRoles
+import com.coinepro.hq.core.net.effective
 import java.io.File
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -127,5 +128,24 @@ class FixturesDecodeTest {
         assertTrue(h.envelopes.isNotEmpty() && h.envelopes.all { it.company != "HQ" })
         val roll = decode("/stars/rollup?period=week", com.coinepro.hq.core.net.StarRollup.serializer())
         assertTrue(roll.companies.all { it.parts.efficiency > 0 } && roll.employees.all { it.efficiency != null })
+    }
+
+    // ------------------------------------------------------------ ⟨1.4.4⟩ --
+    @Test
+    fun ownerToolsDecode() {
+        assertTrue(page("/resolutions", com.coinepro.hq.core.net.Resolution.serializer()).any { it.source["decision"] != null })
+        val ns = decode("/notification-settings", com.coinepro.hq.core.net.NotificationSettings.serializer())
+        assertTrue(ns.matrix.containsKey("*"))
+        assertEquals(true, ns.effective("TY", "urgent").inApp)
+        val runs = page("/runs", com.coinepro.hq.core.net.Run.serializer())
+        assertTrue(runs.any { it.state == "running" } && runs.any { it.state == "failed" })
+        assertTrue(decode("/runs/run-0", com.coinepro.hq.core.net.Run.serializer()).stepsDetail.isNotEmpty())
+        assertTrue(page("/treasury/calls", com.coinepro.hq.core.net.CallRow.serializer()).size > 25)
+        assertEquals("ok", decode("/treasury/quota", com.coinepro.hq.core.net.QuotaView.serializer()).subscription.status)
+        for (m in listOf("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5")) assertEquals(m, decode("/treasury/what-if?model=$m", com.coinepro.hq.core.net.WhatIf.serializer()).model)
+        assertTrue(list("/budgets", com.coinepro.hq.core.net.BudgetUse.serializer()).any { it.scopeType == "holding" })
+        assertTrue(list("/ops/sites", com.coinepro.hq.core.net.Site.serializer()).let { xs -> xs.any { it.canary } && xs.any { (it.uptime24h ?: 0.0) > 0.9 } })
+        assertTrue(list("/ops/incidents", com.coinepro.hq.core.net.Incident.serializer()).any { it.closedAt == null })
+        assertTrue(decode("/planner", com.coinepro.hq.core.net.Planner.serializer()).days.size > 60)
     }
 }

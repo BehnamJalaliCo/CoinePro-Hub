@@ -135,6 +135,9 @@ private val TOOLS = listOf(
     Tool("outputs", "خروجی‌ها", DivanIcon.DELIVERABLE),
     Tool("treasury", "خزانه‌ی توکن", DivanIcon.TREASURY),
     Tool("planner", "پلنر", DivanIcon.PLANNER),
+    Tool("resolutions", "دفتر مصوبات", DivanIcon.SEAL),
+    Tool("runs", "اجرای ایجنت‌ها", DivanIcon.AGENT),
+    Tool("sites", "پایش سایت‌ها", DivanIcon.SERVER),
     Tool("notifications", "اعلان‌ها", DivanIcon.BELL),
     Tool("control", "کنترل", DivanIcon.LOCK),
     Tool("audit", "دفتر Audit", DivanIcon.REPORT),
@@ -230,6 +233,9 @@ fun Shell(graph: AppGraph) {
                     composable("notifications") { NotificationsScreen() }
                     composable("control") { ControlScreen() }
                     composable("audit") { AuditScreen() }
+                    composable("resolutions") { com.coinepro.hq.ui.owner.ResolutionsScreen() }
+                    composable("runs") { com.coinepro.hq.ui.owner.RunsScreen() }
+                    composable("sites") { com.coinepro.hq.ui.owner.SitesScreen() }
                     composable("settings") { SettingsScreen(graph) }
                 }
             }
