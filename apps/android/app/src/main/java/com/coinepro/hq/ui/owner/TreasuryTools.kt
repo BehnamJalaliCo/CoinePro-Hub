@@ -294,7 +294,7 @@ fun CallsCard() {
                         }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text(jDateTime(x.startedAt), style = Divan.type.micro, color = c.textMuted)
-                            Fig(modelLabel(x.model), style = Divan.type.figureSmall, color = c.textMuted)
+                            x.model?.let { com.coinepro.hq.designsystem.ModelName(it, size = 11.dp, style = Divan.type.figureSmall, color = c.textMuted) } ?: Fig("—", style = Divan.type.figureSmall, color = c.textMuted)
                             Fig("in ${tokens(x.inputTokens)} · out ${tokens(x.outputTokens)} · cache ${tokens(x.cacheReadTokens)}", style = Divan.type.figureSmall, color = c.textMuted)
                             x.latencyMs?.let { Fig(String.format(java.util.Locale.US, "%.1fs", it / 1000.0), style = Divan.type.figureSmall, color = c.textMuted) }
                             x.workRef?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }

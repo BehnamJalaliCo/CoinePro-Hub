@@ -9,7 +9,8 @@ import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api/client';
 import { useCompanies } from '@/lib/api/hooks';
 import { downloadCsv, useBudgets, useCallPages, useQuota, useTreasuryAction, useWhatIf, type BudgetIn, type BudgetUse, type Connection } from '@/lib/api/v15';
-import { cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
+import { ModelName } from '@/components/brand/model-mark';
+import { cx, jDateTime, tokens, until, usd } from '@/lib/format';
 
 const field = 'h-10 w-full rounded-[10px] border border-strong bg-card px-3 text-[14px] text-ink outline-none focus:border-gold-ink';
 const fail = (toast: ReturnType<typeof useToast>, e: unknown) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'انجام نشد.' });
@@ -55,11 +56,11 @@ export function WhatIfCard({ company }: { company: string | null }) {
   return (
     <Card className="flex flex-col gap-3 p-5">
       <SectionTitle title="اگر با این مدل بود…" note="همین فراخوانی‌های این ماه، با جدول قیمت خودمان" />
-      <div className="flex flex-wrap gap-2">{MODELS.map((m) => <FilterChip key={m} selected={model === m} onClick={() => setModel(m)}><span className="fig">{modelLabel(m)}</span></FilterChip>)}</div>
+      <div className="flex flex-wrap gap-2">{MODELS.map((m) => <FilterChip key={m} selected={model === m} onClick={() => setModel(m)}><ModelName model={m} /></FilterChip>)}</div>
       {q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !d ? <Skeleton className="h-16" /> : (
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="flex flex-col gap-0.5 rounded-[12px] bg-tile p-3"><span className="text-[11px] text-muted">واقعی</span><span className="fig text-[16px] font-semibold">{usd(d.actual_usd)}</span></div>
-          <div className="flex flex-col gap-0.5 rounded-[12px] bg-tile p-3"><span className="text-[11px] text-muted">با <span className="fig">{modelLabel(model)}</span></span><span className="fig text-[16px] font-semibold">{d.what_if_usd != null ? usd(d.what_if_usd) : '—'}</span></div>
+          <div className="flex flex-col gap-0.5 rounded-[12px] bg-tile p-3"><span className="inline-flex items-center gap-1 text-[11px] text-muted">با <ModelName model={model} size={12} /></span><span className="fig text-[16px] font-semibold">{d.what_if_usd != null ? usd(d.what_if_usd) : '—'}</span></div>
           <div className={cx('flex flex-col gap-0.5 rounded-[12px] p-3', diff == null ? 'bg-tile' : diff < 0 ? 'bg-pos-soft' : 'bg-warn-soft')}><span className="text-[11px] text-muted">{diff == null ? 'فرق' : diff < 0 ? 'ارزان‌تر' : 'گران‌تر'}</span><span className="fig text-[16px] font-semibold">{diff != null ? usd(Math.abs(diff)) : '—'}</span></div>
         </div>
       )}
@@ -149,7 +150,7 @@ export function ConnectionEditor({ c, onClose }: { c: Connection; onClose: () =>
             <span className="text-[11px] font-normal text-muted">مستقیم به خزانه‌ی رمزها میرود؛ نه اینجا نمایش داده میشود و نه در Audit.</span>
           </label>
         ) : <p className="text-[12px] text-muted">اشتراک Claude کلید ندارد؛ اعتبارش روی خود سرور است.</p>}
-        <p className="text-[12px] text-muted">مدل‌ها: <span className="fig">{c.models.map(modelLabel).join('، ')}</span></p>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted">مدل‌ها: {c.models.map((m) => <ModelName key={m} model={m} provider={c.provider} size={12} />)}</p>
       </div>
     </Sheet>
   );
@@ -183,7 +184,7 @@ export function CallsCard({ company }: { company: string | null }) {
                   <td className="whitespace-nowrap px-2 text-sec">{jDateTime(c.started_at)}</td>
                   <td className="px-2"><span className="flex items-center gap-1.5"><CompanyMark code={c.company} height={10} mono /><span className="fig text-ink">{c.actor}</span></span></td>
                   <td className="fig px-2 text-muted">{c.work_ref ?? '—'}</td>
-                  <td className="fig px-2 text-sec">{modelLabel(c.model)}</td>
+                  <td className="px-2 text-sec">{c.model ? <ModelName model={c.model} size={12} /> : <span className="fig">—</span>}</td>
                   <td className={cx('px-2', CALL_STATUS[c.status]?.cls ?? 'text-sec')}><span className="inline-flex items-center gap-1.5">{CALL_STATUS[c.status]?.fa ?? c.status}{c.error_class ? <span className="fig text-muted">{c.error_class}</span> : null}</span></td>
                   <td className="fig px-2 text-sec">{tokens(c.input_tokens)}</td>
                   <td className="fig px-2 text-sec">{tokens(c.output_tokens)}</td>

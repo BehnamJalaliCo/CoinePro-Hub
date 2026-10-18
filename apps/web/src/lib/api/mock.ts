@@ -188,6 +188,10 @@ function row(key: string, input: number, output: number) {
 const connections: any[] = [
   { id: 'c1', key: 'claude-max', display_name: 'اشتراک Claude (Max)', kind: 'claude_subscription', provider: 'anthropic', status: 'enabled', status_reason: null, models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], default_model: 'claude-sonnet-5-5', fallback_priority: 1, has_secret_ref: true, limits: {}, pricing: {}, quota_reset_at: ahead(60 * 30), updated_at: iso(60), version: 1 },
   { id: 'c2', key: 'anthropic-api', display_name: 'API Anthropic (پشتیبان)', kind: 'api_key', provider: 'anthropic', status: 'disabled', status_reason: 'set by the owner', models: ['claude-sonnet-5-5', 'claude-haiku-5-5'], default_model: 'claude-haiku-5-5', fallback_priority: 2, has_secret_ref: false, limits: {}, pricing: {}, quota_reset_at: null, updated_at: iso(60 * 40), version: 2 },
+  // As seeded on the server (services/llm-router/seed/connections.yaml): other providers start disabled and without a key.
+  { id: 'c3', key: 'openai', display_name: 'OpenAI API', kind: 'api_key', provider: 'openai', status: 'disabled', status_reason: 'no key yet', models: ['gpt-5', 'gpt-5-mini'], default_model: 'gpt-5-mini', fallback_priority: 3, has_secret_ref: false, limits: {}, pricing: {}, quota_reset_at: null, updated_at: iso(60 * 40), version: 1 },
+  { id: 'c4', key: 'google-gemini', display_name: 'Google Gemini API', kind: 'api_key', provider: 'gemini', status: 'disabled', status_reason: 'no key yet', models: ['gemini-2.5-pro', 'gemini-2.5-flash'], default_model: 'gemini-2.5-flash', fallback_priority: 4, has_secret_ref: false, limits: {}, pricing: {}, quota_reset_at: null, updated_at: iso(60 * 40), version: 1 },
+  { id: 'c5', key: 'openai-compatible', display_name: 'سازگار با OpenAI (Kimi، GLM، DeepSeek …)', kind: 'api_key', provider: 'openai_compatible', status: 'disabled', status_reason: 'no key yet', models: ['deepseek-chat', 'kimi-k2', 'glm-4.6'], default_model: 'deepseek-chat', fallback_priority: 5, has_secret_ref: false, limits: {}, pricing: {}, quota_reset_at: null, updated_at: iso(60 * 40), version: 1 },
 ];
 
 const control = {

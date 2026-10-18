@@ -160,7 +160,7 @@ fun TreasuryScreen() {
                     HBars(
                         rows.filter { it.key != null }.sortedByDescending { it.equivCostUsd.toDoubleOrNull() ?: 0.0 }.map { row ->
                             HBarRow(row.key!!, row.equivCostUsd.toDoubleOrNull() ?: 0.0, usd(row.equivCostUsd), c.silverInk, "${row.calls} فراخوانی") {
-                                Fig(modelLabel(row.key), style = Divan.type.figure)
+                                com.coinepro.hq.designsystem.ModelName(row.key)
                             }
                         },
                         Modifier.padding(top = 12.dp),
@@ -210,10 +210,14 @@ fun TreasuryScreen() {
                         list.forEach { x ->
                             val (label, tone) = CONNECTION_STATUS[x.status] ?: (x.status to Tone.NEUTRAL)
                             HqCard(Modifier.fillMaxWidth().clickable { editConn = x }, color = c.tile, radius = 12.dp, padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    com.coinepro.hq.designsystem.ModelMark(x.defaultModel ?: x.models.firstOrNull(), provider = x.provider, size = 22.dp)
                                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(x.displayName, style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
-                                        Fig("${x.key} · ${x.models.size} models", style = Divan.type.figureSmall, color = c.textMuted)
+                                        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Fig(x.key, style = Divan.type.figureSmall, color = c.textMuted)
+                                            x.models.forEach { m -> com.coinepro.hq.designsystem.ModelName(m, size = 11.dp, style = Divan.type.figureSmall, color = c.textMuted) }
+                                        }
                                         if (x.status == "quota_exhausted" && x.quotaResetAt != null) Text("ریست سهمیه ${until(x.quotaResetAt)}", style = Divan.type.micro, color = c.warning)
                                         x.statusReason?.let { Text(it, style = Divan.type.micro, color = c.textMuted) }
                                     }

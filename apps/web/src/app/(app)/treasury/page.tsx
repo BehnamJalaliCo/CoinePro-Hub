@@ -11,7 +11,8 @@ import { Bar, Card, ErrorState, PageHeader, Pill, SectionTitle, Segmented, Skele
 import { useBreakdown, useCompanies, useConnections, useTreasury } from '@/lib/api/hooks';
 import { companyColor } from '@/lib/company';
 import { useScope } from '@/lib/scope';
-import { tokens, usd, cx, until, modelLabel } from '@/lib/format';
+import { tokens, usd, cx, until } from '@/lib/format';
+import { ModelMark, ModelName } from '@/components/brand/model-mark';
 
 const TOKEN_COLOR = { input: 'var(--hq-chart-1)', output: 'var(--hq-chart-2)', cache: 'var(--hq-chart-3)', write: 'var(--hq-chart-5)', thinking: 'var(--hq-chart-4)' };
 
@@ -83,7 +84,7 @@ export default function TreasuryPage() {
             </Card>
             <Card className="flex flex-col gap-4 p-5">
               <SectionTitle title="مدل‌ها" />
-              {byModel.data ? <HBars rows={byModel.data.filter((r) => r.key).map((r) => ({ key: String(r.key), label: <span className="fig">{modelLabel(String(r.key))}</span>, value: Number(r.equiv_cost_usd), fmt: usd(r.equiv_cost_usd), sub: <span><span className="fig">{tokens(r.input_tokens + r.output_tokens)}</span>، {r.calls} فراخوانی</span> }))} /> : <Skeleton className="h-40" />}
+              {byModel.data ? <HBars rows={byModel.data.filter((r) => r.key).map((r) => ({ key: String(r.key), label: <ModelName model={String(r.key)} />, value: Number(r.equiv_cost_usd), fmt: usd(r.equiv_cost_usd), sub: <span><span className="fig">{tokens(r.input_tokens + r.output_tokens)}</span>، {r.calls} فراخوانی</span> }))} /> : <Skeleton className="h-40" />}
             </Card>
           </div>
         </div>
@@ -121,9 +122,13 @@ export default function TreasuryPage() {
               const st = CONNECTION_STATUS[c.status] ?? { label: c.status, tone: 'neutral' as const };
               return (
                 <button type="button" key={c.id} onClick={() => setEditConn(c)} className="flex items-center gap-3 rounded-[12px] bg-tile p-3 text-start hover:bg-hover">
+                  <ModelMark model={c.default_model ?? c.models[0]} provider={c.provider} size={22} />
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="text-[13px] font-semibold">{c.display_name}</span>
-                    <span className="fig text-[11px] text-muted">{c.key} · {c.models.length} models</span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
+                      <span className="fig">{c.key}</span>
+                      {c.models.map((m) => <ModelName key={m} model={m} size={11} />)}
+                    </span>
                     {c.status === 'quota_exhausted' && c.quota_reset_at ? <span className="text-[11px] text-warn">ریست سهمیه {until(c.quota_reset_at)}</span> : null}
                     {c.status_reason ? <span className="text-[11px] text-muted">{c.status_reason}</span> : null}
                   </div>
