@@ -6641,6 +6641,13 @@
             "title": "Ms",
             "type": "integer"
           },
+          "requests": {
+            "default": 1,
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Requests",
+            "type": "integer"
+          },
           "status": {
             "anyOf": [
               {
@@ -6689,6 +6696,18 @@
             "maxItems": 200,
             "title": "Entries",
             "type": "array"
+          },
+          "reservation": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation"
           },
           "tool": {
             "maxLength": 40,
@@ -31929,10 +31948,12 @@
                     "kind": "request",
                     "method": "x",
                     "ms": 0,
+                    "requests": 1,
                     "status": 100,
                     "tool": "x"
                   }
                 ],
+                "reservation": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                 "tool": "x"
               },
               "schema": {
@@ -32212,7 +32233,7 @@
     },
     "/internal/v1/egress/reserve": {
       "post": {
-        "description": "Before an agent's request leaves: what it would send, the limits, the\naccount. The answer carries the account's secret for this call only.",
+        "description": "Before an agent's request leaves: what it would send, the limits, the\naccount. The answer carries the account's secret for this call only, and\n`reservation`: the call's row, written now, so a call whose answer is\nlost still counts (its log entries settle it).",
         "operationId": "reserve",
         "requestBody": {
           "content": {
