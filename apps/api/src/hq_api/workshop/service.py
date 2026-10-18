@@ -21,8 +21,10 @@ from hq_api.workshop.runtime import FakeRuntime, ManagedRuntime, Runtime, config
 
 log = logging.getLogger("hq_api.workshop")
 SYNC_EVERY_S = 5.0
-GITHUB_PATH = "kv/hq-api/workshop/github/{workspace}"  # token (the owner puts it there)
-MANAGED_PATH = "kv/hq-api/workshop/managed"  # api_key, agent_id, environment_id
+# KV paths relative to the `kv` mount (read_kv adds the mount): the owner
+# writes them as kv/hq-api/workshop/... (docs/ops/WORKSHOP.md).
+GITHUB_PATH = "hq-api/workshop/github/{workspace}"  # token (the owner puts it there)
+MANAGED_PATH = "hq-api/workshop/managed"  # api_key, agent_id, environment_id
 
 
 def runtime(hub: Any) -> Runtime:

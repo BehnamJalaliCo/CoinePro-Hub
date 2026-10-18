@@ -287,6 +287,36 @@ async def test_holding_reads(mock: respx.MockRouter, gw: Gateway) -> None:
     assert [r["class"] for r in s.records] == ["A0", "A0"]
 
 
+async def test_backups_status_is_a_holding_read(mock: respx.MockRouter, gw: Gateway) -> None:
+    """backups.status (prompt 07 §1): the platform SRE's charter has it; the
+    answer is the api's metadata; a company role is not given the tool."""
+    s = Stub(
+        mock,
+        gate(
+            employee="HQ-SRE-01",
+            company="HQ",
+            kind="employee",
+            department="AIOPS",
+            role="hub_platform_sre",
+            scope="holding",
+        ),
+    )
+    route = mock.get(f"{API}/internal/v1/backups/status")
+    route.mock(
+        return_value=httpx.Response(
+            200, json={"hourly": {"ok": True}, "encryption": "restic (AES-256)"}
+        )
+    )
+    out = await call(gw, "backups.status")
+    assert out["outcome"] == "ok" and out["class"] == "A0"
+    assert out["result"]["hourly"] == {"ok": True}
+    assert s.records[-1]["tool"] == "backups.status"
+    Stub(mock, gate(role="cto"))
+    out = await call(gw, "backups.status")
+    assert (out["outcome"], out["code"]) == ("denied", "tool_not_in_charter")
+    assert route.call_count == 1
+
+
 async def test_work_get_and_api_errors(mock: respx.MockRouter, gw: Gateway) -> None:
     Stub(mock)
     work_route(mock)
@@ -991,18 +1021,40 @@ async def test_files_read_shows_a_file_and_the_pictures_to_attach(mock: respx.Mo
     r = out["result"]
     assert "name" not in r and "sha256" not in r  # no file name or hash for the model
     assert secret_phone not in json.dumps(r, ensure_ascii=False)  # the transcript is masked
-    assert r["view"] == {"image_file_ids": frames[:13]}
+    assert r["view"] == {"variant": "original", "image_file_ids": frames[:13]}
     assert s.records[-1]["tool"] == "files.read" and s.records[-1]["outcome"] == "ok"
-    # An image: itself; still processing: nothing to look at yet; no frames: the poster.
-    for meta, want in (
-        ({"kind": "image", "status": "ready", "mime": "image/png"}, [FILE_ID]),
-        ({"kind": "video", "status": "processing"}, []),
-        ({"kind": "video", "status": "ready", "variants": {"poster": frames[1]}}, [frames[1]]),
-        ({"kind": "audio", "status": "ready", "transcript": "سلام"}, []),
+    # An image: its agent copy (<= 1568 px, no EXIF; the original is never
+    # loaded); still processing: nothing yet; no frames: the poster; a PDF: its text.
+    agent, thumb = frames[2], frames[3]
+    image = {"kind": "image", "status": "ready", "mime": "image/png", "agent": agent}
+    for meta, args, want in (
+        (image, {}, [agent]),
+        ({**image, "variants": {"thumb": thumb}}, {"variant": "thumb"}, [thumb]),
+        ({"kind": "image", "status": "ready"}, {}, []),  # no agent copy: nothing to show
+        ({"kind": "video", "status": "processing"}, {}, []),
+        ({"kind": "video", "status": "ready", "variants": {"poster": frames[1]}}, {}, [frames[1]]),
+        (
+            {
+                "kind": "video",
+                "status": "ready",
+                "frames": frames,
+                "variants": {"poster": frames[1]},
+            },
+            {"variant": "poster"},
+            [frames[1]],
+        ),
+        ({"kind": "audio", "status": "ready", "transcript": "سلام"}, {}, []),
+        ({"kind": "document", "status": "ready", "text": f"قرارداد {secret_phone}"}, {}, []),
     ):
         route.mock(return_value=httpx.Response(200, json={"id": FILE_ID, **meta}))
-        got = await call(gw, "files.read", {"file_id": FILE_ID})
-        assert got["result"]["view"] == {"image_file_ids": want}, meta
+        got = await call(gw, "files.read", {"file_id": FILE_ID, **args})
+        assert got["result"]["view"] == {
+            "variant": args.get("variant", "original"),
+            "image_file_ids": want,
+        }, meta
+    assert "قرارداد" in got["result"]["text"] and secret_phone not in got["result"]["text"]
+    bad = await call(gw, "files.read", {"file_id": FILE_ID, "variant": "agent"})
+    assert (bad["outcome"], bad["code"]) == ("error", "invalid_args")
     # Another company's file: the api's 403 passes through as denied.
     route.mock(return_value=httpx.Response(403, json={"code": "policy_denied"}))
     out = await call(gw, "files.read", {"file_id": FILE_ID})

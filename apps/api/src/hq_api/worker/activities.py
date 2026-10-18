@@ -22,8 +22,8 @@ from hq_api.agents import checks
 from hq_api.agents.clients import Gateway, LivePush, Router
 from hq_api.agents.runner import Runner
 from hq_api.db import Tx
+from hq_api.domain import backups, notify, recurrence, recurring, scoring
 from hq_api.domain import decisions as D
-from hq_api.domain import notify, recurrence, recurring, scoring
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.hub import Hub
@@ -78,6 +78,7 @@ class Activities:
             self.reconcile_decisions,
             self.end_expired_escrows,
             self.purge,
+            self.backups_ingest,
             self.flush_digest,
             self.morning_report,
             self.audit_verify,
@@ -489,6 +490,11 @@ class Activities:
                     summary="escrow expired; schedule ended",
                 )
         return {"ended": len(rows)}
+
+    @activity.defn(name="backups_ingest")
+    async def backups_ingest(self) -> dict[str, Any]:
+        """The host backup's status files -> backup.*, events and alerts (prompt 07 §1)."""
+        return await backups.ingest(self.hub)
 
     @activity.defn(name="purge")
     async def purge(self) -> dict[str, Any]:

@@ -10,6 +10,8 @@
 #               gate failure and an hq.sh refusal while on; STT_URL follows it
 #   anchor-dir  the backup root is 0700 whatever Hub's umask; status/ is 0755
 #   reanchor    audit-reanchor.sh needs a terminal, even with HQ_REANCHOR_CONFIRM
+#   owner-only  make gdrive-auth, backup-password and openbao-snapshot-token
+#               refuse without a terminal before touching anything (prompt 07)
 #   canary      hq.sh derives HQ_CANARY from the sites seed
 #   caddy       /__canary: 404 off, 503 on; the web never sees
 #               X-Middleware-Subrequest; web request bodies are capped
@@ -143,6 +145,19 @@ elif [[ -s "$T/calls.log" ]]; then
 else
   pass "reanchor: HQ_REANCHOR_CONFIRM without a terminal is refused before anything runs"
 fi
+
+# ------------------------------------------------------------ owner-only ----
+for script in infra/backup/gdrive-auth.sh infra/backup/show-password.sh infra/openbao/snapshot-token.sh; do
+  : >"$T/calls.log"
+  if PATH="$SAFE_PATH" HQ_COMPOSE_CMD="$T/bin/hq-ok" HQ_BACKUP_DIR="$B" HQ_SECRETS_DIR="$T/no-secrets" \
+    "$REPO_DIR/$script" </dev/null >/dev/null 2>&1; then
+    fail "owner-only: $script ran without a terminal"
+  elif [[ -s "$T/calls.log" ]]; then
+    fail "owner-only: $script ran $(wc -l <"$T/calls.log") command(s) without a terminal"
+  else
+    pass "owner-only: $script refuses without a terminal, before anything runs"
+  fi
+done
 
 # ---------------------------------------------------------------- canary ----
 seed_on="$T/sites-on.yaml"

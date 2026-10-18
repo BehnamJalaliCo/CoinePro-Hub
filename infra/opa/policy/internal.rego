@@ -20,8 +20,14 @@ ops := {
 	"run.reserve", "run.record", "thread.live",
 	# prompt 06: files.read (an owner file attached in the agent's own company)
 	"file.read",
+	# prompt 07: backups.status (holding-scope roles: the overseer, the platform SRE)
+	"backup.read",
 	# prompt 06: the Code Workshop, for the driver of a grant
 	"workshop.read", "workshop.session", "workshop.message",
+	# prompt 07: an MCP tool of a server the owner enabled
+	"mcp.call",
+	# prompt 07: the agents' internet (a request out, its log; the egress log)
+	"egress.use", "egress.read",
 }
 
 # Reads of the gateway's tools: an agent reads its own company; a holding-scope
@@ -35,6 +41,7 @@ work_ops := {"work.accept", "work.progress", "work.deliver", "work.fail"}
 own_company_ops := work_ops | {
 	"work.delegate", "decision.propose", "notification.raise", "file.upload",
 	"workshop.read", "workshop.session", "workshop.message",
+	"egress.use",
 }
 
 # Workshop ops on a grant or a session: its driver only (contract §17.3).
@@ -233,9 +240,23 @@ grant if {
 	knowledge_kinds_ok
 }
 
+# The internet through the egress service: an agent's own company only.
+grant if {
+	op == "egress.use"
+	agent
+	same_company(tv("company"))
+}
+
+# The egress log of every company (egress.recent): holding-scope roles only.
+grant if {
+	op == "egress.read"
+	agent
+	holding_reader
+}
+
 # The hub's own health, the audit trail: holding-scope roles only.
 grant if {
-	op in {"hub.read", "audit.read"}
+	op in {"hub.read", "audit.read", "backup.read"}
 	agent
 	holding_reader
 }
@@ -244,6 +265,14 @@ grant if {
 # another company's, whatever the agent's charter scope.
 grant if {
 	op == "file.read"
+	agent
+	same_company(tv("company"))
+}
+
+# An MCP server's tool (prompt 07 §3): for the agent's own company only; which
+# server and tool, and at which class, is the owner's sealed registration.
+grant if {
+	op == "mcp.call"
 	agent
 	same_company(tv("company"))
 }

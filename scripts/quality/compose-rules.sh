@@ -8,25 +8,34 @@
 # and the web panel are never on hq-internal; some services sit on exactly one
 # network; only an allow-list may join hq-core, hq-agent and hq-edge; and
 # hq-agent and hq-edge have no route out of the host (internal).
+# Prompt 07 §2: egress is the agents' only route out (hq-egress, with SearXNG);
+# the gateway reaches it on hq-egress-api, the browser on hq-browser (both
+# internal); none of the three is on any other network.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ensure_env
 
-JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch"]'
-HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch"]'
-NOT_INTERNAL='["temporal","opa","gateway","web","stt"]'
+JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch",
+  "backup-tools"]'
+HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch",
+  "backup-tools","egress","searxng","browser"]'
+NOT_INTERNAL='["temporal","opa","gateway","web","stt","egress","searxng","browser"]'
 # Services whose networks are exactly these.
-ONLY_ON='{"gateway":["hq-agent"],"opa":["hq-agent"],"web":["hq-edge"],"claude-runtime":["hq-llm"],
-  "stt":["hq-stt"],"stt-fetch":["hq-fetch"]}'
+ONLY_ON='{"gateway":["hq-agent","hq-egress-api"],"opa":["hq-agent"],"web":["hq-edge"],"claude-runtime":["hq-llm"],
+  "stt":["hq-stt"],"stt-fetch":["hq-fetch"],
+  "egress":["hq-browser","hq-egress","hq-egress-api"],"searxng":["hq-egress"],"browser":["hq-browser"]}'
 # Allow-list of every restricted network.
 MEMBERS='{
   "hq-core":["temporal","temporal-namespace","temporal-ui","api","worker","postgres","prometheus"],
   "hq-agent":["worker","gateway","api","opa"],
   "hq-edge":["caddy","web"],
   "hq-stt":["worker","stt"],
-  "hq-fetch":["stt-fetch"]}'
-INTERNAL_NETS='["hq-agent","hq-edge","hq-stt"]'
+  "hq-fetch":["stt-fetch"],
+  "hq-egress":["egress","searxng"],
+  "hq-egress-api":["gateway","egress"],
+  "hq-browser":["egress","browser"]}'
+INTERNAL_NETS='["hq-agent","hq-edge","hq-stt","hq-egress-api","hq-browser"]'
 # The opt-in profiles' services (cadvisor, stt) follow the same rules.
 mapfile -t OPT_IN < <(opt_in_profiles)
 failed=0

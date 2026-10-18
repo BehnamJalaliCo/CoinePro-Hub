@@ -23,3 +23,5 @@ python-dateutil==2.9.0.post0
 # (Pillow: MIT-CMU), HEIC from phones (pillow-heif: BSD-3-Clause, libheif LGPL)
 pillow==12.3.0
 pillow-heif==1.8.0
+# PDF text for files.read (prompt 07 §3; pypdf: BSD-3-Clause, pure Python)
+pypdf==6.19.0

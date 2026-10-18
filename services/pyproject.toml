@@ -4,7 +4,7 @@
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["hq-common/src", "llm-router/src", "claude-runtime/src", "gateway/src", "stt/src"]
+src = ["hq-common/src", "llm-router/src", "claude-runtime/src", "gateway/src", "stt/src", "egress/src"]
 extend-exclude = ["llm-router/migrations/versions"]
 
 [tool.ruff.lint]
@@ -21,20 +21,23 @@ ignore = [
 "*/testing/*" = ["S311"]
 # Persian letters and affixes are the subject of the normaliser.
 "hq-common/src/hq_common/persian.py" = ["RUF001", "RUF002", "RUF003"]
+# Persian words and invisible spaces are what the egress rules look for.
+"egress/src/hq_egress/rules.py" = ["RUF001"]
+"egress/src/hq_egress/extract.py" = ["RUF001"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["hq_common", "llm_router", "claude_runtime", "hq_gateway", "hq_stt"]
+known-first-party = ["hq_common", "llm_router", "claude_runtime", "hq_gateway", "hq_stt", "hq_egress"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 warn_unreachable = true
-mypy_path = "hq-common/src:llm-router/src:claude-runtime/src:gateway/src:stt/src"
+mypy_path = "hq-common/src:llm-router/src:claude-runtime/src:gateway/src:stt/src:egress/src"
 explicit_package_bases = true
 cache_dir = "/tmp/mypy-cache"
 
 [[tool.mypy.overrides]]
-module = ["litellm", "litellm.*", "nats", "nats.*", "asyncpg", "asyncpg.*", "prometheus_client.*", "faster_whisper", "faster_whisper.*"]
+module = ["litellm", "litellm.*", "nats", "nats.*", "asyncpg", "asyncpg.*", "prometheus_client.*", "faster_whisper", "faster_whisper.*", "lxml", "lxml.*", "playwright", "playwright.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -46,6 +49,9 @@ filterwarnings = ["ignore::DeprecationWarning"]
 [tool.coverage.run]
 branch = true
 data_file = "/tmp/.coverage"
+# Runs in the browser image (Playwright + Chromium), not in the test image; its
+# decisions (rules.py) are tested here, the browser itself by the egress smoke test.
+omit = ["*/hq_egress/browser.py"]
 
 [tool.coverage.report]
 skip_empty = true

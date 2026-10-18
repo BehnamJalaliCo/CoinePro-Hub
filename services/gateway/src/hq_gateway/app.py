@@ -23,7 +23,9 @@ from hq_common import charters, heartbeat, tokens
 from hq_gateway import __version__
 from hq_gateway.config import Settings
 from hq_gateway.gateway import Gateway, Opa
+from hq_gateway.mcp import SdkOpener
 from hq_gateway.tools import Api
+from hq_gateway.web import Egress
 
 log = logging.getLogger("hq_gateway")
 
@@ -144,7 +146,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         for problem in lib.problems:
             log.warning("charter problem", extra={"problem": problem[:300]})
         state.load_digest()
-        api, opa = Api(s.api_url, s.call_timeout_s), Opa(s.opa_url)
+        egress = Egress(s.egress_url, s.tool_timeout_s) if s.egress_url else None
+        api, opa = Api(s.api_url, s.call_timeout_s, egress=egress), Opa(s.opa_url)
         state.gateway = Gateway(
             lib,
             api,
@@ -152,6 +155,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             max_result_chars=s.max_result_chars,
             tool_timeout_s=s.tool_timeout_s,
             deadline_s=s.deadline_s,
+            # MCP servers (prompt 07 §3): http ones only through the egress proxy.
+            mcp_opener=SdkOpener(s.egress_proxy_url, s.mcp_timeout_s),
         )
 
         async def check() -> dict[str, Any]:

@@ -13,7 +13,9 @@ short Persian explanation (`hint_fa`) so the model knows what to do instead.
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -30,6 +32,7 @@ CODE = r"^[A-Z][A-Z0-9]{1,9}$"
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
 THREAD = r"^(A|N|P|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
 UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+MIME_OK = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}/[a-z0-9][a-z0-9!#$&^_.+-]{0,63}$")
 NS = uuid.UUID("6a0f1c3e-5b7d-4e21-9c3a-0d7f2b6e8a41")  # idempotency keys per action
 HINT_CHARS = 300
 
@@ -56,6 +59,7 @@ class Call:
     gate: dict[str, Any]
     step: int
     index: int
+    cls: str = "A0"  # the call's own class (per call for an `A0/A2` tool)
 
     def idem(self, tool: str) -> str:
         return str(uuid.uuid5(NS, f"{self.gate['run_id']}:{self.step}:{self.index}:{tool}"))
@@ -65,12 +69,36 @@ class Api:
     """The internal API (api:8000), always with the agent's token."""
 
     def __init__(
-        self, base_url: str, timeout: float, transport: httpx.AsyncBaseTransport | None = None
+        self,
+        base_url: str,
+        timeout: float,
+        transport: httpx.AsyncBaseTransport | None = None,
+        egress: Any = None,
     ) -> None:
         self._http = httpx.AsyncClient(base_url=base_url, timeout=timeout, transport=transport)
+        self.egress = egress  # hq_gateway.web.Egress (the internet tools); None = not wired
 
     async def aclose(self) -> None:
         await self._http.aclose()
+        if self.egress is not None:
+            await self.egress.aclose()
+
+    async def upload(
+        self,
+        path: str,
+        token: str,
+        content: bytes,
+        content_type: str,
+        *,
+        params: dict[str, Any] | None = None,
+    ) -> httpx.Response:
+        """A raw-body upload (an agent file) with the agent's token."""
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "X-Request-ID": str(uuid.uuid4()),
+            "Content-Type": content_type,
+        }
+        return await self._http.post(path, content=content, params=params, headers=headers)
 
     async def request(
         self,
@@ -133,6 +161,29 @@ class WorkRef(In):
 
 class FileIn(In):
     file_id: str = Field(pattern=UUID_RE)
+    # What to look at (agents/tools.md): the picture as the model may see it
+    # (an image's agent copy, a video's key frames), its small thumb, or a
+    # video's poster frame only.
+    variant: Literal["original", "thumb", "poster"] = "original"
+
+
+MCP_SERVER = r"^[a-z][a-z0-9-]{1,39}$"
+MCP_TOOL = r"^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,127}$"
+
+
+class McpCallIn(In):
+    """mcp.call (class `per tool`): one tool of an MCP server the owner enabled."""
+
+    server: str = Field(pattern=MCP_SERVER)
+    tool: str = Field(pattern=MCP_TOOL)
+    args: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("args")
+    @classmethod
+    def _small(cls, v: dict[str, Any]) -> dict[str, Any]:
+        if len(json.dumps(v, ensure_ascii=False, default=str)) > 20_000:
+            raise ValueError("at most 20000 characters of arguments")
+        return v
 
 
 class CompanyIn(In):
@@ -357,6 +408,7 @@ FILE_FIELDS = (
     "height",
     "duration_s",
     "transcript",
+    "text",
 )
 MAX_VIEW_IMAGES = 13  # a video's poster and its (up to 12) key frames
 
@@ -375,19 +427,32 @@ async def files_read(api: Api, call: Call, a: FileIn) -> Result:
     if not isinstance(d, dict) or not isinstance(d.get("id"), str):
         return Result("error", code="api_bad_answer")
     meta = {k: d.get(k) for k in FILE_FIELDS if d.get(k) is not None}
+    raw_variants = d.get("variants")
+    variants: dict[str, Any] = raw_variants if isinstance(raw_variants, dict) else {}
+
+    def one(value: Any) -> list[str]:
+        return [value] if isinstance(value, str) else []
+
     images: list[str] = []
     if d.get("status") == "ready":
-        if d.get("kind") == "image":
-            images = [d["id"]]
+        if a.variant == "thumb":
+            images = one(variants.get("thumb"))
+        elif a.variant == "poster":
+            images = one(variants.get("poster"))
+        elif d.get("kind") == "image":
+            images = one(d.get("agent"))  # the copy a model sees (<= 1568 px, no EXIF)
         elif d.get("kind") == "video":
             raw = d.get("frames")
             frames: list[Any] = raw if isinstance(raw, list) else []
-            images = [f for f in frames if isinstance(f, str)]
-            if not images:
-                poster = (d.get("variants") or {}).get("poster")
-                images = [poster] if isinstance(poster, str) else []
-    meta["view"] = {"image_file_ids": images[:MAX_VIEW_IMAGES]}
+            images = [f for f in frames if isinstance(f, str)] or one(variants.get("poster"))
+    meta["view"] = {"variant": a.variant, "image_file_ids": images[:MAX_VIEW_IMAGES]}
     return Result("ok", ref=f"file:{d['id']}", data=meta)
+
+
+async def mcp_call(api: Api, call: Call, a: McpCallIn) -> Result:
+    """Never reached: the gateway carries mcp.call out itself (its class comes
+    from the server's registration, before the policy; hq_gateway.mcp)."""
+    raise RuntimeError("mcp.call is carried out by the gateway")
 
 
 async def company_state(api: Api, call: Call, a: CompanyIn) -> Result:
@@ -408,6 +473,11 @@ async def health_sites(api: Api, call: Call, a: SitesIn) -> Result:
 
 async def health_hub(api: Api, call: Call, a: Empty) -> Result:
     return from_response(await api.request("GET", "/internal/v1/health/hub", call.token), None)
+
+
+async def backups_status(api: Api, call: Call, a: Empty) -> Result:
+    """The backup status (contract §18.9): metadata only; restore is never a tool."""
+    return from_response(await api.request("GET", "/internal/v1/backups/status", call.token), None)
 
 
 async def treasury_usage(api: Api, call: Call, a: UsageIn) -> Result:
@@ -734,6 +804,7 @@ TOOLS: dict[str, tuple[type[In], Handler]] = {
     "company.state": (CompanyIn, company_state),
     "health.sites": (SitesIn, health_sites),
     "health.hub": (Empty, health_hub),
+    "backups.status": (Empty, backups_status),
     "treasury.usage": (UsageIn, treasury_usage),
     "knowledge.search": (SearchIn, knowledge_search),
     "audit.recent": (AuditIn, audit_recent),
@@ -752,7 +823,18 @@ TOOLS: dict[str, tuple[type[In], Handler]] = {
     "work.request": (RequestIn, work_request),
     "activity.set": (ActivityIn, activity_set),
     "notify": (NotifyIn, notify),
+    "mcp.call": (McpCallIn, mcp_call),
 }
+
+
+# The class of one call of an `A0/A2` tool, from its parsed input (web.py).
+CALL_CLASS: dict[str, Callable[[Any], str]] = {}
+
+
+def call_class(tool: str, parsed: Any, default: str) -> str:
+    """The call's class; a tool without its own rule keeps the catalog's."""
+    rule = CALL_CLASS.get(tool)
+    return rule(parsed) if rule is not None else default
 
 
 def validate(tool: str, args: Any) -> tuple[Any, dict[str, str]]:

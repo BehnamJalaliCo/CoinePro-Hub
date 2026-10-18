@@ -31,6 +31,13 @@ check() { # check LABEL SUM_MB RAM_MB WHERE [HEADROOM_PERCENT [ENFORCED]]
   limit=$((budget * (100 - headroom) / 100))
   local rule="${PERCENT}% of $ram MiB $where"
   if ((headroom)); then rule+=", ${headroom}% of it kept free"; fi
+  # No sum (compose could not render the profile, e.g. a limit without a value)
+  # is a failure, never an empty "ok".
+  if [[ ! "$sum" =~ ^[0-9]+$ ]] || ((sum == 0)); then
+    echo "memory-budget: $label: no limit sum (compose config failed)" >&2
+    failed=1
+    return
+  fi
   if ((sum <= limit)); then
     echo "memory-budget: $label ok ($sum MiB <= $limit MiB; $rule)"
   elif [[ "$enforced" == no ]]; then

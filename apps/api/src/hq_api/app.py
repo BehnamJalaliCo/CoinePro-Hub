@@ -25,8 +25,10 @@ from hq_api.routes import (
     agent_tools,
     audit_control,
     auth,
+    backups,
     decisions,
     deliverables,
+    egress,
     files,
     inbox,
     internal,
@@ -38,6 +40,7 @@ from hq_api.routes import (
     owner,
     runs,
     stream,
+    tools,
     treasury,
     work,
     workshop,
@@ -137,11 +140,16 @@ def create_app(
         runs,
         workshop,
         orders,
+        backups,
+        tools,
+        egress,
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
     app.include_router(agent_tools.router, prefix="/internal/v1")
     app.include_router(workshop.internal_router, prefix="/internal/v1")
+    app.include_router(tools.internal_router, prefix="/internal/v1")
+    app.include_router(egress.internal_router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

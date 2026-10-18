@@ -1,0 +1,432 @@
+"""HTTP API of the egress service, for the Tool Gateway only (network
+hq-egress-api; a client from anywhere else is refused).
+
+    POST /v1/search        web.search through the hub's own SearXNG
+    POST /v1/read          web.read: one page or file as readable text
+    POST /v1/http          http.request: one request to an external API
+    POST /v1/browse        web.browse: steps in a fresh browser session
+    POST /v1/proxy/drain   the entries of one tool call's proxied connections
+    GET  /v1/health
+
+Every answer is {outcome: ok | blocked | error, code, data, entries}: the
+entries (one per request that left or was stopped) go to the egress log
+through the gateway. Web content is untrusted: `source: "web"`, the final URL,
+the time, and `suspected_injection`.
+"""
+
+from __future__ import annotations
+
+import base64
+import contextlib
+import ipaddress
+import json
+import logging
+import time
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+from typing import Any, Literal
+from urllib.parse import urlsplit
+
+import httpx
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
+
+from hq_egress import __version__
+from hq_egress import extract as X
+from hq_egress.accounts import Account, scrub
+from hq_egress.config import Settings
+from hq_egress.guard import Blocked, Guard
+from hq_egress.net import Entry, Fetcher, FetchError
+from hq_egress.proxy import Buckets, entries_json
+
+log = logging.getLogger("hq_egress")
+TEXT_TYPES = ("text/", "application/json", "application/xml", "application/javascript")
+KEEP_HEADERS = (
+    "content-type",
+    "content-length",
+    "date",
+    "etag",
+    "last-modified",
+    "location",
+    "link",
+    "retry-after",
+    "x-ratelimit-limit",
+    "x-ratelimit-remaining",
+    "x-ratelimit-reset",
+)
+CLASS = Literal["A0", "A1", "A2"]
+
+
+class Ctx(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+    actor: str = Field(min_length=2, max_length=60)
+    run_id: str | None = Field(default=None, max_length=64)
+    cls: CLASS = "A0"
+    max_bytes: int = Field(default=10 * 1024 * 1024, ge=1, le=200 * 1024 * 1024)
+
+
+class SearchIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ctx: Ctx
+    q: str = Field(min_length=1, max_length=500)
+    lang: str | None = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
+    recency_days: int | None = Field(default=None, ge=1, le=3650)
+    site: str | None = Field(default=None, pattern=r"^[A-Za-z0-9.-]{3,253}$")
+    n: int = Field(default=8, ge=1, le=20)
+
+
+class ReadIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ctx: Ctx
+    url: str = Field(min_length=8, max_length=4000)
+    mode: Literal["text", "pdf", "html"] = "text"
+    max_chars: int = Field(default=20_000, ge=200, le=200_000)
+    account: Account | None = None
+
+
+class HttpIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ctx: Ctx
+    method: Literal["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    url: str = Field(min_length=8, max_length=4000)
+    headers: dict[str, str] = Field(default_factory=dict, max_length=30)
+    json_body: Any = None
+    body: str | None = Field(default=None, max_length=1_000_000)
+    max_chars: int = Field(default=20_000, ge=200, le=200_000)
+    account: Account | None = None
+
+
+class Step(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    do: Literal[
+        "goto", "click", "type", "select", "scroll", "wait", "read", "screenshot", "download"
+    ]
+    target: str | None = Field(default=None, max_length=500)
+    text: str | None = Field(default=None, max_length=5000)
+    url: str | None = Field(default=None, max_length=4000)
+
+
+class BrowseIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ctx: Ctx
+    steps: list[Step] = Field(min_length=1, max_length=30)
+    account: Account | None = None
+    time_s: float = Field(default=20, gt=0, le=120)
+
+
+class DrainIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    call_id: str = Field(min_length=8, max_length=64)
+
+
+class State:
+    def __init__(
+        self,
+        settings: Settings,
+        guard: Guard,
+        buckets: Buckets,
+        *,
+        internal: httpx.AsyncClient | None = None,
+        fetcher: Fetcher | None = None,
+    ) -> None:
+        self.settings = settings
+        self.guard = guard
+        self.buckets = buckets
+        self.fetcher = fetcher or Fetcher(guard, settings.fetch_timeout_s)
+        # The hub's own upstreams (SearXNG, the browser): fixed addresses, not agent input.
+        self.internal = internal or httpx.AsyncClient(
+            timeout=settings.browse_call_s + 15, trust_env=False
+        )
+
+
+def answer(
+    outcome: str,
+    data: Any = None,
+    entries: list[Entry] | None = None,
+    code: str | None = None,
+    secrets: list[str] | None = None,
+    files: list[dict[str, Any]] | None = None,
+) -> JSONResponse:
+    body = {
+        "outcome": outcome,
+        "code": code,
+        "data": scrub(data, secrets or []),
+        "entries": entries_json(entries or []),
+    }
+    if files:
+        body["files"] = files  # binary (base64), never scrubbed as text
+    return JSONResponse(body)
+
+
+def build_app(state: State) -> FastAPI:
+    app = FastAPI(
+        title="egress", version=__version__, docs_url=None, redoc_url=None, openapi_url=None
+    )
+    app.state.egress = state
+
+    @app.middleware("http")
+    async def clients_only(request: Request, call_next: Any) -> Any:
+        try:
+            ip = ipaddress.ip_address((request.client.host if request.client else "") or "")
+        except ValueError:
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+        if not any(ip in net for net in state.settings.api_clients):
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+        return await call_next(request)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid(_: Request, exc: RequestValidationError) -> JSONResponse:
+        fields = {".".join(str(p) for p in e["loc"][1:]) or "body": e["type"] for e in exc.errors()}
+        return JSONResponse({"outcome": "error", "code": "invalid_args", "fields": fields}, 422)
+
+    @app.get("/v1/health")
+    async def health() -> dict[str, Any]:
+        return {"ok": True, "version": __version__}
+
+    @app.post("/v1/search")
+    async def search(a: SearchIn) -> JSONResponse:
+        q = f"site:{a.site} {a.q}" if a.site else a.q
+        params: dict[str, Any] = {"q": q, "format": "json", "pageno": 1, "safesearch": 0}
+        if a.lang:
+            params["language"] = a.lang
+        if a.recency_days:
+            d = a.recency_days
+            params["time_range"] = (
+                "day" if d <= 1 else "week" if d <= 7 else "month" if d <= 31 else "year"
+            )
+        entry = Entry("web.search", "GET", "searxng", kind="search", cls=a.ctx.cls)
+        start = time.monotonic()
+        try:
+            resp = await state.internal.get(
+                state.settings.searxng_url.rstrip("/") + "/search", params=params
+            )
+            entry.status = resp.status_code
+            entry.bytes_in = len(resp.content)
+            body = resp.json() if resp.status_code == 200 else {}
+        except (httpx.HTTPError, ValueError):
+            body = None
+        entry.ms = int((time.monotonic() - start) * 1000)
+        if not isinstance(body, dict):
+            return answer("error", None, [entry], "search_unavailable")
+        results = []
+        for r in (body.get("results") or [])[: a.n]:
+            if not isinstance(r, dict) or not isinstance(r.get("url"), str):
+                continue
+            results.append(
+                {
+                    "title": str(r.get("title") or "")[:300],
+                    "url": r["url"][:2000],
+                    "snippet": str(r.get("content") or "")[:600],
+                    "date": r.get("publishedDate"),
+                    "engine": r.get("engine"),
+                }
+            )
+        flags = X.injection_flags(*(f"{r['title']} {r['snippet']}" for r in results))
+        return answer(
+            "ok",
+            {
+                "results": results,
+                "source": "web",
+                "fetched_at": _now(),
+                "suspected_injection": flags,
+            },
+            [entry],
+        )
+
+    @app.post("/v1/read")
+    async def read(a: ReadIn) -> JSONResponse:
+        secrets = [a.account.secret] if a.account else []
+        try:
+            got = await state.fetcher.fetch(
+                "GET",
+                a.url,
+                tool="web.read",
+                cls=a.ctx.cls,
+                max_bytes=min(a.ctx.max_bytes, state.settings.max_call_bytes),
+                extra_ports=tuple(a.account.ports) if a.account else (),
+                inject=a.account.headers_for if a.account else None,
+            )
+        except Blocked as b:
+            return answer("blocked", None, b.entries, b.reason, secrets)
+        except FetchError as e:
+            return answer("error", None, e.entries, "fetch_failed", secrets)
+        ctype = got.content_type
+        if a.mode == "pdf" or ctype == "application/pdf" or got.body[:5] == b"%PDF-":
+            title, text, cut = X.pdf_text(got.body, a.max_chars)
+            kind = "pdf"
+        elif a.mode == "html":
+            text = got.body.decode(_charset(got.headers), "replace")
+            title, cut, kind = "", len(text) > a.max_chars, "html"
+            text = text[: a.max_chars]
+        elif ctype.startswith("text/html") or ctype in ("application/xhtml+xml", ""):
+            title, text, cut = X.html_text(got.body, a.max_chars)
+            kind = "text"
+        elif ctype.startswith(TEXT_TYPES):
+            text = got.body.decode(_charset(got.headers), "replace")
+            title, cut, kind = "", len(text) > a.max_chars, "text"
+            text = text[: a.max_chars]
+        else:
+            title, text, cut, kind = "", "", False, "binary"
+        data = {
+            "final_url": got.final_url,
+            "status": got.status,
+            "content_type": ctype,
+            "kind": kind,
+            "title": title,
+            "text": text,
+            "truncated": cut or got.truncated,
+            "source": "web",
+            "fetched_at": _now(),
+            "suspected_injection": X.injection_flags(title, text),
+        }
+        return answer("ok", data, got.entries, None, secrets)
+
+    @app.post("/v1/http")
+    async def http_request(a: HttpIn) -> JSONResponse:
+        secrets = [a.account.secret] if a.account else []
+        headers = dict(a.headers)
+        content: bytes | None = None
+        if a.json_body is not None:
+            content = json.dumps(a.json_body, ensure_ascii=False).encode()
+            headers.setdefault("Content-Type", "application/json")
+        elif a.body is not None:
+            content = a.body.encode()
+        try:
+            got = await state.fetcher.fetch(
+                a.method,
+                a.url,
+                tool="http.request",
+                cls=a.ctx.cls,
+                headers=headers,
+                content=content,
+                max_bytes=min(a.ctx.max_bytes, state.settings.max_call_bytes),
+                extra_ports=tuple(a.account.ports) if a.account else (),
+                inject=a.account.headers_for if a.account else None,
+            )
+        except Blocked as b:
+            return answer("blocked", None, b.entries, b.reason, secrets)
+        except FetchError as e:
+            return answer("error", None, e.entries, "fetch_failed", secrets)
+        ctype = got.content_type
+        text = ""
+        if ctype.startswith(TEXT_TYPES) or ctype.endswith("+json"):
+            text = got.body.decode(_charset(got.headers), "replace")
+        data = {
+            "status": got.status,
+            "final_url": got.final_url,
+            "headers": {k: v for k, v in got.headers.items() if k in KEEP_HEADERS},
+            "body": text[: a.max_chars],
+            "bytes": len(got.body),
+            "truncated": got.truncated or len(text) > a.max_chars,
+            "source": "web",
+            "fetched_at": _now(),
+            "suspected_injection": X.injection_flags(text[: a.max_chars]),
+        }
+        return answer("ok", data, got.entries, None, secrets)
+
+    @app.post("/v1/browse")
+    async def browse(a: BrowseIn) -> JSONResponse:
+        for s in a.steps:
+            if s.url:
+                try:
+                    state.guard.target(s.url)
+                    if state.guard.is_hub(urlsplit(s.url).hostname or ""):
+                        raise Blocked("hub_internal")
+                except Blocked as b:
+                    e = Entry("web.browse", "GOTO", _host(s.url), kind="browse", cls=a.ctx.cls,
+                              blocked_reason=b.reason)  # fmt: skip
+                    return answer("blocked", None, [e], b.reason)
+        secrets = [a.account.secret] if a.account else []
+        key, password = state.buckets.open("web.browse", a.ctx.cls, a.ctx.max_bytes)
+        time_s = min(a.time_s, state.settings.browse_call_s)
+        payload = {
+            "steps": [s.model_dump(exclude_none=True) for s in a.steps],
+            "proxy": {
+                "server": state.settings.browser_proxy_url,
+                "username": key,
+                "password": password,
+            },
+            "account": a.account.model_dump() if a.account else None,
+            "time_s": time_s,
+            "max_download_bytes": min(a.ctx.max_bytes, state.settings.max_call_bytes),
+        }
+        start = time.monotonic()
+        try:
+            resp = await state.internal.post(
+                state.settings.browser_url.rstrip("/") + "/v1/run",
+                json=payload,
+                timeout=time_s + 10,
+            )
+            got = resp.json() if resp.status_code in (200, 503) else None
+        except (httpx.HTTPError, ValueError):
+            got = None
+        finally:
+            entries = state.buckets.drain(key)
+        ms = int((time.monotonic() - start) * 1000)
+        first = next((s.url for s in a.steps if s.url), None) or "about:blank"
+        session = Entry("web.browse", "BROWSE", _host(first), kind="browse", cls=a.ctx.cls, ms=ms)
+        entries = [session, *entries]
+        if not isinstance(got, dict):
+            session.status = 502
+            return answer("error", None, entries, "browser_unavailable", secrets)
+        if got.get("code") == "busy":
+            session.status = 503
+            return answer("error", None, entries, "browser_busy", secrets)
+        session.status = 200
+        texts = [str(st.get("text") or "") for st in got.get("steps") or [] if isinstance(st, dict)]
+        files = [f for f in got.get("files") or [] if isinstance(f, dict)]
+        data = {
+            "final_url": got.get("final_url"),
+            "title": got.get("title"),
+            "steps": got.get("steps") or [],
+            "blocked": got.get("blocked"),
+            "source": "web",
+            "fetched_at": _now(),
+            "suspected_injection": X.injection_flags(*texts),
+        }
+        blocked = got.get("blocked")
+        if isinstance(blocked, dict) and blocked.get("code") == "needs_owner":
+            session.blocked_reason = "needs_owner"
+            return answer("blocked", data, entries, "needs_owner", secrets, files)
+        return answer("ok", data, entries, None, secrets, files)
+
+    @app.post("/v1/proxy/drain")
+    async def drain(a: DrainIn) -> JSONResponse:
+        return answer("ok", {"call_id": a.call_id}, state.buckets.drain(a.call_id))
+
+    return app
+
+
+def _charset(headers: dict[str, str]) -> str:
+    ctype = headers.get("content-type", "")
+    for part in ctype.split(";")[1:]:
+        k, _, v = part.strip().partition("=")
+        if k.lower() == "charset" and v:
+            with contextlib.suppress(LookupError):
+                import codecs
+
+                return codecs.lookup(v.strip('"')).name
+    return "utf-8"
+
+
+def _host(url: str) -> str:
+    try:
+        return (urlsplit(url).hostname or "?")[:255]
+    except ValueError:
+        return "?"
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+@contextlib.asynccontextmanager
+async def lifespan_noop(_: FastAPI) -> AsyncIterator[None]:
+    yield
+
+
+def b64(data: bytes) -> str:
+    return base64.b64encode(data).decode()

@@ -1,0 +1,27 @@
+# browser (prompt 07 §2.1): headless Chromium driven by Playwright (Apache-2.0),
+# on hq-browser with egress as its only peer; all its traffic goes through
+# egress's proxy. The official image is pinned by digest (its Chromium build
+# matches playwright==1.63.0 in browser.requirements.lock). uid 10001,
+# read-only root filesystem, HOME and the profile on the tmpfs.
+FROM mcr.microsoft.com/playwright/python:v1.63.0-noble@sha256:72bd171a9ffc2b4b59532aaa6210e21014d07093120dc25528870c0b840da1f0
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    HOME=/tmp \
+    PYTHONPATH=/app/hq-common/src:/app/egress/src
+
+COPY egress/browser.requirements.lock /tmp/requirements.lock
+RUN python3 -m pip install --require-hashes --no-deps --break-system-packages -r /tmp/requirements.lock \
+    && rm /tmp/requirements.lock \
+    && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hq
+
+COPY hq-common/src /app/hq-common/src
+COPY egress/src /app/egress/src
+
+USER 10001
+WORKDIR /tmp
+EXPOSE 8095
+CMD ["python3", "-m", "hq_egress.browser"]

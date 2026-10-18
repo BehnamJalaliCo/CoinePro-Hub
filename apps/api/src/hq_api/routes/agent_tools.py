@@ -29,13 +29,15 @@ from pydantic import BaseModel, Field
 from hq_api import audit, idempotency
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
+from hq_api.domain import backups, hiring
 from hq_api.domain import files as F
-from hq_api.domain import hiring
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
+from hq_api.routes.backups import BackupStatus
 from hq_api.routes.internal import allow, escrow_of
 from hq_api.routes.treasury import TOTALS, period_start
 from hq_api.schemas import CODE, FileRef, Model
+from hq_common.redact import scrub_async
 
 router = APIRouter(tags=["internal"])
 E = responses(401, 403, 404, 409, 422, 423, 429)
@@ -421,6 +423,18 @@ async def tool_health_hub(ctx: Ctx = Depends(internal_ctx)) -> HubHealth:
             "SELECT at, data FROM ops.hub_health WHERE company_id = :co", co=holding.id
         )
     return HubHealth(at=row["at"] if row else None, data=dict(row["data"]) if row else {})
+
+
+# ------------------------------------------------------------ backups.status --
+@router.get("/backups/status", response_model=BackupStatus, responses=E)
+async def tool_backups_status(ctx: Ctx = Depends(internal_ctx)) -> BackupStatus:
+    """backups.status: the backup status of §18.9 (holding-scope roles: the
+    overseer, the platform SRE); metadata only, never a restore."""
+    _agent(ctx)
+    await allow(ctx, "backup.read", {})
+    holding = await ctx.hub.companies.holding()
+    async with read_tx(ctx) as tx:
+        return BackupStatus(**await backups.status(tx, holding.id))
 
 
 # ------------------------------------------------------------ treasury.usage --
@@ -887,9 +901,13 @@ def _publish_line(live: Any, thread: str, run_id: str | None, line: bytes) -> No
 # -------------------------------------------------------------- files.read --
 class AgentFileRef(FileRef):
     """files.read: an owner file attached in the agent's own company (§17.1),
-    plus the key frames of a video; the model sees images as vision input."""
+    plus the key frames of a video; the model sees images as vision input.
+    `agent`: the image copy a model sees (long edge <= 1568, no EXIF);
+    `text`: a PDF's text (prompt 07 §3), masked."""
 
     frames: list[UUID] = Field(default_factory=list)
+    agent: UUID | None = None
+    text: str | None = None
 
 
 @router.get("/files/{id}/meta", response_model=AgentFileRef, responses=E)
@@ -908,5 +926,14 @@ async def tool_file_meta(id: UUID, ctx: Ctx = Depends(internal_ctx)) -> AgentFil
                ORDER BY frame_at_s NULLS LAST, created_at""",
             id=id,
         )
+        agent = await tx.scalar(
+            "SELECT id FROM files.files WHERE parent_id = :id AND variant = 'agent' LIMIT 1", id=id
+        )
+        text = await tx.scalar("SELECT text FROM files.processing WHERE file_id = :id", id=id)
     ref = F.render(row)
-    return AgentFileRef(**ref.model_dump(), frames=[r["id"] for r in frames])
+    return AgentFileRef(
+        **ref.model_dump(),
+        frames=[r["id"] for r in frames],
+        agent=agent,
+        text=await scrub_async(text) if text else None,
+    )

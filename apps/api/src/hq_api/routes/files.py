@@ -182,6 +182,9 @@ async def store_upload(
             )
         await _audit(ctx, tx, holding.id, fid, up)
         return fid, False
+    pdf = None
+    if up.mime == "application/pdf":  # its text for files.read (prompt 07 §3)
+        pdf = await media.pdf_text(await asyncio.to_thread(up.path.read_bytes))
     key, sha, size = await hub.storage.commit(up.path)
     fid = await F.insert(
         tx,
@@ -207,6 +210,8 @@ async def store_upload(
             co=holding.id,
             stt=json.dumps({"purpose": purpose} if purpose else {}),
         )
+    elif pdf:
+        await F.document_text(tx, fid, holding.id, pdf)
     await _audit(ctx, tx, holding.id, fid, up)
     return fid, processing
 

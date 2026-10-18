@@ -1059,3 +1059,25 @@ def test_the_fake_runtime_spec_needs_nothing() -> None:
         title="t", brief="b", model="m", effort="low", budget_usd=Decimal(1), actions=["read"],
     )  # fmt: skip
     assert spec.branch_prefix == "hq/"
+
+
+async def test_managed_reads_the_owner_secrets_under_the_kv_mount() -> None:
+    """read_kv adds the `kv` mount itself: the paths are relative to it (a
+    `kv/` prefix would ask for kv/data/kv/... and never find them)."""
+    from types import SimpleNamespace
+
+    from hq_api.workshop import service
+
+    asked: list[str] = []
+
+    class Bao:
+        async def read_kv(self, path: str) -> dict[str, Any]:
+            asked.append(path)
+            if path == "hq-api/workshop/managed":
+                return {"api_key": "k", "agent_id": "a", "environment_id": "e"}
+            return {"token": "t"}
+
+    hub = SimpleNamespace(settings=SimpleNamespace(workshop_runtime="managed"), bao=Bao())
+    rt = await service.build(hub)
+    assert rt is not None and asked == ["hq-api/workshop/managed"]
+    assert all(not p.startswith("kv/") for p in asked)

@@ -141,3 +141,15 @@ async def attach(tx: Tx, ids: list[UUID], thread_company: UUID, holding_id: UUID
             ids=moving,
         )
     return unique
+
+
+async def document_text(tx: Tx, file_id: UUID, company_id: UUID, text: str) -> None:
+    """A PDF's text (prompt 07 §3): kept in files.processing (files.files stays
+    append-only), ready at once."""
+    await tx.exec(
+        """INSERT INTO files.processing (file_id, company_id, status, text)
+           VALUES (:f, :co, 'ready', :t)""",
+        f=file_id,
+        co=company_id,
+        t=text[:200_000],
+    )
