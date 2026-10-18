@@ -47,7 +47,7 @@ error=""
 succeeded=false
 openbao_snap='{"configured": false, "last_at": null, "ok": null}'
 base='{"last_at": null, "count": 0}'
-wal='{"last_archived_at": null, "lag_s": null, "failed_count": null}'
+wal='{"last_archived_at": null, "lag_s": null, "failed_count": null, "failing": null, "ready_count": null}'
 
 state_get() { jq -r --arg k "$1" '.[$k] // empty' "$STATE" 2>/dev/null || true; }
 state_set() { # state_set KEY VALUE
@@ -171,9 +171,19 @@ wal="$(psql_admin -c "SELECT json_build_object(
     'lag_s', CASE WHEN last_archived_time IS NULL THEN NULL
                   ELSE round(extract(epoch FROM now() - last_archived_time))::int END,
     'failed_count', failed_count,
-    'last_failed_at', to_char(last_failed_time AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'))
+    'last_failed_at', to_char(last_failed_time AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),
+    'failing', COALESCE(last_failed_time > COALESCE(last_archived_time, '-infinity'::timestamptz), false),
+    'ready_count', (SELECT count(*) FROM pg_ls_archive_statusdir() WHERE name LIKE '%.ready'))
   FROM pg_stat_archiver")"
-if due base_backup_at; then
+# 7.1 §1.1: archiving that fails is a data-loss alarm, never a statistic. With
+# archive_timeout=60s a stuck wal-push grows pg_wal by ~16 MB a minute until
+# Postgres stops, and PITR is cut silently. The set is still snapshotted
+# below, but this run is not ok and exits non-zero; no base backup is taken.
+wal_failing="$(jq -r '(.failing == true) or ((.ready_count // 0) > 5)' <<<"$wal")"
+if [[ "$wal_failing" == true ]]; then
+  blog "WAL archiving is failing ($(jq -r '"failed \(.failed_count), \(.ready_count) segments waiting"' <<<"$wal"))"
+  error="WAL archiving is failing"
+elif due base_backup_at; then
   if walg backup-push /var/lib/postgresql/data >/dev/null 2>&1; then
     state_set base_backup_at "$started_at"
     walg delete retain FULL "$WAL_KEEP_FULL" --confirm >/dev/null 2>&1 || blog "WAL-G retention failed (kept everything)"

@@ -197,3 +197,32 @@ async def test_backups_status_for_holding_readers_only(
            WHERE e.id = r.employee_id AND e.code = ANY($1) AND r.state = 'running' AND r.reason = 'test'""",
         ["HQ-ADV", ceo],
     )
+
+
+async def test_failing_wal_archiving_is_one_urgent_alert_at_once(
+    whub: Hub, su: Any, status_dir: Path, client: httpx.AsyncClient, owner: dict[str, str]
+) -> None:
+    """7.1 §1.1: the last failure newer than the last success (or > 5 segments
+    waiting) is a data-loss alarm at once, not after the 2 hours of a stale
+    backup; the status shows wal.failing and wal.ready_count."""
+    now = datetime.now(UTC).replace(microsecond=0) + timedelta(days=random.randint(301, 600))
+    failed_at = iso(now - timedelta(minutes=4))
+    run = hourly(now, ok=False, last_ok=now - timedelta(minutes=50))
+    run["error"] = "WAL archiving is failing"
+    run["wal"] = {
+        "last_archived_at": iso(now - timedelta(minutes=20)), "lag_s": 1200, "failed_count": 7,
+        "last_failed_at": failed_at, "failing": True, "ready_count": 9,
+    }  # fmt: skip
+    write(status_dir, "hourly", run)
+    out = await backups.ingest(whub, now=now + timedelta(minutes=1))
+    notes = await _notes(su, f"backup:wal:{failed_at}")
+    assert [n["level"] for n in notes] == ["urgent"] and "WAL" in notes[0]["title_fa"]
+    assert out["alerts"] == 1  # the run is 50 minutes old: not stale yet, still told at once
+    assert await _notes(su, f"backup:stale:{run['last_ok_at']}") == []
+    await backups.ingest(whub, now=now + timedelta(minutes=2))  # the same episode: told once
+    assert len(await _notes(su, f"backup:wal:{failed_at}")) == 1
+    wal = (await client.get("/api/v1/backups/status", headers=owner)).json()["wal"]
+    assert wal["failing"] is True and wal["ready_count"] == 9 and wal["failed_count"] == 7
+    # A queue alone (> 5 waiting, no failure yet) is failing too.
+    assert backups.wal_failing({"failing": False, "ready_count": 6})
+    assert not backups.wal_failing({"failing": False, "ready_count": 5})

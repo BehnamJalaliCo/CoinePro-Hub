@@ -198,4 +198,27 @@ else
   fail "weekly: exit non-zero: $(tail -n4 <<<"$out")"
 fi
 
+# ------------------------------------------------------------------- wal ----
+# 7.1 §1.1: a failing wal-push (here: the archive directory made unwritable)
+# is a failed hourly run with wal.failing, never ok:true.
+docker run --rm -v "$B:/b" "$TOOLS" chmod 000 /b/wal
+sql -d hq -c "INSERT INTO t VALUES ('wal-failing')" >/dev/null
+sql -c "SELECT pg_switch_wal()" >/dev/null
+for _ in $(seq 1 60); do
+  [[ "$(sql -c 'SELECT failed_count FROM pg_stat_archiver')" -gt 0 ]] && break
+  sleep 1
+done
+if out="$("${run_env[@]}" HQ_BACKUP_TEST_MOUNT="$T/dest:/dest" "$REPO_DIR/infra/backup/hourly.sh" 2>&1)"; then
+  fail "wal: the hourly run succeeded while archiving failed"
+else
+  st="$B/status/hourly.json"
+  if [[ "$(jq -r '.ok' "$st")" == false && "$(jq -r '.wal.failing' "$st")" == true &&
+    "$(jq -r '.wal.failed_count' "$st")" -gt 0 ]]; then
+    pass "wal: archiving failing -> exit non-zero, ok:false, wal.failing (failed $(jq -r .wal.failed_count "$st"), waiting $(jq -r .wal.ready_count "$st"))"
+  else
+    fail "wal: status $(jq -c '{ok, error, wal}' "$st")"
+  fi
+fi
+docker run --rm -v "$B:/b" "$TOOLS" chmod 700 /b/wal
+
 exit "$failed"

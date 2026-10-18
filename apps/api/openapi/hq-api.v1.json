@@ -12220,6 +12220,17 @@
             ],
             "title": "Failed Count"
           },
+          "failing": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failing"
+          },
           "lag_s": {
             "anyOf": [
               {
@@ -12241,6 +12252,17 @@
               }
             ],
             "title": "Last Archived At"
+          },
+          "ready_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready Count"
           }
         },
         "required": [
@@ -15396,8 +15418,10 @@
                   },
                   "wal": {
                     "failed_count": 1,
+                    "failing": false,
                     "lag_s": 1,
-                    "last_archived_at": "x"
+                    "last_archived_at": "x",
+                    "ready_count": 1
                   }
                 },
                 "schema": {
@@ -26179,36 +26203,40 @@
             }
           },
           {
+            "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
             "in": "query",
             "name": "from",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "format": "date-time",
+                  "maxLength": 40,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
+              "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
               "title": "From"
             }
           },
           {
+            "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
             "in": "query",
             "name": "to",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "format": "date-time",
+                  "maxLength": 40,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
+              "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
               "title": "To"
             }
           },
@@ -26765,36 +26793,40 @@
             }
           },
           {
+            "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
             "in": "query",
             "name": "from",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "format": "date-time",
+                  "maxLength": 40,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
+              "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
               "title": "From"
             }
           },
           {
+            "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
             "in": "query",
             "name": "to",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "format": "date-time",
+                  "maxLength": 40,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
+              "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
               "title": "To"
             }
           },
@@ -30648,8 +30680,10 @@
                   },
                   "wal": {
                     "failed_count": 1,
+                    "failing": false,
                     "lag_s": 1,
-                    "last_archived_at": "x"
+                    "last_archived_at": "x",
+                    "ready_count": 1
                   }
                 },
                 "schema": {

@@ -60,6 +60,12 @@ def _ts(value: Any) -> datetime | None:
     return t if t.tzinfo else t.replace(tzinfo=UTC)
 
 
+def wal_failing(wal: dict[str, Any]) -> bool:
+    """7.1 §1.1 (contract §18.13): failing archiving or a queue of more than 5."""
+    ready = wal.get("ready_count")
+    return bool(wal.get("failing")) or (isinstance(ready, int) and ready > 5)
+
+
 async def oversight_finding(tx: Tx, kind: str, data: dict[str, Any]) -> None:
     """PR-070 (prompt 08): the overseer's finding for a backup problem. The
     oversight schema does not exist yet; prompt 8 replaces this body."""
@@ -175,6 +181,24 @@ async def ingest(hub: Any, now: datetime | None = None) -> dict[str, Any]:
                 out["alerts"] += 1
                 push.append(row)
                 await oversight_finding(tx, "stale", {"last_ok_at": since})
+        wal = _obj((hourly or {}).get("wal"))
+        if wal and wal_failing(wal):
+            # At once, not after the 2 hours of a stale backup: pg_wal grows by
+            # ~16 MB a minute and PITR is already cut (7.1 §1.1).
+            since = wal.get("last_failed_at") or (hourly or {}).get("at") or "unknown"
+            row = await _alert(
+                tx,
+                holding,
+                "urgent",
+                "خطر از دست رفتن داده: آرشیو WAL شکست میخورد",
+                f"backup:wal:{since}",
+                f"بازگشت به هر دقیقه (PITR) قطع است و pg_wal بزرگ میشود. "
+                f"شکست‌ها: {wal.get('failed_count')}، در صف: {wal.get('ready_count')}.",
+            )
+            if row:
+                out["alerts"] += 1
+                push.append(row)
+                await oversight_finding(tx, "wal", {"last_failed_at": since})
         if snaps and isinstance(snaps.get("items"), list):
             listed: dict[str, list[dict[str, Any]]] = {}
             for s in snaps["items"]:
@@ -311,6 +335,8 @@ async def status(tx: Tx, holding_id: Any, now: datetime | None = None) -> dict[s
             "last_archived_at": wal.get("last_archived_at"),
             "lag_s": int(lag) if isinstance(lag, int | float) else None,
             "failed_count": wal.get("failed_count"),
+            "failing": wal_failing(wal) if wal else None,
+            "ready_count": wal.get("ready_count"),
         },
         "base_backup": h.get("base_backup") if isinstance(h.get("base_backup"), dict) else None,
         "destinations": destinations,

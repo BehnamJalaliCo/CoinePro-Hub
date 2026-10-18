@@ -52,7 +52,7 @@ DATA_KEYS: dict[str, tuple[str, ...]] = {
     "command": ("cmd", "exit_code"),
     "file_change": ("path", "added", "removed"),
     "approval_request": ("approval_id", "action", "detail"),
-    "approval_result": ("approval_id", "action", "allowed", "note"),
+    "approval_result": ("approval_id", "action", "allow", "note"),
     "state": ("state", "held", "reason"),
     "error": ("code", "cmd"),
 }
@@ -870,7 +870,7 @@ async def answer_approval(
         s,
         "approval_result",
         ("اجازه داده شد: " if allow else "رد شد: ") + ap["action"],
-        {"approval_id": ref, "action": ap["action"], "allowed": allow, "note": note},
+        {"approval_id": ref, "action": ap["action"], "allow": allow, "note": note},
         actor=(who.kind, who.code),
     )
     pending = await tx.scalar(

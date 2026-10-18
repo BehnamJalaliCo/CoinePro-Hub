@@ -511,7 +511,11 @@ async def test_a_fake_session_end_to_end_with_approvals(
         path, headers={**owner, **ok, **idem()}, json={"allow": True, "note": "باشه"}
     )
     assert r.status_code == 200, r.text
-    assert r.json()["type"] == "approval_result" and r.json()["data"]["allowed"] is True
+    assert (
+        r.json()["type"] == "approval_result"
+        and r.json()["data"]["allow"] is True
+        and "allowed" not in r.json()["data"]
+    )
     s = await session(client, owner, ref)
     assert s["branch"] == f"hq/{ref}" and s["state"] == "idle"
     assert fake.log_[ref][-1] == {"kind": "answer", "approval": f"fake-{ref}-push", "allow": True}
@@ -580,7 +584,7 @@ async def test_a_denial_needs_no_step_up(
         headers={**owner, **idem()},
         json={"allow": False, "note": "نه"},
     )
-    assert r.status_code == 200 and r.json()["data"]["allowed"] is False
+    assert r.status_code == 200 and r.json()["data"]["allow"] is False
     s = await session(client, owner, ref)
     assert s["branch"] is None and s["state"] == "idle"
 
