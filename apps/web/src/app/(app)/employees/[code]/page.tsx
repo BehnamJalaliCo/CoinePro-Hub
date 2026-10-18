@@ -8,6 +8,7 @@ import { CompanyMark } from '@/components/brand/marks';
 import { Card, Empty, ErrorState, PageHeader, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
 import { EMPLOYEE_STATUS, EmployeeActions } from '@/components/v15/employee-actions';
 import { RunList } from '@/components/v15/runs';
+import { TrainingCard } from '@/components/v14/training';
 import { useEmployee } from '@/lib/api/hooks';
 import { useRuns } from '@/lib/api/v15';
 import { ACTIVITY, EMPLOYEE_KIND, WORK_STATUS } from '@/lib/labels';
@@ -70,6 +71,7 @@ export default function EmployeePage({ params }: { params: Promise<{ code: strin
           )) : <Empty icon="rate" title="هنوز امتیازی نگرفته" />}
         </Card>
       </div>
+      <TrainingCard code={e.code} />
       <Card className="flex flex-col gap-3 p-5">
         <SectionTitle title="اجراهای اخیر" note="قدم‌ها، ابزارها و مصرف هر اجرا؛ اجرای در جریان خودش تازه میشود" />
         {runs.isLoading ? <Skeleton className="h-24" /> : runs.error ? <ErrorState error={runs.error} onRetry={() => runs.refetch()} />

@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 // ------------------------------------------------------------------ v1.4 --
 // Contract §18: oversight, inquiries, the personal assistant, stars, skills, the academy, egress and MCP,
@@ -307,20 +308,58 @@ data class CurriculumModule(val key: String, val titleFa: String, val skills: Li
 @Serializable
 data class Curriculum(val role: String, val version: Int = 1, val modules: List<CurriculumModule> = emptyList())
 
+/** A baseline or run version is a number for charters and a string for skills (`ref@version`); kept as JSON. */
 @Serializable
-data class Baseline(val version: String, val score: Double)
+data class Baseline(val subject: String? = null, val version: JsonElement? = null, val score: Double)
 
 @Serializable
-data class EvalRun(val at: String, val subject: String, val score: Double, val passed: Boolean)
+data class EvalSubject(val kind: String, val ref: String, val version: JsonElement? = null)
 
+@Serializable
+data class EvalTokens(val input: Long = 0, val output: Long = 0)
+
+/** ⟨1.4.5⟩ One eval run, with what it cost (so models can be compared on quality and price). */
+@Serializable
+data class EvalRun(
+    val id: String = "",
+    val suite: String = "",
+    val subject: EvalSubject = EvalSubject("charter", ""),
+    val score: Double,
+    val passed: Boolean,
+    val at: String,
+    val tokens: EvalTokens? = null,
+    val equivCostUsd: JsonPrimitive? = null,
+) {
+    val costUsd: Double? get() = equivCostUsd?.contentOrNull?.toDoubleOrNull()
+}
+
+@Serializable
+data class EvalCase(val id: String, val inputMd: String = "", val rubricMd: String = "", val weight: Double = 1.0)
+
+/** Contract §18.6: `cases` is the suite's cases; `recent` its last 10 runs, oldest first ⟨1.4.5⟩. */
 @Serializable
 data class EvalSuite(
     val ref: String,
     val role: String,
     val titleFa: String,
-    val cases: Int = 0,
+    val cases: List<EvalCase> = emptyList(),
     val baseline: Baseline? = null,
-    val runs: List<EvalRun> = emptyList(),
+    val recent: List<EvalRun> = emptyList(),
+)
+
+@Serializable
+data class EvalScore(val suite: String, val score: Double, val at: String)
+
+/** Item 16: an employee's training history — evals newest first, `trend` the last 12 scores oldest first. */
+@Serializable
+data class TrainingRecord(
+    val employee: String,
+    val charterVersion: Int = 1,
+    val curriculumVersion: Int? = null,
+    val skills: List<String> = emptyList(),
+    val evals: List<EvalScore> = emptyList(),
+    val lessons: List<String> = emptyList(),
+    val trend: List<Double> = emptyList(),
 )
 
 @Serializable

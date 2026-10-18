@@ -161,13 +161,44 @@ const curricula = [
   { role: 'ceo', version: 1, modules: [{ key: 'delegation', title_fa: 'ارجاع روشن با معیار تمام شدن', skills: [], evals: ['EV-005'] }, { key: 'stars', title_fa: 'ستاره‌ی هفتگی منصفانه', skills: ['SK-002'], evals: ['EV-002'] }] },
   { role: 'assistant', version: 1, modules: [{ key: 'errands', title_fa: 'کار دم‌دستی سریع و کامل؛ تعهد بیرونی فقط با مُهر', skills: ['SK-001'], evals: ['EV-006'] }] },
 ];
-const evals = [
+const evals = ([
   ['EV-001', 'all', 'انضباط شاهد', 3, 90, [86, 90, 94]], ['EV-002', 'ceo', 'ستاره‌ی هفتگی', 3, 85, [80, 85, 89]], ['EV-003', 'overseer', 'کشف ناظر', 5, 90, [84, 90, 93]],
   ['EV-004', 'all', 'پژوهش وب', 3, 90, [88, 90, 92]], ['EV-005', 'ceo', 'ارجاع روشن', 2, 88, [82, 88, 91]], ['EV-006', 'assistant', 'کار دم‌دستی', 3, 87, [87]],
-].map(([ref, role, title_fa, cases, base, runs]) => ({
-  ref, role, title_fa, cases, baseline: { version: `v${(runs as number[]).length}`, score: base },
-  runs: (runs as number[]).map((score, i, a) => ({ at: iso(60 * 24 * (a.length - i)), subject: `charter v${i + 1}`, score, passed: score >= (base as number) - 1 })),
+] as Array<[string, string, string, number, number, number[]]>).map(([ref, role, title_fa, cases, base, runs]) => ({
+  ref, role, title_fa,
+  cases: Array.from({ length: cases as number }, (_, i) => ({ id: `${ref}-c${i + 1}`, input_md: '', rubric_md: '', weight: 1 })),
+  baseline: { subject: 'charter', version: (runs as number[]).length, score: base },
+  // ⟨1.4.5⟩ the last 10 runs, oldest first, with what each cost.
+  recent: (runs as number[]).map((score, i, a) => ({
+    id: `${ref}-r${i + 1}`, suite: ref, subject: { kind: 'charter', ref: role === 'all' ? 'common' : role, version: i + 1 }, score, passed: score >= (base as number) - 1,
+    at: iso(60 * 24 * (a.length - i)), tokens: { input: 41_000 + i * 900, output: 6_200 + i * 140 }, equiv_cost_usd: (0.62 + i * 0.03).toFixed(2),
+  })),
 }));
+
+// Item 30: the newest run of each suite on each model. Scores and costs are the demo's, chosen so the cheaper model is
+// good enough for some suites and not for others — the comparison's point.
+const MODEL_RUNS: Record<string, [number, number, number]> = { // opus, sonnet, haiku
+  'EV-001': [95, 94, 88], 'EV-002': [91, 89, 81], 'EV-003': [94, 91, 79], 'EV-004': [93, 92, 90], 'EV-005': [92, 91, 87], 'EV-006': [90, 89, 88],
+};
+const MODEL_COST: Record<string, [number, number]> = { 'claude-opus-5-5': [15, 75], 'claude-sonnet-5-5': [3, 15], 'claude-haiku-5-5': [1, 5] }; // $/M in, out
+const modelRuns = evals.flatMap((e) => (['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const).map((m, j) => {
+  const score = MODEL_RUNS[e.ref]![j]!; const input = 38_000 + e.cases.length * 4_000; const output = 5_500 + e.cases.length * 700;
+  const [ci, co] = MODEL_COST[m]!;
+  return { id: `${e.ref}-${m}`, suite: e.ref, subject: { kind: 'model', ref: m, version: null }, score, passed: score >= e.baseline.score - 1,
+    at: iso(60 * 24 * 3 + j * 40), tokens: { input, output }, equiv_cost_usd: ((input * ci + output * co) / 1e6).toFixed(2) };
+}));
+
+// Item 16: an employee's training history, derived from the code so every employee in the demo has one.
+const record = (code: string) => {
+  const ceo = code.endsWith('-CEO'); const n = [...code].reduce((a, ch) => a + ch.charCodeAt(0), 0);
+  const suites = ceo ? ['EV-005', 'EV-002', 'EV-001'] : ['EV-001', 'EV-004'];
+  const trend = Array.from({ length: 12 }, (_, i) => Math.min(98, 78 + ((n + i * 7) % 9) + Math.round(i * 0.9)));
+  return {
+    employee: code, charter_version: 1 + (n % 3), curriculum_version: 1, skills: ceo ? ['SK-002@2', 'SK-003@1'] : ['SK-001@1'],
+    evals: suites.map((suite, i) => ({ suite, score: trend[11 - i]!, at: iso(60 * 24 * (2 + i * 3)) })),
+    lessons: ceo ? ['L-0007', 'L-0004'] : ['L-0004'], trend,
+  };
+};
 const teachings: any[] = [
   { ref: 'TE-0002', target: { kind: 'role', ref: 'overseer' }, source: 'voice', text_md: 'هر وقت یک شرکت دو هفته پشت سر هم چالش را از دست داد، با مدیرعاملش جلسه بگذار و برنامه‌ی جبران بخواه.',
     proposal: { kind: 'charter_rule', diff_md: '+ When a company misses its challenge two weeks in a row, convene a meeting with its CEO and require a written recovery plan with dates; track it as a finding until it is met.' },
@@ -293,6 +324,19 @@ export async function handle14(req: Request, p: string, u: URL): Promise<Respons
     if (p === '/skills') return json(skills);
     if (p === '/academy/curricula') return json(curricula);
     if (p === '/academy/evals') return json(evals);
+    const evr = /^\/academy\/evals\/(EV-\d+)\/runs$/.exec(p);
+    if (evr) return json({ items: [...(evals.find((e) => e.ref === evr[1])?.recent ?? []), ...modelRuns.filter((r) => r.suite === evr[1])].sort((a, b) => b.at.localeCompare(a.at)), next_cursor: null });
+    if (p === '/academy/runs') {
+      const role = u.searchParams.get('role'); const kind = u.searchParams.get('subject_kind'); const suite = u.searchParams.get('suite');
+      const inRole = new Set(evals.filter((e) => !role || e.role === role || e.role === 'all').map((e) => e.ref));
+      const all = [...evals.flatMap((e) => e.recent), ...modelRuns].filter((r) => inRole.has(r.suite) && (!kind || r.subject.kind === kind) && (!suite || r.suite === suite));
+      const latest = u.searchParams.get('latest') === 'true'
+        ? [...all.reduce((m, r) => { const k = `${r.suite}|${r.subject.ref}`; if (!m.has(k) || m.get(k)!.at < r.at) m.set(k, r); return m; }, new Map<string, (typeof all)[number]>()).values()]
+        : all;
+      return json({ items: latest.sort((a, b) => b.at.localeCompare(a.at)), next_cursor: null });
+    }
+    const rec = /^\/academy\/records\/([A-Z0-9-]+)$/.exec(p);
+    if (rec) return json(record(rec[1]!));
     if (p === '/academy/teach') return json(teachings);
     if (p === '/egress/summary') return json({ period: 'day', requests: 1284, blocked: 3, needs_owner: 2, bytes_in: 412_000_000, by_company: [{ company: 'TY', requests: 512, blocked: 0 }, { company: 'FX', requests: 388, blocked: 0 }, { company: 'PC', requests: 141, blocked: 1 }, { company: 'HQ', requests: 243, blocked: 2 }], by_tool: { 'web.search': 412, 'web.read': 610, 'web.browse': 96, 'http.request': 141, 'mcp.call': 25 } });
     if (p === '/egress') return json(page(egress));

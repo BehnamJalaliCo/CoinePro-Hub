@@ -24,6 +24,9 @@ globalThis.Date = class extends RealDate {
 const here = dirname(fileURLToPath(import.meta.url));
 const { handle } = await import(join(here, '../../web/src/lib/api/mock.ts'));
 const t0 = Date.now();
+const getJson = async (p) => (await handle(new Request(`http://demo/api/v1${p}`))).json();
+const employeeCodes = ((await getJson('/employees')).items ?? []).map((e) => e.code);
+const academyRoles = (await getJson('/academy/curricula')).map((c) => c.role);
 
 const paths = [
   '/auth/session', '/meta', '/inbox/summary', '/owner/presence', '/owner/away-summary', '/owner/settings',
@@ -58,6 +61,9 @@ const paths = [
   ...['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'].map((m) => `/treasury/what-if?model=${m}`),
   ['/runs', '/runs?limit=500'], ...Array.from({ length: 9 }, (_, i) => `/runs/run-${i}`),
   ['/treasury/calls', '/treasury/calls?limit=500'],
+  // ⟨1.4.5⟩ every employee's training record (item 16) and each role's model comparison (item 30).
+  ...employeeCodes.map((c) => `/academy/records/${c}`),
+  ...academyRoles.map((r) => `/academy/runs?latest=true&role=${r}&subject_kind=model`),
   // A wide planner (eight weeks either side) the demo cuts to the asked range and scope.
   ['/planner', `/planner?from=${new Date(Date.now() - 56 * 86_400_000).toISOString().slice(0, 10)}&to=${new Date(Date.now() + 56 * 86_400_000).toISOString().slice(0, 10)}`],
 ];

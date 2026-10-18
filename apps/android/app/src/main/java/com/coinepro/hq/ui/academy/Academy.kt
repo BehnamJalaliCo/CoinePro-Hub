@@ -140,20 +140,21 @@ fun AcademyScreen() {
             else HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
                 suites.forEachIndexed { i, s ->
                     if (i > 0) HorizontalDivider(color = c.lineDivider)
-                    val last = s.runs.lastOrNull()
+                    val last = s.recent.lastOrNull()
                     Row(Modifier.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Column(Modifier.weight(1f)) {
                             Text(s.titleFa, style = Divan.type.small)
                             Text(buildAnnotatedString {
-                                fig(s.ref); append("، ${s.cases} مورد، خط پایه "); fig(s.baseline?.score?.toInt()?.toString() ?: "—")
+                                fig(s.ref); append("، ${s.cases.size} مورد، خط پایه "); fig(s.baseline?.score?.toInt()?.toString() ?: "—")
                             }, style = Divan.type.micro, color = c.textMuted)
                         }
-                        Spark(s.runs.map { it.score }, min = 60.0, max = 100.0)
+                        Spark(s.recent.map { it.score }, min = 60.0, max = 100.0)
                         last?.let { Fig(it.score.toInt().toString(), Modifier.width(28.dp), style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = if (it.passed) c.positive else c.negative) }
                     }
                 }
             }
         }
+        item { ModelComparisonCard(role) }
     }
 }
 

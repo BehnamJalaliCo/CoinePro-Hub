@@ -296,6 +296,9 @@ class Api(
     suspend fun retireSkill(ref: String): Skill = post("/skills/${seg(ref)}/retire", JsonObject(emptyMap()))
     suspend fun curricula(): List<Curriculum> = get("/academy/curricula")
     suspend fun evals(): List<EvalSuite> = get("/academy/evals")
+    /** Item 30: the newest run of each (suite, model) for a role. */
+    suspend fun modelComparison(role: String): Page<EvalRun> = get("/academy/runs?role=${seg(role)}&subject_kind=model&latest=true")
+    suspend fun trainingRecord(employee: String): TrainingRecord = get("/academy/records/${seg(employee)}")
     suspend fun teachings(): List<Teaching> = get("/academy/teach")
     suspend fun teach(targetKind: String, targetRef: String, text: String, source: String, fileId: String?): Teaching =
         post("/academy/teach", buildJsonObject {

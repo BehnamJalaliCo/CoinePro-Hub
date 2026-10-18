@@ -11805,29 +11805,82 @@
     "ref": "EV-001",
     "role": "all",
     "title_fa": "انضباط شاهد",
-    "cases": 3,
+    "cases": [
+     {
+      "id": "EV-001-c1",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-001-c2",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-001-c3",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     }
+    ],
     "baseline": {
-     "version": "v3",
+     "subject": "charter",
+     "version": 3,
      "score": 90
     },
-    "runs": [
+    "recent": [
      {
-      "at": "@-4320m",
-      "subject": "charter v1",
+      "id": "EV-001-r1",
+      "suite": "EV-001",
+      "subject": {
+       "kind": "charter",
+       "ref": "common",
+       "version": 1
+      },
       "score": 86,
-      "passed": false
+      "passed": false,
+      "at": "@-4320m",
+      "tokens": {
+       "input": 41000,
+       "output": 6200
+      },
+      "equiv_cost_usd": "0.62"
      },
      {
-      "at": "@-2880m",
-      "subject": "charter v2",
+      "id": "EV-001-r2",
+      "suite": "EV-001",
+      "subject": {
+       "kind": "charter",
+       "ref": "common",
+       "version": 2
+      },
       "score": 90,
-      "passed": true
+      "passed": true,
+      "at": "@-2880m",
+      "tokens": {
+       "input": 41900,
+       "output": 6340
+      },
+      "equiv_cost_usd": "0.65"
      },
      {
-      "at": "@-1440m",
-      "subject": "charter v3",
+      "id": "EV-001-r3",
+      "suite": "EV-001",
+      "subject": {
+       "kind": "charter",
+       "ref": "common",
+       "version": 3
+      },
       "score": 94,
-      "passed": true
+      "passed": true,
+      "at": "@-1440m",
+      "tokens": {
+       "input": 42800,
+       "output": 6480
+      },
+      "equiv_cost_usd": "0.68"
      }
     ]
    },
@@ -11835,29 +11888,82 @@
     "ref": "EV-002",
     "role": "ceo",
     "title_fa": "ستاره‌ی هفتگی",
-    "cases": 3,
+    "cases": [
+     {
+      "id": "EV-002-c1",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-002-c2",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-002-c3",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     }
+    ],
     "baseline": {
-     "version": "v3",
+     "subject": "charter",
+     "version": 3,
      "score": 85
     },
-    "runs": [
+    "recent": [
      {
-      "at": "@-4320m",
-      "subject": "charter v1",
+      "id": "EV-002-r1",
+      "suite": "EV-002",
+      "subject": {
+       "kind": "charter",
+       "ref": "ceo",
+       "version": 1
+      },
       "score": 80,
-      "passed": false
+      "passed": false,
+      "at": "@-4320m",
+      "tokens": {
+       "input": 41000,
+       "output": 6200
+      },
+      "equiv_cost_usd": "0.62"
      },
      {
-      "at": "@-2880m",
-      "subject": "charter v2",
+      "id": "EV-002-r2",
+      "suite": "EV-002",
+      "subject": {
+       "kind": "charter",
+       "ref": "ceo",
+       "version": 2
+      },
       "score": 85,
-      "passed": true
+      "passed": true,
+      "at": "@-2880m",
+      "tokens": {
+       "input": 41900,
+       "output": 6340
+      },
+      "equiv_cost_usd": "0.65"
      },
      {
-      "at": "@-1440m",
-      "subject": "charter v3",
+      "id": "EV-002-r3",
+      "suite": "EV-002",
+      "subject": {
+       "kind": "charter",
+       "ref": "ceo",
+       "version": 3
+      },
       "score": 89,
-      "passed": true
+      "passed": true,
+      "at": "@-1440m",
+      "tokens": {
+       "input": 42800,
+       "output": 6480
+      },
+      "equiv_cost_usd": "0.68"
      }
     ]
    },
@@ -11865,29 +11971,94 @@
     "ref": "EV-003",
     "role": "overseer",
     "title_fa": "کشف ناظر",
-    "cases": 5,
+    "cases": [
+     {
+      "id": "EV-003-c1",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-003-c2",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-003-c3",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-003-c4",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-003-c5",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     }
+    ],
     "baseline": {
-     "version": "v3",
+     "subject": "charter",
+     "version": 3,
      "score": 90
     },
-    "runs": [
+    "recent": [
      {
-      "at": "@-4320m",
-      "subject": "charter v1",
+      "id": "EV-003-r1",
+      "suite": "EV-003",
+      "subject": {
+       "kind": "charter",
+       "ref": "overseer",
+       "version": 1
+      },
       "score": 84,
-      "passed": false
+      "passed": false,
+      "at": "@-4320m",
+      "tokens": {
+       "input": 41000,
+       "output": 6200
+      },
+      "equiv_cost_usd": "0.62"
      },
      {
-      "at": "@-2880m",
-      "subject": "charter v2",
+      "id": "EV-003-r2",
+      "suite": "EV-003",
+      "subject": {
+       "kind": "charter",
+       "ref": "overseer",
+       "version": 2
+      },
       "score": 90,
-      "passed": true
+      "passed": true,
+      "at": "@-2880m",
+      "tokens": {
+       "input": 41900,
+       "output": 6340
+      },
+      "equiv_cost_usd": "0.65"
      },
      {
-      "at": "@-1440m",
-      "subject": "charter v3",
+      "id": "EV-003-r3",
+      "suite": "EV-003",
+      "subject": {
+       "kind": "charter",
+       "ref": "overseer",
+       "version": 3
+      },
       "score": 93,
-      "passed": true
+      "passed": true,
+      "at": "@-1440m",
+      "tokens": {
+       "input": 42800,
+       "output": 6480
+      },
+      "equiv_cost_usd": "0.68"
      }
     ]
    },
@@ -11895,29 +12066,82 @@
     "ref": "EV-004",
     "role": "all",
     "title_fa": "پژوهش وب",
-    "cases": 3,
+    "cases": [
+     {
+      "id": "EV-004-c1",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-004-c2",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-004-c3",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     }
+    ],
     "baseline": {
-     "version": "v3",
+     "subject": "charter",
+     "version": 3,
      "score": 90
     },
-    "runs": [
+    "recent": [
      {
-      "at": "@-4320m",
-      "subject": "charter v1",
+      "id": "EV-004-r1",
+      "suite": "EV-004",
+      "subject": {
+       "kind": "charter",
+       "ref": "common",
+       "version": 1
+      },
       "score": 88,
-      "passed": false
+      "passed": false,
+      "at": "@-4320m",
+      "tokens": {
+       "input": 41000,
+       "output": 6200
+      },
+      "equiv_cost_usd": "0.62"
      },
      {
-      "at": "@-2880m",
-      "subject": "charter v2",
+      "id": "EV-004-r2",
+      "suite": "EV-004",
+      "subject": {
+       "kind": "charter",
+       "ref": "common",
+       "version": 2
+      },
       "score": 90,
-      "passed": true
+      "passed": true,
+      "at": "@-2880m",
+      "tokens": {
+       "input": 41900,
+       "output": 6340
+      },
+      "equiv_cost_usd": "0.65"
      },
      {
-      "at": "@-1440m",
-      "subject": "charter v3",
+      "id": "EV-004-r3",
+      "suite": "EV-004",
+      "subject": {
+       "kind": "charter",
+       "ref": "common",
+       "version": 3
+      },
       "score": 92,
-      "passed": true
+      "passed": true,
+      "at": "@-1440m",
+      "tokens": {
+       "input": 42800,
+       "output": 6480
+      },
+      "equiv_cost_usd": "0.68"
      }
     ]
    },
@@ -11925,29 +12149,76 @@
     "ref": "EV-005",
     "role": "ceo",
     "title_fa": "ارجاع روشن",
-    "cases": 2,
+    "cases": [
+     {
+      "id": "EV-005-c1",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-005-c2",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     }
+    ],
     "baseline": {
-     "version": "v3",
+     "subject": "charter",
+     "version": 3,
      "score": 88
     },
-    "runs": [
+    "recent": [
      {
-      "at": "@-4320m",
-      "subject": "charter v1",
+      "id": "EV-005-r1",
+      "suite": "EV-005",
+      "subject": {
+       "kind": "charter",
+       "ref": "ceo",
+       "version": 1
+      },
       "score": 82,
-      "passed": false
+      "passed": false,
+      "at": "@-4320m",
+      "tokens": {
+       "input": 41000,
+       "output": 6200
+      },
+      "equiv_cost_usd": "0.62"
      },
      {
-      "at": "@-2880m",
-      "subject": "charter v2",
+      "id": "EV-005-r2",
+      "suite": "EV-005",
+      "subject": {
+       "kind": "charter",
+       "ref": "ceo",
+       "version": 2
+      },
       "score": 88,
-      "passed": true
+      "passed": true,
+      "at": "@-2880m",
+      "tokens": {
+       "input": 41900,
+       "output": 6340
+      },
+      "equiv_cost_usd": "0.65"
      },
      {
-      "at": "@-1440m",
-      "subject": "charter v3",
+      "id": "EV-005-r3",
+      "suite": "EV-005",
+      "subject": {
+       "kind": "charter",
+       "ref": "ceo",
+       "version": 3
+      },
       "score": 91,
-      "passed": true
+      "passed": true,
+      "at": "@-1440m",
+      "tokens": {
+       "input": 42800,
+       "output": 6480
+      },
+      "equiv_cost_usd": "0.68"
      }
     ]
    },
@@ -11955,17 +12226,48 @@
     "ref": "EV-006",
     "role": "assistant",
     "title_fa": "کار دم‌دستی",
-    "cases": 3,
+    "cases": [
+     {
+      "id": "EV-006-c1",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-006-c2",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     },
+     {
+      "id": "EV-006-c3",
+      "input_md": "",
+      "rubric_md": "",
+      "weight": 1
+     }
+    ],
     "baseline": {
-     "version": "v1",
+     "subject": "charter",
+     "version": 1,
      "score": 87
     },
-    "runs": [
+    "recent": [
      {
-      "at": "@-1440m",
-      "subject": "charter v1",
+      "id": "EV-006-r1",
+      "suite": "EV-006",
+      "subject": {
+       "kind": "charter",
+       "ref": "assistant",
+       "version": 1
+      },
       "score": 87,
-      "passed": true
+      "passed": true,
+      "at": "@-1440m",
+      "tokens": {
+       "input": 41000,
+       "output": 6200
+      },
+      "equiv_cost_usd": "0.62"
      }
     ]
    }
@@ -18837,6 +19139,1311 @@
      "latency_ms": 9103,
      "cost_usd": "0.00",
      "equiv_cost_usd": "0.0168"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/academy/records/TY-CEO": {
+  "status": 200,
+  "body": {
+   "employee": "TY-CEO",
+   "charter_version": 2,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-002@2",
+    "SK-003@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-005",
+     "score": 94,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-002",
+     "score": 95,
+     "at": "@-7200m"
+    },
+    {
+     "suite": "EV-001",
+     "score": 87,
+     "at": "@-11520m"
+    }
+   ],
+   "lessons": [
+    "L-0007",
+    "L-0004"
+   ],
+   "trend": [
+    79,
+    87,
+    86,
+    85,
+    84,
+    83,
+    90,
+    89,
+    88,
+    87,
+    95,
+    94
+   ]
+  }
+ },
+ "/academy/records/TY-TECH-MGR": {
+  "status": 200,
+  "body": {
+   "employee": "TY-TECH-MGR",
+   "charter_version": 3,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 95,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 87,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    80,
+    79,
+    87,
+    86,
+    85,
+    84,
+    91,
+    90,
+    89,
+    88,
+    87,
+    95
+   ]
+  }
+ },
+ "/academy/records/TY-GROWTH-MGR": {
+  "status": 200,
+  "body": {
+   "employee": "TY-GROWTH-MGR",
+   "charter_version": 3,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 89,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 90,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    83,
+    82,
+    81,
+    89,
+    88,
+    87,
+    85,
+    84,
+    92,
+    91,
+    90,
+    89
+   ]
+  }
+ },
+ "/academy/records/FX-CEO": {
+  "status": 200,
+  "body": {
+   "employee": "FX-CEO",
+   "charter_version": 2,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-002@2",
+    "SK-003@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-005",
+     "score": 88,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-002",
+     "score": 89,
+     "at": "@-7200m"
+    },
+    {
+     "suite": "EV-001",
+     "score": 90,
+     "at": "@-11520m"
+    }
+   ],
+   "lessons": [
+    "L-0007",
+    "L-0004"
+   ],
+   "trend": [
+    82,
+    81,
+    80,
+    88,
+    87,
+    86,
+    84,
+    92,
+    91,
+    90,
+    89,
+    88
+   ]
+  }
+ },
+ "/academy/records/FX-TECH-MGR": {
+  "status": 200,
+  "body": {
+   "employee": "FX-TECH-MGR",
+   "charter_version": 3,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 89,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 90,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    83,
+    82,
+    81,
+    89,
+    88,
+    87,
+    85,
+    84,
+    92,
+    91,
+    90,
+    89
+   ]
+  }
+ },
+ "/academy/records/FX-GROWTH-MGR": {
+  "status": 200,
+  "body": {
+   "employee": "FX-GROWTH-MGR",
+   "charter_version": 3,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 92,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 93,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    86,
+    85,
+    84,
+    83,
+    82,
+    90,
+    88,
+    87,
+    86,
+    94,
+    93,
+    92
+   ]
+  }
+ },
+ "/academy/records/PC-CEO": {
+  "status": 200,
+  "body": {
+   "employee": "PC-CEO",
+   "charter_version": 3,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-002@2",
+    "SK-003@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-005",
+     "score": 95,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-002",
+     "score": 87,
+     "at": "@-7200m"
+    },
+    {
+     "suite": "EV-001",
+     "score": 88,
+     "at": "@-11520m"
+    }
+   ],
+   "lessons": [
+    "L-0007",
+    "L-0004"
+   ],
+   "trend": [
+    80,
+    79,
+    87,
+    86,
+    85,
+    84,
+    91,
+    90,
+    89,
+    88,
+    87,
+    95
+   ]
+  }
+ },
+ "/academy/records/PC-TECH-MGR": {
+  "status": 200,
+  "body": {
+   "employee": "PC-TECH-MGR",
+   "charter_version": 1,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 96,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 88,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    81,
+    80,
+    88,
+    87,
+    86,
+    85,
+    83,
+    91,
+    90,
+    89,
+    88,
+    96
+   ]
+  }
+ },
+ "/academy/records/PC-GROWTH-MGR": {
+  "status": 200,
+  "body": {
+   "employee": "PC-GROWTH-MGR",
+   "charter_version": 1,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 90,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 91,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    84,
+    83,
+    82,
+    81,
+    89,
+    88,
+    86,
+    85,
+    93,
+    92,
+    91,
+    90
+   ]
+  }
+ },
+ "/academy/records/TY-GROWTH-01": {
+  "status": 200,
+  "body": {
+   "employee": "TY-GROWTH-01",
+   "charter_version": 2,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 91,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 92,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    85,
+    84,
+    83,
+    82,
+    90,
+    89,
+    87,
+    86,
+    85,
+    93,
+    92,
+    91
+   ]
+  }
+ },
+ "/academy/records/FX-QUANT-02": {
+  "status": 200,
+  "body": {
+   "employee": "FX-QUANT-02",
+   "charter_version": 2,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 94,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 95,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    79,
+    87,
+    86,
+    85,
+    84,
+    83,
+    90,
+    89,
+    88,
+    87,
+    95,
+    94
+   ]
+  }
+ },
+ "/academy/records/HQ-OVS-MGR": {
+  "status": 200,
+  "body": {
+   "employee": "HQ-OVS-MGR",
+   "charter_version": 2,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 94,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 95,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    79,
+    87,
+    86,
+    85,
+    84,
+    83,
+    90,
+    89,
+    88,
+    87,
+    95,
+    94
+   ]
+  }
+ },
+ "/academy/records/HQ-AIOPS-MGR": {
+  "status": 200,
+  "body": {
+   "employee": "HQ-AIOPS-MGR",
+   "charter_version": 2,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 91,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 92,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    85,
+    84,
+    83,
+    82,
+    90,
+    89,
+    87,
+    86,
+    85,
+    93,
+    92,
+    91
+   ]
+  }
+ },
+ "/academy/records/HQ-ADV": {
+  "status": 200,
+  "body": {
+   "employee": "HQ-ADV",
+   "charter_version": 1,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 96,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 88,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    81,
+    80,
+    88,
+    87,
+    86,
+    85,
+    83,
+    91,
+    90,
+    89,
+    88,
+    96
+   ]
+  }
+ },
+ "/academy/records/HQ-OVR": {
+  "status": 200,
+  "body": {
+   "employee": "HQ-OVR",
+   "charter_version": 2,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 88,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 89,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    82,
+    81,
+    80,
+    88,
+    87,
+    86,
+    84,
+    92,
+    91,
+    90,
+    89,
+    88
+   ]
+  }
+ },
+ "/academy/records/HQ-PA": {
+  "status": 200,
+  "body": {
+   "employee": "HQ-PA",
+   "charter_version": 2,
+   "curriculum_version": 1,
+   "skills": [
+    "SK-001@1"
+   ],
+   "evals": [
+    {
+     "suite": "EV-001",
+     "score": 94,
+     "at": "@-2880m"
+    },
+    {
+     "suite": "EV-004",
+     "score": 95,
+     "at": "@-7200m"
+    }
+   ],
+   "lessons": [
+    "L-0004"
+   ],
+   "trend": [
+    79,
+    87,
+    86,
+    85,
+    84,
+    83,
+    90,
+    89,
+    88,
+    87,
+    95,
+    94
+   ]
+  }
+ },
+ "/academy/runs?latest=true&role=overseer&subject_kind=model": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "EV-001-claude-opus-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 95,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "1.32"
+    },
+    {
+     "id": "EV-003-claude-opus-5-5",
+     "suite": "EV-003",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 94,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 58000,
+      "output": 9000
+     },
+     "equiv_cost_usd": "1.54"
+    },
+    {
+     "id": "EV-004-claude-opus-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 93,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "1.32"
+    },
+    {
+     "id": "EV-001-claude-sonnet-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 94,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.26"
+    },
+    {
+     "id": "EV-003-claude-sonnet-5-5",
+     "suite": "EV-003",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 91,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 58000,
+      "output": 9000
+     },
+     "equiv_cost_usd": "0.31"
+    },
+    {
+     "id": "EV-004-claude-sonnet-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 92,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.26"
+    },
+    {
+     "id": "EV-001-claude-haiku-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 88,
+     "passed": false,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.09"
+    },
+    {
+     "id": "EV-003-claude-haiku-5-5",
+     "suite": "EV-003",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 79,
+     "passed": false,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 58000,
+      "output": 9000
+     },
+     "equiv_cost_usd": "0.10"
+    },
+    {
+     "id": "EV-004-claude-haiku-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 90,
+     "passed": true,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.09"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/academy/runs?latest=true&role=advisor&subject_kind=model": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "EV-001-claude-opus-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 95,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "1.32"
+    },
+    {
+     "id": "EV-004-claude-opus-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 93,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "1.32"
+    },
+    {
+     "id": "EV-001-claude-sonnet-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 94,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.26"
+    },
+    {
+     "id": "EV-004-claude-sonnet-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 92,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.26"
+    },
+    {
+     "id": "EV-001-claude-haiku-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 88,
+     "passed": false,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.09"
+    },
+    {
+     "id": "EV-004-claude-haiku-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 90,
+     "passed": true,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.09"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/academy/runs?latest=true&role=ceo&subject_kind=model": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "EV-001-claude-opus-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 95,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "1.32"
+    },
+    {
+     "id": "EV-002-claude-opus-5-5",
+     "suite": "EV-002",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 91,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "1.32"
+    },
+    {
+     "id": "EV-004-claude-opus-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 93,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "1.32"
+    },
+    {
+     "id": "EV-005-claude-opus-5-5",
+     "suite": "EV-005",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 92,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 46000,
+      "output": 6900
+     },
+     "equiv_cost_usd": "1.21"
+    },
+    {
+     "id": "EV-001-claude-sonnet-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 94,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.26"
+    },
+    {
+     "id": "EV-002-claude-sonnet-5-5",
+     "suite": "EV-002",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 89,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.26"
+    },
+    {
+     "id": "EV-004-claude-sonnet-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 92,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.26"
+    },
+    {
+     "id": "EV-005-claude-sonnet-5-5",
+     "suite": "EV-005",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 91,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 46000,
+      "output": 6900
+     },
+     "equiv_cost_usd": "0.24"
+    },
+    {
+     "id": "EV-001-claude-haiku-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 88,
+     "passed": false,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.09"
+    },
+    {
+     "id": "EV-002-claude-haiku-5-5",
+     "suite": "EV-002",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 81,
+     "passed": false,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.09"
+    },
+    {
+     "id": "EV-004-claude-haiku-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 90,
+     "passed": true,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.09"
+    },
+    {
+     "id": "EV-005-claude-haiku-5-5",
+     "suite": "EV-005",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 87,
+     "passed": true,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 46000,
+      "output": 6900
+     },
+     "equiv_cost_usd": "0.08"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/academy/runs?latest=true&role=assistant&subject_kind=model": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "EV-001-claude-opus-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 95,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "1.32"
+    },
+    {
+     "id": "EV-004-claude-opus-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 93,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "1.32"
+    },
+    {
+     "id": "EV-006-claude-opus-5-5",
+     "suite": "EV-006",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-opus-5-5",
+      "version": null
+     },
+     "score": 90,
+     "passed": true,
+     "at": "@-4320m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "1.32"
+    },
+    {
+     "id": "EV-001-claude-sonnet-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 94,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.26"
+    },
+    {
+     "id": "EV-004-claude-sonnet-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 92,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.26"
+    },
+    {
+     "id": "EV-006-claude-sonnet-5-5",
+     "suite": "EV-006",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-sonnet-5-5",
+      "version": null
+     },
+     "score": 89,
+     "passed": true,
+     "at": "@-4360m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.26"
+    },
+    {
+     "id": "EV-001-claude-haiku-5-5",
+     "suite": "EV-001",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 88,
+     "passed": false,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.09"
+    },
+    {
+     "id": "EV-004-claude-haiku-5-5",
+     "suite": "EV-004",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 90,
+     "passed": true,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.09"
+    },
+    {
+     "id": "EV-006-claude-haiku-5-5",
+     "suite": "EV-006",
+     "subject": {
+      "kind": "model",
+      "ref": "claude-haiku-5-5",
+      "version": null
+     },
+     "score": 88,
+     "passed": true,
+     "at": "@-4400m",
+     "tokens": {
+      "input": 50000,
+      "output": 7600
+     },
+     "equiv_cost_usd": "0.09"
     }
    ],
    "next_cursor": null

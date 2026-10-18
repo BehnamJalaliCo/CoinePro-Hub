@@ -291,6 +291,7 @@ fun EmployeeScreen(code: String) {
                         SectionTitle("وظیفه‌ها")
                         Md(duties.joinToString("\n") { "- $it" }, Modifier.padding(top = 6.dp))
                     }
+                    com.coinepro.hq.ui.academy.TrainingCard(e.code)
                     HqCard(Modifier.fillMaxWidth()) {
                         SectionTitle("اجراهای اخیر", note = "قدم‌ها، ابزارها و مصرف هر اجرا")
                         Column(Modifier.padding(top = 10.dp)) {

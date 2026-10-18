@@ -82,7 +82,7 @@ class FixturesDecodeTest {
         val skills = list("/skills", Skill.serializer())
         assertTrue(skills.any { it.status == "approved" && it.eval?.passed == true })
         assertTrue(list("/academy/curricula", Curriculum.serializer()).any { it.role == "overseer" })
-        assertTrue(list("/academy/evals", EvalSuite.serializer()).all { it.runs.isNotEmpty() })
+        assertTrue(list("/academy/evals", EvalSuite.serializer()).all { it.recent.isNotEmpty() })
         assertTrue(list("/academy/teach", Teaching.serializer()).any { it.status == "proposed" })
     }
 
@@ -102,6 +102,18 @@ class FixturesDecodeTest {
         val b = decode("/backups/status", BackupStatus.serializer())
         assertTrue(b.destinations.any { it.key == "gdrive" } && b.retention.hourly > 0)
         assertTrue(!b.wal.failing && b.baseBackup?.count == 9 && b.check?.ok == true && b.openbaoSnapshot.configured == false)
+    }
+
+    @Test
+    fun academyMatchesTheContract() {
+        // ⟨1.4.5⟩ §18.6: suites carry their cases and recent runs; runs carry their cost; every employee has a record.
+        val suites = list("/academy/evals", com.coinepro.hq.core.net.EvalSuite.serializer())
+        assertTrue(suites.all { it.cases.isNotEmpty() && it.recent.isNotEmpty() && it.baseline != null })
+        val models = page("/academy/runs?latest=true&role=ceo&subject_kind=model", com.coinepro.hq.core.net.EvalRun.serializer())
+        assertTrue(models.all { it.subject.kind == "model" && it.costUsd != null })
+        assertEquals(3, models.map { it.subject.ref }.distinct().size)
+        val r = decode("/academy/records/TY-CEO", com.coinepro.hq.core.net.TrainingRecord.serializer())
+        assertTrue(r.trend.size == 12 && r.evals.isNotEmpty() && r.skills.isNotEmpty())
     }
 
     @Test
