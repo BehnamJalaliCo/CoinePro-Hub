@@ -25,6 +25,18 @@ CLEAN = (
 )
 
 
+@pytest.fixture(autouse=True)
+async def seeded(hub: Any) -> None:
+    """The seed from agents/ (idempotent): test_hiring round-trips the
+    migrations, which leaves these tables empty until the next seed."""
+    from hq_api.domain import academy as A
+
+    holding = await hub.companies.holding()
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await S.seed(tx, holding.id, holding.code, hub.charters)
+        await A.seed(tx, holding.id, hub.charters)
+
+
 @pytest.fixture
 async def academy(
     wk: dict[str, Any], agents: Any, monkeypatch: pytest.MonkeyPatch

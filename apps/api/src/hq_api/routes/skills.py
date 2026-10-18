@@ -196,12 +196,14 @@ async def create_skill(body: SkillIn, ctx: Ctx = Depends(owner_ctx)) -> S.Skill:
 
 @router.get("/skills/{ref}", response_model=S.Skill, responses=E)
 async def get_skill(ref: str, ctx: Ctx = Depends(owner_ctx)) -> S.Skill:
+    """One skill at its latest version (with its pre-check, review and eval)."""
     async with ctx.tx() as tx:
         return S.render(await S.load(tx, ref))
 
 
 @router.get("/skills/{ref}/versions", response_model=list[S.SkillVersion], responses=E)
 async def skill_versions(ref: str, ctx: Ctx = Depends(owner_ctx)) -> list[S.SkillVersion]:
+    """Every version of a skill, newest first (a version's text never changes)."""
     async with ctx.tx() as tx:
         row = await S.load(tx, ref)
         rows = await tx.all(

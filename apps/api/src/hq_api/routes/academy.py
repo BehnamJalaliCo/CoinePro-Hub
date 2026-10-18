@@ -96,12 +96,14 @@ async def _audit(ctx: Ctx, tx: Any, action: str, ref: str, summary: str, cls: st
 # ------------------------------------------------------------------- owner --
 @router.get("/academy/curricula", response_model=list[A.Curriculum], responses=E)
 async def list_curricula(ctx: Ctx = Depends(owner_ctx)) -> list[A.Curriculum]:
+    """Each role's curriculum at its latest version (seeded from agents/academy)."""
     async with ctx.tx() as tx:
         return [A.render_curriculum(r) for r in await A.curricula(tx)]
 
 
 @router.get("/academy/curricula/{role}", response_model=A.Curriculum, responses=E)
 async def get_curriculum(role: str, ctx: Ctx = Depends(owner_ctx)) -> A.Curriculum:
+    """One role's curriculum: modules, their skills and their eval suites."""
     async with ctx.tx() as tx:
         row = await tx.first(
             "SELECT * FROM academy.curricula WHERE role = :r ORDER BY version DESC LIMIT 1", r=role
@@ -113,6 +115,7 @@ async def get_curriculum(role: str, ctx: Ctx = Depends(owner_ctx)) -> A.Curricul
 
 @router.get("/academy/evals", response_model=list[A.EvalSuite], responses=E)
 async def list_suites(ctx: Ctx = Depends(owner_ctx)) -> list[A.EvalSuite]:
+    """The golden eval suites with their cases and current baselines."""
     async with ctx.tx() as tx:
         rows = await tx.all("SELECT * FROM academy.eval_suites ORDER BY ref")
     return [A.render_suite(r) for r in rows]
@@ -120,6 +123,7 @@ async def list_suites(ctx: Ctx = Depends(owner_ctx)) -> list[A.EvalSuite]:
 
 @router.get("/academy/evals/{ref}/runs", response_model=list[A.EvalRun], responses=E)
 async def suite_runs(ref: str, ctx: Ctx = Depends(owner_ctx)) -> list[A.EvalRun]:
+    """A suite's runs, newest first: score, gate and each case's notes."""
     async with ctx.tx() as tx:
         await A.suite(tx, ref)
         rows = await tx.all(
@@ -137,6 +141,7 @@ async def academy_budget(ctx: Ctx = Depends(owner_ctx)) -> A.Budget:
 
 @router.get("/academy/teach", response_model=list[A.Teaching], responses=E)
 async def list_teachings(ctx: Ctx = Depends(owner_ctx)) -> list[A.Teaching]:
+    """The owner's teachings, newest first, with their proposal, review and result."""
     async with ctx.tx() as tx:
         rows = await tx.all("SELECT * FROM academy.teachings ORDER BY created_at DESC LIMIT 200")
     return [A.render_teaching(r) for r in rows]
@@ -257,6 +262,7 @@ async def approve_teaching(ref: str, request: Request, ctx: Ctx = Depends(owner_
 
 @router.post("/academy/teach/{ref}/reject", response_model=A.Teaching, responses=E)
 async def reject_teaching(ref: str, ctx: Ctx = Depends(owner_ctx)) -> A.Teaching:
+    """No step-up: declining a change is always allowed."""
     _ref(ref)
     holding = await ctx.hub.companies.holding()
     async with ctx.tx() as tx:
@@ -275,6 +281,8 @@ async def reject_teaching(ref: str, ctx: Ctx = Depends(owner_ctx)) -> A.Teaching
 
 @router.get("/academy/records/{employee}", response_model=A.TrainingRecord, responses=E)
 async def training_record(employee: str, ctx: Ctx = Depends(owner_ctx)) -> A.TrainingRecord:
+    """An employee's training record: charter and curriculum versions, the
+    active skills and sealed rules it runs with, its evals and lessons."""
     async with ctx.tx() as tx:
         return await A.record(tx, ctx.hub.charters, employee)
 

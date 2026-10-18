@@ -15298,6 +15298,7 @@
     },
     "/api/v1/academy/curricula": {
       "get": {
+        "description": "Each role's curriculum at its latest version (seeded from agents/academy).",
         "operationId": "list_curricula",
         "responses": {
           "200": {
@@ -15388,6 +15389,7 @@
     },
     "/api/v1/academy/curricula/{role}": {
       "get": {
+        "description": "One role's curriculum: modules, their skills and their eval suites.",
         "operationId": "get_curriculum",
         "parameters": [
           {
@@ -15483,6 +15485,7 @@
     },
     "/api/v1/academy/evals": {
       "get": {
+        "description": "The golden eval suites with their cases and current baselines.",
         "operationId": "list_suites",
         "responses": {
           "200": {
@@ -15579,6 +15582,7 @@
     },
     "/api/v1/academy/evals/{ref}/runs": {
       "get": {
+        "description": "A suite's runs, newest first: score, gate and each case's notes.",
         "operationId": "suite_runs",
         "parameters": [
           {
@@ -15696,6 +15700,7 @@
     },
     "/api/v1/academy/records/{employee}": {
       "get": {
+        "description": "An employee's training record: charter and curriculum versions, the\nactive skills and sealed rules it runs with, its evals and lessons.",
         "operationId": "training_record",
         "parameters": [
           {
@@ -15803,6 +15808,7 @@
     },
     "/api/v1/academy/teach": {
       "get": {
+        "description": "The owner's teachings, newest first, with their proposal, review and result.",
         "operationId": "list_teachings",
         "responses": {
           "200": {
@@ -16116,6 +16122,7 @@
     },
     "/api/v1/academy/teach/{ref}/reject": {
       "post": {
+        "description": "No step-up: declining a change is always allowed.",
         "operationId": "reject_teaching",
         "parameters": [
           {
@@ -26899,6 +26906,7 @@
     },
     "/api/v1/skills/{ref}": {
       "get": {
+        "description": "One skill at its latest version (with its pre-check, review and eval).",
         "operationId": "get_skill",
         "parameters": [
           {
@@ -27454,6 +27462,7 @@
     },
     "/api/v1/skills/{ref}/versions": {
       "get": {
+        "description": "Every version of a skill, newest first (a version's text never changes).",
         "operationId": "skill_versions",
         "parameters": [
           {
