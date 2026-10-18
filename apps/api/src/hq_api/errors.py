@@ -95,6 +95,18 @@ CODES: dict[str, tuple[int, str, str]] = {
         "Held",
         "این کار را ناظر کل تا تصمیم مدیر کل نگه داشته است؛ فقط مدیر کل آزادش میکند.",
     ),
+    # prompt 09 (contract §18.8): server plans and their seal
+    "seal_mismatch": (
+        409,
+        "Seal mismatch",
+        "طرح بعد از دیدن تو عوض شده است: طرح تازه را دوباره ببین و مُهر کن.",
+    ),
+    "plan_invalid": (422, "Plan invalid", "طرح سرور کامل یا درست نیست؛ ایرادهایش را ببین."),
+    "price_unknown": (
+        409,
+        "Price unknown",
+        "هزینه‌ی ماهانه‌ی این سرور هنوز معلوم نیست (provisioner خاموش است)؛ بدون هزینه مُهر نمیشود.",
+    ),
     # prompt 07 §2: the agents' internet (egress)
     "needs_owner": (
         403,

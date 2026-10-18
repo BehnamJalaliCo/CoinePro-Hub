@@ -53,6 +53,8 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "lesson.write",
         "story.post",
         "hire.decide",
+        # prompt 09 §3: the agents' server plan
+        "server.plan",
         # the skill library and the academy (prompt 08 §6-§7)
         "skill.review",
         "eval.run",

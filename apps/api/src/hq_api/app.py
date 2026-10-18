@@ -32,6 +32,7 @@ from hq_api.routes import (
     egress,
     errands,
     files,
+    founding,
     inbox,
     inquiries,
     internal,
@@ -155,6 +156,7 @@ def create_app(
         people,
         skills,
         academy,
+        founding,
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
@@ -168,6 +170,7 @@ def create_app(
     app.include_router(people.internal_router, prefix="/internal/v1")
     app.include_router(skills.internal_router, prefix="/internal/v1")
     app.include_router(academy.internal_router, prefix="/internal/v1")
+    app.include_router(founding.internal_router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

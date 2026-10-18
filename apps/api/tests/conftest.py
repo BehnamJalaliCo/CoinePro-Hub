@@ -47,6 +47,7 @@ ROUTER_DIR = Path("/w/llm-router")
 HOST = os.environ.get("TEST_DB_HOST", "postgres")
 ORIGIN = "https://hq.test"
 SERVICE_TOKEN = "test-service-token-" + "0" * 40
+PROVISIONER_TOKEN = "test-provisioner-token-" + "1" * 40  # the provisioner service (prompt 09)
 AGENT_KEY = bytes.fromhex("11" * 32)
 ROUTER_TOKEN = "test-router-token-" + "1" * 40
 GATEWAY_TOKEN = "test-gateway-token-" + "2" * 40
@@ -101,7 +102,10 @@ def settings(**over: Any) -> Settings:
 def make_secrets() -> Secrets:
     return Secrets(
         agent_token_key=AGENT_KEY,
-        service_tokens={"test-service": digest(SERVICE_TOKEN)},
+        service_tokens={
+            "test-service": digest(SERVICE_TOKEN),
+            "provisioner": digest(PROVISIONER_TOKEN),
+        },
         llm_router_token=ROUTER_TOKEN,
         gateway_token=GATEWAY_TOKEN,
     )
@@ -279,6 +283,10 @@ async def agent_headers(code: str) -> dict[str, str]:
 
 def service_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {SERVICE_TOKEN}"}
+
+
+def provisioner_headers() -> dict[str, str]:
+    return {"Authorization": f"Bearer {PROVISIONER_TOKEN}"}
 
 
 def idem() -> dict[str, str]:

@@ -16,6 +16,9 @@ kinds := {
 	"a3_action", "proposal", "budget_change", "evaluation", "code_session",
 	"errand_action",
 	"lesson_adoption",
+	"protocol",
+	# prompt 09: founding a company, and the server plan's seal (on its digest)
+	"company_found", "server_plan",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

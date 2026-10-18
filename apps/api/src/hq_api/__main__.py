@@ -24,6 +24,7 @@ from hq_api.channels import Channels
 from hq_api.companies import Companies
 from hq_api.config import Settings
 from hq_api.db import Database
+from hq_api.domain import founding
 from hq_api.events import Bus, OutboxRelay
 from hq_api.hub import Hub
 from hq_api.live import LiveHub
@@ -116,6 +117,9 @@ def make_app(s: Settings) -> FastAPI:
         hub.workshop = await workshop.build(hub)
         if hub.workshop is not None:
             tasks.append(asyncio.create_task(workshop.loop(hub)))
+        if s.provisioner_url:
+            # PR-063 (prompt 09): the Hetzner project's servers, read-only
+            tasks.append(asyncio.create_task(founding.inventory_loop(hub)))
         log.info(
             "api ready",
             extra={"login_configured": s.login_configured, "workshop": workshop.meta_runtime(hub)},

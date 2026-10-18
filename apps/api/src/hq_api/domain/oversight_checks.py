@@ -497,6 +497,70 @@ async def sites_healthy(ctx: CheckCtx) -> Checked:
     return Checked(problems, _ops(ctx))
 
 
+@check("PR-063")
+async def servers_have_sealed_plans(ctx: CheckCtx) -> Checked:
+    """Every server of the holding's Hetzner project matches a sealed server
+    plan (prompt 09 §4): the provisioner's read-only listing (infra.inventory,
+    refreshed by the api) against provisioning.plans. A server without a plan
+    is critical; one the owner closed (known, not ours) is not raised again."""
+    from datetime import timedelta
+
+    if not await ctx.tx.scalar("SELECT to_regclass('infra.inventory') IS NOT NULL"):
+        return Checked([], {}, notes="provisioning is not built yet")
+    inv = await ctx.tx.first(
+        "SELECT fetched_at, servers FROM infra.inventory WHERE ok ORDER BY fetched_at DESC LIMIT 1"
+    )
+    if inv is None or inv["fetched_at"] < ctx.now - timedelta(hours=36):
+        return Checked(
+            [],
+            {ctx.holding: ctx.holding_id},
+            notes="no recent listing of the Hetzner project (the provisioner is off)",
+        )
+    plans = {
+        str(r["ref"]).lower(): r
+        for r in await ctx.tx.all("SELECT ref, state, sealed_digest FROM provisioning.plans")
+    }
+    answered = {
+        r["dedupe_key"]
+        for r in await ctx.tx.all(
+            """SELECT dedupe_key FROM oversight.findings
+               WHERE dedupe_key LIKE 'PR-063:%' AND status IN ('verified', 'closed')"""
+        )
+    }
+    problems = []
+    for s in list(inv["servers"] or []):
+        labels = s.get("labels") or {}
+        ours = labels.get("managed-by") == "coinepro-hq"
+        plan = plans.get(str(labels.get("coinepro-hq/plan") or ""))
+        if (
+            ours
+            and plan
+            and plan["sealed_digest"]
+            and plan["state"] in ("running", "done", "failed")
+        ):
+            continue
+        key = f"server-{s.get('id')}"
+        if f"PR-063:{key}" in answered:
+            continue
+        why = (
+            "made by the provisioner without a sealed plan"
+            if ours
+            else "not made from a sealed plan (no managed-by=coinepro-hq label)"
+        )
+        name = str(s.get("name") or "?")[:63]
+        problems.append(
+            Problem(
+                ctx.holding_id,
+                ctx.holding,
+                f"سرور بی‌طرح در پروژه‌ی هتزنر: {name}",
+                f"Server {name} (Hetzner id {s.get('id')}, {s.get('ipv4') or '-'}): {why}.",
+                key,
+                [{"kind": "log", "ref": "/infra/servers", "note": f"{name}: {why}"[:300]}],
+            )
+        )
+    return Checked(problems, {ctx.holding: ctx.holding_id})
+
+
 @check("PR-062")
 async def hub_healthy(ctx: CheckCtx) -> Checked:
     row = await ctx.tx.first(

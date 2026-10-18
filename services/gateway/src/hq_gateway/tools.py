@@ -257,6 +257,7 @@ class ProposeIn(In):
         "evaluation",
         "code_session",
         "errand_action",
+        "company_found",
     ]
     title_fa: str = Field(min_length=1, max_length=300)
     what_md: str = Field(default="", max_length=20000)

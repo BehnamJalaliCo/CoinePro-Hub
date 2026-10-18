@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, media, workflows_client
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
-from hq_api.domain import control, errands, hiring, inquiries, notify, org
+from hq_api.domain import control, errands, founding, hiring, inquiries, notify, org
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
 from hq_api.domain import work as W
@@ -209,6 +209,9 @@ OP_CLASS: dict[str, str] = {
     "run.record": "A0",
     "thread.live": "A1",
     "file.read": "A0",
+    # prompt 09: an agent's server plan (server.plan); the provisioner's runs (service)
+    "provisioning.plan": "A1",
+    "provisioning.run": "A0",
     # prompt 07: backups.status (the overseer, the platform SRE)
     "backup.read": "A0",
     # prompt 08 §6-§7: the skill library and the academy
@@ -590,6 +593,10 @@ async def deliver_work(
             tx, w, "delivered", ctx.who, {"deliverable": dl["ref"], "closed_children": closed}
         )
         await _audit_work(ctx, tx, w, "work.deliver", f"deliverable {dl['ref']}")
+        # ⟨1.4⟩ a founding's audit (prompt 09 §2): the report goes to the founding
+        await founding.on_delivered(
+            tx, w, dl["ref"], body.body or "", [e.model_dump(mode="json") for e in body.evidence]
+        )
         await ctx.emit(
             tx,
             w["company"],

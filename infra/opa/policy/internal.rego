@@ -38,6 +38,8 @@ ops := {
 	"oversight.finding_raise", "oversight.finding_update", "oversight.protocol_result",
 	"oversight.challenge_issue", "oversight.challenge_submit", "oversight.challenge_score",
 	"oversight.hold",
+	# prompt 09: an agent's server plan (server.plan); the provisioner's runs
+	"provisioning.plan", "provisioning.run",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and
@@ -82,7 +84,7 @@ propose_kinds := {
 		"a3_action", "proposal", "budget_change", "evaluation", "code_session",
 		"lesson_adoption",
 	},
-	"manager": {"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session"},
+	"manager": {"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session", "company_found"},
 	"employee": {"a3_action", "deploy", "recurring_approval", "code_session"},
 	"advisor": {"proposal", "code_session"},
 	"inspector": {"proposal", "hire"},
@@ -185,6 +187,27 @@ grant if {
 grant if {
 	op == "notification.raise"
 	service
+}
+
+# prompt 09: a server plan for the agent's own company (a CTO), or by a
+# holding-scope role (the platform SRE) for any company or a founding.
+grant if {
+	op == "provisioning.plan"
+	agent
+	same_company(tv("company"))
+}
+
+grant if {
+	op == "provisioning.plan"
+	agent
+	holding_reader
+}
+
+# prompt 09: the provisioner (code, a service) and nobody else drives runs.
+grant if {
+	op == "provisioning.run"
+	service
+	p.code == "provisioner"
 }
 
 grant if {
@@ -529,7 +552,10 @@ department_ok(kind) if not propose_department[p.role][kind]
 department_ok(kind) if propose_department[p.role][kind] == p.department
 
 # budget_change: the scope lies inside the proposer's own company.
-scope_ok(kind) if kind != "budget_change"
+scope_ok(kind) if not kind in {"budget_change", "company_found"}
+
+# company_found (prompt 09): a holding-scope role proposes a new company.
+scope_ok("company_found") if holding_reader
 
 scope_ok("budget_change") if scope_inside_company
 

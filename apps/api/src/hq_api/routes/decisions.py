@@ -125,6 +125,13 @@ async def _decide(
         d = await D.load(tx, ref, lock=True)
         if d["status"] != "pending":
             raise ApiError(409, "decision_not_pending", f"{ref} is {d['status']}")
+        if verdict == "approved" and d["kind"] == "server_plan":
+            # ⟨1.4⟩ its seal is bound to the plan's digest (contract §18.8)
+            raise ApiError(
+                409,
+                "validation_failed",
+                f"seal it at /provisioning/plans/{d['payload'].get('plan')}/seal (its digest)",
+            )
         final = D.amended(d["kind"], d["payload"], amendments)  # 422 when amended badly
         if verdict == "approved" and d["kind"] == "hire":
             # The new employee needs a real charter, else approving is refused.

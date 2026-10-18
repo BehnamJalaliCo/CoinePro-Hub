@@ -49,12 +49,24 @@ def leadership_roles(company_code: str, key: str) -> dict[str, str | None]:
     return roles
 
 
-async def apply(tx: Tx, company_id: UUID, company_code: str, key: str) -> dict[str, int]:
+async def apply(
+    tx: Tx,
+    company_id: UUID,
+    company_code: str,
+    key: str,
+    departments: list[str] | None = None,
+) -> dict[str, int]:
     """Create the template's departments, leadership positions, their threads
-    and the company's kill-switch row (released). Returns what was added."""
+    and the company's kill-switch row (released). Returns what was added.
+    `departments`: only these of the template's (a founding's proposal)."""
     t = template(key)
     if t is None:
         raise ValueError(f"unknown template {key}")
+    if departments is not None:
+        t = {
+            **t,
+            "departments": [d for d in t.get("departments") or [] if d["code"] in departments],
+        }
     added = {"departments": 0, "employees": 0, "threads": 0}
 
     for d in t.get("departments") or []:

@@ -38,6 +38,8 @@ SCHEMAS = (
     "people",
     "knowledge",
     "academy",
+    "provisioning",
+    "infra",
 )
 
 
@@ -149,6 +151,42 @@ async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: 
 async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     """Prompt 05's tables: rows of `co` the runtime and the checker would write
     (superuser, test setup only)."""
+    # Prompt 09: a founding, its plan, a run and its event, a server, a listing
+    # (the holding's in production; any company's here, to prove the isolation).
+    founding = await su.fetchval(
+        """INSERT INTO core.foundings (company_id, source, created_by_kind, created_by_code)
+           VALUES ($1, '{"kind": "idea", "brief_md": "b"}', 'owner', 'owner') RETURNING id""",
+        co["id"],
+    )
+    plan = await su.fetchval(
+        """INSERT INTO provisioning.plans (company_id, company_code, founding_id, name, type, location,
+               work_user, digest, created_by_kind, created_by_code)
+           VALUES ($1, $2, $3, 'x-1', 'cpx22', 'fsn1', 'ops', repeat('a', 64), 'agent', 'x') RETURNING id""",
+        co["id"],
+        co["code"],
+        founding,
+    )
+    prun = await su.fetchval(
+        """INSERT INTO provisioning.runs (plan_id, company_id, sealed_digest)
+           VALUES ($1, $2, repeat('a', 64)) RETURNING id""",
+        plan,
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO provisioning.run_events (run_id, company_id, seq, key, state)
+           VALUES ($1, $2, 1, 'ssh-key', 'running')""",
+        prun,
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO infra.servers (company_id, plan_id, run_id, hetzner_id, name)
+           VALUES ($1, $2, $3, $4, 'x-1')""",
+        co["id"],
+        plan,
+        prun,
+        abs(hash(co["code"])) % 1_000_000_000 + 1,
+    )
+    await su.execute("INSERT INTO infra.inventory (company_id, ok) VALUES ($1, true)", co["id"])
     # Prompt 07: the backup's status, runs, snapshots and restore tests (the
     # holding's in production; any company's here, to prove the isolation).
     await su.execute(

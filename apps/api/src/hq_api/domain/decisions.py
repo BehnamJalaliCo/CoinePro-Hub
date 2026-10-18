@@ -38,6 +38,8 @@ KINDS = (
     "errand_action",
     "lesson_adoption",
     "protocol",
+    "company_found",
+    "server_plan",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -53,11 +55,22 @@ ACTION_CLASS = {
     "errand_action": "A3",
     "lesson_adoption": "A1",
     "protocol": "A1",
+    # ⟨1.4⟩ prompt 09 (contract §18.8): founding a company is the owner's seal;
+    # a server plan spends money (the A3 seal, on the plan's digest).
+    "company_found": "A2",
+    "server_plan": "A3",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
 # protocol (prompt 08 §2): a new or changed oversight protocol is the owner's seal.
-STEP_UP_KINDS = ("hire", "dismissal", "budget_change", "code_session", "protocol")
+STEP_UP_KINDS = (
+    "hire",
+    "dismissal",
+    "budget_change",
+    "code_session",
+    "protocol",
+    "company_found",
+)
 EFFECT_KINDS = (
     "hire",
     "dismissal",
@@ -66,6 +79,7 @@ EFFECT_KINDS = (
     "code_session",
     "lesson_adoption",
     "protocol",
+    "company_found",
 )
 FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
@@ -199,6 +213,43 @@ class LessonAdoptionPayload(Model):
     plan_md: str = Field(default="", max_length=10000)
 
 
+class KpiTarget(Model):
+    name_fa: str = Field(min_length=1, max_length=200)
+    target: str = Field(min_length=1, max_length=200)
+
+
+class TeamMember(Model):
+    role: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    model: str = Field(min_length=3, max_length=100)
+    monthly_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+    department: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,11}$")
+    title_fa: str | None = Field(default=None, max_length=200)
+
+
+class CompanyFoundPayload(Model):
+    """⟨1.4⟩ The proposal of a founding (contract §18.8 Founding.proposal): the
+    company as data, its team and roadmap; its server plan is sealed apart."""
+
+    founding: str = Field(pattern=r"^C-[0-9]{4,}$")
+    code: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+    name_fa: str = Field(min_length=1, max_length=200)
+    name_en: str = Field(min_length=1, max_length=200)
+    departments: list[str] = Field(min_length=1, max_length=20)
+    kpis: list[KpiTarget] = Field(default_factory=list, max_length=30)
+    team: list[TeamMember] = Field(default_factory=list, max_length=30)
+    roadmap_md: str = Field(default="", max_length=20000)
+    monthly_usd: Decimal = Field(default=Decimal(0), ge=0, max_digits=12, decimal_places=2)
+    plan: str | None = Field(default=None, pattern=r"^PV-[0-9]{4,}$")
+
+
+class ServerPlanPayload(Model):
+    """⟨1.4⟩ A server plan to seal (contract §18.8): the seal is bound to its
+    digest at /provisioning/plans/{ref}/seal, never through the cartable."""
+
+    plan: str = Field(pattern=r"^PV-[0-9]{4,}$")
+    company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+
+
 class ProtocolPayload(Model):
     """An oversight protocol (contract §18.1) the overseer proposes: a new one
     (ref empty) or a new version of one (an edit, a pause, a resume)."""
@@ -232,6 +283,8 @@ PAYLOADS: dict[str, type[Model]] = {
     "errand_action": ErrandActionPayload,
     "lesson_adoption": LessonAdoptionPayload,
     "protocol": ProtocolPayload,
+    "company_found": CompanyFoundPayload,
+    "server_plan": ServerPlanPayload,
 }
 
 
@@ -249,6 +302,8 @@ class DecisionIn(Model):
         "errand_action",
         "lesson_adoption",
         "protocol",
+        "company_found",
+        "server_plan",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -516,6 +571,16 @@ async def propose(
                 "validation_failed",
                 fields={"payload.driver": "an active employee of this company"},
             )
+    if body.kind == "server_plan" and who.kind != "service":
+        # A plan's card is the system's (server.plan or a founding makes it);
+        # its seal is bound to the plan's digest (contract §18.8).
+        raise ApiError(
+            422, "validation_failed", fields={"kind": "a server plan comes from server.plan"}
+        )
+    if body.kind == "company_found":
+        from hq_api.domain import founding
+
+        await founding.check_proposal(tx, payload, company_id)
     if body.kind == "lesson_adoption" and not await tx.scalar(
         """SELECT 1 FROM knowledge.lesson_adoptions
            WHERE lesson_ref = :ref AND company_id = :co AND status = 'proposed'
@@ -581,6 +646,10 @@ async def propose(
             "action_class": d["action_class"],
         },
     )
+    if body.kind == "company_found":
+        from hq_api.domain import founding
+
+        await founding.proposed(tx, d, payload)
     if body.kind == "lesson_adoption":  # one answer per lesson and company
         await tx.exec(
             """UPDATE knowledge.lesson_adoptions SET decision_ref = :d, updated_at = now()
@@ -718,6 +787,10 @@ async def decide(
         await hiring.check_approval(
             tx, d, amended("hire", d["payload"], amendments), charters, by_ceo=who.is_agent
         )
+    if verdict in ("rejected", "returned") and d["kind"] == "company_found":
+        from hq_api.domain import founding
+
+        await founding.proposal_declined(tx, d, verdict)
     if verdict == "rejected" and d["kind"] == "lesson_adoption":
         await stars.adoption_decided(
             tx, d["payload"]["lesson"], d["company_id"], "rejected", d["ref"]
@@ -948,6 +1021,10 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
             )
             done = {"ref": proto["ref"], "version": proto["version"]}
         result = {"protocol": f"{done['ref']}@{done['version']}"}
+    elif d["kind"] == "company_found":
+        from hq_api.domain import founding
+
+        result = await founding.found_company(tx, d, p)
     elif d["kind"] == "code_session":
         # The seal is the grant; the decision's id is unique on the grant, so a
         # retried effect never makes a second one.

@@ -163,6 +163,9 @@ class Settings:
     # The Code Workshop's runtime (contract §17.3): "" until the owner chooses
     # (managed | self_hosted); the model and effort a session gets by default.
     workshop_runtime: str = field(default_factory=lambda: _env("WORKSHOP_RUNTIME", ""))
+    # Prompt 09: the provisioner's small API (pricing, the project's servers,
+    # wake); empty while its opt-in profile is off (hq.sh sets it).
+    provisioner_url: str = field(default_factory=lambda: _env("PROVISIONER_URL", ""))
     workshop_model: str = field(default_factory=lambda: _env("WORKSHOP_MODEL", "claude-opus-5-5"))
     workshop_effort: str = field(default_factory=lambda: _env("WORKSHOP_EFFORT", "high"))
 

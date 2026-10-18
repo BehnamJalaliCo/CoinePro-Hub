@@ -33,6 +33,8 @@ SCHEMAS = (
     "people",
     "knowledge",
     "academy",
+    "provisioning",
+    "infra",
 )
 
 

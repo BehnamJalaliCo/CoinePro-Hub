@@ -62,6 +62,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "academy": ("academy.",),
     # ⟨1.4⟩ the Chief Overseer: oversight.finding, oversight.hold, oversight.watch
     "oversight": ("oversight.",),
+    # ⟨1.4⟩ prompt 09: founding.updated, provision.step (contract §18.10)
+    "founding": ("founding.", "provision."),
 }
 
 
