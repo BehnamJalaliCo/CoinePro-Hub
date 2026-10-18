@@ -40,7 +40,7 @@ fun BackupsCard(modifier: Modifier = Modifier) {
     val q = rememberQuery("backups", "backups", maxAgeMs = 120_000) { backups() }
     val b = q.data ?: return Skeleton(modifier.fillMaxWidth().height(200.dp), radius = 16.dp)
     val last = instant(b.hourly.lastAt)
-    val healthy = b.hourly.ok && last != null && System.currentTimeMillis() - last.toEpochMilli() <= 2 * 3_600_000
+    val healthy = b.hourly.ok && last != null && com.coinepro.hq.core.format.HqClock.millis() - last.toEpochMilli() <= 2 * 3_600_000
     HqCard(modifier.fillMaxWidth()) {
         SectionTitle("پشتیبان‌گیری", note = "ساعتی و رمزنگاری‌شده، به‌علاوه‌ی WAL پیوسته برای بازگشت به هر دقیقه") {
             Pill(if (healthy) "سالم" else "مشکل", if (healthy) Tone.POS else Tone.NEG, dot = true)

@@ -1,5 +1,6 @@
-# The owner's clients (apps/web, apps/android), owned by the consultation session: typecheck, lint and build
-# the web; unit and screenshot tests and both APKs for Android. On the working branch the APKs are published
+# The owner's clients (apps/web, apps/android), owned by the consultation session: typecheck, lint, build and an
+# end-to-end smoke of the web; unit tests, a screenshot comparison against the recorded images and both APKs for
+# Android. On the working branch the APKs are published
 # to the rolling prerelease "android-latest" so the owner can install them from GitHub.
 name: clients
 
@@ -32,6 +33,21 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
+
+  # Every page of the demo holding renders without errors and the owner's main actions work end to end.
+  web-e2e:
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: npm ci
+      - run: npm run test:e2e
 
   android:
     runs-on: ubuntu-24.04
@@ -66,7 +82,7 @@ jobs:
           HQ_SIGNING_KEY_PASSWORD: ${{ secrets.HQ_SIGNING_KEY_PASSWORD }}
         run: |
           export JAVA_HOME="$JAVA_HOME_21_X64"
-          ./gradlew --no-daemon --console=plain testDebugUnitTest assembleDebug assembleRelease
+          ./gradlew --no-daemon --console=plain verifyRoborazziDebug assembleDebug assembleRelease
 
       - name: Publish android-latest
         if: github.ref_name == 'claude/coinepro-hub-setup-hsvnw7' || github.ref_name == github.event.repository.default_branch

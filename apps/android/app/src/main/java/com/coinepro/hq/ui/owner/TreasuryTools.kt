@@ -113,7 +113,7 @@ private val MODELS = listOf("claude-opus-5-5", "claude-sonnet-5-5", "claude-haik
 fun WhatIfCard() {
     val c = Divan.colors
     var model by rememberSaveable { mutableStateOf(MODELS[2]) }
-    val today = LocalDate.now(ZoneId.of(OWNER_TZ))
+    val today = com.coinepro.hq.core.format.HqClock.today()
     val q = rememberQuery("treasury:what-if:$model:$today", "treasury") { whatIf(model, today.withDayOfMonth(1).toString(), today.toString()) }
     HqCard(Modifier.fillMaxWidth()) {
         SectionTitle("اگر با این مدل بود…", note = "همین فراخوانی‌های این ماه، با جدول قیمت خودمان")

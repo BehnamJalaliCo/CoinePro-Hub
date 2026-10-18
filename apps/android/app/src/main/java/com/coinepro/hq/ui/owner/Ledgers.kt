@@ -170,7 +170,7 @@ fun NotificationMatrixCard() {
                     val e = draft.effective(scope, level)
                     val urgent = level == "urgent"
                     val own = scope != "*" && draft.matrix[scope]?.containsKey(level) == true
-                    val muted = e.mutedUntil?.takeIf { runCatching { Instant.parse(it).isAfter(Instant.now()) }.getOrDefault(false) }
+                    val muted = e.mutedUntil?.takeIf { runCatching { Instant.parse(it).isAfter(com.coinepro.hq.core.format.HqClock.now()) }.getOrDefault(false) }
                     HorizontalDivider(color = c.lineDivider)
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

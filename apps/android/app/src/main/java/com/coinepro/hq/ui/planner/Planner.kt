@@ -71,7 +71,7 @@ fun PlannerScreen(onNewOrder: () -> Unit) {
     var month by rememberSaveable { mutableStateOf(false) }
     var company by rememberSaveable { mutableStateOf<String?>(null) }
     var dept by rememberSaveable { mutableStateOf<String?>(null) }
-    val today = LocalDate.now(ZoneId.of(OWNER_TZ))
+    val today = com.coinepro.hq.core.format.HqClock.today()
     val (start, end) = if (month) jMonth(today, week) else today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY)).plusWeeks(week.toLong()).let { it to it.plusDays(6) }
     val scope = company?.let { co -> dept?.let { "department:$co-$it" } ?: "company:$co" }
     val q = rememberQuery("planner:$start:$end:${scope ?: "owner"}", "planner", "work") { planner(start.toString(), end.toString(), scope) }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import com.coinepro.hq.core.format.HqClock
 import com.coinepro.hq.core.format.modelLabel
 import com.coinepro.hq.core.media.kindOf
 import com.coinepro.hq.core.net.Api
@@ -45,7 +46,7 @@ object Demo {
 }
 
 private class DemoInterceptor(private val context: Context) : Interceptor {
-    private val now = Instant.now()
+    private val now = HqClock.now()
     private val store: MutableMap<String, Pair<Int, JsonElement>> = run {
         val text = context.assets.open("demo-fixtures.json").bufferedReader().use { it.readText() }
         Api.json.parseToJsonElement(text).jsonObject.mapValuesTo(LinkedHashMap()) { (_, v) ->
@@ -61,7 +62,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val s = if (e.isString) e.content else null
             when {
                 s != null && Regex("^@-?\\d+m$").matches(s) -> JsonPrimitive(now.plus(s.drop(1).dropLast(1).toLong(), ChronoUnit.MINUTES).toString())
-                s != null && Regex("^@-?\\d+d$").matches(s) -> JsonPrimitive(LocalDate.now(ZoneOffset.UTC).plusDays(s.drop(1).dropLast(1).toLong()).toString())
+                s != null && Regex("^@-?\\d+d$").matches(s) -> JsonPrimitive(LocalDate.ofInstant(HqClock.now(), ZoneOffset.UTC).plusDays(s.drop(1).dropLast(1).toLong()).toString())
                 else -> e
             }
         }
@@ -117,7 +118,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         Regex("^/decisions/(D-\\d+)/(approve|reject|return)$").find(path)?.let { m ->
             val (ref, verdict) = m.destructured
             val status = mapOf("approve" to "approved", "reject" to "rejected", "return" to "returned").getValue(verdict)
-            val stamp = Instant.now().toString()
+            val stamp = HqClock.now().toString()
             val updated = edit("/decisions/$ref") {
                 it + mapOf(
                     "status" to JsonPrimitive(status),
@@ -134,7 +135,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         }
         Regex("^/deliverables/(O-\\d+)/rating$").find(path)?.let { m ->
             val ref = m.groupValues[1]
-            val rating = buildJsonObject { put("score", body?.get("score")!!); put("comment", body["comment"] ?: JsonNull); put("history_count", 1); put("rated_at", Instant.now().toString()) }
+            val rating = buildJsonObject { put("score", body?.get("score")!!); put("comment", body["comment"] ?: JsonNull); put("history_count", 1); put("rated_at", HqClock.now().toString()) }
             val updated = edit("/deliverables/$ref") { it + ("rating" to rating) }
             replaceIn("/deliverables", ref, updated)
             store["/deliverables?unrated=true"] = 200 to page(list("/deliverables").filter { it.jsonObject["rating"] == null || it.jsonObject["rating"] is JsonNull })
@@ -152,13 +153,13 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
                 put("id", "m${System.nanoTime()}"); put("ref", "$code-%04d".format(items.size + 1)); put("thread", code); put("kind", if (voice) "voice_transcript" else "text")
                 put("attachments", JsonArray(attachments))
                 put("author", buildJsonObject { put("kind", "owner"); put("code", "owner"); put("display_fa", "مدیر کل") })
-                put("body", body?.get("body") ?: JsonPrimitive("")); put("created_at", Instant.now().toString())
+                put("body", body?.get("body") ?: JsonPrimitive("")); put("created_at", HqClock.now().toString())
             }
             store[key] = 200 to page(items + msg)
             return 201 to buildJsonObject { put("message", msg); put("reply", buildJsonObject { put("state", "queued") }) }
         }
         if (path == "/owner/presence") {
-            val p = edit("/owner/presence") { it + mapOf("khalvat" to (body?.get("khalvat") ?: JsonPrimitive(false)), "since" to JsonPrimitive(Instant.now().toString())) }
+            val p = edit("/owner/presence") { it + mapOf("khalvat" to (body?.get("khalvat") ?: JsonPrimitive(false)), "since" to JsonPrimitive(HqClock.now().toString())) }
             edit("/inbox/summary") { it + ("khalvat" to p.jsonObject["khalvat"]!!) }
             return 200 to p
         }
@@ -166,7 +167,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val scope = body?.str("scope")
             val change = mapOf(
                 "state" to (body?.get("state") ?: JsonPrimitive("released")), "reason" to (body?.get("reason") ?: JsonNull),
-                "changed_at" to JsonPrimitive(Instant.now().toString()), "changed_by" to JsonPrimitive("owner"),
+                "changed_at" to JsonPrimitive(HqClock.now().toString()), "changed_by" to JsonPrimitive("owner"),
             )
             return 200 to edit("/control/state") { c ->
                 if (scope == "holding") c + ("holding" to JsonObject(c["holding"]!!.jsonObject + change))
@@ -176,7 +177,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         if (path == "/work") {
             return 201 to JsonObject(store["/work/w0"]!!.second.jsonObject + mapOf(
                 "id" to JsonPrimitive("w-new"), "ref" to JsonPrimitive("W-000130"), "title" to (body?.get("title") ?: JsonPrimitive("")),
-                "company" to (body?.get("company") ?: JsonPrimitive("HQ")), "status" to JsonPrimitive("queued"), "created_at" to JsonPrimitive(Instant.now().toString()),
+                "company" to (body?.get("company") ?: JsonPrimitive("HQ")), "status" to JsonPrimitive("queued"), "created_at" to JsonPrimitive(HqClock.now().toString()),
             ))
         }
         Regex("^/threads/([^/]+)/read$").find(path)?.let { m ->
@@ -246,7 +247,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private fun reveal(ref: String, e: JsonObject): JsonObject {
         val key = "/workshop/sessions/$ref/events"
         val items = list(key)
-        val now = Instant.now().toString()
+        val now = HqClock.now().toString()
         val ev = JsonObject(e + mapOf("seq" to JsonPrimitive((items.lastOrNull()?.jsonObject?.get("seq")?.jsonPrimitive?.long ?: 0) + 1), "at" to JsonPrimitive(now)))
         store[key] = 200 to page(items + ev)
         val s = session(ref)
@@ -303,7 +304,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
                 ?: return 409 to problem("grant_not_active", "این مجوز فعال نیست.")
             val ref = "S-%04d".format(list("/workshop/sessions").size + 1)
             val driver = grant["driver"]?.takeIf { it !is JsonNull } ?: owner
-            val now = Instant.now().toString()
+            val now = HqClock.now().toString()
             val s = buildJsonObject {
                 put("id", "s-$ref"); put("ref", ref); put("workspace", grant.str("workspace")); put("grant", grant.str("ref")); put("title", body?.str("title")); put("brief", body?.str("brief"))
                 put("opened_by", owner); put("driver", driver); put("runtime", "managed"); put("model", "claude-sonnet-5-5"); put("effort", "high"); put("state", "starting")
@@ -342,13 +343,13 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
                     reveal(s.str("ref")!!, step("state", owner, "مجوز ${g.str("ref")} لغو شد؛ جلسه متوقف شد", buildJsonObject { put("state", "stopped") }))
                 }
             }
-            return 200 to JsonObject(g + ("revoked_at" to JsonPrimitive(Instant.now().toString())))
+            return 200 to JsonObject(g + ("revoked_at" to JsonPrimitive(HqClock.now().toString())))
         }
         return null
     }
 
     // ------------------------------------------------------------------ ⟨1.4⟩ --
-    private val stamp: JsonPrimitive get() = JsonPrimitive(Instant.now().toString())
+    private val stamp: JsonPrimitive get() = JsonPrimitive(HqClock.now().toString())
 
     /** Replaces the item with [ref] (or [idKey]) in a list or page stored at [key], returning the updated item. */
     private fun update(key: String, ref: String, idKey: String = "ref", f: (JsonObject) -> Map<String, JsonElement>): JsonObject? {
@@ -536,7 +537,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         val who = mapOf("work" to "کار", "code" to "کارگاه کد", "meeting" to "جلسه", "question" to "پرسش از مشاور کل")
         val o = buildJsonObject {
             put("ref", "F-%04d".format(list("/orders").size + 1)); put("text", text); put("source", body?.get("source") ?: JsonPrimitive("text")); put("file_id", body?.get("file_id") ?: JsonNull)
-            put("created_at", Instant.now().toString()); put("routes", JsonArray(routes))
+            put("created_at", HqClock.now().toString()); put("routes", JsonArray(routes))
             put("summary_fa", "رسید: " + routes.joinToString("، ") { "${who[it.str("kind")]} (${it.str("company")})" } + ".")
         }
         store["/orders"] = 200 to page(listOf<JsonElement>(o) + list("/orders"))
@@ -637,7 +638,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             method == "POST" && path == "/control/deploy-freeze" -> {
                 val co = body?.str("company") ?: return 422 to problem("validation_failed", "شرکت لازم است.")
                 val until = body.str("until")!!
-                val active = Instant.parse(until).isAfter(Instant.now())
+                val active = Instant.parse(until).isAfter(HqClock.now())
                 edit("/control/state") { c ->
                     val rest = c["deploy_freezes"]!!.jsonArray.filter { it.jsonObject.str("company") != co }
                     c + ("deploy_freezes" to JsonArray(if (active) rest + buildJsonObject { put("company", co); put("until", until); put("reason", body["reason"] ?: JsonPrimitive("")); put("created_by", "owner") } else rest))
@@ -817,7 +818,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
                         buildJsonObject { put("label_fa", "effort"); put("value", effort) },
                     )))
                     put("links", buildJsonObject { put("employee", emp.str("code")); put("decision", ref) })
-                    put("media", JsonNull); put("created_at", stamp); put("expires_at", JsonPrimitive(Instant.now().plusSeconds(86_400).toString())); put("seen", false); put("welcomed", false)
+                    put("media", JsonNull); put("created_at", stamp); put("expires_at", JsonPrimitive(HqClock.now().plusSeconds(86_400).toString())); put("seen", false); put("welcomed", false)
                 })
                 return 201 to buildJsonObject { put("employee", emp); put("decision", dec) }
             }

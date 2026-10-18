@@ -129,6 +129,9 @@ class ScreensTest(private val name: String, private val night: Boolean) {
 
     @Before
     fun setUp() {
+        // One fixed instant: the demo's relative times, Jalali dates and the planner's week are the same on any day,
+        // so CI can compare the images with the recorded ones (the visual gate).
+        com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-10-17T08:30:00Z")
         graph = (ApplicationProvider.getApplicationContext<HqApp>()).graph
         graph.enterDemo()
     }
@@ -155,7 +158,10 @@ class ScreensTest(private val name: String, private val night: Boolean) {
         }
         compose.onRoot().captureRoboImage(
             "src/test/screenshots/$name-${if (night) "night" else "day"}.png",
-            roborazziOptions = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(resizeScale = 0.5)),
+            roborazziOptions = RoborazziOptions(
+                recordOptions = RoborazziOptions.RecordOptions(resizeScale = 0.5),
+                compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.002f),
+            ),
         )
     }
 }

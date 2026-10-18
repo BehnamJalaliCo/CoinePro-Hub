@@ -234,6 +234,6 @@ fun TreasuryScreen() {
 
 /** First day of the period in the owner's zone (ISO date), for breakdown queries. */
 private fun periodStart(period: String): String {
-    val today = LocalDate.now(ZoneId.of(OWNER_TZ))
+    val today = com.coinepro.hq.core.format.HqClock.today()
     return (if (period == "day") today else today.withDayOfMonth(1)).toString()
 }
