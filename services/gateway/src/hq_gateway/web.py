@@ -8,7 +8,11 @@ Every call goes the same way:
    use (its secret comes back for this call only);
 2. the egress service carries it out (it alone reaches the internet; it
    checks every address and redirect, and refuses an external commitment);
-3. its log entries go to the egress log (`/internal/v1/egress/log`);
+3. its log entries go to the egress log (`/internal/v1/egress/log`), as the
+   log takes them (a hostile server's method or status cut to shape, rows
+   beyond the batch's 200 summed into one), in a task the call's timeout
+   cannot cancel; reserve already wrote the call's row, so a call whose
+   answer is lost still counts, and these entries settle it;
 4. the model gets the result as untrusted web data, without the secret.
 
 A browse screenshot or download becomes an agent file of the run's company
@@ -17,9 +21,12 @@ A browse screenshot or download becomes an agent file of the run's company
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import logging
 import os
-from collections.abc import Callable
+import re
+from collections.abc import Callable, Coroutine
 from datetime import datetime
 from typing import Any, Literal
 
@@ -34,6 +41,14 @@ NEEDS_OWNER_FA = (
 )
 BROWSE_S = float(os.environ.get("EGRESS_BROWSE_S", "15"))
 READ_METHODS = ("GET", "HEAD")
+log = logging.getLogger("hq_gateway.web")
+LOG_ROWS = 200  # the api's batch
+KINDS = ("request", "connect", "search", "browse")
+CLASSES = ("A0", "A1", "A2", "A3")
+TOOL_NAME = re.compile(r"^[a-z][a-z_]*(\.[a-z_]+)?$")
+REASON = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
+INT_MAX = 2**31 - 1
+_BACKGROUND: set[asyncio.Task[None]] = set()
 
 
 class Egress:
@@ -179,15 +194,89 @@ async def _reserve(
     return r.data, None
 
 
-async def _log(api: T.Api, call: T.Call, tool: str, cls: str, out: dict[str, Any]) -> None:
-    entries = out.get("entries")
-    if isinstance(entries, list) and entries:
-        await api.request(
-            "POST",
-            "/internal/v1/egress/log",
-            call.token,
-            json={"tool": tool, "class": cls, "entries": entries[:200]},
-        )
+def _n(v: Any, cap: int = 2**62) -> int:
+    return min(cap, max(0, v)) if type(v) is int else 0
+
+
+def _row(e: Any, tool: str, cls: str) -> dict[str, Any] | None:
+    """One entry as the log takes it (egress shapes them too; this side
+    never lets one bad row drop the batch)."""
+    if not isinstance(e, dict):
+        return None
+    status, reason, name = e.get("status"), e.get("blocked_reason"), e.get("tool")
+    if reason is not None:
+        reason = reason if isinstance(reason, str) and REASON.match(reason) else "other"
+    return {
+        "tool": name if isinstance(name, str) and TOOL_NAME.match(name) else tool,
+        "kind": e.get("kind") if e.get("kind") in KINDS else "request",
+        "class": e.get("class") if e.get("class") in CLASSES else cls,
+        "method": re.sub(r"[^A-Z0-9_-]", "", str(e.get("method") or "").upper())[:10] or "OTHER",
+        "host": (str(e.get("host") or "") or "?")[:255],
+        "status": status if type(status) is int and 100 <= status <= 999 else None,
+        "bytes_in": _n(e.get("bytes_in")),
+        "bytes_out": _n(e.get("bytes_out")),
+        "ms": _n(e.get("ms"), INT_MAX),
+        "blocked_reason": reason,
+        "requests": max(1, _n(e.get("requests"), 1_000_000)),
+    }
+
+
+def _summed(rows: list[dict[str, Any]], tool: str, cls: str) -> dict[str, Any]:
+    """Many rows as one that counts them all (requests, bytes, time)."""
+
+    def one(key: str, many: str) -> Any:
+        values = {r[key] for r in rows}
+        return values.pop() if len(values) == 1 else many
+
+    reasons = {r["blocked_reason"] for r in rows if r["blocked_reason"]}
+    return {
+        "tool": one("tool", tool),
+        "kind": one("kind", "request"),
+        "class": cls,
+        "method": one("method", "MULTI"),
+        "host": one("host", "(several)"),
+        "status": None,
+        "bytes_in": min(2**62, sum(r["bytes_in"] for r in rows)),
+        "bytes_out": min(2**62, sum(r["bytes_out"] for r in rows)),
+        "ms": min(INT_MAX, sum(r["ms"] for r in rows)),
+        "blocked_reason": (reasons.pop() if len(reasons) == 1 else "several") if reasons else None,
+        "requests": min(1_000_000, sum(r["requests"] for r in rows)),
+    }
+
+
+async def _log(
+    api: T.Api, call: T.Call, tool: str, cls: str, out: dict[str, Any], reservation: Any
+) -> None:
+    raw = out.get("entries")
+    rows = [r for r in (_row(e, tool, cls) for e in raw) if r] if isinstance(raw, list) else []
+    if not rows:
+        return
+    if len(rows) > LOG_ROWS:
+        rows = [*rows[: LOG_ROWS - 1], _summed(rows[LOG_ROWS - 1 :], tool, cls)]
+    body: dict[str, Any] = {"tool": tool, "class": cls, "entries": rows}
+    if isinstance(reservation, str):
+        body["reservation"] = reservation
+    try:
+        resp = await api.request("POST", "/internal/v1/egress/log", call.token, json=body)
+        if resp.status_code == 204:
+            return
+        # Refused: the call still counts, as one row that sums the batch.
+        log.warning("egress log refused: %s; logging one summed row", resp.status_code)
+        body["entries"] = [_summed(rows, tool, cls)]
+        resp = await api.request("POST", "/internal/v1/egress/log", call.token, json=body)
+        if resp.status_code != 204:
+            log.error("egress log refused again: %s", resp.status_code)
+    except httpx.HTTPError as exc:
+        log.error("egress log failed: %s", type(exc).__name__)
+
+
+async def _shielded(coro: Coroutine[Any, Any, None]) -> None:
+    """Runs `coro` to its end even if the call awaiting it is cancelled
+    (the tool's timeout): the log of what left is never lost to it."""
+    task = asyncio.ensure_future(coro)
+    _BACKGROUND.add(task)
+    task.add_done_callback(_BACKGROUND.discard)
+    await asyncio.shield(task)
 
 
 def _ctx(call: T.Call, cls: str, grant: dict[str, Any]) -> dict[str, Any]:
@@ -235,11 +324,14 @@ async def _carry(
     body = {"ctx": _ctx(call, cls, grant), **payload}
     if grant.get("account") is not None:
         body["account"] = grant["account"]
+    out: dict[str, Any] | None = None
     try:
         out = await api.egress.post(path, body)
     finally:
         grant.pop("account", None)  # the secret lives for this call only
-    await _log(api, call, tool, cls, out)
+        body.pop("account", None)
+        if out is not None:
+            await _shielded(_log(api, call, tool, cls, out, grant.get("reservation")))
     return out, None
 
 

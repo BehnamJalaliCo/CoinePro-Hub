@@ -3,8 +3,11 @@ out at egress, log, and the model's result (untrusted web data, no secret)."""
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
+import re
+import time
 from collections.abc import Iterator
 from typing import Any
 
@@ -34,9 +37,9 @@ def gw() -> Gateway:
     return Gateway(LIB, T.Api(API, 5), Opa(OPA), max_result_chars=4000, tool_timeout_s=2)
 
 
-def gw_web() -> Gateway:
+def gw_web(tool_timeout_s: float = 3) -> Gateway:
     api = T.Api(API, 5, egress=Egress(EGRESS, 5))
-    return Gateway(LIB, api, Opa(OPA), max_result_chars=8000, tool_timeout_s=3)
+    return Gateway(LIB, api, Opa(OPA), max_result_chars=8000, tool_timeout_s=tool_timeout_s)
 
 
 class Net:
@@ -47,6 +50,9 @@ class Net:
         self.sent: list[dict[str, Any]] = []
         self.logged: list[dict[str, Any]] = []
         self.uploads: list[httpx.Request] = []
+        self.log_status: list[int] = []  # answers of the log route in turn (then 204)
+        self.log_delay = 0.0
+        self.egress_delay = 0.0
         self.reserve_answer: tuple[int, dict[str, Any]] = (
             200,
             {"max_bytes": 1000, "requests_left": 9, "browser_s_left": 60, "account": None},
@@ -66,16 +72,18 @@ class Net:
         status, body = self.reserve_answer
         return httpx.Response(status, json=body)
 
-    def _log(self, request: httpx.Request) -> httpx.Response:
+    async def _log(self, request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(self.log_delay)
         self.logged.append(json.loads(request.content))
-        return httpx.Response(204)
+        return httpx.Response(self.log_status.pop(0) if self.log_status else 204)
 
     def _upload(self, request: httpx.Request) -> httpx.Response:
         self.uploads.append(request)
         return httpx.Response(201, json={"id": FILE_ID, "mime": "image/png", "size": 9})
 
-    def _egress(self, request: httpx.Request) -> httpx.Response:
+    async def _egress(self, request: httpx.Request) -> httpx.Response:
         self.sent.append({"path": request.url.path, **json.loads(request.content)})
+        await asyncio.sleep(self.egress_delay)
         return httpx.Response(200, json=self.egress_answer)
 
 
@@ -100,7 +108,7 @@ async def test_search_reserves_carries_out_and_logs(mock: respx.MockRouter) -> N
     assert net.reserved[-1]["class"] == "A0" and net.reserved[-1]["tool"] == "web.search"
     ctx = net.sent[-1]["ctx"]
     assert (ctx["company"], ctx["actor"], ctx["max_bytes"]) == ("TY", "TY-TECH-MGR", 1000)
-    assert net.logged[-1]["entries"] == [ENTRY]
+    assert net.logged[-1]["entries"] == [{**ENTRY, "requests": 1}]
     assert s.records[-1]["tool"] == "web.search" and s.records[-1]["class"] == "A0"
 
 
@@ -192,3 +200,66 @@ async def test_classes_inputs_and_wiring(mock: respx.MockRouter, gw: Gateway) ->
     )
     out = await call(gw_web(), "egress.recent", {"blocked": True})
     assert out["outcome"] == "ok" and out["result"] == {"items": [], "next_cursor": None}
+
+
+REASON = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
+RESERVATION = "0193e7a1-0000-7000-8000-0000000000aa"
+
+
+def loggable(e: dict[str, Any]) -> bool:
+    """What the api's egress log accepts (routes/egress.py LogEntryIn)."""
+    return (
+        1 <= len(e["method"]) <= 10
+        and 1 <= len(e["host"]) <= 255
+        and (e["status"] is None or 100 <= e["status"] <= 999)
+        and (e["blocked_reason"] is None or bool(REASON.match(e["blocked_reason"])))
+        and e["requests"] >= 1
+    )
+
+
+async def test_every_row_reaches_the_log_in_the_logs_shape(mock: respx.MockRouter) -> None:
+    """7.1 §1.3: a hostile server's method or status never drops the batch,
+    rows beyond 200 are summed (and counted), and the call's reservation goes
+    with them; a refused batch still lands as one summed row."""
+    Stub(mock)
+    net = Net(mock)
+    net.reserve_answer = (200, {"max_bytes": 1000, "account": None, "reservation": RESERVATION})
+    odd = [{**ENTRY, "method": "VERYLONGMETHODNAME", "status": 9999},
+           {**ENTRY, "status": 42, "blocked_reason": "Not A Code!"}, "junk"]  # fmt: skip
+    many = [{**ENTRY, "host": f"h{i}.example", "bytes_in": 10} for i in range(250)]
+    net.egress_answer = {"outcome": "ok", "data": {"results": []}, "entries": [*odd, *many]}
+    out = await call(gw_web(), "web.search", {"q": "persian calendar"})
+    assert out["outcome"] == "ok"
+    body = net.logged[-1]
+    assert body["reservation"] == RESERVATION and len(body["entries"]) == 200
+    assert all(loggable(e) for e in body["entries"]), body["entries"][:3]
+    assert body["entries"][0]["method"] == "VERYLONGME" and body["entries"][0]["status"] is None
+    assert body["entries"][1]["blocked_reason"] == "other"
+    total = body["entries"][-1]
+    assert total["requests"] == 252 - 199 and total["host"] == "(several)"
+    assert sum(e["requests"] for e in body["entries"]) == 252
+    assert sum(e["bytes_in"] for e in body["entries"]) == 2 * 10 + 250 * 10
+    # The api refuses the batch: one summed row instead, still counted.
+    net.log_status = [422]
+    await call(gw_web(), "web.search", {"q": "persian calendar"})
+    assert len(net.logged[-1]["entries"]) == 1 and net.logged[-1]["entries"][0]["requests"] == 252
+
+
+async def test_the_log_survives_the_tools_timeout(mock: respx.MockRouter) -> None:
+    Stub(mock)
+    net = Net(mock)
+    net.reserve_answer = (200, {"max_bytes": 1000, "account": None, "reservation": RESERVATION})
+    net.egress_answer = {"outcome": "ok", "data": {"results": []}, "entries": [ENTRY]}
+    net.log_delay = 1.2  # the log is slow; the tool's 1 s runs out meanwhile
+    start = time.monotonic()
+    out = await call(gw_web(tool_timeout_s=1), "web.search", {"q": "persian calendar"})
+    assert out["code"] == "tool_timeout" and time.monotonic() - start < 1.6
+    await asyncio.sleep(0.6)
+    assert net.logged and net.logged[-1]["reservation"] == RESERVATION
+    # Egress itself outlives the tool's time: nothing to log here, but the
+    # call's reservation (written at reserve) is its row at the api.
+    net.logged.clear()
+    net.log_delay, net.egress_delay = 0.0, 1.5
+    out = await call(gw_web(tool_timeout_s=1), "web.read", {"url": "https://slow.example/"})
+    assert out["code"] == "tool_timeout" and net.reserved[-1]["url"] == "https://slow.example/"
+    assert not net.logged
