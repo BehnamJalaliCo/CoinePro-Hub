@@ -645,8 +645,10 @@ async def skills_reviewed(ctx: CheckCtx) -> Checked:
         return Checked([], {}, notes="skills are not built yet")
     rows = await _by_company(
         ctx,
+        # The review lives on the active version (knowledge.skill_versions, 0022).
         """SELECT s.company_id, s.ref FROM knowledge.skills s
-           JOIN knowledge.skill_versions v ON v.skill_id = s.id AND v.version = s.active_version
+           LEFT JOIN knowledge.skill_versions v
+                  ON v.skill_id = s.id AND v.version = s.active_version
            WHERE s.status = 'active' AND coalesce(v.review->>'verdict', '') <> 'pass'""",
     )
     problems = [
