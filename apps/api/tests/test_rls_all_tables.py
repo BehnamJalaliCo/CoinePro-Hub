@@ -34,6 +34,7 @@ SCHEMAS = (
     "workshop",
     "backup",
     "egress",
+    "oversight",
 )
 
 
@@ -159,6 +160,29 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     )
     await su.execute(
         "INSERT INTO backup.restore_tests (company_id, at, ok) VALUES ($1, now(), true)", co["id"]
+    )
+    # Prompt 08 §3, §5: an inquiry to the CEO, an errand and a planner item
+    # (the holding's in production; any company's here, to prove the isolation).
+    ceo_id = await su.fetchval("SELECT id FROM core.employees WHERE code = $1", f"{co['code']}-CEO")
+    await su.execute(
+        """INSERT INTO oversight.inquiries (company_id, from_kind, from_code, to_employee_id, to_code,
+               question_md, due_at, thread_code)
+           VALUES ($1, 'agent', 'HQ-ADV', $2, $3, 'q', now() + interval '1 day', 'A')""",
+        co["id"],
+        ceo_id,
+        f"{co['code']}-CEO",
+    )
+    errand = await su.fetchval(
+        """INSERT INTO owner.errands (company_id, title_fa, brief_md, source)
+           VALUES ($1, 't', 'b', 'text') RETURNING id""",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO owner.planner_items (company_id, title_fa, at, errand_id, created_by_kind,
+               created_by_code)
+           VALUES ($1, 't', now(), $2, 'agent', 'HQ-PA')""",
+        co["id"],
+        errand,
     )
     # Prompt 07: one request of an agent's web tool.
     await su.execute(

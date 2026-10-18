@@ -61,6 +61,15 @@
           "notify",
           "web.browse",
           "http.request"
+        ],
+        "assistant": [
+          "errand.step",
+          "errand.finish",
+          "errand.write",
+          "planner.add",
+          "web.browse",
+          "http.request",
+          "mcp.call"
         ]
       }
     }

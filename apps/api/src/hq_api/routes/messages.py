@@ -387,7 +387,10 @@ async def post_message(
     *,
     citations: list[Citation] | None = None,
     meta: dict[str, Any] | None = None,
+    checked: tuple[str, ...] = (),
 ) -> dict[str, Any]:
+    """`checked`: link kinds the caller already verified in this same
+    transaction (a record it just made is not visible to check_links yet)."""
     t = await tx.one("SELECT id, company_id FROM msg.threads WHERE code = :c", c=thread_code)
     if links.get("corrects") and not await tx.scalar(
         "SELECT 1 FROM msg.messages WHERE ref = :r AND thread_id = :t",
@@ -397,7 +400,9 @@ async def post_message(
         raise ApiError(
             422, "validation_failed", fields={"links.corrects": "a message of this thread"}
         )
-    await check_links(ctx, tx, t["company_id"], links)
+    await check_links(
+        ctx, tx, t["company_id"], {k: v for k, v in links.items() if k not in checked}
+    )
     kind = "text"
     if attachments:
         attachments, kind = await _attachments(ctx, tx, t["company_id"], attachments)
@@ -477,7 +482,9 @@ async def send_message(
             links["errand"] = await errands.for_message(
                 tx, holding.id, links, body.body, body.attachments, voice
             )
-        m = await post_message(ctx, tx, code, body.body, links, body.attachments)
+        m = await post_message(
+            ctx, tx, code, body.body, links, body.attachments, checked=("errand",)
+        )
         if code == errands.THREAD:
             await errands.opened_by(tx, links["errand"], m["ref"])
         await ctx.interaction(

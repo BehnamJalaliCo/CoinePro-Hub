@@ -29,6 +29,7 @@ SCHEMAS = (
     "workshop",
     "backup",
     "egress",
+    "oversight",
 )
 
 

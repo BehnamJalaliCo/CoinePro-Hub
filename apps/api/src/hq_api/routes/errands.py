@@ -72,7 +72,13 @@ async def create_errand(body: R.ErrandIn, request: Request, ctx: Ctx = Depends(o
             title=body.title_fa,
         )
         m = await post_message(
-            ctx, tx, R.THREAD, body.brief_md, {"errand": e["ref"]}, list(body.file_ids)
+            ctx,
+            tx,
+            R.THREAD,
+            body.brief_md,
+            {"errand": e["ref"]},
+            list(body.file_ids),
+            checked=("errand",),
         )
         await R.opened_by(tx, e["ref"], m["ref"])
         await ctx.audit(

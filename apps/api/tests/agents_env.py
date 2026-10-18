@@ -47,6 +47,7 @@ class AgentsEnv:
     service: RouterService
     whub: Hub
     close: Any
+    core: Any = None  # the gateway itself (tests wire a fake egress into core.api.egress)
 
 
 async def build(
@@ -119,4 +120,4 @@ async def build(
         await events.close()
         await rdb.close()
 
-    return AgentsEnv(fake, router, gateway, live, runner, service, whub, close)
+    return AgentsEnv(fake, router, gateway, live, runner, service, whub, close, core)
