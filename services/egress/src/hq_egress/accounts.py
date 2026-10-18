@@ -10,8 +10,9 @@ typed into.
 from __future__ import annotations
 
 import base64
+import posixpath
 from typing import Any, Literal
-from urllib.parse import quote, quote_plus
+from urllib.parse import quote, quote_plus, unquote, urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -38,6 +39,14 @@ class BrowseLogin(BaseModel):
     submit_selector: str | None = Field(default=None, max_length=200)
 
 
+class AllowRule(BaseModel):
+    """A call other than GET/HEAD the owner listed as non-committing."""
+
+    model_config = ConfigDict(extra="forbid")
+    methods: list[str] = Field(default_factory=list, max_length=5)
+    path_prefix: str = Field(default="", max_length=500)
+
+
 class Account(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]{1,40}$")
@@ -46,10 +55,31 @@ class Account(BaseModel):
     inject: Inject = Field(default_factory=Inject)
     browse: BrowseLogin | None = None
     ports: list[int] = Field(default_factory=list, max_length=5)
+    allow: list[AllowRule] = Field(default_factory=list, max_length=50)
 
     def covers(self, host: str) -> bool:
         site = self.site.lower().rstrip(".")
         return host == site or host.endswith("." + site)
+
+    def allows(self, method: str, url: str) -> bool:
+        """A GET/HEAD, or a call the owner listed (method, path prefix) on the
+        account's own site: what web.browse may send while signed in."""
+        method = method.upper()
+        if method in ("GET", "HEAD"):
+            return True
+        try:
+            parts = urlsplit(url)
+        except ValueError:
+            return False
+        if not self.covers((parts.hostname or "").lower().rstrip(".")):
+            return False
+        path = clean_path(parts.path or "/")
+        return path is not None and any(
+            method in (m.upper() for m in r.methods)
+            and r.path_prefix.startswith("/")
+            and path.startswith(r.path_prefix)
+            for r in self.allow
+        )
 
     def headers_for(self, host: str, headers: dict[str, str]) -> dict[str, str]:
         if not self.covers(host):
@@ -66,6 +96,29 @@ class Account(BaseModel):
         elif i.kind == "cookie":
             out["Cookie"] = f"{i.name or 'session'}={self.secret}"
         return out
+
+
+def clean_path(raw: str) -> str | None:
+    """The path as the server will see it, or None when it can be read two
+    ways: a dot segment, an encoded dot, slash or backslash (at any depth of
+    percent-encoding), a backslash or an empty segment
+    (`/api/search/../../v1/charges` is sent as `/v1/charges`)."""
+    path = raw
+    for _ in range(5):
+        low = path.lower()
+        if any(x in low for x in ("%2e", "%2f", "%5c", "\\", "//")):
+            return None
+        if any(seg in (".", "..") for seg in path.split("/")):
+            return None
+        once = unquote(path)
+        if once == path:
+            break
+        path = once
+    else:
+        return None
+    if posixpath.normpath(path) not in (path, path.rstrip("/")):
+        return None
+    return unquote(raw)
 
 
 def variants(secret: str) -> list[str]:

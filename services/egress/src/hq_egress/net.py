@@ -4,11 +4,15 @@
 first request and each redirect hop) resolves its name through the guard and
 connects to the address the guard checked, while TLS still verifies the
 certificate for the name (SNI). `Fetcher.fetch` follows redirects by hand,
-checking each Location as a new URL, and stops reading at the byte cap.
+checking each Location as a new URL (a GET or HEAD only: another method's
+redirect comes back unfollowed), and stops reading at the byte cap.
 """
 
 from __future__ import annotations
 
+import asyncio
+import contextvars
+import re
 import ssl
 import time
 from dataclasses import asdict, dataclass, field
@@ -39,6 +43,14 @@ HOP_HEADERS = frozenset(
     }
 )
 USER_AGENT = "Mozilla/5.0 (compatible; CoinePro-HQ-agent/1.0; +https://hq.coinepro.com)"
+READ_METHODS = ("GET", "HEAD")
+_NOT_METHOD = re.compile(r"[^A-Z0-9_-]")
+_REASON = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
+_INT_MAX = 2**31 - 1
+# The entries of the call being served (app.py's catch-all answers with them).
+CALL_ENTRIES: contextvars.ContextVar[list[Entry] | None] = contextvars.ContextVar(
+    "egress_call_entries", default=None
+)
 
 
 @dataclass
@@ -58,9 +70,29 @@ class Entry:
     cls: str = "A0"
 
     def as_json(self) -> dict[str, Any]:
+        """As the egress log takes it: a hostile server's method, status or
+        reason is cut to the log's shape, so one bad row never drops a batch."""
         d = asdict(self)
         d["class"] = d.pop("cls")
+        d["method"] = _NOT_METHOD.sub("", str(self.method).upper())[:10] or "OTHER"
+        d["host"] = (str(self.host or "") or "?")[:255]
+        s = self.status
+        d["status"] = s if type(s) is int and 100 <= s <= 999 else None
+        if self.blocked_reason is not None:
+            r = re.sub(r"[^a-z0-9_]", "_", str(self.blocked_reason).lower())[:41]
+            d["blocked_reason"] = r if _REASON.match(r) else "other"
+        for k in ("bytes_in", "bytes_out", "ms"):
+            d[k] = max(0, int(d[k] or 0))
+        d["ms"] = min(d["ms"], _INT_MAX)
         return d
+
+
+def track(entry: Entry) -> Entry:
+    """`entry` belongs to the call being served (returned even if it fails)."""
+    call = CALL_ENTRIES.get()
+    if call is not None and not any(e is entry for e in call):
+        call.append(entry)
+    return entry
 
 
 @dataclass
@@ -151,7 +183,8 @@ class Fetcher:
     ) -> Fetched:
         """One request and its redirects; each hop is an Entry. `inject(host,
         headers)` adds a service account's credential for its own host only."""
-        entries: list[Entry] = []
+        call = CALL_ENTRIES.get()
+        entries: list[Entry] = call if call is not None else []
         current, verb, body = url, method.upper(), content
         for _hop in range(MAX_REDIRECTS + 1):
             try:
@@ -175,16 +208,22 @@ class Fetcher:
             except httpx.HTTPError as exc:
                 entry.ms = int((time.monotonic() - start) * 1000)
                 raise FetchError(type(exc).__name__, entries) from None
+            except asyncio.CancelledError:  # the call's deadline: the time spent still counts
+                entry.ms = int((time.monotonic() - start) * 1000)
+                entry.blocked_reason = entry.blocked_reason or "call_timeout"
+                raise
             try:
                 entry.status = resp.status_code
-                if resp.status_code in (301, 302, 303, 307, 308) and resp.headers.get("location"):
-                    current = urljoin(current, resp.headers["location"])
-                    if resp.status_code == 303 or (
-                        resp.status_code in (301, 302) and verb not in ("GET", "HEAD")
-                    ):
-                        verb, body = "GET", None
+                if (
+                    resp.status_code in (301, 302, 303, 307, 308)
+                    and resp.headers.get("location")
+                    and verb in READ_METHODS
+                ):
+                    # Only a read is followed: a POST's 307/308 would send the
+                    # body and the account's credential again, unchecked.
+                    current, body = urljoin(current, resp.headers["location"]), None
                     continue
-                data, truncated = await _read(resp, max_bytes)
+                data, truncated = await _read(resp, max_bytes, entry)
                 entry.bytes_in = len(data)
                 return Fetched(
                     resp.status_code,
@@ -194,6 +233,9 @@ class Fetcher:
                     truncated,
                     entries,
                 )
+            except asyncio.CancelledError:  # cut while reading (a dripping server)
+                entry.blocked_reason = entry.blocked_reason or "call_timeout"
+                raise
             finally:
                 entry.ms = int((time.monotonic() - start) * 1000)
                 await resp.aclose()
@@ -215,15 +257,21 @@ def _with(b: Blocked, entries: list[Entry]) -> Blocked:
     return b
 
 
-async def _read(resp: httpx.Response, max_bytes: int) -> tuple[bytes, bool]:
+async def _read(
+    resp: httpx.Response, max_bytes: int, entry: Entry | None = None
+) -> tuple[bytes, bool]:
     chunks: list[bytes] = []
     size = 0
     async for chunk in resp.aiter_bytes():
         if size + len(chunk) > max_bytes:
             chunks.append(chunk[: max_bytes - size])
+            if entry is not None:
+                entry.bytes_in = max_bytes
             return b"".join(chunks), True
         chunks.append(chunk)
         size += len(chunk)
+        if entry is not None:  # a dripping server cut at the deadline: what came counts
+            entry.bytes_in = size
     return b"".join(chunks), False
 
 

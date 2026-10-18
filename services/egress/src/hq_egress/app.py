@@ -16,13 +16,16 @@ the time, and `suspected_injection`.
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import codecs
 import contextlib
+import functools
 import ipaddress
 import json
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import urlsplit
@@ -38,7 +41,7 @@ from hq_egress import extract as X
 from hq_egress.accounts import Account, scrub
 from hq_egress.config import Settings
 from hq_egress.guard import Blocked, Guard
-from hq_egress.net import Entry, Fetcher, FetchError
+from hq_egress.net import CALL_ENTRIES, Entry, Fetcher, FetchError, track
 from hq_egress.proxy import Buckets, entries_json
 
 log = logging.getLogger("hq_egress")
@@ -167,6 +170,37 @@ def build_app(state: State) -> FastAPI:
     )
     app.state.egress = state
 
+    def guarded(
+        fn: Callable[[Any], Awaitable[JSONResponse]],
+    ) -> Callable[[Any], Awaitable[JSONResponse]]:
+        """One call: within its deadline (below the gateway's), and whatever
+        a hostile server or parser does, an answer with the call's entries,
+        so every request that left reaches the egress log and the limits."""
+
+        @functools.wraps(fn)
+        async def call(a: Any) -> JSONResponse:
+            entries: list[Entry] = []
+            token = CALL_ENTRIES.set(entries)
+            secrets = [a.account.secret] if getattr(a, "account", None) else []
+            start = time.monotonic()
+            code = "egress_failed"
+            try:
+                async with asyncio.timeout(state.settings.call_deadline_s):
+                    return await fn(a)
+            except TimeoutError:
+                code = "call_timeout"
+            except Exception as exc:  # noqa: BLE001 - the answer must still carry the entries
+                log.warning("%s failed: %s", fn.__name__, type(exc).__name__)
+            finally:
+                CALL_ENTRIES.reset(token)
+            ms = int((time.monotonic() - start) * 1000)
+            for e in entries:
+                if e.status is None and e.blocked_reason is None:
+                    e.blocked_reason, e.ms = code, e.ms or ms  # in flight when it stopped
+            return answer("error", None, entries, code, secrets)
+
+        return call
+
     @app.middleware("http")
     async def clients_only(request: Request, call_next: Any) -> Any:
         try:
@@ -187,6 +221,7 @@ def build_app(state: State) -> FastAPI:
         return {"ok": True, "version": __version__}
 
     @app.post("/v1/search")
+    @guarded
     async def search(a: SearchIn) -> JSONResponse:
         q = f"site:{a.site} {a.q}" if a.site else a.q
         params: dict[str, Any] = {"q": q, "format": "json", "pageno": 1, "safesearch": 0}
@@ -197,7 +232,7 @@ def build_app(state: State) -> FastAPI:
             params["time_range"] = (
                 "day" if d <= 1 else "week" if d <= 7 else "month" if d <= 31 else "year"
             )
-        entry = Entry("web.search", "GET", "searxng", kind="search", cls=a.ctx.cls)
+        entry = track(Entry("web.search", "GET", "searxng", kind="search", cls=a.ctx.cls))
         start = time.monotonic()
         try:
             resp = await state.internal.get(
@@ -237,6 +272,7 @@ def build_app(state: State) -> FastAPI:
         )
 
     @app.post("/v1/read")
+    @guarded
     async def read(a: ReadIn) -> JSONResponse:
         secrets = [a.account.secret] if a.account else []
         try:
@@ -285,6 +321,7 @@ def build_app(state: State) -> FastAPI:
         return answer("ok", data, got.entries, None, secrets)
 
     @app.post("/v1/http")
+    @guarded
     async def http_request(a: HttpIn) -> JSONResponse:
         secrets = [a.account.secret] if a.account else []
         headers = dict(a.headers)
@@ -328,6 +365,7 @@ def build_app(state: State) -> FastAPI:
         return answer("ok", data, got.entries, None, secrets)
 
     @app.post("/v1/browse")
+    @guarded
     async def browse(a: BrowseIn) -> JSONResponse:
         for s in a.steps:
             if s.url:
@@ -341,7 +379,10 @@ def build_app(state: State) -> FastAPI:
                     return answer("blocked", None, [e], b.reason)
         secrets = [a.account.secret] if a.account else []
         key, password = state.buckets.open("web.browse", a.ctx.cls, a.ctx.max_bytes)
-        time_s = min(a.time_s, state.settings.browse_call_s)
+        # The browser's own budget leaves room for its hard stop (time_s + 3)
+        # inside this call's deadline.
+        time_s = max(1.0, min(a.time_s, state.settings.browse_call_s,
+                              state.settings.call_deadline_s - 4))  # fmt: skip
         payload = {
             "steps": [s.model_dump(exclude_none=True) for s in a.steps],
             "proxy": {
@@ -353,6 +394,8 @@ def build_app(state: State) -> FastAPI:
             "time_s": time_s,
             "max_download_bytes": min(a.ctx.max_bytes, state.settings.max_call_bytes),
         }
+        first = next((s.url for s in a.steps if s.url), None) or "about:blank"
+        session = track(Entry("web.browse", "BROWSE", _host(first), kind="browse", cls=a.ctx.cls))
         start = time.monotonic()
         try:
             resp = await state.internal.post(
@@ -364,10 +407,8 @@ def build_app(state: State) -> FastAPI:
         except (httpx.HTTPError, ValueError):
             got = None
         finally:
-            entries = state.buckets.drain(key)
-        ms = int((time.monotonic() - start) * 1000)
-        first = next((s.url for s in a.steps if s.url), None) or "about:blank"
-        session = Entry("web.browse", "BROWSE", _host(first), kind="browse", cls=a.ctx.cls, ms=ms)
+            entries = [track(e) for e in state.buckets.drain(key)]
+            session.ms = int((time.monotonic() - start) * 1000)
         entries = [session, *entries]
         if not isinstance(got, dict):
             session.status = 502
@@ -401,14 +442,18 @@ def build_app(state: State) -> FastAPI:
 
 
 def _charset(headers: dict[str, str]) -> str:
+    """The declared text encoding; a codec that is not one (hex, rot13,
+    base64, zlib: bytes-to-bytes) or an unknown name reads as UTF-8."""
     ctype = headers.get("content-type", "")
     for part in ctype.split(";")[1:]:
         k, _, v = part.strip().partition("=")
         if k.lower() == "charset" and v:
-            with contextlib.suppress(LookupError):
-                import codecs
-
-                return codecs.lookup(v.strip('"')).name
+            try:
+                info = codecs.lookup(v.strip("\"' "))
+            except (LookupError, ValueError):
+                continue
+            if getattr(info, "_is_text_encoding", True):
+                return info.name
     return "utf-8"
 
 

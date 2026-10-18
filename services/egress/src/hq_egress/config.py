@@ -61,4 +61,9 @@ class Settings:
     browse_call_s: float = field(
         default_factory=lambda: float(os.environ.get("EGRESS_BROWSE_CALL_S", "20"))
     )
+    # One call's whole time (every hop, a slow server, the parsing): below the
+    # gateway's 25 s for a tool, so the call's entries always come back to it.
+    call_deadline_s: float = field(
+        default_factory=lambda: float(os.environ.get("EGRESS_CALL_DEADLINE_S", "20"))
+    )
     log_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL", "info"))
