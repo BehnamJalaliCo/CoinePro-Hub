@@ -10,9 +10,13 @@ policy lists as non-committing. Anything else that commits is `needs_owner`.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import posixpath
 import re
+import unicodedata
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import unquote, unquote_plus, urlsplit
 from uuid import UUID
 
 from hq_api.db import Tx
@@ -25,38 +29,111 @@ READ_METHODS = ("GET", "HEAD")
 INTERNAL_REF = re.compile(
     r"(?<![A-Za-z0-9])(?:[WDO]-\d{6,}|(?:I|N|P|S|C|AP|PV|ST)-\d{4,6})(?![A-Za-z0-9])"
 )
-# An employee code starts with its company's code (FX-TECH-MGR, HQ-ADV).
+# An employee code starts with its company's code (FX-TECH-MGR, HQ-ADV). A
+# known code counts in any case (fx-tech-mgr); an unknown one when it is
+# written as codes are: upper case, with a company's code first.
 EMPLOYEE = re.compile(
-    r"(?<![A-Za-z0-9-])([A-Z][A-Z0-9]{1,9})-[A-Z0-9]+(?:-[A-Z0-9]+)?(?![A-Za-z0-9])"
+    r"(?<![A-Za-z0-9-])([A-Za-z][A-Za-z0-9]{1,9})-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)?(?![A-Za-z0-9])"
 )
 MAX_TEXT = 300_000
 
-USAGE_SQL = """
+# A call's reservation (written by reserve before the request leaves; its
+# `call_id` is its own id) counts until the call's own entries arrive (their
+# `call_id` names it): a call whose answer is lost still counts, a call that
+# was logged counts once. An aggregated row counts its `requests`.
+SETTLED = """(l.call_id = l.id AND EXISTS (SELECT 1 FROM egress.log s
+                                            WHERE s.call_id = l.id AND s.id <> l.id))"""
+USAGE_SQL = f"""
     WITH day AS (
         SELECT (date_trunc('day', now() AT TIME ZONE tz) AT TIME ZONE tz) AS start
         FROM (SELECT COALESCE((SELECT timezone FROM owner.settings WHERE id = 1), 'Asia/Tehran') AS tz) t
     )
-    SELECT count(*) FILTER (WHERE run_id = CAST(:run AS uuid)) AS run_requests,
-           COALESCE(sum(bytes_in + bytes_out) FILTER (WHERE run_id = CAST(:run AS uuid)), 0) AS run_bytes,
-           COALESCE(sum(ms) FILTER (WHERE run_id = CAST(:run AS uuid) AND kind = 'browse'), 0) AS run_browse_ms,
-           count(*) AS day_requests,
-           COALESCE(sum(bytes_in + bytes_out), 0) AS day_bytes
-    FROM egress.log, day
-    WHERE company_id = :co AND at >= day.start
-"""
+    SELECT COALESCE(sum(l.requests) FILTER (WHERE l.run_id = CAST(:run AS uuid)), 0) AS run_requests,
+           COALESCE(sum(l.bytes_in + l.bytes_out) FILTER (WHERE l.run_id = CAST(:run AS uuid)), 0) AS run_bytes,
+           COALESCE(sum(l.ms) FILTER (WHERE l.run_id = CAST(:run AS uuid) AND l.kind = 'browse'), 0) AS run_browse_ms,
+           COALESCE(sum(l.requests), 0) AS day_requests,
+           COALESCE(sum(l.bytes_in + l.bytes_out), 0) AS day_bytes
+    FROM egress.log l, day
+    WHERE l.company_id = :co AND l.at >= day.start AND NOT {SETTLED}
+"""  # noqa: S608 - composed from module constants; values are bound
+KINDS = {"web.search": "search", "web.browse": "browse"}
+# Where an outgoing value can hide its data (contract §18.13, 7.1):
+# percent-encoding (any depth), compatibility forms (full-width), other
+# dashes, invisible marks, Persian and Arabic-Indic digits, base64 and hex.
+DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+DASHES = re.compile("[\u2010-\u2015\u2212\ufe58\ufe63\uff0d]")
+INVISIBLE = re.compile("[\u00ad\u034f\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]")
+B64_RUN = re.compile(r"[A-Za-z0-9+/_-]{16,}={0,2}")
+HEX_RUN = re.compile(r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}){8,}(?![0-9A-Fa-f])")
+MAX_RUNS = 200
 
 
-def internal_data(strings: list[str], company_codes: set[str]) -> str | None:
-    """Why this must not leave the hub, or None."""
-    text = "\n".join(s for s in strings if s)[:MAX_TEXT]
-    if not text:
+def decoded(text: str) -> str:
+    """`text` as its reader sees it: percent-decoded until it no longer
+    changes, NFKC, every dash a hyphen, no invisible mark, Latin digits."""
+    for _ in range(10):
+        once = unquote_plus(text)
+        if once == text:
+            break
+        text = once
+    text = unicodedata.normalize("NFKC", text)
+    text = INVISIBLE.sub("", DASHES.sub("-", text))
+    return text.translate(DIGITS)
+
+
+def _b64(run: str) -> list[bytes]:
+    raw = run.rstrip("=")
+    padded = raw + "=" * (-len(raw) % 4)
+    out: list[bytes] = []
+    for alt in (None, b"-_"):
+        try:
+            out.append(base64.b64decode(padded, altchars=alt, validate=True))
+        except (binascii.Error, ValueError):
+            continue
+    return out
+
+
+def _hidden(text: str) -> list[str]:
+    """The text inside base64 and hex runs of 16+ characters (readable only)."""
+    blobs = [bytes.fromhex(m.group(0)) for m in HEX_RUN.finditer(text)][:MAX_RUNS]
+    for m in list(B64_RUN.finditer(text))[:MAX_RUNS]:
+        blobs += _b64(m.group(0))
+    out: list[str] = []
+    for blob in blobs:
+        try:
+            t = blob.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        if t and sum(ch.isprintable() or ch.isspace() for ch in t) >= 0.9 * len(t):
+            out.append(decoded(t))
+    return out
+
+
+def internal_data(
+    strings: list[str], company_codes: set[str], employee_codes: frozenset[str] = frozenset()
+) -> str | None:
+    """Why this must not leave the hub, or None. Checked as written and after
+    decoding (contract §18.13): an encoded e-mail, ref or code is still one."""
+    raw = "\n".join(s for s in strings if s)[:MAX_TEXT]
+    if not raw:
         return None
+    plain = decoded(raw)
+    for text in (raw, plain, *_hidden(plain)):
+        reason = _internal(text, company_codes, employee_codes)
+        if reason:
+            return reason
+    return None
+
+
+def _internal(text: str, company_codes: set[str], employee_codes: frozenset[str]) -> str | None:
     if scrub(text) != text:
         return "personal_or_secret_data"
     if INTERNAL_REF.search(text):
         return "internal_reference"
-    if any(m.group(1) in company_codes for m in EMPLOYEE.finditer(text)):
-        return "employee_code"
+    for m in EMPLOYEE.finditer(text):
+        code = m.group(0)
+        if code.upper() in employee_codes or (code.isupper() and m.group(1) in company_codes):
+            return "employee_code"
     return None
 
 
@@ -91,7 +168,9 @@ def non_committing(policy: dict[str, Any], site: str, method: str, url: str | No
     host = (parts.hostname or "").lower()
     if not covers(site, host):
         return False
-    path = parts.path or "/"
+    path = clean_path(parts.path or "/")
+    if path is None:
+        return False
     for rule in policy.get("allow") or []:
         if not isinstance(rule, dict):
             continue
@@ -100,6 +179,29 @@ def non_committing(policy: dict[str, Any], site: str, method: str, url: str | No
         if method in methods and prefix.startswith("/") and path.startswith(prefix):
             return True
     return False
+
+
+def clean_path(raw: str) -> str | None:
+    """The path as the server will see it, or None when it can be read two
+    ways: a dot segment, an encoded dot, slash or backslash (at any depth of
+    percent-encoding), a backslash or an empty segment
+    (`/api/search/../../v1/charges` is sent as `/v1/charges`)."""
+    path = raw
+    for _ in range(5):
+        low = path.lower()
+        if any(x in low for x in ("%2e", "%2f", "%5c", "\\", "//")):
+            return None
+        if any(seg in (".", "..") for seg in path.split("/")):
+            return None
+        once = unquote(path)
+        if once == path:
+            break
+        path = once
+    else:
+        return None
+    if posixpath.normpath(path) not in (path, path.rstrip("/")):
+        return None
+    return unquote(raw)
 
 
 async def account(tx: Tx, bao: Any, key: str, company: str) -> dict[str, Any]:
@@ -123,6 +225,16 @@ async def account(tx: Tx, bao: Any, key: str, company: str) -> dict[str, Any]:
         "inject": policy.get("inject") or {"kind": "bearer"},
         "browse": policy.get("browse"),
         "ports": [int(p) for p in policy.get("ports") or [] if str(p).isdigit()][:5],
+        # The non-committing calls, for web.browse too: the browser refuses any
+        # other call than GET/HEAD (contract §18.13, 7.1).
+        "allow": [
+            {
+                "methods": [str(m).upper() for m in r.get("methods") or []][:5],
+                "path_prefix": str(r.get("path_prefix") or "")[:500],
+            }
+            for r in policy.get("allow") or []
+            if isinstance(r, dict)
+        ][:50],
         "_policy": policy,
     }
 
@@ -151,14 +263,15 @@ async def record(
     actor: str,
     run_id: str | None,
     entries: list[dict[str, Any]],
+    call_id: UUID | str | None = None,
 ) -> int:
     n = 0
     for e in entries:
         await tx.exec(
             """INSERT INTO egress.log (company_id, actor, run_id, tool, kind, class, method, host, status,
-                   bytes_in, bytes_out, ms, blocked_reason)
+                   bytes_in, bytes_out, ms, blocked_reason, requests, call_id)
                VALUES (:co, :actor, CAST(:run AS uuid), :tool, :kind, :cls, :method, :host, :status,
-                   :bi, :bo, :ms, :br)""",
+                   :bi, :bo, :ms, :br, :n, CAST(:call AS uuid))""",
             co=company_id,
             actor=actor[:60],
             run=run_id,
@@ -172,9 +285,45 @@ async def record(
             bo=e.get("bytes_out", 0),
             ms=e.get("ms", 0),
             br=e.get("blocked_reason"),
+            n=e.get("requests", 1),
+            call=str(call_id) if call_id else None,
         )
         n += 1
     return n
+
+
+async def reserve_row(
+    tx: Tx, *, company_id: UUID, actor: str, run_id: str | None, entry: dict[str, Any]
+) -> str:
+    """The call's row, written before its request leaves (call_id = its id)."""
+    row = await tx.one(
+        """INSERT INTO egress.log (id, call_id, company_id, actor, run_id, tool, kind, class, method, host)
+           SELECT x.id, x.id, :co, :actor, CAST(:run AS uuid), :tool, :kind, :cls, :method, :host
+           FROM (SELECT gen_random_uuid() AS id) x
+           RETURNING id""",
+        co=company_id,
+        actor=actor[:60],
+        run=run_id,
+        tool=entry["tool"],
+        kind=entry["kind"],
+        cls=entry["class"],
+        method=entry["method"],
+        host=entry["host"],
+    )
+    return str(row["id"])
+
+
+async def own_reservation(tx: Tx, reservation: UUID, *, actor: str, run_id: str | None) -> bool:
+    """`reservation` is an open call row of this agent's run (RLS: its company)."""
+    found = await tx.all(
+        f"""SELECT 1 FROM egress.log l
+            WHERE l.id = :r AND l.call_id = l.id AND l.actor = :actor
+              AND l.run_id IS NOT DISTINCT FROM CAST(:run AS uuid) AND NOT {SETTLED}""",  # noqa: S608 - module constants
+        r=reservation,
+        actor=actor[:60],
+        run=run_id,
+    )
+    return bool(found)
 
 
 def host_of(url: str | None) -> str:
@@ -191,3 +340,5 @@ ENTRY_SQL = """
            l.bytes_in, l.bytes_out, l.ms, l.blocked_reason, l.class, l.kind
     FROM egress.log l JOIN core.companies c ON c.id = l.company_id
 """
+# A settled reservation is not listed: its call's own entries are.
+LIVE = "NOT " + SETTLED

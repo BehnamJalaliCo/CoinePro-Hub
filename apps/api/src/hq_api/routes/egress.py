@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Literal, NoReturn
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -140,6 +141,8 @@ class LogEntryIn(BaseModel):
     ms: int = Field(default=0, ge=0)
     blocked_reason: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{1,40}$")
     cls: CLASSES = Field(default="A0", alias="class")
+    # An aggregated row (the gateway sums a call's rows beyond the batch's 200).
+    requests: int = Field(default=1, ge=1, le=1_000_000)
 
 
 class LogIn(BaseModel):
@@ -147,6 +150,8 @@ class LogIn(BaseModel):
     tool: str = Field(pattern=TOOL, max_length=40)
     cls: CLASSES = Field(alias="class")
     entries: list[LogEntryIn] = Field(max_length=200)
+    # The call's row that reserve wrote: these entries settle it.
+    reservation: UUID | None = None
 
 
 def _entry(r: dict[str, Any]) -> EgressEntry:
@@ -188,7 +193,9 @@ async def _entries(
               AND (CAST(:since AS timestamptz) IS NULL OR l.at >= :since)
               AND (CAST(:blocked AS boolean) IS NULL OR (l.blocked_reason IS NOT NULL) = :blocked)
               AND (CAST(:at AS timestamptz) IS NULL OR (l.at, l.id) < (CAST(:at AS timestamptz), CAST(:id AS uuid)))
-            ORDER BY l.at DESC, l.id DESC LIMIT :lim""",
+              AND """
+        + G.LIVE
+        + """ ORDER BY l.at DESC, l.id DESC LIMIT :lim""",
         co=company,
         actor=actor,
         since=since,
@@ -234,16 +241,18 @@ async def egress_summary(
     days = {"day": 1, "week": 7, "month": 31}[period]
     async with ctx.tx() as tx:
         rows = await tx.all(
-            """WITH tz AS (SELECT COALESCE((SELECT timezone FROM owner.settings WHERE id = 1), 'Asia/Tehran') AS tz)
+            f"""WITH tz AS (SELECT COALESCE((SELECT timezone FROM owner.settings WHERE id = 1), 'Asia/Tehran') AS tz)
                SELECT to_char(l.at AT TIME ZONE tz.tz, 'YYYY-MM-DD') AS day, c.code AS company,
-                      count(*) AS requests, count(*) FILTER (WHERE l.blocked_reason IS NOT NULL) AS blocked,
+                      sum(l.requests) AS requests,
+                      COALESCE(sum(l.requests) FILTER (WHERE l.blocked_reason IS NOT NULL), 0) AS blocked,
                       COALESCE(sum(l.bytes_in + l.bytes_out), 0) AS bytes,
                       COALESCE(sum(l.ms) FILTER (WHERE l.kind = 'browse'), 0) / 1000 AS browser_s,
                       count(DISTINCT l.host) AS hosts
                FROM egress.log l JOIN core.companies c ON c.id = l.company_id, tz
                WHERE l.at >= (date_trunc('day', now() AT TIME ZONE tz.tz) AT TIME ZONE tz.tz)
                              - make_interval(days => :back)
-               GROUP BY 1, 2 ORDER BY 1 DESC, 2""",
+                 AND {G.LIVE}
+               GROUP BY 1, 2 ORDER BY 1 DESC, 2""",  # noqa: S608 - composed from module constants; values are bound
             back=days - 1,
         )
     return [
@@ -329,7 +338,9 @@ async def put_account(body: AccountIn, request: Request, ctx: Ctx = Depends(owne
 @internal_router.post("/egress/reserve", responses=E)
 async def reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str, Any]:
     """Before an agent's request leaves: what it would send, the limits, the
-    account. The answer carries the account's secret for this call only."""
+    account. The answer carries the account's secret for this call only, and
+    `reservation`: the call's row, written now, so a call whose answer is
+    lost still counts (its log entries settle it)."""
     if not ctx.who.is_agent:
         raise ApiError(403, "policy_denied", "agents only")
     who = ctx.who
@@ -338,6 +349,8 @@ async def reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str
     company_id = who.company_id
     await allow(ctx, "egress.use", {"company": who.company})
     codes = {c.code for c in await ctx.hub.companies.all()}
+    async with ctx.tx() as tx:
+        employees = frozenset(r["code"] for r in await tx.all("SELECT code FROM core.employees"))
     host = G.host_of(body.url)
 
     async def refuse(reason: str, err: ApiError) -> NoReturn:
@@ -352,7 +365,7 @@ async def reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str
             )  # fmt: skip
         raise err
 
-    reason = G.internal_data([*body.strings, body.url or ""], codes)
+    reason = G.internal_data([*body.strings, body.url or ""], codes, employees)
     if reason:
         await refuse("internal_data", ApiError(403, "internal_data", reason))
     async with ctx.tx() as tx:
@@ -373,11 +386,26 @@ async def reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str
             await refuse("needs_owner", ApiError(403, "needs_owner"))
     if acct is not None:
         acct.pop("_policy", None)
+    async with ctx.hub.db.tx([company_id]) as tx:
+        reservation = await G.reserve_row(
+            tx,
+            company_id=company_id,
+            actor=who.code,
+            run_id=who.run_id,
+            entry={
+                "tool": body.tool,
+                "kind": G.KINDS.get(body.tool, "request"),
+                "class": body.cls,
+                "method": "BROWSE" if body.tool == "web.browse" else body.method[:10],
+                "host": host if body.url else ("searxng" if body.tool == "web.search" else "-"),
+            },
+        )
     return {
         "max_bytes": max(1, min(ctx.hub.settings.egress_call_bytes, left["bytes"])),
         "requests_left": left["requests"],
         "browser_s_left": max(0, left["browser_s"]),
         "account": acct,
+        "reservation": reservation,
     }
 
 
@@ -392,12 +420,18 @@ async def log_entries(body: LogIn, ctx: Ctx = Depends(internal_ctx)) -> None:
     company_id = who.company_id
     await allow(ctx, "egress.use", {"company": who.company})
     async with ctx.tx() as tx:
+        call_id = None
+        if body.reservation is not None and await G.own_reservation(
+            tx, body.reservation, actor=who.code, run_id=who.run_id
+        ):
+            call_id = body.reservation
         await G.record(
             tx,
             company_id=company_id,
             actor=who.code,
             run_id=who.run_id,
             entries=[e.model_dump(by_alias=True) for e in body.entries],
+            call_id=call_id,
         )
         for e in body.entries:
             await ctx.audit(
@@ -408,6 +442,7 @@ async def log_entries(body: LogIn, ctx: Ctx = Depends(internal_ctx)) -> None:
                 target_kind="host",
                 target_ref=e.host,
                 summary=f"{e.tool} {e.method} {e.status or '-'}"
+                + (f" x{e.requests}" if e.requests > 1 else "")
                 + (f" blocked: {e.blocked_reason}" if e.blocked_reason else "")
                 + f", {e.bytes_in + e.bytes_out} B",
             )

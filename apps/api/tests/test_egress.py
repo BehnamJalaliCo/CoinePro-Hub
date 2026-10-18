@@ -3,13 +3,17 @@ data guard, the limits, the service accounts and the egress log."""
 
 from __future__ import annotations
 
+import base64
 import json
 from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
+from urllib.parse import quote
+from uuid import UUID
 
 import httpx
 
+from hq_api.domain import egress as G
 from hq_api.hub import Hub
 from hq_common.openbao import SecretNotFound
 
@@ -65,6 +69,24 @@ async def test_the_data_guard_refuses_and_logs(
         co["id"],
     )
     assert blocked == 7
+    # Encoded, it is the same data (7.1 §1.6).
+    code = co["code"]
+    for text in (
+        "ali%40example.com",
+        f"{code}%2DTECH%2DMGR",
+        "W%2D000123",
+        "W%252D000123",  # twice
+        quote("تماس ۰۹۱۲۳۴۵۶۷۸۹"),
+        f"{code.lower()}-tech-mgr",  # a known code, any case
+        f"{code}\uff0dTECH\uff0dMGR",  # full-width hyphens
+        "W\u2011000123",  # a non-breaking hyphen
+        base64.b64encode(b"ali.rezaei@example.com").decode(),
+        "q=" + b"status of W-000123".hex(),
+    ):
+        r = await _reserve(client, h, url=f"https://example.com/search?q={text}")
+        assert r.status_code == 403 and r.json()["code"] == "internal_data", text
+    for text in (f"{code.lower()}-rates", "fx-rates 2026", "ZmFzdCBjYXJz"):  # not internal
+        assert (await _reserve(client, h, strings=[text])).status_code == 200, text
     # A query never reaches the log: only the tool, the method and the host.
     rows = await su.fetch("SELECT * FROM egress.log WHERE company_id = $1", co["id"])
     assert "W-000123" not in json.dumps([dict(r) for r in rows], default=str)
@@ -150,7 +172,10 @@ async def test_service_accounts(
         "companies": [co["code"]],
         "policy": {
             "inject": {"kind": "header", "name": "X-API-Key"},
-            "allow": [{"methods": ["POST"], "path_prefix": "/v1/drafts"}],
+            "allow": [
+                {"methods": ["POST"], "path_prefix": "/v1/drafts"},
+                {"methods": ["POST"], "path_prefix": "/api/search"},
+            ],
         },
     }
     r = await client.post("/api/v1/tools/accounts", headers={**owner, **idem()}, json=body)
@@ -171,6 +196,11 @@ async def test_service_accounts(
         r = await _reserve(client, h, tool="web.browse", account=key, **{"class": "A2"})
         assert r.status_code == 200 and r.json()["account"]["secret"] == SECRET
         assert r.json()["account"]["inject"] == {"kind": "header", "name": "X-API-Key"}
+        # The browser gets the allow rules: it refuses any other call (7.1 §1.4).
+        assert r.json()["account"]["allow"][1] == {
+            "methods": ["POST"],
+            "path_prefix": "/api/search",
+        }
         listed = (await client.get("/api/v1/tools/accounts", headers=owner)).json()
         assert next(a for a in listed if a["key"] == key)["has_secret"] is True
         assert SECRET not in json.dumps(listed)
@@ -182,7 +212,12 @@ async def test_service_accounts(
         r = await client.post("/internal/v1/egress/reserve", headers=h,
                               json={**post, "url": "https://api.crm.example/v1/drafts/1"})  # fmt: skip
         assert r.status_code == 200
-        for url in ("https://api.crm.example/v1/send", "https://evil.example/v1/drafts"):
+        for url in ("https://api.crm.example/v1/send", "https://evil.example/v1/drafts",
+                    # Dot segments: httpx would send /pay (7.1 §1.4).
+                    "https://api.crm.example/api/search/../../pay",
+                    "https://api.crm.example/api/search/%2e%2e/%2e%2e/pay",
+                    "https://api.crm.example/api/search/%252e%252e/pay",
+                    "https://api.crm.example/api/search//x", "https://api.crm.example/api/search/./x"):  # fmt: skip
             r = await client.post(
                 "/internal/v1/egress/reserve", headers=h, json={**post, "url": url}
             )
@@ -192,3 +227,72 @@ async def test_service_accounts(
         assert r.json()["code"] == "needs_owner"
     finally:
         hub.bao = None
+
+
+def test_the_data_guard_decodes() -> None:
+    codes, known = {"FX", "HQ"}, frozenset({"FX-TECH-MGR", "HQ-ADV"})
+    for text in ("ali%40example.com", "FX%2DTECH%2DMGR", "W%2D000123", "fx-tech-mgr", "Hq-Adv",
+                 "FX\uff0dTECH\uff0dMGR", "FX\u200b-TECH-MGR", quote("۰۹۱۲۳۴۵۶۷۸۹"),
+                 quote("٠٩١٢٣٤٥٦٧٨٩"), "ali+rezaei%40example.com",
+                 base64.urlsafe_b64encode(b"FX-TECH-MGR is here").decode(),
+                 b"call 09123456789 now".hex()):  # fmt: skip
+        assert G.internal_data([text], codes, known), text
+    for text in ("fx-rates", "hq-office hours", "COVID-19", "a%20b", "deadbeefdeadbeefdeadbeef"):
+        assert G.internal_data([text], codes, known) is None, text
+    assert G.clean_path("/api/search/x") == "/api/search/x"
+    for bad in ("/api/search/../../pay", "/a/./b", "/a//b", "/a/%2e%2e/b", "/a%2fb", "/a\\b"):
+        assert G.clean_path(bad) is None, bad
+
+
+async def test_a_call_counts_before_its_answer(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    su: Any,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+) -> None:
+    """7.1 §1.3: reserve writes the call's row before the request leaves; the
+    call's entries settle it, so a lost answer counts and a logged one once."""
+    co = await new_company()
+    h = await agent_headers(f"{co['code']}-TECH-MGR")
+    r = await _reserve(client, h, tool="web.read", url="https://slow.example/x")
+    assert r.status_code == 200, r.text
+    res = r.json()["reservation"]
+    row = await su.fetchrow("SELECT * FROM egress.log WHERE id = $1", UUID(res))
+    assert row["call_id"] == row["id"] and row["host"] == "slow.example"
+    assert row["status"] is None and row["blocked_reason"] is None and row["run_id"] is not None
+
+    async def requests() -> int:
+        day = (await client.get("/api/v1/egress/summary", headers=owner)).json()
+        return next(d["requests"] for d in day if d["company"] == co["code"])
+
+    async def hosts() -> list[str]:
+        page = (await client.get("/api/v1/egress", headers=owner,
+                                 params={"company": co["code"]})).json()  # fmt: skip
+        return sorted(i["host"] for i in page["items"])
+
+    assert await requests() == 1 and await hosts() == ["slow.example"]  # no answer yet: it counts
+    real = hub.settings
+    hub.settings = replace(real, egress_run_requests=1)
+    try:
+        assert (await _reserve(client, h, strings=["more"])).status_code == 429
+    finally:
+        hub.settings = real
+    # Its entries arrive: they settle it (counted once, listed as themselves).
+    log = {"tool": "web.read", "class": "A0", "reservation": res, "entries": [ENTRY]}
+    assert (await client.post("/internal/v1/egress/log", headers=h, json=log)).status_code == 204
+    assert await requests() == 2  # the entry and the 429's refusal
+    assert await hosts() == ["-", "example.com"]
+    # A summed row counts its requests; a reservation settles only once.
+    summed = {**ENTRY, "host": "(several)", "method": "MULTI", "requests": 40}
+    r = await client.post("/internal/v1/egress/log", headers=h,
+                          json={**log, "entries": [summed]})  # fmt: skip
+    assert r.status_code == 204
+    assert await requests() == 42
+    calls = await su.fetch(
+        "SELECT call_id FROM egress.log WHERE company_id = $1 AND call_id IS NOT NULL", co["id"]
+    )
+    assert len(calls) == 2  # the reservation and its one entry
+    bad = {**ENTRY, "method": "VERYLONGMETHOD"}
+    r = await client.post("/internal/v1/egress/log", headers=h, json={**log, "entries": [bad]})
+    assert r.status_code == 422  # the gateway and egress shape rows before they get here
