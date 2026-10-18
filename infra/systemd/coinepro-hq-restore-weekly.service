@@ -1,0 +1,13 @@
+[Unit]
+Description=CoinePro HQ: weekly restore test (newest snapshot, every check, PITR to a random moment)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+ExecStart=/home/Hub/CoinePro-Hub/infra/backup/restore-weekly.sh
+TimeoutStartSec=3h
+Nice=10
+IOSchedulingClass=idle

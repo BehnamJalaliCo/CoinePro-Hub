@@ -94,6 +94,38 @@ else
   fail "the gateway is not running"
 fi
 
+# ------------------------------------------------------------- 07 §2 ----
+# egress is the agents' only route out: it reaches the internet and SearXNG,
+# and no data service, the api, OPA, OpenBao or Temporal; the browser reaches
+# egress's proxy and nothing else (not even the internet); SearXNG reaches no
+# service of the hub. (Private and metadata addresses on the internet side
+# are refused by egress's guard: services/egress/tests.)
+EGRESS="coinepro-hq-egress-1"
+BROWSER="coinepro-hq-browser-1"
+SEARXNG="coinepro-hq-searxng-1"
+before=$failures
+if running "$EGRESS"; then
+  probe_from "$EGRESS" searxng 8080 || fail "positive control: egress cannot reach searxng:8080"
+  probe_from "$EGRESS" 1.1.1.1 443 || fail "positive control: egress cannot reach the internet (1.1.1.1:443)"
+  unreachable_from "$EGRESS" egress "${DATA_SERVICES[@]}" api:8000 opa:8181 grafana:3000 caddy:2020
+  # The host's own addresses answer any container with a route out (no
+  # iptables here: the owner's); node-exporter's metrics need its password.
+  if docker run --rm --network "container:$EGRESS" "$PROBE_IMAGE" \
+    wget -q -T 3 -O /dev/null http://172.30.0.1:9100/metrics >/dev/null 2>&1; then
+    fail "egress reads node-exporter's metrics without the password (172.30.0.1:9100)"
+  fi
+  ok "$before" "egress reaches the internet and SearXNG only (no data service, api, OPA, OpenBao, Temporal)"
+  before=$failures
+  probe_from "$GATEWAY" egress 8090 || fail "positive control: the gateway cannot reach egress:8090"
+  probe_from "$BROWSER" egress 3128 || fail "positive control: the browser cannot reach egress:3128"
+  if probe_from "$BROWSER" 1.1.1.1 443; then fail "the browser reaches the internet directly (1.1.1.1:443)"; fi
+  unreachable_from "$BROWSER" browser "${DATA_SERVICES[@]}" api:8000 opa:8181 gateway:8080 searxng:8080
+  unreachable_from "$SEARXNG" searxng "${DATA_SERVICES[@]}" api:8000 opa:8181 gateway:8080
+  ok "$before" "the browser reaches only egress's proxy; SearXNG reaches no service of the hub"
+else
+  fail "egress is not running"
+fi
+
 # ----------------------------------------------------------------- 1.12 ----
 before=$failures
 marker="آزمون-محرمانه-$(openssl rand -hex 6)"

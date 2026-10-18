@@ -632,8 +632,10 @@ async def test_score_job_and_maintenance(hub: Hub, wk: dict[str, Any], owner_db:
         "reconcile_schedules",
         "purge",
         "requeue_runs",
+        "backups_ingest",
     }
     assert res["purge"]["idempotency_keys"] >= 1
+    assert "error" not in res["backups_ingest"]  # no status files here: nothing to read, no failure
     async with owner_db.raw() as tx:
         assert (
             await tx.scalar("SELECT count(*) FROM core.idempotency_keys WHERE key = :k", k=key) == 0

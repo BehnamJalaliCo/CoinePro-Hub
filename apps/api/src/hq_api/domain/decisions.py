@@ -23,6 +23,7 @@ from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, Model, actor
+from hq_api.workshop import domain as workshop
 
 KINDS = (
     "hire",
@@ -33,6 +34,7 @@ KINDS = (
     "proposal",
     "budget_change",
     "evaluation",
+    "code_session",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -43,10 +45,12 @@ ACTION_CLASS = {
     "proposal": "A1",
     "budget_change": "A2",
     "evaluation": "A1",
+    "code_session": "A1",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
-STEP_UP_KINDS = ("hire", "dismissal", "budget_change")
-EFFECT_KINDS = ("hire", "dismissal", "recurring_approval", "budget_change")
+# code_session: its seal is the grant (contract §17.3), so it is sealed like one.
+STEP_UP_KINDS = ("hire", "dismissal", "budget_change", "code_session")
+EFFECT_KINDS = ("hire", "dismissal", "recurring_approval", "budget_change", "code_session")
 FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
@@ -99,9 +103,15 @@ class DeployPayload(Model):
 
 
 class A3Payload(Model):
-    action: Literal["publish", "customer_message", "group_message", "restart", "price_change"]
+    # mcp_call (prompt 07 §3): an MCP tool the owner registered as A3; made by
+    # the api itself when an agent calls it (target "<server>/<tool>", the
+    # masked arguments as the preview and their SHA-256), never run before.
+    action: Literal[
+        "publish", "customer_message", "group_message", "restart", "price_change", "mcp_call"
+    ]
     target: str = Field(min_length=1, max_length=300)
     preview: str = Field(default="", max_length=20000)
+    args_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class ProposalPayload(Model):
@@ -130,6 +140,24 @@ class EvaluationPayload(Model):
     evidence: str = Field(default="", max_length=5000)
 
 
+class CodeSessionPayload(Model):
+    """A Code Workshop session asked for (contract §17.3): the owner's seal
+    creates the grant (workspace, actions, the USD cap per session, an expiry
+    `days` after the seal); the driver (the proposer by default) then opens
+    the session through the internal API."""
+
+    workspace: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]{2,20}$")
+    actions: list[Literal["read", "edit", "run", "push_branch", "open_pr"]] = Field(
+        min_length=1, max_length=5
+    )
+    budget_usd: Decimal = Field(gt=0, le=10000, max_digits=12, decimal_places=4)
+    days: int = Field(default=7, ge=1, le=90)
+    driver: str | None = Field(default=None, pattern=EMP)
+    title: str = Field(default="", max_length=300)
+    brief: str = Field(default="", max_length=20000)
+    area: str = Field(default="", max_length=300)
+
+
 PAYLOADS: dict[str, type[Model]] = {
     "hire": HirePayload,
     "dismissal": DismissalPayload,
@@ -139,6 +167,7 @@ PAYLOADS: dict[str, type[Model]] = {
     "proposal": ProposalPayload,
     "budget_change": BudgetChangePayload,
     "evaluation": EvaluationPayload,
+    "code_session": CodeSessionPayload,
 }
 
 
@@ -152,6 +181,7 @@ class DecisionIn(Model):
         "proposal",
         "budget_change",
         "evaluation",
+        "code_session",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -394,6 +424,30 @@ async def propose(
                 422,
                 "validation_failed",
                 fields={"payload.work_id": "a recurring work of this company"},
+            )
+    if body.kind == "code_session":
+        ws = await tx.first(
+            "SELECT company_id, status FROM workshop.workspaces WHERE code = :c",
+            c=payload["workspace"],
+        )
+        if ws is None or ws["company_id"] != company_id:
+            raise ApiError(
+                422,
+                "validation_failed",
+                fields={"payload.workspace": "a workspace of this company"},
+            )
+        if who.is_agent and not payload.get("driver"):
+            payload["driver"] = who.code  # the proposer drives the session it asked for
+        if payload.get("driver") and not await tx.scalar(
+            """SELECT 1 FROM core.employees
+               WHERE code = :c AND company_id = :co AND status = 'active' AND kind <> 'system'""",
+            c=payload["driver"],
+            co=company_id,
+        ):
+            raise ApiError(
+                422,
+                "validation_failed",
+                fields={"payload.driver": "an active employee of this company"},
             )
     if body.work_id and not await tx.scalar(
         "SELECT 1 FROM work.work WHERE id = :id AND company_id = :co",
@@ -735,6 +789,32 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
         result = {
             "budget": f"{scope.get('scope_type', 'company')}:{scope.get('scope_ref', d['company'])}"
         }
+    elif d["kind"] == "code_session":
+        # The seal is the grant; the decision's id is unique on the grant, so a
+        # retried effect never makes a second one.
+        g = await tx.first("SELECT ref FROM workshop.grants WHERE decision_id = :d", d=d["id"])
+        if g is None:
+            g = await workshop.create_grant(
+                tx,
+                actor_principal(d),
+                workshop.direct_audit(actor_principal(d)),
+                workspace_code=p["workspace"],
+                actions=list(p["actions"]),
+                driver_code=p.get("driver"),
+                budget_usd=Decimal(str(p["budget_usd"])),
+                expires_at=await tx.scalar(
+                    "SELECT now() + make_interval(days => :n)", n=int(p.get("days", 7))
+                ),
+                decision_id=d["id"],
+                sealed=d["seal_step_up_id"] is not None,
+            )
+            await post_system_message(
+                tx,
+                d["thread_code"],
+                f"مجوز کارگاه {g['ref']} برای {p['workspace']} صادر شد · سقف ${p['budget_usd']} برای هر سشن",
+                {"decision": d["ref"], "grant": g["ref"]},
+            )
+        result = {"grant": g["ref"]}
     await tx.exec(
         "UPDATE cartable.decisions SET effect_status = 'applied', effect_applied_at = now() WHERE id = :id",
         id=d["id"],

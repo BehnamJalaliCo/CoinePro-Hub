@@ -4,3 +4,5 @@ uvicorn==0.54.0
 httpx==0.28.1
 pydantic==2.13.5
 pyyaml==6.0.3
+# MCP client for mcp.call (prompt 07 §3; the official Python SDK, MIT)
+mcp==2.3.0

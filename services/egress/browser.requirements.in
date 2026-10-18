@@ -1,0 +1,6 @@
+# browser service dependencies (exact pins; resolved + hashed in browser.requirements.lock).
+# Playwright (Apache-2.0) must match the image's browsers: mcr.microsoft.com/playwright/python:v1.63.0-noble.
+playwright==1.63.0
+fastapi==0.142.2
+uvicorn==0.54.0
+pydantic==2.13.5

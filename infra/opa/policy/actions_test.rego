@@ -120,3 +120,14 @@ test_tool_level_a2_grants if {
 	reasons(f.ty_growth_01, named("A2", "work.delegate", "TY"), open) == {"a2_needs_role_or_escrow"}
 	reasons(f.hq_adv, named("A2", "notify", "HQ"), open) == {"a2_needs_role_or_escrow"}
 }
+
+# prompt 07 §3: an MCP tool sealed as A2 runs for CEOs and managers; an
+# employee or the advisor only reads (A0); A3 is never an agent's.
+test_mcp_call_by_sealed_class if {
+	allowed(f.ty_ceo, named("A2", "mcp.call", "TY"), open)
+	allowed(f.ty_growth_mgr, named("A2", "mcp.call", "TY"), open)
+	allowed(f.ty_growth_01, named("A0", "mcp.call", "TY"), open)
+	reasons(f.ty_growth_01, named("A2", "mcp.call", "TY"), open) == {"a2_needs_role_or_escrow"}
+	reasons(f.hq_adv, named("A2", "mcp.call", "HQ"), open) == {"a2_needs_role_or_escrow"}
+	reasons(f.ty_ceo, named("A3", "mcp.call", "TY"), open) == {"a3_requires_decision"}
+}

@@ -22,12 +22,13 @@ from hq_api.agents import checks
 from hq_api.agents.clients import Gateway, LivePush, Router
 from hq_api.agents.runner import Runner
 from hq_api.db import Tx
+from hq_api.domain import backups, notify, recurrence, recurring, scoring
 from hq_api.domain import decisions as D
-from hq_api.domain import notify, recurrence, recurring, scoring
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.hub import Hub
 from hq_api.worker import report, schedules
+from hq_api.worker.media_activities import MediaActivities
 
 log = logging.getLogger("hq_api.worker")
 SYSTEM = audit.SYSTEM
@@ -61,9 +62,11 @@ class Activities:
         self.gateway = gateway or Gateway(s.gateway_url, lambda: self.hub.secrets.gateway_token)
         self.live = live or LivePush(s.api_internal_url)
         self.checker = checker or checks.Checker()
+        self.media = MediaActivities(hub, self.router, self._tx)
 
     def all(self) -> list[Any]:
         return [
+            *self.media.all(),
             self.decision_state,
             self.decision_expire,
             self.holding_locked,
@@ -75,6 +78,7 @@ class Activities:
             self.reconcile_decisions,
             self.end_expired_escrows,
             self.purge,
+            self.backups_ingest,
             self.flush_digest,
             self.morning_report,
             self.audit_verify,
@@ -85,6 +89,7 @@ class Activities:
             self.requeue_runs,
             self.site_checks,
             self.hub_health,
+            self.order_route,
             self.ceo_daily,
         ]
 
@@ -415,7 +420,27 @@ class Activities:
         for r in stuck:
             await workflows_client.decision_decided(hub, r["ref"])
         ended = await self._end_stale_decision_workflows(hub)
-        return {"pending": len(pending), "effects_resumed": len(stuck), "ended": ended}
+        files = await self._resume_files(hub)
+        return {
+            "pending": len(pending),
+            "effects_resumed": len(stuck),
+            "ended": ended,
+            "files_resumed": files,
+        }
+
+    async def _resume_files(self, hub: Any) -> int:
+        """Uploads still processing whose workflow never started (Temporal was
+        down at upload): started again (one workflow id per file)."""
+        async with self._tx() as tx:
+            rows = await tx.all(
+                """SELECT file_id FROM files.processing
+                   WHERE status = 'processing' AND NOT (stt ? 'purpose')
+                     AND updated_at < now() - interval '10 minutes' AND attempts < 3
+                   ORDER BY created_at LIMIT 50"""
+            )
+        for r in rows:
+            await workflows_client.file_uploaded(hub, str(r["file_id"]))
+        return len(rows)
 
     async def _end_stale_decision_workflows(self, hub: Any) -> int:
         """A DecisionLifecycle still waiting for a card that is no longer pending
@@ -465,6 +490,11 @@ class Activities:
                     summary="escrow expired; schedule ended",
                 )
         return {"ended": len(rows)}
+
+    @activity.defn(name="backups_ingest")
+    async def backups_ingest(self) -> dict[str, Any]:
+        """The host backup's status files -> backup.*, events and alerts (prompt 07 §1)."""
+        return await backups.ingest(self.hub)
 
     @activity.defn(name="purge")
     async def purge(self) -> dict[str, Any]:
@@ -812,6 +842,31 @@ class Activities:
                     )
                 )
         return {"queued": queued}
+
+    # ---------------------------------------------------------- orders --
+    @activity.defn(name="order_route")
+    async def order_route(self, req: dict[str, Any]) -> dict[str, Any]:
+        """The light model's routes for one owner order (prompt 06 §5). The
+        request is built (and its text masked) by the api, which also checks
+        the answer against the directory; nothing is trusted here."""
+        if not self.hub.secrets.llm_router_token:
+            return {"routes": None, "status": "no_router"}
+        call = await self.router.run(req, int(req.get("timeout_s", 40)))
+        if not call.ok:
+            return {"routes": None, "status": call.status}
+        out = call.structured
+        if out is None and call.text:
+            try:
+                out = json.loads(call.text)
+            except ValueError:
+                out = None
+        return {
+            "routes": out.get("routes") if isinstance(out, dict) else None,
+            "status": "ok",
+            "model": call.model,
+            "input_tokens": call.input_tokens,
+            "output_tokens": call.output_tokens,
+        }
 
     # ---------------------------------------------------------- helpers --
     def _client(self) -> Client:

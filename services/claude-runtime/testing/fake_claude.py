@@ -250,6 +250,23 @@ def main() -> None:
             )
         elif msg.get("type") == "user":
             content = msg["message"]["content"]
+            blocks_path = os.environ.get("FAKE_CLAUDE_BLOCKS")
+            if blocks_path:  # what the CLI received, as block types (never the bytes)
+                with open(blocks_path, "w") as fh:
+                    json.dump(
+                        [
+                            {
+                                "type": c.get("type"),
+                                "media_type": (c.get("source") or {}).get("media_type"),
+                                "source_type": (c.get("source") or {}).get("type"),
+                                "text": c.get("text"),
+                            }
+                            for c in (content if isinstance(content, list) else [])
+                        ]
+                        if isinstance(content, list)
+                        else "string",
+                        fh,
+                    )
             prompt = (
                 content
                 if isinstance(content, str)

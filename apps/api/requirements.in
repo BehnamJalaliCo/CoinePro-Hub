@@ -19,3 +19,9 @@ webauthn==3.0.1
 pywebpush==2.5.0
 # RRULE parsing for recurring work (Apache-2.0 / BSD)
 python-dateutil==2.9.0.post0
+# Owner uploads (prompt 6 §2): images re-encoded without EXIF/GPS, WebP thumbs
+# (Pillow: MIT-CMU), HEIC from phones (pillow-heif: BSD-3-Clause, libheif LGPL)
+pillow==12.3.0
+pillow-heif==1.8.0
+# PDF text for files.read (prompt 07 §3; pypdf: BSD-3-Clause, pure Python)
+pypdf==6.19.0

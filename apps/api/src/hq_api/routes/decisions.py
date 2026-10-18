@@ -60,6 +60,7 @@ async def list_decisions(
         "proposal",
         "budget_change",
         "evaluation",
+        "code_session",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,

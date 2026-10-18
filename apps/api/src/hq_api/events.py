@@ -42,6 +42,13 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "control": ("control.", "presence.", "hiring."),
     # ⟨1.4.1⟩ the agent runs: run.started, run.step, run.finished
     "runs": ("run.",),
+    # ⟨1.3⟩ owner media: file.ready, file.failed
+    "files": ("file.",),
+    # ⟨1.3⟩ the Code Workshop (workshop.session, workshop.approval) and voice orders
+    "workshop": ("workshop.",),
+    "orders": ("order.",),
+    # ⟨1.4⟩ the hourly backup: backup.done, backup.failed (contract §18.10)
+    "backups": ("backup.",),
 }
 
 

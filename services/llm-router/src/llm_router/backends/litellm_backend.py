@@ -22,6 +22,7 @@ from llm_router.backends.base import (
     TIMEOUT,
     BackendCall,
     BackendResult,
+    ChatMessage,
     Delta,
 )
 from llm_router.pricing import Usage
@@ -43,6 +44,19 @@ def _litellm() -> Any:
     litellm.telemetry = False
     litellm.suppress_debug_info = True
     return litellm
+
+
+def _content(m: ChatMessage) -> str | list[dict[str, Any]]:
+    """A turn in the OpenAI-style form LiteLLM takes: its text, or its ordered
+    parts, an image as a base64 data URI (bytes only; nothing is fetched)."""
+    if not m.parts:
+        return m.content
+    return [
+        {"type": "text", "text": p}
+        if isinstance(p, str)
+        else {"type": "image_url", "image_url": {"url": f"data:{p.media_type};base64,{p.data}"}}
+        for p in m.parts
+    ]
 
 
 def model_name(conn: Connection, model: str) -> str:
@@ -96,10 +110,10 @@ class LiteLLMBackend:
         if not conn.secret_ref:
             raise ValueError(f"connection {conn.key} has no secret_ref")
         secret = await self._read_secret(conn.secret_ref.removeprefix("kv/"))
-        messages: list[dict[str, str]] = []
+        messages: list[dict[str, Any]] = []
         if call.system:
             messages.append({"role": "system", "content": call.system})
-        messages += [{"role": m.role, "content": m.content} for m in call.messages]
+        messages += [{"role": m.role, "content": _content(m)} for m in call.messages]
         kwargs: dict[str, Any] = {
             "model": model_name(conn, call.model),
             "messages": messages,

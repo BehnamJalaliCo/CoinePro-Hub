@@ -13,7 +13,7 @@ header @api {
 
 # The live streams (SSE: /api/v1/stream and /api/v1/threads/<code>/live):
 # flushed at once and never timed out by the proxy.
-@sse path /api/v1/stream /api/v1/threads/*/live
+@sse path /api/v1/stream /api/v1/threads/*/live /api/v1/workshop/sessions/*/live
 handle @sse {
 	reverse_proxy api:8000 {
 		flush_interval -1
@@ -24,8 +24,24 @@ handle @sse {
 	}
 }
 
-# Everything else under /api: bodies capped (files go to /internal only) and
-# a normal read timeout.
+# Owner uploads and media (prompt 6 §2): a video may be 200 MB (the api checks
+# type, size and duration while it streams in); downloads stream with Range.
+@media path /api/v1/files /api/v1/files/* /api/v1/transcribe
+handle @media {
+	request_body {
+		max_size 201MB
+	}
+	reverse_proxy api:8000 {
+		flush_interval -1
+		header_up X-Forwarded-For {remote_host}
+		transport http {
+			read_timeout 600s
+			write_timeout 600s
+		}
+	}
+}
+
+# Everything else under /api: bodies capped and a normal read timeout.
 handle /api/* {
 	request_body {
 		max_size 2MB

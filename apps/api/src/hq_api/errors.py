@@ -83,6 +83,29 @@ CODES: dict[str, tuple[int, str, str]] = {
     "hiring_closed": (403, "Hiring closed", "استخدام بسته است؛ کمبود تیم را در خروجی‌ات بنویس."),
     # ⟨1.4.3⟩ a feature the contract names that this server build does not serve yet
     "not_ready": (409, "Not ready", "این قابلیت هنوز روی این سرور آماده نیست."),
+    # ⟨1.3⟩ the Code Workshop runs nowhere until the owner chooses its runtime (§17.7)
+    "runtime_not_configured": (
+        503,
+        "Runtime not configured",
+        "کارگاه کد هنوز روشن نیست: محل اجرای سشن‌ها را مدیر کل باید انتخاب کند.",
+    ),
+    # prompt 07 §2: the agents' internet (egress)
+    "needs_owner": (
+        403,
+        "Needs the owner",
+        "این یک تعهد بیرونی به نام هلدینگ است؛ با propose برای مالک پیشنهادش بده.",
+    ),
+    "internal_data": (
+        403,
+        "Internal data",
+        "داده‌ی داخلی (کد کارمند، ارجاع، ایمیل، تلفن یا رمز) نباید از هاب بیرون برود؛ بدون آن تکرار کن.",
+    ),
+    "egress_limit": (429, "Egress limit", "سقف اینترنت این اجرا یا امروز شرکت پر شده است."),
+    "account_not_configured": (
+        409,
+        "Account not configured",
+        "این حساب سرویس هنوز رمز ندارد؛ مالک باید آن را روی سرور بگذارد.",
+    ),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 

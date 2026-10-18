@@ -4,7 +4,10 @@
 # Each profile is checked against its reference RAM (profiles/<p>.env:
 # HQ_BUDGET_REF_RAM_MB) three ways (prompt 05.1 §2.10):
 #   - the profile itself fits, with at least HEADROOM_PERCENT of the budget free;
-#   - the profile plus each opt-in profile (e.g. cadvisor) still fits;
+#   - the profile plus each opt-in profile (e.g. cadvisor, stt) still fits:
+#     enforced when that opt-in profile is switched on here (HQ_<NAME>=on),
+#     else an over-budget combination is printed but does not fail (hq.sh
+#     refuses to switch it on while it is over; prompt 06 §3);
 # and on the server the active profile is also checked against the real MemTotal.
 # tmpfs mounts are charged to their container's memory, so they live inside
 # its limit (they are not added on top).
@@ -21,14 +24,27 @@ limit_sum_mb() { # limit_sum_mb PROFILE [OPT_IN_PROFILE...]
   compose_json "$@" | jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor'
 }
 
-check() { # check LABEL SUM_MB RAM_MB WHERE [HEADROOM_PERCENT]
-  local label="$1" sum="$2" ram="$3" where="$4" headroom="${5:-0}" budget limit
+check() { # check LABEL SUM_MB RAM_MB WHERE [HEADROOM_PERCENT [ENFORCED]]
+  local label="$1" sum="$2" ram="$3" where="$4" headroom="${5:-0}" enforced="${6:-yes}"
+  local budget limit
   budget=$((ram * PERCENT / 100))
   limit=$((budget * (100 - headroom) / 100))
   local rule="${PERCENT}% of $ram MiB $where"
   if ((headroom)); then rule+=", ${headroom}% of it kept free"; fi
+  # No sum (compose could not render the profile, e.g. a limit without a value)
+  # is a failure, never an empty "ok".
+  if [[ ! "$sum" =~ ^[0-9]+$ ]] || ((sum == 0)); then
+    echo "memory-budget: $label: no limit sum (compose config failed)" >&2
+    failed=1
+    return
+  fi
   if ((sum <= limit)); then
     echo "memory-budget: $label ok ($sum MiB <= $limit MiB; $rule)"
+  elif [[ "$enforced" == no ]]; then
+    # An opt-in profile that is off here: shown, never hidden, but not a failure;
+    # hq.sh refuses to switch it on while it is over (prompt 06 §3).
+    echo "memory-budget: $label OVER by $((sum - limit)) MiB ($sum MiB > $limit MiB; $rule;" \
+      "not enabled; turning it on is the owner's decision: docs/ops/RUNBOOK.md, STT)"
   else
     echo "memory-budget: $label OVER ($sum MiB > $limit MiB; $rule)" >&2
     failed=1
@@ -49,12 +65,21 @@ for profile in "${PROFILES[@]}"; do
   ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$REPO_DIR/infra/compose/profiles/$profile.env")"
   check "$profile" "$(limit_sum_mb "$profile")" "$ref" "reference" "$HEADROOM_PERCENT"
   for extra in "${OPT_IN[@]}"; do
-    check "$profile+$extra" "$(limit_sum_mb "$profile" "$extra")" "$ref" "reference"
+    enforced=no
+    if opt_in_enabled "$extra"; then enforced=yes; fi
+    check "$profile+$extra" "$(limit_sum_mb "$profile" "$extra")" "$ref" "reference" 0 "$enforced"
   done
 done
 
 if [[ -z "${CI:-}" && -r /proc/meminfo ]]; then
   active="$("$HQ" --print-profile)"
-  check "$active" "$(limit_sum_mb "$active")" "$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo)" "this server"
+  enabled=()
+  for extra in "${OPT_IN[@]}"; do
+    if opt_in_enabled "$extra"; then enabled+=("$extra"); fi
+  done
+  label="$active"
+  for extra in "${enabled[@]}"; do label+="+$extra"; done
+  check "$label" "$(limit_sum_mb "$active" "${enabled[@]}")" \
+    "$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo)" "this server"
 fi
 exit "$failed"

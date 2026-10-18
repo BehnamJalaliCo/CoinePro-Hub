@@ -332,7 +332,20 @@ test_hub_and_audit_for_holding_scope_only if {
 	not allowed(f.ty_ceo, "hub.read", {})
 }
 
+test_backups_status_for_holding_scope_only if {
+	allowed(f.hq_ovs, "backup.read", {})
+	allowed(f.hq_adv, "backup.read", {})
+	reasons(f.ty_ceo, "backup.read", {}) == {"backup.read_not_permitted"}
+	not allowed(f.ty_growth_01, "backup.read", {})
+}
+
 test_own_memory_run_and_live_thread if {
+	allowed(f.ty_growth_01, "file.read", {"company": "TY"})
+	not allowed(f.ty_growth_01, "file.read", {"company": "FX"})
+	not allowed(f.hq_adv, "file.read", {"company": "TY"})
+	allowed(f.ty_ceo, "mcp.call", {"company": "TY"})
+	not allowed(f.ty_ceo, "mcp.call", {"company": "FX"})
+	not allowed(f.hq_adv, "mcp.call", {"company": "TY"})
 	allowed(f.ty_growth_01, "memory.read", {"employee": "TY-GROWTH-01"})
 	allowed(f.ty_growth_01, "memory.write", {"employee": "TY-GROWTH-01"})
 	not allowed(f.ty_growth_01, "memory.read", {"employee": "TY-GROWTH-02"})
@@ -351,4 +364,53 @@ test_inspector_delegates_to_its_team_and_proposes_hires if {
 	not allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "hire"})
 	not allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "deploy"})
 	not allowed(f.hq_ovs_01, "work.delegate", {"assignee": "HQ-OVS-01", "company": "HQ", "to_role": "employee", "to_department": "OVS"})
+}
+
+# Prompt 07 §2: the internet through egress (own company); its log (holding scope).
+test_egress_use_and_read if {
+	allowed(f.ty_growth_01, "egress.use", {"company": "TY"})
+	not allowed(f.ty_growth_01, "egress.use", {"company": "FX"})
+	allowed(f.hq_adv, "egress.read", {"company": "TY"})
+	allowed(f.hq_ovs, "egress.read", {})
+	not allowed(f.ty_ceo, "egress.read", {"company": "TY"})
+	not allowed(f.ty_growth_01, "egress.read", {"company": "TY"})
+}
+
+# --------------------------------------------------------------- workshop --
+
+session(driver, company) := {"company": company, "driver": driver, "grant": "G-0001"}
+
+test_the_driver_opens_and_steers_its_session if {
+	allowed(f.ty_ceo, "workshop.session", session("TY-CEO", "TY"))
+	allowed(f.ty_ceo, "workshop.message", session("TY-CEO", "TY"))
+	allowed(f.hq_adv, "workshop.session", session("HQ-ADV", "HQ"))
+}
+
+test_not_the_driver if {
+	reasons(f.ty_growth_mgr, "workshop.session", session("TY-CEO", "TY")) == {"not_driver", "workshop.session_not_permitted"}
+	reasons(f.ty_growth_01, "workshop.message", session("TY-CEO", "TY")) == {"not_driver", "workshop.message_not_permitted"}
+}
+
+test_a_grant_of_another_company if {
+	reasons(f.fx_ceo, "workshop.session", session("FX-CEO", "TY")) == {"other_company", "workshop.session_not_permitted"}
+	reasons(f.hq_adv, "workshop.session", session("HQ-ADV", "TY")) == {"other_company", "workshop.session_not_permitted"}
+}
+
+test_services_do_not_drive_sessions if {
+	reasons(f.svc, "workshop.session", session("TY-CEO", "TY")) == {"workshop.session_not_permitted"}
+	not allowed(f.owner, "workshop.session", session("TY-CEO", "TY"))
+}
+
+test_agents_read_their_own_company_sessions if {
+	allowed(f.ty_growth_01, "workshop.read", {"company": "TY"})
+	reasons(f.ty_growth_01, "workshop.read", {"company": "FX"}) == {"other_company", "workshop.read_not_permitted"}
+	not allowed(f.svc, "workshop.read", {"company": "TY"})
+}
+
+test_code_session_proposals if {
+	every agent in [f.ty_ceo, f.ty_growth_mgr, f.ty_growth_01, f.hq_adv] {
+		allowed(agent, "decision.propose", {"company": agent.company, "kind": "code_session"})
+	}
+	not allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "code_session"})
+	not allowed(f.ty_ceo, "decision.propose", {"company": "FX", "kind": "code_session"})
 }

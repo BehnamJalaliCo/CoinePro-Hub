@@ -10,6 +10,7 @@ single insert after the policy allowed it.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import datetime
 from decimal import Decimal
@@ -24,6 +25,7 @@ from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
 from hq_api.domain import control, hiring, notify, org
 from hq_api.domain import decisions as D
+from hq_api.domain import files as F
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
 from hq_api.principal import Principal
@@ -37,6 +39,7 @@ from hq_api.routes.messages import (
     validate_citations,
 )
 from hq_api.schemas import EMPLOYEE_CODE, Evidence, FileRef, Model
+from hq_api.workshop import service as workshop_service
 
 router = APIRouter(tags=["internal"])
 E = responses(401, 403, 404, 409, 422, 423)
@@ -206,6 +209,19 @@ OP_CLASS: dict[str, str] = {
     "run.reserve": "A0",
     "run.record": "A0",
     "thread.live": "A1",
+    "file.read": "A0",
+    # prompt 07: backups.status (the overseer, the platform SRE)
+    "backup.read": "A0",
+    # prompt 06: the Code Workshop (the grant's driver)
+    "workshop.read": "A0",
+    "workshop.session": "A1",
+    "workshop.message": "A1",
+    # prompt 07: mcp.call's question to the api (the call's own class is the
+    # server's registration, checked by the gateway with hq.actions)
+    "mcp.call": "A0",
+    # prompt 07: the agents' internet (reserve + log a request; the egress log)
+    "egress.use": "A0",
+    "egress.read": "A0",
 }
 
 
@@ -1049,6 +1065,7 @@ async def agent_kill_switch(
         result = await control.state(tx)
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
+    await workshop_service.paused(ctx.hub)
     return result
 
 
@@ -1109,7 +1126,9 @@ async def agent_deploy_freeze(
             target_ref=body.company,
             summary=summary,
         )
-        return await control.state(tx)
+        result = await control.state(tx)
+    await workshop_service.paused(ctx.hub)  # the paused sessions stop on their runtime too
+    return result
 
 
 # ------------------------------------------------------------ context, files --
@@ -1181,15 +1200,22 @@ async def upload_file(
     async with ctx.tx() as tx:  # a locked company writes nothing, not even bytes
         await ctx.ensure_unlocked(tx, ctx.who.company_id)
     limit = ctx.hub.settings.max_file_bytes
-    chunks: list[bytes] = []
-    size = 0
-    async for chunk in request.stream():  # the limit holds while reading, not after
-        size += len(chunk)
-        if size > limit:
-            raise ApiError(413, "validation_failed", "file too large")
-        chunks.append(chunk)
-    data = b"".join(chunks)
-    key, sha = await ctx.hub.storage.put(data)
+    scratch = ctx.hub.storage.scratch()
+    head = b""
+    try:  # to a scratch file, never whole in memory; the limit holds while reading
+        size = 0
+        with await asyncio.to_thread(open, scratch, "wb") as fh:
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > limit:
+                    raise ApiError(413, "validation_failed", "file too large")
+                if len(head) < 8:
+                    head += chunk[:8]
+                await asyncio.to_thread(fh.write, chunk)
+        key, sha, size = await ctx.hub.storage.commit(scratch)
+    finally:
+        await asyncio.to_thread(scratch.unlink, missing_ok=True)
+    pdf = mime == "application/pdf" and head.startswith(b"%PDF-")
     async with ctx.tx() as tx:
         await ctx.ensure_unlocked(tx, ctx.who.company_id)
         row = await tx.one(
@@ -1200,11 +1226,13 @@ async def upload_file(
             co=ctx.who.company_id,
             name=name,
             mime=mime,
-            size=len(data),
+            size=size,
             sha=sha,
             key=key,
             by=ctx.who.code,
         )
+        if pdf:  # its text after this commit, outside any transaction (prompt 07.1 §1.2)
+            await F.document_pending(tx, row["id"], ctx.who.company_id)
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,
@@ -1212,9 +1240,14 @@ async def upload_file(
             action_class="A1",
             target_kind="file",
             target_ref=str(row["id"]),
-            summary=f"{mime}, {len(data)} bytes",
+            summary=f"{mime}, {size} bytes",
         )
-    return FileRef(**row)
+    status = "ready"
+    if pdf:  # finished even if the caller goes away
+        status = await asyncio.shield(
+            F.extract_text(ctx.tx, row["id"], ctx.hub.storage.local_path(key))
+        )
+    return FileRef(**row, status=status)
 
 
 def advisory_key(purpose: str, company_id: UUID) -> int:

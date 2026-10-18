@@ -413,3 +413,380 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - `/__canary` همیشه ۵۰۳ میدهد.
   - سایت قناری در seed با `enabled: false` خاموش است.
   - برای آزمودن دوباره‌ی خط کامل: `enabled: true` در `sites.yaml` و `make up`. این کار یک اجرای واقعی مدل الزامی میکند.
+
+## ۱۴. تصمیم‌های ثبت‌شده‌ی مالک و اپ اندروید (پرامپت ۶ §۱)
+- **سه سؤال گزارش ۴.۱** (تصمیم مالک، ۲۰۲۶-۱۰-۱۷):
+  - نقش NOLOGIN برای مالک دیتابیس **بعداً**.
+  - سقف **۵ اعلان فوری در ساعت** برای هر شرکت **میماند**.
+  - Valkey **بدون persistence** میماند.
+  - هیچ کاری لازم نیست، فقط همین ثبت.
+- **passkey در اپ اندروید:** `HQ_ANDROID_ORIGINS` در `infra/compose/.env` (به api میرود) برابر `android:apk-key-hash:<SHA-256 گواهی امضا، base64url>` است.
+  - این مقدار **عمومی** است و رمز نیست.
+  - فایل `/.well-known/assetlinks.json` را خود وب میسازد.
+  - بررسی: `curl -sI https://hq.coinepro.com/.well-known/assetlinks.json` (Content-Type `application/json`، اثر انگشت `D6:D4:…:15:BF`).
+- **وب** از پرامپت ۵ بالاست. Caddy مسیر `/api/*` را به api میفرستد و بقیه را به web. CSP را خود web میگذارد.
+
+## ۱۵. فایل‌ها، رسانه و صدا (پرامپت ۶ §۲ و §۳)
+- **آپلود مالک:** `POST /api/v1/files`، بدنه‌ی خام با `Content-Type` و `X-File-Name` (UTF-8 با percent-encoding).
+  - **نوع از روی محتوا (magic bytes) تعیین میشود.** اگر header با محتوا نخواند، جواب `415` است.
+  - **سقف حجم هر نوع حین stream نگه داشته میشود** (`413` پیش از پایان آپلود):
+
+    | نوع | سقف |
+    |---|---|
+    | عکس | ۲۰ MB |
+    | فیلم | ۲۰۰ MB / ۱۰ دقیقه |
+    | صدا | ۲۵ MB / ۱۵ دقیقه |
+    | PDF | ۳۰ MB |
+
+  - Caddy روی مسیرهای `/api/v1/files` و `/api/v1/transcribe` بدنه‌ی تا ۲۰۱ MB را رد میکند، با timeout ده دقیقه.
+- **عکس:** همان لحظه در api پاک میشود: چرخش درست، **بدون EXIF، GPS و XMP**، با سقف ۴۰ مگاپیکسل. نسخه‌ی ذخیره‌شده همان نسخه‌ی پاک است. دو variant هم ساخته میشود:
+  - `thumb`: WebP، حداکثر ۵۱۲ پیکسل
+  - `agent`: JPEG، لبه‌ی بلند ≤ ۱۵۶۸ پیکسل؛ همان چیزی که مدل میبیند
+- **فیلم و صدا:** وضعیت `processing` است. workflow ‏`FileProcess` در worker با ffmpeg این‌ها را میسازد:
+  - `poster`
+  - تا ۱۲ فریم کلیدی (تغییر صحنه، حداکثر یکی در هر ۵ ثانیه؛ اگر صحنه عوض نشود، با فاصله‌ی یکسان)
+  - صدای ۱۶ kHz، برای متن
+
+  بعد `ready` یا `failed` میشود و رویداد `file.ready` یا `file.failed` روی topic ‏`files` میرود. فایلی که workflowش شروع نشده بود، در Maintenance دوباره شروع میشود.
+- **پیوست:**
+  - تا ۱۰ فایل در هر پیام. بدنه‌ی پیام با پیوست میتواند خالی باشد.
+  - فایلی که هنوز پیوست نشده مال هلدینگ است. با اولین پیوست **به شرکت همان thread منتقل میشود**، فقط یک بار. فایلی که مال شرکت دیگری شده `422` میگیرد.
+  - ایجنت فقط فایل‌های شرکت خودش را میبیند:
+    - عکس به‌صورت **بلوک تصویر** میرسد، حداکثر ۲۰ تصویر در یک اجرا.
+    - فیلم به‌صورت فریم‌های کلیدی و متن صدا میرسد.
+    - صدا فقط به‌صورت متن میرسد.
+    - نام فایل و EXIF هیچ‌وقت به مدل نمیرسد.
+  - ابزار `files.read` (A0، فقط شرکت خود ایجنت؛ در پرامپت ۶ با نام `file.view` ساخته شد و طبق `agents/tools.md` تغییر نام داد).
+- **صدا به متن:** `POST /api/v1/transcribe?purpose=message|order|note`، فقط صدا.
+  - مسیر کار: Whisper روی خود هاب (سرویس `stt`، پروفایل opt-in، فقط روی شبکه‌ی `hq-stt` با worker)، بعد نرمال‌ساز قطعی فارسی (`hq_common.persian`)، بعد نقطه‌گذاری با مدل سبک (`stt_punctuation`، P1). خروجی مدل اگر بیش از ۸٪ کلمه‌ها را عوض کند رد میشود و متن نرمال‌شده میماند. هر دو متن در `files.processing` نگه داشته میشوند.
+  - اگر متن ماسک‌شدنی داشته باشد (رمزی بلند خوانده شده)، گذر مدل اصلاً انجام نمیشود.
+  - پیامی که فایل صدای `purpose=message` را پیوست دارد `kind: voice_transcript` است.
+  - وقتی پروفایل `stt` خاموش است: `503 channel_not_configured`.
+- **ffmpeg** نسخه‌ی `7:7.1.5-0+deb13u1` (Debian trixie) است. **Pillow** ‏12.3.0 (MIT-CMU) و **pillow-heif** ‏1.8.0 (BSD-3) در image مشترک api و worker هستند.
+## ۱۶. گفتار به متن فارسی، STT (پرامپت ۶ §۳، قرارداد §۱۷.۲)
+- **سرویس `stt`** (`services/stt`):
+  - faster-whisper ‏1.2.1 روی CTranslate2 ‏4.8.2، با int8 روی CPU، زبان `fa`، beam 5 و VAD ‏Silero.
+  - مدل پیش‌فرض `large-v3-turbo` است.
+  - **هیچ صدایی از هاب بیرون نمیرود:** سرویس آفلاین است (`HF_HUB_OFFLINE=1`) و مدل را فقط‌خواندنی از volume ‏`stt-models` میخواند.
+- **شبکه:**
+  - `hq-stt` شبکه‌ی internal است و فقط `worker` و `stt` رویش هستند (`compose-rules`). `stt` پورت منتشرشده ندارد.
+  - API فقط از worker صدایش میزند، با یک activity ‏Temporal و `STT_URL=http://stt:8000`.
+  - تنها بخشی که اینترنت دارد job یک‌باره‌ی `stt-fetch` است، روی شبکه‌ی جدای `hq-fetch`.
+- **امنیت کانتینر:** کاربر 10001، rootfs فقط‌خواندنی، tmpfs روی `/tmp`، ‏`cap_drop: ALL` و healthcheck روی `/health`.
+- **پروفایل:**
+  - `stt` اختیاری است و پیش‌فرض خاموش است.
+  - روشن کردن: `HQ_STT=on` در `.env`، بعد `make stt-fetch` و `make up`.
+  - `hq.sh` فقط وقتی روشن است `--profile stt` و `STT_URL` را میدهد؛ وگرنه `STT_URL` خالی است.
+  - **تا وقتی پروفایل فعال به‌علاوه‌ی stt از بودجه‌ی حافظه بیشتر است**، `up`، `run`، `create`، `start` و `restart` با `HQ_STT=on` رد میشوند (exit 3، با عددها). بقیه‌ی فرمان‌ها (`exec` پشتیبان و unseal، `ps`، `logs`) با یک هشدار و بدون stt اجرا میشوند.
+  - گیت `memory-budget` هر ترکیب را چاپ میکند. ترکیب روشن باید جا شود. ترکیب خاموشی که بیشتر است فقط با `OVER by … (not enabled …)` گزارش میشود.
+
+### مدل و پین
+- `services/stt/model.lock.json` برای هر مدل (`large-v3-turbo`، `medium`، `small`؛ همه MIT) این‌ها را دارد: repo، ‏revision (commit) و اندازه و sha256 **هر فایل**.
+  - `make stt-fetch [model=…]` فقط همان بایت‌ها را میگیرد. فایل درست موجود رد میشود. هر بایت اضافه یا hash نادرست ← خطا.
+  - سرویس موقع بالا آمدن همه را دوباره میسنجد. اگر چیزی جور نباشد، **سرویس نمیدهد:** `stt: refusing to start: …` با exit 2 و کانتینر unhealthy. راه حل: `make stt-fetch` دوباره.
+- **عوض کردن مدل:** `STT_MODEL=medium` (یا `small`) در `.env`، بعد `make stt-fetch model=medium` و `make up`.
+- **مدل تازه:** یک ورودی تازه در `model.lock.json` لازم است. revision یک commit است، نه شاخه. sha256 هر فایل همان `lfs.oid` است در `https://huggingface.co/api/models/<repo>/tree/<revision>`. بعد از fetch، `sha256sum` باید همان را بدهد.
+
+### API (فقط از worker)
+- **`POST /v1/transcribe`:**
+  - بدنه‌ی خام `audio/*` یا `video/*`.
+  - حداکثر ۲۵ MiB، شمرده‌شده هنگام خواندن: بیشتر ← `413 too_large`.
+  - حداکثر ۱۵ دقیقه: بیشتر ← `413 too_long`.
+  - نوع اشتباه ← `415`. صدای خراب ← `422 undecodable`.
+  - پاسخ: `{text_raw, text, language: "fa", duration_s, confidence, segments[{start_s, end_s, text}], engine{name, model, version}, timing{load_s, transcribe_s}}`.
+  - `text` همان `hq_common.persian.normalise(text_raw)` است. سکوت ← `""`.
+- **همزمانی:** هر بار یک رونویسی. حداکثر `STT_MAX_WAITING` (۴) درخواست صبر میکنند؛ بیشتر ← `503 busy`.
+- **`GET /health`** مدل را بار نمیکند. **`GET /metrics`** ‏Prometheus است: `stt_requests_total{outcome}`، `stt_transcribe_seconds`، `stt_audio_seconds_total`، `stt_model_loaded`، `stt_model_load_seconds`. Prometheus روی `hq-stt` نیست و scrape نمیکند. برای دیدن: `infra/compose/hq.sh exec stt python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8000/metrics').read().decode())"`.
+- **بار شدن مدل:** با اولین درخواست. بعد از `STT_IDLE_UNLOAD_S` (۳۰۰) ثانیه بیکاری آزاد میشود (`malloc_trim`).
+- **نرمال‌ساز** (`hq_common.persian`، قطعی):
+  - `normalise(text)`: ی و ک عربی به فارسی، ZWNJ برای می/نمی و پسوندها، نشانه‌های فارسی و فاصله. هیچ کلمه و عددی عوض نمیشود.
+  - `words`، ‏`word_edit_distance` و `wer(reference, hypothesis)`.
+
+### عددهای اندازه‌گیری‌شده (۲۰۲۶-۱۰-۱۷، همین CPX42، int8، beam 5، ‏۴ thread، MiB)
+| | large-v3-turbo | medium | small |
+|---|---:|---:|---:|
+| زمان بار شدن | 2.3 s | 2.7 s | 0.9 s |
+| RSS بعد از بار شدن | 961 | 894 | 344 |
+| اوج هنگام بار شدن (fp16 ← int8) | 1644 | 1581 | 610 |
+| ۳۰ ثانیه صدا: زمان / اوج | 8.8 s / 1301 | 11.9 s / 1561 | 4.2 s / 648 |
+| ۵ دقیقه صدا: زمان / اوج | 57.7 s / 1460 | 91.6 s / 1773 | 38.6 s / 1225 |
+| بعد از آزاد شدن | 177 | 137 | 157 |
+| WER روی ۵ نمونه‌ی مصنوعی | 82.9% | 63.4% | 92.7% |
+
+- `MEM_STT=2048m` اوج turbo به‌علاوه‌ی ۲۵٪ است. `MEM_STT_FETCH=128m`.
+- **WER بالا مال صدای رباتیک espeak-ng است، نه گفتار واقعی.** نمونه‌های `services/stt/tests/samples` برای تست‌اند و دقت واقعی را نشان نمیدهند. هدف (دقت کلمه ≥ ۹۵٪) را فقط با صدای واقعی میشود سنجید:
+  - `make stt-eval dir=<پوشه>` با `<name>.ogg` و متن درستش در `<name>.txt`.
+  - `model=…` مدل را عوض میکند. `write=1` گزارش را در `docs/ops/reports/stt-eval-<تاریخ>.md` مینویسد.
+  - اجرا بدون شبکه است (`--network none`).
+
+### تصمیم حافظه (با مالک)
+`full` + stt برابر **13392 MiB** است، **1104 MiB** بیشتر از بودجه‌ی 12288 MiB (۸۰٪ از 15360). `lean` + stt برابر 7968 است، 1772 بیشتر از 6196. تا مالک تصمیم نگیرد stt خاموش میماند. سه راه:
+
+1. **مدل کوچک‌تر.** `small` با سقف حدود 1536m (اوج ۵ دقیقه 1225) ← 12880، هنوز 592 بیشتر. `medium` (اوج 1773) کمکی نمیکند. پس `small` تنها، بدون راه ۲ یا کوتاه‌تر کردن سقف ۱۵ دقیقه، جا نمیشود.
+2. **سقف‌های دیگر پایین‌تر** (مصرف زنده‌ی `docker stats` در ۲۰۲۶-۱۰-۱۷ / سقف فعلی):
+   - postgres ‏174/1536 ← 1024 (‏`shared_buffers` 384MB میماند)
+   - prometheus ‏159/768 ← 512
+   - tempo ‏115/384 ← 256
+   - loki ‏72/512 ← 384
+   - otel-collector ‏40/384 ← 256
+   - جمع: −1152 ← 12240، فقط ۴۸ MiB جای خالی.
+   - یا claude-runtime ‏62 (بیکار)/2304 با ۳ اجرای همزمان CLI به جای ۵ ← حدود 1536 (−768).
+   - temporal (326/832) و grafana (275/512) تنگ‌اند.
+   - با `small`، فقط postgres و loki کافی‌اند (−640 ← 12240).
+3. **سرور بزرگ‌تر** (فقط عدد؛ هزینه با مالک): Hetzner ‏CPX52 (12 vCPU، 24 GB) یا CCX33 (8 vCPU اختصاصی، 32 GB).
+   - یک پروفایل تازه با `HQ_BUDGET_REF_RAM_MB` همان RAM لازم است. مثلاً 24576 ← بودجه‌ی 19660، که `full` + stt با حدود 6 GB جای خالی در آن جا میشود.
+   - vCPU اختصاصی رونویسی را هم تندتر میکند.
+
+## ۱۷. کارگاه کد و فرمان صوتی (پرامپت ۶ §۴ و §۵)
+- راهنمای کامل: **`docs/ops/WORKSHOP.md`**. آنجا adapterها، قوانین ۱ تا ۷، طراحی `self_hosted` و مسیریابی فرمان آمده است.
+- **وضعیت:**
+  - کنترل‌پلن کامل است: workspace، grant، سشن، رویداد، approval، قفل کاری، بودجه و transcript.
+  - `WORKSHOP_RUNTIME` خالی است. پس `GET /meta` مقدار `workshop.runtime = null` میدهد و `POST /workshop/sessions` جواب `503 runtime_not_configured` میدهد.
+  - workspaceها از `apps/api/seed/workspaces.yaml` میایند: ریپوی هر شرکت، به‌علاوه‌ی `HQ-HUB`.
+- **منتظر مالک:**
+  - انتخاب محل اجرا: `managed` با یک API key جدا و سقف ماهانه، یا `self_hosted` روی هاستی جدا.
+  - توکن GitHub مخصوص هر workspace (fine-grained، فقط همان ریپو). مالک خودش آن را در OpenBao میگذارد.
+  - ری‌استارت api بعد از تنظیم.
+- **فرمان صوتی:** `POST /api/v1/orders` سه مرحله دارد:
+  1. قاعده (`apps/api/seed/order_rules.yaml`)
+  2. مدل سبک (`order_routing`، P1)
+  3. مشاور کل، فقط وقتی فرمان مبهم است
+
+  رویداد `order.routed` روی topic ‏`orders` میرود.
+
+## ۱۸. backup ساعتی رمزنگاری‌شده، WAL پیوسته و PITR (پرامپت ۷ §۱، قرارداد §۱۸.۹)
+**هدف:** در بدترین حالت بیرونی حداکثر **یک ساعت** داده از دست برود، و روی خود سرور فقط **چند دقیقه**. همه‌چیز رمزنگاری‌شده است و بازیابی هر هفته خودکار آزموده میشود. backup شبانه‌ی قبلی (§۳، محلی، ۷ روز) هم سر جایش میماند.
+
+### WAL پیوسته و PITR
+- **image تازه‌ی Postgres:** `coinepro-hq/postgres:0.1.0` همان pgvector پین‌شده است، به‌علاوه‌ی **WAL-G v3.0.9** (Apache-2.0، با sha256).
+- **تنظیم آرشیو:**
+  - `archive_mode=on`
+  - `archive_timeout=60s`: آرشیو هیچ‌وقت بیش از یک دقیقه عقب نمیماند.
+  - `archive_command = wal-g wal-push %p`
+  - مقصد: `/home/Hub/backups/wal`، با مالک uid 999 (postgres) و دسترسی `0700`.
+  - فشرده‌سازی zstd. اندازه‌گیری روی همین سرور: حدود ۲۰۰ KB در دقیقه، یعنی حدود ۳ GB در ۷ روز.
+- **ساخت و چک پوشه‌ها:** پوشه‌ی WAL و مخزن محلی restic (`/home/Hub/backups/restic`، مالک root، `0700`) را `make bootstrap` میسازد. `make up` فقط چک میکند. بدون این پوشه‌ها `make up` جلو نمیرود، چون اگر Docker پوشه را خودش بسازد، آرشیو شکست میخورد و `pg_wal` بزرگ میشود.
+- **base backup روزانه:** در اجرای ساعتی، وقتی آخرینش بیش از ۲۳ ساعت قبل باشد. **۸ base backup نگه داشته میشود:** PITR تا هر دقیقه‌ی ۷ روز گذشته (`HQ_WAL_KEEP_FULL`).
+- **تمرین PITR** (هرگز روی production نیست):
+  ```bash
+  make pitr-test at="2026-10-18 09:41"    # UTC، مگر منطقه‌ی زمانی بنویسی
+  ```
+  base backup پیش از آن لحظه به‌علاوه‌ی WAL تا همان لحظه، در یک Postgres موقت بدون شبکه بازیابی میشود. نتیجه یک خط JSON است: `recovered_to`، دیتابیس‌ها و تعداد جدول‌های `hq`. بعد همه‌چیز پاک میشود.
+- **بازیابی واقعی PITR روی production** فقط با اجازه‌ی مالک انجام میشود، در ترمینال خودش و از روی همین اسکریپت. API هیچ راه restore ندارد.
+
+### backup ساعتی (`coinepro-hq-backup-hourly.timer`)
+- **زمان:** هر ساعت، با تأخیر تصادفی تا ۳ دقیقه. اجرای دستی: `make backup-hourly`.
+- **مجموعه‌ی هر ساعت:**
+  - `pg_dump -Fc` هر دیتابیس، به‌علاوه‌ی `globals.sql`
+  - کپی لنگرهای Audit
+  - sha256 همه‌ی فایل‌های api
+  - snapshot ‏OpenBao، فقط با توکن مالک (پایین)
+  - `manifest.json` و `SHA256SUMS`
+- **snapshot ‏restic:** از مجموعه، آرشیو WAL و خود فایل‌های `hq-files`:
+  1. اول در مخزن محلی
+  2. بعد با `restic copy` به **Google Drive** (`rclone:gdrive:CoinePro-HQ/restic`)
+  3. و اگر روشن باشد، به Hetzner
+- **نگهداری:**
+  - Drive و Hetzner: `--keep-hourly 168 --keep-daily 90 --keep-weekly 52 --keep-monthly 36 --keep-yearly 10`
+  - محلی: ۴۸ ساعتی و ۷ روزانه
+  - روزی یک بار: `prune` و `restic check --read-data-subset 5%`
+- **رمزها:**
+  - رمز restic در `kv/backup/restic` است. `make up` آن را یک بار میسازد و هیچ‌وقت عوض نمیکند.
+  - اسکریپت با AppRole ‏`hq-backup` (فقط خواندن `kv/backup/*`؛ `~/.secrets/backup/approle.json`، ‏600) فقط برای همان اجرا رمزها را در یک پوشه‌ی tmpfs (`/dev/shm`، ‏0700) میگذارد.
+  - container ‏restic آن را فقط‌خواندنی mount میکند.
+  - **هیچ رمزی در argv، env کانتینر، لاگ یا فایل وضعیت نیست.** gate ‏`backup` همین را اسکن میکند.
+- **container:** `coinepro-hq/backup:0.1.0`، یعنی rclone ‏1.75.2 (digest) به‌علاوه‌ی restic ‏0.19.1 (sha256).
+  - چرا root: ورودی‌ها مال چند uid هستند (WAL مال 999، فایل‌های api مال 10001، dumpها مال Hub).
+  - ولی محدود است: فقط capabilityهای فایل (`DAC_READ_SEARCH`، `DAC_OVERRIDE`، `CHOWN`، `FOWNER`)، rootfs فقط‌خواندنی، `no-new-privileges`.
+  - شبکه فقط وقتی مقصد بیرونی دارد.
+  - سقف حافظه `MEM_BACKUP`: ‏384m در full و 192m در lean. ‏restic با ۴۰۰ MB ورودی در 192m بی‌خطا تمام شد.
+- **وضعیت:**
+  - فایل‌های `status/hourly.json`، `status/snapshots.json` و `status/restore-weekly.json` فقط فراداده دارند.
+  - worker هر ۵ دقیقه (Maintenance) آن‌ها را در `backup.*` میخواند.
+  - رویدادها: `backup.done` و `backup.failed` روی topic ‏`backups`.
+  - مشاهده: `GET /api/v1/backups/status`، `/backups/snapshots`، و ابزار `backups.status` برای ناظر و platform SRE.
+  - `systemctl list-timers 'coinepro-hq-*'` و `journalctl -u coinepro-hq-backup-hourly.service`.
+- **هشدارها** (هر کدام یک بار در هر رخداد):
+  - مقصد بیرونی شکست بخورد ← اعلان `decision`
+  - **آخرین backup موفق قدیمی‌تر از ۲ ساعت** ← **فوری** (از دست رفتن داده)
+  - **شکست تست بازیابی** ← **فوری**
+  - یافته‌ی ناظر (`PR-070`) در پرامپت ۸ به `oversight_finding()` در `domain/backups.py` وصل میشود.
+- **مقصد دوم، Hetzner Object Storage (اختیاری، خاموش):** با `HQ_BACKUP_S3_ENABLED=true` و `HQ_BACKUP_S3_*` در `.env` روشن میشود. یک مخزن restic دوم است با همان رمز. `offsite.sh` دیگر کپی خام شبانه نمیفرستد.
+
+### تست بازیابی هفتگی (`coinepro-hq-restore-weekly.timer`)
+- **زمان:** یکشنبه ۰۶:۰۰ تهران (۰۲:۳۰ UTC). اجرای دستی: `make restore-weekly`.
+- **روند:**
+  1. آخرین snapshot از Drive (اگر وصل نیست، از مخزن محلی) در پوشه‌ای موقت بازیابی میشود.
+  2. همه‌ی بررسی‌های `restore-test.sh` روی مجموعه‌اش اجرا میشود.
+  3. sha256 همه‌ی فایل‌ها چک میشود.
+  4. **PITR به یک لحظه‌ی تصادفی ۲۴ ساعت گذشته** از آرشیو WAL بازیابی‌شده انجام میشود.
+- **نتیجه:** در `backup.restore_tests` ثبت میشود. شکست ← اعلان فوری.
+
+### کارهای مالک (به ترتیب، در ترمینال SSH خودش)
+1. **`make gdrive-auth`:**
+   - توضیح فارسی چاپ میکند.
+   - مالک روی کامپیوتر خودش این را اجرا میکند (scope ‏`drive.file`: rclone فقط فایل‌های خودش را میبیند):
+     `rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"`
+   - JSON را بی‌نمایش میچسباند ← `kv/backup/gdrive`. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro-HQ/restic` را میسازد.
+   - **پیشنهاد (اختیاری):** یک OAuth client ID اختصاصی (نوع Desktop) در Google Cloud خود مالک، برای سهمیه‌ی جدا از client عمومی rclone. در این صورت: `rclone authorize "drive" "<client_id>" "<client_secret>"` و همان client ID در پرسش اسکریپت.
+   - تا این کار نشده، backup ساعتی فقط محلی است و وضعیت Drive «پیکربندی نشده» است.
+2. **نسخه‌ی کاغذی رمز restic:** `make backup-password`.
+   - فقط در ترمینال خود مالک، با تایپ `show`. بعد از Enter صفحه پاک میشود.
+   - **بدون این رمز هیچ snapshotی، از هیچ مقصدی، باز نمیشود.** Claude سرور آن را نمیبیند و چاپ نمیکند.
+3. **توکن فقط-snapshot برای OpenBao:**
+   - مالک خودش میسازد: `bao token create -policy=backup-snapshot -orphan -period=768h -display-name=hq-backup-snapshot` (policy ‏`infra/openbao/policies/backup-snapshot.hcl` فقط `sys/storage/raft/snapshot` را میخواند).
+   - بعد `make openbao-snapshot-token` و چسباندن بی‌نمایش.
+   - اسکریپت چک میکند توکن **فقط** همین policy را داشته باشد.
+   - تا آن موقع، این بخش از backup «منتظر مالک» است.
+
+### راه‌اندازی بعد از merge (Claude سرور)
+`make bootstrap` (پوشه‌های wal و restic، با sudo)، بعد `make up` (image تازه‌ی Postgres؛ **ری‌استارت Postgres** برای `archive_mode`؛ AppRole ‏`hq-backup` و رمز restic)، بعد `make install-systemd` (دو timer تازه).
+## ۱۹. اینترنت ایجنت‌ها: egress، SearXNG و مرورگر (پرامپت ۷ §۲، قرارداد §۱۸.۷)
+- **اصل:** ایجنت‌ها همچنان shell و شبکه‌ی مستقیم ندارند. اینترنت فقط از ابزار میرسد. این ابزارها در Tool Gateway هستند و از سرویس `egress` بیرون میروند:
+  - `web.search`: SearXNG خود هلدینگ
+  - `web.read`: یک صفحه، به‌صورت HTML یا PDF به متن
+  - `web.browse`: مرورگر واقعی
+  - `http.request`
+  - `egress.recent`
+- **مسیر هر فراخوانی:**
+  1. gateway در api رزرو میکند (`/internal/v1/egress/reserve`). این گام سه چیز را بررسی میکند:
+     - **محافظ داده:** کد کارمند یک شرکت واقعی، ارجاع داخلی (`W-`، `D-`، `O-`، `I-`، `S-`…)، ایمیل، تلفن، رمز یا توکن ← `403 internal_data`.
+     - **سقف‌ها** ← `429 egress_limit`.
+     - **حساب سرویس**، اگر خواسته شده باشد.
+  2. egress درخواست را بیرون میبرد.
+  3. هر درخواست یک ردیف در `egress.log` و یک ردیف Audit با کلاس خودش میگیرد.
+  4. نتیجه با `source: "web"`، نشانی نهایی، زمان و `suspected_injection` به مدل میرسد. متن‌های دستوری مشکوک فقط علامت میخورند و حذف نمیشوند.
+- **کلاس هر فراخوانی:**
+  - خواندن A0 است.
+  - استفاده از حساب سرویس، یا هر روشی جز GET/HEAD در `http.request`، A2 است. A2 فقط وقتی مجاز است که policy حساب، آن مسیر را «بی‌تعهد» اعلام کرده باشد.
+  - **تعهد بیرونی** (پرداخت، خرید، انتشار، پیام به آدم بیرونی، ساخت حساب، تغییر امنیت حساب) ← `needs_owner`، و ایجنت باید `propose` کند.
+  - در مرورگر، پیش از هر click، type یا select، عنصر هدف و فرم و صفحه‌اش بررسی میشود. در حالت شک (submit یک فرم غیر جستجو) رد میشود.
+- **محافظ SSRF (در egress):** egress خودش DNS را حل میکند و **همان IP بررسی‌شده** را وصل میکند، پس DNS rebinding ممکن نیست. هر redirect دوباره بررسی میشود.
+  - **مسدود:**
+    - loopback
+    - link-local، از جمله metadata ‏`169.254.169.254`
+    - RFC 1918، از جمله `10.10.1.0/24` و همسایه‌های production
+    - CGNAT
+    - IPv6 خصوصی، ULA و link-local
+    - IPv4 جاسازی‌شده در IPv6
+    - نام‌های تک‌بخشی و داخلی (`postgres`، `api`، `*.internal`…)
+    - `/internal` هاب، با هر املایی
+  - پورت‌ها فقط 80 و 443 هستند، مگر حساب سرویس پورت خودش را بدهد.
+  - مرورگر هاب (`hq.coinepro.com`) را اصلاً باز نمیکند.
+- **شبکه‌ها** (`compose-rules` و `make verify-live` اثباتشان میکنند):
+
+  | شبکه | اعضا | نوع |
+  |---|---|---|
+  | `hq-egress` | egress، searxng | تنها شبکه‌ی ایجنت‌ها با راه به بیرون |
+  | `hq-egress-api` | gateway، egress | internal |
+  | `hq-browser` | egress، browser | internal؛ مرورگر فقط از proxy ‏egress بیرون میرود |
+
+  egress به Postgres، Valkey، NATS، OpenBao، api و Temporal هیچ راهی ندارد. هیچ‌کدام از این سه سرویس پورت منتشرشده ندارد.
+- **proxy ‏egress:**
+  - `:3128` برای مرورگر، با credential جدا برای هر فراخوانی.
+  - `:3129` برای gateway (MCP روی HTTP، با `EGRESS_PROXY_URL`). سربرگ‌های `X-HQ-Call`، `X-HQ-Tool` و `X-HQ-Class` میگیرد و entryها با `POST /v1/proxy/drain` جمع میشوند.
+  - داخل tunnel‌های TLS باز نمیشود؛ فقط host، پورت، حجم و زمان ثبت میشود.
+- **مرورگر:**
+  - Chromium با Playwright 1.63.0. ایمیج رسمی با digest pin شده است.
+  - برای هر فراخوانی یک context تازه (پروفایل خالی) ساخته میشود و بعد بسته میشود.
+  - همزمانی: `BROWSER_MAX_SESSIONS` (full ‏۲، lean ‏۱).
+  - سقف زمان هر فراخوانی ۱۵ ثانیه است (`EGRESS_BROWSE_S`؛ egress حداکثر ۲۰)، تا زیر مهلت ۳۰ ثانیه‌ی gateway بماند. کار بلندتر چند فراخوانی میشود.
+  - اسکرین‌شات و دانلود فایل‌های شرکت خود ایجنت میشوند (`files.read`).
+  - `--no-sandbox` درون یک کانتینر بدون capability، فقط‌خواندنی و غیر root اجرا میشود. برای sandbox خود Chromium هیچ capability‌ای اضافه نشده است.
+- **SearXNG:** موتورهای عمومی پیش‌فرض، بدون لاگ query، بدون metrics، limiter خاموش (تنها مشتری egress است). `server.secret_key` از `SEARXNG_PASSWORD` در `.env` میاید (`make env` آن را میسازد).
+- **سقف‌ها** (env سرویس api):
+
+  | دامنه | متغیر | پیش‌فرض |
+  |---|---|---|
+  | هر اجرا | `EGRESS_RUN_REQUESTS` | 150 |
+  | هر اجرا | `EGRESS_RUN_BYTES` | 64 MB |
+  | هر اجرا | `EGRESS_RUN_BROWSER_S` | 300 ثانیه |
+  | هر شرکت در روز مالک | `EGRESS_DAY_REQUESTS` | 5000 |
+  | هر شرکت در روز مالک | `EGRESS_DAY_BYTES` | 2 GB |
+  | هر فراخوانی | `EGRESS_CALL_BYTES` | 20 MB |
+
+- **حساب‌های سرویس:**
+  - متادیتا و policy تزریق در اپ ثبت میشوند (`POST /api/v1/tools/accounts`). policy تزریق یکی از این‌هاست: `bearer`، `header`، `basic` یا `cookie`، به‌علاوه‌ی روش ورود مرورگر و فهرست `allow` مسیرهای بی‌تعهد.
+  - **رمز را فقط مالک، در ترمینال خودش، میگذارد:** `make account-secret KEY=<key>`. ورودی بی‌نمایش است و مستقیم در `kv/tools/accounts/<key>` میرود.
+  - رمز برای هر فراخوانی یک بار از OpenBao خوانده میشود و از api به gateway و egress میرسد. **در لحظه‌ی خروج** و **فقط برای host خود آن حساب** گذاشته میشود.
+  - رمز در هیچ نتیجه‌ای به مدل نمیرسد: همه‌ی نتیجه‌ها از هر شکل رمز (خام، percent-encoded و base64) پاک میشوند. در اسکرین‌شات هم فیلدهای رمز ماسک میشوند. در لاگ هم نیست.
+- **دیدن:**
+  - `GET /api/v1/egress` با پارامترهای `company`، `since` و `blocked`.
+  - `GET /api/v1/egress/summary` با `period=day`، `week` یا `month`.
+  - ابزار `egress.recent` برای نقش‌های holding (ناظر، تحلیل‌گر امنیت، AI safety).
+- **حافظه (پرامپت ۷ §۲.۹):** در کانتینرهای موقت با جستجو، خواندن و دو نشست مرورگر واقعی اندازه گرفته شد:
+
+  | سرویس | بیکار | اوج |
+  |---|---|---|
+  | egress | ۵۴ MiB | ۷۳ MiB |
+  | searxng | ۱۱۰ MiB | ۱۲۴ MiB |
+  | browser | ۳۲۰ MiB | ۴۳۵ MiB با دو نشست |
+
+  سقف‌ها:
+
+  | پروفایل | egress | searxng | browser |
+  |---|---|---|---|
+  | full | 256m | 256m | 896m |
+  | lean | 128m | 160m | 480m، یک نشست |
+
+  - برای جا شدنشان چند سقف دیگر، از روی مصرف زنده، پایین آمد (عددها در `profiles/*.env`):
+    - full: postgres ‏1536←1024، prometheus ‏768←512، loki ‏512←384، tempo ‏384←256، nats ‏256←192. این همان جایی است که گزارش ۶ برای STT نام برده بود.
+    - lean: postgres، valkey، nats، temporal، caddy، prometheus، loki، web، temporal-ui، node-exporter، llm-router، api، opa و gateway.
+  - نتیجه: full ‏11536 از 11673، lean ‏5872 از 5886.
+  - full+stt حالا 1424 MiB بیشتر از بودجه است.
+
+## ۲۰. پل MCP و کاتالوگ ابزار (پرامپت ۷ §۳، قرارداد §۱۸.۷)
+- **اصل:** هیچ سرور MCP بدون دو مُهر مالک برای ایجنت‌ها وجود ندارد. پیش‌فرض هیچ سروری روشن نیست.
+- **چرخه‌ی روشن شدن:**
+  1. **ثبت** با `POST /api/v1/tools/mcp` و 🔏 `mcp.add` روی sha256 همان بدنه. بدنه این‌ها را دارد:
+     - `key`
+     - `title_fa`
+     - `transport` (`http` یا `container`)
+     - `url`
+     - `tools`: هر ابزار با `name`، `class` (A0 تا A3) و `enabled`
+     - `companies`: `"all"` یا فهرست کد شرکت‌ها
+     - `auth_header` (اختیاری)
+
+     ثبت دوباره‌ی همان `key` یک نسخه‌ی تازه است و وضعیتش دوباره `pending` میشود.
+  2. **رمز سرور، اگر دارد:** مالک خودش در ترمینال میزند `make mcp-secret KEY=<key>` (ورودی بی‌نمایش). رمز در OpenBao در `kv/hq-api/tools/mcp/<key>` میرود. API فقط `has_secret` را نشان میدهد، هیچ‌وقت خود مقدار را.
+  3. **روشن کردن** با `POST /api/v1/tools/mcp/<key>/enable` و 🔏 `mcp.enable` روی `key`.
+  4. **خاموش کردن** با `POST /api/v1/tools/mcp/<key>/disable`. فوری است و step-up نمیخواهد.
+- **سنجاق فهرست ابزارها:** اولین بار که Gateway بعد از enable سرور را صدا میزند، فهرست ابزارهای آن را با نام، توضیح و schema ورودی ثبت و سنجاق میکند (`listing_sha256`).
+  - اگر بعداً فهرست فرق کند (مثلاً سرور آپدیت شده)، سرور با دلیل `tools changed` **خاموش** میشود و یک اعلان `report` برای مالک میرود. تا ثبت و مُهر دوباره، هیچ ایجنتی از آن استفاده نمیکند.
+  - ابزاری که در ثبت مُهرشده نیست، یا `enabled: false` است، **همیشه** رد میشود.
+- **`mcp.call` در Gateway:** ورودی `{server, tool, args}`.
+  1. Gateway از api میپرسد (`POST /internal/v1/tools/mcp/resolve`): آیا سرور روشن است، برای شرکت همین ایجنت است، ابزار مُهر شده است، و سقف‌ها جا دارد. جواب api کلاس مُهرشده‌ی ابزار است.
+  2. سیاست `hq.actions` روی **همان کلاس** تصمیم میگیرد. A2 فقط برای `ceo` و `manager` مجاز است (`a2_grants` در `infra/opa/policy/data.json`).
+  3. **ابزار A3 هرگز اجرا نمیشود.** api یک تصمیم `a3_action` میسازد: `action: mcp_call`، `target: <server>/<tool>`، ورودی ماسک‌شده و sha256 آن. هر اجرا با ورودی یکسان فقط یک کارت میسازد. پس از تأیید، طبق قاعده‌ی فعلی `a3_action` یک کار پیگیری برای ایجنت ساخته میشود، ولی خود فراخوانی را هنوز چیزی اجرا نمیکند (Contract notes).
+  4. خروجی سرور برچسب `source: "mcp"` و `untrusted: true` میگیرد و مثل همه‌ی خروجی‌ها ماسک میشود. فقط متن به مدل میرسد؛ عکس یا resource فقط نام میبرد (`omitted`).
+  5. هر فراخوانی یک ردیف Audit دارد (`mcp.call`، کلاس واقعی، `ref: mcp:<server>/<tool>`) و یک ردیف `tools.mcp_calls`.
+- **سقف‌ها:**
+  - `HQ_MCP_CALLS_PER_RUN`، پیش‌فرض ۲۰
+  - `HQ_MCP_CALLS_PER_COMPANY_DAY`، پیش‌فرض ۳۰۰ در هر روز مالک
+
+  عبور از سقف ← `429 rate_limited`. ترافیک `http` از سقف‌های egress هم رد میشود.
+- **transport:**
+  - **`http`:** فقط URL با https و نام میزبان عمومی؛ نه IP، نه نام داخلی، نه `hq.coinepro.com`، و بدون اعتبار داخل URL. Gateway آن را **فقط از پراکسی egress** میزند (`EGRESS_PROXY_URL` در env سرویس gateway). محافظ SSRF همان‌جا IP نهایی را چک میکند. بدون پراکسی، جواب `channel_not_configured` است و هرگز اتصال مستقیم برقرار نمیشود.
+  - **`container`:** آدرس `http://mcp-<name>:<port>/...`. یک سرویس compose جدا روی شبکه‌ی internal ‏`hq-mcp`، که فقط با gateway مشترک است. سرورهای stdio پشت یک پل stdio→HTTP بازبینی‌شده اجرا میشوند. هیچ‌جا docker socket نیست.
+  - این سرویس و شبکه **وقتی مالک اولین سرور container را مُهر کند** اضافه میشوند (با قاعده‌های `compose-rules`). الان هیچ‌کدام وجود ندارد.
+- **سرورهای پیشنهادی** (`apps/api/seed/mcp_proposals.yaml`؛ فقط پیشنهاد، هیچ‌کدام ثبت نشده):
+
+  | key | سرور | ابزارها |
+  |---|---|---|
+  | `github-read` | GitHub رسمی، MIT | فقط‌خواندنی، A0 |
+  | `search-console` | Google Search Console (یک سرور متن‌باز جامعه، در زمان مُهر بازبینی شود) | A0 |
+  | `analytics` | Google Analytics، سرور خود Google، Apache-2.0 | A0 |
+  | `time` | سرور مرجع MCP، MIT | A0، بدون شبکه |
+  | `fetch` | سرور مرجع MCP، MIT | A0؛ با `web.read` هم‌پوشانی دارد |
+
+  پیش از مُهر، نام ابزارها را با فهرستی که خود سرور میدهد تطبیق بده.
+- **کاتالوگ:** `GET /api/v1/tools/catalog` (مالک) هر ابزار `agents/tools.md` و هر ابزار مُهرشده‌ی MCP را با این‌ها نشان میدهد: کلاس (`A0/A2` یعنی کلاس هر فراخوانی جدا تعیین میشود؛ `per tool` یعنی از ثبت سرور میاید)، نقش‌هایی که در منشورشان دارند، و وضعیت:
+  - `live`
+  - `off`: هنوز در این build ساخته نشده
+  - `channel_not_configured`: مثل `github.read` تا توکن مالک
+  - `pending`
+
+  فهرست ابزارهای ساخته‌شده‌ی Gateway در `hq_common.tool_status` است. تست Gateway آن را با جدول خودش یکی نگه میدارد.
+- **`files.read`** (`agents/tools.md` v2): `variant` اختیاری است: `original`، `thumb` یا `poster`.
+  - عکس: نسخه‌ی `agent` آن (≤ ۱۵۶۸ پیکسل، بدون EXIF) به مدل میرسد.
+  - PDF: متنش هنگام آپلود با pypdf 6.19.0 (BSD-3) استخراج میشود؛ تا ۲۰۰ صفحه، ۲۰۰ هزار نویسه و ۳۰ ثانیه. متن در `files.processing.text` میماند و در meta ایجنت ماسک‌شده برمیگردد. PDF اسکن‌شده، رمزدار یا خراب متن ندارد و آپلودش هم شکست نمیخورد.

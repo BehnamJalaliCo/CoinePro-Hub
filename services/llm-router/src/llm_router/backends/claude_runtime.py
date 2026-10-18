@@ -9,10 +9,29 @@ from typing import Any
 
 import httpx
 
-from llm_router.backends.base import ERROR, TIMEOUT, BackendCall, BackendResult, Delta
+from llm_router.backends.base import (
+    ERROR,
+    TIMEOUT,
+    BackendCall,
+    BackendResult,
+    ChatMessage,
+    Delta,
+)
 from llm_router.pricing import Usage
 
 GRACE_S = 15  # the runtime enforces timeout_s itself; this only guards the socket
+
+
+def _content(m: ChatMessage) -> str | list[dict[str, str]]:
+    """A turn as claude-runtime takes it: its text, or its ordered blocks."""
+    if not m.parts:
+        return m.content
+    return [
+        {"type": "text", "text": p}
+        if isinstance(p, str)
+        else {"type": "image", "media_type": p.media_type, "data": p.data}
+        for p in m.parts
+    ]
 
 
 def _payload(call: BackendCall) -> dict[str, Any]:
@@ -21,7 +40,7 @@ def _payload(call: BackendCall) -> dict[str, Any]:
         "model": call.model,
         "effort": call.effort,
         "system": call.system,
-        "messages": [{"role": m.role, "content": m.content} for m in call.messages],
+        "messages": [{"role": m.role, "content": _content(m)} for m in call.messages],
         "json_schema": call.json_schema,
         "timeout_s": call.timeout_s,
         "max_output_tokens": call.max_output_tokens,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import shutil
@@ -15,8 +16,16 @@ import pytest
 from claude_runtime.config import Settings
 from claude_runtime.main import GuardMiddleware, State, build_app
 from claude_runtime.quota import Signals, classify
-from claude_runtime.render import render
-from claude_runtime.runner import ClaudeRunner, Delta, Message, Outcome, RunSpec, usage_from
+from claude_runtime.render import render, render_blocks
+from claude_runtime.runner import (
+    ClaudeRunner,
+    Delta,
+    ImagePart,
+    Message,
+    Outcome,
+    RunSpec,
+    usage_from,
+)
 from hq_common import tokens
 
 FAKE = Path(__file__).resolve().parents[1] / "testing" / "fake_claude.py"
@@ -242,3 +251,90 @@ async def test_http_api_auth_and_endpoints(runner: ClaudeRunner) -> None:
         base_url="http://rt",
     ) as c:
         assert (await c.get("/v1/status")).status_code == 503
+
+
+# ------------------------------------------------- images (prompt 06 §2) --
+PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+)
+B64 = base64.b64encode(PNG).decode()
+
+
+def test_blocks_keep_the_images_where_they_were() -> None:
+    one = Message("user", "اول\n\nدوم", ("اول", ImagePart("image/png", B64), "دوم"))
+    assert render_blocks([one]) == [
+        {"type": "text", "text": "اول"},
+        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": B64}},
+        {"type": "text", "text": "دوم"},
+    ]
+    chat = [Message("user", "سلام"), Message("assistant", "بله"), one]
+    blocks = render_blocks(chat)
+    flat = "".join(b["text"] if b["type"] == "text" else "[img]" for b in blocks)
+    # the same transcript as the text form, the image in its turn
+    assert flat == render([*chat[:2], Message("user", "اول[img]دوم")])
+    assert [b["type"] for b in blocks] == ["text", "image", "text"]
+    assert "data=" not in repr(one)
+
+
+async def test_the_cli_receives_image_blocks(runner: ClaudeRunner, tmp_path: Path) -> None:
+    rec = tmp_path / "blocks.json"
+    os.environ["FAKE_CLAUDE_BLOCKS"] = str(rec)
+    try:
+        msg = Message("user", "این چیست؟", ("این چیست؟", ImagePart("image/png", B64)))
+        out = await runner.run(spec(messages=(msg,)))
+        with_image = json.loads(rec.read_text())
+        await runner.run(spec())
+        plain = json.loads(rec.read_text())
+    finally:
+        del os.environ["FAKE_CLAUDE_BLOCKS"]
+    assert out.status == "ok"
+    assert with_image == [
+        {"type": "text", "media_type": None, "source_type": None, "text": "این چیست؟"},
+        {"type": "image", "media_type": "image/png", "source_type": "base64", "text": None},
+    ]
+    assert plain == "string"  # a text-only call is unchanged
+
+
+async def test_http_takes_blocks_and_checks_them(runner: ClaudeRunner) -> None:
+    router_token = tokens.new_token()
+    state = State(
+        Settings(),
+        router_token_sha256=tokens.digest(router_token),
+        metrics_token_sha256=tokens.digest(tokens.new_token()),
+        oauth_token="x",
+        runner=runner,
+    )
+    app = GuardMiddleware(build_app(state), state)
+    image: dict[str, Any] = {"type": "image", "media_type": "image/png", "data": B64}
+    body: dict[str, Any] = {
+        "call_id": CALL_ID,
+        "model": "claude-haiku-5-5",
+        "system": None,
+        "messages": [{"role": "user", "content": [{"type": "text", "text": "ببین"}, image]}],
+        "json_schema": None,
+        "timeout_s": 20,
+    }
+    auth = {"Authorization": f"Bearer {router_token}"}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://rt") as c:
+        r = await c.post("/v1/run", json=body, headers=auth)
+        assert r.status_code == 200 and r.json()["status"] == "ok"
+        for content in (
+            [{**image, "media_type": "image/jpeg"}],  # the bytes are a PNG
+            [{"type": "image", "media_type": "image/png", "data": "!!"}],
+            [{"type": "image_url", "url": "https://x/y.png"}],
+            [],
+        ):
+            bad = await c.post(
+                "/v1/run",
+                json={**body, "messages": [{"role": "user", "content": content}]},
+                headers=auth,
+            )
+            assert bad.status_code == 422 and B64 not in bad.text, content
+        assistant = {
+            **body,
+            "messages": [
+                {"role": "assistant", "content": [image]},
+                {"role": "user", "content": "x"},
+            ],
+        }
+        assert (await c.post("/v1/run", json=assistant, headers=auth)).status_code == 422

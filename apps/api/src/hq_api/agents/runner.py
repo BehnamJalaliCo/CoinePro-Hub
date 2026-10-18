@@ -26,6 +26,8 @@ migration 0008). Then:
 from __future__ import annotations
 
 import asyncio
+import base64
+import contextlib
 import json
 import logging
 import time
@@ -43,6 +45,7 @@ from hq_api.agents import protocol as P
 from hq_api.agents.clients import Gateway, LivePush, ModelCall, Router
 from hq_api.db import Tx
 from hq_api.domain import decisions as D
+from hq_api.domain import files as F
 from hq_api.errors import sqlstate_of
 from hq_api.hub import Hub
 from hq_api.routes.messages import LINK_TABLES
@@ -62,9 +65,39 @@ async def masked_json(value: Any) -> str:
     return json.dumps(await redact_async(plain), ensure_ascii=False)
 
 
-def prompt_tokens(system: str, messages: list[dict[str, str]]) -> int:
-    """A cautious estimate of a prompt's tokens (about four characters each)."""
-    return (len(system) + sum(len(m["content"]) for m in messages)) // 4
+IMAGE_TOKENS = 1_600  # Anthropic's rough figure for one image of up to ~1568 px
+MAX_IMAGES = 20  # per request (the router's limit), so per run
+
+
+def viewed_images(results: list[dict[str, Any]]) -> list[UUID]:
+    """The images files.read asked to show (the gateway checked the tenant; the
+    runner reads them again under its own scope)."""
+    out: list[UUID] = []
+    for r in results:
+        if r.get("tool") != "files.read" or r.get("outcome") != "ok":
+            continue
+        view = (r.get("result") or {}).get("view") or {}
+        for raw in view.get("image_file_ids") or []:
+            with contextlib.suppress(ValueError, TypeError):
+                out.append(UUID(str(raw)))
+    return out
+
+
+def prompt_tokens(system: str, messages: list[dict[str, Any]]) -> int:
+    """A cautious estimate of a prompt's tokens (about four characters each,
+    plus a fixed amount per image block)."""
+    chars, images = len(system), 0
+    for m in messages:
+        content = m["content"]
+        if isinstance(content, str):
+            chars += len(content)
+            continue
+        for block in content:
+            if block.get("type") == "image":
+                images += 1
+            else:
+                chars += len(block.get("text") or "")
+    return chars // 4 + images * IMAGE_TOKENS
 
 
 FINAL = ("done", "failed", "refused")
@@ -94,7 +127,8 @@ class RunCtx:
     emp: dict[str, Any]
     charter: Charter
     token: str
-    messages: list[dict[str, str]] = field(default_factory=list)
+    messages: list[dict[str, Any]] = field(default_factory=list)
+    images: int = 0  # image blocks sent in this run (at most MAX_IMAGES)
     used_tokens: int = 0
     delivered: bool = False
     replied: str | None = None  # the message ref of a reply in the trigger thread
@@ -349,7 +383,8 @@ class Runner:
             answer_phase=charter.kind == "advisor" and run["trigger"] == "message",
             payloads=D.PAYLOADS,
         )
-        rc.messages = [{"role": "user", "content": await self._context(rc)}]
+        text, image_ids = await self._context(rc)
+        rc.messages = [{"role": "user", "content": await self._with_images(rc, text, image_ids)}]
         live_thread = await self._reply_thread(rc)
         advisor = charter.kind == "advisor"
         steps_cap = int(run["steps_cap"] or charter.limits.steps_per_run)
@@ -433,13 +468,17 @@ class Runner:
                 },
                 {
                     "role": "user",
-                    "content": P.trim(
-                        P.render_results(
-                            results,
-                            steps_left=steps_cap - n,
-                            tokens_left=max(token_cap - rc.used_tokens, 0),
+                    "content": await self._with_images(
+                        rc,
+                        P.trim(
+                            P.render_results(
+                                results,
+                                steps_left=steps_cap - n,
+                                tokens_left=max(token_cap - rc.used_tokens, 0),
+                            ),
+                            CONTEXT_CHARS,
                         ),
-                        CONTEXT_CHARS,
+                        viewed_images(results),
                     ),
                 },
             ]
@@ -684,11 +723,13 @@ class Runner:
             return await self.hub.companies.ids()
         return [rc.emp["company_id"]]
 
-    async def _context(self, rc: RunCtx) -> str:
-        """The trigger and what the role needs to act on it (never a secret).
-        Read in a transaction scoped to the charter (RLS), and every record a
-        message points at is filtered by that scope too."""
+    async def _context(self, rc: RunCtx) -> tuple[str, list[UUID]]:
+        """The trigger and what the role needs to act on it (never a secret),
+        and the images it should see (attached photos, a video's key frames,
+        newest first). Read in a transaction scoped to the charter (RLS), and
+        every record a message points at is filtered by that scope too."""
         run, emp = rc.run, rc.emp
+        images: list[UUID] = []
         parts = [f"# Trigger\n{run['trigger']} ({run['reason']})"]
         scope = await self.read_scope(rc)
         async with self.hub.db.tx(scope) as tx:
@@ -703,18 +744,28 @@ class Runner:
                 )
             if run["thread_id"] is not None:
                 msgs = await tx.all(
-                    """SELECT ref, author_kind, author_code, body, links FROM msg.messages
-                       WHERE thread_id = :t ORDER BY seq DESC LIMIT :n""",
+                    """SELECT ref, author_kind, author_code, body, links, attachments, kind
+                       FROM msg.messages WHERE thread_id = :t ORDER BY seq DESC LIMIT :n""",
                     t=run["thread_id"],
                     n=THREAD_MESSAGES,
                 )
                 seen = await self._visible_links(tx, msgs, scope)
+                media = await self._attachments(tx, msgs)
+                for m in msgs:  # newest first: the latest photos are the ones seen
+                    for fid in m["attachments"] or []:
+                        images += media.get(fid, ("", []))[1]
                 lines = []
                 for m in reversed(msgs):
                     who = "owner" if m["author_kind"] == "owner" else m["author_code"]
                     shown = {k: v for k, v in (m["links"] or {}).items() if (k, v) in seen}
                     links = f" links={json.dumps(shown)}" if shown else ""
-                    lines.append(f"[{m['ref']}] {who}{links}: {m['body'][:3000]}")
+                    voice = " (spoken)" if m["kind"] == "voice_transcript" else ""
+                    att = "".join(
+                        f"\n    attached {media[f][0]}"
+                        for f in m["attachments"] or []
+                        if f in media
+                    )
+                    lines.append(f"[{m['ref']}] {who}{voice}{links}: {m['body'][:3000]}{att}")
                 parts.append(
                     "# Conversation (oldest first; answer the owner's latest)\n" + "\n".join(lines)
                 )
@@ -748,7 +799,79 @@ class Runner:
         # What a model reads never carries a secret or personal data (prompt 5.1
         # §2.1): cut first (bounded work), masked, then trimmed to size.
         raw = "\n\n".join(parts)
-        return P.trim(await scrub_async(raw[: CONTEXT_CHARS * 2]), CONTEXT_CHARS)
+        text = P.trim(await scrub_async(raw[: CONTEXT_CHARS * 2]), CONTEXT_CHARS)
+        return text, list(dict.fromkeys(images))
+
+    async def _attachments(
+        self, tx: Tx, msgs: list[dict[str, Any]]
+    ) -> dict[UUID, tuple[str, list[UUID]]]:
+        """For each attached file the run may read (RLS): a line for the prompt
+        (kind, size, its transcript; never its name, never EXIF) and the image
+        files to show: a photo's `agent` variant, a video's key frames (or its
+        poster). Audio and video reach the model as text and frames only."""
+        ids = list({f for m in msgs for f in m["attachments"] or []})
+        if not ids:
+            return {}
+        rows = await tx.all(
+            F.FILE_SQL + " WHERE f.id = ANY(:ids) AND f.variant = 'original'", ids=ids
+        )
+        shown = await tx.all(
+            """SELECT parent_id, id, variant FROM files.files
+               WHERE parent_id = ANY(:ids) AND variant IN ('agent', 'frame', 'poster')
+               ORDER BY parent_id, frame_at_s NULLS FIRST, created_at""",
+            ids=ids,
+        )
+        out: dict[UUID, tuple[str, list[UUID]]] = {}
+        for r in rows:
+            mine = [v for v in shown if v["parent_id"] == r["id"]]
+            ref = F.render(r)
+            if ref.kind == "image":
+                line = f"image {ref.width}x{ref.height} (file:{ref.id}; shown below)"
+                pics = [v["id"] for v in mine if v["variant"] == "agent"]
+            elif ref.kind == "video":
+                frames = [v["id"] for v in mine if v["variant"] == "frame"]
+                pics = frames or [v["id"] for v in mine if v["variant"] == "poster"]
+                line = f"video {ref.duration_s or 0:.0f} s (file:{ref.id}; {len(pics)} key frames shown below)"
+            elif ref.kind == "audio":
+                line, pics = f"audio {ref.duration_s or 0:.0f} s (file:{ref.id})", []
+            else:
+                line, pics = f"document {ref.mime} (file:{ref.id})", []
+            if ref.status == "processing":
+                line += " - still being processed"
+            if ref.transcript:
+                line += f"\n    transcript: {ref.transcript[:4000]}"
+            out[r["id"]] = (line, pics)
+        return out
+
+    async def _with_images(self, rc: RunCtx, text: str, ids: list[UUID]) -> Any:
+        """A user turn: the text alone, or the text and image blocks (bytes read
+        under the run's read scope, at most MAX_IMAGES in the whole run)."""
+        room = MAX_IMAGES - rc.images
+        if not ids or room <= 0:
+            return text
+        async with self.hub.db.tx(await self.read_scope(rc)) as tx:
+            rows = await tx.all(
+                """SELECT id, mime, storage_key FROM files.files
+                   WHERE id = ANY(:ids) AND kind = 'image'
+                     AND variant IN ('agent', 'frame', 'poster', 'thumb')""",
+                ids=ids,
+            )
+        by_id = {r["id"]: r for r in rows}
+        blocks: list[dict[str, Any]] = [{"type": "text", "text": text}]
+        for fid in ids:
+            r = by_id.get(fid)
+            if r is None or len(blocks) > room:
+                continue
+            data = await self.hub.storage.get(r["storage_key"])
+            blocks.append(
+                {
+                    "type": "image",
+                    "media_type": r["mime"],
+                    "data": base64.b64encode(data).decode("ascii"),
+                }
+            )
+        rc.images += len(blocks) - 1
+        return blocks if len(blocks) > 1 else text
 
     async def _visible_links(
         self, tx: Tx, msgs: list[dict[str, Any]], scope: list[UUID]

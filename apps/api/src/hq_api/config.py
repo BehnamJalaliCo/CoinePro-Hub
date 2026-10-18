@@ -48,6 +48,34 @@ class Settings:
     log_level: str = field(default_factory=lambda: _env("LOG_LEVEL", "info"))
     max_body_bytes: int = field(default_factory=lambda: _int("HQ_MAX_BODY_BYTES", 1024 * 1024))
     max_file_bytes: int = field(default_factory=lambda: _int("HQ_MAX_FILE_BYTES", 25 * 1024 * 1024))
+    # Speech to text (prompt 6 §3): the self-hosted Whisper service, reached by the
+    # worker only (empty: the stt profile is off); the light model's punctuation pass.
+    stt_url: str = field(default_factory=lambda: _env("STT_URL"))
+    stt_punctuation: bool = field(default_factory=lambda: _env("STT_PUNCTUATION", "on") == "on")
+    stt_punctuation_model: str = field(
+        default_factory=lambda: _env("STT_PUNCTUATION_MODEL", "claude-haiku-5-5")
+    )
+    # How long POST /transcribe waits for the worker (a 15-minute recording on CPU).
+    transcribe_wait_s: int = field(default_factory=lambda: _int("HQ_TRANSCRIBE_WAIT_S", 600))
+    # MCP calls (prompt 07 §3): per run and per company per owner day.
+    mcp_calls_per_run: int = field(default_factory=lambda: _int("HQ_MCP_CALLS_PER_RUN", 20))
+    mcp_calls_per_company_day: int = field(
+        default_factory=lambda: _int("HQ_MCP_CALLS_PER_COMPANY_DAY", 300)
+    )
+    # The agents' internet (prompt 07 §2.8): caps per run and per company per day
+    # (requests = egress log rows; browser seconds = web.browse sessions).
+    egress_run_requests: int = field(default_factory=lambda: _int("EGRESS_RUN_REQUESTS", 150))
+    egress_run_bytes: int = field(
+        default_factory=lambda: _int("EGRESS_RUN_BYTES", 64 * 1024 * 1024)
+    )
+    egress_run_browser_s: int = field(default_factory=lambda: _int("EGRESS_RUN_BROWSER_S", 300))
+    egress_day_requests: int = field(default_factory=lambda: _int("EGRESS_DAY_REQUESTS", 5000))
+    egress_day_bytes: int = field(
+        default_factory=lambda: _int("EGRESS_DAY_BYTES", 2 * 1024 * 1024 * 1024)
+    )
+    egress_call_bytes: int = field(
+        default_factory=lambda: _int("EGRESS_CALL_BYTES", 20 * 1024 * 1024)
+    )
     # Sessions (contract §2): sliding 30 days, absolute 90 days.
     session_sliding_days: int = 30
     session_absolute_days: int = 90
@@ -104,6 +132,11 @@ class Settings:
     morning_report_llm: bool = field(
         default_factory=lambda: _env("HQ_MORNING_REPORT_LLM", "on") == "on"
     )
+    # The Code Workshop's runtime (contract §17.3): "" until the owner chooses
+    # (managed | self_hosted); the model and effort a session gets by default.
+    workshop_runtime: str = field(default_factory=lambda: _env("WORKSHOP_RUNTIME", ""))
+    workshop_model: str = field(default_factory=lambda: _env("WORKSHOP_MODEL", "claude-opus-5-5"))
+    workshop_effort: str = field(default_factory=lambda: _env("WORKSHOP_EFFORT", "high"))
 
     @property
     def login_configured(self) -> bool:

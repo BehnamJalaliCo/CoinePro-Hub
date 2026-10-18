@@ -885,13 +885,15 @@ def test_charter_problems_are_reported(tmp_path: Any) -> None:
     (tmp_path / "roles").mkdir()
     (tmp_path / "tools.md").write_text(
         "| `work.get` | A0 | `{ref}` | one item |\n| `x.y` | A4 | `{}` | never |\n"
+        "| `web.browse` | A0/A2 | `{steps}` | browse |\n| `mcp.call` | per tool | `{server}` | mcp |\n"
+        "| `pay.now` | A2/A3 | `{}` | pays |\n| `odd.one` | A0/B9 | `{}` | ? |\n"
     )
     (tmp_path / "roles" / "_common.md").write_text(
         "---\nrole: _common\nversion: 2\n---\nسلام {{employee_code}} {{unknown}}"
     )
     (tmp_path / "roles" / "aa.md").write_text(
         "---\nrole: aa\ntitle_fa: الف\ntitle_en: A\nkind: employee\nscope: company\nmodel: m\neffort: high\n"
-        "priority: P3\ntools: [work.get, nope, x.y]\nlimits: {steps_per_run: 2, tokens_per_step: 10, tokens_per_run: 20}\n"
+        "priority: P3\ntools: [work.get, nope, x.y, web.browse, mcp.call, pay.now, odd.one]\nlimits: {steps_per_run: 2, tokens_per_step: 10, tokens_per_run: 20}\n"
         "version: 3\n---\nبدنه"
     )
     (tmp_path / "roles" / "b.md").write_text("no frontmatter")
@@ -899,7 +901,13 @@ def test_charter_problems_are_reported(tmp_path: Any) -> None:
         "---\nrole: wrong\ntitle_fa: x\ntitle_en: x\nkind: employee\nmodel: m\neffort: high\npriority: P3\nlimits: {steps_per_run: 1, tokens_per_step: 1, tokens_per_run: 1}\nversion: 1\n---\n"
     )
     lib = charters.load(tmp_path)
-    assert set(lib.roles) == {"aa"} and lib.roles["aa"].tools == ("work.get",)
+    assert set(lib.roles) == {"aa"}
+    assert lib.roles["aa"].tools == ("work.get", "web.browse", "mcp.call")
+    browse, mcp = lib.tools["web.browse"], lib.tools["mcp.call"]
+    assert (browse.cls, browse.classes, browse.per_tool) == ("A2", ("A0", "A2"), False)
+    assert (mcp.cls, mcp.per_tool) == ("A2", True)
+    assert any("pay.now" in p and "A3" in p for p in lib.problems)  # the highest class decides
+    assert "odd.one" not in lib.tools  # an unknown class: not a tool
     assert any("nope" in p for p in lib.problems) and any("A4" in p for p in lib.problems)
     assert any("b.md" in p for p in lib.problems) and any("c.md" in p for p in lib.problems)
     assert lib.system_prompt("aa", {"employee_code": "TY-X-01"}).startswith("سلام TY-X-01 ")

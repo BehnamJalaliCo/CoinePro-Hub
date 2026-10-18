@@ -1,0 +1,10 @@
+[Unit]
+Description=CoinePro HQ: run the encrypted backup every hour
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=3min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

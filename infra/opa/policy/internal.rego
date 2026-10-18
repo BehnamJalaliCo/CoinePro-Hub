@@ -18,6 +18,16 @@ ops := {
 	"work.read", "company.read", "health.read", "hub.read", "treasury.read",
 	"knowledge.read", "audit.read", "memory.read", "memory.write",
 	"run.reserve", "run.record", "thread.live",
+	# prompt 06: files.read (an owner file attached in the agent's own company)
+	"file.read",
+	# prompt 07: backups.status (holding-scope roles: the overseer, the platform SRE)
+	"backup.read",
+	# prompt 06: the Code Workshop, for the driver of a grant
+	"workshop.read", "workshop.session", "workshop.message",
+	# prompt 07: an MCP tool of a server the owner enabled
+	"mcp.call",
+	# prompt 07: the agents' internet (a request out, its log; the egress log)
+	"egress.use", "egress.read",
 }
 
 # Reads of the gateway's tools: an agent reads its own company; a holding-scope
@@ -28,17 +38,24 @@ read_ops := {"work.read", "company.read", "health.read", "treasury.read", "knowl
 work_ops := {"work.accept", "work.progress", "work.deliver", "work.fail"}
 
 # Ops whose target must be in the agent's own company.
-own_company_ops := work_ops | {"work.delegate", "decision.propose", "notification.raise", "file.upload"}
+own_company_ops := work_ops | {
+	"work.delegate", "decision.propose", "notification.raise", "file.upload",
+	"workshop.read", "workshop.session", "workshop.message",
+	"egress.use",
+}
+
+# Workshop ops on a grant or a session: its driver only (contract §17.3).
+driver_ops := {"workshop.session", "workshop.message"}
 
 # Decision kinds each role may propose (table-driven; change here, not in code).
 propose_kinds := {
 	"ceo": {
 		"hire", "dismissal", "recurring_approval", "deploy",
-		"a3_action", "proposal", "budget_change", "evaluation",
+		"a3_action", "proposal", "budget_change", "evaluation", "code_session",
 	},
-	"manager": {"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal"},
-	"employee": {"a3_action", "deploy", "recurring_approval"},
-	"advisor": {"proposal"},
+	"manager": {"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session"},
+	"employee": {"a3_action", "deploy", "recurring_approval", "code_session"},
+	"advisor": {"proposal", "code_session"},
 	"inspector": {"proposal", "hire"},
 }
 
@@ -220,11 +237,41 @@ grant if {
 	knowledge_kinds_ok
 }
 
-# The hub's own health, the audit trail: holding-scope roles only.
+# The internet through the egress service: an agent's own company only.
 grant if {
-	op in {"hub.read", "audit.read"}
+	op == "egress.use"
+	agent
+	same_company(tv("company"))
+}
+
+# The egress log of every company (egress.recent): holding-scope roles only.
+grant if {
+	op == "egress.read"
 	agent
 	holding_reader
+}
+
+# The hub's own health, the audit trail: holding-scope roles only.
+grant if {
+	op in {"hub.read", "audit.read", "backup.read"}
+	agent
+	holding_reader
+}
+
+# A file of the agent's own company only (prompt 06 §2: files.read), never
+# another company's, whatever the agent's charter scope.
+grant if {
+	op == "file.read"
+	agent
+	same_company(tv("company"))
+}
+
+# An MCP server's tool (prompt 07 §3): for the agent's own company only; which
+# server and tool, and at which class, is the owner's sealed registration.
+grant if {
+	op == "mcp.call"
+	agent
+	same_company(tv("company"))
 }
 
 # The employee's own memory, its own run, its own thread's live stream.
@@ -244,6 +291,21 @@ grant if {
 	op == "thread.live"
 	agent
 	message_ok
+}
+
+# The Code Workshop: an agent reads its own company's sessions; only the
+# grant's driver opens a session under it or steers one.
+grant if {
+	op == "workshop.read"
+	agent
+	same_company(tv("company"))
+}
+
+grant if {
+	op in driver_ops
+	agent
+	same_company(tv("company"))
+	tv("driver") == p.code
 }
 
 # ------------------------------------------------------------ helpers ----
@@ -488,6 +550,12 @@ deny_reasons contains "unknown_level" if {
 	op == "notification.raise"
 	agent
 	not tv("level") in levels
+}
+
+deny_reasons contains "not_driver" if {
+	agent
+	op in driver_ops
+	tv("driver") != p.code
 }
 
 deny_reasons contains "scope_outside_company" if {

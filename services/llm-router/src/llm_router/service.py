@@ -246,7 +246,12 @@ class RouterService:
             provider=connection.provider,
             model=model,
             effort=effort,
-            meta={"assignment": list(resolved.trail), **(req.meta or {})},
+            meta={
+                "assignment": list(resolved.trail),
+                **(req.meta or {}),
+                # how many images the model saw (never their bytes)
+                **({"images": len(req.images())} if req.images() else {}),
+            },
         )
         scopes = _usage_scopes(chain, company, holding)
         rls = {company.id, holding.id}
@@ -465,7 +470,9 @@ class RouterService:
             model=plan.model,
             effort=plan.effort,
             system=plan.req.system,
-            messages=tuple(ChatMessage(m.role, m.content) for m in plan.req.as_messages()),
+            messages=tuple(
+                ChatMessage(m.role, m.text(), m.parts()) for m in plan.req.as_messages()
+            ),
             json_schema=plan.req.json_schema,
             timeout_s=plan.req.timeout_s,
             actor_ref=plan.req.actor_ref,
@@ -600,7 +607,8 @@ class RouterService:
                         self.s.transcript_retention_days,
                         {
                             "system": plan.req.system,
-                            "messages": [m.model_dump() for m in plan.req.as_messages()],
+                            # an image stays out of the transcript: its type and size only
+                            "messages": [m.without_bytes() for m in plan.req.as_messages()],
                         },
                         result.text,
                         result.structured,

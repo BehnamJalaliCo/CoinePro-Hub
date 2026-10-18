@@ -13,6 +13,7 @@ import yaml
 
 from hq_api.db import Tx
 from hq_api.domain import sites, templates
+from hq_api.workshop import domain as workshop
 
 SEED_DIR = Path(__file__).resolve().parents[2] / "seed"
 
@@ -52,4 +53,5 @@ async def seed(tx: Tx) -> dict[str, Any]:
                 role=role,
             )
     added["sites"] = await sites.seed(tx)
+    added["workspaces"] = await workshop.seed(tx)
     return {"companies_filled": filled, **added}

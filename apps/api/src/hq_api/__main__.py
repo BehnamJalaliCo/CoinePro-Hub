@@ -29,6 +29,7 @@ from hq_api.hub import Hub
 from hq_api.live import LiveHub
 from hq_api.policy import Policy
 from hq_api.storage import LocalStorage
+from hq_api.workshop import service as workshop
 from hq_common import charters, heartbeat, logs
 from hq_common.openbao import OpenBaoClient
 
@@ -112,7 +113,13 @@ def make_app(s: Settings) -> FastAPI:
             tasks.append(asyncio.create_task(OutboxRelay(s, hub.db, hub.bus).run()))
         tasks.append(asyncio.create_task(refresh_secrets(hub, bao)))
         tasks.append(asyncio.create_task(heartbeat.run(lambda: health(hub))))
-        log.info("api ready", extra={"login_configured": s.login_configured})
+        hub.workshop = await workshop.build(hub)
+        if hub.workshop is not None:
+            tasks.append(asyncio.create_task(workshop.loop(hub)))
+        log.info(
+            "api ready",
+            extra={"login_configured": s.login_configured, "workshop": workshop.meta_runtime(hub)},
+        )
         try:
             yield
         finally:

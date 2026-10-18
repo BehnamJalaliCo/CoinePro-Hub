@@ -1,0 +1,69 @@
+# Proposed first MCP servers (prompt 07 §3). PROPOSALS ONLY: nothing here is
+# registered or enabled. Each becomes real only when the owner registers it
+# (POST /tools/mcp, 🔏 the body) and enables it (🔏 the key); the server's own
+# listing is then pinned on its first call, so the tool names below are what
+# we expect, to be checked against that listing before sealing.
+# Classes: A0 read, A1 draft, A2 internal and reversible, A3 = an external
+# commitment (always becomes the owner's decision, never runs).
+proposals:
+  - key: github-read
+    title_fa: GitHub (فقط خواندن)
+    source: github/github-mcp-server (MIT), the official server
+    transport: container  # stdio with --read-only, behind the reviewed stdio->HTTP bridge on hq-mcp
+    url: http://mcp-github:8000/mcp
+    secret: a fine-grained read-only token (contents, issues, pull requests), make mcp-secret KEY=github-read
+    egress: api.github.com only, through the egress proxy
+    companies: all
+    tools:  # read-only toolset; anything that writes is left out of the registration
+      - {name: get_file_contents, class: A0}
+      - {name: list_commits, class: A0}
+      - {name: list_issues, class: A0}
+      - {name: list_pull_requests, class: A0}
+      - {name: search_code, class: A0}
+  - key: search-console
+    title_fa: Google Search Console
+    source: a community Search Console MCP server (open source; pick and review one at sealing time)
+    transport: container
+    url: http://mcp-search-console:8000/mcp
+    secret: a Google service account with read access to the sites (Search Console "restricted" user)
+    egress: the Google APIs host only, through the egress proxy
+    companies: all
+    tools:
+      - {name: list_sites, class: A0}
+      - {name: search_analytics, class: A0}
+      - {name: index_inspect, class: A0}
+  - key: analytics
+    title_fa: Google Analytics
+    source: googleanalytics/google-analytics-mcp (Apache-2.0), Google's own server
+    transport: container
+    url: http://mcp-analytics:8000/mcp
+    secret: a Google service account with the Viewer role on the properties
+    egress: the Google APIs hosts only, through the egress proxy
+    companies: all
+    tools:
+      - {name: get_account_summaries, class: A0}
+      - {name: get_property_details, class: A0}
+      - {name: run_report, class: A0}
+      - {name: run_realtime_report, class: A0}
+  - key: time
+    title_fa: زمان و منطقه‌ی زمانی
+    source: modelcontextprotocol/servers "time" (MIT), a reference server
+    transport: container  # no network at all
+    url: http://mcp-time:8000/mcp
+    secret: none
+    egress: none
+    companies: all
+    tools:
+      - {name: get_current_time, class: A0}
+      - {name: convert_time, class: A0}
+  - key: fetch
+    title_fa: دریافت صفحه (fetch)
+    source: modelcontextprotocol/servers "fetch" (MIT), a reference server
+    transport: container
+    url: http://mcp-fetch:8000/mcp
+    secret: none
+    egress: everything through the egress proxy (its SSRF guard applies)
+    companies: all
+    note: overlaps web.read; enable only if a role needs the MCP form of it
+    tools:
+      - {name: fetch, class: A0}

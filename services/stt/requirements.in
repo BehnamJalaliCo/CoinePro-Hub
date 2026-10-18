@@ -1,0 +1,12 @@
+# stt dependencies (exact pins; resolved + hashed in requirements.lock)
+# faster-whisper (MIT) on CTranslate2 (MIT); PyAV (BSD-3, bundles FFmpeg, LGPL)
+# decodes the audio; onnxruntime (MIT) runs faster-whisper's bundled Silero VAD (MIT).
+faster-whisper==1.2.1
+ctranslate2==4.8.2
+# PyAV 19 dropped open(metadata_errors=), which faster-whisper 1.2.1 passes; 16.1.0 is tested.
+av==16.1.0
+fastapi==0.142.2
+uvicorn==0.54.0
+httpx==0.28.1
+prometheus-client==0.26.0
+pydantic==2.13.5

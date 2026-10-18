@@ -28,13 +28,25 @@ compose_json() {
   local profile="$1" extra=() p
   shift
   for p in "$@"; do extra+=(--profile "$p"); done
-  HQ_PROFILE="$profile" "$HQ" "${extra[@]}" config --format json
+  # Opt-in profiles come from the arguments only (never from .env's HQ_STT).
+  HQ_PROFILE="$profile" HQ_STT=off "$HQ" "${extra[@]}" config --format json
+}
+
+# Whether an opt-in profile is switched on on this server: HQ_<NAME>=on in the
+# environment or in .env (e.g. HQ_STT=on for "stt"). CI has none on.
+opt_in_enabled() { # opt_in_enabled NAME
+  local var value env_file="${HQ_ENV_FILE:-$REPO_DIR/infra/compose/.env}"
+  var="HQ_$(tr '[:lower:]-' '[:upper:]_' <<<"$1")"
+  value="${!var:-}"
+  if [[ -z "$value" && -r "$env_file" ]]; then value="$(sed -n "s/^$var=//p" "$env_file" | tail -n1)"; fi
+  [[ "$value" == on ]]
 }
 
 # Compose profiles an operator may add by hand (e.g. cadvisor): every profile
 # of compose.yaml but the memory profiles and "web" (hq.sh switches it on).
 opt_in_profiles() {
-  HQ_PROFILE=lean "$HQ" config --profiles | grep -vxE "$(IFS='|'; echo "${PROFILES[*]}")|web" || true
+  HQ_PROFILE=lean HQ_STT=off "$HQ" config --profiles |
+    grep -vxE "$(IFS='|'; echo "${PROFILES[*]}")|web" || true
 }
 
 # Tracked files plus new files that are not ignored.

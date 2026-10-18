@@ -41,7 +41,12 @@ class Settings:
     max_waiting: int = field(default_factory=lambda: _int("LLM_MAX_WAITING", 32))
     queue_retry_after_s: int = field(default_factory=lambda: _int("LLM_QUEUE_RETRY_AFTER_S", 30))
     # Request limits (per caller overrides live in OpenBao)
-    max_body_bytes: int = field(default_factory=lambda: _int("LLM_MAX_BODY_BYTES", 512 * 1024))
+    # Room for a step with images (prompt 06 §2: up to 20 MiB of them, base64);
+    # the limit is enforced while the body streams in, and text stays under
+    # max_input_chars of its caller.
+    max_body_bytes: int = field(
+        default_factory=lambda: _int("LLM_MAX_BODY_BYTES", 32 * 1024 * 1024)
+    )
     max_timeout_s: int = field(default_factory=lambda: _int("LLM_MAX_TIMEOUT_S", 600))
     # Ceiling of a request's max_output_tokens (what the models accept everywhere).
     max_output_tokens: int = field(default_factory=lambda: _int("LLM_MAX_OUTPUT_TOKENS", 32_000))

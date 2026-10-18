@@ -126,6 +126,7 @@ class Maintenance:
             "reconcile_schedules",
             "requeue_runs",
             "purge",
+            "backups_ingest",
         ):
             try:
                 out[name] = await _act(name, limit=LONG, retry=RetryPolicy(maximum_attempts=3))
@@ -242,10 +243,72 @@ class CeoDaily:
         return result
 
 
+MEDIA_LIMIT = timedelta(minutes=30)  # a 10-minute video: frames, sound track, Whisper on CPU
+
+
+@workflow.defn(name="FileProcess")
+class FileProcess:
+    """An owner video or audio upload (prompt 6 §2): poster, key frames, sound
+    track and transcript; file.ready or file.failed at the end."""
+
+    @workflow.run
+    async def run(self, file_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await workflow.execute_activity(
+            "file_process",
+            args=[file_id],
+            start_to_close_timeout=MEDIA_LIMIT,
+            heartbeat_timeout=timedelta(minutes=2),
+            retry_policy=RetryPolicy(maximum_attempts=2),
+        )
+        return result
+
+
+@workflow.defn(name="Transcribe")
+class Transcribe:
+    """POST /transcribe (prompt 6 §3): one audio file to exact Persian text; the
+    api waits for this result."""
+
+    @workflow.run
+    async def run(self, file_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await workflow.execute_activity(
+            "transcribe_file",
+            args=[file_id],
+            start_to_close_timeout=MEDIA_LIMIT,
+            heartbeat_timeout=timedelta(minutes=2),
+            retry_policy=RetryPolicy(
+                maximum_attempts=2, non_retryable_error_types=["SttUnavailable", "TooLong"]
+            ),
+        )
+        return result
+
+
+@workflow.defn(name="OrderRouting")
+class OrderRouting:
+    """The light model's routing of one owner order (prompt 06 §5), awaited by
+    the api (which cannot reach llm-router). A failure is an empty answer: the
+    order then goes to the advisor."""
+
+    @workflow.run
+    async def run(self, req: dict[str, Any]) -> dict[str, Any]:
+        try:
+            out: dict[str, Any] = await _act(
+                "order_route",
+                req,
+                limit=timedelta(seconds=90),
+                retry=RetryPolicy(maximum_attempts=2),
+            )
+        except ActivityError:
+            out = {"routes": None, "status": "error"}
+        return out
+
+
 WORKFLOWS = [
+    FileProcess,
+    Transcribe,
     AgentRun,
     SiteChecks,
     CeoDaily,
+    OrderRouting,
     DecisionLifecycle,
     RecurringRun,
     Maintenance,

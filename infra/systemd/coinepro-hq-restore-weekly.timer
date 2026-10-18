@@ -1,0 +1,9 @@
+[Unit]
+Description=CoinePro HQ: run the restore test every Sunday 06:00 Asia/Tehran
+
+[Timer]
+OnCalendar=Sun *-*-* 06:00:00 Asia/Tehran
+Persistent=true
+
+[Install]
+WantedBy=timers.target

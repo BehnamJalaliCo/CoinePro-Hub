@@ -26,6 +26,9 @@ SCHEMAS = (
     "audit",
     "control",
     "files",
+    "workshop",
+    "backup",
+    "egress",
 )
 
 

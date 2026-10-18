@@ -9,3 +9,10 @@ path "kv/data/hq-api/*" {
 path "kv/data/llm-connections/*" {
   capabilities = ["create", "update"]
 }
+
+# Holding service accounts (prompt 07 §2.5): read for one agent call at a time,
+# handed to the egress service through the gateway; the owner writes them
+# (make account-secret), never through the API.
+path "kv/data/tools/accounts/*" {
+  capabilities = ["read"]
+}

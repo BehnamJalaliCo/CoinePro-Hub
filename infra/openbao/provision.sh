@@ -16,6 +16,9 @@
 #     empty FCM/Telegram credentials (channels stay off until the owner fills them)
 #   - prompt 05: the agent runtime's tokens (kv/hq-agents/runtime: llm-router
 #     caller hq-agents, the Tool Gateway's caller) and the gateway's digest file
+#   - prompt 07: the backups' restic password (kv/backup/restic, generated once,
+#     never printed) and the hq-backup AppRole of the host's backup scripts
+#       -> $HQ_SECRETS_DIR/backup/approle.json (600, Hub's own: no sudo)
 # The root token is used only while the admin token does not exist yet; it is
 # NOT revoked here (owner's decision).
 #
@@ -158,6 +161,43 @@ approle claude-runtime "$RUNTIME_CIDRS"
 approle hq-api "$CORE_CIDRS"
 approle hq-worker "$CORE_CIDRS"
 
+# The host's backup scripts (user Hub, through 127.0.0.1:8200): their own
+# AppRole, read-only on kv/backup/*. Hub owns the file, so no sudo is needed.
+backup_creds="$SECRETS_DIR/backup/approle.json"
+expect "$(jq -n '{token_policies: ["hq-backup"], token_no_default_policy: true, token_ttl: "1h",
+    token_max_ttl: "4h", secret_id_ttl: "0"}' | api POST auth/approle/role/hq-backup)" 204
+if [[ ! -s "$backup_creds" ]]; then
+  install -d -m 0700 "$SECRETS_DIR/backup"
+  expect "$(api GET auth/approle/role/hq-backup/role-id </dev/null)" 200
+  jq -r .data.role_id "$WORK/resp" >"$WORK/role_id"
+  expect "$(echo '{}' | api POST auth/approle/role/hq-backup/secret-id)" 200
+  jq --rawfile r "$WORK/role_id" '{role_id: ($r | rtrimstr("\n")), secret_id: .data.secret_id}' \
+    "$WORK/resp" >"$backup_creds.tmp"
+  chmod 600 "$backup_creds.tmp"
+  mv "$backup_creds.tmp" "$backup_creds"
+  log "AppRole hq-backup: credentials -> $backup_creds (600)"
+fi
+
+# ------------------------------------------------- node-exporter (p07) ----
+# node-exporter listens on the host, on the hq-internal gateway address. A
+# container on a network with a route out (Caddy, egress, SearXNG) can reach
+# the host's own addresses too: Docker gives no way to stop that without
+# iptables, which is the owner's (CLAUDE.md rule 4). So its metrics need basic
+# auth: Prometheus holds the password, node-exporter only the bcrypt hash.
+NODE_EXPORTER_UID=65534  # "nobody" in the node-exporter image
+ne_pass="$SECRETS_DIR/services/prometheus/node-exporter.password"
+ne_web="$SECRETS_DIR/services/node-exporter/web.yml"
+if ! installed "$ne_pass" || ! installed "$ne_web"; then
+  need_sudo "$ne_web"
+  ne_pw="$(openssl rand -hex 32)"
+  ne_hash="$(NE_PW="$ne_pw" python3 -c 'import bcrypt, os
+print(bcrypt.hashpw(os.environ["NE_PW"].encode(), bcrypt.gensalt(10)).decode())')"
+  printf '%s' "$ne_pw" | install_secret "$PROMETHEUS_UID" "$ne_pass"
+  printf 'basic_auth_users:\n  prometheus: %s\n' "$ne_hash" | install_secret "$NODE_EXPORTER_UID" "$ne_web"
+  unset ne_pw ne_hash
+  log "node-exporter: basic auth for Prometheus (password and hash installed, never printed)"
+fi
+
 # ------------------------------------------------------------ KV secrets ----
 kv_exists() { [[ "$(api GET "kv/data/$1" </dev/null)" == 200 ]]; }
 kv_put() { expect "$(api POST "kv/data/$1")" 200 204; }  # body on stdin
@@ -248,5 +288,13 @@ if ! kv_exists hq-agents/runtime || ! installed "$gw_digest"; then
   printf '%s' "$gw_token" | sha256 | install_secret "$SERVICE_UID" "$gw_digest"
   unset llm_token gw_token
   log "agent runtime: llm-router caller hq-agents and the gateway's token (re)generated"
+fi
+# ------------------------------------------------------------- backups (p07) --
+# The restic repositories' password (local, Google Drive, Hetzner): made once
+# and kept; changing it would lock every existing snapshot. The owner keeps a
+# paper copy (`make backup-password` shows it in their own terminal only).
+if ! kv_exists backup/restic; then
+  RP="$(openssl rand -base64 48 | tr -d '\n')" jq -n '{data: {password: env.RP}}' | kv_put backup/restic
+  log "backup: restic repository password created (kv/backup/restic; never printed)"
 fi
 log "done"

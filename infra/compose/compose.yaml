@@ -20,6 +20,8 @@
 #     sits only here (api, worker and gateway are its only clients).
 #   - hq-edge (prompt 05.1 §2.9): Caddy and the web panel only. The web
 #     (Next.js, internet-facing) reaches nothing but Caddy.
+#   - hq-stt (prompt 06 §3): the worker and stt only, internal; stt-fetch (the
+#     one model download) alone on hq-fetch, which has the internet.
 #   - hq-agent and hq-edge are internal (no route out of the host); nothing on
 #     hq-internal reaches Temporal, OPA or the gateway
 #     (scripts/quality/compose-rules.sh and live.sh check all of it).
@@ -63,13 +65,36 @@ services:
         limits:
           memory: ${MEM_HQ_TOOLS:?}
 
+  backup-tools:
+    # The one-shot backup image (restic + rclone, prompt 07 §1): built and
+    # counted in the memory budget here; infra/backup/hourly.sh runs it with
+    # `docker run` and this limit (and a network only when a remote is set).
+    <<: *job
+    image: coinepro-hq/backup:0.1.0
+    build: ../backup
+    network_mode: none
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    command: ["restic", "version"]
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_BACKUP:?}
+
   # ------------------------------------------------------------------- data --
   postgres:
     <<: *service
-    image: pgvector/pgvector:0.8.7-pg17
+    # The pinned pgvector image + WAL-G (prompt 07 §1: continuous archiving, PITR).
+    image: coinepro-hq/postgres:0.1.0
+    build: ../postgres
     # hq-core: Temporal's database.
     networks: [hq-internal, hq-core]
     environment:
+      # WAL-G (archive_command below; base backups by infra/backup/hourly.sh):
+      # the local repository on the bind mount, compressed, never sent from here.
+      WALG_FILE_PREFIX: /wal
+      WALG_COMPRESSION_METHOD: zstd
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run make env}
       POSTGRES_INITDB_ARGS: "--data-checksums"
       # Read once by initdb/10-databases.sh on first start (empty volume).
@@ -99,6 +124,15 @@ services:
       - log_parameter_max_length=0
       - -c
       - log_parameter_max_length_on_error=0
+      # Continuous WAL archiving (prompt 07 §1): every segment to /wal through
+      # WAL-G, and a segment at least every minute, so point-in-time recovery
+      # reaches any minute the base backups still cover.
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=/usr/local/bin/wal-g wal-push %p
+      - -c
+      - archive_timeout=60s
     shm_size: 256mb
     stop_grace_period: 60s
     ports:
@@ -106,6 +140,8 @@ services:
     volumes:
       - pg-data:/var/lib/postgresql/data
       - ../postgres/initdb:/docker-entrypoint-initdb.d:ro
+      # uid 999 (postgres), 0700; created by `make bootstrap`, checked by `make up`.
+      - ${HQ_BACKUP_DIR:-/home/Hub/backups}/wal:/wal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres -q"]
       interval: 10s
@@ -537,6 +573,9 @@ services:
       OPA_URL: http://opa:8181
       TEMPORAL_ADDRESS: temporal:7233
       HQ_PUBLIC_ORIGIN: ${HQ_PUBLIC_ORIGIN:-}
+      # The Android app's passkey origin(s), comma separated: the PUBLIC hash of
+      # its signing certificate (prompt 6 §1.2), not a secret.
+      HQ_ANDROID_ORIGINS: ${HQ_ANDROID_ORIGINS:-}
       HQ_WEBAUTHN_RP_ID: ${HQ_WEBAUTHN_RP_ID:-}
       HQ_FILES_ROOT: /data/files
       # Audit chain anchors (prompt 04.1 §1.11): the worker appends, the api reads.
@@ -567,12 +606,17 @@ services:
     # Temporal worker (task queue hq-core) + the NATS bridge into HQ_CORE.
     <<: *service
     image: coinepro-hq/api:0.1.0
-    # hq-core: Temporal; hq-agent: OPA and the Tool Gateway.
-    networks: [hq-internal, hq-core, hq-agent]
+    # hq-core: Temporal; hq-agent: OPA and the Tool Gateway; hq-stt: speech to text.
+    networks: [hq-internal, hq-core, hq-agent, hq-stt]
     depends_on:
       api:
         condition: service_healthy
       temporal-namespace:
+        condition: service_completed_successfully
+      # The backup image is built and checked (`restic version`) with the
+      # stack; the worker ingests its status. A one-shot needs a dependant,
+      # or `up --wait` counts its exit as a failure.
+      backup-tools:
         condition: service_completed_successfully
     command: ["python", "-m", "hq_api.worker"]
     environment:
@@ -589,12 +633,18 @@ services:
       AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
       HQ_CEO_DAILY_REPORTS: ${HQ_CEO_DAILY_REPORTS:-off}
       HQ_MORNING_REPORT_LLM: ${HQ_MORNING_REPORT_LLM:-on}
+      # Owner media (prompt 6 §2-§3): the file store (posters, key frames, sound
+      # tracks); the speech recogniser: hq.sh sets STT_URL while HQ_STT=on, else empty.
+      HQ_FILES_ROOT: /data/files
+      STT_URL: ${STT_URL:-}
+      STT_PUNCTUATION: ${STT_PUNCTUATION:-on}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
     cap_drop: [ALL]
     volumes:
       - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/hq-worker:/run/secrets/hq:ro
+      - hq-files:/data/files
       # Append-only anchor file of the audit chain, outside the Postgres volume
       # and inside the backup set (created by `make bootstrap`, owner uid 10001).
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors
@@ -622,15 +672,21 @@ services:
     build:
       context: ../../services
       dockerfile: gateway/Dockerfile
-    networks: [hq-agent]
+    networks: [hq-agent, hq-egress-api]
     depends_on:
       api:
         condition: service_healthy
       opa:
         condition: service_healthy
+      egress:
+        condition: service_healthy
     environment:
       GATEWAY_API_URL: http://api:8000
       OPA_URL: http://opa:8181
+      # The internet tools (prompt 07 §2) and the MCP servers' HTTP route out
+      # (an `http` MCP server only through this proxy, prompt 07 §3).
+      EGRESS_URL: http://egress:8090
+      EGRESS_PROXY_URL: http://egress:3129
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=16m,mode=1777"]
@@ -649,6 +705,106 @@ services:
       resources:
         limits:
           memory: ${MEM_GATEWAY:?}
+
+  egress:
+    # The agents' only way to the internet (prompt 07 §2, contract §18.7): the
+    # web tools and MCP servers over HTTP, through its SSRF guard (every name
+    # resolved and every address and redirect checked here). hq-egress is its
+    # route out (with SearXNG); hq-egress-api has the gateway only; hq-browser
+    # the browser only. It reaches no data service, the api, OpenBao, NATS or
+    # Temporal (scripts/quality/live.sh), and holds no secret of its own.
+    <<: *service
+    image: coinepro-hq/egress:0.1.0
+    build:
+      context: ../../services
+      dockerfile: egress/Dockerfile
+    networks: [hq-egress, hq-egress-api, hq-browser]
+    depends_on:
+      searxng:
+        condition: service_healthy
+    environment:
+      EGRESS_SEARXNG_URL: http://searxng:8080
+      EGRESS_BROWSER_URL: http://browser:8095
+      EGRESS_BROWSER_PROXY_URL: http://egress:3128
+      EGRESS_HUB_HOSTS: ${HQ_WEBAUTHN_RP_ID:-hq.coinepro.com}
+      # The fixed subnets below: the gateway's network and the browser's.
+      EGRESS_API_CLIENTS: 172.30.8.0/24
+      EGRESS_GATEWAY_PROXY_CLIENTS: 172.30.8.0/24
+      EGRESS_BROWSER_PROXY_CLIENTS: 172.30.9.0/24
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "python", "-m", "hq_common.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_EGRESS:?}
+
+  searxng:
+    # The holding's own web search (AGPL-3.0), for web.search only: egress is
+    # its only client; it reaches the public engines over hq-egress. No query
+    # is logged (infra/searxng/settings.yml; granian's access log is off).
+    <<: *service
+    image: searxng/searxng:2026.10.4-d48c4b555@sha256:76b0bf285aca014c7191fc4d9234c4bfb358624ac33d8883833d496c059ec072
+    networks: [hq-egress]
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_PASSWORD:?run make env}
+      GRANIAN_BLOCKING_THREADS: "2"
+    user: "977:977"
+    read_only: true
+    tmpfs:
+      - "/tmp:size=16m,mode=1777"
+      - "/var/cache/searxng:size=16m,uid=977,gid=977,mode=0700"
+    cap_drop: [ALL]
+    volumes:
+      - ../searxng/settings.yml:/etc/searxng/settings.yml:ro
+    healthcheck:
+      test: ["CMD", "/usr/local/searxng/.venv/bin/python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_SEARXNG:?}
+
+  browser:
+    # Headless Chromium (Playwright) for web.browse (prompt 07 §2.1): a fresh
+    # context per call, at most BROWSER_MAX_SESSIONS at a time; hq-browser is
+    # internal, so its only way out is egress's proxy. --no-sandbox inside a
+    # cap_drop ALL, read-only, non-root container: no capability is added for
+    # Chromium's own sandbox (the container is the sandbox).
+    <<: *service
+    image: coinepro-hq/browser:0.1.0
+    build:
+      context: ../../services
+      dockerfile: egress/Dockerfile.browser
+    networks: [hq-browser]
+    environment:
+      BROWSER_MAX_SESSIONS: ${BROWSER_MAX_SESSIONS:-2}
+    user: "10001:10001"
+    read_only: true
+    # Chromium's profile, cache and downloads (counted inside the memory limit).
+    tmpfs: ["/tmp:size=${BROWSER_TMPFS:-192m},mode=1777"]
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "python3", "-m", "hq_common.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_BROWSER:?}
 
   web:
     # The owner's web panel (apps/web, owned by the consultation session;
@@ -868,13 +1024,18 @@ services:
     command:
       - --path.rootfs=/host
       - --web.listen-address=172.30.0.1:9100
+      # Basic auth (prompt 07): containers with a route out can reach the
+      # host's addresses; only Prometheus has the password (provision.sh).
+      - --web.config.file=/etc/node-exporter/web.yml
       # Per-container metrics written on the host (infra/observability/container-metrics.sh).
       - --collector.textfile.directory=/host/var/lib/coinepro-hq/textfile
       - --collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|var/lib/docker/.+|var/lib/containerd/.+)($$|/)
     volumes:
       - /:/host:ro,rslave
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/node-exporter:/etc/node-exporter:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://172.30.0.1:9100/"]
+      # Up = it answers, and without the password it answers 401.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://172.30.0.1:9100/ 2>&1 | grep -q 401"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -934,6 +1095,70 @@ services:
       resources:
         limits:
           memory: ${MEM_OTEL_COLLECTOR:?}
+
+  stt-fetch:
+    # One-shot (profile "stt", prompt 06 §3): downloads the pinned speech model
+    # (services/stt/model.lock.json: repo, revision, size and sha256 of every
+    # file) into stt-models once; files already there and correct are skipped.
+    # The only part of stt with internet, on a network of its own.
+    <<: *job
+    profiles: [stt]
+    image: coinepro-hq/stt:0.1.0
+    build:
+      context: ../../services
+      dockerfile: stt/Dockerfile
+    networks: [hq-fetch]
+    command: ["python", "-m", "hq_stt.fetch"]
+    environment:
+      HF_HUB_OFFLINE: "0"
+      STT_MODEL: ${STT_MODEL:-large-v3-turbo}
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - stt-models:/models
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_STT_FETCH:?}
+
+  stt:
+    # Persian speech to text (prompt 06 §3, contract §17.2): faster-whisper,
+    # int8 on CPU, offline, with the pinned model read-only. Opt-in (profile
+    # "stt", HQ_STT=on): hq.sh refuses it while the profile plus stt is over
+    # the memory budget. Only the worker reaches it (hq-stt is internal);
+    # no audio ever leaves the hub. The model is freed after STT_IDLE_UNLOAD_S.
+    <<: *service
+    profiles: [stt]
+    image: coinepro-hq/stt:0.1.0
+    build:
+      context: ../../services
+      dockerfile: stt/Dockerfile
+    networks: [hq-stt]
+    depends_on:
+      stt-fetch:
+        condition: service_completed_successfully
+    environment:
+      STT_MODEL: ${STT_MODEL:-large-v3-turbo}
+      STT_IDLE_UNLOAD_S: ${STT_IDLE_UNLOAD_S:-300}
+      STT_CPU_THREADS: ${STT_CPU_THREADS:-4}
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - stt-models:/models:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_STT:?}
 
   cadvisor:
     # Opt-in only (profile "cadvisor", prompt 05 §11): it needs the Docker and
@@ -1015,6 +1240,53 @@ networks:
       config:
         - subnet: 172.30.4.0/24
           gateway: 172.30.4.1
+  hq-stt:
+    # The worker and stt only (prompt 06 §3). Internal: no route out, so no
+    # audio can leave the hub; stt reaches nothing else.
+    name: hq-stt
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.5.0/24
+          gateway: 172.30.5.1
+  hq-fetch:
+    # stt-fetch alone: the internet for the one model download, no service of the hub.
+    name: hq-fetch
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.6.0/24
+          gateway: 172.30.6.1
+
+  hq-egress:
+    # egress and SearXNG: the only route out for the agents' tools (prompt 07
+    # §2). Not internal on purpose; nothing else of the hub is on it.
+    name: hq-egress
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.7.0/24
+          gateway: 172.30.7.1
+  hq-egress-api:
+    # The gateway and egress only (egress's API and its MCP proxy). Internal.
+    name: hq-egress-api
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.8.0/24
+          gateway: 172.30.8.1
+  hq-browser:
+    # egress and the browser only. Internal: the browser's only way out is
+    # egress's proxy, with that call's own credential.
+    name: hq-browser
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.9.0/24
+          gateway: 172.30.9.1
 
 volumes:
   hq-tools:
@@ -1030,3 +1302,4 @@ volumes:
   grafana-data:
   tempo-data:
   hq-files:
+  stt-models:

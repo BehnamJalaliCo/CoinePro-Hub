@@ -6,8 +6,12 @@
 #               file install depends on (a dev OpenBao in a container)
 #   backup      every failed backup records ok:false (no stale ok:true) and
 #               leaves no partial set; a busy lock records nothing
+#   stt         an opt-in profile over the memory budget: shown while off, a
+#               gate failure and an hq.sh refusal while on; STT_URL follows it
 #   anchor-dir  the backup root is 0700 whatever Hub's umask; status/ is 0755
 #   reanchor    audit-reanchor.sh needs a terminal, even with HQ_REANCHOR_CONFIRM
+#   owner-only  make gdrive-auth, backup-password and openbao-snapshot-token
+#               refuse without a terminal before touching anything (prompt 07)
 #   canary      hq.sh derives HQ_CANARY from the sites seed
 #   caddy       /__canary: 404 off, 503 on; the web never sees
 #               X-Middleware-Subrequest; web request bodies are capped
@@ -62,7 +66,8 @@ chmod 600 "$S/openbao-init.json"
 # Every file already installed but the KV empty: the path where a run without
 # sudo used to rotate the tokens in KV, then stop at the file install.
 for f in llm-router/approle.json claude-runtime/approle.json hq-api/approle.json \
-  hq-worker/approle.json prometheus/llm-metrics.token gateway/worker-token.sha256; do
+  hq-worker/approle.json prometheus/llm-metrics.token prometheus/node-exporter.password \
+  node-exporter/web.yml gateway/worker-token.sha256; do
   echo "$S/services/$f"
 done >"$S/.provisioned"
 chmod 600 "$S/.provisioned"
@@ -142,6 +147,19 @@ else
   pass "reanchor: HQ_REANCHOR_CONFIRM without a terminal is refused before anything runs"
 fi
 
+# ------------------------------------------------------------ owner-only ----
+for script in infra/backup/gdrive-auth.sh infra/backup/show-password.sh infra/openbao/snapshot-token.sh; do
+  : >"$T/calls.log"
+  if PATH="$SAFE_PATH" HQ_COMPOSE_CMD="$T/bin/hq-ok" HQ_BACKUP_DIR="$B" HQ_SECRETS_DIR="$T/no-secrets" \
+    "$REPO_DIR/$script" </dev/null >/dev/null 2>&1; then
+    fail "owner-only: $script ran without a terminal"
+  elif [[ -s "$T/calls.log" ]]; then
+    fail "owner-only: $script ran $(wc -l <"$T/calls.log") command(s) without a terminal"
+  else
+    pass "owner-only: $script refuses without a terminal, before anything runs"
+  fi
+done
+
 # ---------------------------------------------------------------- canary ----
 seed_on="$T/sites-on.yaml"
 sed 's/canary: true, enabled: false/canary: true/' "$REPO_DIR/apps/api/seed/sites.yaml" >"$seed_on"
@@ -206,6 +224,53 @@ if ((${#missing[@]})); then
   fail "systemd: container-metrics unit lacks ${missing[*]}"
 else
   pass "systemd: container-metrics unit sandboxed (read-only system, only the textfile dir writable)"
+fi
+
+# ---------------------------------------------------------- stt (opt-in) ----
+# Prompt 06 §3: an opt-in profile over the memory budget is shown but does not
+# fail the gate while it is off; switched on, the gate fails and hq.sh refuses
+# it, so it can never be turned on by accident. STT_URL follows the switch.
+over_budget() { # over_budget PROFILE -> 0 if PROFILE + stt is over 80% of its reference
+  local ref sum
+  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$REPO_DIR/infra/compose/profiles/$1.env")"
+  sum="$(HQ_PROFILE="$1" HQ_STT=off "$HQ" --profile stt config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  ((sum > ref * 80 / 100))
+}
+gate_off="$(HQ_STT=off CI=1 "$REPO_DIR/scripts/quality/memory-budget.sh" 2>&1)" && off_rc=0 || off_rc=$?
+gate_on="$(HQ_STT=on CI=1 "$REPO_DIR/scripts/quality/memory-budget.sh" 2>&1)" && on_rc=0 || on_rc=$?
+if over_budget full; then
+  # --dry-run: should the refusal ever break, compose still changes nothing.
+  refusal="$(HQ_PROFILE=full HQ_STT=on "$HQ" --dry-run up --no-start 2>&1)" && hq_rc=0 || hq_rc=$?
+  # Commands that start nothing (the backup's and unseal's exec) still run, without stt.
+  rendered="$(HQ_PROFILE=full HQ_STT=on "$HQ" config --format json 2>"$T/stt-warn")" &&
+    cfg_rc=0 || cfg_rc=$?
+  if ((off_rc != 0)) || ! grep -q 'full+stt OVER by .* not enabled' <<<"$gate_off"; then
+    fail "stt: memory gate with stt off: exit $off_rc, or the over-budget line is missing"
+  elif ((on_rc == 0)) || ! grep -q 'full+stt OVER (' <<<"$gate_on"; then
+    fail "stt: memory gate with stt on passed an over-budget combination"
+  elif ((hq_rc != 3)) || ! grep -q 'HQ_STT=on refused' <<<"$refusal"; then
+    fail "stt: hq.sh 'up' accepted HQ_STT=on over the memory budget (exit $hq_rc)"
+  elif ((cfg_rc != 0)) || ! grep -q 'HQ_STT=on ignored' "$T/stt-warn" ||
+    [[ "$(jq -r '(.services | has("stt")), .services.worker.environment.STT_URL' <<<"$rendered" |
+      paste -sd,)" != "false," ]]; then
+    fail "stt: over the budget, a command that starts nothing did not run without stt (exit $cfg_rc)"
+  else
+    pass "stt: over the budget it is shown while off, fails the gate and 'up' is refused while on"
+  fi
+else
+  url="$(HQ_PROFILE=full HQ_STT=on "$HQ" config --format json | jq -r '.services.worker.environment.STT_URL')"
+  if ((off_rc != 0 || on_rc != 0)) || [[ "$url" != "http://stt:8000" ]]; then
+    fail "stt: within the budget, the gate (off $off_rc, on $on_rc) or STT_URL ($url) is wrong"
+  else
+    pass "stt: within the budget, switched on with STT_URL set"
+  fi
+fi
+off_url="$(HQ_PROFILE=full HQ_STT=off "$HQ" config --format json | jq -r '.services.worker.environment.STT_URL')"
+if [[ -n "$off_url" ]]; then
+  fail "stt: STT_URL is '$off_url' while stt is off"
+else
+  pass "stt: STT_URL empty while stt is off"
 fi
 
 exit "$failed"

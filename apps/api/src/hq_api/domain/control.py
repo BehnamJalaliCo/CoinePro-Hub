@@ -1,7 +1,8 @@
 """Control (contract §9, OPERATING_MODEL §1.12): kill switches and deploy
 freezes. The holding switch (the holding company's row) stops every company:
-the router refuses everything but P0, agent writes get 423 and the worker
-pauses agent workflows. The owner is never locked out."""
+the router refuses everything but P0, agent writes get 423, the worker
+pauses agent workflows and the Code Workshop pauses the company's sessions
+(contract §17.3 rule 5). The owner is never locked out."""
 
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from hq_api import events
 from hq_api.db import Tx
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
+from hq_api.workshop import domain as workshop
 
 
 class KillSwitch(BaseModel):
@@ -123,6 +125,8 @@ async def set_kill_switch(
             await events.emit(tx, c["code"], "control.changed", scope_of(company), data)
     else:
         await events.emit(tx, company["code"], "control.changed", scope_of(company), data)
+    if state_ == "engaged":
+        await workshop.pause_locked(tx)
     return True
 
 
@@ -159,6 +163,7 @@ async def add_deploy_freeze(
         f"company:{company['code']}",
         {"deploy_freeze_until": until.isoformat(), "by": who.code},
     )
+    await workshop.pause_locked(tx)
 
 
 async def lift_deploy_freezes(

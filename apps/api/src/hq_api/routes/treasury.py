@@ -9,10 +9,12 @@ meta.sdk_cost_usd. Keys are write-only: stored in OpenBao, never returned.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
+import re
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field, field_validator
@@ -230,6 +232,54 @@ def period_start(period: str, now: datetime | None = None) -> datetime:
     return day if period == "day" else day.replace(day=1)
 
 
+DATE_ONLY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+WINDOW_DOC = (
+    "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) "
+    "or an ISO date-time (without a zone: the owner's time zone)."
+)
+
+
+def bound(raw: str | None, tz: ZoneInfo, *, end: bool) -> datetime | None:
+    """One side of a window (6.1 §1.3): a bare date is the owner's day, and as
+    `to` it includes that day; a time without a zone is the owner's time."""
+    if raw is None or not raw.strip():
+        return None
+    text = raw.strip()
+    if DATE_ONLY.match(text):
+        try:
+            d = date.fromisoformat(text)
+        except ValueError:
+            d = None
+        if d is not None:
+            return datetime.combine(d + timedelta(days=1) if end else d, time.min, tzinfo=tz)
+    try:
+        t = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        raise ApiError(
+            422, "validation_failed", fields={"to" if end else "from": "a date or an ISO date-time"}
+        ) from None
+    return t if t.tzinfo else t.replace(tzinfo=tz)
+
+
+async def window(
+    ctx: Ctx, from_raw: str | None, to_raw: str | None
+) -> tuple[datetime, datetime, str]:
+    """[start, end) and the owner's time zone; the default start is the first
+    of the owner's month, the default end now."""
+    async with ctx.tx() as tx:
+        tzname = (
+            await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
+        )
+    tz = ZoneInfo(tzname)
+    start = bound(from_raw, tz, end=False)
+    if start is None:
+        start = datetime.now(tz).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    end = bound(to_raw, tz, end=True) or datetime.now(UTC) + timedelta(seconds=1)
+    if end <= start:
+        raise ApiError(422, "validation_failed", fields={"to": "after from"})
+    return start, end, tzname
+
+
 TOTALS = """count(*) AS calls,
     COALESCE(sum(c.input_tokens), 0) AS input_tokens, COALESCE(sum(c.output_tokens), 0) AS output_tokens,
     COALESCE(sum(c.cache_read_tokens), 0) AS cache_read_tokens,
@@ -327,20 +377,49 @@ BREAKDOWN_KEYS = {
 }
 
 
+MAX_DAYS = 400
+# One row per day of [from, to] in the owner's zone, zeros included (a LEFT JOIN
+# from the calendar, counting call ids, never rows of the calendar itself).
+DAY_SQL = """
+    WITH days AS (
+        SELECT d::date AS day FROM generate_series(
+            (CAST(:s AS timestamptz) AT TIME ZONE :tz)::date,
+            ((CAST(:e AS timestamptz) - interval '1 microsecond') AT TIME ZONE :tz)::date,
+            interval '1 day') AS d)
+    SELECT to_char(days.day, 'YYYY-MM-DD') AS key, count(c.id) AS calls,
+           COALESCE(sum(c.input_tokens), 0) AS input_tokens,
+           COALESCE(sum(c.output_tokens), 0) AS output_tokens,
+           COALESCE(sum(c.cache_read_tokens), 0) AS cache_read_tokens,
+           COALESCE(sum(c.cache_write_tokens), 0) AS cache_write_tokens,
+           COALESCE(sum(c.cost_usd), 0) AS cost_usd, COALESCE(sum(c.equiv_cost_usd), 0) AS equiv_cost_usd
+    FROM days LEFT JOIN llm.calls c
+      ON (c.started_at AT TIME ZONE :tz)::date = days.day
+     AND c.started_at >= :s AND c.started_at < :e
+     AND (CAST(:co AS uuid) IS NULL OR c.company_id = :co)
+    GROUP BY days.day ORDER BY days.day"""
+
+
 @router.get("/treasury/breakdown", response_model=list[BreakdownRow], responses=E)
 async def treasury_breakdown(
     by: Literal[
-        "company", "department", "actor", "model", "connection", "task_class", "priority"
+        "company", "department", "actor", "model", "connection", "task_class", "priority", "day"
     ] = "company",
-    from_: datetime | None = Query(default=None, alias="from"),
-    to: datetime | None = None,
+    from_: str | None = Query(default=None, alias="from", max_length=40, description=WINDOW_DOC),
+    to: str | None = Query(default=None, max_length=40, description=WINDOW_DOC),
     company: str | None = Query(default=None, pattern=r"^[A-Z][A-Z0-9]{1,9}$"),
     ctx: Ctx = Depends(owner_ctx),
 ) -> list[BreakdownRow]:
-    """Grouped totals; the default window is the current month."""
-    start = from_ or period_start("month")
-    end = to or datetime.now(UTC) + timedelta(seconds=1)
+    """Grouped totals; the default window is the current month. ⟨1.3⟩ `by=day`:
+    one row per calendar day in the owner's time zone (key = ISO date),
+    ascending, days without calls included with zeros, inside [from, to]."""
+    start, end, tz = await window(ctx, from_, to)
     co = await ctx.hub.companies.by_code(company) if company else None
+    if by == "day":
+        if end - start > timedelta(days=MAX_DAYS):
+            raise ApiError(422, "validation_failed", fields={"from": f"at most {MAX_DAYS} days"})
+        async with ctx.tx() as tx:
+            rows = await tx.all(DAY_SQL, s=start, e=end, tz=tz, co=co.id if co else None)
+        return [BreakdownRow(**r) for r in rows]
     key = BREAKDOWN_KEYS[by]
     async with ctx.tx() as tx:
         rows = await tx.all(
@@ -400,15 +479,14 @@ async def treasury_calls(
 @router.get("/treasury/what-if", response_model=WhatIf, responses=E)
 async def treasury_what_if(
     model: str = Query(min_length=3, max_length=100),
-    from_: datetime | None = Query(default=None, alias="from"),
-    to: datetime | None = None,
+    from_: str | None = Query(default=None, alias="from", max_length=40, description=WINDOW_DOC),
+    to: str | None = Query(default=None, max_length=40, description=WINDOW_DOC),
     company: str | None = Query(default=None, pattern=r"^[A-Z][A-Z0-9]{1,9}$"),
     ctx: Ctx = Depends(owner_ctx),
 ) -> WhatIf:
     """ "What would these calls have cost on model X", from our price table
     (the first connection that prices X), token counts unchanged."""
-    start = from_ or period_start("month")
-    end = to or datetime.now(UTC) + timedelta(seconds=1)
+    start, end, _tz = await window(ctx, from_, to)
     co = await ctx.hub.companies.by_code(company) if company else None
     async with ctx.tx() as tx:
         price_row = await tx.first(

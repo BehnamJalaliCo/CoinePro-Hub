@@ -56,17 +56,27 @@ def read_key(request: Request, *, required: bool) -> UUID | None:
         ) from exc
 
 
-async def claim(tx: Tx, request: Request, who: Principal, *, required: bool = False) -> Idem | None:
+async def claim(
+    tx: Tx,
+    request: Request,
+    who: Principal,
+    *,
+    required: bool = False,
+    body_sha256: str | None = None,
+) -> Idem | None:
+    """`body_sha256` for a body already streamed elsewhere (an upload): the
+    request body is then never read again."""
     key = read_key(request, required=required)
     if key is None:
         return None
-    body = await request.body()
+    if body_sha256 is None:
+        body_sha256 = hashlib.sha256(await request.body()).hexdigest()
     idem = Idem(
         principal=f"{who.kind}:{who.code}",
         key=key,
         method=request.method,
         path=request.url.path,
-        body_sha256=hashlib.sha256(body).hexdigest(),
+        body_sha256=body_sha256,
     )
     inserted = await tx.first(
         """INSERT INTO core.idempotency_keys (principal, key, method, path, body_sha256)
