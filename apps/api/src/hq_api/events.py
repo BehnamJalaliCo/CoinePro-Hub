@@ -60,6 +60,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # academy.eval (and academy.teaching)
     "skills": ("skill.",),
     "academy": ("academy.",),
+    # ⟨1.4⟩ the Chief Overseer: oversight.finding, oversight.hold, oversight.watch
+    "oversight": ("oversight.",),
 }
 
 

@@ -34,7 +34,29 @@ ops := {
 	"star.rubric", "star.give", "star.audit", "lesson.write", "story.post", "hire.decide",
 	# prompt 08 §6-§7: a skill's or a teaching's review, the academy's eval runs and drafts
 	"skill.review", "academy.eval", "academy.teach",
+	# prompt 08 §2: the Chief Overseer's powers (contract §18.1)
+	"oversight.finding_raise", "oversight.finding_update", "oversight.protocol_result",
+	"oversight.challenge_issue", "oversight.challenge_submit", "oversight.challenge_score",
+	"oversight.hold",
 }
+
+# The oversight roles of the holding: the overseer, QC (the inspector) and
+# the specialists of the oversight department (fact-checker, AI safety,
+# security analyst).
+oversight_role if {
+	agent
+	holding_reader
+	p.role in {"overseer", "inspector"}
+}
+
+oversight_role if {
+	agent
+	holding_reader
+	p.department == "OVS"
+}
+
+# What the answerable of a finding may set; verified and closed are the overseer's.
+answerer_statuses := {"acknowledged", "fixing", "fixed", "disputed"}
 
 # Reads of the gateway's tools: an agent reads its own company; a holding-scope
 # role (charter scope "holding": oversight, AI operations, the advisor) may
@@ -67,6 +89,9 @@ propose_kinds := {
 	# ⟨1.4⟩ prompt 08 §1; their own kinds (protocol, errand_action, ...) come with §2 and §5
 	"overseer": {"proposal"},
 	"assistant": {"proposal", "errand_action"},
+	# ⟨1.4⟩ prompt 08 §1-§2: a new or changed protocol is the owner's seal
+	"overseer": {"proposal", "protocol"},
+	"assistant": {"proposal"},
 }
 
 # Data, not code (data.json). Without it nothing that depends on it is allowed.
@@ -187,6 +212,61 @@ grant if {
 	own_switch
 	tv("state") == "released"
 	engaged_by_own_agent
+}
+
+# The overseer engages any company's switch (contract §18.1); never releases.
+grant if {
+	op == "kill_switch.set"
+	agent
+	p.role == "overseer"
+	tv("state") == "engaged"
+	startswith(tv("scope"), "company:")
+}
+
+# The overseer freezes any company's deploys; lifting stays with the owner.
+grant if {
+	op == "deploy_freeze.set"
+	not lifting
+	agent
+	p.role == "overseer"
+}
+
+# ------------------------------------------------- oversight (prompt 08) --
+grant if {
+	op in {"oversight.finding_raise", "oversight.hold"}
+	oversight_role
+}
+
+grant if {
+	op == "oversight.finding_update"
+	agent
+	p.role == "overseer"
+}
+
+grant if {
+	op == "oversight.finding_update"
+	agent
+	same_company(tv("company"))
+	tv("status") in answerer_statuses
+}
+
+grant if {
+	op in {"oversight.protocol_result", "oversight.challenge_score"}
+	agent
+	p.role in {"overseer", "inspector"}
+}
+
+grant if {
+	op == "oversight.challenge_issue"
+	agent
+	p.role == "overseer"
+}
+
+grant if {
+	op == "oversight.challenge_submit"
+	agent
+	p.role == "ceo"
+	same_company(tv("company"))
 }
 
 # Releasing a switch that is already released changes nothing (idempotent).

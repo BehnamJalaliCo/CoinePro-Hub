@@ -89,6 +89,12 @@ CODES: dict[str, tuple[int, str, str]] = {
         "Runtime not configured",
         "کارگاه کد هنوز روشن نیست: محل اجرای سشن‌ها را مدیر کل باید انتخاب کند.",
     ),
+    # prompt 08 §2: an action the Chief Overseer (or watch mode) held for the owner
+    "held": (
+        423,
+        "Held",
+        "این کار را ناظر کل تا تصمیم مدیر کل نگه داشته است؛ فقط مدیر کل آزادش میکند.",
+    ),
     # prompt 07 §2: the agents' internet (egress)
     "needs_owner": (
         403,

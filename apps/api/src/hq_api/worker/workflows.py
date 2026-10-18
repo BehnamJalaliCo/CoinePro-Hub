@@ -128,6 +128,7 @@ class Maintenance:
             "purge",
             "backups_ingest",
             "inquiries_late",
+            "oversight_tick",
         ):
             try:
                 out[name] = await _act(name, limit=LONG, retry=RetryPolicy(maximum_attempts=3))
@@ -255,6 +256,29 @@ class SiteChecks:
         return out
 
 
+@workflow.defn(name="ProtocolRun")
+class ProtocolRun:
+    """One scheduled run of an oversight protocol (prompt 08 §2): code checks
+    it, or it becomes the overseer's work."""
+
+    @workflow.run
+    async def run(self, ref: str) -> dict[str, Any]:
+        result: dict[str, Any] = await _act(
+            "protocol_run", ref, limit=LONG, retry=RetryPolicy(maximum_attempts=2)
+        )
+        return result
+
+
+@workflow.defn(name="OversightWeekly")
+class OversightWeekly:
+    """Saturday: the week's challenges for every company without one."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("oversight_weekly", limit=LONG)
+        return result
+
+
 @workflow.defn(name="CeoDaily")
 class CeoDaily:
     """The CEOs' daily report runs (prompt 05 §6): built, switched off by default."""
@@ -344,6 +368,8 @@ class OrderRouting:
 
 WORKFLOWS = [
     EvalRun,
+    ProtocolRun,
+    OversightWeekly,
     FileProcess,
     Transcribe,
     AgentRun,

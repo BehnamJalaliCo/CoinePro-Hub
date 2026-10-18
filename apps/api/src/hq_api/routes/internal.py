@@ -237,6 +237,14 @@ OP_CLASS: dict[str, str] = {
     "lesson.write": "A1",
     "story.post": "A1",
     "hire.decide": "A2",
+    # prompt 08 §2: the Chief Overseer (agents/tools.md classes)
+    "oversight.finding_raise": "A1",
+    "oversight.finding_update": "A2",
+    "oversight.protocol_result": "A2",
+    "oversight.challenge_issue": "A2",
+    "oversight.challenge_submit": "A1",
+    "oversight.challenge_score": "A2",
+    "oversight.hold": "A2",
 }
 
 

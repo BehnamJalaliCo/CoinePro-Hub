@@ -120,6 +120,8 @@ class OwnerSettings(BaseModel):
     ceo_daily_attention: int
     learning_daily_cap: int
     calendars: list[Literal["jalali", "gregorian"]]
+    # ⟨1.4⟩ hours without the owner before the Chief Overseer keeps watch (§18.1)
+    watch_after_hours: int = 6
     version: int
 
 
@@ -134,6 +136,7 @@ class OwnerSettingsIn(BaseModel):
     calendars: list[Literal["jalali", "gregorian"]] | None = Field(
         default=None, min_length=1, max_length=2
     )
+    watch_after_hours: int | None = Field(default=None, ge=1, le=72)
 
     @field_validator("timezone")
     @classmethod
@@ -272,13 +275,14 @@ def _settings_out(row: dict[str, Any]) -> OwnerSettings:
         ceo_daily_attention=row["ceo_daily_attention"],
         learning_daily_cap=row["learning_daily_cap"],
         calendars=row["calendars"],
+        watch_after_hours=row["watch_after_hours"],
         version=row["version"],
     )
 
 
 SETTINGS_COLS = (
     "timezone, morning_report_at, digest_minutes, ceo_daily_attention, learning_daily_cap, "
-    "calendars, version"
+    "calendars, watch_after_hours, version"
 )
 
 
@@ -309,7 +313,8 @@ async def put_owner_settings(
                    digest_minutes = COALESCE(:dm, digest_minutes),
                    ceo_daily_attention = COALESCE(:cda, ceo_daily_attention),
                    learning_daily_cap = COALESCE(:ldc, learning_daily_cap),
-                   calendars = COALESCE(CAST(:cal AS text[]), calendars)
+                   calendars = COALESCE(CAST(:cal AS text[]), calendars),
+                   watch_after_hours = COALESCE(:wah, watch_after_hours)
                WHERE id = 1 AND version = :v RETURNING {SETTINGS_COLS}""",  # noqa: S608 - constant column list, values are bound
             tz=body.timezone,
             mra=time.fromisoformat(body.morning_report_at) if body.morning_report_at else None,
@@ -317,6 +322,7 @@ async def put_owner_settings(
             cda=body.ceo_daily_attention,
             ldc=body.learning_daily_cap,
             cal=list(dict.fromkeys(body.calendars)) if body.calendars else None,
+            wah=body.watch_after_hours,
             v=version,
         )
         if row is None:

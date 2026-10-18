@@ -22,7 +22,7 @@ from hq_api.agents import checks
 from hq_api.agents.clients import Gateway, LivePush, Router
 from hq_api.agents.runner import Runner
 from hq_api.db import Tx
-from hq_api.domain import backups, inquiries, notify, recurrence, recurring, scoring
+from hq_api.domain import backups, inquiries, notify, oversight, recurrence, recurring, scoring
 from hq_api.domain import decisions as D
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
@@ -31,6 +31,7 @@ from hq_api.worker import report, schedules
 from hq_api.worker.academy_activities import AcademyActivities
 from hq_api.worker.media_activities import MediaActivities
 from hq_api.worker.people_activities import PeopleActivities
+from hq_api.worker.oversight_activities import OversightActivities
 
 log = logging.getLogger("hq_api.worker")
 SYSTEM = audit.SYSTEM
@@ -67,12 +68,14 @@ class Activities:
         self.media = MediaActivities(hub, self.router, self._tx)
         self.people = PeopleActivities(hub, self._tx)
         self.academy = AcademyActivities(hub, self.router, self._tx)
+        self.oversight = OversightActivities(hub, self._tx)
 
     def all(self) -> list[Any]:
         return [
             *self.media.all(),
             *self.people.all(),
             *self.academy.all(),
+            *self.oversight.all(),
             self.decision_state,
             self.decision_expire,
             self.holding_locked,
@@ -167,6 +170,8 @@ class Activities:
             )
             if company_lock == "company":  # the company's own switch holds its effects too
                 raise ApplicationError("the company kill switch is engaged", type=HOLDING_LOCKED)
+            if await oversight.held(tx, "decision", ref):  # held for the owner: waits the same way
+                raise ApplicationError("the decision is held by the overseer", type=HOLDING_LOCKED)
             try:
                 result = await D.apply_effect(tx, ref, SYSTEM)
             except ApiError as exc:
@@ -409,6 +414,9 @@ class Activities:
         for orphan in await schedules.existing_recurring(client) - wanted:
             if await schedules.delete(client, orphan):
                 out["deleted"].append(orphan)
+        # The overseer's protocols (prompt 08 §2): seeded from agents/, one
+        # schedule each, and the weekly challenges.
+        out["oversight"] = await self.oversight.reconcile(client, tq, owner["timezone"])
         return out
 
     @activity.defn(name="reconcile_decisions")

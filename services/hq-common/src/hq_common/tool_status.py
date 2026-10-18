@@ -57,6 +57,16 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "skill.review",
         "eval.run",
         "teach.draft",
+        # the Chief Overseer (prompt 08 §2)
+        "finding.raise",
+        "finding.update",
+        "protocol.result",
+        "challenge.issue",
+        "challenge.submit",
+        "challenge.score",
+        "hold",
+        "kill_switch.engage",
+        "deploy.freeze",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

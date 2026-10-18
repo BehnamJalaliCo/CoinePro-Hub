@@ -15,6 +15,7 @@ import logging
 from typing import Any
 from uuid import UUID
 
+from hq_api.domain import oversight
 from hq_api.errors import ApiError
 from hq_api.workshop import domain as D
 from hq_api.workshop.runtime import FakeRuntime, ManagedRuntime, Runtime, configured
@@ -100,7 +101,9 @@ async def start(hub: Any, session_id: UUID) -> dict[str, Any]:
     rt = runtime(hub)
     async with await _tx(hub) as tx:
         s = await D.load(tx, session_id)
-    if s["state"] != "starting" or s["held"] or s["runtime"] != rt.name:
+        # The overseer's hold (prompt 08 §2): it does not start until the owner decides.
+        overseer_hold = await oversight.held(tx, "session", s["ref"])
+    if s["state"] != "starting" or s["held"] or s["runtime"] != rt.name or overseer_hold:
         return s
     try:
         external_id, items = await rt.start(D.spec(s))
@@ -123,6 +126,7 @@ async def steer(hub: Any, session_id: UUID, text: str) -> dict[str, Any]:
     rt = runtime(hub)
     async with await _tx(hub) as tx:
         s = await D.load(tx, session_id)
+        await oversight.require_not_held(tx, "session", s["ref"])
     if s["runtime"] != rt.name:
         return s
     try:

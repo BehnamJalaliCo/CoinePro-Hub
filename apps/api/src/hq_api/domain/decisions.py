@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import errands, hiring, notify, org, recurring, stars
+from hq_api.domain import errands, hiring, notify, org, oversight, recurring, stars
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -37,6 +37,7 @@ KINDS = (
     "code_session",
     "errand_action",
     "lesson_adoption",
+    "protocol",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -51,10 +52,12 @@ ACTION_CLASS = {
     # ⟨1.4⟩ an errand's external commitment (contract §18.3): the owner's seal
     "errand_action": "A3",
     "lesson_adoption": "A1",
+    "protocol": "A1",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
-STEP_UP_KINDS = ("hire", "dismissal", "budget_change", "code_session")
+# protocol (prompt 08 §2): a new or changed oversight protocol is the owner's seal.
+STEP_UP_KINDS = ("hire", "dismissal", "budget_change", "code_session", "protocol")
 EFFECT_KINDS = (
     "hire",
     "dismissal",
@@ -62,6 +65,7 @@ EFFECT_KINDS = (
     "budget_change",
     "code_session",
     "lesson_adoption",
+    "protocol",
 )
 FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
@@ -195,6 +199,26 @@ class LessonAdoptionPayload(Model):
     plan_md: str = Field(default="", max_length=10000)
 
 
+class ProtocolPayload(Model):
+    """An oversight protocol (contract §18.1) the overseer proposes: a new one
+    (ref empty) or a new version of one (an edit, a pause, a resume)."""
+
+    ref: str | None = Field(default=None, pattern=r"^PR-[0-9]{3,}$")
+    title_fa: str = Field(min_length=1, max_length=300)
+    area: Literal[
+        "truth", "authority", "money", "safety", "quality", "delivery", "security", "data",
+        "people", "product", "owner",
+    ]  # fmt: skip
+    check_md: str = Field(min_length=1, max_length=20000)
+    method: Literal["rule", "sample", "llm", "reconcile", "blind_test", "mystery", "drill"]
+    schedule: str = Field(min_length=6, max_length=200)
+    scope: Literal["holding", "company", "department"]
+    evidence_md: str = Field(default="", max_length=5000)
+    severity: Literal["info", "low", "medium", "high", "critical"]
+    answerable: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    status: Literal["active", "paused", "draft"] = "active"
+
+
 PAYLOADS: dict[str, type[Model]] = {
     "hire": HirePayload,
     "dismissal": DismissalPayload,
@@ -207,6 +231,7 @@ PAYLOADS: dict[str, type[Model]] = {
     "code_session": CodeSessionPayload,
     "errand_action": ErrandActionPayload,
     "lesson_adoption": LessonAdoptionPayload,
+    "protocol": ProtocolPayload,
 }
 
 
@@ -223,6 +248,7 @@ class DecisionIn(Model):
         "code_session",
         "errand_action",
         "lesson_adoption",
+        "protocol",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -584,6 +610,7 @@ async def propose(
         return d
     if not notify_owner:  # the owner wrote it (a direct hire): nothing to tell them
         return d
+    await oversight.hold_if_watching(tx, d)
     await notify.raise_notification(
         tx,
         company_id=company_id,
@@ -681,6 +708,10 @@ async def decide(
 ) -> dict[str, Any]:
     if d["status"] != "pending":
         raise ApiError(409, "decision_not_pending", f"{d['ref']} is {d['status']}")
+    if verdict == "approved":
+        # A hold (the overseer's, or watch mode's) stops the approval until the
+        # owner releases it; rejecting or returning stays possible.
+        await oversight.require_not_held(tx, "decision", d["ref"])
     if verdict == "approved" and d["kind"] == "hire":
         # Every approval, whoever approves (contract §18.11): refused with a
         # stable code before anything changes, so no employee is made.
@@ -896,6 +927,27 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
         result = {
             "budget": f"{scope.get('scope_type', 'company')}:{scope.get('scope_ref', d['company'])}"
         }
+    elif d["kind"] == "protocol":
+        # The seal is the new version; the decision id is on it, so a retried
+        # effect never adds a second one.
+        done = await tx.first(
+            "SELECT ref, version FROM oversight.protocols WHERE decision_id = :d", d=d["id"]
+        )
+        if done is None:
+            fields = {k: v for k, v in p.items() if k != "ref"}
+            holding_id = await tx.scalar("SELECT id FROM core.companies WHERE kind = 'holding'")
+            proto = await oversight.new_version(
+                tx,
+                actor_principal(d),
+                holding_id,
+                fields,
+                ref=p.get("ref"),
+                source="decision",
+                step_up_id=d["seal_step_up_id"],
+                decision_id=d["id"],
+            )
+            done = {"ref": proto["ref"], "version": proto["version"]}
+        result = {"protocol": f"{done['ref']}@{done['version']}"}
     elif d["kind"] == "code_session":
         # The seal is the grant; the decision's id is unique on the grant, so a
         # retried effect never makes a second one.

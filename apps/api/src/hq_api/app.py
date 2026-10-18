@@ -40,6 +40,7 @@ from hq_api.routes import (
     notifications,
     orders,
     org,
+    oversight,
     owner,
     people,
     runs,
@@ -145,6 +146,7 @@ def create_app(
         runs,
         workshop,
         orders,
+        oversight,
         backups,
         tools,
         egress,
@@ -158,6 +160,7 @@ def create_app(
     app.include_router(internal.router, prefix="/internal/v1")
     app.include_router(agent_tools.router, prefix="/internal/v1")
     app.include_router(workshop.internal_router, prefix="/internal/v1")
+    app.include_router(oversight.internal_router, prefix="/internal/v1")
     app.include_router(tools.internal_router, prefix="/internal/v1")
     app.include_router(egress.internal_router, prefix="/internal/v1")
     app.include_router(inquiries.internal_router, prefix="/internal/v1")

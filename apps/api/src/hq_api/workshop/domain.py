@@ -34,6 +34,7 @@ from pydantic import BaseModel
 
 from hq_api import audit, events
 from hq_api.db import Tx
+from hq_api.domain import oversight
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, actor
@@ -537,6 +538,8 @@ async def open_session(
     if who.is_agent:
         if g["driver_kind"] != "agent" or g["driver_code"] != who.code:
             raise ApiError(403, "policy_denied", "only the grant's driver opens a session under it")
+        # A driver the overseer held opens nothing until the owner decides.
+        await oversight.require_not_held(tx, "employee", who.code)
     elif not who.is_owner:
         raise ApiError(403, "forbidden")
     ws = await tx.one(WORKSPACE_SQL + " WHERE w.id = :id", id=g["workspace_id"])

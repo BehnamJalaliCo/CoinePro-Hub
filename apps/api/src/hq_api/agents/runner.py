@@ -48,6 +48,7 @@ from hq_api.domain import academy as AC
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
 from hq_api.domain import skills as SK
+from hq_api.domain import oversight as O
 from hq_api.errors import sqlstate_of
 from hq_api.hub import Hub
 from hq_api.routes.messages import LINK_TABLES
@@ -388,6 +389,12 @@ class Runner:
             payloads=D.PAYLOADS,
             after_charter=await self._skills(rc),
         )
+        # The owner's sealed standing orders (prompt 08 §2.7): the overseer's own
+        # and those for every role, after the charter; a proposed one never.
+        async with await self._tx() as tx:
+            orders = O.orders_section(await O.sealed_orders(tx, charter.kind))
+        if orders:
+            system += "\n\n" + orders
         text, image_ids = await self._context(rc)
         rc.messages = [{"role": "user", "content": await self._with_images(rc, text, image_ids)}]
         live_thread = await self._reply_thread(rc)

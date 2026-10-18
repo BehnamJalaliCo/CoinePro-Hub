@@ -31,7 +31,10 @@
           "http.request",
           "star.rubric",
           "star.give",
-          "hire.decide"
+          "hire.decide",
+          "finding.update",
+          "oversight.finding_update",
+          "kill_switch.engage"
         ],
         "manager": [
           "work.delegate",
@@ -46,7 +49,9 @@
           "web.browse",
           "http.request",
           "eval.run",
-          "academy.eval"
+          "academy.eval",
+          "finding.update",
+          "oversight.finding_update"
         ],
         "inspector": [
           "work.delegate",
@@ -56,7 +61,15 @@
           "activity.set",
           "notify",
           "web.browse",
-          "http.request"
+          "http.request",
+          "finding.update",
+          "oversight.finding_update",
+          "hold",
+          "oversight.hold",
+          "challenge.score",
+          "oversight.challenge_score",
+          "protocol.result",
+          "oversight.protocol_result"
         ],
         "employee": [
           "work.accept",
@@ -66,7 +79,11 @@
           "notify",
           "web.browse",
           "http.request",
-          "skill.review"
+          "skill.review",
+          "finding.update",
+          "oversight.finding_update",
+          "hold",
+          "oversight.hold"
         ],
         "assistant": [
           "errand.step",
@@ -79,7 +96,29 @@
         ],
         "overseer": [
           "star.audit",
-          "skill.review"
+          "skill.review",
+          "work.delegate",
+          "work.accept",
+          "work.progress",
+          "work.fail",
+          "activity.set",
+          "notify",
+          "web.browse",
+          "http.request",
+          "finding.update",
+          "oversight.finding_update",
+          "protocol.result",
+          "oversight.protocol_result",
+          "challenge.issue",
+          "oversight.challenge_issue",
+          "challenge.score",
+          "oversight.challenge_score",
+          "hold",
+          "oversight.hold",
+          "kill_switch.engage",
+          "kill_switch.set",
+          "deploy.freeze",
+          "deploy_freeze.set"
         ]
       }
     }
