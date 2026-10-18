@@ -15,7 +15,7 @@ delegated hiring and stories.
   becomes writable (a delegated hire's 7 days).
 
 Revision ID: 0021
-Revises: 0018 (re-chained at merge)
+Revises: 0020
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from __future__ import annotations
 from hq_api.migration_sql import execute_script
 
 revision = "0021"
-down_revision = "0018"
+down_revision = "0020"
 branch_labels = None
 depends_on = None
 

@@ -194,7 +194,15 @@ async def post(
 
 
 async def live(tx: Tx) -> list[dict[str, Any]]:
-    rows = await tx.all(STORY_SQL + " WHERE s.expires_at > now() ORDER BY s.created_at, s.id")
+    # A story the overseer holds (contract §18.1 hold kind `story`) is not shown
+    # until the owner releases it.
+    rows = await tx.all(
+        STORY_SQL  # noqa: S608 - constant clauses, no values
+        + """ WHERE s.expires_at > now()
+                AND NOT EXISTS (SELECT 1 FROM oversight.holds h WHERE h.target_kind = 'story'
+                                AND h.target_ref = s.ref AND h.state = 'held')
+              ORDER BY s.created_at, s.id"""
+    )
     return [dict(r) for r in rows]
 
 

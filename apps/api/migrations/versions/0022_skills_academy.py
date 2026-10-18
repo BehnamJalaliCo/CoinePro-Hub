@@ -12,7 +12,7 @@
 Everything is the holding's (company_id = the holding), with RLS like the rest.
 
 Revision ID: 0022
-Revises: 0018
+Revises: 0021
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from __future__ import annotations
 from hq_api.migration_sql import execute_script
 
 revision = "0022"
-down_revision = "0018"
+down_revision = "0021"
 branch_labels = None
 depends_on = None
 

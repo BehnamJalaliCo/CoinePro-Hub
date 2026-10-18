@@ -38,7 +38,7 @@ from zoneinfo import ZoneInfo
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import hiring, notify
+from hq_api.domain import hiring
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -604,21 +604,28 @@ async def rollup(tx: Tx, period: str, key: str, start_day: date, end_day: date) 
 
 
 async def star_inflation(tx: Tx, company_code: str, period: str, key: str) -> None:
-    """More than 70% fives: the overseer's finding (prompt 08 §2, fork P8a)
-    when its table exists; until it is wired, the owner's report line.
-    HOOK(oversight): the merge replaces the notification with finding.raise."""
+    """More than 70% fives: the overseer's finding of PR-080 (the stars
+    protocol, prompt 08 §2). The same key as PR-080's own weekly code check,
+    so the roll-up and the protocol open one finding, not two."""
+    from hq_api.domain import oversight
+
     co = await tx.one("SELECT id FROM core.companies WHERE code = :c", c=company_code)
-    await notify.raise_notification(
+    protocol = await tx.first(oversight.PROTOCOL_SQL + " WHERE p.ref = 'PR-080'")
+    await oversight.raise_finding(
         tx,
         company_id=co["id"],
         company_code=company_code,
-        level="report",
+        severity="medium",
         title_fa=f"تورم ستاره در {company_code}: بیش از ۷۰٪ پنج ستاره ({period} {key})",
-        body_fa="ناظر کل باید ستاره‌های این دوره را بازبینی کند (star.audit).",
-        link_kind="stars",
-        link_ref=f"{period}:{key}"[:100],
-        source_kind="service",
-        source_code="stars",
+        body_md="More than 70% of the period's counted stars are fives: the overseer reviews them (star.audit).",
+        evidence=[
+            {"kind": "metric", "ref": f"stars:{period}:{key}", "note": "share of fives > 70%"}
+        ],
+        protocol=protocol,
+        answerable=f"{company_code}-CEO",
+        by_kind="system",
+        by_code="stars",
+        dedupe_key="PR-080:stars-inflation",
     )
 
 

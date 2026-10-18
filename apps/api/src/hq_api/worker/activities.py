@@ -30,8 +30,8 @@ from hq_api.hub import Hub
 from hq_api.worker import report, schedules
 from hq_api.worker.academy_activities import AcademyActivities
 from hq_api.worker.media_activities import MediaActivities
-from hq_api.worker.people_activities import PeopleActivities
 from hq_api.worker.oversight_activities import OversightActivities
+from hq_api.worker.people_activities import PeopleActivities
 
 log = logging.getLogger("hq_api.worker")
 SYSTEM = audit.SYSTEM

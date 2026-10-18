@@ -586,3 +586,37 @@ async def test_a_hire_story_is_welcomed(
     )
     assert told == 1
     assert stories.short(1_600_000) == "1.6M" and stories.short(820_000) == "820K"
+
+
+async def test_a_held_story_waits_for_the_owner(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """A story the overseer holds (hold kind `story`) leaves the rings until the
+    owner releases it (prompt 08 merge: oversight x stories)."""
+    co = (await new_company())["code"]
+    ceo = await agent_headers(f"{co}-CEO")
+    r = await client.post(
+        "/internal/v1/stories",
+        headers={**ceo, **idem()},
+        json={"kind": "post", "title_fa": "خبر", "body_fa": "متن"},
+    )
+    ref = r.json()["ref"]
+
+    async def shown() -> bool:
+        rings = (await client.get("/api/v1/stories", headers=owner)).json()
+        return any(i["ref"] == ref for ring in rings for i in ring["items"])
+
+    assert await shown()
+    await su.execute(
+        """INSERT INTO oversight.holds (company_id, target_kind, target_ref, reason_md, held_by_kind,
+               held_by_code)
+           SELECT id, 'story', $2, 'r', 'agent', 'HQ-OVR' FROM core.companies WHERE code = $1""",
+        co,
+        ref,
+    )
+    assert not await shown()
+    await su.execute("UPDATE oversight.holds SET state = 'released' WHERE target_ref = $1", ref)
+    assert await shown()

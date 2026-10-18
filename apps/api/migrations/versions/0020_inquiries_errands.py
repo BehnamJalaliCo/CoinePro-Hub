@@ -11,7 +11,7 @@ the personal assistant's errands.
   errand (pay, buy, book, sign up, send, a security change).
 
 Revision ID: 0020
-Revises: 0018
+Revises: 0019
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from __future__ import annotations
 from hq_api.migration_sql import execute_script
 
 revision = "0020"
-down_revision = "0018"
+down_revision = "0019"
 branch_labels = None
 depends_on = None
 

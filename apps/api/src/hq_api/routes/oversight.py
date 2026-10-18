@@ -407,7 +407,9 @@ async def _order_state(
 
 
 @router.post("/oversight/orders/{ref}/seal", response_model=O.StandingOrder, responses=E)
-async def seal_standing_order(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> O.StandingOrder:
+async def seal_standing_order(
+    ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> O.StandingOrder:
     """🔏 (`oversight.order`, target = ref): from now in the overseer's system
     prompt (applies_to overseer) or every role's (all)."""
     return await _order_state(ctx, request, ref, "sealed")
