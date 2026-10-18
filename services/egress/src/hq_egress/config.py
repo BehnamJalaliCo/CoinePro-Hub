@@ -35,6 +35,17 @@ class Settings:
     gateway_proxy_clients: tuple[Net, ...] = field(
         default_factory=lambda: _nets("EGRESS_GATEWAY_PROXY_CLIENTS", "172.30.8.0/24")
     )
+    # The provisioner's own listener (prompt 09): hq-prov-out, CONNECT to
+    # these hosts on 443 only.
+    provisioner_proxy_port: int = field(
+        default_factory=lambda: int(os.environ.get("EGRESS_PROVISIONER_PROXY_PORT", "3130"))
+    )
+    provisioner_proxy_clients: tuple[Net, ...] = field(
+        default_factory=lambda: _nets("EGRESS_PROVISIONER_PROXY_CLIENTS", "172.30.11.0/24")
+    )
+    provisioner_hosts: frozenset[str] = field(
+        default_factory=lambda: _hosts("EGRESS_PROVISIONER_HOSTS", "api.hetzner.cloud")
+    )
     browser_proxy_clients: tuple[Net, ...] = field(
         default_factory=lambda: _nets("EGRESS_BROWSER_PROXY_CLIENTS", "172.30.9.0/24")
     )

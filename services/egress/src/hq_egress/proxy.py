@@ -2,13 +2,16 @@
 guard as every other request: the browser's only way out, and the gateway's
 for MCP servers over HTTP.
 
-Two listeners, each accepting only its own network's clients:
+Three listeners, each accepting only its own network's clients:
 - browser (port 3128): every connection carries the Basic credential of one
   browse session (created per web.browse call, in memory, never logged);
   its entries go back with that call's result.
 - gateway (port 3129): every connection names its tool call in headers
   (`X-HQ-Call`, `X-HQ-Tool`, `X-HQ-Class`); its entries are collected by
   `POST /v1/proxy/drain {call_id}` after the call.
+- provisioner (port 3130, prompt 09): the provisioner's only way out, CONNECT
+  to an allow-list of hosts and port 443 only (api.hetzner.cloud); not an
+  agent's tool call, so its entries go to egress's own log.
 A tunnel's TLS is not opened: its host, port, size and time are logged. The
 hub's own names are refused for tunnels altogether (their paths cannot be
 seen inside TLS, and /internal must stay unreachable).
@@ -21,6 +24,7 @@ import base64
 import contextlib
 import hmac
 import ipaddress
+import logging
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -29,6 +33,7 @@ from typing import Any
 from hq_egress.guard import Blocked, Guard
 from hq_egress.net import Entry
 
+log = logging.getLogger("hq_egress.proxy")
 HEAD_MAX = 16 * 1024
 IDLE_S = 60.0
 LIFETIME_S = 180.0
@@ -97,8 +102,12 @@ class Proxy:
         mode: str,
         clients: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
         gateway_bytes: int = 32 * 1024 * 1024,
+        allowed_hosts: frozenset[str] = frozenset(),
+        allowed_ports: tuple[int, ...] = (443,),
     ) -> None:
-        assert mode in ("browser", "gateway")
+        assert mode in ("browser", "gateway", "provisioner")
+        self.allowed_hosts = allowed_hosts
+        self.allowed_ports = allowed_ports
         self.guard = guard
         self.buckets = buckets
         self.mode = mode
@@ -147,6 +156,9 @@ class Proxy:
             await _answer(writer, 407, "Proxy Authentication Required", extra)
             return
         method = method.upper()
+        if self.mode == "provisioner" and method != "CONNECT":
+            await _answer(writer, 403, "Forbidden", {"X-Egress-Blocked": "connect_only"})
+            return
         if method == "CONNECT":
             await self._tunnel(target, bucket, reader, writer)
         elif target.lower().startswith("http://"):
@@ -155,6 +167,9 @@ class Proxy:
             await _answer(writer, 400, "Bad Request")
 
     def _bucket(self, low: dict[str, str]) -> Bucket | None:
+        if self.mode == "provisioner":
+            # One connection's own bucket (its cap and its log line).
+            return Bucket("provision", "A2", self.gateway_bytes, time.monotonic() + LIFETIME_S)
         if self.mode == "browser":
             auth = low.get("proxy-authorization", "")
             if not auth.lower().startswith("basic "):
@@ -216,8 +231,19 @@ class Proxy:
             await _answer(writer, 400, "Bad Request")
             return
         start = time.monotonic()
+        if self.mode == "provisioner" and (
+            host not in self.allowed_hosts or int(port_s) not in self.allowed_ports
+        ):
+            entry.blocked_reason = "host_not_allowed"
+            log.warning(
+                "provisioner proxy: refused", extra={"host": host[:100], "port": port_s[:6]}
+            )
+            await _answer(writer, 403, "Forbidden", {"X-Egress-Blocked": "host_not_allowed"})
+            return
         up = await self._connect(host, int(port_s), entry, bucket, writer)
         if up is None:
+            if self.mode == "provisioner":
+                log.warning("provisioner proxy: blocked", extra={"host": host[:100]})
             return
         entry.status = 200
         bucket.entries.append(entry)
@@ -225,6 +251,16 @@ class Proxy:
         await writer.drain()
         await _pipe_both(reader, writer, up, entry, bucket)
         entry.ms = int((time.monotonic() - start) * 1000)
+        if self.mode == "provisioner":
+            log.info(
+                "provisioner proxy",
+                extra={
+                    "host": host,
+                    "bytes_in": entry.bytes_in,
+                    "bytes_out": entry.bytes_out,
+                    "ms": entry.ms,
+                },
+            )
 
     async def _forward(
         self,

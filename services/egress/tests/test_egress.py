@@ -536,3 +536,34 @@ async def test_proxy_forward_refusals_and_the_byte_cap(site: Site) -> None:
     assert any(e.blocked_reason == "egress_limit" for e in entries)
     assert any(e.blocked_reason == "private_address" for e in entries)
     server.close()
+
+
+async def test_the_provisioners_proxy_reaches_its_one_host_by_connect_only(site: Site) -> None:
+    """Prompt 09: the provisioner's listener tunnels to its allow-list (in
+    production api.hetzner.cloud:443) and to nothing else; the guard still
+    applies to the allowed host's addresses."""
+    p = Proxy(
+        guard_for(site),
+        Buckets(),
+        mode="provisioner",
+        clients=(LOCAL,),
+        allowed_hosts=frozenset({"site.test", "evil.test"}),
+        allowed_ports=(site.port, 443),
+    )
+    server = await p.serve("127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    # The allowed host: tunnelled (no header, no credential: the network decides).
+    out = await _raw(port, f"CONNECT site.test:{site.port} HTTP/1.1\r\n\r\n".encode())
+    assert out.startswith(b"HTTP/1.1 200")
+    for target in ("10.10.1.1:443", "api.example.test:443", f"site.test:{site.port + 1}"):
+        out = await _raw(port, f"CONNECT {target} HTTP/1.1\r\n\r\n".encode())
+        assert out.startswith(b"HTTP/1.1 403") and b"host_not_allowed" in out, target
+    # Allowed by name, but its address is private: the guard refuses it.
+    out = await _raw(port, b"CONNECT evil.test:443 HTTP/1.1\r\n\r\n")
+    assert out.startswith(b"HTTP/1.1 403") and b"private_address" in out
+    # Plain HTTP through it: never.
+    out = await _raw(
+        port, f"GET http://site.test:{site.port}/ HTTP/1.1\r\nHost: site.test\r\n\r\n".encode()
+    )
+    assert out.startswith(b"HTTP/1.1 403") and b"connect_only" in out
+    server.close()
