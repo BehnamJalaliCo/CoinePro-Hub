@@ -32,6 +32,7 @@ SCHEMAS = (
     "oversight",
     "people",
     "knowledge",
+    "academy",
 )
 
 

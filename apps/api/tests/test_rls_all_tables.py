@@ -37,6 +37,7 @@ SCHEMAS = (
     "oversight",
     "people",
     "knowledge",
+    "academy",
 )
 
 
@@ -305,6 +306,57 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     )
     await su.execute(
         "INSERT INTO owner.orders (company_id, text, source) VALUES ($1, 'o', 'text')", co["id"]
+    )
+    # Prompt 08 §6-§7: the skill library and the academy (the holding's in
+    # production; any company's here, to prove the isolation).
+    n = int(co["code"].encode().hex(), 16) % 900000 + 100000
+    skill = await su.fetchval(
+        """INSERT INTO knowledge.skills (company_id, ref, name_fa, summary_fa, scope, source,
+               created_by_kind, created_by_code)
+           VALUES ($1, $2, 'm', 's', '{}', 'text', 'owner', 'owner') RETURNING id""",
+        co["id"],
+        f"SK-{n}",
+    )
+    sv = await su.fetchval(
+        """INSERT INTO knowledge.skill_versions (skill_id, company_id, version, body_md, source,
+               precheck, created_by_kind, created_by_code)
+           VALUES ($1, $2, 1, 'b', 'text', '{}', 'owner', 'owner') RETURNING id""",
+        skill,
+        co["id"],
+    )
+    role = f"r{n}"
+    await su.execute(
+        "INSERT INTO academy.curricula (company_id, role, version, modules) VALUES ($1, $2, 1, '[]')",
+        co["id"],
+        role,
+    )
+    await su.execute(
+        """INSERT INTO academy.eval_suites (company_id, ref, role, title_fa, cases)
+           VALUES ($1, $2, $3, 't', '[]')""",
+        co["id"],
+        f"EV-{n}",
+        role,
+    )
+    teaching = await su.fetchval(
+        """INSERT INTO academy.teachings (company_id, target, source, text_md, created_by_kind,
+               created_by_code)
+           VALUES ($1, '{}', 'text', 't', 'owner', 'owner') RETURNING id""",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO academy.eval_runs (company_id, suite_ref, subject, purpose, skill_version_id,
+               requested_by_kind, requested_by_code)
+           VALUES ($1, $2, '{}', 'manual', $3, 'owner', 'owner')""",
+        co["id"],
+        f"EV-{n}",
+        sv,
+    )
+    await su.execute(
+        """INSERT INTO academy.addenda (company_id, role, version, text_md, teaching_id)
+           VALUES ($1, $2, 1, 'a', $3)""",
+        co["id"],
+        role,
+        teaching,
     )
 
 

@@ -28,6 +28,7 @@ from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.hub import Hub
 from hq_api.worker import report, schedules
+from hq_api.worker.academy_activities import AcademyActivities
 from hq_api.worker.media_activities import MediaActivities
 from hq_api.worker.people_activities import PeopleActivities
 
@@ -65,11 +66,13 @@ class Activities:
         self.checker = checker or checks.Checker()
         self.media = MediaActivities(hub, self.router, self._tx)
         self.people = PeopleActivities(hub, self._tx)
+        self.academy = AcademyActivities(hub, self.router, self._tx)
 
     def all(self) -> list[Any]:
         return [
             *self.media.all(),
             *self.people.all(),
+            *self.academy.all(),
             self.decision_state,
             self.decision_expire,
             self.holding_locked,

@@ -56,6 +56,10 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # ⟨1.4⟩ prompt 08: stars.rollup (stars), story.created (stories), contract §18.10
     "stars": ("stars.",),
     "stories": ("story.",),
+    # ⟨1.4⟩ the skill library and the academy (contract §18.10): skill.updated;
+    # academy.eval (and academy.teaching)
+    "skills": ("skill.",),
+    "academy": ("academy.",),
 }
 
 

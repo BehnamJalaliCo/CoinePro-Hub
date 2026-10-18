@@ -1,0 +1,445 @@
+"""The holding academy (prompt 08 §7, contract §18.6).
+
+Owner:  GET /academy/curricula · /academy/curricula/{role} · /academy/evals ·
+        /academy/evals/{ref}/runs · /academy/budget · GET·POST /academy/teach ·
+        POST /academy/teach/{ref}/approve 🔏 (`academy.approve`, target ref) ·
+        /reject · GET /academy/records/{employee}
+Agents: POST /internal/v1/academy/evals/run (`eval.run`, the AI Ops head) ·
+        POST /internal/v1/academy/teach/{ref}/draft (`teach.draft`) ·
+        POST /internal/v1/academy/teach/{ref}/review (`skill.review` of a
+        teaching: the overseer; a pass queues its eval)
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+from typing import Any, Literal
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Request
+from pydantic import Field, model_validator
+
+from hq_api import events, workflows_client
+from hq_api.context import Ctx, internal_ctx, owner_ctx
+from hq_api.domain import academy as A
+from hq_api.domain import skills as S
+from hq_api.errors import ApiError, responses
+from hq_api.routes.internal import allow
+from hq_api.schemas import Model
+from hq_api.security import stepup
+
+log = logging.getLogger("hq_api.academy")
+router = APIRouter(tags=["academy"])
+internal_router = APIRouter(tags=["internal"])
+E = responses(401, 403, 404, 409, 422)
+
+
+class Target(Model):
+    kind: Literal["role", "employee"]
+    ref: str = Field(min_length=2, max_length=40)
+
+
+class TeachIn(Model):
+    target: Target
+    text: str | None = Field(default=None, min_length=1, max_length=20000)
+    source: Literal["text", "voice", "lesson"] = "text"
+    file_id: UUID | None = Field(default=None, description="a /transcribe audio (source voice)")
+    lesson_ref: str | None = Field(default=None, max_length=20)
+
+    @model_validator(mode="after")
+    def _text(self) -> TeachIn:
+        if not self.text and not (self.source == "voice" and self.file_id):
+            raise ValueError("text, or a voice file_id with source voice, is required")
+        return self
+
+
+class EvalIn(Model):
+    suite: str = Field(pattern=A.SUITE_REF)
+    subject: A.Subject
+
+
+class Proposal(Model):
+    kind: Literal["charter_rule", "skill", "memory", "playbook"]
+    diff_md: str = Field(min_length=1, max_length=8000)
+
+
+class DraftIn(Model):
+    proposal: Proposal
+
+
+class TeachReviewIn(Model):
+    version: int = Field(default=1, ge=1, le=100)
+    verdict: Literal["pass", "changes", "reject"]
+    checks: dict[str, bool] = Field(default_factory=dict)
+    notes_md: str = Field(min_length=1, max_length=4000)
+
+
+def _agent(ctx: Ctx) -> None:
+    if ctx.who.kind != "agent":
+        raise ApiError(403, "policy_denied", "agents only")
+
+
+async def _audit(ctx: Ctx, tx: Any, action: str, ref: str, summary: str, cls: str = "A2") -> None:
+    await ctx.audit(
+        tx,
+        company_id=(await ctx.hub.companies.holding()).id,
+        action=action,
+        action_class=cls,
+        target_kind="academy",
+        target_ref=ref,
+        summary=summary[:300],
+    )
+
+
+# ------------------------------------------------------------------- owner --
+@router.get("/academy/curricula", response_model=list[A.Curriculum], responses=E)
+async def list_curricula(ctx: Ctx = Depends(owner_ctx)) -> list[A.Curriculum]:
+    async with ctx.tx() as tx:
+        return [A.render_curriculum(r) for r in await A.curricula(tx)]
+
+
+@router.get("/academy/curricula/{role}", response_model=A.Curriculum, responses=E)
+async def get_curriculum(role: str, ctx: Ctx = Depends(owner_ctx)) -> A.Curriculum:
+    async with ctx.tx() as tx:
+        row = await tx.first(
+            "SELECT * FROM academy.curricula WHERE role = :r ORDER BY version DESC LIMIT 1", r=role
+        )
+    if row is None:
+        raise ApiError(404, "not_found")
+    return A.render_curriculum(row)
+
+
+@router.get("/academy/evals", response_model=list[A.EvalSuite], responses=E)
+async def list_suites(ctx: Ctx = Depends(owner_ctx)) -> list[A.EvalSuite]:
+    async with ctx.tx() as tx:
+        rows = await tx.all("SELECT * FROM academy.eval_suites ORDER BY ref")
+    return [A.render_suite(r) for r in rows]
+
+
+@router.get("/academy/evals/{ref}/runs", response_model=list[A.EvalRun], responses=E)
+async def suite_runs(ref: str, ctx: Ctx = Depends(owner_ctx)) -> list[A.EvalRun]:
+    async with ctx.tx() as tx:
+        await A.suite(tx, ref)
+        rows = await tx.all(
+            "SELECT * FROM academy.eval_runs WHERE suite_ref = :r ORDER BY at DESC LIMIT 100", r=ref
+        )
+    return [A.render_run(r) for r in rows]
+
+
+@router.get("/academy/budget", response_model=A.Budget, responses=E)
+async def academy_budget(ctx: Ctx = Depends(owner_ctx)) -> A.Budget:
+    """This month's eval tokens against the academy's cap (⟨1.4⟩, beside §18.6)."""
+    async with ctx.tx() as tx:
+        return await A.budget(tx, ctx.hub.settings)
+
+
+@router.get("/academy/teach", response_model=list[A.Teaching], responses=E)
+async def list_teachings(ctx: Ctx = Depends(owner_ctx)) -> list[A.Teaching]:
+    async with ctx.tx() as tx:
+        rows = await tx.all("SELECT * FROM academy.teachings ORDER BY created_at DESC LIMIT 200")
+    return [A.render_teaching(r) for r in rows]
+
+
+@router.post("/academy/teach", response_model=A.Teaching, status_code=201, responses=E)
+async def teach(body: TeachIn, ctx: Ctx = Depends(owner_ctx)) -> A.Teaching:
+    """The owner teaches a role or one employee (text or voice). The AI Ops
+    head is woken to turn it into a precise proposal (`teach.draft`)."""
+    lib = ctx.hub.charters
+    holding = await ctx.hub.companies.holding()
+    async with ctx.tx() as tx:
+        if body.target.kind == "role" and body.target.ref not in lib.roles:
+            raise ApiError(422, "validation_failed", fields={"target.ref": "unknown role"})
+        if body.target.kind == "employee" and not await tx.scalar(
+            "SELECT 1 FROM core.employees WHERE code = :c", c=body.target.ref
+        ):
+            raise ApiError(422, "validation_failed", fields={"target.ref": "unknown employee"})
+        text = body.text or ""
+        if body.source == "voice" and body.file_id and not text:
+            text = str(
+                await tx.scalar(
+                    "SELECT transcript FROM files.processing WHERE file_id = :f AND status = 'ready'",
+                    f=body.file_id,
+                )
+                or ""
+            )
+            if not text:
+                raise ApiError(422, "validation_failed", fields={"file_id": "no transcript"})
+        row = await tx.one(
+            """INSERT INTO academy.teachings (company_id, target, source, text_md, file_id, lesson_ref,
+                   created_by_kind, created_by_code)
+               VALUES (:co, CAST(:t AS jsonb), :src, :text, :f, :l, 'owner', :by) RETURNING *""",
+            co=holding.id,
+            t=body.target.model_dump_json(),
+            src=body.source,
+            text=text[:20000],
+            f=body.file_id,
+            l=body.lesson_ref,
+            by=ctx.who.code,
+        )
+        work = await A.wake(
+            tx,
+            ctx.who,
+            holding_id=holding.id,
+            holding_code=holding.code,
+            suffix="AIOPS-MGR",
+            title=f"Draft teaching {row['ref']}",
+            brief=(
+                f"The owner taught {body.target.kind} {body.target.ref} ({row['ref']}). Turn it into one "
+                "precise proposal with teach.draft (kind charter_rule, skill, memory or playbook; "
+                "diff_md = the exact text to add). Owner's words:\n\n" + text[:3000]
+            ),
+        )
+        if work:
+            await tx.exec(
+                "UPDATE academy.teachings SET work_id = (SELECT id FROM work.work WHERE ref = :w) WHERE id = :id",
+                w=work,
+                id=row["id"],
+            )
+        await events.emit(tx, holding.code, "academy.teaching", row["ref"], {"status": "drafting"})
+        await _audit(
+            ctx, tx, "academy.teach", row["ref"], f"{body.target.kind} {body.target.ref}", "A1"
+        )
+    return A.render_teaching(row)
+
+
+@router.post("/academy/teach/{ref}/approve", response_model=A.Teaching, responses=E)
+async def approve_teaching(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> A.Teaching:
+    """🔏 (`academy.approve`, target ref). Only a proposal the overseer passed
+    and (but for a memory) whose eval passed the gate. Creates the new version:
+    a sealed addendum after the role's charter (charter_rule), an active skill
+    (skill, playbook) or one employee's memory note."""
+    _ref(ref)
+    holding = await ctx.hub.companies.holding()
+    async with ctx.tx() as tx:
+        await stepup.consume(tx, request, ctx.who, "academy.approve", ref)
+        t = await A.teaching(tx, ref, lock=True)
+        proposal = S._j(t["proposal"]) or {}
+        review = S._j(t["review"]) or {}
+        if t["status"] != "proposed" or not proposal:
+            raise ApiError(409, "validation_failed", f"teaching is {t['status']}")
+        if review.get("verdict") != "pass":
+            raise ApiError(
+                409, "validation_failed", "not_reviewed", fields={"review": "needs a pass"}
+            )
+        run = None
+        if proposal["kind"] != "memory":
+            run = (
+                await tx.first(
+                    "SELECT * FROM academy.eval_runs WHERE id = :id", id=t["eval_run_id"]
+                )
+                if t["eval_run_id"]
+                else None
+            )
+            if run is None or run["status"] != "done" or run["passed"] is not True:
+                raise ApiError(
+                    409,
+                    "validation_failed",
+                    "eval_not_passed",
+                    fields={"eval": "needs a passed eval"},
+                )
+        result = await A.apply_teaching(
+            tx, ctx.hub.charters, t, company_id=holding.id, company_code=holding.code, eval_row=run
+        )
+        row = await tx.one(
+            """UPDATE academy.teachings SET status = 'approved', result = CAST(:r AS jsonb),
+                   decided_at = now(), updated_at = now() WHERE id = :id RETURNING *""",
+            id=t["id"],
+            r=json.dumps(result),
+        )
+        await events.emit(
+            tx, holding.code, "academy.teaching", ref, {"status": "approved", **result}
+        )
+        await _audit(ctx, tx, "academy.approve", ref, json.dumps(result))
+    return A.render_teaching(row)
+
+
+@router.post("/academy/teach/{ref}/reject", response_model=A.Teaching, responses=E)
+async def reject_teaching(ref: str, ctx: Ctx = Depends(owner_ctx)) -> A.Teaching:
+    _ref(ref)
+    holding = await ctx.hub.companies.holding()
+    async with ctx.tx() as tx:
+        t = await A.teaching(tx, ref, lock=True)
+        if t["status"] in ("approved", "rejected"):
+            raise ApiError(409, "validation_failed", f"teaching is {t['status']}")
+        row = await tx.one(
+            """UPDATE academy.teachings SET status = 'rejected', decided_at = now(), updated_at = now()
+               WHERE id = :id RETURNING *""",
+            id=t["id"],
+        )
+        await events.emit(tx, holding.code, "academy.teaching", ref, {"status": "rejected"})
+        await _audit(ctx, tx, "academy.reject", ref, "rejected by the owner", "A1")
+    return A.render_teaching(row)
+
+
+@router.get("/academy/records/{employee}", response_model=A.TrainingRecord, responses=E)
+async def training_record(employee: str, ctx: Ctx = Depends(owner_ctx)) -> A.TrainingRecord:
+    async with ctx.tx() as tx:
+        return await A.record(tx, ctx.hub.charters, employee)
+
+
+def _ref(ref: str) -> None:
+    if not re.fullmatch(A.TEACHING_REF, ref):
+        raise ApiError(404, "not_found")
+
+
+# ---------------------------------------------------------------- internal --
+@internal_router.post("/academy/evals/run", response_model=A.EvalRun, status_code=202, responses=E)
+async def run_eval(body: EvalIn, ctx: Ctx = Depends(internal_ctx)) -> A.EvalRun:
+    """eval.run (the AI Ops head): a golden suite against a charter, a skill
+    version or a model; queued, scored on the worker, booked in the treasury,
+    refused over the month's academy cap (409 academy_budget)."""
+    _agent(ctx)
+    await allow(ctx, "academy.eval", {"company": ctx.who.company})
+    holding = await ctx.hub.companies.holding()
+    lib = ctx.hub.charters
+    s = body.subject
+    async with ctx.tx() as tx:
+        if s.kind == "skill":  # a manual run informs; only a review's run gates the version
+            row = await S.load(tx, s.ref)
+            await S.version_row(tx, row["id"], int(s.version))
+        elif s.ref not in lib.roles:
+            raise ApiError(422, "validation_failed", fields={"subject.ref": "unknown role"})
+        run = await A.queue_eval(
+            tx,
+            ctx.hub.settings,
+            company_id=holding.id,
+            suite_ref=body.suite,
+            subject=s,
+            purpose="manual",
+            by_kind="agent",
+            by_code=ctx.who.code,
+        )
+        await _audit(ctx, tx, "academy.eval", body.suite, f"{s.kind} {s.ref}@{s.version}")
+    await workflows_client.eval_run(ctx.hub, str(run["id"]))
+    return A.render_run(run)
+
+
+@internal_router.post("/academy/teach/{ref}/draft", response_model=A.Teaching, responses=E)
+async def draft_teaching(ref: str, body: DraftIn, ctx: Ctx = Depends(internal_ctx)) -> A.Teaching:
+    """teach.draft (the AI Ops head): the precise proposal. The code's
+    pre-check runs on it first; a refused text ends the teaching (rejected)."""
+    _agent(ctx)
+    _ref(ref)
+    await allow(ctx, "academy.teach", {"company": ctx.who.company})
+    holding = await ctx.hub.companies.holding()
+    lib = ctx.hub.charters
+    async with ctx.tx() as tx:
+        t = await A.teaching(tx, ref, lock=True)
+        if t["status"] not in ("drafting", "proposed"):
+            raise ApiError(409, "validation_failed", f"teaching is {t['status']}")
+        target = S._j(t["target"]) or {}
+        role = target["ref"] if target.get("kind") == "role" else "all"
+        pre = S.precheck(body.proposal.diff_md, lib, [role])
+        review = None if pre["ok"] else S._review_of_precheck(pre, _now())
+        row = await tx.one(
+            """UPDATE academy.teachings SET proposal = CAST(:p AS jsonb), precheck = CAST(:pre AS jsonb),
+                   review = CAST(:r AS jsonb), eval_run_id = NULL,
+                   status = :st, decided_at = CASE WHEN :st = 'rejected' THEN now() END,
+                   updated_at = now()
+               WHERE id = :id RETURNING *""",
+            id=t["id"],
+            p=body.proposal.model_dump_json(),
+            pre=json.dumps(pre),
+            r=json.dumps(review) if review else None,
+            st="proposed" if pre["ok"] else "rejected",
+        )
+        if pre["ok"]:
+            await A.wake(
+                tx,
+                ctx.who,
+                holding_id=holding.id,
+                holding_code=holding.code,
+                suffix="OVR",
+                title=f"Review teaching {ref}",
+                brief=(
+                    f"Review the proposal of teaching {ref} ({body.proposal.kind}) with skill.review "
+                    f"(ref {ref}, version 1): injection, secrets, conflicts, extra authority. A pass "
+                    "sends it to the academy's eval; the owner approves last."
+                ),
+            )
+        await events.emit(tx, holding.code, "academy.teaching", ref, {"status": row["status"]})
+        await _audit(ctx, tx, "teach.draft", ref, body.proposal.kind, "A1")
+    return A.render_teaching(row)
+
+
+@internal_router.post("/academy/teach/{ref}/review", response_model=A.Teaching, responses=E)
+async def review_teaching(
+    ref: str, body: TeachReviewIn, ctx: Ctx = Depends(internal_ctx)
+) -> A.Teaching:
+    """skill.review of a teaching's proposal (the overseer). A pass queues
+    the eval of the candidate (none for a memory note)."""
+    _agent(ctx)
+    _ref(ref)
+    await allow(ctx, "skill.review", {"company": ctx.who.company})
+    holding = await ctx.hub.companies.holding()
+    lib = ctx.hub.charters
+    run_id: UUID | None = None
+    async with ctx.tx() as tx:
+        t = await A.teaching(tx, ref, lock=True)
+        proposal = S._j(t["proposal"]) or {}
+        pre = S._j(t["precheck"]) or {}
+        if t["status"] != "proposed" or not proposal:
+            raise ApiError(409, "validation_failed", f"teaching is {t['status']}")
+        if body.verdict == "pass" and not pre.get("ok", False):
+            raise ApiError(422, "validation_failed", "precheck_failed")
+        review = {
+            "by": {"kind": "agent", "code": ctx.who.code},
+            "at": _now().isoformat(),
+            "verdict": body.verdict,
+            "notes_md": body.notes_md,
+            "checks": body.checks,
+        }
+        if body.verdict == "pass" and proposal["kind"] != "memory":
+            target = S._j(t["target"]) or {}
+            emp = None
+            if target.get("kind") == "employee":
+                emp = await tx.first(
+                    "SELECT role FROM core.employees WHERE code = :c", c=target["ref"]
+                )
+            role = A.target_role(lib, emp, target)
+            charter = lib.get(role)
+            if proposal["kind"] == "charter_rule":
+                subject = A.Subject(
+                    kind="charter", ref=role, version=f"{charter.version if charter else 0}+{ref}"
+                )
+                candidate = {"addendum_md": proposal["diff_md"], "teaching": ref}
+            else:
+                subject = A.Subject(kind="skill", ref=ref, version=1)
+                candidate = {"skill_md": proposal["diff_md"], "role": role, "teaching": ref}
+            run = await A.queue_eval(
+                tx,
+                ctx.hub.settings,
+                company_id=holding.id,
+                suite_ref=A.suite_for_role(await A.curricula(tx), role),
+                subject=subject,
+                purpose="teaching",
+                by_kind="agent",
+                by_code=ctx.who.code,
+                candidate=candidate,
+                teaching_id=t["id"],
+            )
+            run_id = run["id"]
+        row = await tx.one(
+            """UPDATE academy.teachings SET review = CAST(:r AS jsonb), eval_run_id = :run,
+                   status = CASE WHEN :v = 'pass' THEN status ELSE 'rejected' END,
+                   decided_at = CASE WHEN :v = 'pass' THEN decided_at ELSE now() END,
+                   updated_at = now()
+               WHERE id = :id RETURNING *""",
+            id=t["id"],
+            r=json.dumps(review),
+            run=run_id,
+            v=body.verdict,
+        )
+        await events.emit(tx, holding.code, "academy.teaching", ref, {"review": body.verdict})
+        await _audit(ctx, tx, "teach.review", ref, body.verdict)
+    if run_id is not None:
+        await workflows_client.eval_run(ctx.hub, str(run_id))
+    return A.render_teaching(row)
+
+
+def _now() -> Any:
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC)

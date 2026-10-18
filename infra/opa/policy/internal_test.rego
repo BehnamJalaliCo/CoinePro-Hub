@@ -453,3 +453,13 @@ test_code_session_proposals if {
 	not allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "code_session"})
 	not allowed(f.ty_ceo, "decision.propose", {"company": "FX", "kind": "code_session"})
 }
+
+test_skills_and_academy_are_holding_roles_only if {
+	every op in ["skill.review", "academy.eval", "academy.teach"] {
+		allowed(f.hq_ovs, op, {"company": "HQ"})
+		allowed(f.hq_adv, op, {"company": "HQ"})
+		reasons(f.ty_ceo, op, {"company": "TY"}) == {concat("", [op, "_not_permitted"])}
+		not allowed(f.ty_growth_01, op, {"company": "TY"})
+		not allowed(f.svc, op, {"company": "HQ"})
+	}
+}

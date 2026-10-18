@@ -110,6 +110,23 @@ FILE_WORKFLOW = "FileProcess"
 TRANSCRIBE_WORKFLOW = "Transcribe"
 
 
+async def eval_run(hub: Any, run_id: str) -> None:
+    """An academy eval run (prompt 08 §7): scored on the worker; nobody waits."""
+    client = _client(hub)
+    if client is None:
+        return
+    try:
+        await client.start_workflow(
+            "EvalRun",
+            run_id,
+            id=f"eval-{run_id}",
+            task_queue=hub.settings.task_queue,
+            id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+        )
+    except Exception:  # noqa: BLE001 - the run stays queued; eval.run again starts it
+        log.warning("could not start an eval run", extra={"run": run_id})
+
+
 async def file_uploaded(hub: Any, file_id: str) -> None:
     """A video or audio upload: the worker makes its frames and transcript."""
     client = _client(hub)

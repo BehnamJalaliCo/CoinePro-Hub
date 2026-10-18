@@ -266,6 +266,24 @@ class CeoDaily:
 
 
 MEDIA_LIMIT = timedelta(minutes=30)  # a 10-minute video: frames, sound track, Whisper on CPU
+EVAL_LIMIT = timedelta(minutes=90)  # a suite: two model calls per case
+
+
+@workflow.defn(name="EvalRun")
+class EvalRun:
+    """One academy eval run (prompt 08 §7): each case answered by the role
+    under test and scored by the judge; tried once (every call costs tokens)."""
+
+    @workflow.run
+    async def run(self, run_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await workflow.execute_activity(
+            "academy_eval_run",
+            args=[run_id],
+            start_to_close_timeout=EVAL_LIMIT,
+            heartbeat_timeout=timedelta(minutes=3),
+            retry_policy=RetryPolicy(maximum_attempts=1),
+        )
+        return result
 
 
 @workflow.defn(name="FileProcess")
@@ -325,6 +343,7 @@ class OrderRouting:
 
 
 WORKFLOWS = [
+    EvalRun,
     FileProcess,
     Transcribe,
     AgentRun,

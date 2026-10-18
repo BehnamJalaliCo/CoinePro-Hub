@@ -18,7 +18,25 @@ from llm_router.backends.base import ImagePart, Part
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 # Ledger metadata an agent call may carry (never content).
-META_KEYS = frozenset({"charter", "run_id", "step", "trigger", "purpose"})
+META_KEYS = frozenset(
+    {
+        "charter",
+        "run_id",
+        "step",
+        "trigger",
+        "purpose",
+        # prompt 08 §6-§7: the sealed skill versions and teachings in the
+        # system prompt (lists), and an academy eval's run, suite and case
+        "skills",
+        "addenda",
+        "eval_run",
+        "suite",
+        "case",
+    }
+)
+# Keys whose value is a list of short refs ("SK-001@3", "TE-0001").
+META_LISTS = frozenset({"skills", "addenda"})
+META_LIST_MAX = 30
 
 
 class TextBlock(BaseModel):
@@ -132,18 +150,25 @@ class RunRequest(BaseModel):
         default=None, pattern=r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
     )
     # Ledger metadata of an agent call (allow-listed keys, short values).
-    meta: dict[str, str | int] | None = None
+    meta: dict[str, str | int | list[str]] | None = None
 
     @field_validator("meta")
     @classmethod
-    def _meta(cls, v: dict[str, str | int] | None) -> dict[str, str | int] | None:
+    def _meta(
+        cls, v: dict[str, str | int | list[str]] | None
+    ) -> dict[str, str | int | list[str]] | None:
         if v is None:
             return v
         unknown = set(v) - META_KEYS
         if unknown:
             raise ValueError(f"unknown meta keys: {sorted(unknown)}")
-        for value in v.values():
-            if isinstance(value, str) and len(value) > 64:
+        for key, value in v.items():
+            if isinstance(value, list):
+                if key not in META_LISTS or len(value) > META_LIST_MAX:
+                    raise ValueError(f"meta {key}: a list only for {sorted(META_LISTS)}")
+                if any(len(item) > 32 for item in value):
+                    raise ValueError("meta list items are at most 32 characters")
+            elif isinstance(value, str) and len(value) > 64:
                 raise ValueError("meta values are at most 64 characters")
         return v
 

@@ -53,6 +53,10 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "lesson.write",
         "story.post",
         "hire.decide",
+        # the skill library and the academy (prompt 08 §6-§7)
+        "skill.review",
+        "eval.run",
+        "teach.draft",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

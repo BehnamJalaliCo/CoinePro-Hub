@@ -212,11 +212,15 @@ def system_prompt(
     max_actions: int,
     answer_phase: bool = False,
     payloads: Mapping[str, type[BaseModel]] | None = None,
+    after_charter: str = "",
 ) -> str:
-    out = (
-        lib.system_prompt(charter.role, values)
-        + "\n\n"
-        + runtime_section(lib, charter, max_actions=max_actions, answer_phase=answer_phase)
+    """_common + the charter, then `after_charter` (the role's sealed skills and
+    the owner's sealed rules, prompt 08 §6-§7), then the runtime's own parts."""
+    out = lib.system_prompt(charter.role, values)
+    if after_charter:
+        out += "\n\n" + after_charter
+    out += "\n\n" + runtime_section(
+        lib, charter, max_actions=max_actions, answer_phase=answer_phase
     )
     if payloads:
         out += "\n" + propose_section(lib, charter, payloads, values)

@@ -44,7 +44,9 @@
           "notify",
           "mcp.call",
           "web.browse",
-          "http.request"
+          "http.request",
+          "eval.run",
+          "academy.eval"
         ],
         "inspector": [
           "work.delegate",
@@ -63,7 +65,8 @@
           "activity.set",
           "notify",
           "web.browse",
-          "http.request"
+          "http.request",
+          "skill.review"
         ],
         "assistant": [
           "errand.step",
@@ -75,7 +78,8 @@
           "mcp.call"
         ],
         "overseer": [
-          "star.audit"
+          "star.audit",
+          "skill.review"
         ]
       }
     }

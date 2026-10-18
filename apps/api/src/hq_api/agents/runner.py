@@ -44,8 +44,10 @@ from hq_api import audit, events
 from hq_api.agents import protocol as P
 from hq_api.agents.clients import Gateway, LivePush, ModelCall, Router
 from hq_api.db import Tx
+from hq_api.domain import academy as AC
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
+from hq_api.domain import skills as SK
 from hq_api.errors import sqlstate_of
 from hq_api.hub import Hub
 from hq_api.routes.messages import LINK_TABLES
@@ -133,6 +135,8 @@ class RunCtx:
     delivered: bool = False
     replied: str | None = None  # the message ref of a reply in the trigger thread
     summaries: list[str] = field(default_factory=list)
+    skills: list[str] = field(default_factory=list)  # "SK-001@3": in the system prompt
+    addenda: list[str] = field(default_factory=list)  # sealed teachings ("TE-0001")
 
 
 class Runner:
@@ -382,6 +386,7 @@ class Runner:
             max_actions=self.s.agent_actions_per_step,
             answer_phase=charter.kind == "advisor" and run["trigger"] == "message",
             payloads=D.PAYLOADS,
+            after_charter=await self._skills(rc),
         )
         text, image_ids = await self._context(rc)
         rc.messages = [{"role": "user", "content": await self._with_images(rc, text, image_ids)}]
@@ -520,6 +525,8 @@ class Runner:
                 "run_id": str(run["id"]),
                 "step": n,
                 "trigger": run["trigger"],
+                "skills": rc.skills,
+                "addenda": rc.addenda,
             },
         }
         if max_output:
@@ -627,6 +634,8 @@ class Runner:
                     "step": n,
                     "trigger": rc.run["trigger"],
                     "purpose": "answer",
+                    "skills": rc.skills,
+                    "addenda": rc.addenda,
                 },
             }
             if rc.run["model"]:
@@ -693,6 +702,21 @@ class Runner:
         return "failed", "limit_reached", None
 
     # ------------------------------------------------------------- context --
+    async def _skills(self, rc: RunCtx) -> str:
+        """The role's active skills and the owner's sealed rules for it, after
+        the charter (prompt 08 §6-§7); the versions are kept on the run."""
+        async with await self._tx() as tx:
+            active = await SK.active_for(
+                tx, rc.charter.role, rc.emp["company"], rc.emp["department"]
+            )
+            addenda = await AC.addenda_for(tx, rc.charter.role)
+            rc.skills = [f"{s['ref']}@{s['version']}" for s in active]
+            rc.addenda = [str(a["ref"]) for a in addenda]
+            await tx.exec(
+                "UPDATE agents.runs SET skills = :s WHERE id = :id", s=rc.skills, id=rc.run["id"]
+            )
+        return SK.prompt_section(active, addenda)
+
     async def _values(self, emp: dict[str, Any]) -> dict[str, str]:
         holding = await self.hub.companies.holding()
         async with await self._tx() as tx:

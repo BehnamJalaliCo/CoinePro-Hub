@@ -803,6 +803,95 @@ async def notify(api: Api, call: Call, a: NotifyIn) -> Result:
     return r
 
 
+# ------------------------------------------- skills and academy (p08 §6-§7) --
+SKILL_OR_TEACHING = r"^(SK-[0-9]{3,6}|TE-[0-9]{4,8})$"
+
+
+class SkillReviewIn(In):
+    ref: str = Field(pattern=SKILL_OR_TEACHING)
+    version: int = Field(default=1, ge=1, le=100000)
+    verdict: Literal["pass", "changes", "reject"]
+    checks: dict[str, bool] = Field(default_factory=dict, max_length=8)
+    notes_md: str = Field(min_length=1, max_length=4000)
+
+
+class EvalSubjectIn(In):
+    kind: Literal["charter", "skill", "model"]
+    ref: str = Field(min_length=1, max_length=60)
+    version: str | int
+
+
+class EvalRunIn(In):
+    suite: str = Field(pattern=r"^EV-[0-9]{3,6}$")
+    subject: EvalSubjectIn
+
+
+class TeachProposalIn(In):
+    kind: Literal["charter_rule", "skill", "memory", "playbook"]
+    diff_md: str = Field(min_length=1, max_length=8000)
+
+
+class TeachDraftIn(In):
+    ref: str = Field(pattern=r"^TE-[0-9]{4,8}$")
+    proposal: TeachProposalIn
+
+
+async def skill_review(api: Api, call: Call, a: SkillReviewIn) -> Result:
+    """The overseer's (or AI Safety's) review of a skill version or of a
+    teaching's proposal; a version the code's pre-check refused never passes."""
+    path = (
+        f"/internal/v1/skills/{a.ref}/review"
+        if a.ref.startswith("SK-")
+        else f"/internal/v1/academy/teach/{a.ref}/review"
+    )
+    resp = await api.request(
+        "POST",
+        path,
+        call.token,
+        json={
+            "version": a.version,
+            "verdict": a.verdict,
+            "checks": a.checks,
+            "notes_md": await _text(a.notes_md),
+        },
+        idem=call.idem("skill.review"),
+    )
+    r = from_response(resp, None)
+    if r.outcome == "ok":
+        r.ref = f"{a.ref}@{a.version}" if a.ref.startswith("SK-") else a.ref
+    return r
+
+
+async def eval_run(api: Api, call: Call, a: EvalRunIn) -> Result:
+    """A golden eval suite against a charter, a skill version or a model; it is
+    queued and scored on the worker (the result comes in academy.eval)."""
+    resp = await api.request(
+        "POST",
+        "/internal/v1/academy/evals/run",
+        call.token,
+        json=a.model_dump(),
+        idem=call.idem("eval.run"),
+    )
+    r = from_response(resp, None)
+    if r.outcome == "ok" and isinstance(r.data, dict):
+        r.ref = f"eval:{r.data.get('id')}"
+    return r
+
+
+async def teach_draft(api: Api, call: Call, a: TeachDraftIn) -> Result:
+    resp = await api.request(
+        "POST",
+        f"/internal/v1/academy/teach/{a.ref}/draft",
+        call.token,
+        json={"proposal": {"kind": a.proposal.kind, "diff_md": await _text(a.proposal.diff_md)}},
+        idem=call.idem("teach.draft"),
+    )
+    r = from_response(resp, None)
+    if r.outcome == "ok":
+        r.ref = a.ref
+    return r
+
+
 TOOLS: dict[str, tuple[type[In], Handler]] = {
     "work.get": (WorkRef, work_get),
     "company.state": (CompanyIn, company_state),
@@ -828,6 +917,9 @@ TOOLS: dict[str, tuple[type[In], Handler]] = {
     "activity.set": (ActivityIn, activity_set),
     "notify": (NotifyIn, notify),
     "mcp.call": (McpCallIn, mcp_call),
+    "skill.review": (SkillReviewIn, skill_review),
+    "eval.run": (EvalRunIn, eval_run),
+    "teach.draft": (TeachDraftIn, teach_draft),
 }
 
 

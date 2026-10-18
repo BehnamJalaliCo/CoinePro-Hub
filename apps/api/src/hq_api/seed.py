@@ -12,10 +12,18 @@ from typing import Any
 import yaml
 
 from hq_api.db import Tx
-from hq_api.domain import sites, templates
+from hq_api.domain import academy, sites, skills, templates
 from hq_api.workshop import domain as workshop
 
 SEED_DIR = Path(__file__).resolve().parents[2] / "seed"
+
+
+def _charters() -> Any:
+    """agents/ (HQ_AGENTS_DIR), or None when this process cannot see it."""
+    from hq_common import charters
+
+    lib = charters.load()
+    return lib if lib.root.exists() else None
 
 
 async def seed(tx: Tx) -> dict[str, Any]:
@@ -54,4 +62,10 @@ async def seed(tx: Tx) -> dict[str, Any]:
             )
     added["sites"] = await sites.seed(tx)
     added["workspaces"] = await workshop.seed(tx)
+    # Prompt 08 §6-§7: the skill library and the academy from agents/ (read-only).
+    holding = await tx.first("SELECT id, code FROM core.companies WHERE kind = 'holding'")
+    if holding is not None:
+        lib = _charters()
+        added["skills"] = await skills.seed(tx, holding["id"], holding["code"], lib)
+        added.update(await academy.seed(tx, holding["id"], lib))
     return {"companies_filled": filled, **added}

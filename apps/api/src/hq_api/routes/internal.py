@@ -211,6 +211,10 @@ OP_CLASS: dict[str, str] = {
     "file.read": "A0",
     # prompt 07: backups.status (the overseer, the platform SRE)
     "backup.read": "A0",
+    # prompt 08 §6-§7: the skill library and the academy
+    "skill.review": "A2",
+    "academy.eval": "A2",
+    "academy.teach": "A1",
     # prompt 06: the Code Workshop (the grant's driver)
     "workshop.read": "A0",
     "workshop.session": "A1",

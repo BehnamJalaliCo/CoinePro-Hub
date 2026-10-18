@@ -491,11 +491,15 @@ services:
       DB_HOST: postgres
       DB_USER: hq
       DB_PASSWORD: ${HQ_DB_PASSWORD:?run make env}
+      # The seed reads agents/ too (prompt 08 §6-§7: skills, curricula, eval suites).
+      HQ_AGENTS_DIR: /app/agents
     command: ["python", "-m", "hq_api.migrate"]
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=16m,mode=1777"]
     cap_drop: [ALL]
+    volumes:
+      - ../../agents:/app/agents:ro
     deploy:
       resources:
         limits:

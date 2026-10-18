@@ -32,6 +32,8 @@ ops := {
 	"inquiry.ask", "inquiry.answer", "errand.write", "planner.add",
 	# prompt 08 §4, §8, §9: stars, lessons, stories, hire decisions (people.rego)
 	"star.rubric", "star.give", "star.audit", "lesson.write", "story.post", "hire.decide",
+	# prompt 08 §6-§7: a skill's or a teaching's review, the academy's eval runs and drafts
+	"skill.review", "academy.eval", "academy.teach",
 }
 
 # Reads of the gateway's tools: an agent reads its own company; a holding-scope
@@ -262,6 +264,15 @@ grant if {
 # The hub's own health, the audit trail: holding-scope roles only.
 grant if {
 	op in {"hub.read", "audit.read", "backup.read"}
+	agent
+	holding_reader
+}
+
+# The skill library and the academy (prompt 08 §6-§7): holding-scope roles
+# only (the overseer and AI Safety review, the AI Ops head runs evals and
+# drafts teachings; their charters decide which tool each one has).
+grant if {
+	op in {"skill.review", "academy.eval", "academy.teach"}
 	agent
 	holding_reader
 }

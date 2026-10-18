@@ -57,6 +57,21 @@ class Settings:
     )
     # How long POST /transcribe waits for the worker (a 15-minute recording on CPU).
     transcribe_wait_s: int = field(default_factory=lambda: _int("HQ_TRANSCRIBE_WAIT_S", 600))
+    # The academy (prompt 08 §7): the judge of eval answers (a lighter model;
+    # QC's for a case marked sensitive) and the monthly cap, a share of the
+    # holding's budget (every company's monthly envelope), else a fixed default.
+    academy_judge_model: str = field(
+        default_factory=lambda: _env("ACADEMY_JUDGE_MODEL", "claude-haiku-5-5")
+    )
+    academy_qc_model: str = field(
+        default_factory=lambda: _env("ACADEMY_QC_MODEL", "claude-sonnet-5-5")
+    )
+    academy_budget_share: float = field(
+        default_factory=lambda: float(_env("ACADEMY_BUDGET_SHARE", "0.05"))
+    )
+    academy_monthly_tokens: int = field(
+        default_factory=lambda: _int("ACADEMY_MONTHLY_TOKENS", 1_000_000)
+    )
     # MCP calls (prompt 07 §3): per run and per company per owner day.
     mcp_calls_per_run: int = field(default_factory=lambda: _int("HQ_MCP_CALLS_PER_RUN", 20))
     mcp_calls_per_company_day: int = field(

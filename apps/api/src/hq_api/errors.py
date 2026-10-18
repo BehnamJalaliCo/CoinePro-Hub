@@ -101,6 +101,12 @@ CODES: dict[str, tuple[int, str, str]] = {
         "داده‌ی داخلی (کد کارمند، ارجاع، ایمیل، تلفن یا رمز) نباید از هاب بیرون برود؛ بدون آن تکرار کن.",
     ),
     "egress_limit": (429, "Egress limit", "سقف اینترنت این اجرا یا امروز شرکت پر شده است."),
+    # prompt 08 §7: the academy's monthly cap is used up
+    "academy_budget": (
+        409,
+        "Academy budget used up",
+        "سقف ماهانه‌ی توکن آکادمی پر شده است؛ آزمون تازه تا ماه بعد اجرا نمیشود.",
+    ),
     "account_not_configured": (
         409,
         "Account not configured",
