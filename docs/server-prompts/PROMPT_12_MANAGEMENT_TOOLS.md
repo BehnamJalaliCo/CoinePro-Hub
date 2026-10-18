@@ -399,6 +399,33 @@
    - مُهرها همان `mcp.add` (هش بدنه) و `mcp.enable` (key) است.
 5. **سرور مرجع:** `time` (`mcp-server-time` از `modelcontextprotocol/servers`، MIT) با ابزارهای `get_current_time` و `convert_time`، کلاس A0.
    پیشنهاد میشود (pending) و مالک مُهر میکند.
+6. **سرور «هوش کد»: CodeCortex** (تصمیم مالک ۲۰۲۶-۱۰-۱۸؛ پروژه‌ی متن‌باز خود مالک، Apache-2.0، `github.com/BehnamJalaliCo/CodeCortex`، بسته‌ی PyPI
+   `codecortex-context-engine`). مالک آن را روی سرورهای TradeYar و CoinePro-FX نصب کرده است. هاب **نسخه‌ی خودش** را دارد و به آن نسخه‌ها وصل نمیشود.
+   - **image:** نسخه‌ی pin‌شده با digest ثابت. **بدون extra `semantic`** (torch در حافظه جا نمیشود). اگر extra `parsers` (tree-sitter) جا شد، نصب شود.
+   - **ریپوها:** کپی فقط‌خواندنی ریپوهایی که هاب با دسترسی git خودش میخواند (هاب، ریپوهای workspaceها و ریپوی هر تأسیس)، mount فقط‌خواندنی.
+     ایندکس روی یک volume جدا ساخته میشود: یک job شبانه و یک job بعد از هر push به ریپوی ثبت‌شده. حین پاسخ‌گویی ایندکس‌سازی سنگین انجام نمیشود.
+   - **فقط ابزارهای خواندنی، کلاس A0:**
+     - نقشه‌ی ریپو، symbol، reference، dependency graph، impact، architecture و drift، symbol history، PR intelligence
+     - precise definition، references و implementations، structural search، stats و validate
+   - **همیشه خاموش (در registration مهرشده `enabled: false` و در فهرست مجاز ممنوع):**
+     - ویرایش: `rename`، `replace`، `insert`، `rewrite_apply`
+     - حافظه‌ی خودش: `cortex_remember`، `memory`، `team_memory`
+     - همگام‌سازی توزیع‌شده: `cortex_sync_*`، `cortex_worker_*`
+     - `cortex_dependency_docs` (به اینترنت نیاز دارد)
+     - دانش و حافظه‌ی هاب منبع یگانه میماند.
+   - **چه کسی:**
+     - مدیر فنی، فقط ریپوهای شرکت خودش
+     - مشاور و ناظر
+     - کتابدار برای «از هاب بپرس» (§۲)
+     - ممیزی ریپو در تأسیس شرکت (پرامپت ۹)
+     - کارت deploy (§۷): `impact` و تست‌های متأثر، یعنی خروجی `cortex_pr_intelligence`، کنار diff و در `risk_note` میآید.
+   - **کد آن مال خود مالک است:** هر قسمتی که برای هاب لازم باشد (مثلاً impact یا PR intelligence) میتواند مستقیم در کد هاب هم استفاده شود. لایسنس و NOTICE حفظ میشوند.
+   - **حافظه:** از اندازه‌گیری تعیین میشود و در profile `mcp` است. gate حافظه بدون جا آن را رد میکند. اولویتش با مالک است (جدول §۰.۸).
+   - **تست:**
+     - ابزار ویرایش یا ابزاری که در registration خاموش است ← refused
+     - impact یک PR آزمایشی، تست‌های متأثر را درست میدهد
+     - از داخل کانتینر هیچ شبکه‌ای در دسترس نیست
+     - ریپو mount فقط‌خواندنی است
 - **تست قبولی:**
   - `time` فهرست و ساعت تهران را درست میدهد.
   - از داخل کانتینر به اینترنت، `hq-internal` و `10.10.1.1` نمیرسد (probe در `live.sh`).
