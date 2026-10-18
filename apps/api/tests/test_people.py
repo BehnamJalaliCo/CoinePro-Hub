@@ -182,10 +182,11 @@ async def test_the_weekly_rollup_flags_inflation_and_tells_the_best_company(
     assert mine["parts"]["people"] == 100.0 and mine["parts"]["kpi"] is None
     assert mine["parts"]["challenges"] is None and mine["score"] is not None
     assert {e["company"] for e in roll["employees"]} >= {co}
-    # More than 70% fives: the overseer's finding of PR-080 (one, with PR-080's own key).
+    # More than 70% fives: the overseer's finding of PR-080 (the merge wired the hook).
     flagged = await su.fetchval(
         """SELECT count(*) FROM oversight.findings f JOIN core.companies c ON c.id = f.company_id
-           WHERE c.code = $1 AND f.dedupe_key = 'PR-080:stars-inflation'""",
+           WHERE c.code = $1 AND f.dedupe_key = 'PR-080:stars-inflation'
+             AND f.status NOT IN ('verified', 'closed')""",
         co,
     )
     assert flagged == 1
@@ -618,8 +619,9 @@ async def test_a_held_story_waits_for_the_owner(
     )
     assert not await shown()
     await su.execute(
-        """UPDATE oversight.holds SET state = 'released', decided_at = now(), decided_by_kind = 'owner',
-               decided_by_code = 'owner' WHERE target_ref = $1""",
+        """UPDATE oversight.holds SET state = 'released', decided_by_kind = 'owner',
+               decided_by_code = 'owner', decided_at = now()
+           WHERE target_ref = $1""",
         ref,
     )
     assert await shown()
