@@ -8,14 +8,14 @@
   - egress.log.requests: how many requests one row stands for (1; more for
     the row that sums a call's entries beyond the log batch's 200).
 
-Revision ID: 0018
+Revision ID: 0017_1 (a fix of prompt 7, review 7.1; prompt 8 continues at 0018)
 Revises: 0017
 Create Date: 2026-10-18
 """
 
 from hq_api.migration_sql import execute_script
 
-revision = "0018"
+revision = "0017_1"
 down_revision = "0017"
 branch_labels = None
 depends_on = None
