@@ -1,0 +1,28 @@
+#!/bin/bash
+# Test bench shim. The Hetzner metadata (no such service in a container)
+# answers from a fixture: one private address. Offline, the two downloads
+# the templates make come from fixtures fetched at the image's build (the
+# real Docker key, the real pinned Node build). Everything else, e.g. the
+# callback to the bench's receiver, is the real curl.
+url="" out=""
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+  case "${args[i]}" in
+    -o) out="${args[i + 1]}" ;;
+    http://* | https://*) url="${args[i]}" ;;
+  esac
+done
+printf '%s\n' "$url" >>/bench/log/curl
+fixture=""
+case "$url" in
+  http://169.254.169.254/hetzner/v1/metadata/private-networks)
+    printf -- '- ip: 10.20.1.2\n  alias_ips: []\n  interface_num: 1\n  network_id: 1001\n'
+    exit 0 ;;
+  https://download.docker.com/linux/ubuntu/gpg) fixture=/fixtures/docker.asc ;;
+  https://nodejs.org/dist/*/node-*-linux-x64.tar.xz) fixture=/fixtures/node.tar.xz ;;
+esac
+if [[ -n "$fixture" && ! -e /bench/online ]]; then
+  if [[ -n "$out" ]]; then cp "$fixture" "$out"; else cat "$fixture"; fi
+  exit 0
+fi
+exec /usr/bin/curl "$@"

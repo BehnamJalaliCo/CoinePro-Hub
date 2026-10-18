@@ -1,0 +1,9 @@
+#!/bin/bash
+# Test bench shim: a package the offline apt-get shim "installed" has the
+# version "bench"; anything else is asked of the real dpkg-query.
+pkg="${*: -1}"
+if [[ ! -e /bench/online && -e "/bench/installed/$pkg" ]]; then
+  printf 'bench'
+  exit 0
+fi
+exec /usr/bin/dpkg-query "$@"

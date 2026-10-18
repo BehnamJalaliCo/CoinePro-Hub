@@ -15,6 +15,7 @@ step_docker() {
   fi
   GNUPGHOME="$gh" gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg "$STATE/docker.asc"
   chmod 0644 /etc/apt/keyrings/docker.gpg
+  # shellcheck source=/dev/null  # the new server's own release file
   codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
   printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu %s stable\n' \
     "$(dpkg --print-architecture)" "$codename" >/etc/apt/sources.list.d/docker.list

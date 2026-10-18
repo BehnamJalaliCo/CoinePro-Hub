@@ -29,7 +29,7 @@ compose_json() {
   shift
   for p in "$@"; do extra+=(--profile "$p"); done
   # Opt-in profiles come from the arguments only (never from .env's HQ_STT).
-  HQ_PROFILE="$profile" HQ_STT=off "$HQ" "${extra[@]}" config --format json
+  HQ_PROFILE="$profile" HQ_STT=off HQ_PROVISIONING=off "$HQ" "${extra[@]}" config --format json
 }
 
 # Whether an opt-in profile is switched on on this server: HQ_<NAME>=on in the
@@ -45,7 +45,7 @@ opt_in_enabled() { # opt_in_enabled NAME
 # Compose profiles an operator may add by hand (e.g. cadvisor): every profile
 # of compose.yaml but the memory profiles and "web" (hq.sh switches it on).
 opt_in_profiles() {
-  HQ_PROFILE=lean HQ_STT=off "$HQ" config --profiles |
+  HQ_PROFILE=lean HQ_STT=off HQ_PROVISIONING=off "$HQ" config --profiles |
     grep -vxE "$(IFS='|'; echo "${PROFILES[*]}")|web" || true
 }
 

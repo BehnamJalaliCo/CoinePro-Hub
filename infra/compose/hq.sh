@@ -9,6 +9,7 @@
 #        HQ_ENV_FILE=PATH       use another secrets file (CI uses a throwaway one)
 #        HQ_ALL_PROFILES=1      act on the services of every profile (used by `down`)
 #        HQ_STT=on|off          speech to text (opt-in profile "stt"; else .env)
+#        HQ_PROVISIONING=on|off the provisioner (opt-in profile "provisioning"; else .env)
 set -euo pipefail
 
 COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -136,6 +137,33 @@ if [[ "$stt" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
         exit 3
         ;;
       *) echo "warning: HQ_STT=on ignored ($over; docs/ops/RUNBOOK.md, STT)" >&2 ;;
+    esac
+  fi
+fi
+# The provisioner (prompt 09 §4): opt-in profile "provisioning", switched on
+# with HQ_PROVISIONING=on (.env) once the owner has stored the Hetzner token
+# (make hetzner-token). The same memory rule as stt; the api gets
+# PROVISIONER_URL only while it is on.
+provisioning="${HQ_PROVISIONING:-$(sed -n 's/^HQ_PROVISIONING=//p' "$ENV_FILE" | tail -n1)}"
+export PROVISIONER_URL=""
+if [[ "$provisioning" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  sum="$(compose "${profile_args[@]}" --profile provisioning config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile provisioning)
+    export PROVISIONER_URL="http://provisioner:8110"
+  else
+    over="the $profile profile plus the provisioner needs $sum MiB of memory limits,"
+    over+=" $((sum - budget)) MiB over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_PROVISIONING=on refused: $over." >&2
+        echo "       Set HQ_PROVISIONING=off in $ENV_FILE to start the stack without it." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_PROVISIONING=on ignored ($over)" >&2 ;;
     esac
   fi
 fi

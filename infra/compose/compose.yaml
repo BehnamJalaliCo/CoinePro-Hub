@@ -323,7 +323,8 @@ services:
   openbao:
     <<: *service
     image: openbao/openbao:2.7.1
-    networks: [hq-internal, hq-llm]
+    # hq-prov: the provisioner's AppRole (bound to 172.30.10.0/24, prompt 09).
+    networks: [hq-internal, hq-llm, hq-prov]
     command: ["server"]
     environment:
       BAO_ADDR: http://127.0.0.1:8200
@@ -548,8 +549,9 @@ services:
     <<: *service
     image: coinepro-hq/api:0.1.0
     # hq-internal: Caddy, NATS, OpenBao (AppRole bound to 172.30.0.0/24);
-    # hq-core: Temporal; hq-agent: OPA and the gateway's calls to /internal/v1.
-    networks: [hq-internal, hq-core, hq-agent]
+    # hq-core: Temporal; hq-agent: OPA and the gateway's calls to /internal/v1;
+    # hq-prov: the provisioner (prompt 09) and its calls to /internal/v1.
+    networks: [hq-internal, hq-core, hq-agent, hq-prov]
     build:
       context: ../../apps/api
       additional_contexts:
@@ -586,6 +588,9 @@ services:
       HQ_AUDIT_ANCHOR_FILE: /anchors/audit-chain.jsonl
       # Role charters (agents/, read-only; prompt 05).
       HQ_AGENTS_DIR: /app/agents
+      # The provisioner (prompt 09, opt-in profile "provisioning"): hq.sh sets it
+      # while HQ_PROVISIONING=on, else empty (pricing and builds wait).
+      PROVISIONER_URL: ${PROVISIONER_URL:-}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -722,7 +727,8 @@ services:
     build:
       context: ../../services
       dockerfile: egress/Dockerfile
-    networks: [hq-egress, hq-egress-api, hq-browser]
+    # hq-prov-out: the provisioner's way to api.hetzner.cloud (prompt 09).
+    networks: [hq-egress, hq-egress-api, hq-browser, hq-prov-out]
     depends_on:
       searxng:
         condition: service_healthy
@@ -735,6 +741,8 @@ services:
       EGRESS_API_CLIENTS: 172.30.8.0/24
       EGRESS_GATEWAY_PROXY_CLIENTS: 172.30.8.0/24
       EGRESS_BROWSER_PROXY_CLIENTS: 172.30.9.0/24
+      EGRESS_PROVISIONER_PROXY_CLIENTS: 172.30.11.0/24
+      EGRESS_PROVISIONER_HOSTS: api.hetzner.cloud
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=16m,mode=1777"]
@@ -1127,6 +1135,53 @@ services:
         limits:
           memory: ${MEM_STT_FETCH:?}
 
+  provisioner:
+    # Builds a server the owner sealed (prompt 09 §4, contract §18.8): code,
+    # not an agent; the Hetzner Cloud API only, through egress's provisioner
+    # listener (CONNECT to api.hetzner.cloud:443). It never touches the hub or
+    # a resource without managed-by=coinepro-hq, never deletes, never SSHes.
+    # Opt-in (profile "provisioning", HQ_PROVISIONING=on): the owner switches
+    # it on with the Hetzner token (make hetzner-token, make owner-ssh-key).
+    <<: *service
+    profiles: [provisioning]
+    image: coinepro-hq/provisioner:0.1.0
+    build:
+      context: ../../services
+      dockerfile: provisioner/Dockerfile
+    networks: [hq-prov, hq-prov-out]
+    depends_on:
+      api:
+        condition: service_healthy
+      egress:
+        condition: service_healthy
+    environment:
+      OPENBAO_ADDR: http://openbao:8200
+      OPENBAO_APPROLE_FILE: /run/secrets/hq/approle.json
+      HQ_API_INTERNAL_URL: http://api:8000
+      # hcloud (requests) goes through egress; nothing else does.
+      HTTPS_PROXY: http://egress:3130
+      NO_PROXY: api,openbao,localhost,127.0.0.1
+      PROVISIONER_API_CLIENTS: 172.30.10.0/24
+      PROVISIONER_CALLBACK_URL: https://${HQ_WEBAUTHN_RP_ID:-hq.coinepro.com}/api/v1/provisioning/callback
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/provisioner:/run/secrets/hq:ro
+      # The reviewed cloud-init templates (one per software key).
+      - ../provisioning/templates:/app/templates:ro
+    healthcheck:
+      test: ["CMD", "python", "-m", "hq_common.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_PROVISIONER:?}
+
   stt:
     # Persian speech to text (prompt 06 §3, contract §17.2): faster-whisper,
     # int8 on CPU, offline, with the pinned model read-only. Opt-in (profile
@@ -1281,6 +1336,26 @@ networks:
       config:
         - subnet: 172.30.8.0/24
           gateway: 172.30.8.1
+  hq-prov:
+    # The provisioner, the api (its internal endpoints) and OpenBao (its AppRole,
+    # bound to this subnet). Internal: no route out (prompt 09 §4).
+    name: hq-prov
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24
+          gateway: 172.30.10.1
+  hq-prov-out:
+    # The provisioner and egress only: its one way out (egress's listener for
+    # api.hetzner.cloud). Internal.
+    name: hq-prov-out
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.11.0/24
+          gateway: 172.30.11.1
   hq-browser:
     # egress and the browser only. Internal: the browser's only way out is
     # egress's proxy, with that call's own credential.

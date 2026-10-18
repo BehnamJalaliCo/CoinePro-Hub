@@ -13,6 +13,7 @@ from typing import Any
 import uvicorn
 
 from hq_common import heartbeat, logs
+from hq_common.openbao import OpenBaoError
 from hq_provisioner.app import build_app
 from hq_provisioner.config import Settings
 from hq_provisioner.hub import Hub, HubError
@@ -47,7 +48,7 @@ def loop(runner: Runner, wake: threading.Event, beat: dict[str, float], poll_s: 
         try:
             while runner.tick():
                 beat["loop"] = time.monotonic()
-        except (HubError, NotConfigured) as exc:
+        except (HubError, NotConfigured, OpenBaoError) as exc:
             log.warning("provisioner: %s", type(exc).__name__, extra={"detail": str(exc)[:200]})
         except Exception:
             log.exception("provisioner: loop error")

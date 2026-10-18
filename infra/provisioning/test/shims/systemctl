@@ -1,0 +1,8 @@
+#!/bin/bash
+# Test bench shim: a container has no systemd. Every call is recorded (the
+# checks read it: a reboot only when the upgrade needs one); nothing runs.
+printf '%s\n' "$*" >>/bench/log/systemctl
+case "${1:-}" in
+  is-active) echo active ;;
+esac
+exit 0

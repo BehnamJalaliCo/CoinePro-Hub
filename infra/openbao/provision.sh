@@ -16,6 +16,9 @@
 #     empty FCM/Telegram credentials (channels stay off until the owner fills them)
 #   - prompt 05: the agent runtime's tokens (kv/hq-agents/runtime: llm-router
 #     caller hq-agents, the Tool Gateway's caller) and the gateway's digest file
+#   - prompt 09: the provisioner's AppRole (read-only kv/provisioning/* and its
+#     own kv/provisioner/config) and its api service token (the digest goes to
+#     kv/hq-api/config service_tokens.provisioner; the api reads it at start)
 #   - prompt 07: the backups' restic password (kv/backup/restic, generated once,
 #     never printed) and the hq-backup AppRole of the host's backup scripts
 #       -> $HQ_SECRETS_DIR/backup/approle.json (600, Hub's own: no sudo)
@@ -160,6 +163,8 @@ approle llm-router "$ROUTER_CIDRS"
 approle claude-runtime "$RUNTIME_CIDRS"
 approle hq-api "$CORE_CIDRS"
 approle hq-worker "$CORE_CIDRS"
+# hq-prov (prompt 09 §4): the provisioner reaches OpenBao there only.
+approle provisioner '["172.30.10.0/24"]'
 
 # The host's backup scripts (user Hub, through 127.0.0.1:8200): their own
 # AppRole, read-only on kv/backup/*. Hub owns the file, so no sudo is needed.
@@ -289,6 +294,20 @@ if ! kv_exists hq-agents/runtime || ! installed "$gw_digest"; then
   unset llm_token gw_token
   log "agent runtime: llm-router caller hq-agents and the gateway's token (re)generated"
 fi
+# --------------------------------------------------------- provisioner (p09) --
+# Its token for the api's internal provisioning endpoints (service principal
+# "provisioner"): kept in kv/provisioner/config for it, its sha256 in the
+# api's service_tokens. Made once; the api reads service tokens at start.
+if ! kv_exists provisioner/config; then
+  prov_token="$(newtoken)"
+  expect "$(api GET kv/data/hq-api/config </dev/null)" 200
+  PH="$(printf '%s' "$prov_token" | sha256)" jq '{data: (.data.data | .service_tokens =
+      ((.service_tokens // {}) + {provisioner: env.PH}))}' "$WORK/resp" | kv_put hq-api/config
+  PT="$prov_token" jq -n '{data: {api_token: env.PT}}' | kv_put provisioner/config
+  unset prov_token
+  log "provisioner: its api service token created (digest in hq-api/config; restart the api)"
+fi
+
 # ------------------------------------------------------------- backups (p07) --
 # The restic repositories' password (local, Google Drive, Hetzner): made once
 # and kept; changing it would lock every existing snapshot. The owner keeps a

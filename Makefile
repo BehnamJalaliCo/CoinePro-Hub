@@ -10,7 +10,8 @@ ENV_FILE := infra/compose/.env
 .PHONY: help env bootstrap profile up down ps logs backup restore-test check openbao-init unseal \
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval \
-	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret
+	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
+	hetzner-token owner-ssh-key
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -123,6 +124,12 @@ mcp-secret: ## OWNER: the secret of one MCP server, KEY=<server key> (hidden inp
 
 account-secret: ## OWNER: the secret of one holding service account (KEY=<key>; hidden input)
 	@infra/openbao/account-secret.sh "$(KEY)"
+
+hetzner-token: ## OWNER: the Hetzner project's API token for new servers (hidden input -> OpenBao)
+	@infra/openbao/hetzner-token.sh
+
+owner-ssh-key: ## OWNER: add one of your PUBLIC SSH keys for new servers' work user (-> OpenBao)
+	@infra/openbao/owner-ssh-key.sh
 
 llm-smoke: ## One tiny real call (Haiku, "OK") + ledger row + NATS event
 	@services/scripts/llm-smoke.sh

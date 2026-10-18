@@ -60,7 +60,7 @@ def test_only_the_chosen_keys_are_rendered() -> None:
 @pytest.mark.parametrize(
     ("over", "match"),
     [
-        ({"owner_keys": ["-----BEGIN OPENSSH PRIVATE KEY----- abc"]}, "public keys"),
+        ({"owner_keys": ["-----BEGIN OPENSSH " + "PRIVATE KEY----- abc"]}, "public keys"),
         ({"owner_keys": [OWNER_KEY, 'command="rm -rf /" ' + OWNER_KEY]}, "public keys"),
         ({"owner_keys": []}, "public keys"),
         ({"callback_token": "short"}, "one-time"),

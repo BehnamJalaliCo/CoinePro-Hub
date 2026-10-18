@@ -1,0 +1,6 @@
+#!/bin/bash
+# Test bench shim: online, the Docker CLI apt just installed; offline (nothing
+# was installed), a version line.
+if [[ -e /bench/online ]]; then exec /usr/bin/docker "$@"; fi
+printf '%s\n' "$*" >>/bench/log/docker
+echo "Docker version 0.0.0-bench, build shim"

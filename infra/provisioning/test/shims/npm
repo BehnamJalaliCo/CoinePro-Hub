@@ -1,0 +1,22 @@
+#!/bin/bash
+# Test bench shim. Online: the real npm (the pinned Node's). Offline: records
+# the call; `config set prefix P` and `install -g @anthropic-ai/claude-code@V`
+# leave a stand-in `claude` in P/bin that prints V.
+printf '%s %s\n' "$(id -un)" "$*" >>/bench/log/npm
+if [[ -e /bench/online ]]; then exec /usr/local/bin/npm "$@"; fi
+if [[ "${1:-} ${2:-} ${3:-}" == "config set prefix" ]]; then
+  printf '%s\n' "$4" >"$HOME/.bench-npm-prefix"
+  exit 0
+fi
+if [[ "${1:-}" == install ]]; then
+  prefix="$(cat "$HOME/.bench-npm-prefix")"
+  for a in "$@"; do
+    case "$a" in
+      @anthropic-ai/claude-code@*)
+        mkdir -p "$prefix/bin"
+        printf '#!/bin/sh\necho "%s (Claude Code, bench stand-in)"\n' "${a##*@}" >"$prefix/bin/claude"
+        chmod 0755 "$prefix/bin/claude" ;;
+    esac
+  done
+fi
+exit 0
