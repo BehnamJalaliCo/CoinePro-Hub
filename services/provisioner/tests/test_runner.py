@@ -9,15 +9,24 @@ import json
 from typing import Any
 
 import pytest
+from prov_fake_hetzner import FakeHetzner
+from prov_support import (  # noqa: F401 - pytest fixtures
+    HETZNER_TOKEN,
+    OWNER_KEY,
+    FakeApi,
+    Secrets,
+    api_fixture,
+    fake_fixture,
+    make_plan,
+    secrets_fixture,
+    settings_fixture,
+)
 
 from hq_common import provisioning as P
 from hq_provisioner import cloudinit
 from hq_provisioner.config import Settings
 from hq_provisioner.hetzner import Hetzner, fingerprint
 from hq_provisioner.runner import STEPS, Runner
-
-from .conftest import HETZNER_TOKEN, OWNER_KEY, FakeApi, Secrets, make_plan
-from .fake_hetzner import FakeHetzner
 
 ALL = [k for k, _ in STEPS]
 

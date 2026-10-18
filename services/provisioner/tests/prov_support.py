@@ -1,4 +1,5 @@
-"""Fixtures: a mock Hetzner over HTTP, the hub's internal api as a mock
+"""Test support (imported by the tests: the services share one pytest run,
+so no conftest or package here). Fixtures: a mock Hetzner over HTTP, the hub's internal api as a mock
 transport, the owner's secrets as a stub, and a valid plan."""
 
 from __future__ import annotations
@@ -12,13 +13,12 @@ from typing import Any
 
 import httpx
 import pytest
+from prov_fake_hetzner import FakeHetzner
 
 from hq_common import provisioning as P
 from hq_provisioner.config import Settings
 from hq_provisioner.hub import Hub
 from hq_provisioner.vault import NotConfigured
-
-from .fake_hetzner import FakeHetzner
 
 TEMPLATES = os.environ.get(
     "HQ_PROVISION_TEMPLATES",
@@ -173,26 +173,26 @@ class FakeApi:
         return [(s["key"], s["state"]) for s in self.steps if s["run"] == rid]
 
 
-@pytest.fixture
-def fake() -> Iterator[FakeHetzner]:
+@pytest.fixture(name="fake")
+def fake_fixture() -> Iterator[FakeHetzner]:
     f = FakeHetzner()
     f.url = f.start()  # type: ignore[attr-defined]
     yield f
     f.stop()
 
 
-@pytest.fixture
-def api() -> FakeApi:
+@pytest.fixture(name="api")
+def api_fixture() -> FakeApi:
     return FakeApi()
 
 
-@pytest.fixture
-def secrets_() -> Secrets:
+@pytest.fixture(name="secrets_")
+def secrets_fixture() -> Secrets:
     return Secrets()
 
 
-@pytest.fixture
-def settings(fake: FakeHetzner) -> Settings:
+@pytest.fixture(name="settings")
+def settings_fixture(fake: FakeHetzner) -> Settings:
     return Settings(
         hetzner_url=fake.url,  # type: ignore[attr-defined]
         templates_dir=TEMPLATES,

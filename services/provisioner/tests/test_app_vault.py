@@ -9,14 +9,20 @@ from pathlib import Path
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from prov_fake_hetzner import FakeHetzner
+from prov_support import (  # noqa: F401 - pytest fixtures
+    OWNER_KEY,
+    Secrets,
+    fake_fixture,
+    public_key,
+    secrets_fixture,
+    settings_fixture,
+)
 
 from hq_common.openbao import OpenBaoError
 from hq_provisioner.app import build_app
 from hq_provisioner.config import Settings
 from hq_provisioner.vault import NotConfigured, Vault, public_keys
-
-from .conftest import OWNER_KEY, Secrets, public_key
-from .fake_hetzner import FakeHetzner
 
 
 def client(

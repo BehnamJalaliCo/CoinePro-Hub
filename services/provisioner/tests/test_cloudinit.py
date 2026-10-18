@@ -8,10 +8,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from prov_support import OWNER_KEY, TEMPLATES, make_plan, public_key
 
 from hq_provisioner import cloudinit
-
-from .conftest import OWNER_KEY, TEMPLATES, make_plan, public_key
 
 TOKEN = "T" * 43
 BASH = shutil.which("bash") or "/bin/bash"

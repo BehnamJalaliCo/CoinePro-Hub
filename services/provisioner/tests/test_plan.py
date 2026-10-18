@@ -5,10 +5,9 @@ from __future__ import annotations
 import copy
 
 import pytest
+from prov_support import make_plan
 
 from hq_common import provisioning as P
-
-from .conftest import make_plan
 
 
 def test_the_digest_covers_the_plan_and_nothing_else() -> None:
