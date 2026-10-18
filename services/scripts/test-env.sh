@@ -84,6 +84,9 @@ run() {
   # The role charters (agents/, read-only) are read by the api, worker and gateway.
   local mounts=(-v "$SERVICES_DIR:/w:ro" -v "$REPO_DIR/agents:/agents:ro")
   local extra=(-e HQ_AGENTS_DIR=/agents)
+  # The provisioner's reviewed cloud-init templates (prompt 09 §4), read-only.
+  mounts+=(-v "$REPO_DIR/infra/provisioning/templates:/templates:ro")
+  extra+=(-e HQ_PROVISION_TEMPLATES=/templates)
   if [[ "$TARGET" == api ]]; then
     mounts+=(-v "$API_DIR:/api:ro" -v "$REPO_DIR/infra/opa:/opa:ro")
     extra+=(-e TEST_TEMPORAL_ADDRESS=temporal:7233 -e TEST_OPA_URL=http://opa:8181)

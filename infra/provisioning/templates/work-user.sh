@@ -1,0 +1,19 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2154  # the values block of the rendered script sets them
+# work-user: the owner's working user, with the owner's PUBLIC key(s) only;
+# no password at all (locked); sudo with the key (the owner's default).
+step_work_user() {
+  id "$WORK_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$WORK_USER"
+  passwd -l "$WORK_USER" >/dev/null
+  local home="/home/$WORK_USER"
+  install -d -m 0700 -o "$WORK_USER" -g "$WORK_USER" "$home/.ssh"
+  printf '%s\n' "$OWNER_KEYS" >"$home/.ssh/authorized_keys"
+  chown "$WORK_USER:$WORK_USER" "$home/.ssh/authorized_keys"
+  chmod 0600 "$home/.ssh/authorized_keys"
+  local sudoers="/etc/sudoers.d/90-coinepro-$WORK_USER"
+  printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$WORK_USER" >"$sudoers.tmp"
+  chmod 0440 "$sudoers.tmp"
+  visudo -cqf "$sudoers.tmp"
+  mv "$sudoers.tmp" "$sudoers"
+  result work-user 1 "" "$WORK_USER: the owner's key(s), sudo with the key, no password"
+}

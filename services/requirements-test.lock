@@ -838,6 +838,7 @@ fastapi==0.142.2 \
     #   -r services/egress/requirements.in
     #   -r services/gateway/requirements.in
     #   -r services/llm-router/requirements.in
+    #   -r services/provisioner/requirements.in
 fastuuid==0.14.0 \
     --hash=sha256:05a8dde1f395e0c9b4be515b7a521403d1e8349443e7641761af07c7ad1624b1 \
     --hash=sha256:0737606764b29785566f968bd8005eace73d3666bd0862f33a760796e26d1ede \
@@ -1155,6 +1156,10 @@ h2==4.4.1 \
     --hash=sha256:0e25f1462b23c9cb82d9eb02e28bc706dac2a68cb457c6a0d74d63c8a2a5d0e6 \
     --hash=sha256:4e866ffb1a869ae14dd9b5e6beb5c24a13da0495ad72b65925ded182521c1516
     # via httpx
+hcloud==2.27.0 \
+    --hash=sha256:668729b7e249fcd8e9aeb50eaa98a5f2e6c5c3f054882e32a3a171cc749e2f8c \
+    --hash=sha256:7636d12431eed15de51ffac37bc3ee70d36a7e1b92b671ce384be108a70f669f
+    # via -r services/provisioner/requirements.in
 hf-xet==1.7.0 \
     --hash=sha256:0a9e802f33bf50c851abe45fc5380e61f959e2d369647d6742b79ad9d6c27cab \
     --hash=sha256:19c0e64f14175ccb6a1aff69e0d2ab9ec5269a560e6687abaf2b3fa4f73de7cd \
@@ -1196,6 +1201,7 @@ httpx==0.28.1 \
     #   -r services/egress/requirements.in
     #   -r services/gateway/requirements.in
     #   -r services/llm-router/requirements.in
+    #   -r services/provisioner/requirements.in
     #   huggingface-hub
     #   litellm
     #   openai
@@ -2428,6 +2434,7 @@ pydantic==2.13.5 \
     #   -r services/egress/requirements.in
     #   -r services/gateway/requirements.in
     #   -r services/llm-router/requirements.in
+    #   -r services/provisioner/requirements.in
     #   fastapi
     #   litellm
     #   mcp
@@ -2596,7 +2603,9 @@ pytest-cov==7.1.0 \
 python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
-    # via botocore
+    # via
+    #   botocore
+    #   hcloud
 python-dotenv==1.2.4 \
     --hash=sha256:42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc \
     --hash=sha256:f0d53e69935a851c0dcc78f3ab7aaccd8cabef0b92382b576b824212902873c0
@@ -2829,6 +2838,7 @@ requests==2.34.2 \
     --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
     # via
     #   cachecontrol
+    #   hcloud
     #   pip-audit
     #   tiktoken
 respx==0.23.1 \
@@ -3314,6 +3324,7 @@ uvicorn==0.54.0 \
     #   -r services/egress/requirements.in
     #   -r services/gateway/requirements.in
     #   -r services/llm-router/requirements.in
+    #   -r services/provisioner/requirements.in
     #   mcp
 yarl==1.25.1 \
     --hash=sha256:0136d640dfa9b0523853e411430a99f8a91eca85774c6420285a33b755bc6de3 \
