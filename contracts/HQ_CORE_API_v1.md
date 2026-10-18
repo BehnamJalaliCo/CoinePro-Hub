@@ -797,18 +797,21 @@ Skill { id, ref: "SK-001", name_fa, summary_fa, body_md, resources: [FileRef], s
 ### 18.6 The holding academy
 ```
 Curriculum { role, version, modules: [{key, title_fa, skills: [ref], playbooks: [ref], examples: {good: [O-…], bad: [O-…]}}], updated_at }
-EvalSuite  { ref: "EV-001", role, title_fa, cases: [{id, input_md, rubric_md, weight}], baseline: {subject, version, score} }
-EvalRun    { id, suite, subject: {kind: "charter"|"skill"|"model", ref, version}, score: 0..100, passed: bool, cases: [{id, score, notes}], at }
+EvalSuite  { ref: "EV-001", role, title_fa, cases: [{id, input_md, rubric_md, weight}], baseline: {subject, version, score},
+             recent: [EvalRun] }                                                        // ⟨1.4.5⟩ in GET /academy/evals: the last 10 runs, oldest first
+EvalRun    { id, suite, subject: {kind: "charter"|"skill"|"model", ref, version}, score: 0..100, passed: bool, cases: [{id, score, notes}], at,
+             tokens: {input, output}, equiv_cost_usd }                                  // ⟨1.4.5⟩ what the run cost, for comparing models
 Teaching   { id, ref: "TE-0001", target: {kind: "role"|"employee", ref}, source: "voice"|"text", text_md, file_id|null,
              proposal: {kind: "charter_rule"|"skill"|"memory"|"playbook", diff_md}|null, eval_run|null,
              status: "drafting"|"proposed"|"approved"|"rejected", created_at }
 TrainingRecord { employee, charter_version, curriculum_version, skills: [ref@version], evals: [{suite, score, at}], lessons: [L-…], trend: [0..100] }
 ```
 | GET | `/academy/curricula` · `/academy/curricula/{role}` | |
-| GET | `/academy/evals` · `/academy/evals/{ref}/runs` | |
+| GET | `/academy/evals` · `/academy/evals/{ref}/runs` | ⟨1.4.5⟩ runs are a `Page`, newest first |
+| GET | `/academy/runs` | ⟨1.4.5⟩ `?role&suite&subject_kind&subject_ref&latest&cursor` — runs across suites, a `Page`, newest first; `latest=true` keeps only the newest run per (suite, subject). `?subject_kind=model&latest=true` is the model comparison: which model does each suite's work best, and at what cost |
 | GET · POST | `/academy/teach` | POST `{target, text, source, file_id?}`; the AI Ops head drafts, the overseer reviews, an eval runs |
 | POST | `/academy/teach/{ref}/approve` 🔏 · `/reject` | target = ref |
-| GET | `/academy/records/{employee}` | |
+| GET | `/academy/records/{employee}` | ⟨1.4.5⟩ the employee card's training history: `evals` newest first, `trend` the last 12 eval scores oldest first |
 - **Gate:** a new charter, skill or model assignment goes live only when its eval score ≥ baseline − 1; otherwise it is rejected with the report.
 
 ### 18.7 Internet and MCP for agents
