@@ -86,12 +86,10 @@ propose_kinds := {
 	"employee": {"a3_action", "deploy", "recurring_approval", "code_session"},
 	"advisor": {"proposal", "code_session"},
 	"inspector": {"proposal", "hire"},
-	# ⟨1.4⟩ prompt 08 §1; their own kinds (protocol, errand_action, ...) come with §2 and §5
-	"overseer": {"proposal"},
-	"assistant": {"proposal", "errand_action"},
-	# ⟨1.4⟩ prompt 08 §1-§2: a new or changed protocol is the owner's seal
+	# ⟨1.4⟩ prompt 08: a new or changed protocol is the owner's seal (§2); an
+	# errand's external commitment is the owner's decision (§5)
 	"overseer": {"proposal", "protocol"},
-	"assistant": {"proposal"},
+	"assistant": {"proposal", "errand_action"},
 }
 
 # Data, not code (data.json). Without it nothing that depends on it is allowed.
