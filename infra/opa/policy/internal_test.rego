@@ -463,3 +463,41 @@ test_skills_and_academy_are_holding_roles_only if {
 		not allowed(f.svc, op, {"company": "HQ"})
 	}
 }
+
+# ----------------------------------------------- oversight (prompt 08 §2) --
+test_the_overseer_raises_and_holds_anywhere if {
+	allowed(f.hq_ovr, "oversight.finding_raise", {"company": "TY", "severity": "high"})
+	allowed(f.hq_ovr, "oversight.hold", {"kind": "decision"})
+	allowed(f.hq_ovs, "oversight.finding_raise", {"company": "FX", "severity": "low"})
+	allowed(f.hq_ovs_01, "oversight.hold", {"kind": "session"})
+	not allowed(f.ty_ceo, "oversight.finding_raise", {"company": "TY", "severity": "low"})
+	not allowed(f.hq_adv, "oversight.hold", {"kind": "decision"})
+	not allowed(f.ty_growth_01, "oversight.hold", {"kind": "employee"})
+}
+
+test_findings_are_answered_in_their_company_and_verified_by_the_overseer if {
+	allowed(f.ty_ceo, "oversight.finding_update", {"company": "TY", "status": "fixed"})
+	not allowed(f.ty_ceo, "oversight.finding_update", {"company": "TY", "status": "verified"})
+	not allowed(f.fx_ceo, "oversight.finding_update", {"company": "TY", "status": "acknowledged"})
+	allowed(f.hq_ovr, "oversight.finding_update", {"company": "TY", "status": "verified"})
+}
+
+test_challenges_and_results if {
+	allowed(f.hq_ovr, "oversight.challenge_issue", {"company": "TY"})
+	not allowed(f.ty_ceo, "oversight.challenge_issue", {"company": "TY"})
+	allowed(f.ty_ceo, "oversight.challenge_submit", {"company": "TY"})
+	not allowed(f.fx_ceo, "oversight.challenge_submit", {"company": "TY"})
+	allowed(f.hq_ovs, "oversight.challenge_score", {"challenge": "CH-0001"})
+	allowed(f.hq_ovr, "oversight.protocol_result", {"protocol": "PR-001"})
+	not allowed(f.ty_ceo, "oversight.protocol_result", {"protocol": "PR-001"})
+}
+
+test_the_overseer_engages_and_freezes_never_releases if {
+	allowed(f.hq_ovr, "kill_switch.set", {"scope": "company:FX", "state": "engaged", "current": {}})
+	not allowed(f.hq_ovr, "kill_switch.set", {"scope": "company:FX", "state": "released", "current": {"changed_by_kind": "agent", "changed_by_company": "HQ"}})
+	not allowed(f.hq_ovr, "kill_switch.set", {"scope": "holding", "state": "engaged", "current": {}})
+	allowed(f.hq_ovr, "deploy_freeze.set", {"company": "TY", "lift": false, "freeze": null})
+	not allowed(f.hq_ovr, "deploy_freeze.set", {"company": "TY", "lift": true, "freeze": {"created_by_kind": "agent", "created_by_code": "HQ-OVR"}})
+	allowed(f.hq_ovr, "decision.propose", {"company": "HQ", "kind": "protocol"})
+	not allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "protocol"})
+}

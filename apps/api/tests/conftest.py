@@ -90,6 +90,7 @@ def settings(**over: Any) -> Settings:
         "public_origin": ORIGIN,
         "rp_id": "hq.test",
         "files_root": "/tmp/hq-files-test",
+        "oversight_schedules": False,  # the protocols' schedules exist, paused
         "rate_per_principal": 100_000,
         "auth_rate_per_ip": 100_000,
     }

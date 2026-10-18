@@ -337,6 +337,15 @@ def upgrade() -> None:
             CHECK (until IS NULL OR until >= since)
         );
         CREATE UNIQUE INDEX watch_one_open ON oversight.watch ((true)) WHERE until IS NULL;
+        -- Whether watch mode is on, for every company's transaction (a card of
+        -- any company is held while the owner is away); nothing else of the
+        -- watch rows is shown.
+        CREATE FUNCTION oversight.watch_on() RETURNS boolean
+            LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+                SELECT EXISTS (SELECT 1 FROM oversight.watch WHERE until IS NULL)
+            $$;
+        REVOKE ALL ON FUNCTION oversight.watch_on() FROM PUBLIC;
+        GRANT EXECUTE ON FUNCTION oversight.watch_on() TO {APP_ROLES};
         CREATE TRIGGER watch_no_delete BEFORE DELETE ON oversight.watch
             FOR EACH ROW EXECUTE FUNCTION core.reject_change();
 
@@ -387,6 +396,7 @@ def downgrade() -> None:
         ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check
             CHECK (kind IN ({KINDS})) NOT VALID;
         ALTER TABLE owner.settings DROP COLUMN watch_after_hours;
+        DROP FUNCTION oversight.watch_on();
         DROP VIEW oversight.current_protocols;
         DROP TABLE oversight.watch, oversight.compliance, oversight.holds, oversight.orders,
             oversight.challenges, oversight.finding_history, oversight.findings,

@@ -6,14 +6,16 @@ only added, never overwritten (edits made later in the app survive).
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from hq_api.db import Tx
-from hq_api.domain import academy, sites, skills, templates
+from hq_api.domain import academy, oversight, sites, skills, templates
 from hq_api.workshop import domain as workshop
+from hq_common import charters
 
 SEED_DIR = Path(__file__).resolve().parents[2] / "seed"
 
@@ -61,6 +63,15 @@ async def seed(tx: Tx) -> dict[str, Any]:
                 role=role,
             )
     added["sites"] = await sites.seed(tx)
+    # The Chief Overseer's protocols (prompt 08 §2), when agents/ is mounted
+    # here (the api and the worker; the worker also seeds them on reconcile).
+    root = Path(os.environ.get("HQ_AGENTS_DIR", charters.DEFAULT_DIR))
+    holding = await tx.scalar("SELECT id FROM core.companies WHERE kind = 'holding'")
+    added["protocols"] = (
+        await oversight.seed_protocols(tx, holding, root)
+        if holding and (root / oversight.PROTOCOL_FILE).exists()
+        else 0
+    )
     added["workspaces"] = await workshop.seed(tx)
     # Prompt 08 §6-§7: the skill library and the academy from agents/ (read-only).
     holding = await tx.first("SELECT id, code FROM core.companies WHERE kind = 'holding'")

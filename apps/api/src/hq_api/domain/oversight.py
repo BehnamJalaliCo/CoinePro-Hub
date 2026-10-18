@@ -737,7 +737,10 @@ async def issue_challenge(
 async def submit_challenge(
     tx: Tx, who: Principal, ref: str, work_id: UUID | None, note: str
 ) -> dict[str, Any]:
-    ch = await load_challenge(tx, ref, lock=True)
+    try:
+        ch = await load_challenge(tx, ref, lock=True)
+    except ApiError as exc:  # another company's (RLS) or none: the same answer
+        raise ApiError(403, "policy_denied", "not this company's challenge") from exc
     if ch["company_id"] != who.company_id:
         raise ApiError(403, "policy_denied", "another company's challenge")
     if ch["status"] not in ("issued", "accepted"):
@@ -1100,7 +1103,8 @@ async def open_watch(tx: Tx) -> dict[str, Any] | None:
 
 
 async def watch_on(tx: Tx) -> bool:
-    return await open_watch(tx) is not None
+    """For any company's transaction (the watch rows are the holding's)."""
+    return bool(await tx.scalar("SELECT oversight.watch_on()"))
 
 
 async def last_owner_activity(tx: Tx) -> datetime | None:

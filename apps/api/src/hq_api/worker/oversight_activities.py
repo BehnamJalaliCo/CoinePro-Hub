@@ -87,7 +87,8 @@ class OversightActivities:
         wanted = {WEEKLY}
         out["weekly"] = await schedules.upsert(client, weekly_desired(tz), task_queue)
         for r in rows:
-            d = protocol_desired(r["ref"], r["schedule"], tz, r["status"] != "active")
+            paused = r["status"] != "active" or not self.hub.settings.oversight_schedules
+            d = protocol_desired(r["ref"], r["schedule"], tz, paused)
             out["protocols"][d.id] = await schedules.upsert(client, d, task_queue)
             wanted.add(d.id)
         async for s in await client.list_schedules():

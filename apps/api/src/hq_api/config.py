@@ -125,6 +125,10 @@ class Settings:
     oversight_run_tokens: int = field(
         default_factory=lambda: _int("HQ_OVERSIGHT_RUN_TOKENS", 60_000)
     )
+    # Off: the protocols' schedules exist but stay paused (tests).
+    oversight_schedules: bool = field(
+        default_factory=lambda: _env("HQ_OVERSIGHT_SCHEDULES", "on") == "on"
+    )
     agent_daily_token_cap: int = field(
         default_factory=lambda: _int("AGENT_DAILY_TOKEN_CAP", 2_000_000)
     )

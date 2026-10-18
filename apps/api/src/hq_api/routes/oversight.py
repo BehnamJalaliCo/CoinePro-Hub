@@ -440,7 +440,7 @@ async def _decide_hold(
         await ctx.audit(
             tx,
             company_id=h["company_id"],
-            action=f"oversight.hold.{'release' if state == 'released' else 'cancel'}",
+            action=f"oversight.hold_{'release' if state == 'released' else 'cancel'}",
             action_class="A2",
             target_kind=h["target_kind"],
             target_ref=h["target_ref"],
@@ -620,7 +620,7 @@ async def raise_finding(
         await ctx.audit(
             tx,
             company_id=company.id,
-            action="oversight.finding.raise",
+            action="oversight.finding_raise",
             action_class="A1",
             target_kind="finding",
             target_ref=f["ref"],
@@ -662,7 +662,7 @@ async def update_finding(
         await ctx.audit(
             tx,
             company_id=f["company_id"],
-            action="oversight.finding.update",
+            action="oversight.finding_update",
             action_class="A2",
             target_kind="finding",
             target_ref=ref,
@@ -713,7 +713,7 @@ async def protocol_result(body: ProtocolResultIn, ctx: Ctx = Depends(internal_ct
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,  # type: ignore[arg-type]
-            action="oversight.protocol.result",
+            action="oversight.protocol_result",
             action_class="A2",
             target_kind="protocol",
             target_ref=body.protocol,
@@ -752,7 +752,7 @@ async def issue_challenge(
         await ctx.audit(
             tx,
             company_id=company.id,
-            action="oversight.challenge.issue",
+            action="oversight.challenge_issue",
             action_class="A2",
             target_kind="challenge",
             target_ref=ch["ref"],
@@ -784,7 +784,7 @@ async def submit_challenge(
         await ctx.audit(
             tx,
             company_id=ch["company_id"],
-            action="oversight.challenge.submit",
+            action="oversight.challenge_submit",
             action_class="A1",
             target_kind="challenge",
             target_ref=ref,
@@ -802,7 +802,7 @@ async def score_challenge(ref: str, body: ScoreIn, ctx: Ctx = Depends(internal_c
         await ctx.audit(
             tx,
             company_id=ch["company_id"],
-            action="oversight.challenge.score",
+            action="oversight.challenge_score",
             action_class="A2",
             target_kind="challenge",
             target_ref=ref,

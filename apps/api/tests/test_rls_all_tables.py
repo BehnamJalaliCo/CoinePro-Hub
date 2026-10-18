@@ -226,6 +226,53 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
         co["id"],
         f"{co['code']}-CEO",
     )
+    # Prompt 08 §2: the overseer's records about this company.
+    prot = await su.fetchrow("SELECT id, ref FROM oversight.protocols ORDER BY ref LIMIT 1")
+    run = await su.fetchval(
+        """INSERT INTO oversight.protocol_runs (company_id, protocol_id, protocol_ref, version, method, by_kind,
+               by_code) VALUES ($1, $2, $3, 1, 'rule', 'system', 'test') RETURNING id""",
+        co["id"],
+        prot["id"],
+        prot["ref"],
+    )
+    finding = await su.fetchval(
+        """INSERT INTO oversight.findings (company_id, run_id, severity, title_fa, answerable_kind,
+               answerable_code, raised_by_kind, raised_by_code, due_at)
+           VALUES ($1, $2, 'low', 'f', 'owner', 'owner', 'system', 'test', now()) RETURNING id""",
+        co["id"],
+        run,
+    )
+    await su.execute(
+        """INSERT INTO oversight.finding_history (finding_id, company_id, by_kind, by_code, status)
+           VALUES ($1, $2, 'system', 'test', 'open')""",
+        finding,
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO oversight.challenges (company_id, period, period_key, title_fa, due_at, judge_kind,
+               judge_code, issued_by_code)
+           VALUES ($1, 'week', current_date, 'c', now() + interval '1 day', 'agent', 'HQ-OVR', 'HQ-OVR')""",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO oversight.orders (company_id, text_md, source, applies_to, created_by_kind,
+               created_by_code) VALUES ($1, 'o', 'text', 'overseer', 'owner', 'owner')""",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO oversight.holds (company_id, target_kind, target_ref, reason_md, held_by_kind,
+               held_by_code) VALUES ($1, 'employee', $2, 'r', 'agent', 'HQ-OVR')""",
+        co["id"],
+        f"{co['code']}-RLS-HOLD",
+    )
+    await su.execute(
+        "INSERT INTO oversight.compliance (company_id, day, score) VALUES ($1, current_date, 90)", co["id"]
+    )
+    await su.execute(
+        """INSERT INTO oversight.watch (company_id, reason, since, until)
+           VALUES ($1, 'owner', now() - interval '1 hour', now())""",
+        co["id"],
+    )
     # Prompt 07: one request of an agent's web tool.
     await su.execute(
         """INSERT INTO egress.log (company_id, actor, tool, class, method, host)

@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
+from hq_api.domain import oversight
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow
 from hq_api.schemas import EMPLOYEE_CODE, Model, Page
@@ -451,6 +452,7 @@ async def _steer(
                 409, "validation_failed", fields={"session": f"{ref} waits ({s['held']})"}
             )
         s = await D.unhold_if_free(tx, s)  # 423 while the company is still locked
+        await oversight.require_not_held(tx, "session", ref)  # the overseer's hold (prompt 08)
         text = scrub(body.body)
         seq = await D.append(
             tx,

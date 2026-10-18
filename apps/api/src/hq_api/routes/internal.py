@@ -871,7 +871,10 @@ async def agent_approve_decision(
     ref: str, body: AgentDecide, request: Request, ctx: Ctx = Depends(internal_ctx)
 ) -> Any:
     """A CEO approves within its authority (OPA hq.decisions): recurring work of
-    its own company inside the company's monthly budget. Requires `Idempotency-Key`."""
+    its own company inside the company's monthly budget. Requires `Idempotency-Key`.
+    The Chief Overseer holds and stops, it never approves (contract §18.1)."""
+    if ctx.who.is_agent and ctx.who.role == "overseer":
+        raise ApiError(403, "policy_denied", "the overseer never approves")
     return await _agent_decide(ctx, request, ref, "approved", body)
 
 
