@@ -84,6 +84,26 @@
         "title": "AccountPolicy",
         "type": "object"
       },
+      "ActivateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "default: the latest version",
+            "title": "Version"
+          }
+        },
+        "title": "ActivateIn",
+        "type": "object"
+      },
       "Activity": {
         "additionalProperties": false,
         "properties": {
@@ -155,52 +175,6 @@
           "code"
         ],
         "title": "Actor",
-        "type": "object"
-      },
-      "Adoption": {
-        "properties": {
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "decision_ref": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Decision Ref"
-          },
-          "status": {
-            "enum": [
-              "proposed",
-              "adopted",
-              "rejected"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "work_ref": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Work Ref"
-          }
-        },
-        "required": [
-          "company",
-          "status",
-          "decision_ref"
-        ],
-        "title": "Adoption",
         "type": "object"
       },
       "AgentDecide": {
@@ -1042,27 +1016,6 @@
         "title": "AuditEntry",
         "type": "object"
       },
-      "AuditIn": {
-        "additionalProperties": false,
-        "properties": {
-          "counted": {
-            "title": "Counted",
-            "type": "boolean"
-          },
-          "note": {
-            "maxLength": 2000,
-            "minLength": 1,
-            "title": "Note",
-            "type": "string"
-          }
-        },
-        "required": [
-          "counted",
-          "note"
-        ],
-        "title": "AuditIn",
-        "type": "object"
-      },
       "AwaySummary": {
         "properties": {
           "companies": {
@@ -1344,50 +1297,6 @@
           "kind"
         ],
         "title": "BrowsePolicy",
-        "type": "object"
-      },
-      "Budget": {
-        "properties": {
-          "tokens": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tokens"
-          },
-          "tokens_used": {
-            "title": "Tokens Used",
-            "type": "integer"
-          },
-          "usd": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Usd"
-          },
-          "usd_used": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Usd Used",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tokens",
-          "usd",
-          "tokens_used",
-          "usd_used"
-        ],
-        "title": "Budget",
         "type": "object"
       },
       "BudgetLeft": {
@@ -1813,6 +1722,29 @@
           "error_class"
         ],
         "title": "Call",
+        "type": "object"
+      },
+      "CaseResult": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "notes": {
+            "title": "Notes",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "score",
+          "notes"
+        ],
+        "title": "CaseResult",
         "type": "object"
       },
       "CatalogTool": {
@@ -2633,78 +2565,6 @@
         "title": "CompanyPatch",
         "type": "object"
       },
-      "CompanyStanding": {
-        "properties": {
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "parts": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Parts",
-            "type": "object"
-          },
-          "rank": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rank"
-          },
-          "score": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score"
-          },
-          "stars": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stars"
-          },
-          "trend": {
-            "items": {
-              "type": "number"
-            },
-            "title": "Trend",
-            "type": "array"
-          }
-        },
-        "required": [
-          "company",
-          "stars",
-          "score",
-          "parts",
-          "rank",
-          "trend"
-        ],
-        "title": "CompanyStanding",
-        "type": "object"
-      },
       "CompanyState": {
         "properties": {
           "budgets": {
@@ -2806,7 +2666,7 @@
         "properties": {
           "evidence": {
             "items": {
-              "$ref": "#/components/schemas/hq_api__schemas__Evidence"
+              "$ref": "#/components/schemas/Evidence"
             },
             "maxItems": 50,
             "minItems": 1,
@@ -3100,47 +2960,37 @@
         "title": "Count",
         "type": "object"
       },
-      "Criterion": {
-        "additionalProperties": false,
+      "Curriculum": {
         "properties": {
-          "description_md": {
-            "default": "",
-            "maxLength": 2000,
-            "title": "Description Md",
+          "modules": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Modules",
+            "type": "array"
+          },
+          "role": {
+            "title": "Role",
             "type": "string"
           },
-          "key": {
-            "pattern": "^[a-z][a-z0-9_]{1,30}$",
-            "title": "Key",
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
             "type": "string"
           },
-          "name_fa": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Name Fa",
-            "type": "string"
-          },
-          "weight": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "maximum": 100.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,6}0*$)\\d{0,3}\\.\\d{0,2}0*$)",
-                "type": "string"
-              }
-            ],
-            "title": "Weight"
+          "version": {
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
-          "key",
-          "name_fa",
-          "weight"
+          "role",
+          "version",
+          "modules",
+          "updated_at"
         ],
-        "title": "Criterion",
+        "title": "Curriculum",
         "type": "object"
       },
       "Decision": {
@@ -3417,8 +3267,7 @@
               "proposal",
               "budget_change",
               "evaluation",
-              "code_session",
-              "lesson_adoption"
+              "code_session"
             ],
             "title": "Kind",
             "type": "string"
@@ -3623,7 +3472,7 @@
           },
           "evidence": {
             "items": {
-              "$ref": "#/components/schemas/hq_api__schemas__Evidence"
+              "$ref": "#/components/schemas/Evidence"
             },
             "maxItems": 50,
             "title": "Evidence",
@@ -4396,6 +4245,19 @@
         "title": "DismissResult",
         "type": "object"
       },
+      "DraftIn": {
+        "additionalProperties": false,
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/Proposal"
+          }
+        },
+        "required": [
+          "proposal"
+        ],
+        "title": "DraftIn",
+        "type": "object"
+      },
       "EgressDay": {
         "additionalProperties": false,
         "properties": {
@@ -5040,69 +4902,6 @@
         "title": "EmployeeRef",
         "type": "object"
       },
-      "EmployeeStanding": {
-        "properties": {
-          "code": {
-            "title": "Code",
-            "type": "string"
-          },
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "count": {
-            "title": "Count",
-            "type": "integer"
-          },
-          "efficiency": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Efficiency"
-          },
-          "rank_company": {
-            "title": "Rank Company",
-            "type": "integer"
-          },
-          "rank_holding": {
-            "title": "Rank Holding",
-            "type": "integer"
-          },
-          "stars": {
-            "title": "Stars",
-            "type": "number"
-          },
-          "title_fa": {
-            "title": "Title Fa",
-            "type": "string"
-          },
-          "trend": {
-            "items": {
-              "type": "number"
-            },
-            "title": "Trend",
-            "type": "array"
-          }
-        },
-        "required": [
-          "code",
-          "company",
-          "title_fa",
-          "stars",
-          "count",
-          "rank_company",
-          "rank_holding",
-          "trend",
-          "efficiency"
-        ],
-        "title": "EmployeeStanding",
-        "type": "object"
-      },
       "Engine": {
         "properties": {
           "model": {
@@ -5273,6 +5072,297 @@
         "title": "EscrowIn",
         "type": "object"
       },
+      "EvalCase": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input_md": {
+            "title": "Input Md",
+            "type": "string"
+          },
+          "rubric_md": {
+            "title": "Rubric Md",
+            "type": "string"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "input_md",
+          "rubric_md",
+          "weight"
+        ],
+        "title": "EvalCase",
+        "type": "object"
+      },
+      "EvalIn": {
+        "additionalProperties": false,
+        "properties": {
+          "subject": {
+            "$ref": "#/components/schemas/Subject"
+          },
+          "suite": {
+            "pattern": "^EV-[0-9]{3,6}$",
+            "title": "Suite",
+            "type": "string"
+          }
+        },
+        "required": [
+          "suite",
+          "subject"
+        ],
+        "title": "EvalIn",
+        "type": "object"
+      },
+      "EvalResult": {
+        "properties": {
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "suite": {
+            "title": "Suite",
+            "type": "string"
+          }
+        },
+        "required": [
+          "suite",
+          "score",
+          "baseline"
+        ],
+        "title": "EvalResult",
+        "type": "object"
+      },
+      "EvalRun": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/CaseResult"
+            },
+            "title": "Cases",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "gate": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gate"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "purpose": {
+            "title": "Purpose",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/Subject"
+          },
+          "suite": {
+            "title": "Suite",
+            "type": "string"
+          },
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "suite",
+          "subject",
+          "score",
+          "passed",
+          "cases",
+          "at",
+          "status",
+          "purpose",
+          "gate",
+          "tokens",
+          "finished_at"
+        ],
+        "title": "EvalRun",
+        "type": "object"
+      },
+      "EvalSuite": {
+        "properties": {
+          "baseline": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          },
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/EvalCase"
+            },
+            "title": "Cases",
+            "type": "array"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "role",
+          "title_fa",
+          "cases",
+          "baseline"
+        ],
+        "title": "EvalSuite",
+        "type": "object"
+      },
+      "Evidence": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "deliverable",
+              "link",
+              "metric",
+              "log"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "ref": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "title": "Evidence",
+        "type": "object"
+      },
       "Fail": {
         "additionalProperties": false,
         "properties": {
@@ -5314,29 +5404,6 @@
           "device_name"
         ],
         "title": "FcmTokenIn",
-        "type": "object"
-      },
-      "Figure": {
-        "additionalProperties": false,
-        "properties": {
-          "label_fa": {
-            "maxLength": 40,
-            "minLength": 1,
-            "title": "Label Fa",
-            "type": "string"
-          },
-          "value": {
-            "maxLength": 16,
-            "minLength": 1,
-            "title": "Value",
-            "type": "string"
-          }
-        },
-        "required": [
-          "label_fa",
-          "value"
-        ],
-        "title": "Figure",
         "type": "object"
       },
       "FileRef": {
@@ -5893,37 +5960,6 @@
           "status"
         ],
         "title": "Health",
-        "type": "object"
-      },
-      "HireDecideIn": {
-        "additionalProperties": false,
-        "properties": {
-          "note": {
-            "anyOf": [
-              {
-                "maxLength": 5000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "verdict": {
-            "enum": [
-              "approve",
-              "reject",
-              "return"
-            ],
-            "title": "Verdict",
-            "type": "string"
-          }
-        },
-        "required": [
-          "verdict"
-        ],
-        "title": "HireDecideIn",
         "type": "object"
       },
       "Hiring": {
@@ -6559,7 +6595,7 @@
             "type": "string"
           },
           "target": {
-            "$ref": "#/components/schemas/Target"
+            "$ref": "#/components/schemas/Target-Output"
           }
         },
         "required": [
@@ -6684,111 +6720,6 @@
           "reason"
         ],
         "title": "KillSwitchIn",
-        "type": "object"
-      },
-      "Lesson": {
-        "properties": {
-          "adoption": {
-            "items": {
-              "$ref": "#/components/schemas/Adoption"
-            },
-            "title": "Adoption",
-            "type": "array"
-          },
-          "body_md": {
-            "title": "Body Md",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "evidence": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Evidence",
-            "type": "array"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "period": {
-            "title": "Period",
-            "type": "string"
-          },
-          "ref": {
-            "title": "Ref",
-            "type": "string"
-          },
-          "source_company": {
-            "title": "Source Company",
-            "type": "string"
-          },
-          "title_fa": {
-            "title": "Title Fa",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "ref",
-          "source_company",
-          "period",
-          "title_fa",
-          "body_md",
-          "evidence",
-          "adoption",
-          "created_at"
-        ],
-        "title": "Lesson",
-        "type": "object"
-      },
-      "LessonIn": {
-        "additionalProperties": false,
-        "properties": {
-          "body_md": {
-            "maxLength": 20000,
-            "minLength": 1,
-            "title": "Body Md",
-            "type": "string"
-          },
-          "evidence": {
-            "items": {
-              "$ref": "#/components/schemas/hq_api__routes__people__Evidence"
-            },
-            "maxItems": 20,
-            "title": "Evidence",
-            "type": "array"
-          },
-          "period": {
-            "pattern": "^(week|month):[0-9]{4}-[0-9]{2}(-[0-9]{2})?$",
-            "title": "Period",
-            "type": "string"
-          },
-          "source_company": {
-            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
-            "title": "Source Company",
-            "type": "string"
-          },
-          "title_fa": {
-            "maxLength": 300,
-            "minLength": 1,
-            "title": "Title Fa",
-            "type": "string"
-          }
-        },
-        "required": [
-          "source_company",
-          "period",
-          "title_fa",
-          "body_md"
-        ],
-        "title": "LessonIn",
         "type": "object"
       },
       "LevelSettings": {
@@ -8920,60 +8851,6 @@
         "title": "Page[Snapshot]",
         "type": "object"
       },
-      "Page_Star_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/Star"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "title": "Page[Star]",
-        "type": "object"
-      },
-      "Page_Story_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/Story"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "title": "Page[Story]",
-        "type": "object"
-      },
       "Page_WorkEvent_": {
         "properties": {
           "items": {
@@ -9584,6 +9461,33 @@
           "note"
         ],
         "title": "Progress",
+        "type": "object"
+      },
+      "Proposal": {
+        "additionalProperties": false,
+        "properties": {
+          "diff_md": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Diff Md",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "charter_rule",
+              "skill",
+              "memory",
+              "playbook"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "diff_md"
+        ],
+        "title": "Proposal",
         "type": "object"
       },
       "PublicKeyCredential": {
@@ -10325,6 +10229,130 @@
         "title": "Return",
         "type": "object"
       },
+      "Review": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "By",
+            "type": "object"
+          },
+          "checks": {
+            "additionalProperties": true,
+            "title": "Checks",
+            "type": "object"
+          },
+          "notes_md": {
+            "title": "Notes Md",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "pass",
+              "changes",
+              "reject"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "by",
+          "at",
+          "verdict",
+          "notes_md",
+          "checks"
+        ],
+        "title": "Review",
+        "type": "object"
+      },
+      "ReviewIn": {
+        "additionalProperties": false,
+        "properties": {
+          "checks": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Checks",
+            "type": "object"
+          },
+          "notes_md": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Notes Md",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "pass",
+              "changes",
+              "reject"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          },
+          "version": {
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "verdict",
+          "notes_md"
+        ],
+        "title": "ReviewIn",
+        "type": "object"
+      },
+      "ReviewOut": {
+        "additionalProperties": false,
+        "properties": {
+          "eval_run": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eval Run"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "verdict": {
+            "title": "Verdict",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref",
+          "version",
+          "verdict",
+          "status"
+        ],
+        "title": "ReviewOut",
+        "type": "object"
+      },
       "Role": {
         "properties": {
           "department": {
@@ -10423,31 +10451,6 @@
           "tokens_per_run"
         ],
         "title": "RoleLimits",
-        "type": "object"
-      },
-      "RubricIn": {
-        "additionalProperties": false,
-        "properties": {
-          "criteria": {
-            "items": {
-              "$ref": "#/components/schemas/Criterion"
-            },
-            "maxItems": 12,
-            "minItems": 1,
-            "title": "Criteria",
-            "type": "array"
-          },
-          "rules_md": {
-            "default": "",
-            "maxLength": 10000,
-            "title": "Rules Md",
-            "type": "string"
-          }
-        },
-        "required": [
-          "criteria"
-        ],
-        "title": "RubricIn",
         "type": "object"
       },
       "Run": {
@@ -10926,6 +10929,45 @@
         "title": "ScheduleIn",
         "type": "object"
       },
+      "Scope": {
+        "properties": {
+          "companies": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "default": "all",
+            "title": "Companies"
+          },
+          "departments": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Departments",
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Roles",
+            "type": "array"
+          }
+        },
+        "title": "Scope",
+        "type": "object"
+      },
       "Score": {
         "properties": {
           "owner_avg": {
@@ -11124,38 +11166,6 @@
           "stored"
         ],
         "title": "SecretOut",
-        "type": "object"
-      },
-      "Seen": {
-        "additionalProperties": false,
-        "properties": {
-          "refs": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 200,
-            "minItems": 1,
-            "title": "Refs",
-            "type": "array"
-          }
-        },
-        "required": [
-          "refs"
-        ],
-        "title": "Seen",
-        "type": "object"
-      },
-      "SeenOut": {
-        "properties": {
-          "seen": {
-            "title": "Seen",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "seen"
-        ],
-        "title": "SeenOut",
         "type": "object"
       },
       "Segment": {
@@ -11744,6 +11754,306 @@
         "title": "SitesPut",
         "type": "object"
       },
+      "Skill": {
+        "properties": {
+          "activated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "active_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Version"
+          },
+          "body_md": {
+            "title": "Body Md",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Created By",
+            "type": "object"
+          },
+          "eval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eval_suite": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eval Suite"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "precheck": {
+            "additionalProperties": true,
+            "title": "Precheck",
+            "type": "object"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "resources": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Resources",
+            "type": "array"
+          },
+          "review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Review"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "in_review",
+              "approved",
+              "active",
+              "retired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary_fa": {
+            "title": "Summary Fa",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "name_fa",
+          "summary_fa",
+          "body_md",
+          "resources",
+          "scope",
+          "version",
+          "status",
+          "review",
+          "eval",
+          "created_by",
+          "created_at",
+          "activated_at",
+          "precheck",
+          "active_version",
+          "eval_suite"
+        ],
+        "title": "Skill",
+        "type": "object"
+      },
+      "SkillIn": {
+        "additionalProperties": false,
+        "properties": {
+          "body_md": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Md"
+          },
+          "eval_suite": {
+            "anyOf": [
+              {
+                "pattern": "^EV-[0-9]{3,6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eval Suite"
+          },
+          "file_ids": {
+            "description": "PDFs: their text; kept as resources",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "File Ids",
+            "type": "array"
+          },
+          "name_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "summary_fa": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Summary Fa",
+            "type": "string"
+          },
+          "transcript_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "an audio from /transcribe: its transcript is the text",
+            "title": "Transcript File Id"
+          }
+        },
+        "required": [
+          "name_fa",
+          "summary_fa"
+        ],
+        "title": "SkillIn",
+        "type": "object"
+      },
+      "SkillVersion": {
+        "properties": {
+          "body_md": {
+            "title": "Body Md",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Created By",
+            "type": "object"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "eval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "precheck": {
+            "additionalProperties": true,
+            "title": "Precheck",
+            "type": "object"
+          },
+          "review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Review"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "status",
+          "body_md",
+          "source",
+          "precheck",
+          "review",
+          "eval",
+          "created_by",
+          "created_at",
+          "decided_at"
+        ],
+        "title": "SkillVersion",
+        "type": "object"
+      },
       "Snapshot": {
         "properties": {
           "destination": {
@@ -11791,278 +12101,6 @@
           "tags"
         ],
         "title": "Snapshot",
-        "type": "object"
-      },
-      "Star": {
-        "properties": {
-          "by": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Actor"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "counted": {
-            "title": "Counted",
-            "type": "boolean"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "criteria": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "title": "Criteria",
-            "type": "object"
-          },
-          "employee": {
-            "title": "Employee",
-            "type": "string"
-          },
-          "evidence": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Evidence",
-            "type": "array"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "overseer_note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Overseer Note"
-          },
-          "reason_md": {
-            "title": "Reason Md",
-            "type": "string"
-          },
-          "stars": {
-            "title": "Stars",
-            "type": "number"
-          },
-          "week": {
-            "format": "date",
-            "title": "Week",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "employee",
-          "company",
-          "week",
-          "stars",
-          "by",
-          "reason_md",
-          "evidence",
-          "criteria",
-          "counted",
-          "overseer_note",
-          "created_at"
-        ],
-        "title": "Star",
-        "type": "object"
-      },
-      "StarIn": {
-        "additionalProperties": false,
-        "properties": {
-          "criteria": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                  "type": "string"
-                }
-              ]
-            },
-            "title": "Criteria",
-            "type": "object"
-          },
-          "employee": {
-            "pattern": "^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$",
-            "title": "Employee",
-            "type": "string"
-          },
-          "evidence": {
-            "items": {
-              "$ref": "#/components/schemas/hq_api__routes__people__Evidence"
-            },
-            "maxItems": 20,
-            "title": "Evidence",
-            "type": "array"
-          },
-          "reason_md": {
-            "default": "",
-            "maxLength": 4000,
-            "title": "Reason Md",
-            "type": "string"
-          },
-          "stars": {
-            "anyOf": [
-              {
-                "maximum": 5.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,1}|(?=[\\d.]{1,3}0*$)\\d{0,1}\\.\\d{0,1}0*$)",
-                "type": "string"
-              }
-            ],
-            "title": "Stars"
-          },
-          "week": {
-            "format": "date",
-            "title": "Week",
-            "type": "string"
-          }
-        },
-        "required": [
-          "employee",
-          "week",
-          "stars"
-        ],
-        "title": "StarIn",
-        "type": "object"
-      },
-      "StarRollup": {
-        "properties": {
-          "best_company": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Best Company"
-          },
-          "companies": {
-            "items": {
-              "$ref": "#/components/schemas/CompanyStanding"
-            },
-            "title": "Companies",
-            "type": "array"
-          },
-          "employees": {
-            "items": {
-              "$ref": "#/components/schemas/EmployeeStanding"
-            },
-            "title": "Employees",
-            "type": "array"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "lessons": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Lessons",
-            "type": "array"
-          },
-          "period": {
-            "enum": [
-              "week",
-              "month"
-            ],
-            "title": "Period",
-            "type": "string"
-          }
-        },
-        "required": [
-          "period",
-          "key",
-          "best_company",
-          "companies",
-          "employees",
-          "lessons"
-        ],
-        "title": "StarRollup",
-        "type": "object"
-      },
-      "StarRubric": {
-        "properties": {
-          "by": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Actor"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "criteria": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Criteria",
-            "type": "array"
-          },
-          "rules_md": {
-            "title": "Rules Md",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "draft",
-              "active"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "company",
-          "version",
-          "criteria",
-          "rules_md",
-          "by",
-          "status",
-          "updated_at"
-        ],
-        "title": "StarRubric",
         "type": "object"
       },
       "Step": {
@@ -12196,266 +12234,42 @@
         "title": "StepUpVerifyIn",
         "type": "object"
       },
-      "Story": {
+      "Subject": {
         "properties": {
-          "author": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Actor"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "body_fa": {
-            "title": "Body Fa",
-            "type": "string"
-          },
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "expires_at": {
-            "format": "date-time",
-            "title": "Expires At",
-            "type": "string"
-          },
-          "figures": {
-            "items": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object"
-            },
-            "title": "Figures",
-            "type": "array"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
           "kind": {
             "enum": [
-              "hire",
-              "deliverable",
-              "stars",
-              "milestone",
-              "post"
+              "charter",
+              "skill",
+              "model"
             ],
             "title": "Kind",
             "type": "string"
           },
-          "links": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Links",
-            "type": "object"
-          },
-          "media": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FileRef"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "ref": {
+            "maxLength": 60,
+            "minLength": 1,
             "title": "Ref",
             "type": "string"
           },
-          "seen": {
-            "title": "Seen",
-            "type": "boolean"
-          },
-          "title_fa": {
-            "title": "Title Fa",
-            "type": "string"
-          },
-          "welcomed": {
-            "title": "Welcomed",
-            "type": "boolean"
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "description": "charter/skill version; for kind model, the model id",
+            "title": "Version"
           }
         },
         "required": [
-          "id",
+          "kind",
           "ref",
-          "company",
-          "kind",
-          "author",
-          "title_fa",
-          "body_fa",
-          "figures",
-          "media",
-          "links",
-          "created_at",
-          "expires_at",
-          "seen",
-          "welcomed"
+          "version"
         ],
-        "title": "Story",
-        "type": "object"
-      },
-      "StoryIn": {
-        "additionalProperties": false,
-        "properties": {
-          "body_fa": {
-            "default": "",
-            "maxLength": 280,
-            "title": "Body Fa",
-            "type": "string"
-          },
-          "figures": {
-            "items": {
-              "$ref": "#/components/schemas/Figure"
-            },
-            "maxItems": 3,
-            "title": "Figures",
-            "type": "array"
-          },
-          "file_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "File Id"
-          },
-          "kind": {
-            "enum": [
-              "post",
-              "milestone"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "links": {
-            "$ref": "#/components/schemas/StoryLinks"
-          },
-          "title_fa": {
-            "maxLength": 60,
-            "minLength": 1,
-            "title": "Title Fa",
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "title_fa"
-        ],
-        "title": "StoryIn",
-        "type": "object"
-      },
-      "StoryLinks": {
-        "additionalProperties": false,
-        "properties": {
-          "decision": {
-            "anyOf": [
-              {
-                "maxLength": 20,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Decision"
-          },
-          "deliverable": {
-            "anyOf": [
-              {
-                "maxLength": 20,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deliverable"
-          },
-          "employee": {
-            "anyOf": [
-              {
-                "pattern": "^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Employee"
-          },
-          "period": {
-            "anyOf": [
-              {
-                "maxLength": 30,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Period"
-          },
-          "work": {
-            "anyOf": [
-              {
-                "maxLength": 20,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Work"
-          }
-        },
-        "title": "StoryLinks",
-        "type": "object"
-      },
-      "StoryRing": {
-        "properties": {
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/Story"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "latest_at": {
-            "format": "date-time",
-            "title": "Latest At",
-            "type": "string"
-          },
-          "unseen": {
-            "title": "Unseen",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "company",
-          "unseen",
-          "latest_at",
-          "items"
-        ],
-        "title": "StoryRing",
+        "title": "Subject",
         "type": "object"
       },
       "Subscription": {
@@ -12602,7 +12416,32 @@
         "title": "Summary",
         "type": "object"
       },
-      "Target": {
+      "Target-Input": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "role",
+              "employee"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "maxLength": 40,
+            "minLength": 2,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "title": "Target",
+        "type": "object"
+      },
+      "Target-Output": {
         "properties": {
           "kind": {
             "anyOf": [
@@ -12632,6 +12471,252 @@
           "ref"
         ],
         "title": "Target",
+        "type": "object"
+      },
+      "TeachIn": {
+        "additionalProperties": false,
+        "properties": {
+          "file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "a /transcribe audio (source voice)",
+            "title": "File Id"
+          },
+          "lesson_ref": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lesson Ref"
+          },
+          "source": {
+            "default": "text",
+            "enum": [
+              "text",
+              "voice",
+              "lesson"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/Target-Input"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "title": "TeachIn",
+        "type": "object"
+      },
+      "TeachReviewIn": {
+        "additionalProperties": false,
+        "properties": {
+          "checks": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Checks",
+            "type": "object"
+          },
+          "notes_md": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Notes Md",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "pass",
+              "changes",
+              "reject"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          },
+          "version": {
+            "default": 1,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "verdict",
+          "notes_md"
+        ],
+        "title": "TeachReviewIn",
+        "type": "object"
+      },
+      "Teaching": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "eval_run": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eval Run"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "precheck": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precheck"
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "review": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "drafting",
+              "proposed",
+              "approved",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Target",
+            "type": "object"
+          },
+          "text_md": {
+            "title": "Text Md",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "target",
+          "source",
+          "text_md",
+          "file_id",
+          "proposal",
+          "eval_run",
+          "status",
+          "created_at",
+          "review",
+          "precheck",
+          "result",
+          "decided_at"
+        ],
+        "title": "Teaching",
         "type": "object"
       },
       "Template": {
@@ -13067,6 +13152,83 @@
         "title": "Totals",
         "type": "object"
       },
+      "TrainingRecord": {
+        "properties": {
+          "addenda": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Addenda",
+            "type": "array"
+          },
+          "charter_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charter Version"
+          },
+          "curriculum_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Curriculum Version"
+          },
+          "employee": {
+            "title": "Employee",
+            "type": "string"
+          },
+          "evals": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Evals",
+            "type": "array"
+          },
+          "lessons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lessons",
+            "type": "array"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "trend": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Trend",
+            "type": "array"
+          }
+        },
+        "required": [
+          "employee",
+          "charter_version",
+          "curriculum_version",
+          "skills",
+          "evals",
+          "lessons",
+          "trend"
+        ],
+        "title": "TrainingRecord",
+        "type": "object"
+      },
       "Transcript": {
         "properties": {
           "confidence": {
@@ -13461,7 +13623,7 @@
             "type": "string"
           },
           "budget": {
-            "$ref": "#/components/schemas/Budget"
+            "$ref": "#/components/schemas/hq_api__schemas__Budget"
           },
           "company": {
             "title": "Company",
@@ -13876,7 +14038,7 @@
             "type": "string"
           },
           "budget": {
-            "$ref": "#/components/schemas/Budget"
+            "$ref": "#/components/schemas/hq_api__schemas__Budget"
           },
           "chain": {
             "items": {
@@ -14463,6 +14625,39 @@
         "title": "WorkspaceIn",
         "type": "object"
       },
+      "hq_api__domain__academy__Budget": {
+        "properties": {
+          "cap_tokens": {
+            "title": "Cap Tokens",
+            "type": "integer"
+          },
+          "month_start": {
+            "title": "Month Start",
+            "type": "string"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          },
+          "used_tokens": {
+            "title": "Used Tokens",
+            "type": "integer"
+          },
+          "warning": {
+            "title": "Warning",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "month_start",
+          "cap_tokens",
+          "used_tokens",
+          "share",
+          "warning"
+        ],
+        "title": "Budget",
+        "type": "object"
+      },
       "hq_api__domain__work__BudgetIn": {
         "additionalProperties": false,
         "properties": {
@@ -14747,35 +14942,6 @@
         "title": "Device",
         "type": "object"
       },
-      "hq_api__routes__people__Evidence": {
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "maxLength": 20,
-            "minLength": 1,
-            "title": "Kind",
-            "type": "string"
-          },
-          "note": {
-            "default": "",
-            "maxLength": 500,
-            "title": "Note",
-            "type": "string"
-          },
-          "ref": {
-            "maxLength": 300,
-            "minLength": 1,
-            "title": "Ref",
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "ref"
-        ],
-        "title": "Evidence",
-        "type": "object"
-      },
       "hq_api__routes__tools__Resolved": {
         "properties": {
           "class": {
@@ -14969,43 +15135,48 @@
         "title": "Resolved",
         "type": "object"
       },
-      "hq_api__schemas__Evidence": {
-        "additionalProperties": false,
+      "hq_api__schemas__Budget": {
         "properties": {
-          "kind": {
-            "enum": [
-              "deliverable",
-              "link",
-              "metric",
-              "log"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "note": {
+          "tokens": {
             "anyOf": [
               {
-                "maxLength": 1000,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens"
+          },
+          "tokens_used": {
+            "title": "Tokens Used",
+            "type": "integer"
+          },
+          "usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Note"
+            "title": "Usd"
           },
-          "ref": {
-            "maxLength": 500,
-            "minLength": 1,
-            "title": "Ref",
+          "usd_used": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd Used",
             "type": "string"
           }
         },
         "required": [
-          "kind",
-          "ref"
+          "tokens",
+          "usd",
+          "tokens_used",
+          "usd_used"
         ],
-        "title": "Evidence",
+        "title": "Budget",
         "type": "object"
       },
       "hq_api__workshop__domain__Usage": {
@@ -15041,6 +15212,1011 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/academy/budget": {
+      "get": {
+        "description": "This month's eval tokens against the academy's cap (⟨1.4⟩, beside §18.6).",
+        "operationId": "academy_budget",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "cap_tokens": 1,
+                  "month_start": "x",
+                  "share": 1.0,
+                  "used_tokens": 1,
+                  "warning": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__domain__academy__Budget"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Academy Budget",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
+    "/api/v1/academy/curricula": {
+      "get": {
+        "operationId": "list_curricula",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "modules": [
+                      {}
+                    ],
+                    "role": "x",
+                    "updated_at": "2026-10-17T05:42:00Z",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Curriculum"
+                  },
+                  "title": "Response List Curricula",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Curricula",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
+    "/api/v1/academy/curricula/{role}": {
+      "get": {
+        "operationId": "get_curriculum",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "role",
+            "required": true,
+            "schema": {
+              "title": "Role",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "modules": [
+                    {}
+                  ],
+                  "role": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Curriculum"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Curriculum",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
+    "/api/v1/academy/evals": {
+      "get": {
+        "operationId": "list_suites",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "baseline": {},
+                    "cases": [
+                      {
+                        "id": "x",
+                        "input_md": "x",
+                        "rubric_md": "x",
+                        "weight": 1.0
+                      }
+                    ],
+                    "ref": "W-000789",
+                    "role": "x",
+                    "title_fa": "گزارش هفتگی رشد"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvalSuite"
+                  },
+                  "title": "Response List Suites",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Suites",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
+    "/api/v1/academy/evals/{ref}/runs": {
+      "get": {
+        "operationId": "suite_runs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "at": "2026-10-17T05:42:00Z",
+                    "cases": [
+                      {
+                        "id": "x",
+                        "notes": "x",
+                        "score": 1.0
+                      }
+                    ],
+                    "finished_at": "2026-10-17T05:42:00Z",
+                    "gate": {},
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "passed": false,
+                    "purpose": "x",
+                    "score": 1.0,
+                    "status": "active",
+                    "subject": {
+                      "kind": "charter",
+                      "ref": "W-000789",
+                      "version": "x"
+                    },
+                    "suite": "x",
+                    "tokens": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvalRun"
+                  },
+                  "title": "Response Suite Runs",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Suite Runs",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
+    "/api/v1/academy/records/{employee}": {
+      "get": {
+        "operationId": "training_record",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "employee",
+            "required": true,
+            "schema": {
+              "title": "Employee",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "addenda": [
+                    "x"
+                  ],
+                  "charter_version": 1,
+                  "curriculum_version": 1,
+                  "employee": "TY-GROWTH-01",
+                  "evals": [
+                    {}
+                  ],
+                  "lessons": [
+                    "x"
+                  ],
+                  "skills": [
+                    "x"
+                  ],
+                  "trend": [
+                    1.0
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Training Record",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
+    "/api/v1/academy/teach": {
+      "get": {
+        "operationId": "list_teachings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "decided_at": "2026-10-17T05:42:00Z",
+                    "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "precheck": {},
+                    "proposal": {},
+                    "ref": "W-000789",
+                    "result": {},
+                    "review": {},
+                    "source": "x",
+                    "status": "drafting",
+                    "target": {},
+                    "text_md": "x"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Teaching"
+                  },
+                  "title": "Response List Teachings",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Teachings",
+        "tags": [
+          "academy"
+        ]
+      },
+      "post": {
+        "description": "The owner teaches a role or one employee (text or voice). The AI Ops\nhead is woken to turn it into a precise proposal (`teach.draft`).",
+        "operationId": "teach",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                "lesson_ref": "x",
+                "source": "text",
+                "target": {
+                  "kind": "role",
+                  "ref": "W-000789"
+                },
+                "text": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TeachIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decided_at": "2026-10-17T05:42:00Z",
+                  "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "precheck": {},
+                  "proposal": {},
+                  "ref": "W-000789",
+                  "result": {},
+                  "review": {},
+                  "source": "x",
+                  "status": "drafting",
+                  "target": {},
+                  "text_md": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Teaching"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Teach",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
+    "/api/v1/academy/teach/{ref}/approve": {
+      "post": {
+        "description": "🔏 (`academy.approve`, target ref). Only a proposal the overseer passed\nand (but for a memory) whose eval passed the gate. Creates the new version:\na sealed addendum after the role's charter (charter_rule), an active skill\n(skill, playbook) or one employee's memory note.",
+        "operationId": "approve_teaching",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decided_at": "2026-10-17T05:42:00Z",
+                  "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "precheck": {},
+                  "proposal": {},
+                  "ref": "W-000789",
+                  "result": {},
+                  "review": {},
+                  "source": "x",
+                  "status": "drafting",
+                  "target": {},
+                  "text_md": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Teaching"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Approve Teaching",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
+    "/api/v1/academy/teach/{ref}/reject": {
+      "post": {
+        "operationId": "reject_teaching",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decided_at": "2026-10-17T05:42:00Z",
+                  "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "precheck": {},
+                  "proposal": {},
+                  "ref": "W-000789",
+                  "result": {},
+                  "review": {},
+                  "source": "x",
+                  "status": "drafting",
+                  "target": {},
+                  "text_md": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Teaching"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Reject Teaching",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
     "/api/v1/assignments": {
       "get": {
         "description": "holding -> company -> department -> role -> task class, plus the resolved\nchoice for every company and department.",
@@ -18189,7 +19365,7 @@
     },
     "/api/v1/decisions": {
       "get": {
-        "description": "Default `status=pending`, oldest first. ⟨1.4.3⟩ by default only the cards\nthe owner decides (`approver` null); `?approver=all` adds the CEOs' (§18.11).",
+        "description": "Default `status=pending`, oldest first.",
         "operationId": "list_decisions",
         "parameters": [
           {
@@ -18245,8 +19421,7 @@
                     "proposal",
                     "budget_change",
                     "evaluation",
-                    "code_session",
-                    "lesson_adoption"
+                    "code_session"
                   ],
                   "type": "string"
                 },
@@ -18293,20 +19468,6 @@
                 }
               ],
               "title": "Q"
-            }
-          },
-          {
-            "in": "query",
-            "name": "approver",
-            "required": false,
-            "schema": {
-              "default": "owner",
-              "enum": [
-                "owner",
-                "all"
-              ],
-              "title": "Approver",
-              "type": "string"
             }
           },
           {
@@ -21620,145 +22781,6 @@
         ]
       }
     },
-    "/api/v1/lessons": {
-      "get": {
-        "description": "Lessons from the best companies with each other company's adoption.",
-        "operationId": "list_lessons",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "company",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Company"
-            }
-          },
-          {
-            "in": "query",
-            "name": "period",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 30,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Period"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": [
-                  {
-                    "adoption": [
-                      {
-                        "company": "TY",
-                        "decision_ref": "x",
-                        "status": "proposed",
-                        "work_ref": "x"
-                      }
-                    ],
-                    "body_md": "x",
-                    "created_at": "2026-10-17T05:42:00Z",
-                    "evidence": [
-                      {}
-                    ],
-                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "period": "x",
-                    "ref": "W-000789",
-                    "source_company": "x",
-                    "title_fa": "گزارش هفتگی رشد"
-                  }
-                ],
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Lesson"
-                  },
-                  "title": "Response List Lessons",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "List Lessons",
-        "tags": [
-          "people"
-        ]
-      }
-    },
     "/api/v1/meta": {
       "get": {
         "description": "Versions, enabled channels and whether passkey login is configured.",
@@ -23587,7 +24609,7 @@
     },
     "/api/v1/owner/hiring/start": {
       "post": {
-        "description": "🔏 (`hiring.start`, target `holding`). `proposals`: hiring opens to agents,\nthe owner decides every card, and each CEO (and each holding head with a\nhiring duty) gets one work item \"propose your first month's team\" (a second\nstart adds none). `delegated`: each CEO hires inside its company's monthly\nenvelope and decides the company's hire cards; every active operating\ncompany needs an envelope (`/budgets`, company, month) or `422\nenvelope_required` names the ones without, before any step-up is consumed.\nHonours `Idempotency-Key` (a retry after a lost answer gets the same\nanswer, not a spent step-up).",
+        "description": "🔏 (`hiring.start`, target `holding`). `proposals`: hiring opens to agents,\nthe owner decides every card, and each CEO (and each holding head with a\nhiring duty) gets one work item \"propose your first month's team\" (a second\nstart adds none). `delegated` (each CEO hires inside its monthly envelope)\nanswers `409 not_ready` until prompt 8, before any step-up is consumed and\nwithout changing anything. Honours `Idempotency-Key` (a retry after a lost\nanswer gets the same answer, not a spent step-up).",
         "operationId": "start_hiring",
         "requestBody": {
           "content": {
@@ -25564,364 +26586,104 @@
         ]
       }
     },
-    "/api/v1/stars": {
+    "/api/v1/skills": {
       "get": {
-        "description": "Stars given by the CEOs, newest week first (`counted` false: no reason or\nevidence, or the overseer's audit).",
-        "operationId": "list_stars",
+        "description": "The library, by ref; `role` keeps the skills whose scope includes it.",
+        "operationId": "list_skills",
         "parameters": [
           {
             "in": "query",
-            "name": "company",
+            "name": "status",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "enum": [
+                    "draft",
+                    "in_review",
+                    "approved",
+                    "active",
+                    "retired"
+                  ],
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Company"
+              "title": "Status"
             }
           },
           {
             "in": "query",
-            "name": "week",
+            "name": "role",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "format": "date",
+                  "maxLength": 40,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Week"
-            }
-          },
-          {
-            "in": "query",
-            "name": "employee",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Employee"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 200,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
+              "title": "Role"
             }
           }
         ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "items": [
-                    {
-                      "by": {
-                        "code": "TY-CEO",
-                        "display_fa": "x",
-                        "kind": "agent"
-                      },
-                      "company": "TY",
-                      "counted": false,
-                      "created_at": "2026-10-17T05:42:00Z",
-                      "criteria": {},
-                      "employee": "TY-GROWTH-01",
-                      "evidence": [
-                        {}
-                      ],
-                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                      "overseer_note": "x",
-                      "reason_md": "x",
-                      "stars": 1.0,
-                      "week": "2026-10-17"
-                    }
-                  ],
-                  "next_cursor": "x"
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Page_Star_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "List Stars",
-        "tags": [
-          "people"
-        ]
-      }
-    },
-    "/api/v1/stars/rollup": {
-      "get": {
-        "description": "The roll-up of a closed period (default: the last one): companies by\nscore (parts kpi, challenges, compliance, people, efficiency; a part\nwithout data is null and left out of the score), employees by stars.",
-        "operationId": "get_rollup",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "period",
-            "required": false,
-            "schema": {
-              "default": "week",
-              "enum": [
-                "week",
-                "month"
-              ],
-              "title": "Period",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[0-9]{4}-[0-9]{2}(-[0-9]{2})?$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Key"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "best_company": "x",
-                  "companies": [
-                    {
-                      "company": "TY",
-                      "parts": {},
-                      "rank": 1,
-                      "score": 1.0,
-                      "stars": 1.0,
-                      "trend": [
-                        1.0
-                      ]
-                    }
-                  ],
-                  "employees": [
-                    {
-                      "code": "TY",
-                      "company": "TY",
-                      "count": 1,
-                      "efficiency": 1.0,
-                      "rank_company": 1,
-                      "rank_holding": 1,
-                      "stars": 1.0,
-                      "title_fa": "گزارش هفتگی رشد",
-                      "trend": [
-                        1.0
-                      ]
-                    }
-                  ],
-                  "key": "x",
-                  "lessons": [
-                    "x"
-                  ],
-                  "period": "week"
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/StarRollup"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Get Rollup",
-        "tags": [
-          "people"
-        ]
-      }
-    },
-    "/api/v1/stars/rubrics": {
-      "get": {
-        "description": "The active rubric of every company that has one (CEOs write them).",
-        "operationId": "list_rubrics",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "example": [
                   {
-                    "by": {
-                      "code": "TY-CEO",
-                      "display_fa": "x",
-                      "kind": "agent"
+                    "activated_at": "2026-10-17T05:42:00Z",
+                    "active_version": 1,
+                    "body_md": "x",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "created_by": {},
+                    "eval": {
+                      "baseline": 1.0,
+                      "passed": false,
+                      "run": "x",
+                      "score": 1.0,
+                      "suite": "x"
                     },
-                    "company": "TY",
-                    "criteria": [
-                      {}
+                    "eval_suite": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "name_fa": "تریدیار",
+                    "precheck": {},
+                    "ref": "W-000789",
+                    "resources": [
+                      "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
                     ],
-                    "rules_md": "x",
+                    "review": {
+                      "at": "2026-10-17T05:42:00Z",
+                      "by": {},
+                      "checks": {},
+                      "notes_md": "x",
+                      "verdict": "pass"
+                    },
+                    "scope": {
+                      "companies": "all",
+                      "departments": [
+                        "GROWTH"
+                      ],
+                      "roles": [
+                        "x"
+                      ]
+                    },
                     "status": "draft",
-                    "updated_at": "2026-10-17T05:42:00Z",
+                    "summary_fa": "x",
                     "version": 1
                   }
                 ],
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/StarRubric"
+                    "$ref": "#/components/schemas/Skill"
                   },
-                  "title": "Response List Rubrics",
+                  "title": "Response List Skills",
                   "type": "array"
                 }
               }
@@ -25984,438 +26746,90 @@
             "description": "Problem"
           }
         },
-        "summary": "List Rubrics",
+        "summary": "List Skills",
         "tags": [
-          "people"
+          "skills"
         ]
-      }
-    },
-    "/api/v1/stars/rubrics/{company}": {
-      "get": {
-        "description": "One company's active star rubric (404 while its CEO has written none).",
-        "operationId": "get_rubric",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "company",
-            "required": true,
-            "schema": {
-              "title": "Company",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "by": {
-                    "code": "TY-CEO",
-                    "display_fa": "x",
-                    "kind": "agent"
-                  },
-                  "company": "TY",
-                  "criteria": [
-                    {}
-                  ],
-                  "rules_md": "x",
-                  "status": "draft",
-                  "updated_at": "2026-10-17T05:42:00Z",
-                  "version": 1
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/StarRubric"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Get Rubric",
-        "tags": [
-          "people"
-        ]
-      }
-    },
-    "/api/v1/stories": {
-      "get": {
-        "description": "Live stories (24 h), one ring per company: rings with unseen stories\nfirst, then by the latest; each ring's items oldest first.",
-        "operationId": "list_stories",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": [
-                  {
-                    "company": "TY",
-                    "items": [
-                      {
-                        "author": {
-                          "code": "TY-CEO",
-                          "display_fa": null,
-                          "kind": "agent"
-                        },
-                        "body_fa": "توضیح کوتاه",
-                        "company": "TY",
-                        "created_at": "2026-10-17T05:42:00Z",
-                        "expires_at": "2026-10-17T05:42:00Z",
-                        "figures": [
-                          {}
-                        ],
-                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                        "kind": "hire",
-                        "links": {},
-                        "media": {
-                          "duration_s": null,
-                          "height": null,
-                          "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                          "kind": "image",
-                          "mime": "application/pdf",
-                          "name": "report.pdf",
-                          "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                          "size": 1,
-                          "status": "processing",
-                          "transcript": null,
-                          "variants": {
-                            "poster": null,
-                            "thumb": null
-                          },
-                          "width": null
-                        },
-                        "ref": "W-000789",
-                        "seen": false,
-                        "title_fa": "گزارش هفتگی رشد",
-                        "welcomed": false
-                      }
-                    ],
-                    "latest_at": "2026-10-17T05:42:00Z",
-                    "unseen": 1
-                  }
-                ],
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/StoryRing"
-                  },
-                  "title": "Response List Stories",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "List Stories",
-        "tags": [
-          "people"
-        ]
-      }
-    },
-    "/api/v1/stories/archive": {
-      "get": {
-        "description": "Expired stories, newest first (the company's highlights).",
-        "operationId": "story_archive",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "company",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Company"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 200,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "items": [
-                    {
-                      "author": {
-                        "code": "TY-CEO",
-                        "display_fa": "x",
-                        "kind": "agent"
-                      },
-                      "body_fa": "توضیح کوتاه",
-                      "company": "TY",
-                      "created_at": "2026-10-17T05:42:00Z",
-                      "expires_at": "2026-10-17T05:42:00Z",
-                      "figures": [
-                        {}
-                      ],
-                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                      "kind": "hire",
-                      "links": {},
-                      "media": {
-                        "duration_s": 1.0,
-                        "height": 1,
-                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                        "kind": "image",
-                        "mime": "application/pdf",
-                        "name": "report.pdf",
-                        "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                        "size": 1,
-                        "status": "processing",
-                        "transcript": "x",
-                        "variants": {
-                          "poster": null,
-                          "thumb": null
-                        },
-                        "width": 1
-                      },
-                      "ref": "W-000789",
-                      "seen": false,
-                      "title_fa": "گزارش هفتگی رشد",
-                      "welcomed": false
-                    }
-                  ],
-                  "next_cursor": "x"
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Page_Story_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Story Archive",
-        "tags": [
-          "people"
-        ]
-      }
-    },
-    "/api/v1/stories/seen": {
+      },
       "post": {
-        "description": "Marks stories seen (no step-up).",
-        "operationId": "stories_seen",
+        "description": "A new skill from text, a voice transcript or files. The code's pre-check\nruns first (instruction overrides, secrets, authority, tools outside the\nroles' charters): a refused text is stored as rejected and never reviewed\nby a model; otherwise it is in review and the overseer gets the review.",
+        "operationId": "create_skill",
         "requestBody": {
           "content": {
             "application/json": {
               "example": {
-                "refs": [
-                  "W-000789"
-                ]
+                "body_md": "x",
+                "eval_suite": "x",
+                "file_ids": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "name_fa": "تریدیار",
+                "scope": {
+                  "companies": "all",
+                  "departments": [
+                    "GROWTH"
+                  ],
+                  "roles": [
+                    "x"
+                  ]
+                },
+                "summary_fa": "x",
+                "transcript_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
               },
               "schema": {
-                "$ref": "#/components/schemas/Seen"
+                "$ref": "#/components/schemas/SkillIn"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "example": {
-                  "seen": 1
+                  "activated_at": "2026-10-17T05:42:00Z",
+                  "active_version": 1,
+                  "body_md": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "created_by": {},
+                  "eval": {
+                    "baseline": 1.0,
+                    "passed": false,
+                    "run": "x",
+                    "score": 1.0,
+                    "suite": "x"
+                  },
+                  "eval_suite": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "name_fa": "تریدیار",
+                  "precheck": {},
+                  "ref": "W-000789",
+                  "resources": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "review": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {},
+                    "checks": {},
+                    "notes_md": "x",
+                    "verdict": "pass"
+                  },
+                  "scope": {
+                    "companies": "all",
+                    "departments": [
+                      "GROWTH"
+                    ],
+                    "roles": [
+                      "x"
+                    ]
+                  },
+                  "status": "draft",
+                  "summary_fa": "x",
+                  "version": 1
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/SeenOut"
+                  "$ref": "#/components/schemas/Skill"
                 }
               }
             },
@@ -26477,16 +26891,15 @@
             "description": "Problem"
           }
         },
-        "summary": "Stories Seen",
+        "summary": "Create Skill",
         "tags": [
-          "people"
+          "skills"
         ]
       }
     },
-    "/api/v1/stories/{ref}/welcome": {
-      "post": {
-        "description": "The owner welcomes a new hire (a `hire` story only, else 422): the new\nemployee's CEO and manager hear of it in their threads (no step-up).",
-        "operationId": "welcome",
+    "/api/v1/skills/{ref}": {
+      "get": {
+        "operationId": "get_skill",
         "parameters": [
           {
             "in": "path",
@@ -26503,45 +26916,48 @@
             "content": {
               "application/json": {
                 "example": {
-                  "author": {
-                    "code": "TY-CEO",
-                    "display_fa": "x",
-                    "kind": "agent"
-                  },
-                  "body_fa": "توضیح کوتاه",
-                  "company": "TY",
+                  "activated_at": "2026-10-17T05:42:00Z",
+                  "active_version": 1,
+                  "body_md": "x",
                   "created_at": "2026-10-17T05:42:00Z",
-                  "expires_at": "2026-10-17T05:42:00Z",
-                  "figures": [
-                    {}
-                  ],
-                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                  "kind": "hire",
-                  "links": {},
-                  "media": {
-                    "duration_s": 1.0,
-                    "height": 1,
-                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "kind": "image",
-                    "mime": "application/pdf",
-                    "name": "report.pdf",
-                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                    "size": 1,
-                    "status": "processing",
-                    "transcript": "x",
-                    "variants": {
-                      "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                      "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
-                    },
-                    "width": 1
+                  "created_by": {},
+                  "eval": {
+                    "baseline": 1.0,
+                    "passed": false,
+                    "run": "x",
+                    "score": 1.0,
+                    "suite": "x"
                   },
+                  "eval_suite": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "name_fa": "تریدیار",
+                  "precheck": {},
                   "ref": "W-000789",
-                  "seen": false,
-                  "title_fa": "گزارش هفتگی رشد",
-                  "welcomed": false
+                  "resources": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "review": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {},
+                    "checks": {},
+                    "notes_md": "x",
+                    "verdict": "pass"
+                  },
+                  "scope": {
+                    "companies": "all",
+                    "departments": [
+                      "GROWTH"
+                    ],
+                    "roles": [
+                      "x"
+                    ]
+                  },
+                  "status": "draft",
+                  "summary_fa": "x",
+                  "version": 1
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/Story"
+                  "$ref": "#/components/schemas/Skill"
                 }
               }
             },
@@ -26603,9 +27019,553 @@
             "description": "Problem"
           }
         },
-        "summary": "Welcome",
+        "summary": "Get Skill",
         "tags": [
-          "people"
+          "skills"
+        ]
+      },
+      "put": {
+        "description": "A new version (in review); the live one stays live until a new seal.",
+        "operationId": "update_skill",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "body_md": "x",
+                "eval_suite": "x",
+                "file_ids": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "name_fa": "تریدیار",
+                "scope": {
+                  "companies": "all",
+                  "departments": [
+                    "GROWTH"
+                  ],
+                  "roles": [
+                    "x"
+                  ]
+                },
+                "summary_fa": "x",
+                "transcript_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/SkillIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "activated_at": "2026-10-17T05:42:00Z",
+                  "active_version": 1,
+                  "body_md": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "created_by": {},
+                  "eval": {
+                    "baseline": 1.0,
+                    "passed": false,
+                    "run": "x",
+                    "score": 1.0,
+                    "suite": "x"
+                  },
+                  "eval_suite": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "name_fa": "تریدیار",
+                  "precheck": {},
+                  "ref": "W-000789",
+                  "resources": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "review": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {},
+                    "checks": {},
+                    "notes_md": "x",
+                    "verdict": "pass"
+                  },
+                  "scope": {
+                    "companies": "all",
+                    "departments": [
+                      "GROWTH"
+                    ],
+                    "roles": [
+                      "x"
+                    ]
+                  },
+                  "status": "draft",
+                  "summary_fa": "x",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Update Skill",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/skills/{ref}/activate": {
+      "post": {
+        "description": "🔏 (`skill.activate`, target `ref@version`). Only a version whose review\npassed and whose eval passed the gate; the suite's baseline rises with it.",
+        "operationId": "activate_skill",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "version": 1
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ActivateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "activated_at": "2026-10-17T05:42:00Z",
+                  "active_version": 1,
+                  "body_md": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "created_by": {},
+                  "eval": {
+                    "baseline": 1.0,
+                    "passed": false,
+                    "run": "x",
+                    "score": 1.0,
+                    "suite": "x"
+                  },
+                  "eval_suite": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "name_fa": "تریدیار",
+                  "precheck": {},
+                  "ref": "W-000789",
+                  "resources": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "review": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {},
+                    "checks": {},
+                    "notes_md": "x",
+                    "verdict": "pass"
+                  },
+                  "scope": {
+                    "companies": "all",
+                    "departments": [
+                      "GROWTH"
+                    ],
+                    "roles": [
+                      "x"
+                    ]
+                  },
+                  "status": "draft",
+                  "summary_fa": "x",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Activate Skill",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/skills/{ref}/retire": {
+      "post": {
+        "description": "No step-up: taking a skill out of the prompts is always allowed.",
+        "operationId": "retire_skill",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "activated_at": "2026-10-17T05:42:00Z",
+                  "active_version": 1,
+                  "body_md": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "created_by": {},
+                  "eval": {
+                    "baseline": 1.0,
+                    "passed": false,
+                    "run": "x",
+                    "score": 1.0,
+                    "suite": "x"
+                  },
+                  "eval_suite": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "name_fa": "تریدیار",
+                  "precheck": {},
+                  "ref": "W-000789",
+                  "resources": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "review": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {},
+                    "checks": {},
+                    "notes_md": "x",
+                    "verdict": "pass"
+                  },
+                  "scope": {
+                    "companies": "all",
+                    "departments": [
+                      "GROWTH"
+                    ],
+                    "roles": [
+                      "x"
+                    ]
+                  },
+                  "status": "draft",
+                  "summary_fa": "x",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Retire Skill",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/skills/{ref}/versions": {
+      "get": {
+        "operationId": "skill_versions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "body_md": "x",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "created_by": {},
+                    "decided_at": "2026-10-17T05:42:00Z",
+                    "eval": {
+                      "baseline": 1.0,
+                      "passed": false,
+                      "run": "x",
+                      "score": 1.0,
+                      "suite": "x"
+                    },
+                    "precheck": {},
+                    "review": {
+                      "at": "2026-10-17T05:42:00Z",
+                      "by": {},
+                      "checks": {},
+                      "notes_md": "x",
+                      "verdict": "pass"
+                    },
+                    "source": "x",
+                    "status": "active",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SkillVersion"
+                  },
+                  "title": "Response Skill Versions",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Skill Versions",
+        "tags": [
+          "skills"
         ]
       }
     },
@@ -32612,6 +33572,365 @@
         ]
       }
     },
+    "/internal/v1/academy/evals/run": {
+      "post": {
+        "description": "eval.run (the AI Ops head): a golden suite against a charter, a skill\nversion or a model; queued, scored on the worker, booked in the treasury,\nrefused over the month's academy cap (409 academy_budget).",
+        "operationId": "run_eval",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "subject": {
+                  "kind": "charter",
+                  "ref": "W-000789",
+                  "version": "x"
+                },
+                "suite": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/EvalIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "cases": [
+                    {
+                      "id": "x",
+                      "notes": "x",
+                      "score": 1.0
+                    }
+                  ],
+                  "finished_at": "2026-10-17T05:42:00Z",
+                  "gate": {},
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "passed": false,
+                  "purpose": "x",
+                  "score": 1.0,
+                  "status": "active",
+                  "subject": {
+                    "kind": "charter",
+                    "ref": "W-000789",
+                    "version": "x"
+                  },
+                  "suite": "x",
+                  "tokens": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/EvalRun"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Run Eval",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/academy/teach/{ref}/draft": {
+      "post": {
+        "description": "teach.draft (the AI Ops head): the precise proposal. The code's\npre-check runs on it first; a refused text ends the teaching (rejected).",
+        "operationId": "draft_teaching",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "proposal": {
+                  "diff_md": "x",
+                  "kind": "charter_rule"
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/DraftIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decided_at": "2026-10-17T05:42:00Z",
+                  "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "precheck": {},
+                  "proposal": {},
+                  "ref": "W-000789",
+                  "result": {},
+                  "review": {},
+                  "source": "x",
+                  "status": "drafting",
+                  "target": {},
+                  "text_md": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Teaching"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Draft Teaching",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/academy/teach/{ref}/review": {
+      "post": {
+        "description": "skill.review of a teaching's proposal (the overseer). A pass queues\nthe eval of the candidate (none for a memory note).",
+        "operationId": "review_teaching",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "checks": {},
+                "notes_md": "x",
+                "verdict": "pass",
+                "version": 1
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TeachReviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decided_at": "2026-10-17T05:42:00Z",
+                  "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "precheck": {},
+                  "proposal": {},
+                  "ref": "W-000789",
+                  "result": {},
+                  "review": {},
+                  "source": "x",
+                  "status": "drafting",
+                  "target": {},
+                  "text_md": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Teaching"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Review Teaching",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/activity": {
       "post": {
         "description": "Live activity of an employee -> `activity.changed` on the stream.",
@@ -35169,159 +36488,6 @@
         ]
       }
     },
-    "/internal/v1/hires/{ref}/decide": {
-      "post": {
-        "description": "hire.decide: a CEO decides a hire card it is the approver of (hiring\ndelegated, its own company; also its own proposals). Approval runs every\nhard check (charter, model, estimate, envelope, kill switch, 5 a day) in\nthis transaction; a refusal makes no employee. Requires `Idempotency-Key`.",
-        "operationId": "agent_hire_decide",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "ref",
-            "required": true,
-            "schema": {
-              "title": "Ref",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "note": "یادداشت",
-                "verdict": "approve"
-              },
-              "schema": {
-                "$ref": "#/components/schemas/HireDecideIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "action_class": "x",
-                  "amendments": {},
-                  "approver": {
-                    "code": "TY-CEO",
-                    "display_fa": "x",
-                    "kind": "agent"
-                  },
-                  "company": "TY",
-                  "created_at": "2026-10-17T05:42:00Z",
-                  "decided_at": "2026-10-17T05:42:00Z",
-                  "decided_by": {
-                    "code": "TY-CEO",
-                    "display_fa": "x",
-                    "kind": "agent"
-                  },
-                  "digital_ceo_prediction": {},
-                  "effect_status": "x",
-                  "expires_at": "2026-10-17T05:42:00Z",
-                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                  "kind": "hire",
-                  "note": "یادداشت",
-                  "payload": {},
-                  "proposer": {
-                    "code": "TY-CEO",
-                    "display_fa": "x",
-                    "kind": "agent"
-                  },
-                  "quota_estimate": {
-                    "tokens": 1,
-                    "usd": "2.410000"
-                  },
-                  "reason_code": "x",
-                  "ref": "D-000123",
-                  "resolution": "M-0001",
-                  "reversible": false,
-                  "risk": "low",
-                  "risk_note": "x",
-                  "seal": {
-                    "method": "x",
-                    "sealed_at": "2026-10-17T05:42:00Z",
-                    "step_up_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
-                  },
-                  "status": "pending",
-                  "thread": "TY-CEO",
-                  "title": "گزارش هفتگی رشد",
-                  "version": 1,
-                  "what": "x",
-                  "why": "x",
-                  "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Decision"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Agent Hire Decide",
-        "tags": [
-          "internal"
-        ]
-      }
-    },
     "/internal/v1/knowledge/search": {
       "get": {
         "description": "knowledge.search: resolutions, deliverables, decisions and work the role\nmay read (message bodies: the advisor only). Refs and short snippets.",
@@ -35491,126 +36657,6 @@
           }
         },
         "summary": "Tool Knowledge Search",
-        "tags": [
-          "internal"
-        ]
-      }
-    },
-    "/internal/v1/lessons": {
-      "post": {
-        "description": "lesson.write (overseer, AI Ops head): a lesson from a company; every other\ncompany's CEO gets a work item to consider adopting it. Requires `Idempotency-Key`.",
-        "operationId": "agent_lesson",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "body_md": "x",
-                "evidence": [
-                  {
-                    "kind": "one_off",
-                    "note": "یادداشت",
-                    "ref": "W-000789"
-                  }
-                ],
-                "period": "x",
-                "source_company": "x",
-                "title_fa": "گزارش هفتگی رشد"
-              },
-              "schema": {
-                "$ref": "#/components/schemas/LessonIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "adoption": [
-                    {
-                      "company": "TY",
-                      "decision_ref": "x",
-                      "status": "proposed",
-                      "work_ref": "x"
-                    }
-                  ],
-                  "body_md": "x",
-                  "created_at": "2026-10-17T05:42:00Z",
-                  "evidence": [
-                    {}
-                  ],
-                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                  "period": "x",
-                  "ref": "W-000789",
-                  "source_company": "x",
-                  "title_fa": "گزارش هفتگی رشد"
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Lesson"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Agent Lesson",
         "tags": [
           "internal"
         ]
@@ -36223,252 +37269,17 @@
         ]
       }
     },
-    "/internal/v1/stars": {
+    "/internal/v1/skills/{ref}/review": {
       "post": {
-        "description": "star.give: a CEO's weekly stars for one employee of its own company (no\nreason or no evidence: kept, not counted). Requires `Idempotency-Key`.",
-        "operationId": "agent_star",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "criteria": {},
-                "employee": "TY-GROWTH-01",
-                "evidence": [
-                  {
-                    "kind": "one_off",
-                    "note": "یادداشت",
-                    "ref": "W-000789"
-                  }
-                ],
-                "reason_md": "x",
-                "stars": 0.0,
-                "week": "2026-10-17"
-              },
-              "schema": {
-                "$ref": "#/components/schemas/StarIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "by": {
-                    "code": "TY-CEO",
-                    "display_fa": "x",
-                    "kind": "agent"
-                  },
-                  "company": "TY",
-                  "counted": false,
-                  "created_at": "2026-10-17T05:42:00Z",
-                  "criteria": {},
-                  "employee": "TY-GROWTH-01",
-                  "evidence": [
-                    {}
-                  ],
-                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                  "overseer_note": "x",
-                  "reason_md": "x",
-                  "stars": 1.0,
-                  "week": "2026-10-17"
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Star"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Agent Star",
-        "tags": [
-          "internal"
-        ]
-      }
-    },
-    "/internal/v1/stars/rubric": {
-      "post": {
-        "description": "star.rubric: the CEO's star rubric of its own company (a new version; an\n`efficiency` criterion of at least 15% is required). Requires `Idempotency-Key`.",
-        "operationId": "agent_rubric",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "criteria": [
-                  {
-                    "description_md": "x",
-                    "key": "x",
-                    "name_fa": "تریدیار",
-                    "weight": 1.0
-                  }
-                ],
-                "rules_md": "x"
-              },
-              "schema": {
-                "$ref": "#/components/schemas/RubricIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "by": {
-                    "code": "TY-CEO",
-                    "display_fa": "x",
-                    "kind": "agent"
-                  },
-                  "company": "TY",
-                  "criteria": [
-                    {}
-                  ],
-                  "rules_md": "x",
-                  "status": "draft",
-                  "updated_at": "2026-10-17T05:42:00Z",
-                  "version": 1
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/StarRubric"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Agent Rubric",
-        "tags": [
-          "internal"
-        ]
-      }
-    },
-    "/internal/v1/stars/{star_id}/audit": {
-      "post": {
-        "description": "star.audit: the overseer marks a star counted or not, with the reason.",
-        "operationId": "agent_star_audit",
+        "description": "skill.review (the overseer, AI Safety): a version still in review. A\nversion the code's pre-check refused never passes (422 precheck_failed).\nA pass queues the academy's eval of that version.",
+        "operationId": "review_skill",
         "parameters": [
           {
             "in": "path",
-            "name": "star_id",
+            "name": "ref",
             "required": true,
             "schema": {
-              "format": "uuid",
-              "title": "Star Id",
+              "title": "Ref",
               "type": "string"
             }
           }
@@ -36477,11 +37288,13 @@
           "content": {
             "application/json": {
               "example": {
-                "counted": false,
-                "note": "یادداشت"
+                "checks": {},
+                "notes_md": "x",
+                "verdict": "pass",
+                "version": 1
               },
               "schema": {
-                "$ref": "#/components/schemas/AuditIn"
+                "$ref": "#/components/schemas/ReviewIn"
               }
             }
           },
@@ -36492,171 +37305,14 @@
             "content": {
               "application/json": {
                 "example": {
-                  "by": {
-                    "code": "TY-CEO",
-                    "display_fa": "x",
-                    "kind": "agent"
-                  },
-                  "company": "TY",
-                  "counted": false,
-                  "created_at": "2026-10-17T05:42:00Z",
-                  "criteria": {},
-                  "employee": "TY-GROWTH-01",
-                  "evidence": [
-                    {}
-                  ],
-                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                  "overseer_note": "x",
-                  "reason_md": "x",
-                  "stars": 1.0,
-                  "week": "2026-10-17"
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Star"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Agent Star Audit",
-        "tags": [
-          "internal"
-        ]
-      }
-    },
-    "/internal/v1/stories": {
-      "post": {
-        "description": "story.post (CEOs and holding heads): a story of its own company, at most 3\na day per company (429 story_limit). Requires `Idempotency-Key`.",
-        "operationId": "agent_story",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "body_fa": "توضیح کوتاه",
-                "figures": [
-                  {
-                    "label_fa": "x",
-                    "value": "x"
-                  }
-                ],
-                "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                "kind": "post",
-                "links": {
-                  "decision": "D-000123",
-                  "deliverable": "O-000456",
-                  "employee": "TY-GROWTH-01",
-                  "period": "x",
-                  "work": "x"
-                },
-                "title_fa": "گزارش هفتگی رشد"
-              },
-              "schema": {
-                "$ref": "#/components/schemas/StoryIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "author": {
-                    "code": "TY-CEO",
-                    "display_fa": "x",
-                    "kind": "agent"
-                  },
-                  "body_fa": "توضیح کوتاه",
-                  "company": "TY",
-                  "created_at": "2026-10-17T05:42:00Z",
-                  "expires_at": "2026-10-17T05:42:00Z",
-                  "figures": [
-                    {}
-                  ],
-                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                  "kind": "hire",
-                  "links": {},
-                  "media": {
-                    "duration_s": 1.0,
-                    "height": 1,
-                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "kind": "image",
-                    "mime": "application/pdf",
-                    "name": "report.pdf",
-                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                    "size": 1,
-                    "status": "processing",
-                    "transcript": "x",
-                    "variants": {
-                      "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                      "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
-                    },
-                    "width": 1
-                  },
+                  "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "ref": "W-000789",
-                  "seen": false,
-                  "title_fa": "گزارش هفتگی رشد",
-                  "welcomed": false
+                  "status": "active",
+                  "verdict": "x",
+                  "version": 1
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/Story"
+                  "$ref": "#/components/schemas/ReviewOut"
                 }
               }
             },
@@ -36718,7 +37374,7 @@
             "description": "Problem"
           }
         },
-        "summary": "Agent Story",
+        "summary": "Review Skill",
         "tags": [
           "internal"
         ]
