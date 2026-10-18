@@ -24,9 +24,10 @@ branch_labels = None
 depends_on = None
 
 APP_ROLES = "hq_api, hq_worker"
+# The kinds after 0019 (prompt 08 merge: 0019 adds protocol).
 KINDS = (
     "'hire', 'dismissal', 'recurring_approval', 'deploy', 'a3_action', 'proposal', "
-    "'budget_change', 'evaluation', 'code_session'"
+    "'budget_change', 'evaluation', 'code_session', 'protocol'"
 )
 
 

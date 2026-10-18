@@ -29,9 +29,10 @@ depends_on = None
 
 APP_ROLES = "hq_api, hq_worker"
 TENANT = "company_id = ANY ((SELECT core.allowed_company_ids())::uuid[])"
+# The kinds after 0020 (prompt 08 merge: 0019 protocol, 0020 errand_action).
 KINDS = (
     "'hire', 'dismissal', 'recurring_approval', 'deploy', 'a3_action', 'proposal', "
-    "'budget_change', 'evaluation', 'code_session'"
+    "'budget_change', 'evaluation', 'code_session', 'protocol', 'errand_action'"
 )
 
 
