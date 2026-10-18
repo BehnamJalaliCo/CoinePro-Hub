@@ -10,12 +10,13 @@ They are flagged, not removed: the text stays what the page says.
 from __future__ import annotations
 
 import io
+import logging
 import re
 from typing import Any
 
-import lxml.html
-from pypdf import PdfReader
-from pypdf.errors import PdfReadError
+from hq_common import untrusted
+
+log = logging.getLogger("hq_egress.extract")
 
 DROP = (
     "script",
@@ -89,6 +90,8 @@ INJECTION = [
 def html_text(html: bytes | str, max_chars: int) -> tuple[str, str, bool]:
     """(title, readable text, truncated) of an HTML page: scripts, styles and
     other non-text dropped; the main/article element if there is one."""
+    import lxml.html  # here: only the child process parses
+
     try:
         doc = lxml.html.fromstring(html if isinstance(html, bytes) else html.encode("utf-8"))
     except (ValueError, lxml.etree.ParserError):
@@ -120,6 +123,9 @@ def html_text(html: bytes | str, max_chars: int) -> tuple[str, str, bool]:
 
 def pdf_text(data: bytes, max_chars: int) -> tuple[str, str, bool]:
     """(title, text, truncated) of a PDF (the first 200 pages)."""
+    from pypdf import PdfReader  # here: only the child process parses
+    from pypdf.errors import PdfReadError
+
     try:
         reader = PdfReader(io.BytesIO(data))
         title = str((reader.metadata.title if reader.metadata else None) or "")[:300]
@@ -135,6 +141,26 @@ def pdf_text(data: bytes, max_chars: int) -> tuple[str, str, bool]:
         return "", "", False
     text = LINES.sub("\n\n", "\n".join(out))
     return title, *_cap(text.strip(), max_chars)
+
+
+# The parse of a fetched page or file is untrusted work (prompt 07.1 §1.2): it
+# runs in a child process with hard limits, never on the event loop. A page
+# the limits stop reads as empty and truncated.
+PARSE_LIMITS = untrusted.DEFAULT
+SLOTS = 2  # children at once: one heavy page does not hold up every other read
+
+
+async def read_text(kind: str, data: bytes, max_chars: int) -> tuple[str, str, bool]:
+    """(title, text, truncated) of a PDF (`kind` "pdf") or an HTML page."""
+    target = "hq_egress.extract:pdf_text" if kind == "pdf" else "hq_egress.extract:html_text"
+    got = await untrusted.run(
+        target, data=data, kwargs={"max_chars": max_chars}, limits=PARSE_LIMITS
+    )
+    if got.ok and isinstance(got.value, list) and len(got.value) == 3:
+        title, text, cut = got.value
+        return str(title), str(text), bool(cut)
+    log.warning("page not parsed", extra={"kind": kind, "reason": got.reason})
+    return "", "", got.killed is not None
 
 
 def _cap(text: str, max_chars: int) -> tuple[str, bool]:

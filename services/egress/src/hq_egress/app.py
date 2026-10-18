@@ -36,6 +36,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from hq_common import untrusted
 from hq_egress import __version__
 from hq_egress import extract as X
 from hq_egress.accounts import Account, scrub
@@ -169,6 +170,7 @@ def build_app(state: State) -> FastAPI:
         title="egress", version=__version__, docs_url=None, redoc_url=None, openapi_url=None
     )
     app.state.egress = state
+    untrusted.set_slots(X.SLOTS)
 
     def guarded(
         fn: Callable[[Any], Awaitable[JSONResponse]],
@@ -291,14 +293,14 @@ def build_app(state: State) -> FastAPI:
             return answer("error", None, e.entries, "fetch_failed", secrets)
         ctype = got.content_type
         if a.mode == "pdf" or ctype == "application/pdf" or got.body[:5] == b"%PDF-":
-            title, text, cut = X.pdf_text(got.body, a.max_chars)
+            title, text, cut = await X.read_text("pdf", got.body, a.max_chars)
             kind = "pdf"
         elif a.mode == "html":
             text = got.body.decode(_charset(got.headers), "replace")
             title, cut, kind = "", len(text) > a.max_chars, "html"
             text = text[: a.max_chars]
         elif ctype.startswith("text/html") or ctype in ("application/xhtml+xml", ""):
-            title, text, cut = X.html_text(got.body, a.max_chars)
+            title, text, cut = await X.read_text("html", got.body, a.max_chars)
             kind = "text"
         elif ctype.startswith(TEXT_TYPES):
             text = got.body.decode(_charset(got.headers), "replace")
