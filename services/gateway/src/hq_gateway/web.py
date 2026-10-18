@@ -244,9 +244,10 @@ def _summed(rows: list[dict[str, Any]], tool: str, cls: str) -> dict[str, Any]:
     }
 
 
-async def _log(
-    api: T.Api, call: T.Call, tool: str, cls: str, out: dict[str, Any], reservation: Any
+async def log_entries(
+    api: T.Api, token: str, tool: str, cls: str, out: dict[str, Any], reservation: Any = None
 ) -> None:
+    """A call's egress entries (`out["entries"]`) to the egress log."""
     raw = out.get("entries")
     rows = [r for r in (_row(e, tool, cls) for e in raw) if r] if isinstance(raw, list) else []
     if not rows:
@@ -257,20 +258,20 @@ async def _log(
     if isinstance(reservation, str):
         body["reservation"] = reservation
     try:
-        resp = await api.request("POST", "/internal/v1/egress/log", call.token, json=body)
+        resp = await api.request("POST", "/internal/v1/egress/log", token, json=body)
         if resp.status_code == 204:
             return
         # Refused: the call still counts, as one row that sums the batch.
         log.warning("egress log refused: %s; logging one summed row", resp.status_code)
         body["entries"] = [_summed(rows, tool, cls)]
-        resp = await api.request("POST", "/internal/v1/egress/log", call.token, json=body)
+        resp = await api.request("POST", "/internal/v1/egress/log", token, json=body)
         if resp.status_code != 204:
             log.error("egress log refused again: %s", resp.status_code)
     except httpx.HTTPError as exc:
         log.error("egress log failed: %s", type(exc).__name__)
 
 
-async def _shielded(coro: Coroutine[Any, Any, None]) -> None:
+async def shielded(coro: Coroutine[Any, Any, None]) -> None:
     """Runs `coro` to its end even if the call awaiting it is cancelled
     (the tool's timeout): the log of what left is never lost to it."""
     task = asyncio.ensure_future(coro)
@@ -331,7 +332,7 @@ async def _carry(
         grant.pop("account", None)  # the secret lives for this call only
         body.pop("account", None)
         if out is not None:
-            await _shielded(_log(api, call, tool, cls, out, grant.get("reservation")))
+            await shielded(log_entries(api, call.token, tool, cls, out, grant.get("reservation")))
     return out, None
 
 

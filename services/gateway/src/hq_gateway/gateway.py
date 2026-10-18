@@ -40,7 +40,7 @@ from hq_common.charters import IMPLICIT_TOOLS, Library
 from hq_common.redact import fit_async, scrub_async
 from hq_gateway import mcp as M
 from hq_gateway import tools as T
-from hq_gateway import web  # noqa: F401 - registers the internet tools (web.*, http.request)
+from hq_gateway import web  # registers the internet tools (web.*, http.request)
 
 log = logging.getLogger("hq_gateway")
 TOOL_NAME = re.compile(r"[a-z][a-z_]*(?:\.[a-z_]+)?")  # always fullmatch: "work.get\n" is no tool
@@ -341,7 +341,7 @@ class Gateway:
             log.warning("mcp call failed", extra={"server": spec.key, "tool": parsed.tool})
             return Outcome("error", cls, "mcp_unreachable", ref, None, {})
         finally:
-            await self._mcp_egress_log(token, spec)
+            await web.shielded(self._mcp_egress_log(token, spec))
         ms = int((time.monotonic() - started) * 1000)
         log.info("mcp call", extra={"server": spec.key, "tool": parsed.tool, "ms": ms})
         if isinstance(out, str):
@@ -366,14 +366,8 @@ class Gateway:
             return
         try:
             out = await egress.post("/v1/proxy/drain", {"call_id": spec.call_id})
-            entries = out.get("entries") if isinstance(out, dict) else None
-            if isinstance(entries, list) and entries:
-                await self.api.request(
-                    "POST",
-                    "/internal/v1/egress/log",
-                    token,
-                    json={"tool": "mcp.call", "class": spec.cls, "entries": entries[:200]},
-                )
+            if isinstance(out, dict):  # in the log's shape, rows beyond 200 summed
+                await web.log_entries(self.api, token, "mcp.call", spec.cls, out)
         except Exception:  # noqa: BLE001 - logged as missing, the call stands
             log.warning("mcp egress entries not logged", extra={"server": spec.key})
 

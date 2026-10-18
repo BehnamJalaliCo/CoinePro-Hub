@@ -319,7 +319,9 @@ async def test_an_http_server_names_its_call_to_the_proxy_and_its_traffic_is_log
         "X-HQ-Call": spec.call_id, "X-HQ-Tool": "mcp.call", "X-HQ-Class": "A0",
     }  # fmt: skip
     assert drained == [{"call_id": spec.call_id}]
-    assert logged == [{"tool": "mcp.call", "class": "A0", "entries": [entry]}]
+    shaped = {**entry, "tool": "mcp.call", "class": "A0", "bytes_in": 0, "bytes_out": 0, "ms": 0,
+              "blocked_reason": None, "requests": 1}  # fmt: skip
+    assert logged == [{"tool": "mcp.call", "class": "A0", "entries": [shaped]}]
     assert SECRET not in json.dumps(logged) and SECRET not in json.dumps(spec.proxy_headers())
     # The real opener puts those headers on the proxy, never on the server's request.
     opener = M.SdkOpener("http://egress:3129", 5)
