@@ -193,6 +193,7 @@ async def create_founding(body: FoundingIn, request: Request, ctx: Ctx = Depends
 
 @router.get("/foundings/{ref}", response_model=F.Founding, responses=E)
 async def get_founding(ref: str, ctx: Ctx = Depends(owner_ctx)) -> F.Founding:
+    """One founding with its audit, proposal, card and server plan."""
     async with ctx.tx() as tx:
         return await F.render(tx, await F.load(tx, ref))
 
@@ -231,6 +232,7 @@ async def list_plans(
     company: str | None = Query(default=None, max_length=10),
     ctx: Ctx = Depends(owner_ctx),
 ) -> list[F.ServerPlan]:
+    """Server plans, newest first."""
     async with ctx.tx() as tx:
         rows = await tx.all(
             F.PLAN_SQL
@@ -287,13 +289,14 @@ async def seal_plan(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -
 
 # ------------------------------------------------------------------- runs --
 @router.get("/provisioning/runs/{id}", response_model=F.ProvisionRun, responses=E)
-async def get_run(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> F.ProvisionRun:
+async def get_provision_run(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> F.ProvisionRun:
+    """A build of a sealed plan: its steps (with a short log each), the server and the login."""
     async with ctx.tx() as tx:
         return F.render_run(await F.load_run(tx, id))
 
 
 @router.post("/provisioning/runs/{id}/resume", response_model=F.ProvisionRun, responses=E)
-async def resume_run(id: UUID, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def resume_provision_run(id: UUID, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """⟨additive⟩ A failed run continues from its first step not done (the
     same sealed plan; nothing is made twice). Requires `Idempotency-Key`."""
     async with ctx.tx() as tx:
@@ -505,6 +508,7 @@ async def runs_next(ctx: Ctx = Depends(internal_ctx)) -> Any:
 
 @internal_router.get("/provisioning/runs/{id}", responses=responses(401, 403, 404))
 async def runs_get(id: UUID, ctx: Ctx = Depends(internal_ctx)) -> Any:
+    """The run's state and the new server's report (`cloud_init`), once it came."""
     await _provisioner(ctx)
     async with ctx.tx() as tx:
         r = await F.load_run(tx, id)
@@ -537,6 +541,7 @@ async def runs_callback(
 
 @internal_router.post("/provisioning/runs/{id}/steps", status_code=204, responses=E)
 async def runs_step(id: UUID, body: StepIn, ctx: Ctx = Depends(internal_ctx)) -> Response:
+    """One step's state and log tail (masked); the owner follows them live."""
     await _provisioner(ctx)
     async with ctx.tx() as tx:
         run = await F.load_run(tx, id, lock=True)
@@ -546,6 +551,7 @@ async def runs_step(id: UUID, body: StepIn, ctx: Ctx = Depends(internal_ctx)) ->
 
 @internal_router.post("/provisioning/runs/{id}/server", status_code=204, responses=E)
 async def runs_server(id: UUID, body: ServerIn, ctx: Ctx = Depends(internal_ctx)) -> Response:
+    """The server the run made (only a labelled one of ours is recorded)."""
     await _provisioner(ctx)
     async with ctx.tx() as tx:
         run = await F.load_run(tx, id, lock=True)
@@ -555,6 +561,7 @@ async def runs_server(id: UUID, body: ServerIn, ctx: Ctx = Depends(internal_ctx)
 
 @internal_router.post("/provisioning/runs/{id}/finish", status_code=204, responses=E)
 async def runs_finish(id: UUID, body: FinishIn, ctx: Ctx = Depends(internal_ctx)) -> Response:
+    """Done (the login) or failed (the step): the owner is told either way."""
     await _provisioner(ctx)
     async with ctx.tx() as tx:
         run = await F.load_run(tx, id, lock=True)

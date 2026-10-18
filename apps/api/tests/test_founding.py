@@ -47,9 +47,16 @@ class FakeProvisioner:
             self.priced.append((t, loc))
             return httpx.Response(
                 200,
-                json={"type": t, "location": loc, "currency": "EUR", "server_monthly_net": "26.49",
-                      "ipv4_monthly_net": "0.50", "monthly_eur": "26.99", "monthly_eur_gross": "32.12",
-                      "vat_rate": "19.0"},  # fmt: skip
+                json={
+                    "type": t,
+                    "location": loc,
+                    "currency": "EUR",
+                    "server_monthly_net": "26.49",
+                    "ipv4_monthly_net": "0.50",
+                    "monthly_eur": "26.99",
+                    "monthly_eur_gross": "32.12",
+                    "vat_rate": "19.0",
+                },
             )
         if request.url.path == "/v1/servers":
             return httpx.Response(200, json={"items": self.servers})
@@ -74,7 +81,9 @@ def provisioner_on(hub: Hub) -> Iterator[FakeProvisioner]:
 
 @pytest.fixture
 async def ssh_sources(su: Any) -> Any:
-    await su.execute("UPDATE owner.settings SET provision_ssh_sources = $1 WHERE id = 1", [OWNER_NET])
+    await su.execute(
+        "UPDATE owner.settings SET provision_ssh_sources = $1 WHERE id = 1", [OWNER_NET]
+    )
     yield
     await su.execute("UPDATE owner.settings SET provision_ssh_sources = '{}' WHERE id = 1")
 
@@ -86,7 +95,9 @@ def plan_body(company: str, **over: Any) -> dict[str, Any]:
         "type": "cpx42",
         "location": "fsn1",
         "private_network": True,
-        "firewall": [{"protocol": "tcp", "port": "22", "sources": [OWNER_NET], "note_fa": "SSH مالک"}],
+        "firewall": [
+            {"protocol": "tcp", "port": "22", "sources": [OWNER_NET], "note_fa": "SSH مالک"}
+        ],
         "software": list(P.SOFTWARE),
         "work_user": company.lower() if len(company) > 1 else "ops",
         "repo": "behnamjalalico/nx-app",
@@ -143,12 +154,16 @@ async def test_a_plan_is_checked_priced_and_sealed_on_its_digest(
         assert r.status_code == 409
         # A step-up on another digest does not seal it.
         wrong = await step_up(hub, owner_session["session_id"], "provision.seal", "0" * 64)
-        r = await client.post(f"/api/v1/provisioning/plans/{plan['ref']}/seal", headers={**h, **wrong})
+        r = await client.post(
+            f"/api/v1/provisioning/plans/{plan['ref']}/seal", headers={**h, **wrong}
+        )
         assert r.status_code == 403
         r = await seal(client, hub, owner_session, plan["ref"])
         assert r.status_code == 200 and r.json()["state"] == "sealed", r.text
         assert fake.woken == 1
-        status = await su.fetchval("SELECT status FROM cartable.decisions WHERE ref = $1", card["ref"])
+        status = await su.fetchval(
+            "SELECT status FROM cartable.decisions WHERE ref = $1", card["ref"]
+        )
         assert status == "approved"
         # Changed after the seal (a new version): the seal is void, a new card.
         r = await client.post(
@@ -160,7 +175,9 @@ async def test_a_plan_is_checked_priced_and_sealed_on_its_digest(
         assert r.status_code == 201 and revised["state"] == "proposed", r.text
         assert revised["digest"] != plan["digest"] and revised["decision_ref"] != card["ref"]
         old = await step_up(hub, owner_session["session_id"], "provision.seal", plan["digest"])
-        r = await client.post(f"/api/v1/provisioning/plans/{plan['ref']}/seal", headers={**h, **old})
+        r = await client.post(
+            f"/api/v1/provisioning/plans/{plan['ref']}/seal", headers={**h, **old}
+        )
         assert r.status_code == 403  # the owner saw the old plan: not this one
 
 
@@ -236,13 +253,26 @@ async def test_a_repository_becomes_a_company_and_its_server(
         auditor,
         step(
             "ممیزی",
-            ("deliver", {"work_ref": f["audit_work"], "title_fa": "گزارش ممیزی",
-                         "body_md": "## Architecture\nA FastAPI monolith.", "evidence": evidence}),
-        ),  # fmt: skip
+            (
+                "deliver",
+                {
+                    "work_ref": f["audit_work"],
+                    "title_fa": "گزارش ممیزی",
+                    "body_md": "## Architecture\nA FastAPI monolith.",
+                    "evidence": evidence,
+                },
+            ),
+        ),
     )
     assert (await run(agents, row["id"]))["state"] == "done"
     f = (await client.get(f"/api/v1/foundings/{f['ref']}", headers=h)).json()
-    assert f["audit"]["scores"] == {"architecture": 7, "quality": 6, "security": 5, "tests": 4, "debt": 6}
+    assert f["audit"]["scores"] == {
+        "architecture": 7,
+        "quality": 6,
+        "security": 5,
+        "tests": 4,
+        "debt": 6,
+    }
     assert "FastAPI" in f["audit"]["report_md"] and f["proposal_work"]
     # The AI Ops head's run proposes the company: one company_found card.
     row = [x for x in await runs_of(su, "HQ-AIOPS-MGR") if x["state"] == "queued"][-1]
@@ -257,9 +287,19 @@ async def test_a_repository_becomes_a_company_and_its_server(
         "HQ-AIOPS-MGR",
         step(
             "پیشنهاد",
-            ("propose", {"kind": "company_found", "title_fa": f"تأسیس {code}", "what_md": "شرکت تازه",
-                         "why_md": "ممیزی", "risk": "medium", "reversible": True, "payload": payload}),
-        ),  # fmt: skip
+            (
+                "propose",
+                {
+                    "kind": "company_found",
+                    "title_fa": f"تأسیس {code}",
+                    "what_md": "شرکت تازه",
+                    "why_md": "ممیزی",
+                    "risk": "medium",
+                    "reversible": True,
+                    "payload": payload,
+                },
+            ),
+        ),
     )
     assert (await run(agents, row["id"]))["state"] == "done"
     f = (await client.get(f"/api/v1/foundings/{f['ref']}", headers=h)).json()
@@ -268,7 +308,9 @@ async def test_a_repository_becomes_a_company_and_its_server(
     plan = f["plan"]
     assert plan["company"] == code and plan["state"] == "proposed"
     assert [r["sources"] for r in plan["firewall"]] == [[OWNER_NET]]  # SSH from the owner only
-    assert any("monthly_eur" in p for p in plan["problems"])  # no price while the provisioner is off
+    assert any(
+        "monthly_eur" in p for p in plan["problems"]
+    )  # no price while the provisioner is off
     # Without the seal no company exists.
     assert not await su.fetchval("SELECT 1 FROM core.companies WHERE code = $1", code)
     r = await client.post(
@@ -289,7 +331,9 @@ async def test_a_repository_becomes_a_company_and_its_server(
     # The company is DATA: its record, the proposal's departments, leadership, paused.
     co = await su.fetchrow("SELECT id, status, template FROM core.companies WHERE code = $1", code)
     assert (co["status"], co["template"]) == ("paused", "standard")
-    depts = await su.fetch("SELECT code FROM core.departments WHERE company_id = $1 ORDER BY code", co["id"])
+    depts = await su.fetch(
+        "SELECT code FROM core.departments WHERE company_id = $1 ORDER BY code", co["id"]
+    )
     assert [d["code"] for d in depts] == ["GROWTH", "TECH"]
     assert await su.fetchval("SELECT 1 FROM core.employees WHERE code = $1", f"{code}-CEO")
     f = (await client.get(f"/api/v1/foundings/{f['ref']}", headers=h)).json()
@@ -331,8 +375,14 @@ async def test_a_repository_becomes_a_company_and_its_server(
     r = await client.post(
         f"/internal/v1/provisioning/runs/{rid}/server",
         headers=pv,
-        json={"hetzner_id": hid, "name": plan["name"], "ipv4": "203.0.113.9", "ipv6": "2001:db8::9",
-              "private_ip": "10.20.0.2", "labels": P.labels(plan, rid)},  # fmt: skip
+        json={
+            "hetzner_id": hid,
+            "name": plan["name"],
+            "ipv4": "203.0.113.9",
+            "ipv6": "2001:db8::9",
+            "private_ip": "10.20.0.2",
+            "labels": P.labels(plan, rid),
+        },
     )
     assert r.status_code == 204, r.text
     report = {
@@ -357,12 +407,17 @@ async def test_a_repository_becomes_a_company_and_its_server(
     )
     assert again.status_code == 401  # one use only
     got = (await client.get(f"/internal/v1/provisioning/runs/{rid}", headers=pv)).json()
-    assert got["cloud_init"]["received_at"] and got["cloud_init"]["deploy_key"].startswith("ssh-ed25519")
+    assert got["cloud_init"]["received_at"] and got["cloud_init"]["deploy_key"].startswith(
+        "ssh-ed25519"
+    )
     assert len(got["cloud_init"]["results"]) == len(P.ordered(plan["software"]))
     r = await client.post(
         f"/internal/v1/provisioning/runs/{rid}/finish",
         headers=pv,
-        json={"state": "done", "login": {"ssh": f"ssh {plan['work_user']}@203.0.113.9", "then": ["claude"]}},
+        json={
+            "state": "done",
+            "login": {"ssh": f"ssh {plan['work_user']}@203.0.113.9", "then": ["claude"]},
+        },
     )
     assert r.status_code == 204, r.text
     run_out = (await client.get(f"/api/v1/provisioning/runs/{rid}", headers=h)).json()
@@ -436,7 +491,9 @@ async def test_an_idea_cancel_and_a_failed_run_that_resumes(
         ).json()
         assert (await seal(client, hub, owner_session, plan["ref"])).status_code == 200
         pv = provisioner_headers()
-        rid = (await client.get("/internal/v1/provisioning/runs/next", headers=pv)).json()["run"]["id"]
+        rid = (await client.get("/internal/v1/provisioning/runs/next", headers=pv)).json()["run"][
+            "id"
+        ]
         await client.post(
             f"/internal/v1/provisioning/runs/{rid}/steps", headers=pv,
             json={"key": "ssh-key", "state": "done", "log_tail": ["key ok"]},
@@ -451,7 +508,9 @@ async def test_an_idea_cancel_and_a_failed_run_that_resumes(
             json={"state": "failed", "error": {"step": "firewall", "code": "error"}},
         )
         assert r.status_code == 204
-        assert (await client.get(f"/api/v1/provisioning/runs/{rid}", headers=h)).json()["state"] == "failed"
+        assert (await client.get(f"/api/v1/provisioning/runs/{rid}", headers=h)).json()[
+            "state"
+        ] == "failed"
         r = await client.post(f"/api/v1/provisioning/runs/{rid}/resume", headers={**h, **idem()})
         assert r.status_code == 200 and r.json()["state"] == "queued", r.text
         again = (await client.get("/internal/v1/provisioning/runs/next", headers=pv)).json()["run"]
@@ -490,7 +549,9 @@ async def test_pr063_finds_servers_without_a_sealed_plan(
         assert inv["inventory"]["ok"] is True and len(inv["inventory"]["servers"]) == 3
     async with hub.db.tx(await hub.companies.ids()) as tx:
         holding = await tx.one("SELECT id, code FROM core.companies WHERE kind = 'holding'")
-        companies = {r["code"]: r["id"] for r in await tx.all("SELECT id, code FROM core.companies")}
+        companies = {
+            r["code"]: r["id"] for r in await tx.all("SELECT id, code FROM core.companies")
+        }
         ctx = OC.CheckCtx(tx, holding["id"], holding["code"], companies, datetime.now(UTC), {})
         checked = await OC.CHECKS["PR-063"](ctx)
     keys = sorted(p.key for p in checked.problems)

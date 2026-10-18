@@ -10,6 +10,31 @@ reasons(p, op, t) := r if {
 
 allowed(p, op, t) if policy.allow with input as {"principal": p, "op": op, "target": t}
 
+# ------------------------------------- founding and provisioning (prompt 09) --
+hq_aiops := {"kind": "agent", "code": "HQ-AIOPS-MGR", "role": "manager", "company": "HQ", "department": "AIOPS", "scope": "holding"}
+
+provisioner := {"kind": "service", "code": "provisioner", "role": "service", "company": null, "department": null}
+
+test_a_holding_manager_proposes_a_company if {
+	allowed(hq_aiops, "decision.propose", {"company": "HQ", "kind": "company_found"})
+	not allowed(f.ty_growth_mgr, "decision.propose", {"company": "TY", "kind": "company_found"})
+	not allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "company_found"})
+}
+
+test_server_plans_for_the_own_company_or_by_a_holding_role if {
+	allowed(f.ty_growth_mgr, "provisioning.plan", {"company": "TY"})
+	not allowed(f.ty_growth_mgr, "provisioning.plan", {"company": "FX"})
+	allowed(f.hq_ovs, "provisioning.plan", {"company": "FX"})
+	not allowed(f.svc, "provisioning.plan", {"company": "TY"})
+}
+
+test_only_the_provisioner_drives_runs if {
+	allowed(provisioner, "provisioning.run", {})
+	not allowed(f.svc, "provisioning.run", {})
+	not allowed(f.ty_ceo, "provisioning.run", {})
+	not allowed(f.owner, "provisioning.run", {})
+}
+
 work(assignee) := {"assignee": assignee, "company": "TY"}
 
 # ------------------------------------------------------- context / activity --
