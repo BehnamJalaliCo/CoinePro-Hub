@@ -67,4 +67,11 @@ The WER numbers are from robotic synthetic voices and say nothing about the >= 9
 3. Per-workspace GitHub tokens: fine-grained, one repo each, contents + pull requests, in kv/hq-api/workshop/github/<WORKSPACE-CODE> (the owner puts them there; nobody sees them)
 4. Left from measurement, for the owner to keep or delete: volume stt-measure-models (~3.6 GB) and image coinepro-hq/stt:measure
 
+## Review of 6 (PROMPT_06_1_FIXES.md; owner 2026-10-18: blockers §1.2-§1.4 only, on server/p07-platform)
+- 1.1 ⛔ set aside with 0.2 (the workshop runs no session until the owner picks a runtime)
+- 1.2 ok: the workshop's approval_result says `allow` (the contract's name), not `allowed`; test reads `data.allow`
+- 1.3 ok: treasury breakdown/what-if take a bare date as the owner's day (`to` counts its own day) and a time without a zone as the owner's time; default from = 1st of the owner's month; `from=2026-10-01` was a 500. Test: by=company/day/model/task_class, naive times, what-if, the default
+- 1.4 ok, with 7.1 §1.2 (one helper, hq_common.untrusted): images are parsed only in a limited child (192 MiB address space, 20 s CPU, killed at 30 s, oom_score_adj 1000), outside any transaction; metadata (EXIF/GPS/XMP/IPTC, comments, previews, trailing data) is stripped from the photo's own bytes without decoding it, so the original keeps its pixels and a one-tag orientation (browsers and Coil rotate it); the agent variant and thumb are decoded at reduced scale and upright; MAX_PIXELS 40 MP, > 80 MP and anything the limits stop → 415, not 500. Test: a 40 MP photo through both upload paths, 201 in ~1 s, api growth < 50 MB, GPS gone
+- Left for after the weekly limit renews (owner): every "باید" and small item of 6.1, STT (§0), deleting stt-measure. Open from 1.4: HEIC above ~14 MP (24 MP iPhone photos), WebP above ~9 MP and PNG above ~30 MP do not fit the child's 192 MiB and answer 415; lean's api limit (224m) cannot hold a 192 MiB child next to it
+
 این گزارش را برای Claude سشن مشورت ببر.
