@@ -40,29 +40,42 @@ fun BackupsCard(modifier: Modifier = Modifier) {
     val q = rememberQuery("backups", "backups", maxAgeMs = 120_000) { backups() }
     val b = q.data ?: return Skeleton(modifier.fillMaxWidth().height(200.dp), radius = 16.dp)
     val last = instant(b.hourly.lastAt)
-    val healthy = b.hourly.ok && last != null && com.coinepro.hq.core.format.HqClock.millis() - last.toEpochMilli() <= 2 * 3_600_000
+    val stale = b.hourly.stale ?: (last == null || com.coinepro.hq.core.format.HqClock.millis() - last.toEpochMilli() > 2 * 3_600_000)
+    val destBroken = b.destinations.any { it.configured && it.ok == false }
+    val healthy = b.hourly.ok == true && !stale && !b.wal.failing && b.check?.ok != false && !destBroken
     HqCard(modifier.fillMaxWidth()) {
         SectionTitle("پشتیبان‌گیری", note = "ساعتی و رمزنگاری‌شده، به‌علاوه‌ی WAL پیوسته برای بازگشت به هر دقیقه") {
             Pill(if (healthy) "سالم" else "مشکل", if (healthy) Tone.POS else Tone.NEG, dot = true)
         }
         if (b.encryption.isNotBlank()) Fig(b.encryption, style = Divan.type.figureSmall, color = c.textMuted)
+        // ⟨1.4.5⟩ A WAL archive that fails is a data-loss alarm: point-in-time recovery has stopped and the disk fills.
+        if (b.wal.failing) Alarm(
+            "آرشیو WAL کار نمیکند: بازگشت به هر دقیقه قطع است و اگر بماند دیسک پر میشود." +
+                (if (b.wal.readyCount > 0) " ${b.wal.readyCount} فایل منتظر است." else "") + " SRE پلتفرم خبر دارد.",
+        ) else b.hourly.error?.let { Alarm(it) }
         Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box3("آخرین backup ساعتی", ago(b.hourly.lastAt), "بعدی: ${until(b.hourly.nextAt)}، ${bytes(b.hourly.sizeBytes)}", Modifier.weight(1f))
-                Box3("عقب‌ماندگی WAL", "${b.wal.lagS}s", "بازگشت تا هر دقیقه روی سرور", Modifier.weight(1f), figure = true)
+                Box3("آخرین backup ساعتی", ago(b.hourly.lastAt), "بعدی: ${until(b.hourly.nextAt)}، ${bytes(b.hourly.sizeBytes ?: 0)}", Modifier.weight(1f))
+                Box3(
+                    "عقب‌ماندگی WAL", "${b.wal.lagS ?: "—"}s",
+                    b.baseBackup?.let { "بازگشت تا هر دقیقه، ${it.count} نسخه‌ی پایه" } ?: "بازگشت تا هر دقیقه روی سرور",
+                    Modifier.weight(1f), figure = true, valueColor = if (b.wal.failing) c.negative else null,
+                )
             }
             Box3(
-                "آخرین تست بازیابی", "${if (b.restoreTest.ok) "قبول" else "رد"}، ${ago(b.restoreTest.lastAt)}", b.restoreTest.notes, Modifier.fillMaxWidth(),
-                valueColor = if (b.restoreTest.ok) c.positive else c.negative,
+                "آخرین تست بازیابی", "${if (b.restoreTest.ok == true) "قبول" else "رد"}، ${ago(b.restoreTest.lastAt)}", b.restoreTest.notes.orEmpty(), Modifier.fillMaxWidth(),
+                valueColor = if (b.restoreTest.ok == true) c.positive else c.negative,
             )
         }
         b.destinations.forEachIndexed { i, d ->
             if (i > 0) HorizontalDivider(color = c.lineDivider)
             Row(Modifier.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DIcon(if (d.key == "gdrive") DivanIcon.GLOBE else DivanIcon.SERVER, size = 16.dp, tint = if (d.configured) c.positive else c.textMuted)
+                val broken = d.configured && d.ok == false
+                DIcon(if (d.key == "gdrive") DivanIcon.GLOBE else DivanIcon.SERVER, size = 16.dp, tint = if (broken) c.negative else if (d.configured) c.positive else c.textMuted)
                 Text(DEST_FA[d.key] ?: d.key, style = Divan.type.small, modifier = Modifier.weight(1f))
                 when {
-                    d.configured -> Fig(bytes(d.usedBytes) + (d.quotaBytes?.let { " / " + bytes(it) } ?: ""), style = Divan.type.figureSmall, color = c.textSecondary)
+                    broken -> Text(d.error ?: "در دسترس نیست", style = Divan.type.micro, color = c.negative, maxLines = 2)
+                    d.configured -> Fig(bytes(d.usedBytes ?: 0) + (d.quotaBytes?.let { " / " + bytes(it) } ?: ""), style = Divan.type.figureSmall, color = c.textSecondary)
                     d.key == "gdrive" -> Fig("make gdrive-auth", style = Divan.type.figureSmall, color = c.textMuted)
                     else -> Text("خاموش", style = Divan.type.micro, color = c.textMuted)
                 }
@@ -70,9 +83,26 @@ fun BackupsCard(modifier: Modifier = Modifier) {
         }
         Text(
             "نگهداری: ${b.retention.hourly} ساعتی، ${b.retention.daily} روزانه، ${b.retention.monthly} ماهانه، ${b.retention.yearly} سالانه. بازیابی فقط در ترمینال خودت." +
-                if (!b.openbaoSnapshot.ok) " snapshot گاوصندوق رمزها منتظر توکن تو است." else "",
+                (if (b.check?.ok == false) " بررسی سلامت مخزن رد شد." else "") +
+                when {
+                    b.openbaoSnapshot.configured == false || (b.openbaoSnapshot.configured == null && b.openbaoSnapshot.ok != true) -> " snapshot گاوصندوق رمزها منتظر توکن تو است."
+                    b.openbaoSnapshot.ok == false -> " snapshot گاوصندوق رمزها شکست خورد."
+                    else -> ""
+                },
             style = Divan.type.micro, color = c.textMuted, modifier = Modifier.padding(top = 6.dp),
         )
+    }
+}
+
+@Composable
+private fun Alarm(text: String) {
+    val c = Divan.colors
+    Row(
+        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(12.dp)).background(c.softNegative).padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        DIcon(DivanIcon.URGENT, size = 18.dp, tint = c.negative)
+        Text(text, style = Divan.type.small, color = c.textPrimary)
     }
 }
 

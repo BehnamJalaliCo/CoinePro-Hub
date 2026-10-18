@@ -247,16 +247,18 @@ const foundings: any[] = [
 
 // -------------------------------------------------------------- backups --
 const backups = {
-  hourly: { last_at: iso(23), next_at: ahead(37), ok: true, snapshot: 'a3f9c2e1', size_bytes: 1_840_000_000 },
-  wal: { last_archived_at: iso(1), lag_s: 41 },
+  hourly: { last_at: iso(23), last_ok_at: iso(23), next_at: ahead(37), ok: true, error: null, stale: false, snapshot: 'a3f9c2e1', size_bytes: 1_840_000_000 },
+  wal: { last_archived_at: iso(1), lag_s: 41, failed_count: 0, failing: false, ready_count: 0 },
+  base_backup: { last_at: iso(60 * 7), count: 9 },
+  check: { last_at: iso(60 * 7), ok: true },
   destinations: [
-    { key: 'gdrive', configured: true, last_ok_at: iso(23), used_bytes: 112_400_000_000, quota_bytes: 6_000_000_000_000 },
-    { key: 'local', configured: true, last_ok_at: iso(23), used_bytes: 38_200_000_000, quota_bytes: null },
-    { key: 'hetzner', configured: false, last_ok_at: null, used_bytes: 0, quota_bytes: null },
+    { key: 'gdrive', configured: true, ok: true, error: null, last_ok_at: iso(23), used_bytes: 112_400_000_000, quota_bytes: 6_000_000_000_000 },
+    { key: 'local', configured: true, ok: true, error: null, last_ok_at: iso(23), used_bytes: 38_200_000_000, quota_bytes: null },
+    { key: 'hetzner', configured: false, ok: null, error: null, last_ok_at: null, used_bytes: 0, quota_bytes: null },
   ],
   retention: { hourly: 168, daily: 90, weekly: 52, monthly: 36, yearly: 10 },
-  restore_test: { last_at: iso(60 * 24 * 2), ok: true, duration_s: 412, notes: 'PITR به یک لحظه‌ی تصادفی دیروز: درست' },
-  openbao_snapshot: { last_at: null, ok: false }, encryption: 'restic (AES-256)',
+  restore_test: { last_at: iso(60 * 24 * 2), ok: true, duration_s: 412, notes: 'PITR به یک لحظه‌ی تصادفی دیروز: درست', pitr_target: iso(60 * 24 * 2 + 600), source: 'local' },
+  openbao_snapshot: { configured: false, last_at: null, ok: null }, encryption: 'restic (AES-256)',
 };
 
 const summary = () => ({

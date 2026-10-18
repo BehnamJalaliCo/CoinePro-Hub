@@ -198,13 +198,16 @@ export function useFoundingAction() {
 }
 
 // -------------------------------------------------------------- backups --
+// ⟨1.4.5⟩ as served (§18.13): a WAL archive that fails is a data-loss alarm (`wal.failing`), not a statistic.
 export type BackupStatus = {
-  hourly: { last_at: string | null; next_at: string | null; ok: boolean; snapshot: string | null; size_bytes: number };
-  wal: { last_archived_at: string | null; lag_s: number };
-  destinations: Array<{ key: 'gdrive' | 'hetzner' | 'local'; configured: boolean; last_ok_at: string | null; used_bytes: number; quota_bytes: number | null }>;
+  hourly: { last_at: string | null; last_ok_at?: string | null; next_at: string | null; ok: boolean | null; error?: string | null; stale?: boolean; snapshot: string | null; size_bytes: number | null };
+  wal: { last_archived_at: string | null; lag_s: number | null; failed_count?: number | null; failing?: boolean; ready_count?: number };
+  base_backup?: { last_at: string | null; count: number } | null;
+  check?: { last_at: string | null; ok: boolean | null } | null;
+  destinations: Array<{ key: 'gdrive' | 'hetzner' | 'local'; configured: boolean; ok?: boolean | null; error?: string | null; last_ok_at: string | null; used_bytes: number | null; quota_bytes: number | null }>;
   retention: { hourly: number; daily: number; weekly: number; monthly: number; yearly: number };
-  restore_test: { last_at: string | null; ok: boolean; duration_s: number; notes: string };
-  openbao_snapshot: { last_at: string | null; ok: boolean }; encryption: string;
+  restore_test: { last_at: string | null; ok: boolean | null; duration_s: number | null; notes: string | null; pitr_target?: string | null; source?: string | null };
+  openbao_snapshot: { configured?: boolean; last_at: string | null; ok: boolean | null }; encryption: string;
 };
 export const useBackups = () => useQuery({ queryKey: ['backups'], queryFn: () => call<BackupStatus>('GET', '/backups/status'), refetchInterval: 120_000 });
 

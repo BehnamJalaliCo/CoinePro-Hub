@@ -1046,29 +1046,13 @@
      "date": "@-56d",
      "items": [
       {
-       "ref": "W-1570",
-       "title": "گزارش صبحگاهی",
-       "company": "HQ",
-       "department": null,
-       "priority": "P3",
-       "status": "done",
-       "at": "@-81809m",
-       "assignee": "HQ-SYS",
-       "recurring": true
-      }
-     ]
-    },
-    {
-     "date": "@-55d",
-     "items": [
-      {
        "ref": "W-1560",
        "title": "گزارش صبحگاهی",
        "company": "HQ",
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-80369m",
+       "at": "@-80880m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1079,14 +1063,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-80249m",
+       "at": "@-80760m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-54d",
+     "date": "@-55d",
      "items": [
       {
        "ref": "W-1550",
@@ -1095,14 +1079,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-78929m",
+       "at": "@-79440m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-53d",
+     "date": "@-54d",
      "items": [
       {
        "ref": "W-1540",
@@ -1111,7 +1095,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-77489m",
+       "at": "@-78000m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1122,14 +1106,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-77369m",
+       "at": "@-77880m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-52d",
+     "date": "@-53d",
      "items": [
       {
        "ref": "W-1530",
@@ -1138,14 +1122,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-76049m",
+       "at": "@-76560m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-51d",
+     "date": "@-52d",
      "items": [
       {
        "ref": "W-1520",
@@ -1154,7 +1138,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-74609m",
+       "at": "@-75120m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1165,14 +1149,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-74489m",
+       "at": "@-75000m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-50d",
+     "date": "@-51d",
      "items": [
       {
        "ref": "W-1510",
@@ -1181,14 +1165,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-73169m",
+       "at": "@-73680m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-49d",
+     "date": "@-50d",
      "items": [
       {
        "ref": "W-1500",
@@ -1197,7 +1181,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-71729m",
+       "at": "@-72240m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1208,14 +1192,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-71609m",
+       "at": "@-72120m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-48d",
+     "date": "@-49d",
      "items": [
       {
        "ref": "W-1490",
@@ -1224,14 +1208,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-70289m",
+       "at": "@-70800m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-47d",
+     "date": "@-48d",
      "items": [
       {
        "ref": "W-1480",
@@ -1240,7 +1224,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-68849m",
+       "at": "@-69360m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1251,14 +1235,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-68729m",
+       "at": "@-69240m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-46d",
+     "date": "@-47d",
      "items": [
       {
        "ref": "W-1470",
@@ -1267,14 +1251,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-67409m",
+       "at": "@-67920m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-45d",
+     "date": "@-46d",
      "items": [
       {
        "ref": "W-1460",
@@ -1283,7 +1267,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-65969m",
+       "at": "@-66480m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1294,14 +1278,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-65849m",
+       "at": "@-66360m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-44d",
+     "date": "@-45d",
      "items": [
       {
        "ref": "W-1450",
@@ -1310,14 +1294,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-64529m",
+       "at": "@-65040m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-43d",
+     "date": "@-44d",
      "items": [
       {
        "ref": "W-1440",
@@ -1326,7 +1310,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-63089m",
+       "at": "@-63600m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1337,14 +1321,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-62969m",
+       "at": "@-63480m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-42d",
+     "date": "@-43d",
      "items": [
       {
        "ref": "W-1430",
@@ -1353,14 +1337,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-61649m",
+       "at": "@-62160m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-41d",
+     "date": "@-42d",
      "items": [
       {
        "ref": "W-1420",
@@ -1369,7 +1353,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-60209m",
+       "at": "@-60720m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1380,14 +1364,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-60089m",
+       "at": "@-60600m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-40d",
+     "date": "@-41d",
      "items": [
       {
        "ref": "W-1410",
@@ -1396,14 +1380,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-58769m",
+       "at": "@-59280m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-39d",
+     "date": "@-40d",
      "items": [
       {
        "ref": "W-1400",
@@ -1412,7 +1396,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-57329m",
+       "at": "@-57840m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1423,14 +1407,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-57209m",
+       "at": "@-57720m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-38d",
+     "date": "@-39d",
      "items": [
       {
        "ref": "W-1390",
@@ -1439,14 +1423,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-55889m",
+       "at": "@-56400m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-37d",
+     "date": "@-38d",
      "items": [
       {
        "ref": "W-1380",
@@ -1455,7 +1439,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-54449m",
+       "at": "@-54960m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1466,14 +1450,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-54329m",
+       "at": "@-54840m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-36d",
+     "date": "@-37d",
      "items": [
       {
        "ref": "W-1370",
@@ -1482,14 +1466,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-53009m",
+       "at": "@-53520m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-35d",
+     "date": "@-36d",
      "items": [
       {
        "ref": "W-1360",
@@ -1498,7 +1482,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-51569m",
+       "at": "@-52080m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1509,14 +1493,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-51449m",
+       "at": "@-51960m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-34d",
+     "date": "@-35d",
      "items": [
       {
        "ref": "W-1350",
@@ -1525,14 +1509,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-50129m",
+       "at": "@-50640m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-33d",
+     "date": "@-34d",
      "items": [
       {
        "ref": "W-1340",
@@ -1541,7 +1525,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-48689m",
+       "at": "@-49200m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1552,14 +1536,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-48569m",
+       "at": "@-49080m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-32d",
+     "date": "@-33d",
      "items": [
       {
        "ref": "W-1330",
@@ -1568,14 +1552,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-47249m",
+       "at": "@-47760m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-31d",
+     "date": "@-32d",
      "items": [
       {
        "ref": "W-1320",
@@ -1584,7 +1568,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-45809m",
+       "at": "@-46320m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1595,14 +1579,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-45689m",
+       "at": "@-46200m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-30d",
+     "date": "@-31d",
      "items": [
       {
        "ref": "W-1310",
@@ -1611,14 +1595,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-44369m",
+       "at": "@-44880m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-29d",
+     "date": "@-30d",
      "items": [
       {
        "ref": "W-1300",
@@ -1627,7 +1611,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-42929m",
+       "at": "@-43440m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1638,14 +1622,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-42809m",
+       "at": "@-43320m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-28d",
+     "date": "@-29d",
      "items": [
       {
        "ref": "W-1290",
@@ -1654,14 +1638,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-41489m",
+       "at": "@-42000m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-27d",
+     "date": "@-28d",
      "items": [
       {
        "ref": "W-1280",
@@ -1670,7 +1654,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-40049m",
+       "at": "@-40560m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1681,14 +1665,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-39929m",
+       "at": "@-40440m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-26d",
+     "date": "@-27d",
      "items": [
       {
        "ref": "W-1270",
@@ -1697,14 +1681,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-38609m",
+       "at": "@-39120m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-25d",
+     "date": "@-26d",
      "items": [
       {
        "ref": "W-1260",
@@ -1713,7 +1697,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-37169m",
+       "at": "@-37680m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1724,14 +1708,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-37049m",
+       "at": "@-37560m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-24d",
+     "date": "@-25d",
      "items": [
       {
        "ref": "W-1250",
@@ -1740,14 +1724,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-35729m",
+       "at": "@-36240m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-23d",
+     "date": "@-24d",
      "items": [
       {
        "ref": "W-1240",
@@ -1756,7 +1740,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-34289m",
+       "at": "@-34800m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1767,14 +1751,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-34169m",
+       "at": "@-34680m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-22d",
+     "date": "@-23d",
      "items": [
       {
        "ref": "W-1230",
@@ -1783,14 +1767,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-32849m",
+       "at": "@-33360m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-21d",
+     "date": "@-22d",
      "items": [
       {
        "ref": "W-1220",
@@ -1799,7 +1783,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-31409m",
+       "at": "@-31920m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1810,14 +1794,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-31289m",
+       "at": "@-31800m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-20d",
+     "date": "@-21d",
      "items": [
       {
        "ref": "W-1210",
@@ -1826,14 +1810,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-29969m",
+       "at": "@-30480m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-19d",
+     "date": "@-20d",
      "items": [
       {
        "ref": "W-1200",
@@ -1842,7 +1826,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-28529m",
+       "at": "@-29040m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1853,14 +1837,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-28409m",
+       "at": "@-28920m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-18d",
+     "date": "@-19d",
      "items": [
       {
        "ref": "W-1190",
@@ -1869,14 +1853,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-27089m",
+       "at": "@-27600m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-17d",
+     "date": "@-18d",
      "items": [
       {
        "ref": "W-1180",
@@ -1885,7 +1869,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-25649m",
+       "at": "@-26160m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1896,14 +1880,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-25529m",
+       "at": "@-26040m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-16d",
+     "date": "@-17d",
      "items": [
       {
        "ref": "W-1170",
@@ -1912,14 +1896,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-24209m",
+       "at": "@-24720m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-15d",
+     "date": "@-16d",
      "items": [
       {
        "ref": "W-1160",
@@ -1928,7 +1912,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-22769m",
+       "at": "@-23280m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1939,14 +1923,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-22649m",
+       "at": "@-23160m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-14d",
+     "date": "@-15d",
      "items": [
       {
        "ref": "W-1150",
@@ -1955,14 +1939,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-21329m",
+       "at": "@-21840m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-13d",
+     "date": "@-14d",
      "items": [
       {
        "ref": "W-1140",
@@ -1971,7 +1955,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-19889m",
+       "at": "@-20400m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -1982,14 +1966,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-19769m",
+       "at": "@-20280m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-12d",
+     "date": "@-13d",
      "items": [
       {
        "ref": "W-1130",
@@ -1998,14 +1982,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-18449m",
+       "at": "@-18960m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-11d",
+     "date": "@-12d",
      "items": [
       {
        "ref": "W-1120",
@@ -2014,7 +1998,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-17009m",
+       "at": "@-17520m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2025,14 +2009,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-16889m",
+       "at": "@-17400m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-10d",
+     "date": "@-11d",
      "items": [
       {
        "ref": "W-1110",
@@ -2041,14 +2025,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-15569m",
+       "at": "@-16080m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-9d",
+     "date": "@-10d",
      "items": [
       {
        "ref": "W-1100",
@@ -2057,7 +2041,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-14129m",
+       "at": "@-14640m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2068,14 +2052,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-14009m",
+       "at": "@-14520m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-8d",
+     "date": "@-9d",
      "items": [
       {
        "ref": "W-1090",
@@ -2084,14 +2068,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-12689m",
+       "at": "@-13200m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-7d",
+     "date": "@-8d",
      "items": [
       {
        "ref": "W-1080",
@@ -2100,7 +2084,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-11249m",
+       "at": "@-11760m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2111,14 +2095,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-11129m",
+       "at": "@-11640m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-6d",
+     "date": "@-7d",
      "items": [
       {
        "ref": "W-1070",
@@ -2127,14 +2111,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-9809m",
+       "at": "@-10320m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-5d",
+     "date": "@-6d",
      "items": [
       {
        "ref": "W-1060",
@@ -2143,7 +2127,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-8369m",
+       "at": "@-8880m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2154,14 +2138,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-8249m",
+       "at": "@-8760m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-4d",
+     "date": "@-5d",
      "items": [
       {
        "ref": "W-1050",
@@ -2170,14 +2154,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-6929m",
+       "at": "@-7440m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-3d",
+     "date": "@-4d",
      "items": [
       {
        "ref": "W-1040",
@@ -2186,7 +2170,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-5489m",
+       "at": "@-6000m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2197,14 +2181,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-5369m",
+       "at": "@-5880m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-2d",
+     "date": "@-3d",
      "items": [
       {
        "ref": "W-1030",
@@ -2213,14 +2197,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-4049m",
+       "at": "@-4560m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@-1d",
+     "date": "@-2d",
      "items": [
       {
        "ref": "W-1020",
@@ -2229,7 +2213,7 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-2609m",
+       "at": "@-3120m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2240,14 +2224,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "done",
-       "at": "@-2489m",
+       "at": "@-3000m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@0d",
+     "date": "@-1d",
      "items": [
       {
        "ref": "W-1010",
@@ -2256,25 +2240,14 @@
        "department": null,
        "priority": "P3",
        "status": "done",
-       "at": "@-1169m",
+       "at": "@-1680m",
        "assignee": "HQ-SYS",
        "recurring": true
-      },
-      {
-       "ref": "W-000098",
-       "title": "ممیزی امنیتی همه‌ی شرکت‌ها",
-       "company": "HQ",
-       "department": "OVS",
-       "priority": "P2",
-       "status": "waiting",
-       "at": "@-120m",
-       "assignee": "HQ-OVS-MGR",
-       "recurring": false
       }
      ]
     },
     {
-     "date": "@1d",
+     "date": "@0d",
      "items": [
       {
        "ref": "W-1000",
@@ -2283,7 +2256,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@271m",
+       "at": "@-240m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2294,7 +2267,7 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@391m",
+       "at": "@-120m",
        "assignee": null,
        "recurring": true
       },
@@ -2319,11 +2292,22 @@
        "at": "@60m",
        "assignee": "TY-GROWTH-01",
        "recurring": false
+      },
+      {
+       "ref": "W-000098",
+       "title": "ممیزی امنیتی همه‌ی شرکت‌ها",
+       "company": "HQ",
+       "department": "OVS",
+       "priority": "P2",
+       "status": "waiting",
+       "at": "@-120m",
+       "assignee": "HQ-OVS-MGR",
+       "recurring": false
       }
      ]
     },
     {
-     "date": "@2d",
+     "date": "@1d",
      "items": [
       {
        "ref": "W-1010",
@@ -2332,14 +2316,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@1711m",
+       "at": "@1200m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@3d",
+     "date": "@2d",
      "items": [
       {
        "ref": "W-1020",
@@ -2348,7 +2332,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@3151m",
+       "at": "@2640m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2359,14 +2343,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@3271m",
+       "at": "@2760m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@4d",
+     "date": "@3d",
      "items": [
       {
        "ref": "W-1030",
@@ -2375,14 +2359,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@4591m",
+       "at": "@4080m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@5d",
+     "date": "@4d",
      "items": [
       {
        "ref": "W-1040",
@@ -2391,7 +2375,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@6031m",
+       "at": "@5520m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2402,14 +2386,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@6151m",
+       "at": "@5640m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@6d",
+     "date": "@5d",
      "items": [
       {
        "ref": "W-1050",
@@ -2418,7 +2402,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@7471m",
+       "at": "@6960m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2429,14 +2413,14 @@
        "department": "GROWTH",
        "priority": "P3",
        "status": "queued",
-       "at": "@7651m",
+       "at": "@7140m",
        "assignee": "TY-GROWTH-01",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@7d",
+     "date": "@6d",
      "items": [
       {
        "ref": "W-1060",
@@ -2445,7 +2429,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@8911m",
+       "at": "@8400m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2456,14 +2440,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@9031m",
+       "at": "@8520m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@8d",
+     "date": "@7d",
      "items": [
       {
        "ref": "W-1070",
@@ -2472,14 +2456,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@10351m",
+       "at": "@9840m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@9d",
+     "date": "@8d",
      "items": [
       {
        "ref": "W-1080",
@@ -2488,7 +2472,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@11791m",
+       "at": "@11280m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2499,14 +2483,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@11911m",
+       "at": "@11400m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@10d",
+     "date": "@9d",
      "items": [
       {
        "ref": "W-1090",
@@ -2515,14 +2499,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@13231m",
+       "at": "@12720m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@11d",
+     "date": "@10d",
      "items": [
       {
        "ref": "W-1100",
@@ -2531,7 +2515,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@14671m",
+       "at": "@14160m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2542,14 +2526,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@14791m",
+       "at": "@14280m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@12d",
+     "date": "@11d",
      "items": [
       {
        "ref": "W-1110",
@@ -2558,14 +2542,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@16111m",
+       "at": "@15600m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@13d",
+     "date": "@12d",
      "items": [
       {
        "ref": "W-1120",
@@ -2574,7 +2558,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@17551m",
+       "at": "@17040m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2585,7 +2569,7 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@17671m",
+       "at": "@17160m",
        "assignee": null,
        "recurring": true
       },
@@ -2596,14 +2580,14 @@
        "department": "GROWTH",
        "priority": "P3",
        "status": "queued",
-       "at": "@17731m",
+       "at": "@17220m",
        "assignee": "TY-GROWTH-01",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@14d",
+     "date": "@13d",
      "items": [
       {
        "ref": "W-1130",
@@ -2612,14 +2596,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@18991m",
+       "at": "@18480m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@15d",
+     "date": "@14d",
      "items": [
       {
        "ref": "W-1140",
@@ -2628,7 +2612,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@20431m",
+       "at": "@19920m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2639,14 +2623,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@20551m",
+       "at": "@20040m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@16d",
+     "date": "@15d",
      "items": [
       {
        "ref": "W-1150",
@@ -2655,14 +2639,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@21871m",
+       "at": "@21360m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@17d",
+     "date": "@16d",
      "items": [
       {
        "ref": "W-1160",
@@ -2671,7 +2655,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@23311m",
+       "at": "@22800m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2682,14 +2666,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@23431m",
+       "at": "@22920m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@18d",
+     "date": "@17d",
      "items": [
       {
        "ref": "W-1170",
@@ -2698,14 +2682,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@24751m",
+       "at": "@24240m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@19d",
+     "date": "@18d",
      "items": [
       {
        "ref": "W-1180",
@@ -2714,7 +2698,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@26191m",
+       "at": "@25680m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2725,14 +2709,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@26311m",
+       "at": "@25800m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@20d",
+     "date": "@19d",
      "items": [
       {
        "ref": "W-1190",
@@ -2741,7 +2725,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@27631m",
+       "at": "@27120m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2752,14 +2736,14 @@
        "department": "GROWTH",
        "priority": "P3",
        "status": "queued",
-       "at": "@27811m",
+       "at": "@27300m",
        "assignee": "TY-GROWTH-01",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@21d",
+     "date": "@20d",
      "items": [
       {
        "ref": "W-1200",
@@ -2768,7 +2752,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@29071m",
+       "at": "@28560m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2779,14 +2763,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@29191m",
+       "at": "@28680m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@22d",
+     "date": "@21d",
      "items": [
       {
        "ref": "W-1210",
@@ -2795,14 +2779,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@30511m",
+       "at": "@30000m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@23d",
+     "date": "@22d",
      "items": [
       {
        "ref": "W-1220",
@@ -2811,7 +2795,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@31951m",
+       "at": "@31440m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2822,14 +2806,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@32071m",
+       "at": "@31560m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@24d",
+     "date": "@23d",
      "items": [
       {
        "ref": "W-1230",
@@ -2838,14 +2822,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@33391m",
+       "at": "@32880m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@25d",
+     "date": "@24d",
      "items": [
       {
        "ref": "W-1240",
@@ -2854,7 +2838,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@34831m",
+       "at": "@34320m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2865,14 +2849,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@34951m",
+       "at": "@34440m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@26d",
+     "date": "@25d",
      "items": [
       {
        "ref": "W-1250",
@@ -2881,14 +2865,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@36271m",
+       "at": "@35760m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@27d",
+     "date": "@26d",
      "items": [
       {
        "ref": "W-1260",
@@ -2897,7 +2881,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@37711m",
+       "at": "@37200m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2908,7 +2892,7 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@37831m",
+       "at": "@37320m",
        "assignee": null,
        "recurring": true
       },
@@ -2919,14 +2903,14 @@
        "department": "GROWTH",
        "priority": "P3",
        "status": "queued",
-       "at": "@37891m",
+       "at": "@37380m",
        "assignee": "TY-GROWTH-01",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@28d",
+     "date": "@27d",
      "items": [
       {
        "ref": "W-1270",
@@ -2935,14 +2919,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@39151m",
+       "at": "@38640m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@29d",
+     "date": "@28d",
      "items": [
       {
        "ref": "W-1280",
@@ -2951,7 +2935,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@40591m",
+       "at": "@40080m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -2962,14 +2946,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@40711m",
+       "at": "@40200m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@30d",
+     "date": "@29d",
      "items": [
       {
        "ref": "W-1290",
@@ -2978,14 +2962,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@42031m",
+       "at": "@41520m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@31d",
+     "date": "@30d",
      "items": [
       {
        "ref": "W-1300",
@@ -2994,7 +2978,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@43471m",
+       "at": "@42960m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3005,14 +2989,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@43591m",
+       "at": "@43080m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@32d",
+     "date": "@31d",
      "items": [
       {
        "ref": "W-1310",
@@ -3021,14 +3005,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@44911m",
+       "at": "@44400m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@33d",
+     "date": "@32d",
      "items": [
       {
        "ref": "W-1320",
@@ -3037,7 +3021,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@46351m",
+       "at": "@45840m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3048,14 +3032,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@46471m",
+       "at": "@45960m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@34d",
+     "date": "@33d",
      "items": [
       {
        "ref": "W-1330",
@@ -3064,7 +3048,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@47791m",
+       "at": "@47280m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3075,14 +3059,14 @@
        "department": "GROWTH",
        "priority": "P3",
        "status": "queued",
-       "at": "@47971m",
+       "at": "@47460m",
        "assignee": "TY-GROWTH-01",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@35d",
+     "date": "@34d",
      "items": [
       {
        "ref": "W-1340",
@@ -3091,7 +3075,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@49231m",
+       "at": "@48720m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3102,14 +3086,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@49351m",
+       "at": "@48840m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@36d",
+     "date": "@35d",
      "items": [
       {
        "ref": "W-1350",
@@ -3118,14 +3102,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@50671m",
+       "at": "@50160m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@37d",
+     "date": "@36d",
      "items": [
       {
        "ref": "W-1360",
@@ -3134,7 +3118,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@52111m",
+       "at": "@51600m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3145,14 +3129,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@52231m",
+       "at": "@51720m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@38d",
+     "date": "@37d",
      "items": [
       {
        "ref": "W-1370",
@@ -3161,14 +3145,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@53551m",
+       "at": "@53040m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@39d",
+     "date": "@38d",
      "items": [
       {
        "ref": "W-1380",
@@ -3177,7 +3161,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@54991m",
+       "at": "@54480m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3188,14 +3172,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@55111m",
+       "at": "@54600m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@40d",
+     "date": "@39d",
      "items": [
       {
        "ref": "W-1390",
@@ -3204,14 +3188,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@56431m",
+       "at": "@55920m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@41d",
+     "date": "@40d",
      "items": [
       {
        "ref": "W-1400",
@@ -3220,7 +3204,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@57871m",
+       "at": "@57360m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3231,7 +3215,7 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@57991m",
+       "at": "@57480m",
        "assignee": null,
        "recurring": true
       },
@@ -3242,14 +3226,14 @@
        "department": "GROWTH",
        "priority": "P3",
        "status": "queued",
-       "at": "@58051m",
+       "at": "@57540m",
        "assignee": "TY-GROWTH-01",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@42d",
+     "date": "@41d",
      "items": [
       {
        "ref": "W-1410",
@@ -3258,14 +3242,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@59311m",
+       "at": "@58800m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@43d",
+     "date": "@42d",
      "items": [
       {
        "ref": "W-1420",
@@ -3274,7 +3258,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@60751m",
+       "at": "@60240m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3285,14 +3269,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@60871m",
+       "at": "@60360m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@44d",
+     "date": "@43d",
      "items": [
       {
        "ref": "W-1430",
@@ -3301,14 +3285,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@62191m",
+       "at": "@61680m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@45d",
+     "date": "@44d",
      "items": [
       {
        "ref": "W-1440",
@@ -3317,7 +3301,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@63631m",
+       "at": "@63120m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3328,14 +3312,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@63751m",
+       "at": "@63240m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@46d",
+     "date": "@45d",
      "items": [
       {
        "ref": "W-1450",
@@ -3344,14 +3328,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@65071m",
+       "at": "@64560m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@47d",
+     "date": "@46d",
      "items": [
       {
        "ref": "W-1460",
@@ -3360,7 +3344,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@66511m",
+       "at": "@66000m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3371,14 +3355,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@66631m",
+       "at": "@66120m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@48d",
+     "date": "@47d",
      "items": [
       {
        "ref": "W-1470",
@@ -3387,7 +3371,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@67951m",
+       "at": "@67440m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3398,14 +3382,14 @@
        "department": "GROWTH",
        "priority": "P3",
        "status": "queued",
-       "at": "@68131m",
+       "at": "@67620m",
        "assignee": "TY-GROWTH-01",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@49d",
+     "date": "@48d",
      "items": [
       {
        "ref": "W-1480",
@@ -3414,7 +3398,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@69391m",
+       "at": "@68880m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3425,14 +3409,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@69511m",
+       "at": "@69000m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@50d",
+     "date": "@49d",
      "items": [
       {
        "ref": "W-1490",
@@ -3441,14 +3425,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@70831m",
+       "at": "@70320m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@51d",
+     "date": "@50d",
      "items": [
       {
        "ref": "W-1500",
@@ -3457,7 +3441,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@72271m",
+       "at": "@71760m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3468,14 +3452,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@72391m",
+       "at": "@71880m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@52d",
+     "date": "@51d",
      "items": [
       {
        "ref": "W-1510",
@@ -3484,14 +3468,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@73711m",
+       "at": "@73200m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@53d",
+     "date": "@52d",
      "items": [
       {
        "ref": "W-1520",
@@ -3500,7 +3484,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@75151m",
+       "at": "@74640m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3511,14 +3495,14 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@75271m",
+       "at": "@74760m",
        "assignee": null,
        "recurring": true
       }
      ]
     },
     {
-     "date": "@54d",
+     "date": "@53d",
      "items": [
       {
        "ref": "W-1530",
@@ -3527,14 +3511,14 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@76591m",
+       "at": "@76080m",
        "assignee": "HQ-SYS",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@55d",
+     "date": "@54d",
      "items": [
       {
        "ref": "W-1540",
@@ -3543,7 +3527,7 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@78031m",
+       "at": "@77520m",
        "assignee": "HQ-SYS",
        "recurring": true
       },
@@ -3554,7 +3538,7 @@
        "department": "TECH",
        "priority": "P3",
        "status": "queued",
-       "at": "@78151m",
+       "at": "@77640m",
        "assignee": null,
        "recurring": true
       },
@@ -3565,14 +3549,14 @@
        "department": "GROWTH",
        "priority": "P3",
        "status": "queued",
-       "at": "@78211m",
+       "at": "@77700m",
        "assignee": "TY-GROWTH-01",
        "recurring": true
       }
      ]
     },
     {
-     "date": "@56d",
+     "date": "@55d",
      "items": [
       {
        "ref": "W-1550",
@@ -3581,8 +3565,35 @@
        "department": null,
        "priority": "P3",
        "status": "queued",
-       "at": "@79471m",
+       "at": "@78960m",
        "assignee": "HQ-SYS",
+       "recurring": true
+      }
+     ]
+    },
+    {
+     "date": "@56d",
+     "items": [
+      {
+       "ref": "W-1560",
+       "title": "گزارش صبحگاهی",
+       "company": "HQ",
+       "department": null,
+       "priority": "P3",
+       "status": "queued",
+       "at": "@80400m",
+       "assignee": "HQ-SYS",
+       "recurring": true
+      },
+      {
+       "ref": "W-2560",
+       "title": "خلاصه‌ی سلامت سایت‌ها",
+       "company": "PC",
+       "department": "TECH",
+       "priority": "P3",
+       "status": "queued",
+       "at": "@80520m",
+       "assignee": null,
        "recurring": true
       }
      ]
@@ -12896,19 +12907,35 @@
   "body": {
    "hourly": {
     "last_at": "@-23m",
+    "last_ok_at": "@-23m",
     "next_at": "@37m",
     "ok": true,
+    "error": null,
+    "stale": false,
     "snapshot": "a3f9c2e1",
     "size_bytes": 1840000000
    },
    "wal": {
     "last_archived_at": "@-1m",
-    "lag_s": 41
+    "lag_s": 41,
+    "failed_count": 0,
+    "failing": false,
+    "ready_count": 0
+   },
+   "base_backup": {
+    "last_at": "@-420m",
+    "count": 9
+   },
+   "check": {
+    "last_at": "@-420m",
+    "ok": true
    },
    "destinations": [
     {
      "key": "gdrive",
      "configured": true,
+     "ok": true,
+     "error": null,
      "last_ok_at": "@-23m",
      "used_bytes": 112400000000,
      "quota_bytes": 6000000000000
@@ -12916,6 +12943,8 @@
     {
      "key": "local",
      "configured": true,
+     "ok": true,
+     "error": null,
      "last_ok_at": "@-23m",
      "used_bytes": 38200000000,
      "quota_bytes": null
@@ -12923,6 +12952,8 @@
     {
      "key": "hetzner",
      "configured": false,
+     "ok": null,
+     "error": null,
      "last_ok_at": null,
      "used_bytes": 0,
      "quota_bytes": null
@@ -12939,11 +12970,14 @@
     "last_at": "@-2880m",
     "ok": true,
     "duration_s": 412,
-    "notes": "PITR به یک لحظه‌ی تصادفی دیروز: درست"
+    "notes": "PITR به یک لحظه‌ی تصادفی دیروز: درست",
+    "pitr_target": "@-3480m",
+    "source": "local"
    },
    "openbao_snapshot": {
+    "configured": false,
     "last_at": null,
-    "ok": false
+    "ok": null
    },
    "encryption": "restic (AES-256)"
   }

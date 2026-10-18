@@ -492,27 +492,53 @@ data class ProvisionRun(
 
 // ---------------------------------------------------------------- backups --
 @Serializable
-data class HourlyBackup(val lastAt: String? = null, val nextAt: String? = null, val ok: Boolean = false, val snapshot: String? = null, val sizeBytes: Long = 0)
+data class HourlyBackup(
+    val lastAt: String? = null,
+    val lastOkAt: String? = null,
+    val nextAt: String? = null,
+    val ok: Boolean? = null,
+    val error: String? = null,
+    val stale: Boolean? = null,
+    val snapshot: String? = null,
+    val sizeBytes: Long? = null,
+)
 
 @Serializable
-data class WalStatus(val lastArchivedAt: String? = null, val lagS: Long = 0)
+data class WalStatus(val lastArchivedAt: String? = null, val lagS: Long? = null, val failedCount: Long? = null, val failing: Boolean = false, val readyCount: Int = 0)
+
+/** ⟨1.4.5⟩ The daily base backups (PITR reaches back to the oldest) and the daily repository check. */
+@Serializable
+data class BaseBackup(val lastAt: String? = null, val count: Int = 0)
 
 @Serializable
-data class BackupDestination(val key: String, val configured: Boolean = false, val lastOkAt: String? = null, val usedBytes: Long = 0, val quotaBytes: Long? = null)
+data class RepoCheck(val lastAt: String? = null, val ok: Boolean? = null)
+
+@Serializable
+data class BackupDestination(
+    val key: String,
+    val configured: Boolean = false,
+    val ok: Boolean? = null,
+    val error: String? = null,
+    val lastOkAt: String? = null,
+    val usedBytes: Long? = null,
+    val quotaBytes: Long? = null,
+)
 
 @Serializable
 data class Retention(val hourly: Int = 0, val daily: Int = 0, val weekly: Int = 0, val monthly: Int = 0, val yearly: Int = 0)
 
 @Serializable
-data class RestoreTest(val lastAt: String? = null, val ok: Boolean = false, val durationS: Long = 0, val notes: String = "")
+data class RestoreTest(val lastAt: String? = null, val ok: Boolean? = null, val durationS: Long? = null, val notes: String? = null, val pitrTarget: String? = null, val source: String? = null)
 
 @Serializable
-data class VaultSnapshot(val lastAt: String? = null, val ok: Boolean = false)
+data class VaultSnapshot(val configured: Boolean? = null, val lastAt: String? = null, val ok: Boolean? = null)
 
 @Serializable
 data class BackupStatus(
     val hourly: HourlyBackup = HourlyBackup(),
     val wal: WalStatus = WalStatus(),
+    val baseBackup: BaseBackup? = null,
+    val check: RepoCheck? = null,
     val destinations: List<BackupDestination> = emptyList(),
     val retention: Retention = Retention(),
     val restoreTest: RestoreTest = RestoreTest(),

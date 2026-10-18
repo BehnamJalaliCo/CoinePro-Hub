@@ -101,6 +101,23 @@ class FixturesDecodeTest {
         assertTrue(run.state == "done" && run.login != null && run.steps.all { it.state == "done" })
         val b = decode("/backups/status", BackupStatus.serializer())
         assertTrue(b.destinations.any { it.key == "gdrive" } && b.retention.hourly > 0)
+        assertTrue(!b.wal.failing && b.baseBackup?.count == 9 && b.check?.ok == true && b.openbaoSnapshot.configured == false)
+    }
+
+    @Test
+    fun backupStatusAsServedInPromptSeven() {
+        // ⟨1.4.5⟩ §18.13: a failing WAL archive, a destination that errors, and nulls where nothing has run yet.
+        val b = Api.json.decodeFromString(
+            BackupStatus.serializer(),
+            """{"hourly":{"last_at":null,"last_ok_at":null,"next_at":null,"ok":null,"error":"wal archive failing","stale":true,"snapshot":null,"size_bytes":null},
+               "wal":{"last_archived_at":null,"lag_s":null,"failed_count":12,"failing":true,"ready_count":31},"base_backup":null,"check":null,
+               "destinations":[{"key":"gdrive","configured":true,"ok":false,"error":"403","last_ok_at":null,"used_bytes":null,"quota_bytes":null}],
+               "retention":{"hourly":168,"daily":90,"weekly":52,"monthly":36,"yearly":10},
+               "restore_test":{"last_at":null,"ok":null,"duration_s":null,"notes":null,"pitr_target":null,"source":null},
+               "openbao_snapshot":{"configured":false,"last_at":null,"ok":null},"encryption":"restic (AES-256)"}""",
+        )
+        assertTrue(b.wal.failing && b.wal.readyCount == 31 && b.hourly.stale == true && b.hourly.ok == null)
+        assertEquals(false, b.destinations.single().ok)
     }
 
     @Test

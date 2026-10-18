@@ -12,6 +12,15 @@ register('data:text/javascript,' + encodeURIComponent(
   'export async function resolve(s, c, next) { try { return await next(s, c); } catch (e) { if (s.startsWith(".") && !s.endsWith(".ts")) return next(s + ".ts", c); throw e; } }',
 ));
 
+// The mock's clock is pinned to the instant the screenshot tests fix (ScreensTest, HqClock), so fixtures aligned to a
+// day (the planner) dump to the same offsets whatever time of day the script runs.
+const FIXED = Date.parse('2026-10-17T08:30:00Z');
+const RealDate = Date;
+globalThis.Date = class extends RealDate {
+  constructor(...a) { super(...(a.length ? a : [FIXED])); }
+  static now() { return FIXED; }
+};
+
 const here = dirname(fileURLToPath(import.meta.url));
 const { handle } = await import(join(here, '../../web/src/lib/api/mock.ts'));
 const t0 = Date.now();
