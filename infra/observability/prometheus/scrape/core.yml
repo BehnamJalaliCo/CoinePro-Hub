@@ -6,6 +6,9 @@ scrape_configs:
 
   # node-exporter runs on the host network, bound to the hq-internal gateway.
   - job_name: node
+    basic_auth:  # prompt 07: the host's addresses are reachable from egress
+      username: prometheus
+      password_file: /etc/prometheus/secrets/node-exporter.password
     static_configs:
       - targets: ["172.30.0.1:9100"]
         labels:

@@ -178,6 +178,26 @@ if [[ ! -s "$backup_creds" ]]; then
   log "AppRole hq-backup: credentials -> $backup_creds (600)"
 fi
 
+# ------------------------------------------------- node-exporter (p07) ----
+# node-exporter listens on the host, on the hq-internal gateway address. A
+# container on a network with a route out (Caddy, egress, SearXNG) can reach
+# the host's own addresses too: Docker gives no way to stop that without
+# iptables, which is the owner's (CLAUDE.md rule 4). So its metrics need basic
+# auth: Prometheus holds the password, node-exporter only the bcrypt hash.
+NODE_EXPORTER_UID=65534  # "nobody" in the node-exporter image
+ne_pass="$SECRETS_DIR/services/prometheus/node-exporter.password"
+ne_web="$SECRETS_DIR/services/node-exporter/web.yml"
+if ! installed "$ne_pass" || ! installed "$ne_web"; then
+  need_sudo "$ne_web"
+  ne_pw="$(openssl rand -hex 32)"
+  ne_hash="$(NE_PW="$ne_pw" python3 -c 'import bcrypt, os
+print(bcrypt.hashpw(os.environ["NE_PW"].encode(), bcrypt.gensalt(10)).decode())')"
+  printf '%s' "$ne_pw" | install_secret "$PROMETHEUS_UID" "$ne_pass"
+  printf 'basic_auth_users:\n  prometheus: %s\n' "$ne_hash" | install_secret "$NODE_EXPORTER_UID" "$ne_web"
+  unset ne_pw ne_hash
+  log "node-exporter: basic auth for Prometheus (password and hash installed, never printed)"
+fi
+
 # ------------------------------------------------------------ KV secrets ----
 kv_exists() { [[ "$(api GET "kv/data/$1" </dev/null)" == 200 ]]; }
 kv_put() { expect "$(api POST "kv/data/$1")" 200 204; }  # body on stdin

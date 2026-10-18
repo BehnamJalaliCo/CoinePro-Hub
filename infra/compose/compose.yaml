@@ -613,6 +613,11 @@ services:
         condition: service_healthy
       temporal-namespace:
         condition: service_completed_successfully
+      # The backup image is built and checked (`restic version`) with the
+      # stack; the worker ingests its status. A one-shot needs a dependant,
+      # or `up --wait` counts its exit as a failure.
+      backup-tools:
+        condition: service_completed_successfully
     command: ["python", "-m", "hq_api.worker"]
     environment:
       <<: *api-env
@@ -1019,13 +1024,18 @@ services:
     command:
       - --path.rootfs=/host
       - --web.listen-address=172.30.0.1:9100
+      # Basic auth (prompt 07): containers with a route out can reach the
+      # host's addresses; only Prometheus has the password (provision.sh).
+      - --web.config.file=/etc/node-exporter/web.yml
       # Per-container metrics written on the host (infra/observability/container-metrics.sh).
       - --collector.textfile.directory=/host/var/lib/coinepro-hq/textfile
       - --collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|var/lib/docker/.+|var/lib/containerd/.+)($$|/)
     volumes:
       - /:/host:ro,rslave
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/node-exporter:/etc/node-exporter:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://172.30.0.1:9100/"]
+      # Up = it answers, and without the password it answers 401.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://172.30.0.1:9100/ 2>&1 | grep -q 401"]
       interval: 15s
       timeout: 5s
       retries: 5

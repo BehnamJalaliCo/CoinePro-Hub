@@ -108,7 +108,12 @@ if running "$EGRESS"; then
   probe_from "$EGRESS" searxng 8080 || fail "positive control: egress cannot reach searxng:8080"
   probe_from "$EGRESS" 1.1.1.1 443 || fail "positive control: egress cannot reach the internet (1.1.1.1:443)"
   unreachable_from "$EGRESS" egress "${DATA_SERVICES[@]}" api:8000 opa:8181 grafana:3000 caddy:2020
-  if probe_from "$EGRESS" 172.30.0.1 9100; then fail "egress reaches node-exporter (172.30.0.1:9100)"; fi
+  # The host's own addresses answer any container with a route out (no
+  # iptables here: the owner's); node-exporter's metrics need its password.
+  if docker run --rm --network "container:$EGRESS" "$PROBE_IMAGE" \
+    wget -q -T 3 -O /dev/null http://172.30.0.1:9100/metrics >/dev/null 2>&1; then
+    fail "egress reads node-exporter's metrics without the password (172.30.0.1:9100)"
+  fi
   ok "$before" "egress reaches the internet and SearXNG only (no data service, api, OPA, OpenBao, Temporal)"
   before=$failures
   probe_from "$GATEWAY" egress 8090 || fail "positive control: the gateway cannot reach egress:8090"
