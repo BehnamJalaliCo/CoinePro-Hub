@@ -384,7 +384,7 @@ def upgrade() -> None:
         -- --------------------------------------------- decision kind protocol
         ALTER TABLE cartable.decisions DROP CONSTRAINT decisions_kind_check;
         ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check
-            CHECK (kind IN ({KINDS}, 'protocol'));
+            CHECK (kind IN ({KINDS}, 'protocol')) NOT VALID;  -- 0023 validates
         """
     )
 

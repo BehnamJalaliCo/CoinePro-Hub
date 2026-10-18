@@ -211,7 +211,7 @@ def upgrade() -> None:
 
         ALTER TABLE cartable.decisions DROP CONSTRAINT decisions_kind_check;
         ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check
-            CHECK (kind IN ({KINDS}, 'lesson_adoption'));
+            CHECK (kind IN ({KINDS}, 'lesson_adoption')) NOT VALID;  -- 0023 validates
         """
     )
 
