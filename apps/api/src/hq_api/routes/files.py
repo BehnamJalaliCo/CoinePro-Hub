@@ -4,7 +4,8 @@ the size limit of that kind holds while it streams in, an image is cleaned
 (EXIF/GPS gone) before it is stored, a video or an audio file is probed for
 its duration and processed by the worker (poster, key frames, sound track,
 transcript). Until it is attached in a thread an upload belongs to the
-holding."""
+holding. Images and PDFs are untrusted: decoded only in a child process with
+hard limits (hq_common.untrusted), and never inside a transaction."""
 
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ import json
 import re
 import unicodedata
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import unquote
@@ -40,8 +42,6 @@ RAW_BODY = {
     }
 }
 CHUNK = 1024 * 1024
-# One image is decoded at a time in this process (a 40 MP photo is ~160 MB).
-_IMAGE_SLOT = asyncio.Semaphore(1)
 
 
 def file_name(raw: str | None) -> str:
@@ -112,48 +112,64 @@ class Upload:
         self.path.unlink(missing_ok=True)
 
 
-async def store_upload(
-    ctx: Ctx, tx: Any, up: Upload, name: str, *, purpose: str | None = None
-) -> tuple[UUID, bool]:
-    """Stores an upload for the owner (holding), in `tx` -> (file id, needs
-    processing)."""
-    hub = ctx.hub
-    holding = await hub.companies.holding()
-    info: dict[str, Any] = {}
+@dataclass
+class Prepared:
+    """The work on an upload's bytes, done before any transaction: ffprobe's
+    answer for video and audio, the cleaned image (files from the child)."""
+
+    info: dict[str, Any] = field(default_factory=dict)
+    image: media.Image | None = None
+
+    def discard(self) -> None:
+        if self.image is not None:
+            for path in (self.image.original, self.image.agent, self.image.thumb):
+                path.unlink(missing_ok=True)
+
+
+async def prepare_upload(ctx: Ctx, up: Upload) -> Prepared:
+    """Outside any transaction (prompt 07.1 §1.2): an image is decoded only
+    in a child process with hard limits; a refused one is 415."""
     if up.kind.kind in ("video", "audio"):
         try:
             info = await media.probe(str(up.path))
         except (ValueError, TimeoutError) as exc:
-            up.discard()
             raise ApiError(
                 415, "validation_failed", fields={"body": "not a playable file"}
             ) from exc
         if up.kind.max_seconds and (info.get("duration_s") or 0) > up.kind.max_seconds:
-            up.discard()
             raise ApiError(
                 413,
                 "validation_failed",
                 fields={"duration": f"at most {up.kind.max_seconds // 60} min for {up.kind.kind}"},
             )
+        return Prepared(info)
     if up.kind.kind == "image":
-        data = await asyncio.to_thread(up.path.read_bytes)
-        up.discard()
-        async with _IMAGE_SLOT:
-            try:
-                img = await asyncio.to_thread(media.clean_image, data, up.mime)
-            except (ValueError, OSError) as exc:
-                raise ApiError(
-                    415, "validation_failed", fields={"body": f"not a readable image ({exc})"[:120]}
-                ) from exc
-        key, sha = await hub.storage.put(img.original)
-        thumb_key, thumb_sha = await hub.storage.put(img.thumb)
-        agent_key, agent_sha = await hub.storage.put(img.agent)
+        try:
+            img = await media.clean_image(up.path, up.mime, ctx.hub.storage.scratch)
+        except media.ImageRefused as exc:
+            raise ApiError(
+                415, "validation_failed", fields={"body": f"not a readable image ({exc})"[:120]}
+            ) from exc
+        return Prepared(image=img)
+    return Prepared()
+
+
+async def store_upload(
+    ctx: Ctx, tx: Any, up: Upload, name: str, prep: Prepared, *, purpose: str | None = None
+) -> tuple[UUID, str | None]:
+    """Stores a prepared upload for the owner (holding), in `tx` -> (file id,
+    what follows: "workflow" for video and audio, "text" for a PDF)."""
+    hub = ctx.hub
+    holding = await hub.companies.holding()
+    if prep.image is not None:
+        img = prep.image
+        key, sha, size = await hub.storage.commit(img.original)
         fid = await F.insert(
             tx,
             company_id=holding.id,
             name=name,
             mime=up.mime,
-            size=len(img.original),
+            size=size,
             sha256=sha,
             storage_key=key,
             kind="image",
@@ -162,16 +178,17 @@ async def store_upload(
             width=img.width,
             height=img.height,
         )
-        for variant, vkey, vsha, vdata, vmime in (
-            ("thumb", thumb_key, thumb_sha, img.thumb, "image/webp"),
-            ("agent", agent_key, agent_sha, img.agent, "image/jpeg"),
+        for variant, path, vmime in (
+            ("thumb", img.thumb, "image/webp"),
+            ("agent", img.agent, "image/jpeg"),
         ):
+            vkey, vsha, vsize = await hub.storage.commit(path)
             await F.insert(
                 tx,
                 company_id=holding.id,
                 name=f"{variant}-{name}",
                 mime=vmime,
-                size=len(vdata),
+                size=vsize,
                 sha256=vsha,
                 storage_key=vkey,
                 kind="image",
@@ -181,10 +198,8 @@ async def store_upload(
                 parent_id=fid,
             )
         await _audit(ctx, tx, holding.id, fid, up)
-        return fid, False
-    pdf = None
-    if up.mime == "application/pdf":  # its text for files.read (prompt 07 §3)
-        pdf = await media.pdf_text(await asyncio.to_thread(up.path.read_bytes))
+        return fid, None
+    info = prep.info
     key, sha, size = await hub.storage.commit(up.path)
     fid = await F.insert(
         tx,
@@ -201,8 +216,8 @@ async def store_upload(
         height=info.get("height"),
         duration_s=info.get("duration_s"),
     )
-    processing = up.kind.kind in ("video", "audio")
-    if processing:
+    follow: str | None = None
+    if up.kind.kind in ("video", "audio"):
         await tx.exec(
             """INSERT INTO files.processing (file_id, company_id, stt)
                VALUES (:f, :co, CAST(:stt AS jsonb))""",
@@ -210,10 +225,12 @@ async def store_upload(
             co=holding.id,
             stt=json.dumps({"purpose": purpose} if purpose else {}),
         )
-    elif pdf:
-        await F.document_text(tx, fid, holding.id, pdf)
+        follow = "workflow"
+    elif up.mime == "application/pdf":  # its text for files.read (prompt 07 §3), after the commit
+        await F.document_pending(tx, fid, holding.id)
+        follow = "text"
     await _audit(ctx, tx, holding.id, fid, up)
-    return fid, processing
+    return fid, follow
 
 
 async def _audit(ctx: Ctx, tx: Any, company_id: UUID, fid: UUID, up: Upload) -> None:
@@ -238,20 +255,35 @@ async def upload_owner_file(request: Request, ctx: Ctx = Depends(owner_ctx)) -> 
     `201 FileRef` (`status: processing` for video and audio)."""
     name = file_name(request.headers.get("x-file-name"))
     up = await Upload.receive(request, ctx.hub.storage.scratch())
+    prep = Prepared()
     try:
+        prep = await prepare_upload(ctx, up)
         async with ctx.tx() as tx:
             # The key with the streamed body's hash; the claim rolls back with a failure.
             idem = await idempotency.claim(tx, request, ctx.who, body_sha256=up.sha256)
             if idem and idem.replay:
                 return idem.replay
-            fid, processing = await store_upload(ctx, tx, up, name)
-            ref = F.render(await F.load(tx, fid))
-            if idem:
+            fid, follow = await store_upload(ctx, tx, up, name, prep)
+            row = await F.load(tx, fid)
+            ref = F.render(row)
+            if idem and follow != "text":
                 await idem.store(tx, 201, ref.model_dump(mode="json"))
     finally:
         up.discard()  # a no-op once the bytes moved into the store
-    if processing:
+        prep.discard()
+    if follow == "text":  # outside any transaction; finished even if the client goes away
+        ref = await asyncio.shield(_document_text(ctx, row, idem))
+    elif follow == "workflow":
         await workflows_client.file_uploaded(ctx.hub, str(fid))
+    return ref
+
+
+async def _document_text(ctx: Ctx, row: dict[str, Any], idem: Any) -> FileRef:
+    await F.extract_text(ctx.tx, row["id"], ctx.hub.storage.local_path(row["storage_key"]))
+    async with ctx.tx() as tx:
+        ref = F.render(await F.load(tx, row["id"]))
+        if idem:
+            await idem.store(tx, 201, ref.model_dump(mode="json"))
     return ref
 
 
@@ -391,11 +423,12 @@ async def transcribe(
     name = file_name(request.headers.get("x-file-name")) or "voice"
     up = await Upload.receive(request, ctx.hub.storage.scratch(), only={"audio"})
     try:
+        probed = (await prepare_upload(ctx, up)).info
         async with ctx.tx() as tx:
             idem = await idempotency.claim(tx, request, ctx.who, body_sha256=up.sha256)
             if idem and idem.replay:
                 return idem.replay
-            fid, _ = await store_upload(ctx, tx, up, name, purpose=purpose)
+            fid, _ = await store_upload(ctx, tx, up, name, Prepared(probed), purpose=purpose)
     finally:
         up.discard()
     try:

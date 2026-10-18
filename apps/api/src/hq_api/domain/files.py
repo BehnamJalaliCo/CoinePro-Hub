@@ -9,9 +9,13 @@ another operating company is refused: it is that company's now.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from hq_api import media
 from hq_api.db import Tx
 from hq_api.errors import ApiError
 from hq_api.schemas import FileRef, FileVariants
@@ -143,13 +147,38 @@ async def attach(tx: Tx, ids: list[UUID], thread_company: UUID, holding_id: UUID
     return unique
 
 
-async def document_text(tx: Tx, file_id: UUID, company_id: UUID, text: str) -> None:
-    """A PDF's text (prompt 07 §3): kept in files.processing (files.files stays
-    append-only), ready at once."""
+async def document_pending(tx: Tx, file_id: UUID, company_id: UUID) -> None:
+    """A PDF whose text is still to come (prompt 07.1 §1.2): recorded first,
+    extracted outside any transaction, written by document_done."""
     await tx.exec(
-        """INSERT INTO files.processing (file_id, company_id, status, text)
-           VALUES (:f, :co, 'ready', :t)""",
+        """INSERT INTO files.processing (file_id, company_id, status)
+           VALUES (:f, :co, 'processing')""",
         f=file_id,
         co=company_id,
-        t=text[:200_000],
     )
+
+
+async def document_done(
+    tx: Tx, file_id: UUID, status: str, text: str | None, error: str | None
+) -> None:
+    """The second transaction: `ready` (with or without text) or `failed`."""
+    await tx.exec(
+        """UPDATE files.processing SET status = :st, text = :t, error = :e,
+               attempts = attempts + 1, updated_at = now()
+           WHERE file_id = :f AND status = 'processing'""",
+        f=file_id,
+        st=status,
+        t=text[:200_000] if text else None,
+        e=error[:300] if error else None,
+    )
+
+
+async def extract_text(
+    tx: Callable[[], AbstractAsyncContextManager[Tx]], file_id: UUID, path: Path
+) -> str:
+    """A PDF's text from a child process (media.pdf_text), outside any
+    transaction, then written in one of its own -> the status."""
+    got = await media.pdf_text(path)
+    async with tx() as t:
+        await document_done(t, file_id, got.status, got.text, got.error)
+    return got.status

@@ -181,6 +181,12 @@ class MediaActivities:
         if f["status"] != "processing":
             return {"file": file_id, "skipped": f["status"]}
         src = self.hub.storage.local_path(f["storage_key"])
+        if f["kind"] == "document":
+            # A PDF whose text the api never finished (it restarted between the
+            # two transactions, prompt 07.1 §1.2): the same child, here.
+            async with self._beating():
+                status = await F.extract_text(self._tx, f["id"], src)
+            return {"file": file_id, "text": status}
         root = Path(self.hub.settings.files_root)
         out: dict[str, Any] = {"file": file_id, "frames": 0}
         async with self._beating():
