@@ -139,10 +139,10 @@ worker ──(توکن سرویس)──► gateway ──(توکن hqa1 هما�
   - `GET /owner/hiring`
   - `POST /owner/hiring/start` 🔏 (`hiring.start`، target ‏`holding`):
     - `proposals`: استخدام باز میشود. هر مدیرعامل و هر رئیس هلدینگی که وظیفه‌ی استخدام دارد یک کار «تیمت را پیشنهاد بده» میگیرد (`seed/bootstrap/hiring_proposals.yaml`، با اولویت منشورش). شروع دوباره کار دوم نمیسازد.
-    - `delegated` (قرارداد v1.4.3: هر مدیرعامل در پاکت ماهانه‌ی شرکت تصمیم میگیرد): تا پرامپت ۸ جواب `409 not_ready` میدهد. این پیش از مصرف step-up است و هیچ چیزی را عوض نمیکند.
+    - `delegated` (قرارداد v1.4.3، پرامپت ۸ §۸): هر مدیرعامل در پاکت ماهانه‌ی شرکت تصمیم میگیرد. هر شرکت عملیاتی فعال باید پاکت داشته باشد، وگرنه `422 envelope_required` پیش از مصرف step-up. جزئیات در RUNBOOK §۲۱.
     - `GET /owner/hiring` برای هر شرکت عملیاتی `envelopes` دارد: بودجه‌ی ماهانه از `llm.budgets`، تعهد کارمندهای فعال، مصرف ماه شمسی و تعداد استخدام ماه.
     - `start` و `/org/hires` به `Idempotency-Key` احترام میگذارند. اگر پاسخ گم شود، تکرار همان پاسخ را میگیرد، نه step-up مصرف‌شده.
-    - `Decision.approver` (null یعنی مالک) و `Employee.probation_until` از پرامپت ۸ پر میشوند.
+    - `Decision.approver` (null یعنی مالک) و `Employee.probation_until` در استخدام `delegated` پر میشوند (پرامپت ۸).
   - `POST /owner/hiring/close` (بدون step-up): کارت‌های در انتظار `withdrawn` میشوند.
   - `POST /org/hires` 🔏 (`hire.direct`، target = SHA-256 بدنه): کارت `hire` را که مالک هم پیشنهاد و هم مُهر کرده در یک تراکنش مینویسد، و بعد کارمند را میسازد.
 - **پس گرفتن کارت:** `cartable.withdraw_pending_hires(note)` کارت را `withdrawn` میکند، با `decided_by` سیستم، یادداشت مالک، پیام سیستم در thread، `decision.updated`، audit ‏`decision.withdraw` و ref در `withdrawn`. **هیچ چیزی حذف نمیشود.** migration ‏0010 همین را یک بار اجرا کرد (D-000001 تا D-000007) و کارهای ماه ۱ را که هنوز باز بودند با همان یادداشت لغو کرد. Maintenance هر `DecisionLifecycle` را که هنوز منتظر کارتِ دیگر در انتظار نیست بیدار میکند تا با همان نتیجه تمام شود.

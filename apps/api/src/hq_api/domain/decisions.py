@@ -491,8 +491,9 @@ async def propose(
                 fields={"payload.driver": "an active employee of this company"},
             )
     if body.kind == "lesson_adoption" and not await tx.scalar(
-        """SELECT 1 FROM knowledge.lesson_adoptions a JOIN knowledge.lessons l ON l.id = a.lesson_id
-           WHERE l.ref = :ref AND a.company_id = :co AND a.status = 'proposed'""",
+        """SELECT 1 FROM knowledge.lesson_adoptions
+           WHERE lesson_ref = :ref AND company_id = :co AND status = 'proposed'
+             AND decision_ref IS NULL""",
         ref=payload["lesson"],
         co=company_id,
     ):
@@ -554,6 +555,14 @@ async def propose(
             "action_class": d["action_class"],
         },
     )
+    if body.kind == "lesson_adoption":  # one answer per lesson and company
+        await tx.exec(
+            """UPDATE knowledge.lesson_adoptions SET decision_ref = :d, updated_at = now()
+               WHERE lesson_ref = :ref AND company_id = :co""",
+            d=d["ref"],
+            ref=payload["lesson"],
+            co=company_id,
+        )
     if approver:
         # The CEO is woken by a work item for the card (contract §18.11); the
         # owner hears of the hire through its story and the digest.

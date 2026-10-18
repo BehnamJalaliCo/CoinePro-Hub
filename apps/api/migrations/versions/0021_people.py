@@ -129,6 +129,8 @@ def upgrade() -> None:
 
         CREATE TABLE knowledge.lesson_adoptions (
             lesson_id     uuid NOT NULL REFERENCES knowledge.lessons (id),
+            -- the lesson's ref, readable by the adopting company (the lesson row is the source's)
+            lesson_ref    text NOT NULL,
             company_id    uuid NOT NULL REFERENCES core.companies (id),  -- the adopting company
             status        text NOT NULL DEFAULT 'proposed'
                                CHECK (status IN ('proposed', 'adopted', 'rejected')),
@@ -193,6 +195,16 @@ def upgrade() -> None:
         REVOKE ALL ON FUNCTION core.hiring_mode() FROM PUBLIC;
         GRANT EXECUTE ON FUNCTION core.hiring_mode() TO {APP_ROLES};
 
+        -- Whether a week is rolled up already (a CEO's company-scoped
+        -- transaction cannot see the holding's roll-up rows).
+        CREATE FUNCTION people.week_rolled_up(p_week date) RETURNS boolean
+            LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+                SELECT EXISTS (SELECT 1 FROM people.star_rollups
+                                WHERE period = 'week' AND key = to_char(p_week, 'YYYY-MM-DD'))
+            $$;
+        REVOKE ALL ON FUNCTION people.week_rolled_up(date) FROM PUBLIC;
+        GRANT EXECUTE ON FUNCTION people.week_rolled_up(date) TO {APP_ROLES};
+
         -- A delegated hire starts on probation (+7 days, contract §18.11).
         GRANT UPDATE (probation_until) ON core.employees TO {APP_ROLES};
 
@@ -206,9 +218,10 @@ def upgrade() -> None:
 def downgrade() -> None:
     execute_script(
         f"""
-        DELETE FROM cartable.decisions WHERE kind = 'lesson_adoption';
+        -- NOT VALID: past lesson_adoption cards stay (resolutions point at them); new ones are refused.
         ALTER TABLE cartable.decisions DROP CONSTRAINT decisions_kind_check;
-        ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check CHECK (kind IN ({KINDS}));
+        ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check
+            CHECK (kind IN ({KINDS})) NOT VALID;
         REVOKE UPDATE (probation_until) ON core.employees FROM {APP_ROLES};
         DROP FUNCTION core.hiring_mode();
         DROP TABLE owner.stories;
@@ -216,6 +229,7 @@ def downgrade() -> None:
         DROP TABLE knowledge.lesson_adoptions;
         DROP TABLE knowledge.lessons;
         DROP SEQUENCE knowledge.lesson_ref_seq;
+        DROP FUNCTION people.week_rolled_up(date);
         DROP TABLE people.star_rollups;
         DROP TABLE people.stars;
         DROP TABLE people.star_rubrics;

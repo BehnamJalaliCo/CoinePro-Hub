@@ -157,8 +157,8 @@ async def post(
     # The owner's day, the company's agent stories: a lock per company keeps
     # the limit exact under concurrent posts.
     await tx.exec(
-        "SELECT pg_advisory_xact_lock(hashtextextended('story:' || CAST(:co AS text), 0))",
-        co=who.company_id,
+        "SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))",
+        key=f"story:{who.company_id}",
     )
     tz = await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
     today = await tx.scalar("SELECT (now() AT TIME ZONE :tz)::date", tz=tz)

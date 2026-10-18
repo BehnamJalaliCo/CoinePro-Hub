@@ -260,9 +260,7 @@ async def give(
     zone = await owner_zone(tx)
     if week > saturday_of(datetime.now(zone).date()):
         raise ApiError(422, "validation_failed", fields={"week": "not a future week"})
-    if await tx.scalar(
-        "SELECT 1 FROM people.star_rollups WHERE period = 'week' AND key = :k", k=week.isoformat()
-    ):
+    if await tx.scalar("SELECT people.week_rolled_up(:w)", w=week):
         raise ApiError(409, "validation_failed", "that week is already rolled up")
     rubric = await latest_rubric(tx, who.company_id) if who.company_id else None
     if rubric is not None:
@@ -694,9 +692,10 @@ async def write_lesson(
             )
             work_ref = w["ref"]
         await tx.exec(
-            """INSERT INTO knowledge.lesson_adoptions (lesson_id, company_id, work_ref)
-               VALUES (:l, :co, :w)""",
+            """INSERT INTO knowledge.lesson_adoptions (lesson_id, lesson_ref, company_id, work_ref)
+               VALUES (:l, :ref, :co, :w)""",
             l=row["id"],
+            ref=row["ref"],
             co=o["id"],
             w=work_ref,
         )
@@ -707,9 +706,8 @@ async def adoption_decided(
     tx: Tx, lesson_ref: str, company_id: UUID, status: str, decision_ref: str
 ) -> None:
     await tx.exec(
-        """UPDATE knowledge.lesson_adoptions a SET status = :st, decision_ref = :d, updated_at = now()
-           FROM knowledge.lessons l
-           WHERE l.id = a.lesson_id AND l.ref = :ref AND a.company_id = :co""",
+        """UPDATE knowledge.lesson_adoptions SET status = :st, decision_ref = :d, updated_at = now()
+           WHERE lesson_ref = :ref AND company_id = :co""",
         st=status,
         d=decision_ref,
         ref=lesson_ref,

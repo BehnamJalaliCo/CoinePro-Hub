@@ -35,6 +35,8 @@ SCHEMAS = (
     "backup",
     "egress",
     "oversight",
+    "people",
+    "knowledge",
 )
 
 
@@ -57,6 +59,7 @@ async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: 
                 "reason": "r",
                 "model": "claude-sonnet-5-5",
                 "effort": "medium",
+                "quota_estimate_month": {"tokens": 1500000},
             },
         },
     )
@@ -183,6 +186,44 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
            VALUES ($1, 't', now(), $2, 'agent', 'HQ-PA')""",
         co["id"],
         errand,
+    )
+    # Prompt 08 §4, §9: a rubric, a star, a roll-up, a lesson and its adoption, a story.
+    await su.execute(
+        """INSERT INTO people.star_rubrics (company_id, version, criteria, by_kind, by_code)
+           VALUES ($1, 1, '[{"key": "efficiency", "weight": 100}]', 'agent', $2)""",
+        co["id"],
+        f"{co['code']}-CEO",
+    )
+    await su.execute(
+        """INSERT INTO people.stars (company_id, employee_id, week, stars, counted, by_kind, by_code)
+           SELECT $1, id, DATE '2026-10-10', 4, true, 'agent', $2 FROM core.employees WHERE code = $3""",
+        co["id"],
+        f"{co['code']}-CEO",
+        f"{co['code']}-TECH-MGR",
+    )
+    await su.execute(
+        """INSERT INTO people.star_rollups (company_id, period, key, starts_on, ends_on, data)
+           VALUES ($1, 'week', $2, DATE '2026-10-10', DATE '2026-10-17', '{}')""",
+        co["id"],
+        f"2026-{abs(hash(co['code'])) % 12 + 1:02d}-{abs(hash(co['id'])) % 28 + 1:02d}",
+    )
+    lesson = await su.fetchrow(
+        """INSERT INTO knowledge.lessons (company_id, period, title_fa, body_md, by_kind, by_code)
+           VALUES ($1, 'week:2026-10-10', 'درس', 'متن', 'agent', 'HQ-OVR') RETURNING id, ref""",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO knowledge.lesson_adoptions (lesson_id, lesson_ref, company_id)
+           VALUES ($1, $2, $3)""",
+        lesson["id"],
+        lesson["ref"],
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO owner.stories (company_id, kind, author_kind, author_code, title_fa)
+           VALUES ($1, 'post', 'agent', $2, 'استوری')""",
+        co["id"],
+        f"{co['code']}-CEO",
     )
     # Prompt 07: one request of an agent's web tool.
     await su.execute(

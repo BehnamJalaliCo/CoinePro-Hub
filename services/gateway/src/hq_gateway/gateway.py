@@ -40,12 +40,15 @@ from hq_common.charters import IMPLICIT_TOOLS, Library
 from hq_common.redact import fit_async, scrub_async
 from hq_gateway import (
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
+    people,  # noqa: F401 - registers stars, lessons, stories, hire.decide
     web,  # noqa: F401 - registers the internet tools (web.*, http.request)
 )
 from hq_gateway import mcp as M
+from hq_gateway import (
+    people,  # noqa: F401 - registers stars, lessons, stories, hire.decide
+    web,  # noqa: F401 - registers the internet tools (web.*, http.request)
+)
 from hq_gateway import tools as T
-from hq_gateway import people  # noqa: F401 - registers stars, lessons, stories, hire.decide
-from hq_gateway import web  # noqa: F401 - registers the internet tools (web.*, http.request)
 
 log = logging.getLogger("hq_gateway")
 TOOL_NAME = re.compile(r"[a-z][a-z_]*(?:\.[a-z_]+)?")  # always fullmatch: "work.get\n" is no tool

@@ -251,6 +251,7 @@ async def list_rubrics(ctx: Ctx = Depends(owner_ctx)) -> list[StarRubric]:
 
 @router.get("/stars/rubrics/{company}", response_model=StarRubric, responses=E)
 async def get_rubric(company: str, ctx: Ctx = Depends(owner_ctx)) -> StarRubric:
+    """One company's active star rubric (404 while its CEO has written none)."""
     co = await ctx.hub.companies.by_code(company)
     async with ctx.tx() as tx:
         row = await S.latest_rubric(tx, co.id)
@@ -561,7 +562,8 @@ async def agent_star_audit(
 ) -> Any:
     """star.audit: the overseer marks a star counted or not, with the reason."""
     await allow(ctx, "star.audit", {"company": None})
-    async with ctx.tx() as tx:
+    # The overseer audits any company's stars: a transaction over every company.
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
@@ -586,7 +588,8 @@ async def agent_lesson(body: LessonIn, request: Request, ctx: Ctx = Depends(inte
     """lesson.write (overseer, AI Ops head): a lesson from a company; every other
     company's CEO gets a work item to consider adopting it. Requires `Idempotency-Key`."""
     await allow(ctx, "lesson.write", {"company": body.source_company, "charter": ctx.who.charter})
-    async with ctx.tx() as tx:
+    # A lesson reaches every other company (adoption work for its CEO).
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay

@@ -30,6 +30,8 @@ SCHEMAS = (
     "backup",
     "egress",
     "oversight",
+    "people",
+    "knowledge",
 )
 
 

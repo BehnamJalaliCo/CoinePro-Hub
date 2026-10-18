@@ -39,6 +39,7 @@ async def hire(
                 "duties": ["x"],
                 "model": "claude-sonnet-5-5",
                 "effort": "high",
+                "quota_estimate_month": {"tokens": 1500000},
             },
         },
     )

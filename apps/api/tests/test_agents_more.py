@@ -639,6 +639,7 @@ async def test_a_hire_runs_with_a_real_charter(
             "reason": "پایش",
             "model": "claude-haiku-5-5",
             "effort": "high",
+            "quota_estimate_month": {"tokens": 1500000},
         },
     }
     r = await client.post("/internal/v1/decisions", headers={**cto, **idem()}, json=base)
