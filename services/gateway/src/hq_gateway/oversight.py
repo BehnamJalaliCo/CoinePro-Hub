@@ -103,8 +103,12 @@ def _compact(data: Any, keys: tuple[str, ...]) -> Any:
     return {k: data.get(k) for k in keys} if isinstance(data, dict) else data
 
 
-async def _post(api: T.Api, call: T.Call, tool: str, path: str, body: dict[str, Any], keys: tuple[str, ...]) -> T.Result:
-    resp = await api.request("POST", path, call.token, json=await T._text(body), idem=call.idem(tool))
+async def _post(
+    api: T.Api, call: T.Call, tool: str, path: str, body: dict[str, Any], keys: tuple[str, ...]
+) -> T.Result:
+    resp = await api.request(
+        "POST", path, call.token, json=await T._text(body), idem=call.idem(tool)
+    )
     r = T.from_response(resp)
     if r.outcome == "ok":
         r.data = _compact(r.data, keys)
@@ -115,12 +119,26 @@ FINDING = ("ref", "company", "severity", "status", "answerable", "due_at")
 
 
 async def finding_raise(api: T.Api, call: T.Call, a: FindingRaiseIn) -> T.Result:
-    return await _post(api, call, "finding.raise", "/internal/v1/oversight/findings", a.model_dump(mode="json", exclude_none=True), FINDING)
+    return await _post(
+        api,
+        call,
+        "finding.raise",
+        "/internal/v1/oversight/findings",
+        a.model_dump(mode="json", exclude_none=True),
+        FINDING,
+    )
 
 
 async def finding_update(api: T.Api, call: T.Call, a: FindingUpdateIn) -> T.Result:
     body = a.model_dump(mode="json", exclude={"ref"})
-    return await _post(api, call, "finding.update", f"/internal/v1/oversight/findings/{a.ref}/status", body, FINDING)
+    return await _post(
+        api,
+        call,
+        "finding.update",
+        f"/internal/v1/oversight/findings/{a.ref}/status",
+        body,
+        FINDING,
+    )
 
 
 async def protocol_result(api: T.Api, call: T.Call, a: ProtocolResultIn) -> T.Result:
@@ -137,29 +155,63 @@ CHALLENGE = ("ref", "company", "period", "status", "due_at", "score")
 
 
 async def challenge_issue(api: T.Api, call: T.Call, a: ChallengeIssueIn) -> T.Result:
-    return await _post(api, call, "challenge.issue", "/internal/v1/oversight/challenges", a.model_dump(mode="json", exclude_none=True), CHALLENGE)
+    return await _post(
+        api,
+        call,
+        "challenge.issue",
+        "/internal/v1/oversight/challenges",
+        a.model_dump(mode="json", exclude_none=True),
+        CHALLENGE,
+    )
 
 
 async def challenge_submit(api: T.Api, call: T.Call, a: ChallengeSubmitIn) -> T.Result:
     body = a.model_dump(mode="json", exclude={"ref"}, exclude_none=True)
-    return await _post(api, call, "challenge.submit", f"/internal/v1/oversight/challenges/{a.ref}/submit", body, CHALLENGE)
+    return await _post(
+        api,
+        call,
+        "challenge.submit",
+        f"/internal/v1/oversight/challenges/{a.ref}/submit",
+        body,
+        CHALLENGE,
+    )
 
 
 async def challenge_score(api: T.Api, call: T.Call, a: ChallengeScoreIn) -> T.Result:
     body = a.model_dump(mode="json", exclude={"ref"})
-    return await _post(api, call, "challenge.score", f"/internal/v1/oversight/challenges/{a.ref}/score", body, CHALLENGE)
+    return await _post(
+        api,
+        call,
+        "challenge.score",
+        f"/internal/v1/oversight/challenges/{a.ref}/score",
+        body,
+        CHALLENGE,
+    )
 
 
 async def hold(api: T.Api, call: T.Call, a: HoldIn) -> T.Result:
-    r = await _post(api, call, "hold", "/internal/v1/oversight/holds", a.model_dump(mode="json"), ("ref", "company", "state", "action"))
-    return r
+    return await _post(
+        api,
+        call,
+        "hold",
+        "/internal/v1/oversight/holds",
+        a.model_dump(mode="json"),
+        ("ref", "company", "state", "action"),
+    )
 
 
 CONTROL = ("holding", "companies")
 
 
 async def kill_switch_engage(api: T.Api, call: T.Call, a: EngageIn) -> T.Result:
-    r = await _post(api, call, "kill_switch.engage", "/internal/v1/oversight/kill-switch", a.model_dump(mode="json"), CONTROL)
+    r = await _post(
+        api,
+        call,
+        "kill_switch.engage",
+        "/internal/v1/oversight/kill-switch",
+        a.model_dump(mode="json"),
+        CONTROL,
+    )
     if r.outcome == "ok":
         r.ref = a.scope
         r.data = {"engaged": a.scope}
@@ -167,7 +219,14 @@ async def kill_switch_engage(api: T.Api, call: T.Call, a: EngageIn) -> T.Result:
 
 
 async def deploy_freeze(api: T.Api, call: T.Call, a: FreezeIn) -> T.Result:
-    r = await _post(api, call, "deploy.freeze", "/internal/v1/oversight/deploy-freeze", a.model_dump(mode="json"), CONTROL)
+    r = await _post(
+        api,
+        call,
+        "deploy.freeze",
+        "/internal/v1/oversight/deploy-freeze",
+        a.model_dump(mode="json"),
+        CONTROL,
+    )
     if r.outcome == "ok":
         r.ref = f"freeze:{a.company}"
         r.data = {"frozen": a.company, "until": a.until.isoformat()}

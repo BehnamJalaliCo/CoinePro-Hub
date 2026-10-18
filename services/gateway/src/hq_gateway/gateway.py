@@ -45,6 +45,10 @@ from hq_gateway import (
     web,  # noqa: F401 - registers the internet tools (web.*, http.request)
 )
 from hq_gateway import mcp as M
+from hq_gateway import (
+    oversight,  # noqa: F401 - registers the overseer's tools (prompt 08)
+    web,  # noqa: F401 - registers the internet tools (web.*, http.request)
+)
 from hq_gateway import tools as T
 
 log = logging.getLogger("hq_gateway")

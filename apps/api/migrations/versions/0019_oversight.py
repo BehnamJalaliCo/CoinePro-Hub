@@ -403,5 +403,13 @@ def downgrade() -> None:
             oversight.protocol_runs, oversight.protocols;
         DROP SEQUENCE oversight.finding_ref_seq, oversight.challenge_ref_seq,
             oversight.order_ref_seq, oversight.hold_ref_seq;
+        DROP FUNCTION oversight.holds_final();
+        -- The schema is shared with the inquiries (prompt 08 §3): only when empty.
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                           WHERE n.nspname = 'oversight') THEN
+                DROP SCHEMA oversight;
+            END IF;
+        END $$;
         """
     )
