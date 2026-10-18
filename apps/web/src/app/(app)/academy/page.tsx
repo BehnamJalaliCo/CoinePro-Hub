@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, FilterChip, PageHeader, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { Spark } from '@/components/v14/bits';
+import { ModelComparison } from '@/components/v14/training';
 import { ApiError } from '@/lib/api/client';
 import { useCurricula, useEvals, useTeachAction, useTeachings } from '@/lib/api/v14';
 import { ago, cx } from '@/lib/format';
@@ -74,16 +75,17 @@ export default function AcademyPage() {
           <Card className="flex flex-col gap-3 p-4">
             <SectionTitle title="آزمون‌های طلایی" note="نمره‌ی نسخه‌ها در برابر خط پایه" />
             {evals.isLoading ? <Skeleton className="h-32" /> : suites.map((s) => {
-              const last = s.runs.at(-1);
+              const last = s.recent.at(-1);
               return (
                 <div key={s.ref} className="flex items-center gap-3 border-b border-div py-2 last:border-0">
-                  <span className="flex min-w-0 flex-1 flex-col"><span className="text-[13px]">{s.title_fa}</span><span className="text-[11px] text-muted"><span className="fig">{s.ref}</span> · {s.cases} مورد · خط پایه <span className="fig">{s.baseline?.score ?? '—'}</span></span></span>
-                  <Spark values={s.runs.map((r) => r.score)} min={60} max={100} />
+                  <span className="flex min-w-0 flex-1 flex-col"><span className="text-[13px]">{s.title_fa}</span><span className="text-[11px] text-muted"><span className="fig">{s.ref}</span> · {s.cases.length} مورد · خط پایه <span className="fig">{s.baseline?.score ?? '—'}</span></span></span>
+                  <Spark values={s.recent.map((r) => r.score)} min={60} max={100} />
                   {last ? <span className={cx('fig w-8 text-left text-[14px] font-semibold', last.passed ? 'text-pos' : 'text-neg')}>{last.score}</span> : null}
                 </div>
               );
             })}
           </Card>
+          <ModelComparison role={role} />
         </div>
       </div>
     </>

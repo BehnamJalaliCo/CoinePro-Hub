@@ -2,6 +2,7 @@
 // the client imports this module only when NEXT_PUBLIC_HQ_MOCK=1.
 
 import { DEMO_CHART, DEMO_SKETCH, DEMO_VOICE } from './mock-media';
+import { handleOps } from './mock-ops';
 import { handle14 } from './mock-v14';
 import { roles } from './mock-roles';
 
@@ -184,21 +185,10 @@ function row(key: string, input: number, output: number) {
   return { key, input_tokens: input, output_tokens: output, cache_read_tokens: Math.round(input * 0.18), cache_write_tokens: Math.round(input * 0.05), calls: Math.round(input / 900), cost_usd: '0.00', equiv_cost_usd: ((input * 2 + output * 10) / 1e6).toFixed(2) };
 }
 
-const planner = () => {
-  const days = Array.from({ length: 7 }, (_, d) => {
-    const date = new Date(now + d * 86_400_000);
-    const at = (h: number) => { const x = new Date(date); x.setUTCHours(h, 30, 0, 0); return x.toISOString(); };
-    const items = [
-      d === 0 && { ref: 'W-000104', title: 'رفع کندی ثبت‌نام', company: 'FX', priority: 'P1', status: 'in_progress', at: at(10), assignee: 'FX-TECH-MGR', recurring: false },
-      { ref: `W-1${d}0`, title: 'گزارش صبحگاهی', company: 'HQ', priority: 'P3', status: d === 0 ? 'done' : 'queued', at: at(4), assignee: 'HQ-SYS', recurring: true },
-      d % 2 === 0 && { ref: `W-2${d}0`, title: 'خلاصه‌ی سلامت سایت‌ها', company: ['TY', 'FX', 'PC'][d % 3], priority: 'P3', status: 'queued', at: at(6), assignee: null, recurring: true },
-      d === 3 && { ref: 'W-000098', title: 'ممیزی امنیتی همه‌ی شرکت‌ها', company: 'HQ', priority: 'P2', status: 'waiting', at: at(9), assignee: 'HQ-OVS-MGR', recurring: false },
-      d === 5 && { ref: 'W-000120', title: 'جلسه‌ی هفتگی هیئت‌مدیره', company: 'HQ', priority: 'P2', status: 'queued', at: at(6), assignee: null, recurring: true },
-    ].filter(Boolean);
-    return { date: date.toISOString().slice(0, 10), items };
-  });
-  return { scope: 'holding', timezone: 'Asia/Tehran', days };
-};
+const connections: any[] = [
+  { id: 'c1', key: 'claude-max', display_name: 'اشتراک Claude (Max)', kind: 'claude_subscription', provider: 'anthropic', status: 'enabled', status_reason: null, models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], default_model: 'claude-sonnet-5-5', fallback_priority: 1, has_secret_ref: true, limits: {}, pricing: {}, quota_reset_at: ahead(60 * 30), updated_at: iso(60), version: 1 },
+  { id: 'c2', key: 'anthropic-api', display_name: 'API Anthropic (پشتیبان)', kind: 'api_key', provider: 'anthropic', status: 'disabled', status_reason: 'set by the owner', models: ['claude-sonnet-5-5', 'claude-haiku-5-5'], default_model: 'claude-haiku-5-5', fallback_priority: 2, has_secret_ref: false, limits: {}, pricing: {}, quota_reset_at: null, updated_at: iso(60 * 40), version: 2 },
+];
 
 const control = {
   holding: { scope: 'holding', company: 'HQ', state: 'released', changed_at: iso(60 * 48), changed_by: null, reason: null },
@@ -343,6 +333,8 @@ export async function handle(req: Request): Promise<Response> {
   await new Promise((r) => setTimeout(r, 120 + Math.random() * 180));
   const v14 = await handle14(req, p, u);
   if (v14) return v14;
+  const ops = await handleOps(req, p, u, { work, employees, control, companies, messages, threads, envelope, summary, connections });
+  if (ops) return ops;
   if (m !== 'GET') {
     if (p.startsWith('/auth/passkey/') && p.endsWith('/options')) return json({ challenge: 'mock', rpId: 'localhost', timeout: 60000, userVerification: 'required' });
     if (p === '/auth/step-up/options') return json({ challenge: 'mock' });
@@ -376,11 +368,6 @@ export async function handle(req: Request): Promise<Response> {
       hiresMonth[b.company] = (hiresMonth[b.company] ?? 0) + 1;
       return json({ employee: emp, decision: dec }, 201);
     }
-    if (p === '/budgets') {
-      const b = (await req.json().catch(() => ({ budgets: [] }))) as { budgets: Array<{ company: string; scope_type: string; period: string; token_limit: number | null }> };
-      for (const x of b.budgets) if (x.scope_type === 'company' && x.period === 'month') envelope[x.company] = x.token_limit;
-      return json(b.budgets.map((x) => ({ ...x, scope_ref: x.company, tokens_used: usedMonth[x.company] ?? 0, usd_limit: null, usd_used: '0', pct: 0, level: 0 })));
-    }
     if (p === '/stories/seen') {
       const b = (await req.json().catch(() => ({ refs: [] }))) as { refs: string[] };
       for (const x of stories) if (b.refs.includes(x.ref)) x.seen = true;
@@ -388,8 +375,6 @@ export async function handle(req: Request): Promise<Response> {
     }
     const sw = /^\/stories\/(ST-\d+)\/welcome$/.exec(p);
     if (sw) { const x = stories.find((y) => y.ref === sw[1]); if (!x) return json({}, 404); if (x.kind !== 'hire') return json({ code: 'validation_failed', message_fa: 'فقط استوری استخدام خوش‌آمد دارد.', status: 422, title: 'Unprocessable', type: 'about:blank' }, 422); x.welcomed = true; return json(x); }
-    const ed = /^\/employees\/([A-Z0-9-]+)\/dismiss$/.exec(p);
-    if (ed) { const e = employees.find((y) => y.code === ed[1]); if (!e) return json({}, 404); Object.assign(e, { status: 'dismissed', dismissed_at: iso(0) }); return json({ employee: e, work_returned: 0, transfer_work: null }); }
     const d = /^\/decisions\/(D-\d+)\/(approve|reject|return)$/.exec(p);
     if (d) {
       const x = decisions.find((y) => y.ref === d[1]);
@@ -508,7 +493,7 @@ export async function handle(req: Request): Promise<Response> {
   }
   if (p === '/orders') return json(page(orders));
   if (p === '/auth/session') return json({ principal: { kind: 'owner', code: 'owner' }, device: { id: 'dev1', name: 'Chrome · Android', kind: 'session', created_at: iso(600), last_used_at: iso(0), current: true }, expires_at: ahead(60 * 24 * 30) });
-  if (p === '/meta') return json({ api_version: '1.4', service_version: 'mock', login_configured: true, public_origin: u.origin, stream_retention_days: 30, channels: { in_app: true, web_push: true, fcm: false, telegram: false }, workshop: { runtime: 'managed' }, precedence: [{ rank: 1, kinds: ['owner'], note_fa: 'مدیر کل' }, { rank: 2, kinds: ['overseer', 'advisor'], note_fa: 'ناظر کل و مشاور کل' }, { rank: 3, kinds: ['ceo', 'inspector'], note_fa: 'مدیرعامل‌ها، بازرس کل (QC)' }, { rank: 4, kinds: ['manager'], note_fa: 'مدیرها' }, { rank: 5, kinds: ['employee'], note_fa: 'کارمندها' }] });
+  if (p === '/meta') return json({ api_version: '1.4', service_version: 'mock', login_configured: true, public_origin: u.origin, stream_retention_days: 30, channels: { in_app: true, web_push: true, fcm: false, telegram: false }, workshop: { runtime: null }, precedence: [{ rank: 1, kinds: ['owner'], note_fa: 'مدیر کل' }, { rank: 2, kinds: ['overseer', 'advisor'], note_fa: 'ناظر کل و مشاور کل' }, { rank: 3, kinds: ['ceo', 'inspector'], note_fa: 'مدیرعامل‌ها، بازرس کل (QC)' }, { rank: 4, kinds: ['manager'], note_fa: 'مدیرها' }, { rank: 5, kinds: ['employee'], note_fa: 'کارمندها' }] });
   if (p === '/inbox/summary') return json({ decisions_pending: decisions.filter((d) => d.status === 'pending').length, decisions_by_risk: Object.fromEntries(['low', 'medium', 'high'].map((r) => [r, decisions.filter((d) => d.status === 'pending' && d.risk === r).length])), deliverables_unrated: deliverables.filter((d) => !d.rating).length, messages_unread: 3, khalvat: presence.khalvat, notifications: { urgent: 0, decision: 1, report: 0, info: 2, learning: 1 } });
   if (p === '/owner/presence') return json(presence);
   if (p === '/owner/away-summary') return json({ since: iso(60 * 9), until: iso(0), companies: CO.map((c, i) => ({ company: c.code, decisions_new: [1, 1, 1, 1][i], deliverables_new: [1, 1, 1, 0][i], messages_new: [0, 1, 2, 0][i], notifications_new: [1, 1, 0, 1][i] })), decisions: { new: 4, pending: decisions.filter((d) => d.status === 'pending').length, top: decisions.filter((d) => d.status === 'pending').map((d) => ({ ref: d.ref, company: d.company, kind: d.kind, risk: d.risk, status: d.status, title: d.title, created_at: d.created_at })) }, deliverables: { new: 3, unrated: 2, top: deliverables.map((d) => ({ ref: d.ref, company: d.company, title: d.title, created_at: d.created_at })) }, messages: { new: 3, unread: 3, top_threads: threads.map((t) => ({ thread: t.code, company: t.company, new_messages: t.unread, last_at: t.last_message_at })) }, notifications: { by_level: { decision: 1, report: 1, learning: 1 }, held: 2, top: [] } });
@@ -526,18 +511,15 @@ export async function handle(req: Request): Promise<Response> {
   if (p === '/work') return json(page(work));
   const wd = /^\/work\/([^/]+)$/.exec(p); if (wd) { const w = work.find((x) => x.id === wd[1] || x.ref === wd[1]) ?? work[0]; return json({ ...w, chain: [{ id: 'c0', ref: w.ref, depth: 0, status: 'delivered', assignee: { code: `${w.company}-CEO`, company: w.company, kind: 'ceo', title_fa: 'مدیرعامل' }, created_at: iso(300), tokens_used: 6200, usd_used: 0.1 }, { id: 'c1', ref: w.ref, depth: 1, status: w.status, assignee: w.assignee, created_at: iso(280), tokens_used: 41000, usd_used: 0.7 }], children: [] }); }
   if (p.endsWith('/events')) return json(page([]));
-  if (p === '/planner') return json(planner());
   if (p === '/threads') return json(threads);
   const tm = /^\/threads\/([^/]+)\/messages$/.exec(p); if (tm) return json(page(messages[tm[1]!] ?? []));
   if (p === '/notifications') return json({ items: notifications, next_cursor: null });
   if (p === '/control/state') return json(control);
   if (p === '/treasury/summary') return json(summary);
   if (p === '/treasury/breakdown') return json(breakdown(u.searchParams.get('by') ?? 'day'));
-  if (p === '/treasury/calls') return json(page([]));
-  if (p === '/connections') return json([{ id: 'c1', key: 'claude-max', display_name: 'اشتراک Claude (Max)', kind: 'claude_subscription', provider: 'anthropic', status: 'enabled', status_reason: null, models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], default_model: 'claude-sonnet-5-5', fallback_priority: 1, has_secret_ref: true, limits: {}, pricing: {}, quota_reset_at: ahead(60 * 30), updated_at: iso(60), version: 1 }]);
+  if (p === '/connections') return json(connections);
   if (p === '/audit') return json(page(audit));
   if (p === '/audit/verify') return json({ ok: true, checked: 1200, first_bad_seq: null, verified_at: iso(60 * 6), anchor: 'ok' });
-  if (p === '/resolutions') return json(page([{ ref: 'M-0003', title: 'گزارش هفتگی سئوی فنی تریدیار', body: '…', company: 'TY', sealed_at: iso(60 * 19), sealed_by: owner, sent_to: ['TY-GROWTH-MGR'], source: { decision: 'D-000011' }, follow_up_work_id: null, id: 'r3' }]));
   if (p === '/auth/devices') return json({ items: [{ id: 'dev1', name: 'Chrome · Android', kind: 'passkey', created_at: iso(60 * 20), last_used_at: iso(0), current: true }, { id: 'dev2', name: 'Safari · macOS', kind: 'passkey', created_at: iso(60 * 19), last_used_at: iso(60 * 3) }], next_cursor: null });
   if (p === '/owner/hiring') return json(hiringView());
   if (p === '/stories') return json(rings());

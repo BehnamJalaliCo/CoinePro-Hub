@@ -5,15 +5,18 @@ import { Icon } from '@/components/icon';
 import { CompanyMark, Monogram } from '@/components/brand/marks';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/overlay';
-import { Card, ErrorState, PageHeader, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
+import { Card, ErrorState, FilterChip, PageHeader, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { BackupsCard } from '@/components/v14/backups';
 import { ApiError } from '@/lib/api/client';
 import { useCompanies, useControl, useKillSwitch } from '@/lib/api/hooks';
+import { useDeployFreeze } from '@/lib/api/v15';
 import { stepUp } from '@/lib/auth';
 import { ago, cx, jDateTime, until } from '@/lib/format';
 
 type Target = { scope: string; name: string; engaged: boolean };
+type Freeze = { company: string; name: string; active: boolean };
+const SPANS = [{ h: 1, fa: 'یک ساعت' }, { h: 4, fa: 'چهار ساعت' }, { h: 24, fa: 'یک روز' }, { h: 72, fa: 'سه روز' }];
 
 /** Kill switches (OPERATING_MODEL §1.12): engaging is instant (speed matters); releasing needs the passkey. */
 export default function ControlPage() {
@@ -24,6 +27,20 @@ export default function ControlPage() {
   const [t, setT] = useState<Target | null>(null);
   const [reason, setReason] = useState('');
   const name = (code: string) => companies?.find((c) => c.code === code)?.name_fa ?? code;
+  const freezeM = useDeployFreeze();
+  const [fz, setFz] = useState<Freeze | null>(null);
+  const [span, setSpan] = useState(4);
+  const [fzReason, setFzReason] = useState('');
+  // A past `until` lifts the company's freezes; the owner lifts any of them (§9).
+  const runFreeze = async () => {
+    if (!fz) return;
+    try {
+      const until = new Date(Date.now() + (fz.active ? -60_000 : span * 3_600_000)).toISOString();
+      await freezeM.mutateAsync({ company: fz.company, until, reason: fzReason.trim() || (fz.active ? 'برداشته شد' : 'توقف deploy به دستور مالک') });
+      toast({ tone: 'ok', text: fz.active ? `deploy ${fz.name} آزاد شد.` : `deploy ${fz.name} تا ${SPANS.find((x) => x.h === span)?.fa} دیگر متوقف شد.` });
+      setFz(null); setFzReason('');
+    } catch (e) { toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'انجام نشد.' }); }
+  };
 
   const run = async () => {
     if (!t) return;
@@ -66,7 +83,10 @@ export default function ControlPage() {
                     {on ? <Pill tone="neg" icon="lock">متوقف</Pill> : <Pill tone="pos" dot>فعال</Pill>}
                   </div>
                   {freeze ? <div className="flex items-center gap-2 rounded-[10px] bg-warn-soft px-3 py-2 text-[12px] text-ink"><Icon name="pause" size={14} />توقف deploy تا {jDateTime(freeze.until)} ({until(freeze.until)})، {freeze.reason}</div> : null}
-                  <Button variant={on ? 'primary' : 'danger'} size="sm" icon={on ? 'resume' : 'pause'} onClick={() => setT({ scope: k.scope, name: name(k.company), engaged: on })}>{on ? 'آزاد کن (passkey)' : 'توقف این شرکت'}</Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant={on ? 'primary' : 'danger'} size="sm" icon={on ? 'resume' : 'pause'} onClick={() => setT({ scope: k.scope, name: name(k.company), engaged: on })}>{on ? 'آزاد کن (passkey)' : 'توقف این شرکت'}</Button>
+                    <Button variant="secondary" size="sm" onClick={() => setFz({ company: k.company, name: name(k.company), active: !!freeze })}>{freeze ? 'برداشتن توقف deploy' : 'توقف deploy'}</Button>
+                  </div>
                 </Card>
               );
             })}
@@ -74,6 +94,16 @@ export default function ControlPage() {
         </>
       )}
       <BackupsCard />
+      <Dialog open={!!fz} onOpenChange={(v) => !v && setFz(null)} title={fz?.active ? `برداشتن توقف deploy ${fz.name}` : `توقف deploy ${fz?.name}`} actions={<>
+        <Button variant="primary" loading={freezeM.isPending} onClick={runFreeze}>{fz?.active ? 'بردار' : 'متوقف کن'}</Button>
+        <Button variant="secondary" onClick={() => setFz(null)}>انصراف</Button>
+      </>}>
+        <div className="flex flex-col gap-3">
+          <p>{fz?.active ? 'همه‌ی توقف‌های deploy این شرکت برداشته میشود، حتی آن‌هایی که خط انتشار یا مدیرعامل گذاشته‌اند.' : 'تا پایان این مدت هیچ deployی در این شرکت انجام نمیشود. کارهای دیگر ادامه دارند.'}</p>
+          {!fz?.active ? <div className="flex flex-wrap gap-2">{SPANS.map((x) => <FilterChip key={x.h} selected={span === x.h} onClick={() => setSpan(x.h)}>{x.fa}</FilterChip>)}</div> : null}
+          <input value={fzReason} onChange={(e) => setFzReason(e.target.value)} maxLength={500} placeholder="دلیل (یک خط)" className="h-11 rounded-[10px] border border-strong bg-tile px-3 text-[14px] text-ink outline-none focus:border-gold-ink" />
+        </div>
+      </Dialog>
       <Dialog open={!!t} onOpenChange={(v) => !v && setT(null)} title={t?.engaged ? `آزاد کردن ${t?.name}` : `توقف ${t?.name}`} actions={<>
         <Button variant={t?.engaged ? 'primary' : 'danger'} loading={ks.isPending} onClick={run}>{t?.engaged ? 'آزاد کن' : 'متوقف کن'}</Button>
         <Button variant="secondary" onClick={() => setT(null)}>انصراف</Button>

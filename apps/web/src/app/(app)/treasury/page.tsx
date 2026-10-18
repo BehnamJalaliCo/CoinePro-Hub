@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { CompanyMark } from '@/components/brand/marks';
 import { CumulativeChart, HBars, StackedBar } from '@/components/charts/charts';
 import { Avatar } from '@/components/brand/avatar';
+import { Button } from '@/components/ui/button';
+import { BudgetEditor, CallsCard, ConnectionEditor, QuotaCard, WhatIfCard } from '@/components/v15/treasury';
+import type { Connection } from '@/lib/api/v15';
 import { Bar, Card, ErrorState, PageHeader, Pill, SectionTitle, Segmented, Skeleton, StatTile, budgetTone } from '@/components/ui/primitives';
 import { useBreakdown, useCompanies, useConnections, useTreasury } from '@/lib/api/hooks';
 import { companyColor } from '@/lib/company';
@@ -29,6 +32,8 @@ export default function TreasuryPage() {
   const conns = useConnections();
   const { data: companies } = useCompanies();
   const t = sum.data?.totals;
+  const [editBudgets, setEditBudgets] = useState(false);
+  const [editConn, setEditConn] = useState<Connection | null>(null);
   const budget = sum.data?.budgets.find((b) => (company ? b.scope_type === 'company' && b.company === company : b.scope_type === 'holding'));
 
   const days = (byDay.data ?? []).filter((r) => r.key).sort((a, b) => String(a.key).localeCompare(String(b.key))).map((r) => ({
@@ -84,8 +89,9 @@ export default function TreasuryPage() {
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
+          <QuotaCard />
           <Card className="flex flex-col gap-3 p-5">
-            <SectionTitle title="بودجه‌ها" note="هشدار ۷۰٪ و ۹۰٪؛ در ۱۰۰٪ کارهای غیرفوری میایستند" />
+            <SectionTitle title="بودجه‌ها" note="هشدار ۷۰٪ و ۹۰٪؛ در ۱۰۰٪ کارهای غیرفوری میایستند" action={<Button variant="text" size="sm" icon="edit" onClick={() => setEditBudgets(true)}>ویرایش</Button>} />
             {(sum.data?.budgets ?? []).map((b) => (
               <div key={`${b.scope_type}-${b.scope_ref}-${b.period}`} className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-2 text-[12px]">
@@ -114,7 +120,7 @@ export default function TreasuryPage() {
             {(conns.data ?? []).map((c) => {
               const st = CONNECTION_STATUS[c.status] ?? { label: c.status, tone: 'neutral' as const };
               return (
-                <div key={c.id} className="flex items-center gap-3 rounded-[12px] bg-tile p-3">
+                <button type="button" key={c.id} onClick={() => setEditConn(c)} className="flex items-center gap-3 rounded-[12px] bg-tile p-3 text-start hover:bg-hover">
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="text-[13px] font-semibold">{c.display_name}</span>
                     <span className="fig text-[11px] text-muted">{c.key} · {c.models.length} models</span>
@@ -122,12 +128,16 @@ export default function TreasuryPage() {
                     {c.status_reason ? <span className="text-[11px] text-muted">{c.status_reason}</span> : null}
                   </div>
                   <Pill tone={st.tone} dot>{st.label}</Pill>
-                </div>
+                </button>
               );
             })}
           </Card>
+          <WhatIfCard company={company} />
         </div>
       </div>
+      <CallsCard company={company} />
+      {editBudgets ? <BudgetEditor onClose={() => setEditBudgets(false)} /> : null}
+      {editConn ? <ConnectionEditor c={editConn as Connection} onClose={() => setEditConn(null)} /> : null}
     </>
   );
 }

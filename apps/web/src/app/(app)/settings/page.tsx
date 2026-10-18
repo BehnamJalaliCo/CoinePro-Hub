@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Icon } from '@/components/icon';
 import { HiringCard } from '@/components/v14/hiring';
+import { NotificationMatrix } from '@/components/v15/notification-matrix';
 import { Button } from '@/components/ui/button';
 import { Card, PageHeader, Pill, SectionTitle, Segmented, Skeleton, Switch } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
@@ -90,9 +91,11 @@ export default function SettingsPage() {
               </dl>
             ) : <Skeleton className="h-20" />}
             <div className="flex flex-wrap gap-2 pt-1">
-              {meta.data ? Object.entries(meta.data.channels).map(([k, on]) => <Pill key={k} tone={on ? 'pos' : 'neutral'} dot><span className={cx(k !== 'in_app' && 'fig')}>{k === 'in_app' ? 'داخل اپ' : k === 'web_push' ? 'Web Push' : k === 'fcm' ? 'Android (FCM)' : 'Telegram'}</span></Pill>) : null}
+              {/* FCM is dropped (owner, 2026-10-17): Android gets notifications in the app. */}
+              {meta.data ? Object.entries(meta.data.channels).filter(([k]) => k !== 'fcm').map(([k, on]) => <Pill key={k} tone={on ? 'pos' : 'neutral'} dot><span className={cx(k !== 'in_app' && 'fig')}>{k === 'in_app' ? 'داخل اپ' : k === 'web_push' ? 'Web Push' : 'Telegram'}</span></Pill>) : null}
             </div>
           </Card>
+          <NotificationMatrix />
         </div>
       </div>
     </>

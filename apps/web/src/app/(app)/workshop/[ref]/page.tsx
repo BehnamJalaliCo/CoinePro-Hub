@@ -183,7 +183,7 @@ export default function SessionPage({ params }: { params: Promise<{ ref: string 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-sec">
           <span className="flex items-center gap-1.5"><Avatar kind={s.driver.kind} size={22} state={s.state === 'working' ? 'working' : 'idle'} />{ACTOR_FA(s.driver)}</span>
           <span className="fig">{modelLabel(s.model)} · {s.effort}</span>
-          <span>{s.runtime === 'managed' ? 'Managed Agents' : 'میزبانی خودمان'}</span>
+          <span>{s.runtime === 'subscription' ? 'اشتراک Claude، روی هاب' : s.runtime === 'managed' ? 'Managed Agents' : 'میزبانی خودمان'}</span>
           {grant ? <span>زیر مجوز <span className="fig">{grant.ref}</span></span> : null}
           {s.pr_url ? <a href={s.pr_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 font-semibold text-gold-ink hover:underline"><Icon name="share" size={14} />PR در GitHub</a> : null}
           <span className="flex-1" />

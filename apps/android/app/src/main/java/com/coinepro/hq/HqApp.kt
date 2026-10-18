@@ -15,6 +15,7 @@ class HqApp : Application() {
         super.onCreate()
         Demo.init(this)
         graph = AppGraph(this)
+        ProcessLifecycleOwner.get().lifecycle.addObserver(graph.lock)
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 val env = graph.env.value

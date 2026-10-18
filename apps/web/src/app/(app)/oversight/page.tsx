@@ -216,7 +216,9 @@ function Protocols() {
                   <span className="truncate text-[13px] text-ink">{p.title_fa}</span>
                   <span className="text-[11px] text-muted">{METHOD_FA[p.method] ?? p.method} · {rruleFa(p.schedule)}</span>
                 </span>
-                {p.last_run ? <Pill tone={p.last_run.result === 'pass' ? 'pos' : p.last_run.result === 'fail' ? 'neg' : 'warn'} dot>{p.last_run.result === 'pass' ? 'قبول' : p.last_run.result === 'fail' ? 'رد' : 'نیمه'}</Pill> : <Pill tone="neutral">هنوز نه</Pill>}
+                {p.status === 'paused' ? <Pill tone="neutral">متوقف</Pill>
+                  : p.last_run?.result === 'deferred' ? <Pill tone="neutral">به فردا</Pill>
+                  : p.last_run ? <Pill tone={p.last_run.result === 'pass' ? 'pos' : p.last_run.result === 'fail' ? 'neg' : 'warn'} dot>{p.last_run.result === 'pass' ? 'قبول' : p.last_run.result === 'fail' ? 'رد' : 'نیمه'}</Pill> : <Pill tone="neutral">هنوز نه</Pill>}
               </button>
             </li>
           ))}
@@ -228,6 +230,7 @@ function Protocols() {
             <div className="flex flex-wrap gap-2"><Pill tone="neutral">{AREA_FA[open.area]}</Pill><Pill tone="neutral">{METHOD_FA[open.method]}</Pill><SeverityPill s={open.severity} /><Pill tone="neutral">{rruleFa(open.schedule)}</Pill></div>
             <div className="flex flex-col gap-1"><span className="font-semibold text-sec">چه چیزی چک میشود</span><p dir="ltr" className="rounded-[10px] bg-tile p-3 text-left text-[12px] leading-6 text-ink">{open.check_md}</p></div>
             <div className="flex flex-col gap-1"><span className="font-semibold text-sec">شاهد</span><p dir="ltr" className="text-left text-[12px] text-sec">{open.evidence_md}</p></div>
+            {open.status === 'paused' ? <p className="rounded-[10px] bg-tile p-3 text-[12px] text-sec">متوقف است، چون قابلیتی که میسنجد هنوز ساخته نشده. با ساخته شدنش روشن میشود و تا آن موقع هیچ یافته‌ای نمیسازد.</p> : null}
             <p className="text-[12px] text-muted">پاسخ‌گو: {open.answerable} · نسخه‌ی <span className="fig">{open.version}</span>{open.last_run ? <> · آخرین اجرا {ago(open.last_run.at)}، {open.last_run.findings} یافته</> : null}</p>
           </div>
         </Sheet>

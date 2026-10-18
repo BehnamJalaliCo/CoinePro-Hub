@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The cartable widget (M12): the owner's pending seals and urgent items, as the app last saw them. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:gravity="center_vertical|end"
+    android:layoutDirection="rtl"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/iranyekanx_fanum"
+        android:text="@string/widget_title"
+        android:textColor="#B3FFFFFF"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/widget_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/iranyekanx_fanum"
+        android:text="—"
+        android:textColor="#FFF2C14E"
+        android:textSize="34sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widget_urgent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/iranyekanx_fanum"
+        android:textColor="#FFF6465D"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/widget_at"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/iranyekanx_fanum"
+        android:textColor="#80FFFFFF"
+        android:textSize="11sp" />
+</LinearLayout>

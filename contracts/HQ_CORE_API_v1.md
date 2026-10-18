@@ -7,7 +7,7 @@
 >
 > **v1.1 (۲۰۲۶-۱۰-۱۷):** «Contract notes» گزارش پرامپت ۴ و نتیجه‌ی بازبینی وارد شد. تغییرها با ⟨1.1⟩ علامت خورده‌اند؛ آن‌هایی که هنوز پیاده نشده‌اند در `docs/server-prompts/PROMPT_04_1_HARDENING.md` هستند.
 >
-> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴).
+> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری (§۲۱، پرامپت ۱۲).
 
 ---
 
@@ -182,6 +182,7 @@ Work {
   escrow: Escrow|null,               // recurring only
   schedule: { rrule, timezone, next_at }|null,
   deliverable_ids: [], evidence: [Evidence],
+  key_result: "KR-…"|null,           // ⟨1.5⟩ the OKR key result it serves (§20.5)
   version, created_at, updated_at
 }
 Actor { kind: "owner"|"agent"|"service", code: "owner"|"TY-CEO"|..., display_fa }
@@ -228,7 +229,7 @@ Decision {
   seal: { sealed_at, method: "passkey_uv", step_up_id }|null,
   note|null, resolution: "M-0001"|null, thread: "TY-CEO"|null,
   approver: Actor|null,   // ⟨1.4.3⟩ who decides it: null = the owner; a company's CEO for delegated hires (§18.11)
-  digital_ceo_prediction: { verdict: "approve"|"reject", confidence }|null,   // shown only when §1.8 enables it
+  digital_ceo_prediction: { verdict: "approve"|"reject", confidence }|null,   // shown only when §1.8 enables it; ⟨1.5⟩ shape and reveal rule in §21.10
   version, created_at
 }
 ```
@@ -237,11 +238,13 @@ Decision {
 | `hire` | `{company, department, title_fa, title_en, reason, duties[], model, effort, permissions[], quota_estimate_month}` | owner |
 | `dismissal` | `{employee, reason, transfer_to?}` | owner |
 | `recurring_approval` | `{work_id, escrow, schedule}` | owner, or the company's CEO within quota |
-| `deploy` | `{repo, pr_url, diff_stat, ci: {status, url}, tests: {passed, failed}, rollout}` | owner only (A3) |
+| `deploy` | `{repo, pr_url, diff_stat, ci: {status, url}, tests: {passed, failed}, rollout}`; ⟨1.5⟩ one definition in §21.6, adding `head_sha` (required, the card is bound to it), `window`, `calendar_conflicts`, `diff`, `diff_unavailable` | owner only (A3) |
 | `a3_action` | `{action, target, preview}` (publish, customer message, restart, price change) | owner; a post already in the approved content calendar may be approved by the CEO (§1.12) |
 | `proposal` | `{okr, cost, risk, expected_impact, options[]}` (CEO growth proposals, batched) | owner |
 | `budget_change` | `{scope, period, token_limit?, usd_limit?}` | owner |
-| `evaluation` | `{employee, recommendation: "promote"\|"demote"\|"dismiss", evidence}` (monthly HR) | owner |
+| `evaluation` | `{employee, recommendation: "promote"\|"demote"\|"dismiss", evidence}` (monthly HR); ⟨1.5⟩ payload v2 in §21.5 | owner |
+| ⟨1.5⟩ `message_template` · `lifecycle_rule` · `support_go_live` | §19.9 | owner |
+| ⟨1.5⟩ `meeting_resolution` · `charter_amendment` · `okr` · `knowledge_entry` · `risk_acceptance` · `authority_change` | §20.11 | owner |
 
 **Authority is policy, not code:** the "who may approve" column lives in OPA (`policy/decisions.rego`) and is tested. ⟨1.1⟩ The proposer is part of the policy input; **proposer = approver is always denied.** `budget_change.scope` must lie inside the proposer's company (owner proposals excepted).
 
@@ -253,7 +256,7 @@ Decision {
 |---|---|---|
 | GET | `/decisions` | `?status&company&kind&risk&q` — default `status=pending`, oldest first |
 | GET | `/decisions/{ref}` | |
-| POST | `/decisions/{ref}/approve` | 🔏 for `A3`, `hire`, `dismissal`, `budget_change`; `{note?, amendments?}` → resolution created |
+| POST | `/decisions/{ref}/approve` | 🔏 for `A3`, `hire`, `dismissal`, `budget_change`, ⟨1.4.3⟩ `code_session` (its seal creates a workshop grant), ⟨1.4.5⟩ `protocol`, `tool_enable`, `errand_action`, `company_found`, `lesson_adoption` (target = ref; a card is bound to what it proposes, so when that changes the card is superseded: `409 decision_not_pending`, and a new card comes). A `server_plan` card is sealed only on its own route against the plan's `digest` (§18.8); here it answers `409 validation_failed`. ⟨1.5⟩ Also 🔏 (target = ref, bound to the payload the same way): `message_template`, `lifecycle_rule`, `support_go_live` (§19.9), `charter_amendment`, `risk_acceptance`, `authority_change` (§20.11), `evaluation` (§21.5); several low-risk A1 cards may be sealed together (§20.10); `{note?, amendments?}` → resolution created |
 | POST | `/decisions/{ref}/reject` | `{reason?, reason_code?: "cost"\|"risk"\|"timing"\|"quality"\|"other"}` |
 | POST | `/decisions/{ref}/return` | «برگشت با یادداشت»: `{note}` (required) → back to the proposer |
 | POST | `/decisions/{ref}/ask` | «توی چت بپرس»: opens or reuses the proposer's thread and posts a linked message; returns `{thread, message_ref}` |
@@ -364,6 +367,7 @@ Behaviour (§1.7):
 ## 7. Live stream
 
 `GET /stream` — Server-Sent Events. `?topics=work,decisions,deliverables,messages,notifications,activity,llm,control,runs,stories&company=TY` (repeatable; ⟨1.4.1⟩ `runs` carries `run.*`).
+- ⟨1.5⟩ Topics added by §19–§21: `revenue`, `support`, `growth`, `feedback` · `meetings`, `governance`, `knowledge` · `advisor`, `ask`, `reviews`, `briefings`, `people`, `notes`, `quality`, `dceo`.
 - ⟨1.4.2⟩ **Unknown topics are ignored**, not refused: a client may name topics a newer server adds (`files`, `workshop`, `orders`, the §18 topics). The first SSE comment lists the topics actually served (`: topics work,decisions,…`). Only a malformed `topics` (pattern, length) is `422`.
 - Envelope: `event: <type>` and `data: {id, type, at, company, ref, data}`; `id:` is the JetStream sequence so `Last-Event-ID` resumes without loss.
 - Types: `work.created|updated|delegated|completed`, `decision.created|decided`, `deliverable.created|rated`, `message.created`, `notification.created`, `presence.changed`, `control.changed`, `employee.updated`, `activity.changed` (runtime), `llm.call.started|finished` (from llm-router, metadata only), `budget.alert`.
@@ -413,6 +417,7 @@ Engaged holding kill switch: the router refuses every call except P0, the worker
 | GET | `/connections` | registry without secrets |
 | PATCH | `/connections/{id}` 🔏 | `status`, `display_name`, price table (each price with `source_url` and `as_of`); `Connection.version` and `If-Match` like every PATCH ⟨1.1⟩ |
 | POST | `/connections/{id}/secret` 🔏 | `{secret}` **write-only** → stored in OpenBao; response never contains it; audit records only that it changed |
+| POST | `/connections` 🔏 | ⟨1.5⟩ a new connection, `connection.create` on the body hash; it starts `pending_secret` (§21.7) |
 | GET/PUT | `/assignments` (PUT 🔏) | holding → company → department → role → task class, with inheritance shown resolved. ⟨1.1⟩ The step-up is bound to a hash of the request body, not to `*`. |
 | GET/PUT | `/budgets` (PUT 🔏) | per scope and period; step-up bound to the body hash ⟨1.1⟩ |
 
@@ -461,6 +466,8 @@ Used by the agent runtime in prompt 5 and by tests now (with a fake agent princi
 ⟨1.4.2⟩ `hiring_closed` (403, an agent proposed a hire while hiring is closed, §18.11).
 ⟨1.3⟩ `runtime_not_configured` (503, the Code Workshop has no runtime yet, §17.7).
 ⟨1.4.3⟩ `envelope_required` (422, delegated hiring needs a monthly envelope for every operating company), `envelope_exceeded` (409, the hire's monthly estimate does not fit the company's envelope), `story_limit` (429, a company's three stories a day). `not_ready` (409, a feature the contract names that this server build does not serve yet, e.g. `delegated` before prompt 8).
+⟨1.4.5⟩ `needs_owner` (403, a web step or call that would commit the holding outside: the agent proposes it instead), `internal_data` (403, an outgoing query or call carries internal data), `egress_limit` (429 with `Retry-After`, a run's or a company-day's internet limit), `account_not_configured` (409, a service account has no secret yet). The MCP outcomes are not Problem codes: they are step outcomes (§18.13).
+⟨1.5⟩ `channel_not_live` (409), `shadow_not_passed` (409), `template_not_sealed` (409), `send_blocked` (422, with `blocked_reasons`), `opted_out` (409), `send_limit` (429 with `Retry-After`) — §19; `meeting_not_live` (409), `knowledge_expired` (422), `batch_not_eligible` (422, `fields.items`) — §20.
 
 ---
 
@@ -568,7 +575,7 @@ FileRef ⟨1.3⟩ { id, name, mime, size, sha256,
 ### 17.2 Voice to exact Persian text
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/transcribe` | Owner only. Raw audio body (types and limits as §17.1 audio). `?purpose=message\|order\|note`. → `{ text, language: "fa", duration_s, confidence: 0..1, segments: [{start_s, end_s, text}], file_id, engine: {name, model, version} }` |
+| POST | `/transcribe` | Owner only. Raw audio body (types and limits as §17.1 audio). `?purpose=message\|order\|note` (⟨1.5⟩ `&save=true` with `note` also files the quick note, §21.8). → `{ text, language: "fa", duration_s, confidence: 0..1, segments: [{start_s, end_s, text}], file_id, engine: {name, model, version} }` |
 
 - Engine: **self-hosted Whisper** (`faster-whisper`, model `large-v3-turbo`, int8 on CPU; MIT licence) with `language="fa"`, beam 5, VAD.
   Nothing leaves the hub for speech recognition.
@@ -590,7 +597,7 @@ Workspace { id, code: "FX-APP", company, repo: "<owner>/<name>", default_branch,
 Grant     { id, ref: "G-0001", workspace, actions: ["read","edit","run","push_branch","open_pr"], driver: Actor|null,
             budget_usd, expires_at, granted_by: Actor, decision_ref|null, revoked_at|null }
 CodeSession { id, ref: "S-0001", workspace, grant, title, brief, opened_by: Actor, driver: Actor,
-              runtime: "managed"|"self_hosted", model, effort,
+              runtime: "subscription"|"managed"|"self_hosted", model, effort,
               state: "starting"|"working"|"waiting_approval"|"idle"|"done"|"failed"|"stopped",
               branch|null, pr_url|null, usage: { usd, input_tokens, output_tokens }, created_at, updated_at }
 SessionEvent { seq, at, type: "message"|"progress"|"command"|"file_change"|"approval_request"|"approval_result"|"state"|"error",
@@ -615,8 +622,9 @@ SessionEvent { seq, at, type: "message"|"progress"|"command"|"file_change"|"appr
 **Rules (non-negotiable):**
 1. The workshop **never touches production**: no SSH, no deploy keys, no server credentials, no database URLs. Its only write is a git push to
    `hq/<session-ref>` branches and opening a PR. Merge and deploy stay decisions with the owner's seal (§5.1, OPERATING_MODEL §1.1).
-2. **Credentials never enter the sandbox.** The GitHub credential is per workspace, fine-grained (contents and pull requests on that one
-   repository), kept by the hub (or the managed runtime's vault, substituted at egress), never printed, never shown to a model.
+2. **Credentials never enter the sandbox.** ⟨1.4.3⟩ The hub clones into the sandbox and **the hub itself pushes** the session's `hq/<session-ref>`
+   branch (a fixed refspec, never another ref) and opens the PR, with the git access the owner already gave the hub (owner, 2026-10-17: no new
+   tokens). The credential stays in the hub, is never printed and never shown to a model; a workspace the hub cannot reach shows `no_access`.
 3. Each session runs in **its own sandbox** with a fresh clone, no access to the hub's network or other sessions, outbound limited to GitHub and
    package registries. A session's CLAUDE.md is the repository's own; the repository's rules bind the session.
 4. **Budget:** every session has a USD cap from its grant; at the cap it stops and asks. Usage enters the Token Treasury like every call.
@@ -625,9 +633,11 @@ SessionEvent { seq, at, type: "message"|"progress"|"command"|"file_change"|"appr
 7. **Everything is recorded:** events carry summaries and metadata; the full session transcript is stored in object storage, owner-readable,
    retained with the audit set.
 
-**Runtime.** `managed` = Claude Managed Agents (Anthropic hosts the loop and a per-session container; its permission policy `always_ask` for
-pushes and PRs maps to `approval_request`; the GitHub credential lives in its vault). `self_hosted` = the Claude Agent SDK in disposable
-containers on a separate builder host. The contract is the same for both; the choice is an owner decision recorded in prompt 6.
+**Runtime.** ⟨1.4.3⟩ **None is chosen; the in-hub runtime is shelved** (owner, 2026-10-17). The owner wants to see their own Claude Code sessions,
+and those live in claude.ai/code and the Claude app, which no official API exposes to a third-party app; building a look-alike would spend credit
+without giving that. The control plane (workspaces, grants, history) stays and stays dormant: `workshop.runtime` is `null` and
+`POST /workshop/sessions` answers `503 runtime_not_configured`; the apps open claude.ai/code instead. `subscription` (Claude Code under the
+holding's subscription in a sandbox on the hub, the hub pushing), `managed` and `self_hosted` remain designs, not builds.
 
 ### 17.4 Voice orders (فرمان صوتی)
 | Method | Path | Notes |
@@ -653,7 +663,7 @@ Their `/stream` topics: `files`, `workshop`, `orders` (added to the `topics` lis
 - Step-up actions (🔏 above): `workshop.grant` and `workshop.workspaces` are bound to the SHA-256 of the request body (like
   `/budgets`); `workshop.approval` is bound to `"{session_ref}/{approval_id}"` (e.g. `S-0004/AP-0007`) and is needed only to
   **allow** — a denial (`allow: false`) needs no step-up, like engaging a kill switch.
-- `GET /meta` gains `workshop: { runtime: "managed"|"self_hosted"|null }` — `null` until the owner chooses (then `POST /workshop/sessions`
+- `GET /meta` gains `workshop: { runtime: "subscription"|"managed"|"self_hosted"|null }` — `null` until the owner chooses (then `POST /workshop/sessions`
   answers `503 runtime_not_configured`), so the apps can say so before the owner tries.
 
 ### 17.8 As built in prompt 6 ⟨1.4.3⟩
@@ -694,7 +704,7 @@ Protocol   { id, ref: "PR-001", title_fa, area: "truth"|"authority"|"money"|"saf
              check_md, method: "rule"|"sample"|"llm"|"reconcile"|"blind_test"|"mystery"|"drill",
              schedule: RRULE (owner TZ), scope: "holding"|"company"|"department", evidence_md,
              severity: "info"|"low"|"medium"|"high"|"critical", answerable: role, status: "active"|"paused"|"draft",
-             version, sealed_at|null, last_run: { at, result: "pass"|"fail"|"partial", findings: int }|null }
+             version, sealed_at|null, last_run: { at, result: "pass"|"fail"|"partial"|"deferred", findings: int }|null }
 Finding    { id, ref: "FI-0001", company, protocol|null, severity, title_fa, body_md, evidence: [{kind, ref, note}],
              status: "open"|"acknowledged"|"fixing"|"fixed"|"verified"|"disputed"|"closed", answerable: Actor, due_at,
              opened_at, closed_at|null, history: [{at, by: Actor, status, note}] }
@@ -707,6 +717,10 @@ Hold       { id, ref: "H-0001", company, action: { kind, summary_fa, payload_dig
 Compliance { company, score: 0..100, by_area: {area: 0..100}, findings_open: {critical, high, medium, low}, protocols: {passed, failed}, trend: [0..100] }
 WatchReport { on: bool, since, until|null, summary_md, held: [H-…], urgent: [notification id], findings: [FI-…] }
 ```
+⟨1.4.4⟩ **A protocol that checks a feature not built yet is `paused`:** no schedule, no run, no finding, not counted in compliance.
+The prompt that builds the feature makes it `active`. **Oversight token share:** the overseer and QC together use at most
+`OVERSIGHT_DAILY_SHARE` (default 0.2) of the agents' daily token cap; once it is spent only `critical` protocols run and the rest
+record `deferred` (not a failure) and run first the next day. One overseer run is capped at 200 000 tokens (charter v2).
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/oversight/summary` | compliance per company, open findings by severity, holds waiting, this week's challenges, watch mode |
@@ -789,18 +803,21 @@ Skill { id, ref: "SK-001", name_fa, summary_fa, body_md, resources: [FileRef], s
 ### 18.6 The holding academy
 ```
 Curriculum { role, version, modules: [{key, title_fa, skills: [ref], playbooks: [ref], examples: {good: [O-…], bad: [O-…]}}], updated_at }
-EvalSuite  { ref: "EV-001", role, title_fa, cases: [{id, input_md, rubric_md, weight}], baseline: {subject, version, score} }
-EvalRun    { id, suite, subject: {kind: "charter"|"skill"|"model", ref, version}, score: 0..100, passed: bool, cases: [{id, score, notes}], at }
+EvalSuite  { ref: "EV-001", role, title_fa, cases: [{id, input_md, rubric_md, weight}], baseline: {subject, version, score},
+             recent: [EvalRun] }                                                        // ⟨1.4.5⟩ in GET /academy/evals: the last 10 runs, oldest first
+EvalRun    { id, suite, subject: {kind: "charter"|"skill"|"model", ref, version}, score: 0..100, passed: bool, cases: [{id, score, notes}], at,
+             tokens: {input, output}, equiv_cost_usd }                                  // ⟨1.4.5⟩ what the run cost, for comparing models
 Teaching   { id, ref: "TE-0001", target: {kind: "role"|"employee", ref}, source: "voice"|"text", text_md, file_id|null,
              proposal: {kind: "charter_rule"|"skill"|"memory"|"playbook", diff_md}|null, eval_run|null,
              status: "drafting"|"proposed"|"approved"|"rejected", created_at }
 TrainingRecord { employee, charter_version, curriculum_version, skills: [ref@version], evals: [{suite, score, at}], lessons: [L-…], trend: [0..100] }
 ```
 | GET | `/academy/curricula` · `/academy/curricula/{role}` | |
-| GET | `/academy/evals` · `/academy/evals/{ref}/runs` | |
+| GET | `/academy/evals` · `/academy/evals/{ref}/runs` | ⟨1.4.5⟩ runs are a `Page`, newest first |
+| GET | `/academy/runs` | ⟨1.4.5⟩ `?role&suite&subject_kind&subject_ref&latest&cursor` — runs across suites, a `Page`, newest first; `latest=true` keeps only the newest run per (suite, subject). `?subject_kind=model&latest=true` is the model comparison: which model does each suite's work best, and at what cost |
 | GET · POST | `/academy/teach` | POST `{target, text, source, file_id?}`; the AI Ops head drafts, the overseer reviews, an eval runs |
 | POST | `/academy/teach/{ref}/approve` 🔏 · `/reject` | target = ref |
-| GET | `/academy/records/{employee}` | |
+| GET | `/academy/records/{employee}` | ⟨1.4.5⟩ the employee card's training history: `evals` newest first, `trend` the last 12 eval scores oldest first |
 - **Gate:** a new charter, skill or model assignment goes live only when its eval score ≥ baseline − 1; otherwise it is rejected with the report.
 
 ### 18.7 Internet and MCP for agents
@@ -861,12 +878,13 @@ BackupStatus { hourly: {last_at, next_at, ok, snapshot, size_bytes}, wal: {last_
 - Restore never goes through the API: the owner runs it in their own terminal.
 
 ### 18.10 Decision kinds, stream types, step-up targets
-- **Decision kinds** added: `protocol`, `tool_enable`, `errand_action`, `company_found`, `server_plan`, `lesson_adoption`.
+- **Decision kinds** added: `protocol`, `tool_enable`, `errand_action`, `company_found`, `server_plan`, `lesson_adoption`. ⟨1.4.5⟩ All are sealed with step-up; how, and the one exception (`server_plan`), is in the approve row of §5.1.
 - **Stream types** (topics): `oversight.finding`, `oversight.hold`, `oversight.watch` (`oversight`) · `inquiry.answered` (`inquiries`) ·
   `errand.updated` (`errands`) · `stars.rollup` (`stars`) · `skill.updated` (`skills`) · `academy.eval` (`academy`) ·
   `founding.updated`, `provision.step` (`founding`) · `backup.done`, `backup.failed` (`backups`).
 - **Step-up targets:** `oversight.protocol` (body hash), `oversight.order` (ref), `oversight.release` (ref), `skill.activate` (`ref@version`),
-  `academy.approve` (ref), `mcp.add` (body hash), `mcp.enable` (key), `provision.seal` (the plan's `digest`), `founding.activate` (ref).
+  `academy.approve` (ref), `mcp.add` (body hash), `mcp.enable` (key),
+  `provision.seal` (the plan's `digest`), `founding.activate` (ref), ⟨1.4.5⟩ `account.put` (body hash). ⟨1.5⟩ `revenue.account`, `support.kb`, `support.channel`, `growth.template`, `growth.rule`, `intake.source` (§19.9) · `charter.seal`, `authority.update`, `meetings.settings`, `decision.batch` (§20.11) · `connection.create` (§21.12).
 
 ### 18.11 Hiring: the owner opens it, the CEOs hire ⟨1.4.2⟩ ⟨1.4.3⟩
 Owner decisions, 2026-10-17: no hire now; hiring opens when the owner brings the hub up for real work. From then on **each company's CEO hires with full authority inside the company's monthly token envelope**: departments ask for the people they need, the CEO decides, and **the CEO chooses the model each job needs** (not every role on Opus). The owner is kept informed through stories (§18.12) and the digest, and can undo any hire. Spending the envelope well, with results and without waste, earns stars (§18.4).
@@ -926,3 +944,807 @@ StoryRing { company, unseen, latest_at, items: [Story] }    // items oldest firs
 - **CEO stories:** the tool `story.post` `{kind: "post"|"milestone", title_fa, body_fa, figures?, file_id?, links?}` (A1; CEOs and holding heads): at most **3 per company per day** (`429 story_limit`), redacted like every agent output, an image only from the company's own files, no outside links; a `milestone` must link the evidence (work, deliverable or metric).
 - The owner never gets a push for a story; a `hire` story also appears in the digest (above).
 - Stream: `story.created` on topic `stories`.
+
+### 18.13 As built in prompt 7 ⟨1.4.5⟩
+**Backups (§18.9).** `BackupStatus` as served:
+```
+BackupStatus { hourly: {last_at, last_ok_at, next_at, ok, error|null, stale: bool, snapshot, size_bytes},
+               wal: {last_archived_at, lag_s, failed_count, failing: bool, ready_count},          // failing, ready_count: 7.1
+               base_backup: {last_at, count}|null, check: {last_at, ok}|null,
+               destinations: [{key, configured, ok|null, error|null, last_ok_at, used_bytes, quota_bytes|null}],
+               retention, restore_test: {last_at, ok, duration_s, notes, pitr_target|null, source|null},
+               openbao_snapshot: {configured, last_at, ok}, encryption }
+Snapshot     { id, time, destination: "local"|"gdrive"|"hetzner", size_bytes|null, tags }
+```
+- `GET /backups/snapshots` is a `Page` (`?destination&limit&cursor`).
+- **WAL archiving that fails is a data-loss alarm, not a statistic:** `wal.failing` is true when the last failure is newer than the last success,
+  or more than 5 segments wait (`ready_count`). Then `hourly.ok` is false and the owner gets an urgent alert at once (7.1).
+
+**Internet (§18.7).**
+```
+EgressEntry    { …§18.7, kind: "request"|"connect"|"search"|"browse" }
+EgressDay      { company, day, requests, blocked, bytes, browser_s, hosts }       // GET /egress/summary?period=day|week|month
+ServiceAccount { id, key, site, title_fa, companies, has_secret, last_used_at|null,
+                 policy: { inject: {kind: "bearer"|"header"|"basic"|"cookie", name?, username?},
+                           browse: {kind: "cookie"|"header"|"form", name?, login_url?, username?, user_selector?, pass_selector?, submit_selector?}|null,
+                           allow: [{methods: ["POST"|"PUT"|"PATCH"|"DELETE"|"OPTIONS"], path_prefix, note_fa?}],   // the non-committing calls
+                           ports: [int] } }                                  // extra ports, for the account's own site only (7.1)
+```
+- `POST /tools/accounts` adds or changes an account by `key`. **🔏 `account.put`, target = sha256 of the body** (7.1): a new site, allow rule or
+  port widens what a stored secret can do, so it is a seal like `mcp.add`. Takes `Idempotency-Key`.
+- `web.browse` is capped at 15 s per call. The data guard refuses every e-mail address and phone number in an outgoing query (safe default),
+  after decoding (percent-encoding, full-width forms, Persian digits; 7.1).
+- An agent's internet call that is refused for policy is a step with `outcome: "denied"` and one of the four codes of §14.
+
+**MCP (§18.7).**
+```
+McpServer { …§18.7, status_reason|null, auth_header|null, listed_tools: [{name, description}]|null, listed_at|null, enabled_at|null, version }
+CatalogTool { name, source: "internal"|"web"|"mcp", server|null, class, per_call: bool, roles, status: "live"|"off"|"channel_not_configured"|"pending",
+              description, input }
+```
+- **Step outcomes** of `mcp.call` (in `Step.actions[].ref`, never Problem codes): `mcp_tools_changed` (the server's listing no longer matches the
+  sealed one; the server is switched off), `mcp_tool_missing`, `mcp_unreachable`, `mcp_tool_error`, `a3_requires_decision` (an A3 tool became a card).
+- **A3 tool → card:** the `a3_action` card's payload gains `action: "mcp_call"`, `server`, `tool`, `args_sha256` and the arguments **with secrets
+  masked but recipients and amounts shown** (the owner must see what they approve). **Approving runs the call exactly once** (7.1): the follow-up
+  run's identical call (same company, server, tool, `args_sha256` and registration) consumes the approved card; a changed argument needs a new
+  card; a rejected card answers `denied` with no new card.
+- **A changed listing** switches the server off and raises a `tool_enable` decision card (§18.10) with `{key, listing_sha256, diff: {added, removed,
+  changed}}`. Approving it is the usual 🔏 decision seal (`decision.approve`, target = ref) and re-enables the server with **exactly that listing**;
+  a listing that changes again before the seal supersedes the card (`409 decision_not_pending`) and a new card comes.
+- The three MCP POSTs take `Idempotency-Key` (§1).
+- **Agents' files:** `GET /internal/v1/files/{id}/meta` adds `agent` (the variant id for vision) and `text` (a PDF's extracted text, or null).
+
+## 19. v1.5 — revenue and support (prompt 10)
+
+> **v1.5 (2026-10-18).** The holding's money comes from exchange referral commission (VIP is free for users who sign up with our referral and
+> keep a minimum balance). This section makes that money visible every day and protects it: the revenue radar, the funnel, referral rescue, a
+> support desk the owner teaches, lifecycle messages, NPS, a feedback inbox and one anti-fraud rule over every word sent to a customer.
+> Everything above still holds. **Rules first, AI last:** pulls, triggers, checks and limits are code; a model writes only what a rule cannot.
+
+### 19.0 Principles ⟨1.5⟩
+- **Nothing the AI writes reaches a customer unchecked.** Every outbound message (support, rescue, lifecycle, NPS, the owner's own reply) passes
+  the **outbound guard** (§19.6) in code; a message it refuses is never sent and is stored as `blocked` with its reasons.
+- **Referral codes, referral links and official links come only from approved knowledge** (`KbArticle.kind` `referral` / `official_link`).
+  The guard refuses any referral-looking code or any link that is not an exact approved one. A model never makes one up.
+- **Support never asks for** a password, a private key, a seed phrase, a 2FA/SMS code, an API secret or a card number, and **never promises profit**.
+- **Auto-send** (OPERATING_MODEL §1.12 exception) covers only answers built from **approved** articles of the conversation's company, on a channel
+  the owner put `live`, after the **shadow test** passed (§19.4). Anything else goes to the owner's teaching queue.
+- **Rule-sent messages** (rescue follow-ups, lifecycle, NPS) use a **sealed template** under a **sealed rule** with limits; sealing the rule is the
+  owner's A3 approval in advance. Free-text outbound by an agent does not exist.
+- **Customer data stays in its company** (RLS) and is masked everywhere but the support screens of the owner and that company's support roles.
+  Analytics use a keyed pseudonym (HMAC, key in OpenBao), never the handle or the exchange UID.
+- **No fixed number of companies, channels or exchanges** anywhere: each is data.
+
+### 19.1 Revenue radar (G1)
+```
+RevenueAccount { id, company, exchange: "lbank"|…, adapter: "lbank-affiliate-v2"|…, service_account: key,   // a §18.13 service account
+                 title_fa, status: "not_configured"|"ok"|"error", last_pull_at|null, last_error|null, version }
+RevenueDay     { company, account, day,                                   // the exchange's settlement day (lbank: T+1, UTC+8)
+                 commission_usdt, by_coin: [{coin, amount, usdt, price_source}], fees_usdt|null, volume_usdt|null,
+                 new_invitees, active_traders|null, deposits_usdt|null,
+                 complete: bool, pulled_at, source: {adapter, endpoints: [path]} }
+RevenueSummary { period: "day"|"week"|"month", from, to, total_usdt, prev_total_usdt|null,
+                 by_company: [{company, usdt, token_cost_usd, net_usd, share}],
+                 by_account: [{account, company, usdt}], trend: [{day, usdt}],
+                 alerts: [{kind: "drop"|"pull_failed"|"incomplete", company, account|null, note_fa}] }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/revenue/summary` | `?period=day\|week\|month&company` — owner, CEOs (own company), advisor, overseer, FIN and SALES managers |
+| GET | `/revenue/days` | `?company&account&from&to` — unpaged, ≤ 400 rows |
+| GET · POST | `/revenue/accounts` | POST 🔏 `revenue.account` (body hash) adds or changes one by `exchange` + `company`; the secret is never in the API (`make account-secret`) |
+| POST | `/revenue/accounts/{id}/pull` | owner: pull now (`?from&to`, ≤ 31 days), rate-limited like the schedule · `Idempotency-Key` (required) |
+- The pull is **code** (a worker schedule after the exchange's settlement time), through egress with the account's signed connector; the key never
+  leaves egress.
+- **Signed requests** ⟨1.5⟩: §18.13 `ServiceAccount.policy.inject.kind` gains `"signer"` with `signer: "lbank-v2"` (a fixed list in code, never user
+  input). An account with a signer is refused for `http.request` and `web.browse` (`policy_denied`) and is used only by
+  `POST /internal/v1/egress/connectors/{adapter}/pull` (worker only); `referral.check` goes through the same connector, never through an agent's request. A day is `complete` only when every page of every endpoint answered. `token_cost_usd` comes from the Token Treasury, never from an agent.
+- Alerts (one per incident, `report` level, to the company's CEO and the owner's digest): commission below 60% of the trailing 28-day median of the same
+  weekday; a pull that failed twice in a row; a day still incomplete after 36 h.
+
+### 19.2 Funnel and referral rescue (G2, G3)
+```
+Funnel     { company, period: "week"|"month", from, to,
+             stages: [{key: "visit"|"signup"|"referral_verified"|"min_balance"|"vip_active", label_fa,
+                       count|null, connected: bool, source: "affiliate"|"product_events"|"support"|"analytics"|null}],
+             conversions: [{from, to, rate|null}], leaks: [{stage, note_fa, rate, median_rate}] }
+RescueCase { id, ref: "RC-000123", company, source: "support"|"product", conversation|null, exchange,
+             subject: pseudonym, state: "open"|"contacted"|"rescued"|"lost"|"opted_out",
+             steps: [{at, kind: "check"|"message"|"follow_up"|"note", template|null, result_fa}],
+             opened_at, rescued_at|null, closed_at|null }
+```
+| GET | `/growth/funnel` | `?company&period` — a stage with no source is `connected: false, count: null`; a rate is never estimated |
+| GET | `/growth/rescue` · `/growth/rescue/{ref}` | `?company&state&cursor` — the rescue rate is `rescued / (rescued + lost)` per period |
+- `referral_verified` and `min_balance` come from the affiliate data (§19.1); `signup` and `vip_active` from product events (§19.8), until then
+  `connected: false`. The **minimum balance** is the company's approved knowledge (`KbArticle` kind `policy`, key `vip.min_balance`), one number.
+- A rescue case opens when a UID check says "not our invitee" (support) or a product sends `referral_failed`; follow-ups run under a sealed
+  `rescue` rule (§19.5); a later check that says "our invitee" closes it `rescued`.
+
+### 19.3 Support desk (G22, G23, item 25)
+```
+SupportChannel { company, kind: "telegram_business"|"telegram_bot"|"chatwoot"|"product_bot"|"mystery",
+                 state: "not_configured"|"shadow"|"live"|"paused", live_since|null, paused_reason|null,
+                 auto_send: "kb_verbatim"|"kb_grounded"|"off" }                  // what may leave without the owner
+Conversation   { id, ref: "SC-000123", company, channel, customer: {display_name|null, handle_masked, lang},
+                 state: "open"|"waiting_owner"|"answered"|"closed", opened_at, last_message_at,
+                 handoff: {reason: "no_kb"|"low_confidence"|"blocked"|"asked_for_human"|"complaint"|"security", at}|null,
+                 tags: [string], rescue|null, csat: 1..5|null, mystery: bool }
+SupportMessage { id, conversation, at, direction: "in"|"out", author: "customer"|"agent"|"owner"|"rule",
+                 body,                                                       // masked: secrets, cards, seed phrases never stored raw
+                 status: "draft"|"queued"|"sent"|"blocked"|"failed",
+                 kb_refs: ["KB-0042@3"], confidence: 0..1|null,
+                 checks: {guard: "pass"|"fail", grounded: "pass"|"fail"|null}, blocked_reasons: [code] }
+QueueItem      { conversation, kind: "handoff"|"low_confidence"|"blocked"|"shadow_disagreement", since, draft|null, company }
+```
+| GET | `/support/channels` | `?company` |
+| POST | `/support/channels/{company}/{kind}/pause` | owner, no step-up (stopping is always safe). Going live the first time is a `support_go_live` decision (§19.9) |
+| PATCH | `/support/channels/{company}/{kind}` | owner, `If-Match` · `{auto_send?, state?: "live"}`. Widening (to `kb_grounded`, or a paused channel that already went live back to `live`) is 🔏 `support.channel`, target = `company/kind@auto_send`; narrowing (`kb_verbatim`, `off`) needs none. A channel that never went live → `409 shadow_not_passed` |
+| GET | `/support/conversations` | `?company&state&channel&q&cursor` |
+| GET | `/support/conversations/{ref}` | with messages, oldest first |
+| POST | `/support/conversations/{ref}/reply` | owner: `{body}` → sent as the owner, through the outbound guard; `422 send_blocked` with reasons · `Idempotency-Key` (required) |
+| POST | `/support/conversations/{ref}/teach` | owner: `{message_id?, answer_md, generalise: bool}` → sends the answer (if the conversation waits) and opens a `KbArticle` proposal from it · `Idempotency-Key` (required) |
+| POST | `/support/conversations/{ref}/close` | owner or support lead |
+| GET | `/support/queue` | the teaching queue: what waits for the owner, oldest first |
+- **Answering:** a customer message first meets the **rules**: an exact or near-exact match (Persian-normalised full-text, score above the company's
+  threshold) to one approved `faq` article answers **verbatim** with no model. Otherwise the company's support agent drafts from approved articles
+  only, citing them; code checks every link, code, number and figure in the draft against the cited articles (`grounded`), then the guard.
+  `auto_send` decides what leaves alone: `kb_verbatim` (default after go-live) = verbatim answers only; `kb_grounded` = also drafts that pass both
+  checks with confidence ≥ the company's threshold (the owner turns it on per channel with the `PATCH` above); `off` = everything waits.
+- **Draft budget:** the model drafts of one company use at most `SUPPORT_DRAFT_DAILY_TOKENS` a day (default 60 000; the router enforces it as the
+  scope `support_draft:<company>`). When it is spent, the rest of that day's messages are handed off without a model call (`low_confidence`).
+- **Handoff:** no article, low confidence, a refusal, a complaint, a security report or "I want a human" → the conversation waits for the owner,
+  the customer gets the sealed `holding_reply` template, and the owner's digest gets one line (batched every 30 min; `urgent` only for a
+  `security` handoff such as an impersonation report, within the urgent limit).
+- **Teaching (حالت آموزش):** whatever the owner answers or corrects becomes a `KbArticle` proposal written by the support lead (generalised,
+  variables marked, no customer data), approved by the owner (§19.4). The owner's answer is sent at once; the article helps the next customer.
+
+### 19.4 Knowledge base, shadow test, go-live
+```
+KbArticle   { id, ref: "KB-0042", company, version, kind: "faq"|"policy"|"procedure"|"referral"|"official_link"|"safety",
+              key|null,                                       // policy keys, e.g. "vip.min_balance"
+              question_fa, variants: [string], answer_md, variables: [{name, source: "customer"|"policy"}],
+              links: [{url, label_fa}], codes: [{exchange, code}],            // referral / official_link only
+              status: "proposed"|"approved"|"expired"|"retired", source: {kind: "owner_answer"|"owner"|"doc"|"agent", ref},
+              approved_at|null, expires_at, uses_30d, sha256 }
+ShadowReport { company, suite: "support-shadow-<company>@<version>", run_id, at, total, correct, partial, wrong,
+               safety_failures, wrong_codes, pass: bool, threshold: 0.9, disagreements: [{case, verdict, note_fa}] }
+```
+| GET | `/support/kb` | `?company&kind&status&q` |
+| POST | `/support/kb` | owner or agent proposal `{company, kind, question_fa, answer_md, …}` → `proposed` (a new version of `ref` when given) |
+| POST | `/support/kb/{ref}/approve` 🔏 | target `support.kb` = `ref@version`; an approved article changes what may be sent without the owner |
+| POST | `/support/kb/{ref}/retire` | owner; also automatic at `expires_at` (default 180 days; the support lead is reminded 14 days before) |
+| POST | `/support/history` | owner: `{company, file_id}` — a chat export (Telegram Desktop JSON or a CSV of question and answer) → builds the private shadow suite |
+| GET | `/support/shadow` · POST `/support/shadow/{company}/run` | the latest report; run = an academy eval run of the support charter on the suite (§18.6) |
+- The suite holds up to 100 real past questions with the owner's real answers as truth, masked, stratified by topic; it never leaves the company.
+- **Pass** = correct ≥ 90% **and** zero safety failures **and** zero wrong codes or links. Only then can a `support_go_live` card exist for that
+  company; otherwise `409 shadow_not_passed`. Telegram Business additionally needs the owner's Premium account connected (Business → Chatbots).
+
+### 19.5 Templates, lifecycle rules, NPS (G24, G25)
+```
+Template      { id, ref: "TM-0007", company, version, purpose: "welcome"|"reactivation"|"rescue"|"nps"|"holding_reply"|"safety"|"csat",
+                body_fa, variables: [name], status: "proposed"|"sealed"|"retired", sealed_at|null, sha256 }
+LifecycleRule { id, ref: "LR-0003", company, version, kind: "welcome"|"reactivation"|"rescue"|"nps"|"csat",
+                trigger: {event?: "signup"|"referral_failed"|"conversation_closed", after_hours?, inactive_days?, rrule?},
+                template: "TM-0007@2", channel: kind,
+                limits: {per_customer_days, daily_cap, quiet_hours: ["22:00", "09:00"], max_follow_ups},
+                status: "proposed"|"active"|"paused", decision_ref|null, sent_30d, opt_outs_30d }
+NpsWave       { ref: "NP-2026Q4-TY", company, quarter, sample: int, sent, responses, score: -100..100|null,
+                promoters, passives, detractors, opens_at, closes_at, comments_to_feedback: int }
+```
+| GET | `/growth/templates` · `/growth/rules` · `/growth/nps` | `?company` |
+| POST | `/growth/templates` | propose; the owner may seal directly: `POST /growth/templates/{ref}/seal` 🔏 `growth.template` = `ref@version:sha256` of the body |
+| POST | `/growth/rules` | owner: a new rule (or a new version of `ref`) → `proposed`; no agent is needed |
+| POST | `/growth/rules/{ref}/seal` 🔏 | owner: `growth.rule` = `ref@version` → `active`; its template version must be sealed, else `409 template_not_sealed` |
+| POST | `/growth/rules/{ref}/pause` · `/resume` 🔏 | pausing needs nothing; resuming `growth.rule` = `ref@version` |
+- An agent proposes a template or a rule with `propose` → decision `message_template` / `lifecycle_rule` (§19.9). A rule runs only while its
+  template version is sealed; a new template version pauses the rule until it is sealed too.
+- **Opt-out:** «لغو»، «stop»، «نمیخواهم» and their variants stop every rule for that customer in that company for good (`opted_out`).
+- **Telegram's own rules** (a bot writes only to people who wrote first; business-chat limits) are checked in code; a message Telegram would not
+  allow is recorded `no_channel`, never forced.
+- **NPS** is one rule of kind `nps` (quarterly, a random sample of customers with a conversation in the last 90 days); answers 0–10 with an
+  optional comment; comments go to the feedback inbox.
+
+### 19.6 The outbound guard (G26)
+Code, not a model, over every outbound message of every channel (also the owner's own reply and the mystery channel). Refusal codes:
+`asks_secret` (password, private key, seed phrase, 2FA/SMS code, API secret, card number — Persian and English patterns), `unknown_link` (a URL not
+in the company's approved `official_link`/`referral` articles), `unknown_code` (a referral-looking code not exactly approved), `profit_promise`
+(«سود تضمینی»، «بدون ضرر»، «حتماً سود» …), `customer_data` (another customer's handle, UID or contact), `internal_data` (§18.13), `too_long`,
+`red_line` (a `rule` red line of the sealed charter, §20.2; the message is held for review, never sent).
+- The **safety line** (a sealed `safety` template: «پشتیبانی ما هرگز رمز، کلید خصوصی، کد تأیید یا عبارت بازیابی شما را نمیخواهد…») is added to
+  the first answer of every conversation and to every lifecycle message.
+- **Inbound:** a customer message holding a secret (seed phrase, private key, card) is masked before it is stored or shown to a model, and the
+  customer gets the safety line once. An impersonation report is a `security` handoff.
+- The owner may edit and resend a blocked message; the guard runs again. There is no override for `asks_secret`, `profit_promise` or `red_line`.
+
+### 19.7 Feedback inbox (G15)
+```
+FeedbackItem { id, ref: "FB-000123", company, kind: "bug"|"feature"|"confusion"|"complaint"|"praise",
+               area: string, title_fa, count, first_seen, last_seen, quotes: [masked, ≤ 3], sources: [SC-…|NP-…],
+               state: "new"|"triaged"|"in_backlog"|"done"|"wont_do", work_ref|null, version }
+```
+| GET | `/feedback` | `?company&kind&state&cursor` — most frequent first |
+| PATCH | `/feedback/{ref}` | `state`, `work_ref`, `If-Match` (owner, the company's CEO and PRODUCT manager) |
+- Tagging is rules first (keywords per company), then a light model in a nightly batch; similar items merge (same kind and area, Persian
+  full-text similarity). An item reaching the company's threshold (default 5 in 7 days) becomes one work item for the PRODUCT manager.
+
+### 19.8 Intake from outside (Telegram, Chatwoot, products)
+| POST | `/intake/v1/telegram/{company}/{channel}` | Telegram webhook; the `X-Telegram-Bot-Api-Secret-Token` must match; Telegram's published IP ranges only |
+| POST | `/intake/v1/chatwoot/{company}` | Chatwoot agent-bot webhook, HMAC-SHA256 of the body with the source's secret |
+| POST | `/intake/v1/product/{company}` | product events `{events: [{id, kind, at, subject, data}]}` (`signup`, `uid_submitted`, `referral_verified`, `referral_failed`, `vip_activated`, `support_message`), HMAC-SHA256 over `timestamp.body`, ±300 s, `id` idempotent |
+- These are the only public routes added; they are served by Caddy on `hq.coinepro.com` (never `/internal`), rate-limited, and answer `401
+  unauthenticated` on a bad signature with no detail. Secrets: `make intake-secret COMPANY=… SOURCE=…` (the owner's terminal), never the API.
+- `IntakeSource { company, kind: "telegram"|"chatwoot"|"product", configured: bool, last_event_at|null, events_24h, rejected_24h }` —
+  `GET /intake/sources`; `POST /intake/sources` 🔏 `intake.source` (body hash) registers one (allowed IPs, kinds).
+
+### 19.9 Decision kinds, step-up targets, stream, codes ⟨1.5⟩
+- **Decision kinds:** `message_template` (payload: the template and its sha256), `lifecycle_rule` (the rule, its template version and limits),
+  `support_go_live` (company, channel, `auto_send`, `verbatim_threshold`, `grounded_threshold`, the `ShadowReport`). All are sealed with step-up
+  (`decision.approve`, target = ref; §5.1 ⟨1.4.5⟩) and bound to their payload: a template, rule or shadow report that changes before the seal
+  supersedes the card. The thresholds have no edit route: changing them takes a new shadow run and a new card.
+- **Step-up targets:** `revenue.account` (body hash), `support.kb` (`ref@version`), `support.channel` (`company/kind@auto_send`),
+  `growth.template` (`ref@version:sha256`), `growth.rule` (`ref@version`), `intake.source` (body hash).
+- **Stream topics:** `revenue` (`revenue.day`, `revenue.alert`) · `support` (`support.message`, `support.queue`, `support.channel`) ·
+  `growth` (`rescue.updated`, `lifecycle.sent`, `nps.closed`) · `feedback` (`feedback.item`).
+- **Stable codes (§14):** `channel_not_live` (409), `shadow_not_passed` (409), `template_not_sealed` (409), `send_blocked` (422, with
+  `blocked_reasons`), `opted_out` (409), `send_limit` (429 with `Retry-After`).
+- **Oversight:** `PR-043` (mystery customer) becomes `active` with this section: the overseer opens a conversation on the `mystery` channel with
+  the owner's standing permission; it runs the whole pipeline but never reaches Telegram or Chatwoot and is left out of every statistic.
+
+### 19.10 Agent tools (agents/tools.md, v1.5)
+| Tool | Class | Who |
+|---|---|---|
+| `kb.search` `{q, company?, kind?}` | A0 | support roles (approved only), support lead (also proposed) |
+| `kb.propose` `{company, kind, question_fa, answer_md, variables?, source_ref, ref?}` | A1 | support lead, support agent |
+| `support.draft` `{conversation, body_md, kb_refs, confidence}` | A2 | support agent — code decides: send (auto-send policy), queue or block |
+| `support.handoff` `{conversation, reason, note_fa}` | A2 | support roles |
+| `referral.check` `{company, exchange, uid}` | A0 | support agent, rescue specialist — answers `{invitee: bool, meets_minimum: bool\|null}`, never a balance |
+| `rescue.update` `{ref, state, note_fa}` | A2 | rescue specialist |
+| `feedback.tag` `{source_ref, kind, area, title_fa}` | A2 | support lead, PRODUCT manager |
+| `revenue.read` `{company?, from, to, by?}` · `funnel.read` `{company, period}` | A0 | CEOs, FIN and SALES managers, revenue analyst, advisor, overseer |
+| `support.mystery` `{company, question_fa}` | A2 | overseer only (PR-043) |
+Templates and rules are proposed with `propose` (kinds above); there is no tool that sends free text to a customer.
+
+## 20. v1.5 — governance (prompt 11)
+
+> Owner decisions (`OPERATING_MODEL.md` §1.14–§1.16; `docs/GAP_ANALYSIS_v2.md` §5ج): **meetings** run by code under a token budget the owner sees
+> beforehand, every claim with a source, a devil's advocate from oversight, the advisor whispering only to the owner, and resolutions only by the
+> owner's seal; a versioned **charter** with company addenda that only the owner seals and every agent reads; a **four-layer knowledge base**
+> with sources and expiry; the **three cards** and a live **scorecard**; **OKRs**; **decision outcome reviews** at 30/60/90 days; an editable
+> **authority matrix** with locked invariants; a **risk register**; a **change calendar** with conflict detection; and a **batch seal** for
+> low-risk cards. Everything above still holds: no fixed company count, `company_id` with forced RLS, A3 is the owner's, A4 never happens.
+> ⟨1.5⟩ No new long-running service: meetings are workflows in the existing worker, KPIs are collected by a worker schedule, the authority
+> matrix is data for the existing OPA, search is Postgres FTS.
+
+### 20.1 Meetings
+```
+MeetingType { key: "board"|"company"|"standup"|"war_room"|"postmortem"|"strategy", title_fa,
+              schedule: RRULE (owner TZ)|null,               // null = opened by an event (war_room, postmortem)
+              members: { roles: [role], companies: "all"|"concerned" },
+              max_rounds: 1..3 (default 2), max_speakers: 2..8 (default 6, per agenda item),
+              budget_tokens: int|null (null = no meeting cap: war_room only), turn_cap_tokens (default 6000),
+              owner_presence: "live"|"summary"|"audio", enabled, version }
+Meeting     { id, ref: "MT-0001", type, company,                  // the holding's company for board and strategy
+              title_fa, starts_at, state: "scheduled"|"prep"|"live"|"closing"|"ended"|"cancelled",
+              mode: "discussion"|"written",                        // written: not enough of the daily cap left; statements only
+              budget: { cap, estimate, reserved, used }, trimmed_fa|null,
+              items: [MeetingItem], participants: [{actor: Actor, role_fa, speaker: bool, devil: bool}],
+              owner_presence, minutes: { deliverable: "O-…", summary_md }|null, incident|null, version, created_at }
+MeetingItem { id, n, title_fa, brief_md, sources: [{kind, ref, note}], time_box_min, speakers: [Actor], round: 0..3,
+              state: "waiting"|"round_1"|"round_2"|"done"|"skipped" }
+Turn        { id, meeting, item, n, round, speaker: Actor, kind: "statement"|"challenge"|"vote"|"owner",
+              statement_md, claims: [Claim], draft_md|null, stance: {draft, vote: "support"|"oppose"|"abstain", reason_fa}|null,
+              run_id|null, tokens, at }
+Claim       { id, text_fa, source: {kind, ref}|null, status: "sourced"|"unsourced"|"challenged"|"withdrawn" }
+Whisper     { id, meeting, item, text_md, sources, at }      // the advisor's; visible to the owner only
+Draft       { id, meeting, item, text_md, proposer: Actor, votes: {support, oppose, abstain}, decision: "D-…"|null }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/meetings` | `?type&company&state&from&to` |
+| POST | `/meetings` | owner: an ad-hoc meeting `{type, company?, starts_at, items?}`; same speaker rule, budget and daily share · `Idempotency-Key` |
+| GET | `/meetings/{ref}` | with items, budget estimate and `trimmed_fa`; before `live` this is what the owner sees and edits |
+| PATCH | `/meetings/{ref}` | owner: reorder or skip items, lower the budget, presence (`If-Match`) |
+| GET | `/meetings/{ref}/turns` | `?item&after` (Page); whispers are included for the owner only |
+| POST | `/meetings/{ref}/speak` | owner: `{text?, file_id?}` (a voice file goes through §17.2); jumps the queue. `409 meeting_not_live` otherwise · `Idempotency-Key` (required) |
+| POST | `/meetings/{ref}/control` | owner: `{action: "next_round"|"skip_item"|"end"|"raise_budget", tokens?}`; only the owner raises a budget |
+| GET · PUT | `/meetings/settings` | the `MeetingType` list; PUT 🔏 `meetings.settings`, target = body hash |
+- **Run by code.** Agenda, speakers, turn order, budget estimate and trimming, claim checks and the minutes are code. One turn is one agent
+  run with `Run.trigger: "meeting"` and the tool `meeting.statement`; its context is the item, its sources, the claims made so far on that
+  item and the speaker's own company data. Speakers per item ≤ `max_speakers`, chosen by rule (the concerned companies' CEOs or managers,
+  the relevant holding head, the devil's advocate last); other companies give written statements, so a meeting's size never depends on
+  the number of companies.
+- **Budget.** The router enforces the cap as the scope `meeting:<ref>`; it is reserved from the agents' daily cap at the start. A turn
+  that does not fit is not run and the meeting moves to `closing`. Not enough daily cap left → `mode: "written"`. `war_room` has no
+  meeting cap but stays inside the daily cap and the holding kill switch.
+- **Daily share** ⟨1.5⟩: all meeting reservations of one day together use at most `MEETINGS_DAILY_SHARE` of the agents' daily cap (default 0.15,
+  enforced by the router like the oversight share of §18.1); a meeting that does not fit what is left is `written`. `war_room` is outside the share.
+  The weekly `company` meetings are spread over the working days by rule (companies in code order, Saturday to Wednesday; a new company goes
+  to the lightest day), so one day never holds them all.
+- **Claims** are checked like message citations (§16.3): the ref must exist and the speaker must be able to read it, else `unsourced`;
+  an expired knowledge entry is refused (`knowledge_expired`). Unsourced and challenged claims never enter the minutes or a resolution.
+- **Resolutions.** Each draft becomes a decision of kind `meeting_resolution` (A1, owner) carrying the votes and the sourced claims; only
+  the owner's seal creates `M-…` and the follow-up work. Managers' votes never replace the seal.
+- **Minutes** are assembled by code; the system role `secretary` (`HQ-SEC`, Haiku) writes `summary_md` from sourced claims only.
+- **Standup** is code only by default (yesterday's work records per department, nothing sent when nothing changed). **War room** opens on
+  a `sev1` incident or an `urgent` `service_down`, P0; it closes with the incident and schedules a `postmortem` for 10:00 the next day.
+- `owner_presence: "audio"` behaves as `summary` until text-to-speech exists (prompt 12).
+- `GET /planner` includes meetings (§4).
+
+### 20.2 Charter and addenda
+```
+Charter { scope: "holding"|"<company code>", version, status: "proposed"|"sealed"|"superseded",
+          body_md (holding ≤ 6000 chars, addendum ≤ 3000), red_lines: [{key, text_fa, check: "rule"|"sample", patterns: [regex]|null}],
+          body_sha256, created_by: Actor, created_at, sealed_by: Actor|null, sealed_at|null }
+          // body_sha256 = sha256 of the canonical JSON {body_md, red_lines} (sorted keys, no spaces): the seal binds the red lines too
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/charter` | the sealed holding charter and every addendum the principal may read, with versions |
+| GET | `/charter/{scope}/versions` · `/charter/{scope}/versions/{v}` | |
+| GET | `/charter/{scope}/versions/{v}/diff` | `?against=<v>` → unified diff, computed on the server |
+| PUT | `/charter/{scope}` | owner: a new `proposed` version |
+| POST | `/charter/{scope}/versions/{v}/seal` 🔏 | `charter.seal`, target = `body_sha256` (recomputed by the server) |
+- **Agents read, never write.** The runtime puts the sealed holding charter and the company's sealed addendum after `_common` and before the
+  role charter (cached prefix); every run records `charter_docs: ["holding@3", "TY@1"]`. Until a version is sealed only the four red lines
+  of `OPERATING_MODEL.md` §1.15 apply. There is no agent tool that writes a charter.
+- Agents propose amendments with `propose` kind `charter_amendment` `{scope, base_version, body_md, red_lines, diff_md, body_sha256}` (a CEO for its
+  own addendum; the overseer and the advisor for the holding). Sealing the card is 🔏; a card whose `base_version` is no longer current is
+  superseded (`409 decision_not_pending`).
+- **Red lines** with `check: "rule"` are matched by code on deliverables, messages to the owner and stories (→ a finding), and are added
+  to the support output guard of §19 for text to customers with the refusal code `red_line` (§19.6: held for review, never sent, no override).
+
+### 20.3 Knowledge (four layers)
+```
+KnowledgeEntry { id, ref: "K-0001", layer: "holding"|"company"|"department"|"employee", company, department|null,
+                 kind: "principle"|"policy"|"fact"|"faq"|"playbook"|"support", title_fa, body_md,
+                 sources: [{kind, ref, note}] (≥ 1), valid_until: date,
+                 status: "draft"|"in_review"|"approved"|"expired"|"retired",
+                 review: {by: Actor, at, verdict: "pass"|"changes"|"reject", checks: {injection, secrets, conflicts, policy}, notes_md}|null,
+                 approved_by: Actor|null, version, created_by: Actor, created_at, updated_at }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/knowledge` | `?layer&company&department&kind&status&q&include_expired` (owner and overseer only for expired) |
+| GET | `/knowledge/{ref}` · `/knowledge/{ref}/versions` | |
+| POST · PUT | `/knowledge` · `/knowledge/{ref}` | owner: an entry or a new version; what the owner writes is approved by that act |
+| POST | `/knowledge/{ref}/retire` | owner |
+- **No second store.** The employee layer is the employee's memory (§16.6), shown read-only here, not copied. The support knowledge base
+  (§19, `/support/kb`) keeps its own table, its owner seal (`support.kb`) and its own expiry: it appears in the company layer as kind
+  `support`, read-only through a view (`GET /knowledge?kind=support`, `knowledge.search`), and is edited only at `/support/kb`. Skills (§18.5) stay the role instructions in the system prompt; a playbook is a
+  department's approved method, found by search; curricula point to playbooks by `K-…`; an adopted lesson drafts a playbook.
+- **Sources and expiry are required.** Longest `valid_until` by kind: fact 90 days, faq 180, playbook and policy 365, principle 730
+  (support articles follow §19). Fourteen days before expiry a review work item goes to the layer's keeper; at expiry the entry is `expired`, is not
+  returned to agents, and cannot be cited (`422 knowledge_expired`).
+- **Approval.** Review by the overseer or AI safety; then the company's CEO approves company and department entries (`knowledge.approve`,
+  an authority-matrix row the owner may take back); holding entries are cards of kind `knowledge_entry` for the owner.
+- **No leaks.** RLS: holding entries for all; company entries for that company and the holding; department entries for that department,
+  its CEO and the holding. Moving knowledge between companies is a CEO-to-CEO `work.request`; the receiver writes its own entry.
+- Search: Postgres FTS and `pg_trgm` with the Persian normalisation of §5.3; `knowledge.search` gains kind `knowledge`.
+
+### 20.4 The three cards and the scorecard
+```
+Kpi      { id, company, key, card: "stability"|"growth"|"safety_cost", name_fa, unit, direction: "up"|"down",
+           source: {kind: "query", query: "<registry key>"}|{kind: "manual"}, freshness_hours, target|null,
+           scorecard: bool, aggregate: "sum"|"avg"|"min"|"max", status: "active"|"paused", version }
+KpiValue { kpi, at, value, source_ref: {kind, ref, note} }
+Card     { company, card, kpis: [{key, name_fa, unit, value|null, at|null, source_ref|null, target|null, trend: [30 values],
+           state: "ok"|"stale"|"no_source"}] }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/cards` | `?company` (default: the holding) → the three cards |
+| GET | `/scorecards` | one row per company with its `scorecard` KPIs; paged and searchable (§1) |
+| GET · PUT | `/kpis/{company}` | definitions and targets; PUT owner, `If-Match` |
+| GET | `/kpis/{company}/{key}/values` | `?from&to` |
+- **Sources come from a closed registry** of reviewed queries (health, treasury, work, oversight, stars; revenue, funnel and support once
+  prompt 10 serves them). A query whose source does not exist is not in the registry and its KPI shows `no_source`, never zero. A manual
+  KPI is written only with `kpi.record` and a source.
+- Values older than `freshness_hours` are `stale` («قدیمی»). The holding card aggregates the companies with each KPI's `aggregate`, plus
+  the holding's own KPIs.
+- **KPI attainment** in the company score (§18.4, 35%) = the weighted progress of the active quarter's key results when an OKR is active,
+  else the share of scorecard KPIs at or beyond their target.
+- Protocol `PR-090` is `active` from this version.
+
+### 20.5 OKR
+```
+Objective { id, ref: "OB-0001", company, quarter: "1405-Q3" (Jalali), title_fa, why_md, owner: Actor (the CEO),
+            status: "draft"|"proposed"|"active"|"closed", decision: "D-…"|null, key_results: [KeyResult] }
+KeyResult { id, ref: "KR-0001", objective, title_fa, kpi: key|null, metric_fa|null, start, target, current|null,
+            progress: 0..1, confidence: 0..1, weight, checkins: [{at, by: Actor, confidence, note_md, evidence}] }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/okr` | `?company&quarter&status` |
+| GET | `/okr/{ref}` | an objective with its key results |
+- A CEO drafts the next quarter in its last month (`okr.draft`) → a decision of kind `okr` (owner; amendments allowed); only the seal makes
+  it `active`. A key result linked to a KPI takes `current` from it. A check-in is due at least every 14 days.
+- `Work` gains `key_result: "KR-…"|null` (set by `POST /work` and `work.delegate`); the planner shows it.
+
+### 20.6 Decision outcomes (30/60/90 days)
+```
+Decision      { …§5.1, expected: {metric_fa, kpi|null, baseline, target, by_days: 30|60|90}|null,
+                warnings: ["expected_missing"] }   // expected is required for kind proposal created after prompt 11 is deployed (see below)
+OutcomeReview { id, ref: "OR-0001", decision: "D-…", company, day: 30|60|90, due_at, expected,
+                measured: {value, at, source_ref}|null, verdict: "pending"|"met"|"partly"|"missed"|"unmeasurable",
+                proposer: Actor, proposer_note_md|null, overseer_note_md|null, status: "due"|"answered"|"verified" }
+```
+| GET | `/outcomes` | `?company&verdict&due&decision` |
+|---|---|---|
+- **`expected` on proposals:** required only for `proposal` cards created after prompt 11 is deployed; earlier cards are untouched. For the first
+  7 days a missing `expected` is a warning on the card (`warnings: ["expected_missing"]`), not a 422; after that it is `422 validation_failed`.
+  The CEO charter and the `propose` row of `agents/tools.md` already ask for it.
+- Created when a decision with `expected` is sealed: day 30, 60 and 90, up to `by_days`. With a KPI the verdict is code (`met` at target,
+  `partly` at half the distance or more, else `missed`); without one the proposer writes `outcome.note` and the overseer decides (`PR-006`).
+- Managers' and CEOs' **prediction accuracy** (§1.16) comes from these verdicts.
+
+### 20.7 Authority matrix
+```
+AuthorityRule { key, title_fa, action, actor: role|kind, scope: "own_company"|"holding",
+                limit: {tokens_month?, usd?, count_day?, count_hour?, days?: [weekday]}|null, bounds: {min, max}|null,
+                step_up: bool, class: "A0".."A4", locked: bool, note_fa, version }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/authority` | the whole matrix with `locked` rows |
+| PUT | `/authority` 🔏 | `authority.update`, target = body hash; unlocked rows only, inside `bounds` (`422` otherwise) |
+- The rows are data that OPA reads (`data.hq.authority`); the API pushes them at start and on every change. The policy keeps the **locked
+  invariants independent of the data**: A4 never; A3 only the owner (the CEO's content-calendar publish exception of §1.12 stays off until a
+  content calendar exists); proposer ≠ approver; releasing a kill switch or a hold is the owner's; no agent edits the matrix.
+- **Sends the owner sealed in advance are the owner's A3 approval and stay allowed:** messages of a sealed `lifecycle_rule` with its sealed
+  template, and the `auto_send` of a channel that went live by a sealed `support_go_live` (§19). The locked invariant blocks only A3 execution
+  without such a seal; the policy reads the seals themselves (the sealed card and the rule's or channel's version), never the matrix data.
+- Agents read their company's rows with `authority.read`; they propose changes with `propose` kind `authority_change` (🔏 on approval).
+
+### 20.8 Risk register
+```
+Risk { id, ref: "RK-0001", company, title_fa, body_md,
+       category: "product"|"security"|"data"|"money"|"people"|"vendor"|"ops"|"reputation",
+       likelihood: 1..5, impact: 1..5, score (= likelihood × impact), owner: Actor, mitigation_md|null,
+       status: "open"|"mitigating"|"accepted"|"closed", review_at, accepted: {decision: "D-…", until}|null,
+       links: {finding?, incident?, decision?, work?}, history: [{at, by: Actor, change, note}], version }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/risks` | `?company&status&category&min_score` |
+| GET | `/risks/{ref}` · `/risks/matrix` | the matrix: 5 × 5 counts, `?company` |
+| POST · PATCH | `/risks` · `/risks/{ref}` | owner (`If-Match` on PATCH) |
+- Keeper: the Inspector General (QC). Longest review interval: score ≥ 15 → 14 days, ≥ 8 → 30, else 90. A risk of 15 or more has a
+  mitigation or the owner's acceptance: a decision of kind `risk_acceptance` (🔏, at most 90 days). Closing needs the keeper. A `critical`
+  finding and a post-mortem draft a risk.
+
+### 20.9 Change calendar
+```
+CalendarEvent { id, ref: "CE-0001", company|null, kind: "deploy"|"campaign"|"event"|"maintenance"|"meeting"|"freeze"|"holiday",
+                title_fa, starts_at, ends_at, source: {decision?, work?, meeting?, order?}, status: "planned"|"done"|"cancelled",
+                risk: "low"|"medium"|"high", created_by: Actor }
+Conflict      { a: "CE-…", b: "CE-…", rule, severity: "medium"|"high", note_fa }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/calendar` | `?company&from&to&kind` → events and their conflicts |
+| POST · PATCH | `/calendar` · `/calendar/{ref}` | owner (`If-Match` on PATCH); agents use `calendar.add` |
+- Filled by code from deploy cards, freezes, meetings, backup and restore windows, and the official Jalali holidays (seed). The `deploy`
+  payload gains `window: {from, to}` and `calendar_conflicts`; it has **one definition** in §5.1, shown in full in §21.6, in which `head_sha`
+  is required from this version (given by the proposer; checking it against the PR is §21.6). Rules: a deploy inside a freeze or during the same company's campaign or event is `high`; two
+  deploys of one company or of a shared service, a deploy on a blackout day of the authority matrix or a holiday, and maintenance during a
+  deploy are `medium`. Conflicts go into the deploy card's `payload.calendar_conflicts` and `risk_note`. The calendar never decides.
+- `GET /planner` includes calendar events; the planner stays a view.
+
+### 20.10 Batch seal
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/decisions/batchable` | the pending cards that may be sealed together, with title, cost and proposer |
+| POST | `/decisions/batch/approve` 🔏 | `{items: [{ref, version}]}`; `decision.batch`, target = sha256 of the canonical JSON of `items` sorted by `ref` · `Idempotency-Key` (required) |
+- **Eligible** only when all hold: kind `proposal`, `meeting_resolution` or `knowledge_entry`; `action_class: "A1"`; `risk: "low"`;
+  `reversible`; `pending`; the owner is the approver; no hold; no amendments; `quota_estimate.usd ≤ batch.max_usd`; at most
+  `batch.max_items` items (both authority-matrix rows; defaults $2 and 20). **Never batched (locked):** any A3, `hire`, `dismissal`,
+  `budget_change`, `code_session`, `server_plan`, `deploy`, `company_found`, `tool_enable`, `protocol`, `errand_action`, `evaluation`,
+  `charter_amendment`, `authority_change`, `risk_acceptance`, `okr`, `recurring_approval`, `lesson_adoption`, `message_template`, `lifecycle_rule`,
+  `support_go_live`, or anything irreversible. The
+  owner may only shorten the allowed list.
+- **All or nothing:** if any card changed or is no longer eligible, the whole call is `422 batch_not_eligible` with
+  `fields.items: [{ref, reason}]` and nothing is sealed. Each sealed card has its own resolution, its own audit row (with `batch: "B-0001"`)
+  and its own owner interaction.
+
+### 20.11 Kinds, stream types, step-up targets, codes
+- **Decision kinds** added: `meeting_resolution` (A1), `charter_amendment` (🔏), `okr`, `knowledge_entry`, `risk_acceptance` (🔏),
+  `authority_change` (🔏). 🔏 kinds are sealed with `decision.approve`, target = ref, like §5.1.
+- **`Run.trigger`** gains `"meeting"`.
+- **Stream topics:** `meetings`: `meeting.scheduled`, `meeting.started`, `meeting.turn`, `meeting.claim`, `meeting.whisper` (owner only),
+  `meeting.ended` · `governance`: `charter.sealed`, `kpi.stale`, `okr.updated`, `outcome.due`, `risk.updated`, `calendar.conflict` ·
+  `knowledge`: `knowledge.updated`, `knowledge.expiring`.
+- **Step-up targets:** `charter.seal` (`body_sha256` = sha256 of the canonical `{body_md, red_lines}`), `authority.update` (body hash),
+  `meetings.settings` (body hash), `decision.batch` (sha256 of the sorted `[{ref, version}]`).
+- **Settings:** `MEETINGS_DAILY_SHARE` (default 0.15, the owner's to change).
+- **Stable codes (§14):** `meeting_not_live` (409), `knowledge_expired` (422), `batch_not_eligible` (422, `fields.items`).
+- **Agent tools** (agents/tools.md): `meeting.statement`, `meeting.challenge`, `meeting.whisper`, `meeting.item`, `meeting.minutes`,
+  `knowledge.propose`, `knowledge.review`, `knowledge.approve`, `kpi.record`, `okr.draft`, `okr.checkin`, `outcome.note`, `risk.raise`,
+  `risk.update`, `calendar.read`, `calendar.add`, `authority.read`, `governance.read`; `knowledge.search` gains kind `knowledge`;
+  `propose` accepts `expected`.
+
+## 21. v1.5 — management tools (prompt 12)
+
+> **v1.5 (2026-10-18).** The owner's everyday tools (`docs/GAP_ANALYSIS_v2.md` §5د): the premium advisor (decision memo, devil's advocate,
+> proactive notes, the weekly review), "ask the hub", spoken briefings and the CEOs' weekly letters, department ranking, the monthly HR
+> evaluation, the real diff on a deploy card, the daily waste report, ROI, adding a connection, quick notes, cartable reminders, refuted claims on
+> the agent health board, the **digital CEO in prediction-only mode**, and MCP servers in containers. Everything above still holds.
+> **Rules first, AI last:** every figure, trigger, flag, rank and reminder here is code; a model writes only prose a rule cannot write.
+
+### 21.0 Principles ⟨1.5⟩
+- **The owner zone has its own token share.** The *automatic* runs of the advisor (auto memo, proactive notes, weekly review brief), the librarian
+  and the digital CEO (model predictions, principles) together use at most `OWNER_ZONE_DAILY_SHARE` (default 0.25, pending the owner's decision) of the agents' daily cap,
+  enforced by the LLM Router like the oversight share (§18.1). When it is spent, automatic runs wait for the next day and predictions fall back to
+  the baseline. **What the owner asks for directly** (an ask, a memo on request, a message) always runs, inside the overall cap.
+- New **task classes** (in `/assignments`, defaults from the charters): `advisor_memo`, `advisor_proactive`, `advisor_review`, `ask_hub`,
+  `ceo_letter`, `hr_eval`, `dceo_predict`, `dceo_principles`.
+- **Nothing here acts in the world.** No new A3 path exists; the digital CEO cannot write anything but its own predictions.
+- Every new table carries `company_id` (owner and holding rows: the holding's) under forced RLS, and every change writes one audit row.
+
+### 21.1 The premium advisor: memo, devil's advocate, proactive notes (OPERATING_MODEL §1.11)
+```
+DecisionMemo { id, ref: "DM-0001", decision: "D-…", decision_version, mode: "standard"|"devil",
+               state: "writing"|"ready"|"failed"|"stale", trigger: "owner"|"auto",
+               summary_fa, recommendation: "approve"|"reject"|"return"|"ask", confidence: 0..1,
+               options: [{title_fa, pros_md, cons_md}], against_md,           // the strongest case against; never empty
+               risks: [{title_fa, likelihood: "low"|"medium"|"high", impact: "low"|"medium"|"high", mitigation_fa}],
+               questions: [string],                                           // what the owner should ask the proposer
+               citations: [{kind, ref}], usage: {tokens, usd}, created_at }
+AdvisorTrigger { id, key, kind: "budget"|"quota"|"compliance"|"incident"|"revenue"|"waiting_decisions"|"finding"|"okr",
+               company|null, fired_at, facts: {…}, message_ref: "A-…"|null, state: "sent"|"deferred"|"capped" }
+```
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/decisions/{ref}/memo` | `{mode}` → `202 DecisionMemo`; idempotent per decision, mode and decision `version`; a decided card → `409 decision_not_pending` |
+| GET | `/decisions/{ref}/memo` | `?mode` (default `standard`) → the latest memo, or 404 |
+| GET | `/advisor/memos` | `?decision&cursor` |
+| GET | `/advisor/triggers` | `?since&kind` |
+- `Decision` gains `memos: [{ref, mode, state}]`.
+- **Automatic memo** when a card for the owner is created with `risk: high` or kind `deploy`, `company_found` or `server_plan`; at most
+  `owner_settings.advisor.auto_memo.max_per_day` (default 3). The cap is not carried over.
+- A memo is bound to the card's `version`: a changed card makes it `stale`.
+- **Devil's advocate:** `MessageIn` gains `mode?: "devil"`, valid only in thread `A` (elsewhere `422 validation_failed`). The advisor's reply carries
+  `meta.mode: "devil"`. A `devil` memo argues why not.
+- **Proactive notes:** rules fire triggers with a `key` unique per day; the advisor is woken once per key with the facts gathered beforehand and
+  writes one short message in `A` with `meta.proactive: {kind, key}` and a `report`-level notification, **never `urgent`**. At most
+  `owner_settings.advisor.proactive_per_day` (default 3); the rest are recorded `capped`.
+- Agent tool: `memo.write` (A1, advisor only, `pending` cards only).
+- Stream: `memo.ready`, `advisor.proactive` on topic `advisor`.
+
+### 21.2 Ask the hub (F7)
+```
+Ask       { id, ref: "AK-0001", q, scope: {companies?: [code], kinds?: [kind]}|null,
+            state: "queued"|"searching"|"answering"|"done"|"failed", found: int,
+            answer_md|null, citations: [{kind: "resolution"|"decision"|"deliverable"|"work"|"message"|"doc"|"code",
+                                         ref?, repo?, path?, lines?: [from, to], commit?, snippet}],
+            not_indexed: [repo], usage: {tokens, usd}, created_at, finished_at|null }
+```
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/ask` | owner only · `{q (≤ 500), scope?}` → `202 Ask` · `Idempotency-Key` |
+| GET | `/ask/{ref}` · `/ask` | `?cursor` (history, newest first) |
+- **Retrieval is code:** Postgres full-text search with `pg_trgm` and the Persian normalisation of §5.3, over a nightly corpus: resolutions,
+  decisions, deliverables, work, messages (the owner's asks only), the hub's own documents (`docs/`, `contracts/`, `agents/`, RUNBOOK), and the
+  code of the hub repository and of every Code Workshop workspace repository (read-only, fetched with the hub's existing git access — the owner's
+  decision: no new GitHub token; a repository the hub cannot read is listed in `not_indexed`). A file in which the secret scan finds anything is
+  left out entirely. No embeddings.
+- **Nothing found → no model call**, `found: 0`, `answer_md` says so. Otherwise the librarian `HQ-LIB` answers only from the retrieved passages;
+  a citation outside them is dropped and counted; an answer with no valid citation is `failed`.
+- Agents: `knowledge.search` gains kinds `docs` and `code` (advisor, overseer, librarian; a CTO only its own company's repositories) and `notes`
+  (advisor only, §21.8).
+- Stream: `ask.answered` on topic `ask`.
+
+### 21.3 The weekly review with the advisor (M15)
+```
+WeeklyReview { id, ref: "WR-0001", week (Saturday, YYYY-MM-DD, owner TZ), state: "ready"|"in_progress"|"done"|"skipped",
+               agenda: [{n, kind: "decision"|"risk"|"okr"|"finding"|"budget"|"revenue"|"outcome_review"|"note",
+                         ref, company|null, title_fa, why_fa, status: "open"|"done"|"deferred", owner_note|null}],   // ≤ 12, in this kind order
+               brief_message_ref: "A-…"|null, minutes_ref: "O-…"|null,
+               started_at|null, finished_at|null, duration_s|null, version }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/reviews/weekly` · `/reviews/weekly/current` | owner only |
+| POST | `/reviews/weekly/{ref}/start` · `/finish` | `finish` writes the minutes as a deliverable `O-…` by `HQ-ADV` |
+| PATCH | `/reviews/weekly/{ref}/items/{n}` | `{status, owner_note?}` · `If-Match` |
+- `owner_settings.weekly_review: {enabled, day: "sa", at: "10:00"}`. The agenda is built by code 30 minutes before; the advisor writes a one-page
+  brief in `A` (`meta.review`). A review not done by the next one is `skipped` (one line in the morning report; no urgent nag).
+- Stream: `review.updated` on topic `reviews`.
+
+### 21.4 Spoken briefings and the CEOs' weekly letters (F8)
+```
+Briefing { id, ref: "BR-0001", kind: "morning"|"ceo_letter", company, period: {from, to},
+           deliverable_ref: "O-…", text_md,
+           audio: FileRef|null, audio_state: "pending"|"ready"|"off"|"failed",
+           voice: {engine: "piper", version, voice, license}|null, created_at }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/briefings` | `?kind&company&cursor` |
+| GET | `/briefings/latest` | `?kind=morning\|ceo_letter&company` |
+| GET | `/briefings/{ref}` | |
+- **Speech is made on the hub** (Piper, a Persian `fa_IR` voice whose licence is recorded in `voice.license` and in `/meta`; nothing leaves the
+  hub). The spoken script is built by code from the text: no markdown, refs read as their titles, every number, amount, percentage and Jalali
+  date read as Persian words, no Latin digit left. Audio is Ogg/Opus. TTS off or failed → `audio_state` says so and the text is unchanged.
+- **Morning:** the written morning report of prompt 5 (no new number) gets its audio; `owner_settings.audio_briefings.morning` (default on).
+- **CEO weekly letter:** Saturday 09:00 owner TZ (after the stars roll-up), one per active operating company, ≤ 600 words to the owner, from a facts
+  pack built by code (KPIs, stars and score, spend against the envelope, deliverables and the owner's ratings, incidents, findings, challenge,
+  the company's revenue §19, next week's plan). A figure not in the facts pack sends the letter back once; the second time it is published
+  marked «عدد بی‌منبع» and opens a `PR-001` finding. `owner_settings.ceo_weekly_letter: {enabled, day, at}` (default on);
+  `owner_settings.audio_briefings.ceo_letters` (default on). Deliverable kind `ceo_letter`.
+- Stream: `briefing.ready` on topic `briefings`.
+
+### 21.5 Department ranking and the monthly HR evaluation (§1.16)
+```
+DepartmentRank { period: "week"|"month", key, company, department, score: 0..100,
+                 parts: {people, delivery, efficiency, owner|null}, employees: int,
+                 rank_company, rank_holding|null, trend: [0..100], computed_at }
+HrRound        { id, ref: "HR-0001", company, month (Jalali, "1405-08"), state: "drafting"|"proposed"|"done",
+                 evaluator: Actor, due_at,
+                 employees: [{code, title_fa, score, score_prev|null, stars|null, efficiency|null, owner_avg|null,
+                              failed_share, findings_open, refuted_claims, probation_until|null,
+                              flags: ["promote_candidate"|"coach"|"demote_candidate"|"dismiss_candidate"|"probation_end"]}],
+                 deliverable_ref: "O-…"|null, decisions: ["D-…"], teachings: ["TE-…"] }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/rankings/departments` | `?period=week\|month&key&company` |
+| GET | `/hr/rounds` · `/hr/rounds/{ref}` | `?company&month` — owner, overseer, the company's CEO |
+- **Department score** = 35% people (employees' scores × 10, weighted by active days) + 30% delivery (work done with evidence on time ÷ work due)
+  + 20% efficiency (§18.4) + 15% owner (owner's ratings of the department's deliverables × 10; when there are none its weight is spread over the
+  rest). A department without active employees is not ranked. `rank_holding` ranks departments with the same code across companies; null when
+  only one exists. Computed with the stars roll-up. Stream: `rankings.updated` on topic `stars`.
+- **HR round:** the 1st of each Jalali month, 10:00 owner TZ, per active operating company and the holding. Flags are rules:
+  `promote_candidate` score ≥ 8.5 two months running, stars ≥ 4, no open `high` finding · `coach` a drop ≥ 1.5 or a score in [5, 6) ·
+  `demote_candidate` score < 5 two months running · `dismiss_candidate` score < 3.5 two months running, or probation ended with score < 5 ·
+  `probation_end`. The evaluator is the company's HR manager, else its CEO; the holding's is the AI Ops head. It delivers the monthly HR
+  report (`hr_monthly`) and proposes `evaluation` cards **only for flagged employees**; an unflagged one needs evidence and `override_reason` and
+  is marked `unflagged: true`. `coach` makes no card: an academy teaching draft (§18.6) for the AI Ops head.
+- **`evaluation` payload v2** ⟨1.5⟩: `{employee, recommendation: "promote"|"demote"|"dismiss"|"confirm", change: {model?, effort?, title_fa?,
+  quota_estimate_month?}|null, transfer_to?, round: "HR-…", evidence[], unflagged?, override_reason?}`. The owner decides; approval is 🔏
+  (`decision.approve`, target = ref). Effects: `promote`/`demote` apply `change` under the hire checks of §18.11 (an enabled connection offers
+  the model; the envelope still fits, else `409 envelope_exceeded` and nothing changes); `dismiss` is the dismissal of §3.3 with `transfer_to`;
+  `confirm` clears `probation_until`.
+- Stream: `hr.round` on topic `people`.
+
+### 21.6 The deploy card shows the diff
+**One definition** of the `deploy` payload ⟨1.5⟩; §5.1 changes to it (it includes prompt 11's `window` and `calendar_conflicts`, §20.9):
+```
+deploy { repo, pr_url, head_sha,                          // required from prompt 11; the card is bound to it, diff or not
+         diff_stat, ci: {status, url}, tests: {passed, failed}, rollout,
+         window: {from, to}|null, calendar_conflicts: [Conflict]|null,                     // §20.9
+         diff: { base_sha, head_sha, total_files, total_additions, total_deletions, truncated: bool, fetched_at,
+                 files: [{path, status: "added"|"modified"|"removed"|"renamed", additions, deletions, binary: bool,
+                          patch|null, truncated: bool, secret_masked: bool}] } | null,
+         diff_unavailable: "no_access"|"too_large"|"fetch_failed"|null }
+```
+| GET | `/decisions/{ref}/diff` | owner only · `?file=<path>` — one file's full patch, ≤ 2000 lines, masked the same way |
+- Built by the API (a service, not a model) when the card is created, with the hub's existing git access (`git fetch`, `git diff base…head_sha`;
+  the owner's decision: no new GitHub token); ≤ 300 files, ≤ 400 patch lines per file, ≤ 256 KB in all. Lines where the secret scan finds
+  anything are masked. A repository the hub cannot read → `diff: null`, `diff_unavailable: "no_access"`; a `head_sha` not in the repository → 422.
+- The card is bound to the top-level `head_sha`: a new push to the PR's branch supersedes it (`409 decision_not_pending` on approve; checked every
+  15 minutes for pending cards and once more before the seal), the proposer is told, and a new card with the new diff is needed.
+
+### 21.7 Treasury: waste, ROI, a new connection (F2, M10, #29)
+```
+WasteDay { day, company|null,                           // null = the holding total
+           total_tokens, total_usd, waste_tokens, waste_usd, share: 0..1, vs_7d: number,
+           items: [{category: "failed_runs"|"cancelled_work"|"no_progress_runs"|"retry_loops"|"router_errors"|"duplicate_calls"|"cache_miss"|"over_model",
+                    tokens, usd, count, top: [{employee?, run_id?, work_ref?, tokens}]}] }
+RoiRow   { by: "employee"|"department"|"company", key, company, period: "week"|"month", period_key,
+           cost_usd, accepted, avg_rating|null, value_points, cost_per_accepted_usd|null,
+           attributed: {rescued?: int, resolved_conversations?: int},
+           revenue_usd|null, net_usd|null, roi|null, trend: [number] }      // revenue, net and roi: companies only (§19.1)
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/treasury/waste` | `?day&company` → `WasteDay`; `?from&to` → a list |
+| GET | `/treasury/roi` | `?by=employee\|department\|company&period=week\|month&key&company` |
+| POST | `/connections` 🔏 | `connection.create`, target = SHA-256 of the body · `{key, provider, kind: "subscription"\|"api_key", display_name, base_url?, models[], default_model?, pricing, limits, fallback_priority?}` → `201 Connection` with `status: "pending_secret"` · `Idempotency-Key` (required) |
+- **Waste** is computed by code at 07:45 owner TZ for the day before, from the ledger and the runs; it never stores prompt or response text
+  (`duplicate_calls` and `cache_miss` use hashes the router keeps). Efficiency stars (§18.4) read the same table, so one day has one waste figure.
+  The morning report carries one line; a share above 15% raises a `report` notification.
+- **ROI:** revenue is attributed to companies only (§19.1); an employee's or a department's `revenue_usd` and `roi` are always null (commission
+  cannot be traced to one agent, and no figure is invented). `value_points` = Σ (owner rating ÷ 10) over accepted deliverables.
+- **A new connection's secret** is set either through the existing write-only `POST /connections/{id}/secret` 🔏 `connection.secret` (§10),
+  which also moves a `pending_secret` connection to verification, or by the owner's `make connection-secret KEY=<key>` in their own terminal
+  (hidden input, straight to OpenBao). Both stay open until the owner decides (default: the API route; with "terminal only" the route answers
+  `409 validation_failed` for `pending_secret`). The router then verifies it with a call that costs no tokens (e.g. listing models, through
+  egress) → `ready`, or `error` with `status_reason`. No response, log or audit row ever carries the secret. `provider` must be one the router supports; `base_url` only for `openai_compatible`, `https`, and through the egress
+  guard (no private address). A duplicate `key` is `409 version_conflict`. It is used only through `PUT /assignments` 🔏.
+
+### 21.8 Quick notes and cartable reminders (M9, M8)
+```
+OwnerNote { id, ref: "NT-0001", text_md, source: "text"|"voice", file_id|null, tags: [string],
+            status: "open"|"promoted"|"archived", promoted_to: {kind: "work"|"order"|"errand", ref}|null,
+            created_at, updated_at, version }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET · POST | `/notes` | owner only · `?status&q&cursor` · POST `{text_md, source, file_id?, tags?}` with `Idempotency-Key` |
+| PATCH | `/notes/{ref}` | `text_md`, `tags`, `status: "archived"` · `If-Match`; no delete |
+| POST | `/notes/{ref}/promote` | `{to: "work"\|"order"\|"errand", …}` → creates through §4, §17.4 or §18.3 and links it |
+- `/transcribe?purpose=note&save=true` ⟨1.5⟩ also creates the note and returns `note_ref`. No model runs on notes; the advisor reads open
+  notes only for the weekly review.
+- **Reminders** (code, every 15 minutes), for cards the owner decides: at 50% of the time to expiry and 6 h before it; for cards without expiry at
+  24 h, 72 h and 7 days. Each threshold once, a `decision`-level notification in the digest, held through Khalvat. `Decision` gains `waiting_h`
+  and `reminders: [{at, kind: "half"|"before_expiry"|"age_24h"|"age_72h"|"age_7d"}]`.
+  `owner_settings.reminders: {enabled, fraction: 0.5, before_expiry_h: 6, ages_h: [24, 72, 168]}`.
+- Stream: `note.created` on topic `notes`; `decision.reminded` on topic `decisions`.
+
+### 21.9 The agent health board and refuted claims (M16)
+```
+Claim       { id, ref: "CL-0001", company, deliverable: "O-…", employee, claim_md (≤ 300, masked),
+              verdict: "confirmed"|"refuted"|"unverifiable", checked_by: Actor, protocol: "PR-…"|null, evidence: [{kind, ref, note}], at }
+AgentHealth { employee, company, period: "7d"|"30d", runs, failed_share, refused_share, retry_loops,
+              owner_returns, claims_checked, refuted, refuted_share|null, cost_usd,
+              flags: ["truth"|"reliability"|"loops"] }
+```
+| GET | `/claims` | `?company&employee&verdict&cursor` |
+| GET | `/runs/health` | `?company&period=7d\|30d&cursor` — one row per employee |
+- Agent tool `claim.verdict` (A2: fact checker, overseer, QC); `refuted` without evidence → `422`. Flags are rules: `truth` refuted share ≥ 20% with
+  at least 5 checked · `reliability` failed share ≥ 25% · `loops` two or more retry loops in the period. Refuted claims feed the HR facts (§21.5).
+- Stream: `claim.verdict` on topic `quality`.
+
+### 21.10 The digital CEO: prediction only (OPERATING_MODEL §1.8)
+```
+Prediction { decision: "D-…", made_at, method: "baseline"|"model", verdict: "approve"|"reject"|"return", confidence: 0..1,
+             rationale_fa|null, principles: ["DP-…"], sealed_hash, seen_before: bool,
+             actual: "approve"|"reject"|"return"|null, correct: bool|null }
+Principle  { id, ref: "DP-001", text_fa, sources: [{kind, ref}], status: "proposed"|"active"|"retired",
+             edited_by_owner: bool, version, updated_at }
+DceoStats  { window: "30d"|"90d"|"all", n, accuracy|null, baseline_accuracy|null, model_accuracy|null, brier|null,
+             by_kind: {kind: {n, accuracy}}, calibration: [{bucket: "0.5-0.6", n, hit_rate}] }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/digital-ceo` | stats for the three windows and `owner_settings.digital_ceo` |
+| GET | `/digital-ceo/predictions` | `?correct&kind&cursor` — decided cards only (or all while `reveal: "before"`) |
+| GET · POST | `/digital-ceo/principles` | POST: the owner adds one (`active`) |
+| PUT | `/digital-ceo/principles/{ref}` | edit or retire = a new version · `If-Match` |
+| POST | `/digital-ceo/principles/{ref}/accept` | a `proposed` principle becomes `active` |
+- **It never acts.** It is a service (`service:dceo`), not an agent: no Gateway tool, no thread, no notification; policy refuses every write but
+  its own `dceo.*` rows. It never approves, rejects, messages or notifies, at any accuracy. Its label in every client is «مدیر کل دیجیتال».
+- **Every card the owner decides** gets a prediction **before** the decision: a baseline (the owner's past approval rate by kind, risk and proposer
+  kind, Laplace-smoothed; no model) and, for medium- and high-risk cards, a model prediction (`dceo_predict`, light model, ≤ 8 000 tokens, at most
+  `owner_settings.digital_ceo.max_model_per_day`, default 20). Each is sealed (`sealed_hash` of its canonical JSON, one audit row); a prediction
+  written after `decided_at` is discarded.
+- **Hidden until the owner decides** by default (`owner_settings.digital_ceo.reveal: "after"`): `Decision.digital_ceo_prediction` is null while
+  the card is pending, then `{verdict, confidence, method, correct}`. **§5.1 changes to this shape** ⟨1.5⟩:
+  `digital_ceo_prediction: { verdict: "approve"|"reject"|"return", confidence: 0..1, method: "baseline"|"model", correct: bool|null }|null`
+  (it was `{verdict: "approve"|"reject", confidence}`). With `reveal: "before"` the owner sees it at once and those predictions are
+  `seen_before: true`, outside the clean accuracy figure; the setting warns while fewer than 30 hidden predictions exist.
+- **Principles:** each Saturday 11:00 a model run (`dceo_principles`, ≤ 120 000 tokens) reads the week's owner interactions (masked) and the
+  missed predictions and proposes up to 5 new or changed principles with their sources; the owner accepts, edits or retires them. The owner
+  always sees what is recorded about them (§2, `/owner/interactions`).
+- Stream: `dceo.scored` on topic `dceo` (after the decision only).
+
+### 21.11 MCP servers in containers (completes §18.13)
+- `McpServer.transport: "container"` is accepted when its `key` and `image` (pinned **digest**) match the reviewed allow-list on the hub
+  (`infra/mcp/servers.yaml`: image, command, licence, source, expected tools, memory limit); otherwise `422 validation_failed`. A server that
+  needs the internet or a secret is `409 not_ready` (a later version).
+- Each one runs as its own service on the internal network `hq-mcp` (no route out; the gateway is the only other member), non-root, read-only,
+  no capabilities, never the Docker socket; a stdio server is served over Streamable HTTP by `mcp-proxy` (MIT) inside the same image.
+- Everything of §18.13 holds unchanged: the two owner seals, the sealed class per tool, the listing pin and `tool_enable` card, A3 to a card,
+  redaction, `mcp_calls`.
+- The reference server `time` (`mcp-server-time`, MIT; `get_current_time`, `convert_time`, A0) is proposed `pending` for the owner's seal.
+- Adding another container server is a reviewed change to the allow-list on the server, then the owner's seals in the app.
+
+### 21.12 Kinds, stream, step-up, settings ⟨1.5⟩
+- **Decision kinds:** none new. `evaluation` payload v2 (§21.5) and the one `deploy` payload definition (§21.6). `evaluation` joins the 🔏 list of
+  §5.1 (target = ref). `Decision.digital_ceo_prediction` takes the shape of §21.10.
+- **Step-up targets:** `connection.create` (body hash).
+- **Stream topics:** `advisor` (`memo.ready`, `advisor.proactive`) · `ask` (`ask.answered`) · `reviews` (`review.updated`) · `briefings`
+  (`briefing.ready`) · `stars` (`rankings.updated`) · `people` (`hr.round`) · `notes` (`note.created`) · `decisions` (`decision.reminded`) ·
+  `quality` (`claim.verdict`) · `dceo` (`dceo.scored`).
+- **`/owner/settings` gains:** `advisor: {auto_memo: {enabled, max_per_day}, proactive_per_day}`, `weekly_review: {enabled, day, at}`,
+  `audio_briefings: {morning, ceo_letters}`, `ceo_weekly_letter: {enabled, day, at}`, `reminders: {enabled, fraction, before_expiry_h, ages_h}`,
+  `digital_ceo: {enabled, reveal: "after"|"before", model_predictions, max_model_per_day}`.
+- **Agent tools** (agents/tools.md): `memo.write` (A1, advisor), `ask.answer` (A1, librarian), `claim.verdict` (A2, fact checker, overseer, QC);
+  `knowledge.search` kinds `docs`, `code`, `notes` as in §21.2.
+- **Error codes:** none new (`rate_limited`, `not_ready`, `decision_not_pending`, `envelope_exceeded`, `channel_not_configured` cover every case).
+- **Protocols:** `PR-082` (monthly HR evaluation) becomes `active`, scheduled on the 3rd of each **Jalali** month: the protocol registry gains an
+  optional `calendar: "gregorian"|"jalali"` (default `gregorian`); with `jalali`, `BYMONTHDAY` is a day of the Jalali month. The key enters
+  `agents/protocols/oversight.yaml` only with prompt 12, together with PR-082's new check ("…an `evaluation` card for every flagged employee");
+  the loader ignores an unknown key with a warning, never an error.
+- **Repositories:** nothing here asks the owner for a GitHub token; the hub's existing git access is used, and what it cannot read is `not_indexed`
+  or `no_access`.

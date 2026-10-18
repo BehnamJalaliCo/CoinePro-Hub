@@ -114,6 +114,11 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "story-hire" to { _ -> StoryPreview("FX") },
             "story-stars" to { _ -> StoryPreview("TY") },
             "hire" to { _ -> HireForm(onDone = {}, modifier = Modifier.verticalScroll(rememberScrollState()), company0 = "TY", department0 = "TECH", role0 = "sre") },
+            // ⟨1.4.4⟩ the owner's tools on existing APIs
+            "resolutions" to { _ -> com.coinepro.hq.ui.owner.ResolutionsScreen() },
+            "runs" to { _ -> com.coinepro.hq.ui.owner.RunsScreen() },
+            "sites" to { _ -> com.coinepro.hq.ui.owner.SitesScreen() },
+            "employee-manager" to { _ -> EmployeeScreen("FX-TECH-MGR") },
         )
     }
 
@@ -124,6 +129,9 @@ class ScreensTest(private val name: String, private val night: Boolean) {
 
     @Before
     fun setUp() {
+        // One fixed instant: the demo's relative times, Jalali dates and the planner's week are the same on any day,
+        // so CI can compare the images with the recorded ones (the visual gate).
+        com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-10-17T08:30:00Z")
         graph = (ApplicationProvider.getApplicationContext<HqApp>()).graph
         graph.enterDemo()
     }
@@ -150,7 +158,10 @@ class ScreensTest(private val name: String, private val night: Boolean) {
         }
         compose.onRoot().captureRoboImage(
             "src/test/screenshots/$name-${if (night) "night" else "day"}.png",
-            roborazziOptions = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(resizeScale = 0.5)),
+            roborazziOptions = RoborazziOptions(
+                recordOptions = RoborazziOptions.RecordOptions(resizeScale = 0.5),
+                compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.002f),
+            ),
         )
     }
 }

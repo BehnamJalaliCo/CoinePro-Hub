@@ -70,6 +70,9 @@ fun ControlScreen() {
     val action = rememberAction()
     var t by remember { mutableStateOf<Target?>(null) }
     var reason by rememberSaveable { mutableStateOf("") }
+    // Deploy freezes (§9): the owner sets one for a span, or lifts every freeze of the company with a past `until`.
+    var fz by remember { mutableStateOf<Triple<String, String, Boolean>?>(null) }
+    var span by rememberSaveable { mutableStateOf(4) }
 
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item { PageHeader("کنترل", eyebrow = "کلید توقف و توقف deploy") }
@@ -115,15 +118,49 @@ fun ControlScreen() {
                         Text("توقف deploy تا ${jDateTime(it.until)} (${until(it.until)})، ${it.reason}", style = Divan.type.caption)
                     }
                 }
-                HqButton(
-                    if (on) "آزاد کن (passkey)" else "توقف این شرکت",
-                    { t = Target(k.scope, name, on) },
-                    Modifier.fillMaxWidth().padding(top = 12.dp),
-                    variant = if (on) BtnVariant.PRIMARY else BtnVariant.DANGER, size = BtnSize.SM, icon = if (on) DivanIcon.RESUME else DivanIcon.PAUSE,
-                )
+                Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HqButton(
+                        if (on) "آزاد کن (passkey)" else "توقف این شرکت",
+                        { t = Target(k.scope, name, on) },
+                        Modifier.weight(1f),
+                        variant = if (on) BtnVariant.PRIMARY else BtnVariant.DANGER, size = BtnSize.SM, icon = if (on) DivanIcon.RESUME else DivanIcon.PAUSE,
+                    )
+                    HqButton(if (freeze != null) "برداشتن توقف deploy" else "توقف deploy", { fz = Triple(k.company, name, freeze != null) }, Modifier.weight(1f), size = BtnSize.SM)
+                }
             }
         }
         item { BackupsCard() }
+    }
+
+    fz?.let { (co, name, active) ->
+        AlertDialog(
+            onDismissRequest = { fz = null },
+            containerColor = c.overlay,
+            title = { Text(if (active) "برداشتن توقف deploy $name" else "توقف deploy $name", style = Divan.type.h3) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(if (active) "همه‌ی توقف‌های deploy این شرکت برداشته میشود، حتی آن‌هایی که خط انتشار یا مدیرعامل گذاشته‌اند." else "تا پایان این مدت هیچ deployی در این شرکت انجام نمیشود. کارهای دیگر ادامه دارند.", style = Divan.type.small, color = c.textSecondary)
+                    if (!active) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(1 to "یک ساعت", 4 to "چهار ساعت", 24 to "یک روز", 72 to "سه روز").forEach { (h, l) -> com.coinepro.hq.designsystem.FilterChip(l, span == h, { span = h }) }
+                    }
+                    HqTextField(reason, { reason = it }, "دلیل (یک خط)", Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                HqButton(if (active) "بردار" else "متوقف کن", {
+                    action.run {
+                        val until = java.time.Instant.now().plusSeconds(if (active) -60L else span * 3600L).toString()
+                        env.api.deployFreeze(co, until, reason.trim().ifBlank { if (active) "برداشته شد" else "توقف deploy به دستور مالک" })
+                        q.refresh()
+                        env.cache.invalidate("control", "companies")
+                        toasts.ok(if (active) "deploy $name آزاد شد." else "deploy $name متوقف شد.")
+                        fz = null
+                        reason = ""
+                    }
+                }, variant = BtnVariant.PRIMARY, loading = action.busy)
+            },
+            dismissButton = { HqButton("انصراف", { fz = null }, variant = BtnVariant.GHOST) },
+        )
     }
 
     t?.let { target ->

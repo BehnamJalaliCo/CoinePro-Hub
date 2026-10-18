@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.treasury
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -75,6 +77,8 @@ fun TreasuryScreen() {
     val conns = rememberQuery("connections", "treasury") { connections() }
     val r = refresher(*listOfNotNull(sum, month, byCo, byModel, byDay, conns).toTypedArray())
     val slot = { i: Int? -> if (i != null && i in 1..8) c.chart[i - 1] else c.silverInk }
+    var editBudgets by rememberSaveable { mutableStateOf(false) }
+    var editConn by remember { mutableStateOf<com.coinepro.hq.core.net.Connection?>(null) }
 
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
@@ -98,6 +102,7 @@ fun TreasuryScreen() {
                 }
             }
         }
+        item { com.coinepro.hq.ui.owner.QuotaCard() }
         // The server's breakdown by day (contract v1.2 addition); hidden until it answers with days.
         val days = byDay?.data.orEmpty().filter { it.key != null }
         if (days.size >= 2 && start != null) item {
@@ -165,7 +170,9 @@ fun TreasuryScreen() {
         }
         item {
             HqCard(Modifier.fillMaxWidth()) {
-                SectionTitle("بودجه‌ها", note = "هشدار در ۷۰٪ و ۹۰٪؛ در ۱۰۰٪ کارهای غیرفوری میایستند")
+                SectionTitle("بودجه‌ها", note = "هشدار در ۷۰٪ و ۹۰٪؛ در ۱۰۰٪ کارهای غیرفوری میایستند", action = {
+                    com.coinepro.hq.designsystem.HqButton("ویرایش", { editBudgets = true }, size = com.coinepro.hq.designsystem.BtnSize.SM, variant = com.coinepro.hq.designsystem.BtnVariant.TEXT, icon = com.coinepro.hq.designsystem.generated.DivanIcon.EDIT)
+                })
                 Loadable(sum) { s ->
                     Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         s.budgets.forEach { b -> BudgetLine(b.scopeType == "holding", b.company, companyOf(companies, b.company).nameFa, b.tokensUsed, b.tokenLimit, b.pct) }
@@ -202,7 +209,7 @@ fun TreasuryScreen() {
                     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         list.forEach { x ->
                             val (label, tone) = CONNECTION_STATUS[x.status] ?: (x.status to Tone.NEUTRAL)
-                            HqCard(Modifier.fillMaxWidth(), color = c.tile, radius = 12.dp, padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
+                            HqCard(Modifier.fillMaxWidth().clickable { editConn = x }, color = c.tile, radius = 12.dp, padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(x.displayName, style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
@@ -218,11 +225,15 @@ fun TreasuryScreen() {
                 }
             }
         }
+        item { com.coinepro.hq.ui.owner.WhatIfCard() }
+        item { com.coinepro.hq.ui.owner.CallsCard() }
     }
+    if (editBudgets) com.coinepro.hq.ui.owner.BudgetSheet { editBudgets = false }
+    editConn?.let { x -> com.coinepro.hq.ui.owner.ConnectionSheet(x) { editConn = null } }
 }
 
 /** First day of the period in the owner's zone (ISO date), for breakdown queries. */
 private fun periodStart(period: String): String {
-    val today = LocalDate.now(ZoneId.of(OWNER_TZ))
+    val today = com.coinepro.hq.core.format.HqClock.today()
     return (if (period == "day") today else today.withDayOfMonth(1)).toString()
 }

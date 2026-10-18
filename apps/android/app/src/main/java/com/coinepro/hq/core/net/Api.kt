@@ -296,6 +296,9 @@ class Api(
     suspend fun retireSkill(ref: String): Skill = post("/skills/${seg(ref)}/retire", JsonObject(emptyMap()))
     suspend fun curricula(): List<Curriculum> = get("/academy/curricula")
     suspend fun evals(): List<EvalSuite> = get("/academy/evals")
+    /** Item 30: the newest run of each (suite, model) for a role. */
+    suspend fun modelComparison(role: String): Page<EvalRun> = get("/academy/runs?role=${seg(role)}&subject_kind=model&latest=true")
+    suspend fun trainingRecord(employee: String): TrainingRecord = get("/academy/records/${seg(employee)}")
     suspend fun teachings(): List<Teaching> = get("/academy/teach")
     suspend fun teach(targetKind: String, targetRef: String, text: String, source: String, fileId: String?): Teaching =
         post("/academy/teach", buildJsonObject {
@@ -355,6 +358,57 @@ class Api(
         return call(req, serializer())
     }
 
+    // ------------------------------------------- the owner's tools ⟨1.4.4⟩ --
+    // APIs the hub already serves (docs/GAP_ANALYSIS_v2.md §5A). PATCH and PUT carry If-Match; 🔏 bodies are sealed on their SHA-256.
+    suspend fun resolutions(q: String? = null, company: String? = null): Page<Resolution> = get("/resolutions", mapOf("q" to q, "company" to company))
+    suspend fun recordResolution(title: String, body: String, sourceMessage: String?): Resolution =
+        post("/resolutions", buildJsonObject { put("title", title); put("body", body); put("source_message", sourceMessage) })
+    suspend fun notificationSettings(): NotificationSettings = get("/notification-settings")
+    suspend fun saveNotificationSettings(s: NotificationSettings): NotificationSettings =
+        send("PUT", "/notification-settings", json.encodeToString(NotificationSettingsIn.serializer(), NotificationSettingsIn(s.matrix)), ifMatch = s.version)
+    suspend fun searchMessages(q: String, company: String? = null): Page<SearchHit> = get("/search/messages", mapOf("q" to q, "company" to company, "limit" to 20))
+    /** A past [until] lifts the company's freezes; the owner lifts any of them (§9). */
+    suspend fun deployFreeze(company: String, until: String, reason: String): FreezeOut =
+        post("/control/deploy-freeze", buildJsonObject { put("company", company); put("until", until); put("reason", reason) })
+    suspend fun cancelWork(id: String, reason: String): Work = post("/work/${seg(id)}/cancel", buildJsonObject { put("reason", reason) })
+    suspend fun completeWork(id: String, evidence: List<EvidenceIn>): Work =
+        post("/work/${seg(id)}/complete", buildJsonObject { put("evidence", json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(EvidenceIn.serializer()), evidence)) })
+    suspend fun patchWork(w: Work, patch: WorkPatch): Work = send("PATCH", "/work/${seg(w.id)}", json.encodeToString(WorkPatch.serializer(), patch), ifMatch = w.version)
+    suspend fun pauseEmployee(code: String): Employee = post("/employees/${seg(code)}/pause", JsonObject(emptyMap()))
+    suspend fun resumeEmployee(code: String): Employee = post("/employees/${seg(code)}/resume", JsonObject(emptyMap()))
+    /** Dismissal (§4): open work returns to the manager or to [transferTo]; a knowledge-transfer item is created. Sealed on the code. */
+    suspend fun dismiss(code: String, reason: String, transferTo: String?, stepUp: StepUp): DismissOut =
+        post("/employees/${seg(code)}/dismiss", buildJsonObject { put("reason", reason); if (transferTo != null) put("transfer_to", transferTo) }, stepUp("employee.dismiss", code))
+    suspend fun runs(employee: String? = null, company: String? = null, state: String? = null, limit: Int = 50): Page<Run> =
+        get("/runs", mapOf("employee" to employee, "company" to company, "state" to state, "limit" to limit))
+    suspend fun runDetail(id: String): Run = get("/runs/${seg(id)}")
+    suspend fun workRuns(id: String): List<Run> = get("/work/${seg(id)}/runs")
+    suspend fun quota(): QuotaView = get("/treasury/quota")
+    suspend fun whatIf(model: String, from: String, to: String, company: String? = null): WhatIf =
+        get("/treasury/what-if", mapOf("model" to model, "from" to from, "to" to to, "company" to company))
+    suspend fun calls(company: String? = null, actor: String? = null, status: String? = null, cursor: String? = null, limit: Int = 25): Page<CallRow> =
+        get("/treasury/calls", mapOf("company" to company, "actor" to actor, "status" to status, "cursor" to cursor, "limit" to limit))
+    suspend fun budgets(): List<BudgetUse> = get("/budgets")
+    suspend fun putBudgets(rows: List<BudgetRowIn>, stepUp: suspend (target: String) -> String): List<BudgetUse> {
+        val text = json.encodeToString(BudgetsBody.serializer(), BudgetsBody(rows))
+        return send("PUT", "/budgets", text, stepUp = stepUp(sha256(text)))
+    }
+    suspend fun patchConnection(c: Connection, patch: ConnectionPatch, stepUp: StepUp): Connection =
+        send("PATCH", "/connections/${seg(c.id)}", json.encodeToString(ConnectionPatch.serializer(), patch), ifMatch = c.version, stepUp = stepUp("connection.update", c.id))
+    /** Write-only: the key goes to the secret store and never comes back (§10). */
+    suspend fun connectionSecret(id: String, secret: String, stepUp: StepUp) =
+        postUnit("/connections/${seg(id)}/secret", buildJsonObject { put("secret", secret) }, stepUp("connection.secret", id))
+    suspend fun sites(company: String? = null): List<Site> = get("/ops/sites", mapOf("company" to company))
+    suspend fun incidents(company: String? = null, open: Boolean? = null): List<Incident> = get("/ops/incidents", mapOf("company" to company, "open" to open, "limit" to 100))
+    /** One company's list replaced as a whole (§16.6): left-out URLs are switched off, never deleted. Sealed on the body. */
+    suspend fun putSites(company: String, sites: List<SiteIn>, stepUp: suspend (target: String) -> String): List<Site> {
+        val text = json.encodeToString(SitesBody.serializer(), SitesBody(company, sites))
+        return send("PUT", "/ops/sites", text, stepUp = stepUp(sha256(text)))
+    }
+    /** A new company (§3.1), sealed on its code. */
+    suspend fun createCompany(body: CompanyIn, stepUp: StepUp): Company =
+        post("/companies", json.encodeToJsonElement(CompanyIn.serializer(), body), stepUp("company.create", body.code))
+
     // --------------------------------------------------- backups ⟨1.4⟩ --
     suspend fun backups(): BackupStatus = get("/backups/status")
 
@@ -373,6 +427,14 @@ class Api(
         call(write("POST", path, body, stepUp), serializer())
 
     private suspend inline fun <reified T> put(path: String, body: JsonElement): T = call(write("PUT", path, body, null), serializer())
+
+    /** A PUT or PATCH with an exact text body: If-Match carries the version (§1), X-Step-Up the seal. */
+    private suspend inline fun <reified T> send(method: String, path: String, text: String, ifMatch: Int? = null, stepUp: String? = null): T {
+        val req = Request.Builder().url(url(path)).method(method, text.toRequestBody(JSON))
+            .apply { if (ifMatch != null) header("If-Match", "\"$ifMatch\""); if (stepUp != null) header("X-Step-Up", stepUp) }
+            .build()
+        return call(req, serializer())
+    }
 
     private suspend fun postUnit(path: String, body: JsonElement, stepUp: String? = null) {
         execute(write("POST", path, body, stepUp)).use { check(it) }
