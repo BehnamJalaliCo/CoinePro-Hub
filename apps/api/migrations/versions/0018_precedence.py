@@ -6,7 +6,7 @@
 The positions themselves (HQ-OVR, HQ-PA) are data: the holding template.
 
 Revision ID: 0018
-Revises: 0014
+Revises: 0017
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from __future__ import annotations
 from hq_api.migration_sql import execute_script
 
 revision = "0018"
-down_revision = "0014"
+down_revision = "0017"
 branch_labels = None
 depends_on = None
 
