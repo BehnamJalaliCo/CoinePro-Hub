@@ -1792,7 +1792,7 @@ DceoStats  { window: "30d"|"90d"|"all", n, accuracy|null, baseline_accuracy|null
 ### 21.12 Kinds, stream, step-up, settings ⟨1.5⟩
 - **Decision kinds:** none new. `evaluation` payload v2 (§21.5) and the one `deploy` payload definition (§21.6). `evaluation` joins the 🔏 list of
   §5.1 (target = ref). `Decision.digital_ceo_prediction` takes the shape of §21.10.
-- **Step-up targets:** `connection.create` (body hash); `connection.login` (id), `substitute.seats` (body hash), `studio.key` (§21.13).
+- **Step-up targets:** `connection.create` (body hash); `connection.login` (id), `substitute.seats` (body hash), `substitute.web_logout` (§21.13).
 - **Stream topics:** `advisor` (`memo.ready`, `advisor.proactive`) · `ask` (`ask.answered`) · `reviews` (`review.updated`) · `briefings`
   (`briefing.ready`) · `stars` (`rankings.updated`) · `people` (`hr.round`) · `notes` (`note.created`) · `decisions` (`decision.reminded`) ·
   `quality` (`claim.verdict`) · `dceo` (`dceo.scored`) · `treasury` (`substitute.updated`) · `creatives` (`creative.updated`).
@@ -1817,7 +1817,8 @@ DceoStats  { window: "30d"|"90d"|"all", n, accuracy|null, baseline_accuracy|null
 > - **their coding models** (GPT 5.5 and 5.3 through Codex, Gemini 3.8 through Gemini CLI) for reviews, second opinions, errands, drafts and
 >   long reads, called by code and by agents;
 > - **ChatGPT's own chat and image generation, and Gemini's images and videos**, on the owner's unlimited plans, for the companies' ad
->   creatives (a Telegram channel post, an Instagram story) that an agent asks for with a precise brief.
+>   creatives (a Telegram channel post, an Instagram story) that an agent asks for with a precise brief — **through a signed-in browser on
+>   the hub (Playwright), the way the owner already ran it on their own server** (owner's decision: this path, no other).
 
 **The rules of the bench**
 - **Claude holds the project.** Code, decisions, verdicts, findings, customer-facing text, every A2+ act and every final deliverable stay with
@@ -1836,8 +1837,10 @@ Substitute { player: "gpt"|"gemini", connection: "chatgpt-plus"|"gemini-pro", ru
              login: {state: "signed_out"|"signing_in"|"signed_in"|"expired", plan_fa, since|null, last_ok_at|null},
              status: "ready"|"limited"|"off"|"error", limited_until|null, status_reason|null,
              models: [{id, label, tier: "strong"|"light", available: bool}],      // checked against what the CLI offers under the subscription
-             capabilities: {text: Cap, image: Cap, video: Cap},                   // Cap = "cli"|"studio"|"bridge"|"api"|"off"
-             seats: [{seat, model, enabled, per_day, used_today}],
+             capabilities: {text: Cap, image: Cap, video: Cap},                   // Cap = "cli"|"web"|"api"|"off"
+             web: {account: "chatgpt-web"|"gemini-web", state: "signed_in"|"expired"|"signed_out", last_ok_at|null,
+                   recipe_version, last_failure|null},                             // the signed-in browser profile (below)
+             seats: [{seat, via: "cli"|"web", model, enabled, per_day, used_today}],
              month: {key (Jalali, "1405-08"), calls, skipped, input_tokens, output_tokens, estimated: bool,
                      equiv_usd, price_usd, value_ratio}, version }               // value_ratio = equiv_usd ÷ price_usd
 SubstituteLogin { id, connection, method: "device_code"|"auth_code", verification_url, user_code|null, expires_at,
@@ -1847,31 +1850,28 @@ Creative   { id, ref: "CR-0001", company, kind: "image"|"video", brief_md, promp
              aspect: "1:1"|"4:5"|"9:16"|"16:9", duration_s|null,                     // video only, ≤ 10
              overlay: {title_fa, body_fa|null, cta_fa|null, mark: bool}|null,         // Persian text set by the hub, never generated
              composed: FileRef|null,                                                  // the generated file with the overlay, by code
-             player: "gpt"|"gemini", model, path: "cli"|"studio"|"bridge"|"api",
-             state: "queued"|"generating"|"awaiting_owner"|"review"|"accepted"|"rejected"|"failed",
+             player: "gpt"|"gemini", model, path: "web"|"cli"|"api",
+             state: "queued"|"generating"|"review"|"accepted"|"rejected"|"failed",
              requested_by: Actor, work_ref|null, errand_ref|null, files: [FileRef], review_md|null,
              source: {player, model, at}|null, ai_generated: true, created_at, updated_at, version }
 ```
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/substitutes` | owner · both players |
-| PUT | `/substitutes/{player}/seats` 🔏 | `substitute.seats`, target = SHA-256 of the body · `[{seat, model, enabled, per_day}]` · `If-Match` |
+| PUT | `/substitutes/{player}/seats` 🔏 | `substitute.seats`, target = SHA-256 of the body · `[{seat, via, model, enabled, per_day}]` · `If-Match` |
+| POST | `/substitutes/{player}/web/logout` 🔏 | `substitute.web_logout`, target = player · wipes the signed-in browser profile |
 | POST | `/connections/{id}/login` 🔏 | `connection.login`, target = id · a subscription connection run by a CLI → `201 SubstituteLogin`; the CLI offers no headless sign-in → `409 not_ready` (the app shows the terminal command) |
 | GET | `/connections/{id}/login/{login_id}` | poll while `waiting` |
 | POST | `/connections/{id}/login/{login_id}/code` | `{code}` **write-only**, `auth_code` logins only, while `waiting` (covered by the start's step-up; at most 10 minutes) |
 | POST | `/connections/{id}/logout` 🔏 | target = id · removes the stored sign-in |
 | GET · POST | `/creatives` | `?company&state&kind&cursor` · POST (owner) `{company, kind, brief_md, placement, overlay?, duration_s?, player?}` · `Idempotency-Key` |
 | GET | `/creatives/{ref}` | |
-| POST | `/creatives/{ref}/files` | owner · `{file_id}` (§17.1) — the bridge: the file the owner made in the official app → `review` |
 | POST | `/creatives/{ref}/accept` · `/reject` | owner · `{note?}` |
-| POST | `/studio/key` 🔏 | `studio.key`, target = `studio` · a new key for the ChatGPT studio GPT, shown **once** to the owner (or `make studio-key` in their own terminal); the old one stops working |
-| GET | `/studio/v1/briefs` | **studio key only** · the briefs waiting for ChatGPT: `[{ref, prompt_md, placement, aspect}]`, nothing else |
-| POST | `/studio/v1/briefs/{ref}/result` | **studio key only** · `{openaiFileIdRefs: [{name, mime_type, download_link}]}` → the hub fetches the files (below) → `review` |
-| GET | `/studio/v1/openapi.json` | the Action's schema, for the owner to paste into the GPT |
 
 **Seats** (defaults; the owner changes them in the app). `strong` = GPT 5.5, `light` = GPT 5.3 (fewer credits), Gemini = 3.8 (the owner's
 choice; less trusted for accuracy, so by default it gets drafts, long reads and creative work, and a check only as an extra signal). A seat
-may be held by either player; the table gives the default holder. Model ids are data in the connection's
+may be held by either player; the table gives the default holder. A text seat runs `via: "cli"` by default (the coding models, measured and
+fast); the owner may switch it to `via: "web"` to use the unlimited chat in the browser instead. Model ids are data in the connection's
 `models[]`: one the CLI does not offer is `available: false`, the seat falls to the nearest available model of the same tier, and the morning
 report says so.
 | Seat | Player · model | What it does | Per day |
@@ -1882,7 +1882,7 @@ report says so.
 | `assistant_errand` | gpt · light | The assistant's drafting steps: summary, translation, rewrite, a draft email or post. The assistant checks and finishes the errand. | 30 |
 | `content_draft` | gemini | First drafts of company content (captions, titles, meta descriptions, variations) for the agent in charge to edit. | 30 |
 | `long_read` | gemini | A summary of a long masked document or log, with page or line anchors the caller verifies. | 10 |
-| `creative` | gpt or gemini | Images, and videos of at most 10 s (Gemini), for ads and teasers (below). | 20 images · 3 videos |
+| `creative` | gpt or gemini · `via: "web"` | Images (ChatGPT, Gemini), and videos of at most 10 s (Gemini), for ads and teasers (below). | 20 images · 3 videos |
 - **Task classes:** `sub_code_review`, `sub_second_opinion`, `sub_cross_check`, `sub_errand`, `sub_draft`, `sub_long_read`, `sub_creative` (in `/assignments`, on
   the two subscription connections only).
 - **Nothing falls back silently.** A player that is `limited`, signed out or `off` makes its seat `skipped` (counted in `month.skipped`); the
@@ -1899,27 +1899,33 @@ report says so.
    company's brand (§18.14); the substitute only renders. The prompt asks for **no text inside the image**.
 2. **Persian text is set by the hub, never generated:** `overlay` (title, body, call to action, the company's mark) is composed over the result
    by code (IRANYekanX, the brand palette, the placement's safe zones; resvg) → `composed`.
-3. The path, best first (`Cap`, probed at start-up and daily):
-   - `cli` — the official CLI makes it under the subscription, with no one in the loop.
-   - `studio` — **ChatGPT's own chat and unlimited image generation, through ChatGPT's official custom-GPT Actions.** The owner makes, once, a
-     GPT in their ChatGPT («استودیوی کوینه‌پرو») with the hub's Action (`/studio/v1/openapi.json`) and the studio key. Then one line from the owner
-     in that GPT («کارهای امروز») makes the whole waiting queue: the GPT reads the briefs, makes each image in ChatGPT, and sends it back
-     (`openaiFileIdRefs`). The studio key is its own principal: it reads waiting briefs (prompt, placement, aspect; nothing else) and attaches
-     results, nothing more; `/studio/v1` is served through Caddy, rate-limited, and every call is audited. The hub fetches each file **only
-     from OpenAI's file hosts**, through egress, ≤ 20 MB, into §17.1's processing.
-     `pending` until the first result arrives; `off` if ChatGPT does not pass generated images to the Action.
-   - `bridge` — Gemini's images and videos (Gemini has no Actions), and ChatGPT's when `studio` is off. The card waits (`awaiting_owner`); the
-     app shows the prompt with «کپی و باز کردن Gemini» / «… ChatGPT»; the owner makes it in the official app and shares it into the HQ app (the
-     Android share target; an upload on the web).
-   - `api` — only if the owner adds an API-key connection for that model (paid per image or second), with no one in the loop.
-   - **The hub never drives the consumer ChatGPT or Gemini apps or websites with a scripted browser:** the 18-month account could be blocked,
-     and it breaks with every change of their UI.
-   - Briefs waiting for the owner make **one** `report` notification a day («۳ تصویر منتظر ساخت»), never urgent.
+3. **The path is the web** (`path: "web"`): the image or video is made in ChatGPT or Gemini themselves, in the signed-in browser profile on
+   the hub (below), on the owner's unlimited plan. `cli` is used only if the official CLI can make it under the subscription; `api` only if the
+   owner adds an API-key connection (paid). Nothing waits on the owner to make a file.
 4. `review`: the agent in charge checks the composed result against the brief (vision; a video's key frames) and writes `review_md`; the owner
    accepts or rejects. Every creative is `ai_generated: true`. Publishing one anywhere (the channel, the story) is an external act: a decision
    (A3), as always.
 
-**Sign-in, from the app or the terminal.** From the app: step-up → the runner starts the CLI's own headless sign-in (a device code, or a
+**The web path: a signed-in browser on the hub** (the owner's own method, from their server)
+- **Where:** the egress service's real browser (Playwright, Chromium; §18.7), with a **persistent profile per player**: two holding service
+  accounts, `chatgpt-web` (chatgpt.com) and `gemini-web` (gemini.google.com). `ServiceAccount.policy.browse.kind` gains `"profile"`. The
+  profile lives in a volume only the egress browser mounts for that account (files `600`, not in backups); browsing with it is limited to
+  that site's own hosts; no model ever sees its cookies.
+- **Sign-in, once, by the owner:** `make chatgpt-web-login` or `make gemini-web-login` in their own terminal opens that profile in a visible
+  browser for at most 15 minutes, shown through noVNC (MPL-2.0) bound to `127.0.0.1` only, which the owner reaches through their own SSH tunnel
+  (`ssh -L`). The owner signs in and closes it; the hub never sees the password. A signed-out or expired profile → `web.state: "expired"`,
+  the seats that use it are `skipped`, and one `report` notification asks the owner to sign in again.
+- **Rules first, AI last:** each job runs a reviewed **recipe** (`infra/egress/recipes/chatgpt-web.yaml`, `gemini-web.yaml`): open a new chat
+  (a temporary one when the site offers it), paste the prompt, wait for the result (image ≤ 3 min, video ≤ 10 min), download the original,
+  close. When a recipe fails because the site changed, **one Claude run** finishes the same job with `web.browse` on that account
+  (screenshots; never a secret) and writes the recipe fix as a reviewed change; until it is merged, jobs use that fallback.
+- **Pace:** one browser job per player at a time, at least 60 s apart, inside the seat's daily cap.
+- **What goes in:** only the prompt the Claude agent wrote, masked like every substitute input; never customer data.
+- **What comes out:** every download goes through §17.1's processing (type by content, EXIF stripped, size limits) before anything uses it.
+- **Text on the web:** a text seat switched to `via: "web"` sends its masked question to the chat the same way and reads the answer from the
+  page.
+
+**Sign-in for the CLIs, from the app or the terminal.** From the app: step-up → the runner starts the CLI's own headless sign-in (a device code, or a
 browserless auth code) and returns `verification_url` (and `user_code`); the owner signs in on their phone and, for `auth_code`, pastes the
 code back. From the terminal: `make chatgpt-login`, `make gemini-login`. The credential lives only in a volume the runner mounts (files `600`,
 not in backups; if lost, the owner signs in again). No response, log or audit row carries it; neither the API nor any Claude reads it.
@@ -1934,5 +1940,5 @@ Its memory limit is measured and passes the memory gate, or it stays off.
   file_ids?, repo?, head_sha?, kind?: "text"|"image"|"video", placement?, overlay?, duration_s?}` → `{text_md, source}`, `{findings, source}`
   or `{creative: "CR-…", state}`. Refusals: `channel_not_configured` (signed out or `off`),
   `rate_limited` (the seat's daily cap, or the player is `limited`), `policy_denied` (a seat the role may not use, or input the data guard refuses).
-- **Step-up targets:** `connection.login` (id), `substitute.seats` (body hash), `studio.key` (`studio`). **Stream:** `substitute.updated` on topic `treasury`,
+- **Step-up targets:** `connection.login` (id), `substitute.seats` (body hash), `substitute.web_logout` (player). **Stream:** `substitute.updated` on topic `treasury`,
   `creative.updated` on topic `creatives`. **Settings:** `owner_settings.substitutes: {behind_ratio, creative_default_image: "gpt"|"gemini"}`.
