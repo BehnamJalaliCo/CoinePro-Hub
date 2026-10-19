@@ -7,7 +7,7 @@
 >
 > **v1.1 (۲۰۲۶-۱۰-۱۷):** «Contract notes» گزارش پرامپت ۴ و نتیجه‌ی بازبینی وارد شد. تغییرها با ⟨1.1⟩ علامت خورده‌اند؛ آن‌هایی که هنوز پیاده نشده‌اند در `docs/server-prompts/PROMPT_04_1_HARDENING.md` هستند.
 >
-> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری (§۲۱، پرامپت ۱۲).
+> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
 
 ---
 
@@ -100,6 +100,7 @@ Company {
                                   // kept forever, never by rank, never cycled. Companies without a slot appear
                                   // inside "Other" in charts. Companies are identified by their own mark, not a colour.
   status: "active"|"paused"|"archived",
+  brand_version: int|null,         // ⟨1.4.6⟩ the active CompanyBrand (§18.14); marks and seals are drawn from GET /brands
   template: "standard",            // the template it was created from
   kill_switch: "released"|"engaged",
   deploy_freeze_until: datetime|null,
@@ -367,7 +368,7 @@ Behaviour (§1.7):
 ## 7. Live stream
 
 `GET /stream` — Server-Sent Events. `?topics=work,decisions,deliverables,messages,notifications,activity,llm,control,runs,stories&company=TY` (repeatable; ⟨1.4.1⟩ `runs` carries `run.*`).
-- ⟨1.5⟩ Topics added by §19–§21: `revenue`, `support`, `growth`, `feedback` · `meetings`, `governance`, `knowledge` · `advisor`, `ask`, `reviews`, `briefings`, `people`, `notes`, `quality`, `dceo`.
+- ⟨1.5⟩ Topics added by §19–§21: `revenue`, `support`, `growth`, `feedback` · `meetings`, `governance`, `knowledge` · `advisor`, `ask`, `reviews`, `briefings`, `people`, `notes`, `quality`, `dceo`, `treasury`, `creatives`. ⟨1.4.6⟩ `companies` (§18.14).
 - ⟨1.4.2⟩ **Unknown topics are ignored**, not refused: a client may name topics a newer server adds (`files`, `workshop`, `orders`, the §18 topics). The first SSE comment lists the topics actually served (`: topics work,decisions,…`). Only a malformed `topics` (pattern, length) is `422`.
 - Envelope: `event: <type>` and `data: {id, type, at, company, ref, data}`; `id:` is the JetStream sequence so `Last-Event-ID` resumes without loss.
 - Types: `work.created|updated|delegated|completed`, `decision.created|decided`, `deliverable.created|rated`, `message.created`, `notification.created`, `presence.changed`, `control.changed`, `employee.updated`, `activity.changed` (runtime), `llm.call.started|finished` (from llm-router, metadata only), `budget.alert`.
@@ -846,7 +847,9 @@ Founding   { id, ref: "C-0001", name_fa, name_en, code, source: {kind: "repo"|"i
              state: "auditing"|"proposed"|"sealed"|"provisioning"|"ready_for_login"|"active"|"cancelled",
              audit: {session_ref, report_md, scores: {architecture, quality, security, tests, debt}}|null,
              proposal: {departments: [code], kpis: [{name_fa, target}], team: [{role, model, monthly_usd}], roadmap_md, monthly_usd}|null,
-             decision_ref|null, plan|null, company|null, created_at, updated_at }
+             decision_ref|null, plan|null, company|null,
+             brand: {state: "missing"|"proposed"|"active", version|null},          // ⟨1.4.6⟩ the step «مُهر شرکت» (§18.14)
+             created_at, updated_at }
 ServerPlan { id, ref: "PV-0001", founding|null, company, name, type, location, image: "ubuntu-24.04", private_network: bool,
              firewall: [{direction: "in", protocol, port, sources: [cidr], note_fa}], software: [key], work_user, repo|null,
              monthly_eur, digest, state: "proposed"|"sealed"|"running"|"done"|"failed", decision_ref|null, run|null }
@@ -881,10 +884,10 @@ BackupStatus { hourly: {last_at, next_at, ok, snapshot, size_bytes}, wal: {last_
 - **Decision kinds** added: `protocol`, `tool_enable`, `errand_action`, `company_found`, `server_plan`, `lesson_adoption`. ⟨1.4.5⟩ All are sealed with step-up; how, and the one exception (`server_plan`), is in the approve row of §5.1.
 - **Stream types** (topics): `oversight.finding`, `oversight.hold`, `oversight.watch` (`oversight`) · `inquiry.answered` (`inquiries`) ·
   `errand.updated` (`errands`) · `stars.rollup` (`stars`) · `skill.updated` (`skills`) · `academy.eval` (`academy`) ·
-  `founding.updated`, `provision.step` (`founding`) · `backup.done`, `backup.failed` (`backups`).
+  `founding.updated`, `provision.step` (`founding`) · `backup.done`, `backup.failed` (`backups`) · ⟨1.4.6⟩ `brand.updated` (`companies`).
 - **Step-up targets:** `oversight.protocol` (body hash), `oversight.order` (ref), `oversight.release` (ref), `skill.activate` (`ref@version`),
   `academy.approve` (ref), `mcp.add` (body hash), `mcp.enable` (key),
-  `provision.seal` (the plan's `digest`), `founding.activate` (ref), ⟨1.4.5⟩ `account.put` (body hash). ⟨1.5⟩ `revenue.account`, `support.kb`, `support.channel`, `growth.template`, `growth.rule`, `intake.source` (§19.9) · `charter.seal`, `authority.update`, `meetings.settings`, `decision.batch` (§20.11) · `connection.create` (§21.12).
+  `provision.seal` (the plan's `digest`), `founding.activate` (ref), ⟨1.4.5⟩ `account.put` (body hash), ⟨1.4.6⟩ `company.brand` (the brand version's `digest`). ⟨1.5⟩ `revenue.account`, `support.kb`, `support.channel`, `growth.template`, `growth.rule`, `intake.source` (§19.9) · `charter.seal`, `authority.update`, `meetings.settings`, `decision.batch` (§20.11) · `connection.create` (§21.12).
 
 ### 18.11 Hiring: the owner opens it, the CEOs hire ⟨1.4.2⟩ ⟨1.4.3⟩
 Owner decisions, 2026-10-17: no hire now; hiring opens when the owner brings the hub up for real work. From then on **each company's CEO hires with full authority inside the company's monthly token envelope**: departments ask for the people they need, the CEO decides, and **the CEO chooses the model each job needs** (not every role on Opus). The owner is kept informed through stories (§18.12) and the digest, and can undo any hire. Spending the envelope well, with results and without waste, earns stars (§18.4).
@@ -993,6 +996,58 @@ CatalogTool { name, source: "internal"|"web"|"mcp", server|null, class, per_call
   a listing that changes again before the seal supersedes the card (`409 decision_not_pending`) and a new card comes.
 - The three MCP POSTs take `Idempotency-Key` (§1).
 - **Agents' files:** `GET /internal/v1/files/{id}/meta` adds `agent` (the variant id for vision) and `text` (a PDF's extracted text, or null).
+
+### 18.14 The company's brand and seal ⟨1.4.6⟩
+> Owner, 2026-10-19: once a company is fully defined, the owner gives its **PNG logo** and the company's **seal** is made from it. Companies are
+> data: the mark and seal of every company, new or old, come from its record, never from a client build. The seal's geometry is
+> `design/brand/SEAL.md`; the holding's own seal is fixed and is not data.
+```
+CompanyBrand { company, version, state: "processing"|"proposed"|"active"|"failed"|"retired",
+               source: {kind: "upload"|"seed", file_id|null, path|null, sha256, width, height, has_alpha},
+               mark: {vb, layers: [{role: "ink"|"accent", color, d}]},             // the shape the clients already draw (CompanyMark)
+               wordmark: {vb, layers: [{role, color, d}]}|null,
+               ink, accent|null,                                                   // hex; accent = the company's signature colour; null = a one-colour mark
+               accent_night|null, accent_day|null,                                 // set only when the accent fails 3:1 on that theme's page surface
+               palette: [{hex, share}],                                            // ≤ 6, by area, for briefs and stories
+               options: {colors: 1..4, detail: 1..5},
+               checks: {paths_bytes, min_feature_px_16, iou, contrast_night|null, contrast_day|null, warnings: [string]},
+               digest,                                                             // sha256 of the canonical JSON of mark, wordmark, ink, accent, accent_night, accent_day
+               status_reason|null, created_at, activated_at|null }
+Brands       { etag, companies: {CODE: {version, mark, wordmark|null, ink, accent|null, accent_night|null, accent_day|null}} }   // active versions only
+```
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/companies/{code}/brand` | owner · `{file_id, part: "mark"\|"wordmark", options?}` → `202 CompanyBrand` (`processing`) · a new version that carries the other part over from the active one · `Idempotency-Key` |
+| GET | `/companies/{code}/brand` | the active version and, if any, the newest `proposed` one · `/brand/versions` lists all |
+| POST | `/companies/{code}/brand/{version}/retrace` | `{options}` → a new `processing` version from the same file |
+| POST | `/companies/{code}/brand/{version}/activate` 🔏 | `company.brand`, target = the version's `digest`; the server recomputes it. The previous active version becomes `retired` |
+| GET | `/brands` | every active brand in one response, `ETag` (clients cache it; `304` when unchanged). Every brand route is the owner's; an agent token → 403 |
+- `Company` gains `brand_version: int|null` (§3.1). The clients draw a company's mark and seal from `/brands`, then from their built-in marks,
+  then from the code.
+- **Processing is code, no model,** in the sandboxed media worker of §17.1 (no network, memory and time limits, the decompression-bomb guard):
+  1. **Input:** PNG (best with transparency); WebP and JPEG are accepted with the warning «بدون شفافیت». At most 4096 × 4096 px.
+  2. **Background:** transparent pixels; with no alpha, the colour of the four corners when they agree (ΔE ≤ 5); otherwise `failed`
+     `no_background` («لوگو را با زمینه‌ی شفاف یا یکدست بدهید»).
+  3. **Trim** to the content with 4% padding.
+  4. **Colours:** the foreground is quantised in OKLab into `options.colors` (default: as many as the logo has, at most 4); anti-aliased edges do
+     not vote. The largest low-chroma cluster is `ink`; the others are `accent` layers with their own colour. One colour → a single `ink` layer
+     and `accent: null`.
+  5. **Trace** each layer to paths with **VTracer** (MIT), `detail` 1–5 setting speckle filter and corner threshold; holes are even-odd.
+  6. **Budget:** all `d` together ≤ 48 KB. Over it → lower detail automatically down to 1; still over → `failed` `too_complex`.
+  7. **Only our own paths are kept:** every `d` must match the SVG path grammar; nothing else of any uploaded markup exists in the output.
+  8. **Checks:** the trace is rasterised again and compared with the original mask (`iou`; below 0.9 → warning); the thinnest feature at 16 px
+     (`min_feature_px_16`; below 1 → warning «در اندازه‌ی کوچک جزئیات گم میشود»); the accent's contrast on both themes' page surfaces; below 3:1
+     → the nearest passing lightness in OKLCH (hue and chroma kept) becomes `accent_night` or `accent_day`, with a warning.
+  9. → `proposed`, stream `brand.updated`.
+- **The owner looks before sealing:** the app shows the original beside the trace, the mark at 16, 24, 48 and 160 px, the seal in `ready` and
+  `sealed`, at night and by day, and the warnings; the owner retraces with other options or activates.
+- **Founding** (§18.8): the company exists once `company_found` is sealed; the founding then shows the step «مُهر شرکت». `Founding` gains
+  `brand: {state: "missing"|"proposed"|"active", version|null}`. `POST /foundings/{ref}/activate` without an active brand → `409 not_ready`
+  with `missing: ["brand"]`, unless the body says `{skip_brand: true}` (the company then shows its code until a brand is sealed).
+- **Existing companies:** the server seeds an `active` version 1 for each folder in `design/brand/companies/<code>/` from its flat SVGs
+  (`*-mark-flat.svg`, `*-wordmark*-flat.svg`; layers by `--logo-ink` / `--logo-accent`), `source.kind: "seed"`. A new upload replaces it like
+  any version.
+- Stream: `brand.updated` on topic `companies`. Step-up target: `company.brand` (digest).
 
 ## 19. v1.5 — revenue and support (prompt 10)
 
@@ -1488,7 +1543,9 @@ DecisionMemo { id, ref: "DM-0001", decision: "D-…", decision_version, mode: "s
                options: [{title_fa, pros_md, cons_md}], against_md,           // the strongest case against; never empty
                risks: [{title_fa, likelihood: "low"|"medium"|"high", impact: "low"|"medium"|"high", mitigation_fa}],
                questions: [string],                                           // what the owner should ask the proposer
-               citations: [{kind, ref}], usage: {tokens, usd}, created_at }
+               citations: [{kind, ref}], usage: {tokens, usd},
+               second_opinion: {player, model, recommendation, confidence, summary_fa, differences: [string], agrees: bool}|null,   // §21.13
+               created_at }
 AdvisorTrigger { id, key, kind: "budget"|"quota"|"compliance"|"incident"|"revenue"|"waiting_decisions"|"finding"|"okr",
                company|null, fired_at, facts: {…}, message_ref: "A-…"|null, state: "sent"|"deferred"|"capped" }
 ```
@@ -1653,8 +1710,8 @@ RoiRow   { by: "employee"|"department"|"company", key, company, period: "week"|"
   guard (no private address). A duplicate `key` is `409 version_conflict`. It is used only through `PUT /assignments` 🔏.
 
 - ⟨1.5⟩ **Other subscriptions** (owner, 2026-10-19): `chatgpt-plus` (provider `openai`) and `gemini-pro` (provider `google`) are connections of kind
-  `subscription`, run through their official CLIs (Codex CLI, Gemini CLI) as model-only one-shot processes, logged in by the owner in their own
-  terminal; by default assigned to the assistant's errands and the advisor's second opinion; the treasury records their equivalent cost.
+  `subscription`, run through their official CLIs as model-only one-shot processes. How they are used — the substitute players — is §21.13.
+
 ### 21.8 Quick notes and cartable reminders (M9, M8)
 ```
 OwnerNote { id, ref: "NT-0001", text_md, source: "text"|"voice", file_id|null, tags: [string],
@@ -1735,15 +1792,16 @@ DceoStats  { window: "30d"|"90d"|"all", n, accuracy|null, baseline_accuracy|null
 ### 21.12 Kinds, stream, step-up, settings ⟨1.5⟩
 - **Decision kinds:** none new. `evaluation` payload v2 (§21.5) and the one `deploy` payload definition (§21.6). `evaluation` joins the 🔏 list of
   §5.1 (target = ref). `Decision.digital_ceo_prediction` takes the shape of §21.10.
-- **Step-up targets:** `connection.create` (body hash).
+- **Step-up targets:** `connection.create` (body hash); `connection.login` (id), `substitute.seats` (body hash) (§21.13).
 - **Stream topics:** `advisor` (`memo.ready`, `advisor.proactive`) · `ask` (`ask.answered`) · `reviews` (`review.updated`) · `briefings`
   (`briefing.ready`) · `stars` (`rankings.updated`) · `people` (`hr.round`) · `notes` (`note.created`) · `decisions` (`decision.reminded`) ·
-  `quality` (`claim.verdict`) · `dceo` (`dceo.scored`).
+  `quality` (`claim.verdict`) · `dceo` (`dceo.scored`) · `treasury` (`substitute.updated`) · `creatives` (`creative.updated`).
 - **`/owner/settings` gains:** `advisor: {auto_memo: {enabled, max_per_day}, proactive_per_day}`, `weekly_review: {enabled, day, at}`,
   `audio_briefings: {morning, ceo_letters}`, `ceo_weekly_letter: {enabled, day, at}`, `reminders: {enabled, fraction, before_expiry_h, ages_h}`,
-  `digital_ceo: {enabled, reveal: "after"|"before", model_predictions, max_model_per_day}`.
-- **Agent tools** (agents/tools.md): `memo.write` (A1, advisor), `ask.answer` (A1, librarian), `claim.verdict` (A2, fact checker, overseer, QC);
-  `knowledge.search` kinds `docs`, `code`, `notes` as in §21.2.
+  `digital_ceo: {enabled, reveal: "after"|"before", model_predictions, max_model_per_day}`, `substitutes: {behind_ratio, creative_default_image}`.
+- **Agent tools** (agents/tools.md): `memo.write` (A1, advisor), `ask.answer` (A1, librarian), `claim.verdict` (A2, fact checker, overseer, QC),
+  `substitute.call` (A0, advisor, overseer, assistant, CEOs; §21.13); `knowledge.search` kinds `docs`, `code`, `notes` as in §21.2.
+- **Task classes** (§21.13): `sub_second_opinion`, `sub_cross_check`, `sub_errand`, `sub_draft`, `sub_long_read`, `sub_creative`.
 - **Error codes:** none new (`rate_limited`, `not_ready`, `decision_not_pending`, `envelope_exceeded`, `channel_not_configured` cover every case).
 - **Protocols:** `PR-082` (monthly HR evaluation) becomes `active`, scheduled on the 3rd of each **Jalali** month: the protocol registry gains an
   optional `calendar: "gregorian"|"jalali"` (default `gregorian`); with `jalali`, `BYMONTHDAY` is a day of the Jalali month. The key enters
@@ -1751,3 +1809,102 @@ DceoStats  { window: "30d"|"90d"|"all", n, accuracy|null, baseline_accuracy|null
   the loader ignores an unknown key with a warning, never an error.
 - **Repositories:** nothing here asks the owner for a GitHub token; the hub's existing git access is used, and what it cannot read is `not_indexed`
   or `no_access`.
+
+### 21.13 Substitute players: ChatGPT and Gemini (owner, 2026-10-19) ⟨1.5⟩
+> The owner's words: **Claude Code holds the whole project, comprehensive and integrated; Gemini and GPT are substitute players
+> (بازیکن ذخیره), called onto the pitch for one task at a time.** The owner pays for ChatGPT Plus and Google AI Pro (18 months, about $20 a
+> month each), so both are used through the month: errands, second opinions, drafts, long reads, images, and short videos for ads and teasers.
+
+**The rules of the bench**
+- **Claude holds the project.** Code, decisions, verdicts, findings, customer-facing text, every A2+ act and every final deliverable stay with
+  the Claude agent in charge. A substitute answers one bounded question: no tools, no thread, no memory, no write path; it never speaks to a
+  customer, never publishes, never sees repository code.
+- **What it receives** is masked (redaction §16.6) and passes the egress data guard (§18.7): never customer data or conversations, secrets,
+  repository code, or another company's files.
+- **What it returns is labelled and is never evidence.** Every output carries `source: {player, model, connection, at}` and is shown with the
+  provider's logo. No finding is raised, closed or disputed, and no claim confirmed or refuted, on a substitute's word alone.
+- **Who calls them:** code, at the fixed seats below, or a Claude agent with `substitute.call`. The caller stays answerable for what it does
+  with the answer.
+
+```
+Substitute { player: "gpt"|"gemini", connection: "chatgpt-plus"|"gemini-pro", runner: "codex_cli"|"gemini_cli",
+             login: {state: "signed_out"|"signing_in"|"signed_in"|"expired", plan_fa, since|null, last_ok_at|null},
+             status: "ready"|"limited"|"off"|"error", limited_until|null, status_reason|null,
+             models: [{id, label, tier: "strong"|"light", available: bool}],      // checked against what the CLI offers under the subscription
+             capabilities: {text: Cap, image: Cap, video: Cap},                   // Cap = "cli"|"bridge"|"api"|"off"
+             seats: [{seat, model, enabled, per_day, used_today}],
+             month: {key (Jalali, "1405-08"), calls, skipped, input_tokens, output_tokens, estimated: bool,
+                     equiv_usd, price_usd, value_ratio}, version }               // value_ratio = equiv_usd ÷ price_usd
+SubstituteLogin { id, connection, method: "device_code"|"auth_code", verification_url, user_code|null, expires_at,
+             state: "waiting"|"done"|"expired"|"failed", status_reason|null }
+Creative   { id, ref: "CR-0001", company, kind: "image"|"video", brief_md, prompt_md, aspect: "1:1"|"4:5"|"9:16"|"16:9",
+             duration_s|null,                                                      // video only, ≤ 10
+             player: "gpt"|"gemini", model, path: "cli"|"bridge"|"api",
+             state: "queued"|"generating"|"awaiting_owner"|"review"|"accepted"|"rejected"|"failed",
+             requested_by: Actor, work_ref|null, errand_ref|null, files: [FileRef], review_md|null,
+             source: {player, model, at}|null, ai_generated: true, created_at, updated_at, version }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/substitutes` | owner · both players |
+| PUT | `/substitutes/{player}/seats` 🔏 | `substitute.seats`, target = SHA-256 of the body · `[{seat, model, enabled, per_day}]` · `If-Match` |
+| POST | `/connections/{id}/login` 🔏 | `connection.login`, target = id · a subscription connection run by a CLI → `201 SubstituteLogin`; the CLI offers no headless sign-in → `409 not_ready` (the app shows the terminal command) |
+| GET | `/connections/{id}/login/{login_id}` | poll while `waiting` |
+| POST | `/connections/{id}/login/{login_id}/code` | `{code}` **write-only**, `auth_code` logins only, while `waiting` (covered by the start's step-up; at most 10 minutes) |
+| POST | `/connections/{id}/logout` 🔏 | target = id · removes the stored sign-in |
+| GET · POST | `/creatives` | `?company&state&kind&cursor` · POST (owner) `{company, kind, brief_md, aspect, duration_s?, player?}` · `Idempotency-Key` |
+| GET | `/creatives/{ref}` | |
+| POST | `/creatives/{ref}/files` | owner · `{file_id}` (§17.1) — the bridge: the file the owner made in the official app → `review` |
+| POST | `/creatives/{ref}/accept` · `/reject` | owner · `{note?}` |
+
+**Seats** (defaults; the owner changes them in the app). `strong` = GPT 5.5, `light` = GPT 5.3 (fewer credits), Gemini = 3.8 (the owner's
+choice; less trusted for accuracy, so it gets drafts, long reads and creative work, never a check). Model ids are data in the connection's
+`models[]`: one the CLI does not offer is `available: false`, the seat falls to the nearest available model of the same tier, and the morning
+report says so.
+| Seat | Player · model | What it does | Per day |
+|---|---|---|---|
+| `advisor_second_opinion` | gpt · strong | An independent opinion on the same masked facts pack as a decision memo (§21.1), **without** the advisor's memo. `DecisionMemo.second_opinion: {player, model, recommendation, confidence, summary_fa (≤ 600), differences: [string], agrees: bool}\|null`; `agrees` is code (same `recommendation`). A disagreement shows on the card and in the weekly review. | 3 |
+| `overseer_cross_check` | gpt · strong | A second check of the claims a `sample` protocol picked (`PR-001`, the fact checker's sample) before the verdict. Disagreement sends the claim back to the overseer; it never decides it. | 20 claims |
+| `assistant_errand` | gpt · light | The assistant's drafting steps: summary, translation, rewrite, a draft email or post. The assistant checks and finishes the errand. | 30 |
+| `content_draft` | gemini | First drafts of company content (captions, titles, meta descriptions, variations) for the agent in charge to edit. | 30 |
+| `long_read` | gemini | A summary of a long masked document or log, with page or line anchors the caller verifies. | 10 |
+| `creative` | gpt or gemini | Images, and videos of at most 10 s (Gemini), for ads and teasers (below). | 10 images · 3 videos |
+- **Task classes:** `sub_second_opinion`, `sub_cross_check`, `sub_errand`, `sub_draft`, `sub_long_read`, `sub_creative` (in `/assignments`, on
+  the two subscription connections only).
+- **Nothing falls back silently.** A player that is `limited`, signed out or `off` makes its seat `skipped` (counted in `month.skipped`); the
+  caller carries on with its own model. A Claude run is never moved to a substitute, and a substitute seat is never moved to Claude.
+- **Their own limits.** Substitute calls count neither against the agents' daily token cap nor against the oversight or owner-zone shares; they
+  are bounded by the subscription's quota and each seat's `per_day`. The ledger records them at their equivalent cost.
+- **Use through the month:** `month` comes from the CLI's own usage report (`estimated: true` when it gives none); `equiv_usd` from the price
+  table (§10). The morning report carries one line per player; when `value_ratio` is under `owner_settings.substitutes.behind_ratio` (default
+  0.4) on the 15th of the Jalali month, a `report` notification suggests seats to widen. Nothing widens by itself.
+
+**Images and videos** (`creative`)
+1. The owner (`POST /creatives`) or an agent (`substitute.call` with `seat: "creative"`) asks. **The Claude agent in charge writes `prompt_md`**
+   from the brief and the company's brand (§18.14); the substitute only renders. The prompt asks for **no text inside the image**: Persian text is
+   set over it in the hub, never generated.
+2. `Cap` decides the path, probed at start-up and daily:
+   - `cli` — the official CLI makes it under the subscription. The file enters through §17.1's processing → `review`.
+   - `bridge` — the CLI cannot. The card waits (`awaiting_owner`); the app shows the prompt with «کپی و باز کردن ChatGPT» / «… Gemini»; the
+     owner makes it in the official app and shares it into the HQ app (the Android share target; an upload on the web) → `review`.
+   - `api` — only if the owner adds an API-key connection for that model (paid per image or second).
+   - **The hub never drives the consumer ChatGPT or Gemini websites with a scripted browser:** the subscription account could be blocked, and it
+     breaks with every change of their UI.
+3. `review`: the agent in charge checks the result against the brief (vision; a video's key frames) and writes `review_md`; the owner accepts or
+   rejects. Every creative is `ai_generated: true`. Publishing one anywhere is an external act: a decision (A3), as always.
+
+**Sign-in, from the app or the terminal.** From the app: step-up → the runner starts the CLI's own headless sign-in (a device code, or a
+browserless auth code) and returns `verification_url` (and `user_code`); the owner signs in on their phone and, for `auth_code`, pastes the
+code back. From the terminal: `make chatgpt-login`, `make gemini-login`. The credential lives only in a volume the runner mounts (files `600`,
+not in backups; if lost, the owner signs in again). No response, log or audit row carries it; neither the API nor any Claude reads it.
+
+**The runner.** One image with both CLIs, run one-shot per call (input on stdin, never in argv), one call at a time for both players together,
+with an empty tmpfs working directory, a read-only root, no hub network, and egress only to the hosts the CLI needs (pinned in the egress
+allow-list). The CLIs' own tools are off: Gemini with no core tools, Codex in its read-only sandbox. Its memory limit is measured and passes the
+memory gate, or it stays off.
+
+- **Agent tool** `substitute.call` (A0; advisor, overseer, assistant, CEOs): `{seat, input_md, file_ids?, kind?: "text"|"image"|"video",
+  aspect?, duration_s?}` → `{text_md, source}` or `{creative: "CR-…", state}`. Refusals: `channel_not_configured` (signed out or `off`),
+  `rate_limited` (the seat's daily cap, or the player is `limited`), `policy_denied` (a seat the role may not use, or input the data guard refuses).
+- **Step-up targets:** `connection.login` (id), `substitute.seats` (body hash). **Stream:** `substitute.updated` on topic `treasury`,
+  `creative.updated` on topic `creatives`. **Settings:** `owner_settings.substitutes: {behind_ratio, creative_default_image: "gpt"|"gemini"}`.
