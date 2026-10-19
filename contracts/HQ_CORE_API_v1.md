@@ -1652,6 +1652,9 @@ RoiRow   { by: "employee"|"department"|"company", key, company, period: "week"|"
   egress) → `ready`, or `error` with `status_reason`. No response, log or audit row ever carries the secret. `provider` must be one the router supports; `base_url` only for `openai_compatible`, `https`, and through the egress
   guard (no private address). A duplicate `key` is `409 version_conflict`. It is used only through `PUT /assignments` 🔏.
 
+- ⟨1.5⟩ **Other subscriptions** (owner, 2026-10-19): `chatgpt-plus` (provider `openai`) and `gemini-pro` (provider `google`) are connections of kind
+  `subscription`, run through their official CLIs (Codex CLI, Gemini CLI) as model-only one-shot processes, logged in by the owner in their own
+  terminal; by default assigned to the assistant's errands and the advisor's second opinion; the treasury records their equivalent cost.
 ### 21.8 Quick notes and cartable reminders (M9, M8)
 ```
 OwnerNote { id, ref: "NT-0001", text_md, source: "text"|"voice", file_id|null, tags: [string],
