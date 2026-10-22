@@ -2393,7 +2393,7 @@ RecordVersion { n, files: [{file_id, name, mime, size_bytes, sha256, pages|null,
 | GET | `/archive/records` | `?scope&class&folder&level&state&party&q&from&to&expiring_within_days&held&cursor` — only what the reader's clearance allows |
 | GET | `/archive/records/{ref}` | the record with its versions, links, holds and reminders |
 | POST | `/archive/records` | `{scope, class, title_fa, metadata, level?, folder?, file_ids, parties?, links?, file: bool}` · `Idempotency-Key` (required). The owner may file at once (`file: true` → `filed`); an agent's call makes a `draft` |
-| PATCH | `/archive/records/{ref}` | `If-Match` · `title_fa`, `metadata`, `folder`, `parties`, `level` (raise only; lowering is §23.4). A sealed record answers `409 sealed_record` |
+| PATCH | `/archive/records/{ref}` | `If-Match` · `title_fa`, `metadata`, `folder`, `parties`, `level` (raise only; lowering is §23.4). A sealed record answers `409 sealed_record`, except a PATCH whose only field is `level`: the level is access metadata outside the sealed manifest, so it can be raised, or lowered with `archive.declassify`, without touching the seal ⟨1.7.1⟩ |
 | POST | `/archive/records/{ref}/versions` | `{file_ids, note_fa}` → a new version; on a sealed record the old one becomes `superseded`, the record goes back to `filed` |
 | POST | `/archive/records/{ref}/seal` 🔏 | target = the current version's `manifest_sha256` |
 | POST · DELETE | `/archive/records/{ref}/links` | add or remove one link (not on a sealed version's links) |
@@ -2435,7 +2435,7 @@ LinkKind   { key, title_fa, inverse_fa, to_kinds: [kind] }             // seeds:
 Level     { key, title_fa, rank: int, color_index, watermark: bool, encrypt: bool, step_up_to_view: bool, agents_max: bool }
 Clearance { subject: {kind: "role"|"employee", ref}, scope: <scope>|"all", level: <level key> }
 ```
-- **Seeds:** `public` (عمومی, 0), `internal` (داخلی, 1, default), `confidential` (محرمانه, 2, watermark), `secret` (سرّی, 3, watermark,
+- **Seeds:** `public` (عمومی, 0), `internal` (داخلی, 10, default), `confidential` (محرمانه, 20, watermark), `secret` (سری, 30, watermark,
   encrypt, step-up to view, never above `agents_max`). The owner may add levels between them; a level's rank never changes once used.
 - **Clearance seeds:** every agent role `internal` in its own company's scope; the legal counsel `confidential` in `all`; the archivist
   `confidential` for content and every level for **metadata it files**; the owner everything. The owner changes clearance with 🔏
@@ -2561,3 +2561,10 @@ Automation   { …§23.7, runs_30d, last_run_at|null }
   `default_folder` if it lies in that scope.
 - **Cards:** the `archive_schema` payload is `{part, key, base_version, body, impact}`; the card is void if that schema row changed since.
   Both archive cards are approved with the usual `decision.approve` step-up, target the card's ref.
+  A card with `base_version: null` (a new key) is void once that key exists.
+- **A draft** takes `class` in its `PATCH` (an imported draft has none); a filed record does not. Intake fills the form from the
+  `suggestion`, and the draft is created with `POST /archive/records` (`file: false`).
+- **`tombstone.hashes`** is `[{name, sha256}]`, one per destroyed file. **`notify.to`** is `owner` or a role key.
+- **Clearance rows** may be served one per grant or grouped per subject as above; both apps read either.
+- **Files:** images show inline; a PDF opens in a new tab or downloads (the page's security policy does not frame `blob:` URLs). Date
+  inputs take the Gregorian date and show the Jalali one beside it.
