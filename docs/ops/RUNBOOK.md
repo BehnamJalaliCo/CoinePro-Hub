@@ -666,6 +666,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
    - **client اختصاصی مالک (`own=1`، راه ماندگار):** client عمومی rclone سهمیه‌ی مشترک همه‌ی کاربران rclone را دارد و خود rclone میگوید در ۲۰۲۶ کنار میرود. اولین copy به Drive (۲۰۲۶-۱۰-۲۲) با `403 rateLimitExceeded` همان سهمیه شکست خورد.
      - **کار مالک در Google Cloud:** یک پروژه بسازد، Google Drive API را Enable کند، consent screen را بسازد و در Audience، «Publish app» بزند تا **«In production»** شود (در حالت «Testing»، refresh token بعد از ۷ روز باطل میشود). بعد در Clients یک OAuth client از نوع **Desktop app** بسازد.
      - با `make gdrive-auth own=1` (همراه `step=link` هم میشود) اسکریپت client ID و client secret را میپرسد (secret بی‌نمایش؛ با `step=link` دو خط از stdin) و همان لینک و آدرس بالا را با client مالک میگیرد. ID و secret از stdin به tmpfs کانتینر میرسند، نه argv و نه env کانتینر، و کنار توکن در `kv/backup/gdrive` ذخیره میشوند. scope همچنان `drive.file` است.
+     - **عوض کردن client:** با `drive.file` هر client فقط فایل‌های خودش را میبیند. client تازه یک پوشه‌ی `CoinePro-HQ` تازه و یک مخزن restic تازه میسازد (اولین copy کامل است). پوشه‌ی client قبلی در Drive میماند تا مالک خودش پاکش کند. ۲۰۲۶-۱۰-۲۲: از client عمومی به client خود مالک (پروژه‌ی `coinepro-hq-backup`، In production) رفتیم؛ ۵۱ snapshot در ۲۶۶ ثانیه کپی شد.
    - تا این کار نشده، backup ساعتی فقط محلی است و وضعیت Drive «پیکربندی نشده» است.
 2. **نسخه‌ی کاغذی رمز restic:** `make backup-password`.
    - فقط در ترمینال خود مالک، با تایپ `show`. بعد از Enter صفحه پاک میشود.
