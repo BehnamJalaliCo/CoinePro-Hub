@@ -228,7 +228,9 @@ async def test_failing_wal_archiving_is_one_urgent_alert_at_once(
     assert not backups.wal_failing({"failing": False, "ready_count": 5})
 
 
-async def test_a_failed_restic_check_is_one_urgent_alert(whub: Hub, su: Any, status_dir: Path) -> None:
+async def test_a_failed_restic_check_is_one_urgent_alert(
+    whub: Hub, su: Any, status_dir: Path
+) -> None:
     """7.1 §2.4: `restic check` failing (hourly.json check.ok false) is urgent
     at once, one per check (backup:check:{at}); the run itself was ok."""
     now = datetime.now(UTC).replace(microsecond=0) + timedelta(days=random.randint(601, 4000))
@@ -271,7 +273,11 @@ async def test_openbao_snapshot_and_retention_failures_are_decisions(
     run = hourly(now, ok=True, last_ok=now)
     run["openbao_snapshot"] = {"configured": True, "last_at": snap_at, "ok": False,
                                "error": "the raft snapshot failed (token expired or revoked?)"}  # fmt: skip
-    run["destinations"][0] |= {"retention_ok": True, "retention_error": None, "retention_last_ok_at": iso(now)}
+    run["destinations"][0] |= {
+        "retention_ok": True,
+        "retention_error": None,
+        "retention_last_ok_at": iso(now),
+    }
     run["destinations"][1] |= {"retention_ok": False, "retention_error": "forget failed (kept everything)",
                                "retention_last_ok_at": ret_at}  # fmt: skip
     write(status_dir, "hourly", run)
