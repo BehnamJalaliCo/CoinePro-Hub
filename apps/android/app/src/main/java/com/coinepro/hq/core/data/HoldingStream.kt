@@ -118,7 +118,7 @@ class HoldingStream(
         const val CORE_TOPICS = "work,decisions,deliverables,messages,notifications,activity,llm,control"
 
         // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback"
+        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge"
 
         // Event type prefix -> query tags to refresh (mirrors apps/web/src/lib/stream.ts).
         val INVALIDATE: List<Pair<String, Array<String>>> = listOf(
@@ -158,6 +158,16 @@ class HoldingStream(
             "lifecycle." to arrayOf("growth"),
             "nps." to arrayOf("growth", "feedback"),
             "feedback." to arrayOf("feedback"),
+            // ⟨1.5⟩ §20.11: a meeting's turns, claims and whispers (the room and the planner); a sealed charter; a stale KPI (cards
+            // and the scorecard); OKR and outcome updates; risks; calendar conflicts (the deploy cards carry them too); knowledge.
+            "meeting." to arrayOf("meetings", "planner"),
+            "charter." to arrayOf("charter"),
+            "kpi." to arrayOf("cards", "scorecards", "kpis"),
+            "okr." to arrayOf("okr"),
+            "outcome." to arrayOf("outcomes"),
+            "risk." to arrayOf("risks"),
+            "calendar." to arrayOf("calendar", "planner", "decisions"),
+            "knowledge." to arrayOf("knowledge"),
         )
     }
 }

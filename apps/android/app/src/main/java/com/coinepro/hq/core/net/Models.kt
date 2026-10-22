@@ -145,6 +145,10 @@ data class Decision(
     val payload: JsonObject = JsonObject(emptyMap()),
     val quotaEstimate: QuotaOut = QuotaOut(),
     val version: Int = 1,
+    /** ⟨1.5⟩ §20.6: what a proposal promises, measured at 30/60/90 days once sealed. */
+    val expected: Expected? = null,
+    /** ⟨1.5⟩ §20.6: `expected_missing` for the first days after prompt 11 (a warning, not a refusal). */
+    val warnings: List<String> = emptyList(),
 )
 
 @Serializable
@@ -542,7 +546,8 @@ data class Problem(
     val title: String? = null,
     val status: Int? = null,
     val requestId: String? = null,
-    val fields: Map<String, String>? = null,
+    /** Field errors; ⟨1.5⟩ `422 batch_not_eligible` carries `fields.items: [{ref, reason}]` (§20.12), so it is read as JSON. */
+    val fields: JsonObject? = null,
     /** ⟨1.4.6⟩ `409 not_ready`: what is still missing (§18.8, e.g. ["brand"]). */
     val missing: List<String> = emptyList(),
     /** ⟨1.5⟩ `422 send_blocked`: the outbound guard's refusal codes (§19.6). */

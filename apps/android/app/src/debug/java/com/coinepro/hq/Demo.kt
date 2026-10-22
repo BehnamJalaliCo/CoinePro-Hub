@@ -80,9 +80,11 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         val query = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
         val version = req.header("If-Match")?.trim('"')?.toIntOrNull()
         if (req.method == "GET") {
+            v17Read(path, query)?.let { return respond(req, it) }
             v16Read(path, query)?.let { return respond(req, it) }
             ownerToolsRead(path, query)?.let { return respond(req, it) }
         } else {
+            v17Write(req.method, path, body, version, req.header("Idempotency-Key"), req.header("X-Step-Up"))?.let { return respond(req, it.status to it.body, it.headers) }
             v16Write(req.method, path, body, version, req.header("Idempotency-Key"))?.let { return respond(req, it.status to it.body, it.headers) }
             ownerToolsWrite(req.method, path, body, version)?.let { return respond(req, it) }
         }
@@ -141,7 +143,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             replaceIn("/decisions?status=all", ref, updated)
             store["/decisions?status=pending"] = 200 to page(list("/decisions?status=all").filter { it.jsonObject.str("status") == "pending" })
             bumpInbox()
-            if (verdict == "approve") decided16(updated.jsonObject)
+            if (verdict == "approve") { decided16(updated.jsonObject); decided17(updated.jsonObject) }
             return 200 to updated
         }
         Regex("^/deliverables/(O-\\d+)/rating$").find(path)?.let { m ->
@@ -1423,4 +1425,718 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             }
         }
     }
+
+    // ------------------------------------------------------------------ ⟨1.5⟩ §20 --
+    // Governance (contract §20), as the web's mock-v17.ts: the fixtures hold whole lists (meetings with their turns, every charter
+    // version, knowledge with the expired and the support view, OKRs, outcomes, risks, the calendar, the authority matrix); the demo
+    // filters them and answers every write the mock answers. Rules the hub runs as code (the budget estimate, claim checks, conflict
+    // rules, the batch eligibility) are reduced to what a demo needs. Companies are data here too.
+    private val meetingScripts = mutableMapOf<String, MutableList<JsonObject>>().apply {
+        for ((k, v) in store) if (k.startsWith("#script:MT-")) put(k.removePrefix("#script:"), v.second.jsonObject["items"]!!.jsonArray.map { it.jsonObject }.toMutableList())
+    }
+    /** The live meeting reveals its next turn only after a pause, like the web's mock (one per poll, ≥ 8 s apart). */
+    private var lastReveal = System.currentTimeMillis()
+    private var turnSeq = 200
+    private var resolutionSeq = 20
+    private var batchSeq = 1
+    private val inspector = buildJsonObject { put("kind", "agent"); put("code", "HQ-OVS-MGR"); put("display_fa", "بازرس کل") }
+
+    private fun operating(): List<JsonObject> = list("/companies").map { it.jsonObject }.filter { it.str("kind") != "holding" }
+    private fun nameOf(code: String?): String = list("/companies").map { it.jsonObject }.firstOrNull { it.str("code") == code }?.str("name_fa") ?: code.orEmpty()
+    private fun agent(code: String, fa: String) = buildJsonObject { put("kind", "agent"); put("code", code); put("display_fa", fa) }
+    private fun ceo(c: String) = agent("$c-CEO", "مدیرعامل ${nameOf(c)}")
+    private fun tech(c: String) = agent("$c-TECH-MGR", "مدیر فنی ${nameOf(c)}")
+    private fun JsonObject.long(k: String): Long = (this[k] as? JsonPrimitive)?.content?.toDoubleOrNull()?.toLong() ?: 0L
+    private fun JsonObject.obj(k: String): JsonObject = this[k] as? JsonObject ?: JsonObject(emptyMap())
+    private fun JsonObject.arr(k: String): List<JsonObject> = (this[k] as? JsonArray)?.mapNotNull { it as? JsonObject }.orEmpty()
+    private fun ms(iso: String?): Long = iso?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L
+    private fun ahead(minutes: Long): JsonPrimitive = JsonPrimitive(HqClock.now().plus(minutes, ChronoUnit.MINUTES).toString())
+    private fun pad(prefix: String, n: Int, w: Int) = prefix + "%0${w}d".format(n)
+    private fun bad(fa: String) = Reply(422, problem16(422, "validation_failed", fa))
+    private fun stepUpMissing() = Reply(403, problem16(403, "step_up_required", "این کار تأیید با اثر انگشت یا چهره میخواهد."))
+    private fun unmatched(version: Int?, current: Int): Reply? = when {
+        version == null -> Reply(428, problem16(428, "precondition_required", "نسخه همراه درخواست نیامد."))
+        version != current -> Reply(409, problem16(409, "version_conflict", "همین حالا عوض شده؛ دوباره نگاه کن."))
+        else -> null
+    }
+
+    // ---- meetings (§20.1)
+    private fun meetingList(): List<JsonObject> = list("/meetings").map { it.jsonObject }
+    private fun meetingOf(ref: String): JsonObject? = meetingList().firstOrNull { it.str("ref") == ref }
+    private fun saveMeeting(m: JsonObject) {
+        val all = meetingList()
+        store["/meetings"] = 200 to page(if (all.any { it.str("ref") == m.str("ref") }) all.map { if (it.str("ref") == m.str("ref")) m else it } else all + m)
+    }
+    private fun turnsOf(ref: String): List<JsonObject> = store["/meetings/$ref/turns"]?.second?.jsonObject?.arr("items").orEmpty()
+    private fun saveTurns(ref: String, items: List<JsonObject>) {
+        val cur = store["/meetings/$ref/turns"]?.second?.jsonObject ?: buildJsonObject { putJsonArray("whispers") {}; put("next_cursor", JsonNull) }
+        store["/meetings/$ref/turns"] = 200 to JsonObject(cur + ("items" to JsonArray(items)))
+    }
+    private fun items(m: JsonObject) = m.arr("items")
+    private fun currentItem(m: JsonObject): JsonObject? = items(m).sortedBy { it.int("n") }.firstOrNull { it.str("state") == "round_1" || it.str("state") == "round_2" }
+    private fun withItems(m: JsonObject, xs: List<JsonObject>) = JsonObject(m + ("items" to JsonArray(xs)))
+    private fun mapItem(m: JsonObject, id: String?, f: (JsonObject) -> JsonObject) = withItems(m, items(m).map { if (it.str("id") == id) f(it) else it })
+    private fun bumped(m: JsonObject) = JsonObject(m + ("version" to JsonPrimitive(m.int("version") + 1)))
+
+    /** A turn said now: numbered, stamped, its tokens on the meeting's budget, a challenge marks the claim, a vote counts on the draft. */
+    private fun addTurn(m0: JsonObject, t: JsonObject): JsonObject {
+        var m = m0
+        val ref = m.str("ref")!!
+        val it = t.str("item")?.let { id -> items(m).firstOrNull { x -> x.str("id") == id } } ?: currentItem(m)
+        val turns = turnsOf(ref)
+        val out = buildJsonObject {
+            put("id", "$ref-t${++turnSeq}"); put("meeting", ref); put("item", it?.str("id")?.let { s -> JsonPrimitive(s) } ?: JsonNull); put("n", turns.size + 1)
+            put("round", it?.int("round")?.takeIf { r -> r > 0 } ?: 1); put("speaker", t["speaker"]!!); put("kind", t["kind"] ?: JsonPrimitive("statement"))
+            put("statement_md", t["statement_md"] ?: JsonPrimitive("")); put("claims", t["claims"] ?: JsonArray(emptyList())); put("draft_md", t["draft_md"] ?: JsonNull)
+            put("stance", t["stance"] ?: JsonNull); put("run_id", if (t.str("kind") == "owner") JsonNull else JsonPrimitive("run-$turnSeq")); put("tokens", t.long("tokens")); put("at", stamp)
+        }
+        var all = turns + out
+        t.str("challenge")?.let { cid ->
+            all = all.map { x -> JsonObject(x + ("claims" to JsonArray(x.arr("claims").map { c -> if (c.str("id") == cid && c.str("status") == "unsourced") JsonObject(c + ("status" to JsonPrimitive("challenged"))) else c }))) }
+        }
+        saveTurns(ref, all)
+        (t["stance"] as? JsonObject)?.let { st ->
+            m = JsonObject(m + ("drafts" to JsonArray(m.arr("drafts").map { d ->
+                if (d.str("id") != st.str("draft")) d else {
+                    val v = d.obj("votes"); val k = st.str("vote") ?: "abstain"
+                    JsonObject(d + ("votes" to JsonObject(v + (k to JsonPrimitive(v.int(k) + 1)))))
+                }
+            })))
+        }
+        val b = m.obj("budget")
+        m = JsonObject(m + ("budget" to JsonObject(b + ("used" to JsonPrimitive(b.long("used") + out.long("tokens"))))))
+        return bumped(m)
+    }
+
+    private fun nextItem(m: JsonObject): JsonObject {
+        val nx = items(m).sortedBy { it.int("n") }.firstOrNull { it.str("state") == "waiting" } ?: return m
+        return mapItem(m, nx.str("id")) { JsonObject(it + mapOf("state" to JsonPrimitive("round_1"), "round" to JsonPrimitive(1))) }
+    }
+
+    /** Closing: the minutes from sourced claims only, and each draft a `meeting_resolution` card for the owner's seal. */
+    private fun endMeeting(m0: JsonObject): JsonObject {
+        val ref = m0.str("ref")!!
+        var m = withItems(m0, items(m0).map { x ->
+            when (x.str("state")) { "round_1", "round_2" -> JsonObject(x + ("state" to JsonPrimitive("done"))); "waiting" -> JsonObject(x + ("state" to JsonPrimitive("skipped"))); else -> x }
+        })
+        val turns = turnsOf(ref)
+        val sourced = turns.flatMap { t -> t.arr("claims").filter { it.str("status") == "sourced" }.map { c -> "- ${c.str("text_fa")} (${c.obj("source").str("ref")})" } }
+        val done = items(m).count { it.str("state") == "done" }
+        val deliverable = "O-0000${33 + (meetingList().count { it["minutes"] is JsonObject })}"
+        m = JsonObject(m + ("minutes" to buildJsonObject {
+            put("deliverable", deliverable)
+            put("summary_md", "**$done دستور بررسی شد.** فقط ادعاهای منبع‌دار:\n\n" + (sourced.take(6).joinToString("\n").ifEmpty { "- ادعای منبع‌داری ثبت نشد." }))
+        }))
+        val drafts = m.arr("drafts").map { d ->
+            if (d["decision"] is JsonPrimitive) return@map d
+            val dref = nextDecisionRef()
+            val title = d.str("text_md").orEmpty().replace(Regex("[؛.].*$", RegexOption.DOT_MATCHES_ALL), "").take(80)
+            val itemTitle = items(m).firstOrNull { it.str("id") == d.str("item") }?.str("title_fa").orEmpty()
+            addDecision(buildJsonObject {
+                put("id", "d-$dref"); put("ref", dref); put("kind", "meeting_resolution"); put("company", m["company"]!!); put("risk", "low"); put("title", title)
+                put("proposer", d["proposer"] ?: inspector); put("created_at", stamp); put("expires_at", ahead(60L * 24 * 5))
+                put("what", d["text_md"] ?: JsonPrimitive("")); put("why", "پیش‌نویس دستور «$itemTitle» در $ref؛ فقط ادعاهای منبع‌دار همراه کارت است."); put("risk_note", JsonNull)
+                putJsonObject("quota_estimate") { put("tokens", 8000); put("usd", "0.15") }
+                putJsonObject("payload") {
+                    put("meeting", ref); put("item", d["item"] ?: JsonNull); put("text_md", d["text_md"] ?: JsonPrimitive("")); put("votes", d["votes"] ?: JsonObject(emptyMap()))
+                    put("claims", JsonArray(turns.filter { it.str("item") == d.str("item") }.flatMap { t -> t.arr("claims").filter { it.str("status") == "sourced" } }))
+                }
+            })
+            JsonObject(d + ("decision" to JsonPrimitive(dref)))
+        }
+        return JsonObject(m + mapOf("drafts" to JsonArray(drafts), "state" to JsonPrimitive("ended")))
+    }
+
+    private fun nextDecisionRef(): String = pad("D-", (list("/decisions?status=all").mapNotNull { it.jsonObject.str("ref")?.substringAfter('-')?.toIntOrNull() }.maxOrNull() ?: 0) + 1, 6)
+
+    /** A new pending card, as the hub would write it (§5.1 defaults), in every list the cartable reads. */
+    private fun addDecision(d: JsonObject) {
+        val card = JsonObject(buildJsonObject {
+            put("action_class", "A1"); put("reversible", true); put("status", "pending"); put("seal", JsonNull); put("decided_at", JsonNull); put("decided_by", JsonNull)
+            put("note", JsonNull); put("resolution", JsonNull); put("thread", JsonNull); put("version", 1); put("effect_status", "none"); put("work_id", JsonNull)
+            put("expected", JsonNull); putJsonArray("warnings") {}
+        } + d)
+        store["/decisions/${card.str("ref")}"] = 200 to card
+        store["/decisions?status=all"] = 200 to page(listOf<JsonElement>(card) + list("/decisions?status=all"))
+        store["/decisions?status=pending"] = 200 to page(list("/decisions?status=all").filter { it.jsonObject.str("status") == "pending" })
+        bumpInbox()
+    }
+
+    // ---- charter (§20.2)
+    private fun charterAll(): List<JsonObject> = store.keys.filter { Regex("^/charter/[^/]+/versions/\\d+$").matches(it) }.map { store[it]!!.second.jsonObject }
+    private fun saveCharters(all: List<JsonObject>) {
+        for (c in all) store["/charter/${c.str("scope")}/versions/${c.int("version")}"] = 200 to c
+        val scopes = all.map { it.str("scope")!! }.distinct().sortedWith(compareBy<String> { if (it == "holding") 0 else 1 }.thenBy { it })
+        store["/charter"] = 200 to JsonArray(scopes.map { scope ->
+            val vs = all.filter { it.str("scope") == scope }.sortedByDescending { it.int("version") }
+            store["/charter/$scope/versions"] = 200 to JsonArray(vs)
+            buildJsonObject {
+                put("scope", scope); put("sealed", vs.firstOrNull { it.str("status") == "sealed" } ?: JsonNull); put("proposed", vs.firstOrNull { it.str("status") == "proposed" } ?: JsonNull)
+                put("versions", JsonArray(vs.map { v -> buildJsonObject { for (k in listOf("version", "status", "created_by", "created_at", "sealed_at")) put(k, v[k] ?: JsonNull) } }))
+            }
+        })
+    }
+    /** Canonical JSON: keys sorted at every depth, no spaces (the hub's `body_sha256`). */
+    private fun canonical(e: JsonElement): String = when (e) {
+        is JsonObject -> e.keys.sorted().joinToString(",", "{", "}") { k -> JsonPrimitive(k).toString() + ":" + canonical(e[k]!!) }
+        is JsonArray -> e.joinToString(",", "[", "]") { canonical(it) }
+        else -> e.toString()
+    }
+    private fun charterText(c: JsonObject): String = c.str("body_md").orEmpty() + "\n\n## خطوط قرمز\n" + c.arr("red_lines").joinToString("\n") { r ->
+        val n = (r["patterns"] as? JsonArray)?.size ?: 0
+        "- [${r.str("check")}] ${r.str("key")}: ${r.str("text_fa")}" + if (n > 0) " ($n الگو)" else ""
+    }
+    /** A unified diff of two texts, three lines of context, computed like the hub's difflib (line by line). */
+    private fun unified(a: String, b: String, la: String, lb: String): String {
+        val x = a.split('\n'); val y = b.split('\n'); val n = x.size; val m = y.size
+        val dp = Array(n + 1) { IntArray(m + 1) }
+        for (i in n - 1 downTo 0) for (j in m - 1 downTo 0) dp[i][j] = if (x[i] == y[j]) dp[i + 1][j + 1] + 1 else maxOf(dp[i + 1][j], dp[i][j + 1])
+        data class Op(val s: Char, val t: String, val i: Int, val j: Int)
+        val ops = mutableListOf<Op>()
+        var i = 0; var j = 0
+        while (i < n || j < m) {
+            if (i < n && j < m && x[i] == y[j]) { ops += Op(' ', x[i], i, j); i++; j++ }
+            else if (j < m && (i >= n || dp[i][j + 1] >= dp[i + 1][j])) { ops += Op('+', y[j], i, j); j++ }
+            else { ops += Op('-', x[i], i, j); i++ }
+        }
+        val out = mutableListOf("--- $la", "+++ $lb")
+        val changed = ops.indices.filter { ops[it].s != ' ' }
+        var k = 0
+        while (k < changed.size) {
+            val start = maxOf(0, changed[k] - 3)
+            var end = minOf(ops.size - 1, changed[k] + 3)
+            while (k + 1 < changed.size && changed[k + 1] - 3 <= end + 1) { k++; end = minOf(ops.size - 1, changed[k] + 3) }
+            val seg = ops.subList(start, end + 1)
+            out += "@@ -${seg[0].i + 1},${seg.count { it.s != '+' }} +${seg[0].j + 1},${seg.count { it.s != '-' }} @@"
+            out += seg.map { "${it.s}${it.t}" }
+            k++
+        }
+        return out.joinToString("\n")
+    }
+
+    // ---- calendar (§20.9)
+    private val TEHRAN = java.time.ZoneOffset.ofHoursMinutes(3, 30)
+    private val WD = mapOf(java.time.DayOfWeek.SUNDAY to "SU", java.time.DayOfWeek.MONDAY to "MO", java.time.DayOfWeek.TUESDAY to "TU", java.time.DayOfWeek.WEDNESDAY to "WE",
+        java.time.DayOfWeek.THURSDAY to "TH", java.time.DayOfWeek.FRIDAY to "FR", java.time.DayOfWeek.SATURDAY to "SA")
+    private fun events(): List<JsonObject> = store["/calendar"]?.second?.jsonObject?.arr("events").orEmpty()
+    private fun saveEvents(xs: List<JsonObject>) { store["/calendar"] = 200 to buildJsonObject { put("events", JsonArray(xs)); put("conflicts", JsonArray(conflicts(xs))) } }
+    private fun overlap(a: JsonObject, b: JsonObject) = ms(a.str("starts_at")) < ms(b.str("ends_at")) && ms(b.str("starts_at")) < ms(a.str("ends_at"))
+    /** The conflict rules (§20.9), as code: the calendar never decides. */
+    private fun conflicts(xs: List<JsonObject>): List<JsonObject> {
+        val out = mutableListOf<JsonObject>()
+        fun c(a: String, b: String, rule: String, severity: String, note: String) = buildJsonObject { put("a", a); put("b", b); put("rule", rule); put("severity", severity); put("note_fa", note) }
+        val live = xs.filter { it.str("status") == "planned" }
+        val blackout = list("/authority").map { it.jsonObject }.firstOrNull { it.str("key") == "deploy.blackout_days" }?.obj("limit")?.let { (it["days"] as? JsonArray)?.map { d -> d.jsonPrimitive.content } }.orEmpty().toSet()
+        for (d in live.filter { it.str("kind") == "deploy" }) {
+            val dr = d.str("ref")!!
+            for (o in live) {
+                val or = o.str("ref")!!
+                if (or == dr) continue
+                val k = o.str("kind")
+                if (k == "freeze" && (o.str("company") == d.str("company") || o.str("company") == "HQ") && overlap(d, o)) out += c(dr, or, "deploy_in_freeze", "high", "انتشار داخل فریز «${o.str("title_fa")}».")
+                if ((k == "campaign" || k == "event") && o.str("company") == d.str("company") && overlap(d, o)) out += c(dr, or, "deploy_in_campaign", "high", "انتشار هم‌زمان با ${if (k == "campaign") "کمپین" else "رویداد"} همان شرکت.")
+                if (k == "deploy" && o.str("company") == d.str("company") && dr < or && overlap(d, o)) out += c(dr, or, "two_deploys", "medium", "دو انتشار هم‌زمان یک شرکت.")
+                if (k == "maintenance" && overlap(d, o)) out += c(dr, or, "maintenance_during_deploy", "medium", "نگه‌داری هم‌زمان با انتشار.")
+                if (k == "holiday" && overlap(d, o)) out += c(dr, or, "deploy_on_holiday", "medium", "انتشار در روز تعطیل.")
+            }
+            val day = WD[Instant.ofEpochMilli(ms(d.str("starts_at"))).atOffset(TEHRAN).dayOfWeek]
+            if (day in blackout) out += c(dr, dr, "deploy_on_blackout_day", "medium", "انتشار در روز ممنوع ماتریس اختیار.")
+        }
+        return out
+    }
+
+    // ---- knowledge (§20.3)
+    private val VALID = mapOf("fact" to 90, "faq" to 180, "playbook" to 365, "policy" to 365, "principle" to 730)
+    private fun knowledgeList(): List<JsonObject> = list("/knowledge").map { it.jsonObject }
+    private fun saveEntry(k: JsonObject, history: JsonObject? = null) {
+        val ref = k.str("ref")!!
+        val all = knowledgeList()
+        store["/knowledge"] = 200 to page(if (all.any { it.str("ref") == ref }) all.map { if (it.str("ref") == ref) k else it } else listOf<JsonElement>(k) + all)
+        store["/knowledge/$ref"] = 200 to k
+        val older = list("/knowledge/$ref/versions").map { it.jsonObject }.drop(1)
+        store["/knowledge/$ref/versions"] = 200 to JsonArray(listOf(k) + listOfNotNull(history) + older)
+    }
+    private fun knowledgeIn(b: JsonObject): String? {
+        val kind = b.str("kind")
+        if (b.str("title_fa").isNullOrBlank() || b.str("body_md").isNullOrBlank()) return "عنوان و متن لازم است."
+        if (b.str("layer") !in setOf("holding", "company", "department")) return "لایه‌ی کارمند حافظه‌ی خود کارمند است و این‌جا نوشته نمیشود."
+        val days = VALID[kind] ?: return "مقاله‌ی پشتیبانی فقط از صفحه‌ی پشتیبانی نوشته میشود."
+        if (b.arr("sources").none { !it.str("ref").isNullOrBlank() }) return "دست‌کم یک منبع لازم است."
+        val until = b.str("valid_until")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        if (until == null || until.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli() > HqClock.millis() + (days + 1) * 86_400_000L) return "اعتبار $kind حداکثر $days روز است."
+        if (b.str("layer") == "department" && b.str("department") == null) return "دپارتمان را انتخاب کن."
+        return null
+    }
+
+    // ---- batch (§20.10)
+    private val BATCHABLE = setOf("proposal", "meeting_resolution", "knowledge_entry")
+    private fun authorityLimit(key: String, field: String): Double? = list("/authority").map { it.jsonObject }.firstOrNull { it.str("key") == key }?.obj("limit")?.let { (it[field] as? JsonPrimitive)?.content?.toDoubleOrNull() }
+    private fun whyNot(d: JsonObject?): String? = when {
+        d == null -> "not_found"
+        d.str("status") != "pending" -> "not_pending"
+        d.str("kind") !in BATCHABLE -> "kind"
+        (d.str("action_class") ?: "A1") != "A1" -> "action_class"
+        d.str("risk") != "low" -> "risk"
+        (d["reversible"] as? JsonPrimitive)?.booleanOrNull == false -> "irreversible"
+        d["amendments"] is JsonObject || d["amendments"] is JsonArray -> "amended"
+        (d.obj("quota_estimate").str("usd")?.toDoubleOrNull() ?: 0.0) > (authorityLimit("batch.max_usd", "usd") ?: 2.0) -> "over_max_usd"
+        else -> null
+    }
+
+    /** What sealing a §20 card does in the demo: a proposal with a promise gets its 30/60/90-day reviews. */
+    private fun decided17(d: JsonObject) {
+        val e = d["expected"] as? JsonObject ?: return
+        if (d.str("kind") != "proposal") return
+        val all = list("/outcomes").map { it.jsonObject }.toMutableList()
+        for (day in listOf(30, 60, 90).filter { it <= e.int("by_days") }) {
+            val ref = pad("OR-", all.size + 1, 4)
+            all += buildJsonObject {
+                put("id", "or-$ref"); put("ref", ref); put("decision", d["ref"]!!); put("company", d["company"]!!); put("day", day); put("due_at", ahead(60L * 24 * day)); put("expected", e)
+                put("measured", JsonNull); put("verdict", "pending"); put("proposer", d["proposer"]!!); put("proposer_note_md", JsonNull); put("overseer_note_md", JsonNull); put("status", "due")
+            }
+        }
+        store["/outcomes"] = 200 to page(all)
+    }
+
+    private fun v17Read(path: String, q: Map<String, String?>): Pair<Int, JsonElement>? {
+        fun has(o: JsonObject, k: String) = q[k] == null || o.str(k) == q[k]
+        val notFound = 404 to problem16(404, "not_found", "پیدا نشد.")
+        when (path) {
+            "/meetings" -> return 200 to page(meetingList().filter { has(it, "type") && has(it, "company") && has(it, "state") }.sortedByDescending { ms(it.str("starts_at")) })
+            "/knowledge" -> {
+                val text = q["q"]?.trim().orEmpty()
+                return 200 to page(knowledgeList().filter { k ->
+                    has(k, "layer") && has(k, "company") && has(k, "department") && has(k, "kind") &&
+                        (if (q["status"] != null) k.str("status") == q["status"] else q["include_expired"] == "true" || k.str("status") != "expired") &&
+                        (text.isEmpty() || "${k.str("ref")} ${k.str("title_fa")} ${k.str("body_md")}".contains(text))
+                })
+            }
+            "/scorecards" -> {
+                val text = q["q"]?.trim().orEmpty()
+                return 200 to page(list("/scorecards").map { it.jsonObject }.filter { r -> text.isEmpty() || "${r.str("company")} ${nameOf(r.str("company"))}".contains(text) || text.contains(r.str("company").orEmpty()) })
+            }
+            "/okr" -> return 200 to JsonArray(list("/okr").filter { has(it.jsonObject, "company") && has(it.jsonObject, "quarter") && has(it.jsonObject, "status") })
+            "/outcomes" -> return 200 to page(list("/outcomes").map { it.jsonObject }.filter { r ->
+                has(r, "company") && has(r, "verdict") && has(r, "decision") && (q["due"] != "true" || (r.str("status") == "due" && ms(r.str("due_at")) <= HqClock.millis()))
+            }.sortedBy { ms(it.str("due_at")) })
+            "/risks" -> {
+                val min = q["min_score"]?.toIntOrNull() ?: 0
+                return 200 to page(list("/risks").map { it.jsonObject }.filter { has(it, "company") && has(it, "status") && has(it, "category") && it.int("score") >= min }
+                    .sortedWith(compareByDescending<JsonObject> { it.int("score") }.thenBy { it.str("ref") }))
+            }
+            "/risks/matrix" -> {
+                val counts = Array(5) { IntArray(5) }
+                for (r in list("/risks").map { it.jsonObject }) if (r.str("status") != "closed" && has(r, "company")) counts[r.int("likelihood") - 1][r.int("impact") - 1]++
+                return 200 to buildJsonObject { put("company", q["company"]?.let { s -> JsonPrimitive(s) } ?: JsonNull); put("counts", JsonArray(counts.map { row -> JsonArray(row.map { n -> JsonPrimitive(n) }) })) }
+            }
+            "/calendar" -> {
+                val from = q["from"]?.let { runCatching { LocalDate.parse(it).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli() }.getOrNull() } ?: Long.MIN_VALUE
+                val to = q["to"]?.let { runCatching { LocalDate.parse(it).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli() }.getOrNull() } ?: Long.MAX_VALUE
+                val all = events()
+                val xs = all.filter { e ->
+                    ms(e.str("ends_at")) >= from && ms(e.str("starts_at")) <= to && has(e, "kind") &&
+                        (q["company"] == null || e.str("company") == q["company"] || e.str("company") == null || e.str("company") == "HQ")
+                }.sortedBy { ms(it.str("starts_at")) }
+                val refs = xs.map { it.str("ref") }.toSet()
+                return 200 to buildJsonObject { put("events", JsonArray(xs)); put("conflicts", JsonArray(conflicts(all).filter { it.str("a") in refs || it.str("b") in refs })) }
+            }
+            "/decisions/batchable" -> {
+                val max = authorityLimit("batch.max_items", "items")?.toInt() ?: 20
+                return 200 to JsonArray(list("/decisions?status=all").map { it.jsonObject }.filter { whyNot(it) == null }.take(max).map { d ->
+                    buildJsonObject { for (k in listOf("ref", "version", "kind", "company", "title", "quota_estimate", "proposer", "risk", "created_at", "expires_at")) put(k, d[k] ?: JsonNull) }
+                })
+            }
+        }
+        Regex("^/meetings/(MT-\\d+)(/turns)?$").find(path)?.let { m ->
+            val ref = m.groupValues[1]
+            var mt = meetingOf(ref) ?: return notFound
+            if (m.groupValues[2].isEmpty()) return 200 to mt
+            val sc = meetingScripts[ref]
+            if (mt.str("state") == "live" && !sc.isNullOrEmpty() && System.currentTimeMillis() - lastReveal > 8_000) {
+                mt = addTurn(mt, sc.removeAt(0)); saveMeeting(mt); lastReveal = System.currentTimeMillis()
+            }
+            val cur = store["/meetings/$ref/turns"]?.second?.jsonObject ?: buildJsonObject { putJsonArray("whispers") {}; put("next_cursor", JsonNull) }
+            return 200 to JsonObject(cur + ("items" to JsonArray(turnsOf(ref).filter { q["item"] == null || it.str("item") == q["item"] }.sortedBy { ms(it.str("at")) })))
+        }
+        Regex("^/charter/([A-Za-z0-9_]+)/versions/(\\d+)/diff$").find(path)?.let { m ->
+            val (scope, v) = m.destructured
+            store["$path?against=${q["against"]}"]?.let { return it }
+            val all = charterAll().filter { it.str("scope") == scope }
+            val c = all.firstOrNull { it.int("version") == v.toInt() } ?: return notFound
+            val o = all.firstOrNull { it.int("version") == q["against"]?.toIntOrNull() } ?: return 404 to problem16(404, "not_found", "نسخه‌ی مقایسه پیدا نشد.")
+            val (a, b) = if (o.int("version") < c.int("version")) o to c else c to o
+            return 200 to buildJsonObject {
+                put("scope", scope); put("version", c.int("version")); put("against", o.int("version"))
+                put("diff", unified(charterText(a), charterText(b), "$scope@${a.int("version")}", "$scope@${b.int("version")}"))
+            }
+        }
+        Regex("^/risks/(RK-\\d+)$").find(path)?.let { m -> return list("/risks").map { it.jsonObject }.firstOrNull { it.str("ref") == m.groupValues[1] }?.let { 200 to it } ?: notFound }
+        return null
+    }
+
+    private fun v17Write(method: String, path: String, body: JsonObject?, version: Int?, idempotency: String?, stepUp: String?): Reply? {
+        val b = body ?: JsonObject(emptyMap())
+        val notFound = Reply(404, problem16(404, "not_found", "پیدا نشد."))
+        // ---- meetings
+        if (path == "/meetings/settings" && method == "PUT") {
+            if (stepUp == null) return stepUpMissing()
+            val types = list("/meetings/settings").map { it.jsonObject }.toMutableList()
+            for (t in b.arr("types")) {
+                val i = types.indexOfFirst { it.str("key") == t.str("key") }.takeIf { it >= 0 } ?: continue
+                val x = types[i]
+                if (t.int("max_rounds") !in 1..3 || t.int("max_speakers") !in 2..8) return bad("دور بین ۱ و ۳ و سخنگو بین ۲ و ۸ است.")
+                if ((t["budget_tokens"] == null || t["budget_tokens"] is JsonNull) && t.str("key") != "war_room") return bad("فقط اتاق جنگ بی‌سقف است.")
+                if (t.int("version") != x.int("version")) return Reply(409, problem16(409, "version_conflict", "تنظیمات همین حالا عوض شده؛ دوباره نگاه کن."))
+                val keys = listOf("max_rounds", "max_speakers", "budget_tokens", "turn_cap_tokens", "owner_presence", "enabled")
+                val changed = keys.any { t[it].toString() != x[it].toString() }
+                types[i] = JsonObject(x + keys.associateWith { t[it] ?: JsonNull } + ("version" to JsonPrimitive(x.int("version") + if (changed) 1 else 0)))
+            }
+            store["/meetings/settings"] = 200 to JsonArray(types)
+            return Reply(200, JsonArray(types))
+        }
+        if (path == "/meetings" && method == "POST") {
+            replies[idempotency.orEmpty()]?.let { return it }
+            val type = b.str("type")
+            val t = list("/meetings/settings").map { it.jsonObject }.firstOrNull { it.str("key") == type }
+            if (t == null || type == "war_room" || type == "standup") return bad("این نوع جلسه را کد باز میکند، نه دست.")
+            val perCompany = type == "company" || type == "postmortem"
+            val company = if (perCompany) b.str("company") else "HQ"
+            if (company == null) return bad("شرکت را انتخاب کن.")
+            val speakers = if (perCompany) listOf(ceo(company), tech(company), inspector) else (operating().map { ceo(it.str("code")!!) } + inspector).takeLast(t.int("max_speakers"))
+            val n = (meetingList().mapNotNull { it.str("ref")?.substringAfter('-')?.toIntOrNull() }.maxOrNull() ?: 0) + 1
+            val ref = pad("MT-", n, 4)
+            val given = b.arr("items").ifEmpty { listOf(buildJsonObject { put("title_fa", "دستور آزاد"); put("time_box_min", 10) }) }
+            val its = given.mapIndexed { i, x ->
+                buildJsonObject {
+                    put("id", "mi-$n-${i + 1}"); put("n", i + 1); put("title_fa", x["title_fa"] ?: JsonPrimitive("")); put("brief_md", x["brief_md"] ?: JsonPrimitive(""))
+                    putJsonArray("sources") {}; put("time_box_min", x.int("time_box_min").takeIf { it > 0 } ?: 10); put("speakers", JsonArray(speakers)); put("round", 0); put("state", "waiting")
+                }
+            }
+            val estimate = its.size.toLong() * speakers.size * minOf(t.int("max_rounds"), 2) * 2400 + 6000
+            val cap = (t["budget_tokens"] as? JsonPrimitive)?.content?.toLongOrNull()
+            val tf = t.str("title_fa").orEmpty()
+            val title = if (company == "HQ") tf else "${if (tf == "مدیریت هر شرکت") "مدیریت" else tf} ${nameOf(company)}"
+            val starts = b.str("starts_at") ?: HqClock.now().toString()
+            val m = buildJsonObject {
+                put("id", "mt$n"); put("ref", ref); put("type", type); put("company", company); put("title_fa", title); put("starts_at", starts); put("state", "scheduled"); put("mode", "discussion")
+                putJsonObject("budget") { put("cap", cap?.let { n -> JsonPrimitive(n) } ?: JsonNull); put("estimate", if (cap != null) minOf(estimate, cap) else estimate); put("reserved", 0); put("used", 0) }
+                put("trimmed_fa", if (cap != null && estimate > cap) JsonPrimitive("برآورد اول ${Math.round(estimate / 1000.0)}K بود و از بودجه بیشتر شد؛ دور دوم دستورهای آخر حذف شد.") else JsonNull)
+                put("items", JsonArray(its))
+                put("participants", JsonArray(speakers.map { s -> buildJsonObject { put("actor", s); put("role_fa", s["display_fa"]!!); put("speaker", true); put("devil", s.str("code") == "HQ-OVS-MGR") } }))
+                put("owner_presence", t["owner_presence"] ?: JsonPrimitive("summary")); put("minutes", JsonNull); put("incident", JsonNull); put("version", 1); put("created_at", stamp); putJsonArray("drafts") {}
+            }
+            saveMeeting(m)
+            saveTurns(ref, emptyList())
+            val ce = pad("CE-", events().size + 1, 4)
+            saveEvents(events() + buildJsonObject {
+                put("id", "ce-$ce"); put("ref", ce); put("company", company); put("kind", "meeting"); put("title_fa", title); put("starts_at", starts)
+                put("ends_at", Instant.ofEpochMilli(ms(starts) + 60 * 60_000L).toString()); putJsonObject("source") { put("meeting", ref) }; put("status", "planned"); put("risk", "low"); put("created_by", owner); put("version", 1)
+            })
+            return Reply(201, m).also { if (!idempotency.isNullOrEmpty()) replies[idempotency] = it }
+        }
+        Regex("^/meetings/(MT-\\d+)(?:/(speak|control))?$").find(path)?.let { mm ->
+            val ref = mm.groupValues[1]
+            var m = meetingOf(ref) ?: return Reply(404, problem16(404, "not_found", "این جلسه پیدا نشد."))
+            when (mm.groupValues[2]) {
+                "" -> {
+                    if (method != "PATCH") return null
+                    unmatched(version, m.int("version"))?.let { return it }
+                    if (m.str("state") == "ended" || m.str("state") == "cancelled") return Reply(409, problem16(409, "validation_failed", "جلسه‌ی تمام‌شده عوض نمیشود."))
+                    (b["budget_cap"] as? JsonPrimitive)?.content?.toLongOrNull()?.let { capNew ->
+                        val bud = m.obj("budget")
+                        val cap = (bud["cap"] as? JsonPrimitive)?.content?.toLongOrNull()
+                        if (cap != null && capNew > cap) return bad("این‌جا فقط کم کردن بودجه است؛ افزایش با «افزایش بودجه» در جلسه‌ی زنده.")
+                        var nb = JsonObject(bud + ("cap" to JsonPrimitive(capNew)))
+                        if (bud.long("estimate") > capNew) {
+                            m = JsonObject(m + ("trimmed_fa" to JsonPrimitive("برآورد ${Math.round(bud.long("estimate") / 1000.0)}K از بودجه‌ی تازه‌ی ${Math.round(capNew / 1000.0)}K بیشتر بود؛ طبق قاعده اول دور دوم دستورهای کم‌اهمیت، بعد سخنگوها کم شد.")))
+                            nb = JsonObject(nb + ("estimate" to JsonPrimitive(capNew)))
+                        }
+                        m = JsonObject(m + ("budget" to nb))
+                    }
+                    for (o in b.arr("items")) m = mapItem(m, o.str("id")) { y ->
+                        val skip = (o["skip"] as? JsonPrimitive)?.booleanOrNull
+                        val st = when { skip == true && y.str("state") == "waiting" -> "skipped"; skip == false && y.str("state") == "skipped" -> "waiting"; else -> y.str("state") }
+                        JsonObject(y + mapOf("n" to JsonPrimitive(o.int("n")), "state" to JsonPrimitive(st)))
+                    }
+                    m = withItems(m, items(m).sortedBy { it.int("n") })
+                    b.str("owner_presence")?.let { m = JsonObject(m + ("owner_presence" to JsonPrimitive(it))) }
+                    m = bumped(m)
+                    saveMeeting(m)
+                    return Reply(200, m)
+                }
+                "speak" -> {
+                    if (idempotency.isNullOrEmpty()) return bad("Idempotency-Key لازم است.")
+                    replies[idempotency]?.let { return it }
+                    if (m.str("state") != "live") return Reply(409, problem16(409, "meeting_not_live", "جلسه زنده نیست."))
+                    val text = b.str("text")?.trim().orEmpty()
+                    if (text.isEmpty() && b.str("file_id") == null) return bad("متن یا صدا لازم است.")
+                    m = addTurn(m, buildJsonObject { put("speaker", owner); put("kind", "owner"); put("statement_md", text.ifEmpty { "(پیام صوتی)" }); putJsonArray("claims") {}; put("tokens", 0) })
+                    saveMeeting(m)
+                    val turn = turnsOf(ref).last()
+                    val it = currentItem(m)
+                    it?.arr("speakers")?.firstOrNull { s -> s.str("code") != "HQ-OVS-MGR" }?.let { next ->
+                        meetingScripts.getOrPut(ref) { mutableListOf() }.add(0, buildJsonObject {
+                            put("item", it["id"]!!); put("speaker", next); put("kind", "statement"); put("statement_md", "دریافت شد؛ این را در جمع‌بندی همین دستور میاورم و منبعش را میگذارم."); putJsonArray("claims") {}; put("tokens", 1600)
+                        })
+                    }
+                    lastReveal = System.currentTimeMillis() - 5_000
+                    return Reply(201, turn).also { replies[idempotency] = it }
+                }
+                else -> {
+                    if (m.str("state") != "live" && m.str("state") != "closing") return Reply(409, problem16(409, "meeting_not_live", "جلسه زنده نیست."))
+                    val it = currentItem(m)
+                    when (b.str("action")) {
+                        "raise_budget" -> {
+                            val tokens = b.long("tokens")
+                            if (tokens <= 0) return bad("مقدار افزایش را بنویس.")
+                            val bud = m.obj("budget")
+                            (bud["cap"] as? JsonPrimitive)?.content?.toLongOrNull()?.let { cap ->
+                                m = JsonObject(m + ("budget" to JsonObject(bud + mapOf("cap" to JsonPrimitive(cap + tokens), "reserved" to JsonPrimitive(bud.long("reserved") + tokens)))))
+                            }
+                        }
+                        "skip_item" -> { if (it != null) m = mapItem(m, it.str("id")) { x -> JsonObject(x + ("state" to JsonPrimitive("skipped"))) }; m = nextItem(m) }
+                        "next_round" -> {
+                            val max = list("/meetings/settings").map { x -> x.jsonObject }.firstOrNull { x -> x.str("key") == m.str("type") }?.int("max_rounds") ?: 2
+                            val drafts = m.arr("drafts").filter { d -> it != null && d.str("item") == it.str("id") }
+                            // The round in progress finishes first: what the demo still had queued for it is said before the next round opens.
+                            val sc = meetingScripts.getOrPut(ref) { mutableListOf() }
+                            while (sc.isNotEmpty() && sc[0].str("kind") != "vote" && sc[0].str("item") == it?.str("id")) m = addTurn(m, sc.removeAt(0))
+                            if (it != null && it.int("round") < max && drafts.isNotEmpty()) {
+                                m = mapItem(m, it.str("id")) { x -> JsonObject(x + mapOf("round" to JsonPrimitive(x.int("round") + 1), "state" to JsonPrimitive("round_2"))) }
+                                val votes = listOf("support", "support", "support", "abstain")
+                                it.arr("speakers").forEachIndexed { k, s ->
+                                    val v = votes[k % 4]
+                                    sc += buildJsonObject {
+                                        put("item", it["id"]!!); put("speaker", s); put("kind", "vote"); put("statement_md", if (v == "support") "موافق." else "ممتنع."); putJsonArray("claims") {}; put("tokens", 700)
+                                        putJsonObject("stance") { put("draft", drafts[0]["id"]!!); put("vote", v); put("reason_fa", if (v == "support") "ساعت کم‌بار ریسک بازگشت را کم میکند." else "تا منبع عدد سهم کندی نیاید نظری ندارم.") }
+                                    }
+                                }
+                                lastReveal = System.currentTimeMillis() - 6_000
+                            } else {
+                                if (it != null) m = mapItem(m, it.str("id")) { x -> JsonObject(x + ("state" to JsonPrimitive("done"))) }
+                                m = nextItem(m)
+                            }
+                        }
+                        "end" -> { m = endMeeting(m); meetingScripts[ref] = mutableListOf() }
+                        else -> return bad("این کار شناخته نیست.")
+                    }
+                    m = bumped(m)
+                    saveMeeting(m)
+                    return Reply(200, m)
+                }
+            }
+        }
+        // ---- charter
+        Regex("^/charter/([A-Za-z0-9_]+)(?:/versions/(\\d+)/seal)?$").find(path)?.let { mm ->
+            val scope = mm.groupValues[1]
+            if (scope != "holding" && operating().none { it.str("code") == scope }) return Reply(404, problem16(404, "not_found", "این دامنه پیدا نشد."))
+            val all = charterAll()
+            if (mm.groupValues[2].isEmpty()) {
+                if (method != "PUT") return null
+                val text = b.str("body_md").orEmpty()
+                val max = if (scope == "holding") 6000 else 3000
+                if (text.isBlank()) return bad("متن خالی است.")
+                if (text.length > max) return bad("متن از سقف $max نویسه بلندتر است؛ این سند در هر اجرا خوانده میشود.")
+                if (b.arr("red_lines").any { it.str("key").isNullOrBlank() || it.str("text_fa").isNullOrBlank() }) return bad("هر خط قرمز کلید و متن دارد.")
+                val v = (all.filter { it.str("scope") == scope }.maxOfOrNull { it.int("version") } ?: 0) + 1
+                val redLines = b["red_lines"] ?: JsonArray(emptyList())
+                val c = buildJsonObject {
+                    put("scope", scope); put("version", v); put("status", "proposed"); put("body_md", text); put("red_lines", redLines)
+                    put("body_sha256", Api.sha256(canonical(buildJsonObject { put("body_md", text); put("red_lines", redLines) })))
+                    put("created_by", owner); put("created_at", stamp); put("sealed_by", JsonNull); put("sealed_at", JsonNull)
+                }
+                saveCharters(all.map { if (it.str("scope") == scope && it.str("status") == "proposed") JsonObject(it + ("status" to JsonPrimitive("superseded"))) else it } + c)
+                return Reply(201, c)
+            }
+            if (method != "POST") return null
+            if (stepUp == null) return stepUpMissing()
+            val v = mm.groupValues[2].toInt()
+            val c = all.firstOrNull { it.str("scope") == scope && it.int("version") == v }
+            if (c == null || c.str("status") != "proposed") return Reply(409, problem16(409, "decision_not_pending", "این نسخه منتظر مُهر نیست."))
+            val sealed = JsonObject(c + mapOf("status" to JsonPrimitive("sealed"), "sealed_by" to owner, "sealed_at" to stamp))
+            saveCharters(all.map {
+                when {
+                    it.str("scope") == scope && it.int("version") == v -> sealed
+                    it.str("scope") == scope && it.str("status") == "sealed" -> JsonObject(it + ("status" to JsonPrimitive("superseded")))
+                    else -> it
+                }
+            })
+            return Reply(200, sealed)
+        }
+        // ---- knowledge
+        if (path == "/knowledge" && method == "POST") {
+            knowledgeIn(b)?.let { return bad(it) }
+            val n = (knowledgeList().mapNotNull { it.str("ref")?.takeIf { r -> r.startsWith("K-") }?.substringAfter('-')?.toIntOrNull() }.maxOrNull() ?: 0) + 1
+            val ref = pad("K-", n, 4)
+            val k = JsonObject(buildJsonObject {
+                put("id", "k-$ref"); put("ref", ref); put("review", JsonNull); put("version", 1)
+            } + b + buildJsonObject {
+                put("department", if (b.str("layer") == "department") b["department"] ?: JsonNull else JsonNull)
+                put("status", "approved"); put("approved_by", owner); put("created_by", owner); put("created_at", stamp); put("updated_at", stamp)
+            })
+            saveEntry(k)
+            return Reply(201, k)
+        }
+        Regex("^/knowledge/(K-\\d+)(/retire)?$").find(path)?.let { mm ->
+            val k = knowledgeList().firstOrNull { it.str("ref") == mm.groupValues[1] } ?: return Reply(404, problem16(404, "not_found", "این ورودی پیدا نشد."))
+            if (k.str("layer") == "employee") return Reply(405, problem16(405, "validation_failed", "لایه‌ی کارمند حافظه‌ی خود اوست؛ فقط خواندنی."))
+            if (mm.groupValues[2].isNotEmpty()) {
+                val next = JsonObject(k + mapOf("status" to JsonPrimitive("retired"), "updated_at" to stamp))
+                saveEntry(next)
+                return Reply(200, next)
+            }
+            if (method != "PUT") return null
+            knowledgeIn(JsonObject(b + ("layer" to (b["layer"] ?: k["layer"]!!))))?.let { return bad(it) }
+            val old = JsonObject(k + ("status" to JsonPrimitive(if (k.str("status") == "approved") "retired" else k.str("status").orEmpty())))
+            val next = JsonObject(k + b + mapOf("version" to JsonPrimitive(k.int("version") + 1), "status" to JsonPrimitive("approved"), "approved_by" to owner, "review" to JsonNull, "updated_at" to stamp))
+            saveEntry(next, history = old)
+            return Reply(200, next)
+        }
+        if (Regex("^/knowledge/KB-\\d+").containsMatchIn(path)) return Reply(405, problem16(405, "validation_failed", "مقاله‌ی پشتیبانی فقط از صفحه‌ی پشتیبانی ویرایش میشود."))
+        // ---- KPIs
+        Regex("^/kpis/([A-Z0-9]+)$").find(path)?.let { mm ->
+            if (method != "PUT") return null
+            val co = mm.groupValues[1]
+            val set = store["/kpis/$co"]?.second?.jsonObject ?: return Reply(404, problem16(404, "not_found", "برای این شرکت KPI تعریف نشده."))
+            unmatched(version, set.int("version"))?.let { return it }
+            var kpis = set.arr("kpis")
+            for (x in b.arr("kpis")) {
+                if (kpis.none { it.str("key") == x.str("key") }) return bad("KPI ${x.str("key")} تعریف نشده.")
+                if (x.int("freshness_hours") !in 1..720) return bad("تازگی بین ۱ ساعت و ۳۰ روز است.")
+                kpis = kpis.map { k -> if (k.str("key") != x.str("key")) k else JsonObject(k + mapOf("target" to (x["target"] ?: JsonNull), "scorecard" to x["scorecard"]!!, "status" to x["status"]!!, "freshness_hours" to x["freshness_hours"]!!, "version" to JsonPrimitive(k.int("version") + 1))) }
+            }
+            val next = JsonObject(set + mapOf("kpis" to JsonArray(kpis), "version" to JsonPrimitive(set.int("version") + 1)))
+            store["/kpis/$co"] = 200 to next
+            // The cards and the scorecard read the definitions: targets, scorecard membership and paused KPIs follow.
+            val defs = kpis.associateBy { it.str("key") }
+            val cardKey = "/cards?company=$co"
+            val cards = list(cardKey).map { it.jsonObject }
+            val allCardKpis = cards.flatMap { c -> c.arr("kpis").map { k -> c.str("card") to k } }
+            store[cardKey] = 200 to JsonArray(cards.map { c ->
+                JsonObject(c + ("kpis" to JsonArray(c.arr("kpis").filter { defs[it.str("key")]?.str("status") != "paused" }.map { k -> JsonObject(k + ("target" to (defs[k.str("key")]?.get("target") ?: JsonNull))) })))
+            })
+            store["/scorecards"] = 200 to page(list("/scorecards").map { it.jsonObject }.map { row ->
+                if (row.str("company") != co) row else JsonObject(row + ("kpis" to JsonArray(kpis.filter { (it["scorecard"] as? JsonPrimitive)?.booleanOrNull == true }.mapNotNull { d ->
+                    val hit = row.arr("kpis").firstOrNull { it.str("key") == d.str("key") } ?: allCardKpis.firstOrNull { it.second.str("key") == d.str("key") }?.let { (card, k) -> JsonObject(k + mapOf("card" to JsonPrimitive(card), "direction" to (d["direction"] ?: JsonPrimitive("up")))) }
+                    hit?.let { JsonObject(it + ("target" to (d["target"] ?: JsonNull))) }
+                })))
+            })
+            return Reply(200, next)
+        }
+        // ---- authority
+        if (path == "/authority" && method == "PUT") {
+            if (stepUp == null) return stepUpMissing()
+            val rules = list("/authority").map { it.jsonObject }
+            val changes = b.arr("rules")
+            for (x in changes) {
+                val r = rules.firstOrNull { it.str("key") == x.str("key") } ?: return bad("ردیف ${x.str("key")} پیدا نشد.")
+                if ((r["locked"] as? JsonPrimitive)?.booleanOrNull == true) return bad("«${r.str("title_fa")}» قفل است و از داده عوض نمیشود.")
+                if (r.int("version") != x.int("version")) return Reply(409, problem16(409, "version_conflict", "ماتریس همین حالا عوض شده؛ دوباره نگاه کن."))
+                val lim = x["limit"] as? JsonObject
+                val num = listOf("tokens_month", "usd", "count_day", "count_hour", "items").firstNotNullOfOrNull { k -> (lim?.get(k) as? JsonPrimitive)?.content?.toDoubleOrNull() }
+                val bounds = r["bounds"] as? JsonObject
+                if (num != null && bounds != null) {
+                    val lo = bounds.str("min")?.toDoubleOrNull() ?: (bounds["min"] as? JsonPrimitive)?.content?.toDoubleOrNull() ?: Double.MIN_VALUE
+                    val hi = (bounds["max"] as? JsonPrimitive)?.content?.toDoubleOrNull() ?: Double.MAX_VALUE
+                    if (num < lo || num > hi) return bad("«${r.str("title_fa")}» بیرون از محدوده‌ی ${num(lo)} تا ${num(hi)} است.")
+                }
+            }
+            val next = rules.map { r ->
+                val x = changes.firstOrNull { it.str("key") == r.str("key") } ?: return@map r
+                JsonObject(r + mapOf("limit" to (x["limit"] ?: JsonNull), "version" to JsonPrimitive(r.int("version") + 1)) + (x.str("actor")?.let { mapOf("actor" to JsonPrimitive(it)) } ?: emptyMap()))
+            }
+            store["/authority"] = 200 to JsonArray(next)
+            saveEvents(events())
+            return Reply(200, JsonArray(next))
+        }
+        // ---- risks
+        if (path == "/risks" && method == "POST") {
+            if (b.str("title_fa").isNullOrBlank() || b.str("company") == null) return bad("عنوان و شرکت لازم است.")
+            val l = b.int("likelihood"); val i = b.int("impact")
+            if (l !in 1..5 || i !in 1..5) return bad("احتمال و اثر بین ۱ و ۵ است.")
+            val score = l * i
+            val all = list("/risks").map { it.jsonObject }
+            val ref = pad("RK-", all.size + 1, 4)
+            val r = JsonObject(buildJsonObject {
+                put("id", "rk-$ref"); put("mitigation_md", JsonNull); put("accepted", JsonNull); putJsonObject("links") {}; put("version", 1)
+            } + b + buildJsonObject {
+                put("ref", ref); put("body_md", b["body_md"] ?: JsonPrimitive("")); put("owner", inspector); put("status", "open"); put("score", score)
+                put("review_at", b["review_at"] ?: ahead(60L * 24 * (if (score >= 15) 14 else if (score >= 8) 30 else 90)))
+                putJsonArray("history") { add(buildJsonObject { put("at", stamp); put("by", owner); put("change", "ثبت شد"); put("note", "") }) }
+            })
+            store["/risks"] = 200 to page(all + r)
+            return Reply(201, r)
+        }
+        Regex("^/risks/(RK-\\d+)$").find(path)?.let { mm ->
+            if (method != "PATCH") return null
+            val all = list("/risks").map { it.jsonObject }
+            val r = all.firstOrNull { it.str("ref") == mm.groupValues[1] } ?: return Reply(404, problem16(404, "not_found", "این ریسک پیدا نشد."))
+            unmatched(version, r.int("version"))?.let { return it }
+            if (b.str("status") == "closed") return bad("بستن ریسک با تأیید بازرس کل (QC) است؛ از او بخواه.")
+            val change = b.keys.joinToString("، ") { k -> "$k: ${(r[k] as? JsonPrimitive)?.content?.take(24) ?: "—"} ← ${(b[k] as? JsonPrimitive)?.content?.take(24) ?: "—"}" }
+            var next = JsonObject(r + b + ("version" to JsonPrimitive(r.int("version") + 1)))
+            next = JsonObject(next + mapOf(
+                "score" to JsonPrimitive(next.int("likelihood") * next.int("impact")),
+                "history" to JsonArray(listOf(buildJsonObject { put("at", stamp); put("by", owner); put("change", change); put("note", "") }) + r.arr("history")),
+            ))
+            store["/risks"] = 200 to page(all.map { if (it.str("ref") == r.str("ref")) next else it })
+            return Reply(200, next)
+        }
+        // ---- calendar
+        if (path == "/calendar" && method == "POST") {
+            if (b.str("title_fa").isNullOrBlank() || b.str("starts_at") == null || b.str("ends_at") == null || ms(b.str("ends_at")) <= ms(b.str("starts_at"))) return bad("عنوان و بازه‌ی درست لازم است.")
+            val ref = pad("CE-", events().size + 1, 4)
+            val e = JsonObject(buildJsonObject {
+                put("id", "ce-$ref"); put("company", JsonNull); putJsonObject("source") {}; put("status", "planned"); put("risk", "low"); put("version", 1)
+            } + b + buildJsonObject { put("ref", ref); put("created_by", owner) })
+            saveEvents(events() + e)
+            return Reply(201, e)
+        }
+        Regex("^/calendar/(CE-\\d+)$").find(path)?.let { mm ->
+            if (method != "PATCH") return null
+            val all = events()
+            val e = all.firstOrNull { it.str("ref") == mm.groupValues[1] } ?: return Reply(404, problem16(404, "not_found", "این رویداد پیدا نشد."))
+            unmatched(version, e.int("version"))?.let { return it }
+            val next = JsonObject(e + b + ("version" to JsonPrimitive(e.int("version") + 1)))
+            saveEvents(all.map { if (it.str("ref") == e.str("ref")) next else it })
+            return Reply(200, next)
+        }
+        // ---- batch seal
+        if (path == "/decisions/batch/approve") {
+            if (stepUp == null) return stepUpMissing()
+            if (idempotency.isNullOrEmpty()) return bad("Idempotency-Key لازم است.")
+            replies[idempotency]?.let { return it }
+            val xs = b.arr("items")
+            if (xs.isEmpty()) return bad("هیچ کارتی انتخاب نشده.")
+            val all = list("/decisions?status=all").map { it.jsonObject }
+            val refused = xs.mapNotNull { x ->
+                val d = all.firstOrNull { it.str("ref") == x.str("ref") }
+                (whyNot(d) ?: if (d!!.int("version") != x.int("version")) "changed" else null)?.let { x.str("ref").orEmpty() to it }
+            }.toMutableList()
+            val max = authorityLimit("batch.max_items", "items")?.toInt() ?: 20
+            if (xs.size > max) refused += xs[max].str("ref").orEmpty() to "over_max_items"
+            if (refused.isNotEmpty()) return Reply(422, problem16(422, "batch_not_eligible", "یکی از کارت‌ها دیگر شایسته‌ی مُهر گروهی نیست؛ هیچ کارتی مُهر نشد.", buildJsonObject {
+                putJsonObject("fields") { put("items", JsonArray(refused.map { (r, why) -> buildJsonObject { put("ref", r); put("reason", why) } })) }
+            }))
+            val batch = pad("B-", batchSeq++, 4)
+            val out = xs.map { x ->
+                val ref = x.str("ref")!!
+                val resolution = pad("M-", ++resolutionSeq, 4)
+                val d = JsonObject(all.first { it.str("ref") == ref } + mapOf(
+                    "status" to JsonPrimitive("approved"), "decided_at" to stamp, "decided_by" to owner, "resolution" to JsonPrimitive(resolution), "effect_status" to JsonPrimitive("applied"),
+                    "seal" to buildJsonObject { put("method", "passkey_uv"); put("sealed_at", stamp); put("step_up_id", "demo"); put("batch", batch) },
+                ))
+                store["/decisions/$ref"] = 200 to d
+                replaceIn("/decisions?status=all", ref, d)
+                decided17(d)
+                buildJsonObject { put("ref", ref); put("resolution", resolution) }
+            }
+            store["/decisions?status=pending"] = 200 to page(list("/decisions?status=all").filter { it.jsonObject.str("status") == "pending" })
+            bumpInbox()
+            return Reply(200, buildJsonObject { put("batch", batch); put("items", JsonArray(out)) }).also { replies[idempotency] = it }
+        }
+        return null
+    }
+
+    private fun num(v: Double): String = if (v % 1.0 == 0.0) v.toLong().toString() else v.toString()
 }

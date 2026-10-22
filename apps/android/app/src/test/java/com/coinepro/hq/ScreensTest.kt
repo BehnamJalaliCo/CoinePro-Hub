@@ -6,6 +6,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -144,7 +146,50 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "decision-template" to { _ -> DecisionScreen("D-000031") },
             "decision-rule" to { _ -> DecisionScreen("D-000033") },
             "tools-intake" to { _ -> ToolsScreen() },
+            // ⟨1.5⟩ governance (§20): the meeting room (the list, its settings, a live board meeting and its transcript, a meeting
+            // before it starts, the minutes, the war room), the charter (the holding's, a proposed addendum with its seal, a version
+            // against the one before), knowledge and one entry under review, the three cards (holding, a company, the scorecard) and a
+            // KPI, OKR, outcomes, risks (the matrix and the register), the change calendar, the authority matrix, the batch seal and
+            // the cards of the new kinds in the cartable.
+            "meetings" to { _ -> com.coinepro.hq.ui.meetings.MeetingsScreen() },
+            "meetings-settings" to { _ -> com.coinepro.hq.ui.meetings.MeetingsScreen("settings") },
+            "meeting-live" to { _ -> com.coinepro.hq.ui.meetings.MeetingScreen("MT-0012") },
+            "meeting-live-transcript" to { _ -> com.coinepro.hq.ui.meetings.MeetingScreen("MT-0012") },
+            "meeting-prep" to { _ -> com.coinepro.hq.ui.meetings.MeetingScreen("MT-0013") },
+            "meeting-minutes" to { _ -> com.coinepro.hq.ui.meetings.MeetingScreen("MT-0011") },
+            "meeting-war" to { _ -> com.coinepro.hq.ui.meetings.MeetingScreen("MT-0010") },
+            "charter" to { _ -> com.coinepro.hq.ui.charter.CharterScreen() },
+            "charter-proposed" to { _ -> com.coinepro.hq.ui.charter.CharterScreen("FX") },
+            "charter-diff" to { _ -> com.coinepro.hq.ui.charter.CharterScreen("TY", diff0 = true) },
+            "knowledge" to { _ -> com.coinepro.hq.ui.knowledge.KnowledgeScreen() },
+            "knowledge-entry" to { _ -> Sheetlike { com.coinepro.hq.ui.knowledge.EntryView("K-0009") } },
+            "scorecard" to { _ -> com.coinepro.hq.ui.scorecard.ScorecardScreen() },
+            "scorecard-company" to { _ -> com.coinepro.hq.ui.scorecard.ScorecardScreen("TY") },
+            "scorecard-table" to { _ -> com.coinepro.hq.ui.scorecard.ScorecardScreen() },
+            "kpi" to { _ -> Sheetlike { com.coinepro.hq.ui.scorecard.KpiView("TY", "min_balance_rate") } },
+            "okr" to { _ -> com.coinepro.hq.ui.okr.OkrScreen() },
+            "outcomes" to { _ -> com.coinepro.hq.ui.outcomes.OutcomesScreen() },
+            "risks" to { _ -> com.coinepro.hq.ui.risks.RisksScreen() },
+            "risks-list" to { _ -> com.coinepro.hq.ui.risks.RisksScreen() },
+            "calendar" to { _ -> com.coinepro.hq.ui.calendar.CalendarScreen() },
+            "authority" to { _ -> com.coinepro.hq.ui.authority.AuthorityScreen() },
+            "authority-locked" to { _ -> com.coinepro.hq.ui.authority.AuthorityScreen() },
+            "batch-seal" to { _ -> Sheetlike { com.coinepro.hq.ui.cartable.BatchSealContent() } },
+            "decision-resolution" to { _ -> DecisionScreen("D-000034") },
+            "decision-expected" to { _ -> DecisionScreen("D-000035") },
+            "decision-charter" to { _ -> DecisionScreen("D-000007") },
+            "decision-outcomes" to { _ -> DecisionScreen("D-000004") },
+            "decision-risk" to { _ -> DecisionScreen("D-000009") },
+            "decision-okr" to { _ -> DecisionScreen("D-000006") },
         )
+
+        /** A sheet's content as the sheet shows it: the overlay surface, 16dp gutters, scrolling. */
+        @Composable
+        private fun Sheetlike(content: @Composable () -> Unit) {
+            androidx.compose.foundation.layout.Column(
+                Modifier.fillMaxSize().background(Divan.colors.overlay).verticalScroll(rememberScrollState()).padding(16.dp),
+            ) { content() }
+        }
 
         /** Screens shown from further down their page: the item (of the page's list) to bring to the top. */
         private val SCROLL: Map<String, Int> = mapOf(
@@ -154,6 +199,9 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             // The tools page: header, intro, totals, the egress log and its title, the MCP title, one item per server, the accounts
             // and their title, then the intake card.
             "tools-intake" to 8 + mcpServers(),
+            // ⟨1.5⟩ the room's agenda, whisper and transcript (after the header, table, three cards and rules); the scorecard after the
+            // three cards; the register under the matrix; the locked invariants.
+            "meeting-live-transcript" to 6, "scorecard-table" to 6, "risks-list" to 4, "authority-locked" to 3,
         )
 
         private fun mcpServers(): Int =

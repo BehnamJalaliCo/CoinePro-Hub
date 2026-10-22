@@ -15,10 +15,12 @@ register('data:text/javascript,' + encodeURIComponent(
 // The mock's clock is pinned to the instant the screenshot tests fix (ScreensTest, HqClock), so fixtures aligned to a
 // day (the planner) dump to the same offsets whatever time of day the script runs.
 const FIXED = Date.parse('2026-10-17T08:30:00Z');
+// ⟨1.5⟩ The clock moves only at the end, to collect what a live meeting says next (below); every fixture is read at FIXED.
+let clock = FIXED;
 const RealDate = Date;
 globalThis.Date = class extends RealDate {
-  constructor(...a) { super(...(a.length ? a : [FIXED])); }
-  static now() { return FIXED; }
+  constructor(...a) { super(...(a.length ? a : [clock])); }
+  static now() { return clock; }
 };
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -33,6 +35,15 @@ const operating = listOf(await getJson('/companies')).filter((c) => c.kind !== '
 const conversationRefs = listOf(await getJson('/support/conversations')).map((c) => c.ref);
 const rescueRefs = listOf(await getJson('/growth/rescue')).map((r) => r.ref);
 const cards16 = listOf(await getJson('/decisions?status=all')).filter((d) => ['message_template', 'lifecycle_rule', 'support_go_live'].includes(d.kind)).map((d) => d.ref);
+// ⟨1.5⟩ governance (§20): meetings, charter scopes and versions, knowledge, OKRs, risks and KPI keys are data too.
+const meetings = listOf(await getJson('/meetings'));
+const charterScopes = listOf(await getJson('/charter'));
+const knowledgeRefs = listOf(await getJson('/knowledge?include_expired=true')).map((k) => k.ref);
+const objectiveRefs = listOf(await getJson('/okr')).map((o) => o.ref);
+const riskRefs = listOf(await getJson('/risks')).map((r) => r.ref);
+const kpiKeys = Object.fromEntries(await Promise.all(operating.map(async (c) => [c, (await getJson(`/kpis/${c}`)).kpis.map((k) => k.key)])));
+const GOVERNANCE = ['meeting_resolution', 'charter_amendment', 'okr', 'knowledge_entry', 'risk_acceptance', 'authority_change'];
+const cards17 = listOf(await getJson('/decisions?status=all')).filter((d) => GOVERNANCE.includes(d.kind) || d.expected).map((d) => d.ref);
 
 const paths = [
   '/auth/session', '/meta', '/inbox/summary', '/owner/presence', '/owner/away-summary', '/owner/settings',
@@ -83,6 +94,20 @@ const paths = [
   '/growth/rescue', ...rescueRefs.map((r) => `/growth/rescue/${r}`), '/growth/templates', '/growth/rules', '/growth/nps',
   '/support/channels', '/support/conversations', ...conversationRefs.map((r) => `/support/conversations/${r}`), '/support/queue', '/support/kb', '/support/shadow',
   '/feedback', '/intake/sources', ...cards16.map((r) => `/decisions/${r}`),
+  // ⟨1.5⟩ governance (§20). Whole lists the demo filters and changes itself (meetings, knowledge with the expired and the
+  // support view, OKRs, outcomes, risks, the calendar with every conflict), every meeting with its turns, every charter version
+  // and the diff of every pair, each company's three cards, KPI definitions and values, and the cards the governance kinds made.
+  '/meetings', '/meetings/settings', ...meetings.flatMap((m) => [`/meetings/${m.ref}`, `/meetings/${m.ref}/turns`]),
+  '/charter', ...charterScopes.flatMap((x) => [`/charter/${x.scope}/versions`, ...x.versions.flatMap((v) => [
+    `/charter/${x.scope}/versions/${v.version}`,
+    ...x.versions.filter((w) => w.version !== v.version).map((w) => `/charter/${x.scope}/versions/${v.version}/diff?against=${w.version}`),
+  ])]),
+  ['/knowledge', '/knowledge?include_expired=true'], ...knowledgeRefs.flatMap((r) => [`/knowledge/${r}`, `/knowledge/${r}/versions`]),
+  '/cards', ...operating.map((c) => `/cards?company=${c}`), '/scorecards',
+  ...operating.flatMap((c) => [`/kpis/${c}`, ...kpiKeys[c].map((k) => `/kpis/${c}/${k}/values`)]),
+  '/okr', ...objectiveRefs.map((r) => `/okr/${r}`), '/outcomes', '/outcomes?due=true',
+  '/authority', '/risks', ...riskRefs.map((r) => `/risks/${r}`), '/risks/matrix', '/calendar', '/decisions/batchable',
+  ...cards17.map((r) => `/decisions/${r}`),
 ];
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
@@ -115,6 +140,17 @@ for (const ref of ['S-0003']) {
     for (const e of items) { script.push(rel(e)); last = e.seq; }
   }
   out[`#script:${ref}`] = { status: 200, body: { items: script } };
+}
+// ⟨1.5⟩ What a live meeting says next, so the Android demo reveals it as the web's mock does (one turn per poll after a pause).
+for (const m of meetings.filter((x) => x.state === 'live')) {
+  const seen = new Set(out[`/meetings/${m.ref}/turns`].body.items.map((t) => t.id));
+  const script = [];
+  for (let k = 1; k <= 8; k++) {
+    clock = FIXED + k * 9_000;
+    for (const t of (await getJson(`/meetings/${m.ref}/turns`)).items) if (!seen.has(t.id)) { seen.add(t.id); const { id: _i, n: _n, at: _a, ...rest } = t; script.push(rest); }
+  }
+  clock = FIXED;
+  out[`#script:${m.ref}`] = { status: 200, body: { items: script } };
 }
 const dst = join(here, '../app/src/debug/assets/demo-fixtures.json');
 writeFileSync(dst, JSON.stringify(out, null, 1) + '\n');

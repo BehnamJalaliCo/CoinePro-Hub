@@ -110,10 +110,11 @@ import kotlinx.serialization.json.contentOrNull
 
 // code_session: its seal creates a Code Workshop grant (contract §5.1 ⟨1.4.3⟩). The round-two kinds are sealed the same way, each card
 // bound to what it proposes (§18.13 ⟨1.4.5⟩); a server plan is sealed only on its own route, against its digest (§18.8).
-// ⟨1.5⟩ the revenue-and-support cards (§19.9) are sealed the same way, each bound to its template, rule or shadow report.
+// ⟨1.5⟩ the revenue-and-support cards (§19.9) are sealed the same way, each bound to its template, rule or shadow report; so are the
+// governance kinds marked 🔏 in §20.11 (a charter amendment, a risk acceptance, an authority change), target = ref.
 private val STEP_UP_KINDS = setOf(
     "hire", "dismissal", "budget_change", "code_session", "protocol", "tool_enable", "errand_action", "company_found", "lesson_adoption",
-    "message_template", "lifecycle_rule", "support_go_live",
+    "message_template", "lifecycle_rule", "support_go_live", "charter_amendment", "risk_acceptance", "authority_change",
 )
 /** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8).
  *  The card carries {plan, company}; the plan page sends a founding's plan on to its founding (§18.16). */
@@ -190,6 +191,8 @@ fun CartableScreen() {
                 for ((key, label) in listOf("expiry" to "زودتر منقضی", "oldest" to "بیشترین انتظار", "newest" to "تازه‌ترین")) FilterChip(label, sort == key, { sort = key })
             }
         }
+        // ⟨1.5⟩ §20.10: low-risk A1 cards sealed together with one passkey.
+        if (tab == "pending") item { BatchSealButton() }
         val list = all.filter { riskF == null || it.risk == riskF }.let { xs ->
             when (sort) {
                 "expiry" -> xs.sortedWith(compareBy({ it.expiresAt ?: "9999" }, { it.createdAt }))
@@ -354,6 +357,8 @@ private fun Payload(d: Decision) {
                 Triple("سقف دلار", p.s("usd_limit")?.let { usd(it) } ?: "—", true),
             )
         }
+        // ⟨1.5⟩ the governance kinds (§20.11)
+        else -> GovernancePayload(d)
     }
 }
 
@@ -393,7 +398,15 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
         when (d.kind) {
             "message_template", "lifecycle_rule" -> env.cache.invalidate("growth")
             "support_go_live" -> env.cache.invalidate("support")
+            // ⟨1.5⟩ §20: what each governance card changes once sealed.
+            "meeting_resolution" -> env.cache.invalidate("meetings")
+            "charter_amendment" -> env.cache.invalidate("charter")
+            "okr" -> env.cache.invalidate("okr")
+            "knowledge_entry" -> env.cache.invalidate("knowledge")
+            "risk_acceptance" -> env.cache.invalidate("risks")
+            "authority_change" -> env.cache.invalidate("authority")
         }
+        if (d.expected != null) env.cache.invalidate("outcomes")
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -423,6 +436,9 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
         Section("چی") { Md(d.what) }
         Section("چرا") { Md(d.why) }
         Payload(d)
+        // ⟨1.5⟩ §20.6: what the card promises, and its 30/60/90-day reviews once sealed.
+        ExpectedBlock(d)
+        DecisionOutcomes(d)
         Section("مصرف و ریسک") {
             FactGrid(Triple("برآورد توکن", tokens(d.quotaEstimate.tokens), true), Triple("هزینه‌ی معادل", usd(d.quotaEstimate.usd), true))
             d.riskNote?.let {
