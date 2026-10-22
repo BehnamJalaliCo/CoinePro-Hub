@@ -807,7 +807,9 @@ async def overseer_release(tx: Tx, ref: str) -> dict[str, Any] | None:
     if s["state"] in FINAL or s["held"] != "hold":
         return None
     held = None
-    if not s["external_id"] and await lock_holder(tx, s["workspace_id"], s["area"], exclude=s["id"]):
+    if not s["external_id"] and await lock_holder(
+        tx, s["workspace_id"], s["area"], exclude=s["id"]
+    ):
         held = "work_lock"
     await tx.exec("UPDATE workshop.sessions SET held = :h WHERE id = :id", h=held, id=s["id"])
     s = await load(tx, s["id"])

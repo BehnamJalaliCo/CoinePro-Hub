@@ -454,8 +454,7 @@ async def _decide_hold(
             action_class="A2",
             target_kind=h["target_kind"],
             target_ref=h["target_ref"],
-            summary=ref
-            + "".join(f" {k}={v}" for k, v in (h.get("cancelled") or {}).items())[:200],
+            summary=ref + "".join(f" {k}={v}" for k, v in (h.get("cancelled") or {}).items())[:200],
             step_up=su is not None,
         )
     # After the commit: the runtime follows the record (a released session goes
@@ -737,7 +736,9 @@ async def protocol_result(body: ProtocolResultIn, ctx: Ctx = Depends(internal_ct
                 raise ApiError(
                     422,
                     "validation_failed",
-                    fields={"findings": f"not of {body.protocol} nor yours: {', '.join(unknown)[:200]}"},
+                    fields={
+                        "findings": f"not of {body.protocol} nor yours: {', '.join(unknown)[:200]}"
+                    },
                 )
             mine = [r["code"] for r in rows]
             await tx.exec(

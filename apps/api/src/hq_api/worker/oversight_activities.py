@@ -465,7 +465,12 @@ class OversightActivities:
             )
             key = O.week_key(datetime.now(UTC), tz)
             if await self.holding_locked(tx, holding):
-                return {"week": key.isoformat(), "missing": [], "work": None, "skipped": "holding_locked"}
+                return {
+                    "week": key.isoformat(),
+                    "missing": [],
+                    "work": None,
+                    "skipped": "holding_locked",
+                }
             missing = []
             for c in await self.hub.companies.all():
                 if c.kind == "holding" or c.status != "active":

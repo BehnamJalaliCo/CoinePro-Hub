@@ -146,9 +146,7 @@ async def test_a_cancelled_hold_cancels_the_action_and_nothing_held_ever_runs(
     w = await order(client, owner, co, title="کار نگه‌داشته")
     hw = (await _hold(client, "work", w["ref"])).json()
     await _cancel(client, owner, hw["ref"])
-    assert (
-        await su.fetchval("SELECT status FROM work.work WHERE ref = $1", w["ref"]) == "cancelled"
-    )
+    assert await su.fetchval("SELECT status FROM work.work WHERE ref = $1", w["ref"]) == "cancelled"
     # Release and cancel are the owner's activity (watch mode ends on it).
     acts = await su.fetch(
         """SELECT action, target_ref FROM owner.interactions
@@ -180,10 +178,14 @@ async def test_a_hold_interrupts_a_running_session_and_a_release_lets_it_go_on(
         r = await open_session(client, owner, g["ref"])
         assert r.status_code == 201, r.text
         ref = r.json()["ref"]
-        s = await su.fetchrow("SELECT id, state, external_id FROM workshop.sessions WHERE ref = $1", ref)
+        s = await su.fetchrow(
+            "SELECT id, state, external_id FROM workshop.sessions WHERE ref = $1", ref
+        )
         assert s["external_id"] and s["state"] in WD.ACTIVE
         h = (await _hold(client, "session", ref)).json()
-        s2 = await su.fetchrow("SELECT state, held, last_seq FROM workshop.sessions WHERE ref = $1", ref)
+        s2 = await su.fetchrow(
+            "SELECT state, held, last_seq FROM workshop.sessions WHERE ref = $1", ref
+        )
         assert (s2["state"], s2["held"]) == ("idle", "hold")
         assert rt.log_[ref][-1]["kind"] == "stop"  # interrupted at once on its runtime
         # Whatever the runtime still reports is not taken: no step, no push.
@@ -630,7 +632,9 @@ async def test_a_hold_on_an_approved_card_stops_its_follow_up_work(
         assert await O.holds_for_run(tx, f"{co}-CEO", follow) == [h["ref"]]
     await _cancel(client, owner, h["ref"])  # the follow-up work is cancelled with it
     async with hub.db.tx(await hub.companies.ids()) as tx:
-        assert await tx.scalar("SELECT status FROM work.work WHERE ref = :r", r=follow) == "cancelled"
+        assert (
+            await tx.scalar("SELECT status FROM work.work WHERE ref = :r", r=follow) == "cancelled"
+        )
 
 
 # ------------------------------------------------------ daily cap of 0 --
