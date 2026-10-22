@@ -18,6 +18,11 @@ API (stable):
                                 for what goes back to a model: redacted with
                                 caps, its JSON at most max_chars
   is_secret_key(name) -> bool   whether a key names a secret or a personal datum
+  mask_secrets(value) -> Any    a copy of a JSON-like value with credentials only
+                                masked (keys, tokens, passwords, codes; by value
+                                and by key) and personal data kept: what the owner
+                                approves on an A3 card (recipients, amounts) must
+                                be shown to them (contract §18.13, 7.1)
   spans(text) -> [(start, end)] the ranges of `text` (its own indices, end
                                 exclusive) that scrub(text) replaces: sorted,
                                 touching or overlapping ranges merged. For a
@@ -210,6 +215,7 @@ class _Rule:
     groups: tuple[str | int, ...] = (0,)  # the first group that matched is masked
     needles: tuple[str, ...] = ()  # the rule runs only when one is in the text (lowercased)
     check: Callable[[str], bool] | None = None
+    personal: bool = False  # a personal datum (kept by mask_secrets), not a credential
 
 
 def _rule(
@@ -220,8 +226,9 @@ def _rule(
     needles: tuple[str, ...] = (),
     check: Callable[[str], bool] | None = None,
     flags: int = 0,
+    personal: bool = False,
 ) -> _Rule:
-    return _Rule(re.compile(pattern, flags), repl, groups, needles, check)
+    return _Rule(re.compile(pattern, flags), repl, groups, needles, check, personal)
 
 
 _SECRET_WORDS = (
@@ -328,19 +335,24 @@ RULES: tuple[_Rule, ...] = (
         groups=("v",),
         needles=("national", "ملی"),
         flags=re.I,
+        personal=True,
     ),
     _rule(  # not starting inside a JSON escape: \nali@x keeps its \n
         r"(?<!\\)[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]{1,63}(?:\.[A-Za-z0-9\-]{1,63}){0,8}"
         r"\.[A-Za-z]{2,24}(?![A-Za-z])",
         "[email]",
         needles=("@",),
+        personal=True,
     ),
-    _rule(rf"{NB}IR(?:[\s\-.]?{D}){{24}}{NA}", "[iban]", needles=("ir",), flags=re.I),
+    _rule(
+        rf"{NB}IR(?:[\s\-.]?{D}){{24}}{NA}", "[iban]", needles=("ir",), flags=re.I, personal=True
+    ),
     # Not inside a UUID or a hex string: "…-7000-8000-000000000003" is an id.
     _rule(
         rf"(?<![0-9A-Fa-f]-){ND}{D}{{4}}(?:[\s\-.]{{0,3}}{D}{{4}}){{3}}{NA}(?![A-Fa-f])",
         "[card]",
         check=_luhn,
+        personal=True,
     ),
     # Iranian mobiles: 09…, +98 9…, 0098 9…, 98 9… (a bare 9xxxxxxxxx only when spaced
     # like a phone: a 10-digit rial amount is not one).
@@ -348,27 +360,42 @@ RULES: tuple[_Rule, ...] = (
         rf"{ND}(?:(?:\+|00)?{IR}{SEP}(?:\(?{ZERO}\)?{SEP})?|{ZERO}{NOT_DECIMAL}{SEP})"
         rf"{NINE}(?:{SEP}{D}){{9}}{NA}",
         "[phone]",
+        personal=True,
     ),
-    _rule(rf"{ND}{NINE}{D}{{2}}{SEPR}{D}{{3}}{SEPR}{D}{{4}}{NA}", "[phone]"),
+    _rule(rf"{ND}{NINE}{D}{{2}}{SEPR}{D}{{3}}{SEPR}{D}{{4}}{NA}", "[phone]", personal=True),
     # Landlines: 021-…, (021) …, +98 21 …
     _rule(
         rf"{ND}(?:(?:\+|00){IR}{SEP}\(?|\(?{ZERO})[1-8۱-۸١-٨]{D}\)?(?:{SEP}{D}){{8}}{NA}",
         "[phone]",
+        personal=True,
     ),
-    _rule(rf"(?<![{_DIGIT}+])\+[1-9۱-۹١-٩](?:{SEP}{D}){{7,14}}{NA}", "[phone]", needles=("+",)),
-    _rule(rf"{ND}00[1-9]{D}{{0,2}}(?:{SEPR}{D}{{2,5}}){{2,5}}{NA}", "[phone]", needles=("00",)),
+    _rule(
+        rf"(?<![{_DIGIT}+])\+[1-9۱-۹١-٩](?:{SEP}{D}){{7,14}}{NA}",
+        "[phone]",
+        needles=("+",),
+        personal=True,
+    ),
+    _rule(
+        rf"{ND}00[1-9]{D}{{0,2}}(?:{SEPR}{D}{{2,5}}){{2,5}}{NA}",
+        "[phone]",
+        needles=("00",),
+        personal=True,
+    ),
 )
 _DIGIT_RULES = frozenset(i for i, r in enumerate(RULES) if not r.needles)
 
 
-def _spans(text: str) -> list[tuple[int, int, str]]:
+def _spans(text: str, secrets_only: bool = False) -> list[tuple[int, int, str]]:
     """Non-overlapping (start, end, replacement) in `text`: when matches
     overlap, the one starting first (then the longest, then the earlier rule)
-    is kept and stretched over the others, so nothing of any match leaks."""
+    is kept and stretched over the others, so nothing of any match leaks.
+    `secrets_only`: the credential rules only (no personal data)."""
     low = text.lower()
     has_digit = _DIGITS.search(text) is not None
     found: list[tuple[int, int, int, str]] = []
     for prio, rule in enumerate(RULES):
+        if secrets_only and rule.personal:
+            continue
         if rule.needles and not any(n in low for n in rule.needles):
             continue
         if prio in _DIGIT_RULES and not has_digit:
@@ -394,7 +421,7 @@ def _spans(text: str) -> list[tuple[int, int, str]]:
     return merged
 
 
-def _masks(text: str) -> list[tuple[int, int, str]]:
+def _masks(text: str, secrets_only: bool = False) -> list[tuple[int, int, str]]:
     """(start, end, replacement) in `text` itself (not its normalised view):
     sorted and non-overlapping."""
     if not text:
@@ -402,7 +429,7 @@ def _masks(text: str) -> list[tuple[int, int, str]]:
     norm, origin = _normalise(text)
     out: list[tuple[int, int, str]] = []
     pos = 0
-    for s, e, repl in _spans(norm):
+    for s, e, repl in _spans(norm, secrets_only):
         if origin is not None:
             s, e = origin[s], origin[e - 1] + 1
         s = max(s, pos)
@@ -413,9 +440,10 @@ def _masks(text: str) -> list[tuple[int, int, str]]:
 
 
 # -------------------------------------------------------------------- API --
-def scrub(text: str) -> str:
-    """`text` with every secret and personal-data shape masked (never shortened)."""
-    masks = _masks(text)
+def scrub(text: str, *, secrets_only: bool = False) -> str:
+    """`text` with every secret and personal-data shape masked (never shortened);
+    `secrets_only`: credentials only, personal data kept (see mask_secrets)."""
+    masks = _masks(text, secrets_only)
     if not masks:
         return text
     out: list[str] = []
@@ -455,10 +483,25 @@ _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _KEY_SEP = re.compile(r"[\s\-.]+")
 
 
+_PERSONAL_KEY = re.compile(
+    r"^(?:.*_)?(?:e_?mails?|phones?|phone_numbers?|mobiles?|mobile_numbers?|tel|telephone|"
+    r"national_id|national_code|ssn|iban|card_number)$"
+)
+
+
+def _key_form(name: str) -> str:
+    return _KEY_SEP.sub("_", _CAMEL.sub("_", _normalise(name)[0])).lower()
+
+
 def is_secret_key(name: str) -> bool:
     """Whether a key names a secret or a personal datum (snake, kebab or camel case)."""
-    key = _CAMEL.sub("_", _normalise(name)[0])
-    return _SECRET_KEY.match(_KEY_SEP.sub("_", key).lower()) is not None
+    return _SECRET_KEY.match(_key_form(name)) is not None
+
+
+def is_credential_key(name: str) -> bool:
+    """Whether a key names a credential: a secret key that is no personal datum."""
+    key = _key_form(name)
+    return _SECRET_KEY.match(key) is not None and _PERSONAL_KEY.match(key) is None
 
 
 # A name/value pair ({"name": "DB_PASSWORD", "value": ...}, as in environment
@@ -527,6 +570,34 @@ def redact(
         if len(value) > len(kept):
             items.append(f"…[{len(value) - len(kept)} more]")
         return items
+    return value
+
+
+def mask_secrets(value: Any, _depth: int = 0) -> Any:
+    """A copy of `value` with credentials masked and everything else kept,
+    numbers included (an amount, the card a payment goes to). Never shortened."""
+    if _depth > MAX_DEPTH:
+        return "[too deep]"
+    if isinstance(value, str):
+        return scrub(value, secrets_only=True)
+    if isinstance(value, dict):
+        res: dict[str, Any] = {}
+        pair = any(
+            str(k).lower() in _PAIR_NAMES and isinstance(v, str) and is_credential_key(v)
+            for k, v in value.items()
+        )
+        for k, v in value.items():
+            key = scrub(str(k), secrets_only=True)
+            if key in res:
+                key = f"{key}#{len(res)}"
+            secret = is_credential_key(str(k)) or (pair and str(k).lower() in _PAIR_VALUES)
+            if secret and not isinstance(v, bool) and v is not None:
+                res[key] = MASK
+            else:
+                res[key] = mask_secrets(v, _depth + 1)
+        return res
+    if isinstance(value, list | tuple):
+        return [mask_secrets(v, _depth + 1) for v in value]
     return value
 
 

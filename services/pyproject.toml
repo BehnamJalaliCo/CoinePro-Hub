@@ -24,6 +24,7 @@ ignore = [
 # Persian words and invisible spaces are what the egress rules look for.
 "egress/src/hq_egress/rules.py" = ["RUF001"]
 "egress/src/hq_egress/extract.py" = ["RUF001"]
+"hq-common/src/hq_common/injection.py" = ["RUF001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["hq_common", "llm_router", "claude_runtime", "hq_gateway", "hq_stt", "hq_egress"]
