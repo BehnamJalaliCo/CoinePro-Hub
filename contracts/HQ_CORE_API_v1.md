@@ -1124,7 +1124,11 @@ ProvisionRun { …§18.8, state: "queued"|"running"|"done"|"failed",
   unrun plan to `proposed`, cancels its audit and proposal work and stops its workshop session. Nothing of a cancelled founding is ever
   sealed, created or built. A failed run returns the founding to `sealed` (resume or cancel).
 - **SSH is never open to the world:** any tcp range that contains 22 is SSH, and its sources must lie inside
-  `owner_settings.provision_ssh_sources`; a source set that covers the whole address space is refused except on 80 and 443.
+  `owner_settings.provision_ssh_sources`; a source set that covers the whole address space is refused except on 80 and 443 (ICMP to the
+  whole internet is refused too).
+- **`price.network`** is `"0.00"` while the private network is free at Hetzner; it stays in the shape so a priced network needs no change.
+- **The reaper** fails a run that stopped answering: its error code is `callback_timeout` when the server never called back from cloud-init,
+  otherwise `error`.
 - **The work user** is created by the build and never reuses an existing account; a name of Ubuntu's base system is refused; the default is
   `<code>-ops`. `ssh-hardening`, `unattended-upgrades` and `work-user` are always in a plan.
 - **A step fails when any command in it fails**; a failed step stops the run and is resumable.
