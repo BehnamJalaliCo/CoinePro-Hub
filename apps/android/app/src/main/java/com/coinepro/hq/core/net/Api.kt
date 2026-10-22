@@ -323,7 +323,7 @@ class Api(
     suspend fun disableMcp(key: String): McpServer = post("/tools/mcp/${seg(key)}/disable", JsonObject(emptyMap()))
 
     // --------------------------------------- founding, provisioning ⟨1.4⟩ --
-    suspend fun foundings(): Page<Founding> = get("/foundings")
+    suspend fun foundings(cursor: String? = null): Page<Founding> = get("/foundings", mapOf("cursor" to cursor))
     suspend fun founding(ref: String): Founding = get("/foundings/${seg(ref)}")
     suspend fun startFounding(kind: String, repo: String?, brief: String): Founding =
         post("/foundings", buildJsonObject { put("source", buildJsonObject { put("kind", kind); put("repo", repo); put("brief_md", brief) }) })
@@ -335,6 +335,8 @@ class Api(
     suspend fun run(id: String): ProvisionRun = get("/provisioning/runs/${seg(id)}")
     /** The seal is bound to the plan the owner saw: its digest, which the server recomputes before anything is built. */
     suspend fun sealPlan(p: ServerPlan, stepUp: StepUp): ServerPlan = post("/provisioning/plans/${seg(p.ref)}/seal", JsonObject(emptyMap()), stepUp("provision.seal", p.digest))
+    /** ⟨1.4.8⟩ a failed run of a still-sealed plan continues from its failed step, on the same seal. */
+    suspend fun resumeRun(id: String): ProvisionRun = post("/provisioning/runs/${seg(id)}/resume", JsonObject(emptyMap()))
 
     // ------------------------------------------------- hiring ⟨1.4.2⟩ --
     suspend fun hiring(): Hiring = get("/owner/hiring")

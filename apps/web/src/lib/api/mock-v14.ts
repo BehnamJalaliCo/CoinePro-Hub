@@ -242,42 +242,52 @@ const catalog = [
 
 // --------------------------------------------- founding and provisioning --
 const STEPS = [['ssh-key', 'کلید عمومی مالک'], ['firewall', 'فایروال هتزنر'], ['server', 'ساخت سرور'], ['boot', 'روشن شدن'], ['cloud-init', 'به‌روزرسانی، ارتقا و نصب'], ['verify', 'بررسی نسخه‌ها و سخت‌سازی'], ['login', 'آماده‌ی ورود تو']] as const;
-/** The tail each provisioning step leaves, written from the plan it builds. */
-const logFor = (key: string, pl: { name: string; type: string; location: string; image: string; firewall: Array<{ port: string; sources: string[] }> }): string => ({
-  'ssh-key': 'owner key registered (label managed-by=coinepro-hq)',
-  firewall: `firewall fw-${pl.name.replace(/-\d+$/, '')}: ${pl.firewall.map((w) => `in ${w.port}/tcp from ${w.sources.includes('owner') ? 'owner IPs' : 'any'}`).join(', ')}`,
-  server: `${pl.type} · ${pl.location} · ${pl.image} · no root password`, boot: 'running · ssh answers',
-  'cloud-init': 'apt full-upgrade ✓ · unattended-upgrades ✓ · docker 28.x ✓ · node 22 LTS ✓ · claude-code ✓ · repo cloned ✓',
-  verify: 'ssh: keys only, root login off · auto security updates on', login: 'ready',
-})[key] ?? '';
+/** The tail each provisioning step leaves (its last lines, §18.16), written from the plan it builds. */
+const logFor = (key: string, pl: { name: string; type: string; location: string; image: string; firewall: Array<{ protocol: string; port: string | null; sources: string[] }> }): string[] => ({
+  'ssh-key': ['owner key registered (label managed-by=coinepro-hq)'],
+  firewall: [`firewall fw-${pl.name.replace(/-\d+$/, '')}`, ...pl.firewall.map((w) => `in ${w.protocol}${w.port ? ` ${w.port}` : ''} from ${w.sources.includes('owner') ? 'owner IPs' : 'any'}`)],
+  server: [`${pl.type} · ${pl.location} · ${pl.image}`, 'no root password'], boot: ['running', 'ssh answers'],
+  'cloud-init': ['apt full-upgrade ✓ · unattended-upgrades ✓', 'docker 28.x ✓ · node 22 LTS ✓', 'claude-code ✓ · repo cloned ✓'],
+  verify: ['ssh: keys only, root login off', 'auto security updates on'], login: ['ready'],
+})[key] ?? [];
+const price = (server: string) => ({ server, ipv4: '0.50', network: '0.00', source: 'hetzner', at: iso(60 * 4) });
+const HOST_KEYS = [{ type: 'ssh-ed25519', fingerprint_sha256: 'SHA256:3vK9mQ2xL7pT1rW8nB4cY6hJ0aE5fD2sG9uI7oP1kZc' }, { type: 'ecdsa-sha2-nistp256', fingerprint_sha256: 'SHA256:Qp8Lr2Wm5Xn1Tc7Vb4Yh9Kd3Fs6Gj0Az2Ue8Io5Ry1M' }];
 const plans: Record<string, any> = {
   'PV-0001': { id: 'pv1', ref: 'PV-0001', founding: 'C-0001', company: 'AC', name: 'coine-academy-1', type: 'cpx31', location: 'nbg1', image: 'ubuntu-24.04', private_network: true,
-    firewall: [{ direction: 'in', protocol: 'tcp', port: '22', sources: ['owner'], note_fa: 'SSH فقط از IPهای مالک' }, { direction: 'in', protocol: 'tcp', port: '80,443', sources: ['0.0.0.0/0', '::/0'], note_fa: 'وب سایت' }],
+    firewall: [{ direction: 'in', protocol: 'tcp', port: '22', sources: ['owner'], note_fa: 'SSH فقط از IPهای مالک' }, { direction: 'in', protocol: 'tcp', port: '80,443', sources: ['0.0.0.0/0', '::/0'], note_fa: 'وب سایت' }, { direction: 'in', protocol: 'icmp', port: null, sources: ['owner'], note_fa: 'ping' }],
     software: ['system-upgrade', 'unattended-upgrades', 'work-user', 'ssh-hardening', 'docker', 'git', 'node-lts', 'claude-code', 'repo-clone', 'private-network', 'hetzner-firewall', 'node-exporter'],
-    work_user: 'academy', repo: 'behnamjalalico/coinepro-academy', monthly_eur: 16.9, digest: 'b81f4c0a2d', state: 'done', decision_ref: 'D-000023', run: 'r1' },
+    work_user: 'ac-ops', repo: 'behnamjalalico/coinepro-academy', monthly_eur: '16.90', price: price('16.40'), problems: [], digest: 'b81f4c0a2d', state: 'done', decision_ref: 'D-000023', run: 'r1', sealed_at: iso(60 * 4), version: 1 },
   'PV-0002': { id: 'pv2', ref: 'PV-0002', founding: 'C-0002', company: 'SB', name: 'signal-bot-1', type: 'cpx21', location: 'fsn1', image: 'ubuntu-24.04', private_network: true,
     firewall: [{ direction: 'in', protocol: 'tcp', port: '22', sources: ['owner'], note_fa: 'SSH فقط از IPهای مالک' }],
     software: ['system-upgrade', 'unattended-upgrades', 'work-user', 'ssh-hardening', 'docker', 'git', 'node-lts', 'claude-code', 'repo-clone', 'private-network', 'hetzner-firewall'],
-    work_user: 'signalbot', repo: 'behnamjalalico/signal-bot', monthly_eur: 9.2, digest: '4e0d7a91c3', state: 'proposed', decision_ref: null, run: null },
+    work_user: 'sb-ops', repo: 'behnamjalalico/signal-bot', monthly_eur: '9.20', price: price('8.70'), problems: [], digest: '4e0d7a91c3', state: 'proposed', decision_ref: null, run: null, sealed_at: null, version: 1 },
+  // A company's CTO wrote this one (no founding); with the provisioner off it has no price, so no seal yet (§18.16).
+  'PV-0003': { id: 'pv3', ref: 'PV-0003', founding: null, company: 'TY', name: 'tradeyar-worker-1', type: 'cpx22', location: 'fsn1', image: 'ubuntu-24.04', private_network: true,
+    firewall: [{ direction: 'in', protocol: 'tcp', port: '22', sources: ['owner'], note_fa: 'SSH فقط از IPهای مالک' }],
+    software: ['system-upgrade', 'unattended-upgrades', 'work-user', 'ssh-hardening', 'docker', 'git', 'private-network', 'hetzner-firewall', 'node-exporter'],
+    work_user: 'ty-ops', repo: null, monthly_eur: null, price: null, problems: ['monthly_eur: no price yet (the provisioner is off: make hetzner-token)'], digest: '9c2e5b7a10', state: 'proposed', decision_ref: null, run: null, sealed_at: null, version: 1 },
 };
 const runs: Record<string, any> = {
   r1: { id: 'r1', plan: 'PV-0001', state: 'done', steps: STEPS.map(([key, title_fa], i) => ({ key, title_fa, state: 'done', started_at: iso(60 * 3 - i * 2), finished_at: iso(60 * 3 - i * 2 - 1), log_tail: logFor(key, plans['PV-0001']) })),
-    server: { name: 'coine-academy-1', ipv4: '203.0.113.24', ipv6: '2001:db8::24', private_ip: '10.10.1.5' }, login: { ssh: 'ssh academy@203.0.113.24', then: ['claude'] } },
+    server: { name: 'coine-academy-1', ipv4: '203.0.113.24', ipv6: '2001:db8::24', private_ip: '10.10.1.5', host_keys: HOST_KEYS }, login: { ssh: 'ssh ac-ops@203.0.113.24', then: ['claude'] }, error: null },
 };
+// Money is a decimal string (§1); audit scores are 0..10; names and code are null until the proposal (§18.16).
 const foundings: any[] = [
+  { ref: 'C-0003', name_fa: null, name_en: null, code: null, source: { kind: 'idea', repo: null, brief_md: 'دستیار مالیات و حسابداری برای معامله‌گرهای کریپتو' }, state: 'auditing',
+    audit: null, proposal: null, decision_ref: null, plan: null, company: null, created_at: iso(25), updated_at: iso(25) },
   { ref: 'C-0002', name_fa: 'سیگنال‌بات', name_en: 'Signal Bot', code: 'SB', source: { kind: 'repo', repo: 'behnamjalalico/signal-bot', brief_md: 'ربات تلگرام سیگنال با اشتراک ماهانه' }, state: 'proposed',
-    audit: { session_ref: 'S-0005', scores: { architecture: 72, quality: 64, security: 58, tests: 41, debt: 55 },
+    audit: { session_ref: 'S-0005', scores: { architecture: 7.2, quality: 6.4, security: 5.8, tests: 4.1, debt: 5.5 },
       report_md: '**خلاصه:** معماری ساده و قابل رشد است؛ تست‌ها کم‌اند (۴۱٪ پوشش) و دو کلید در تاریخچه‌ی git لو رفته‌اند که باید باطل شوند. پیش از انتشار عمومی: تست‌های پرداخت، محدودیت نرخ ربات، و انتقال رمزها به vault.' },
     proposal: { departments: ['TECH', 'GROWTH', 'SALES', 'FIN'], kpis: [{ name_fa: 'مشترک فعال', target: '500 در 90 روز' }, { name_fa: 'نرخ ماندگاری ماهانه', target: '≥ 80%' }, { name_fa: 'دقت سیگنال', target: '≥ 65%' }],
-      team: [{ role: 'ceo', model: 'claude-sonnet-5-5', monthly_usd: 18 }, { role: 'cto', model: 'claude-sonnet-5-5', monthly_usd: 22 }, { role: 'sre', model: 'claude-haiku-5-5', monthly_usd: 6 }, { role: 'growth', model: 'claude-sonnet-5-5', monthly_usd: 14 }],
-      roadmap_md: '**ماه ۱:** امن‌سازی و تست پرداخت. **ماه ۲:** انتشار بتا برای ۵۰ نفر. **ماه ۳:** رشد تا ۵۰۰ مشترک.', monthly_usd: 60 },
+      team: [{ role: 'ceo', model: 'claude-sonnet-5-5', monthly_usd: '18.00' }, { role: 'cto', model: 'claude-sonnet-5-5', monthly_usd: '22.00' }, { role: 'sre', model: 'claude-haiku-5-5', monthly_usd: '6.00' }, { role: 'growth', model: 'claude-sonnet-5-5', monthly_usd: '14.00' }],
+      roadmap_md: '**ماه ۱:** امن‌سازی و تست پرداخت. **ماه ۲:** انتشار بتا برای ۵۰ نفر. **ماه ۳:** رشد تا ۵۰۰ مشترک.', monthly_usd: '60.00' },
     decision_ref: 'D-000024', plan: 'PV-0002', company: null, created_at: iso(60 * 6), updated_at: iso(40) },
   { ref: 'C-0001', name_fa: 'کوینه‌پرو آکادمی', name_en: 'CoinePro Academy', code: 'AC', source: { kind: 'idea', repo: null, brief_md: 'آموزش ترید برای کاربران تریدیار' }, state: 'ready_for_login',
-    audit: null, proposal: { departments: ['TECH', 'GROWTH', 'PRODUCT', 'SALES'], kpis: [{ name_fa: 'دانشجوی فعال', target: '300 در 90 روز' }], team: [{ role: 'ceo', model: 'claude-sonnet-5-5', monthly_usd: 18 }, { role: 'cto', model: 'claude-sonnet-5-5', monthly_usd: 20 }], roadmap_md: '', monthly_usd: 38 },
+    audit: null, proposal: { departments: ['TECH', 'GROWTH', 'PRODUCT', 'SALES'], kpis: [{ name_fa: 'دانشجوی فعال', target: '300 در 90 روز' }], team: [{ role: 'ceo', model: 'claude-sonnet-5-5', monthly_usd: '18.00' }, { role: 'cto', model: 'claude-sonnet-5-5', monthly_usd: '20.00' }], roadmap_md: '', monthly_usd: '38.00' },
     decision_ref: 'D-000023', plan: 'PV-0001', company: 'AC', created_at: iso(60 * 30), updated_at: iso(60 * 3) },
 ].map((f, i) => ({ id: `fo${i}`, ...f }));
 /** ⟨1.4.6⟩ the step «مُهر شرکت»: the brand of the founding's company, as it is now. */
-const withBrand = (f: any) => ({ ...f, brand: brandOf(f.company) });
+const withBrand = (f: any) => ({ ...f, plan_detail: f.plan ? plans[f.plan] ?? null : null, brand: brandOf(f.company) });
 
 // -------------------------------------------------------------- backups --
 const backups = {
@@ -354,13 +364,16 @@ export async function handle14(req: Request, p: string, u: URL): Promise<Respons
     if (rn) {
       const r = runs[rn[1]!];
       if (!r) return json({}, 404);
-      // Live demo: each poll finishes the running step and starts the next.
-      if (r.state === 'running') {
+      // Live demo: the first poll starts a queued run; each later poll finishes the running step and starts the next.
+      if (r.state === 'queued') {
+        r.state = 'running';
+        r.steps[0] = { ...r.steps[0], state: 'running', started_at: new Date().toISOString() };
+      } else if (r.state === 'running') {
         const i = r.steps.findIndex((s: any) => s.state !== 'done');
         if (i >= 0) {
           r.steps[i] = { ...r.steps[i], state: 'done', finished_at: new Date().toISOString(), log_tail: logFor(r.steps[i].key, plans[r.plan]) };
           if (r.steps[i + 1]) r.steps[i + 1] = { ...r.steps[i + 1], state: 'running', started_at: new Date().toISOString() };
-          if (r.steps[i].key === 'server') r.server = { name: plans[r.plan].name, ipv4: '203.0.113.31', ipv6: '2001:db8::31', private_ip: '10.10.1.6' };
+          if (r.steps[i].key === 'server') r.server = { name: plans[r.plan].name, ipv4: '203.0.113.31', ipv6: '2001:db8::31', private_ip: '10.10.1.6', host_keys: HOST_KEYS };
         }
         if (r.steps.every((s: any) => s.state === 'done')) {
           r.state = 'done';
@@ -412,7 +425,7 @@ export async function handle14(req: Request, p: string, u: URL): Promise<Respons
   if (me) { const s = mcp.find((x) => x.key === me[1]); if (!s) return json({}, 404); s.status = me[2] === 'enable' ? 'enabled' : 'disabled'; s.tools = s.tools.map((t) => ({ ...t, enabled: me[2] === 'enable' })); return json(s); }
   if (p === '/foundings') {
     const b = await body<{ source: { kind: 'repo' | 'idea'; repo: string | null; brief_md: string } }>();
-    const f = { id: `fo${foundings.length}`, ref: `C-${String(foundings.length + 1).padStart(4, '0')}`, name_fa: b.source.repo?.split('/')[1] ?? 'شرکت تازه', name_en: '', code: '', source: b.source, state: 'auditing', audit: null, proposal: null, decision_ref: null, plan: null, company: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    const f = { id: `fo${foundings.length}`, ref: `C-${String(foundings.length + 1).padStart(4, '0')}`, name_fa: null, name_en: null, code: null, source: b.source, state: 'auditing', audit: null, proposal: null, decision_ref: null, plan: null, company: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
     foundings.unshift(f);
     return json(withBrand(f), 201);
   }
@@ -423,6 +436,8 @@ export async function handle14(req: Request, p: string, u: URL): Promise<Respons
     if (fa[2] === 'activate' && brandOf(f.company).state !== 'active' && !(await body<{ skip_brand?: boolean }>()).skip_brand) {
       return json({ code: 'not_ready', message_fa: 'شرکت هنوز مُهر ندارد؛ نشانش را از لوگوی PNG بساز یا بدون مُهر فعال کن.', missing: ['brand'], status: 409, title: 'Not ready', type: 'about:blank' }, 409);
     }
+    // §18.16: cancelling returns a sealed but unrun plan to `proposed`.
+    if (fa[2] === 'cancel' && f.plan && plans[f.plan]?.state === 'sealed') Object.assign(plans[f.plan], { state: 'proposed', sealed_at: null });
     f.state = fa[2] === 'activate' ? 'active' : 'cancelled'; f.updated_at = new Date().toISOString(); return json(withBrand(f));
   }
   const ps = /^\/provisioning\/plans\/(PV-\d+)\/seal$/.exec(p);
@@ -430,10 +445,23 @@ export async function handle14(req: Request, p: string, u: URL): Promise<Respons
     const pl = plans[ps[1]!];
     if (!pl) return json({}, 404);
     const id = `r${++seq}`;
-    runs[id] = { id, plan: pl.ref, state: 'running', steps: STEPS.map(([key, title_fa], i) => ({ key, title_fa, state: i === 0 ? 'running' : 'pending', started_at: i === 0 ? new Date().toISOString() : null, finished_at: null, log_tail: '' })), server: null, login: null };
-    Object.assign(pl, { state: 'running', run: id, decision_ref: 'D-000025' });
+    if (pl.monthly_eur == null || pl.problems?.length) return json({ code: 'price_unknown', message_fa: 'قیمت این طرح هنوز معلوم نیست؛ بدون قیمت مُهر نمیشود.', status: 409, title: 'Price unknown', type: 'about:blank' }, 409);
+    runs[id] = { id, plan: pl.ref, state: 'queued', steps: STEPS.map(([key, title_fa]) => ({ key, title_fa, state: 'pending', started_at: null, finished_at: null, log_tail: [] })), server: null, login: null, error: null };
+    Object.assign(pl, { state: 'running', run: id, decision_ref: 'D-000025', sealed_at: new Date().toISOString() });
     const f = foundings.find((x) => x.plan === pl.ref); if (f) Object.assign(f, { state: 'provisioning', updated_at: new Date().toISOString() });
     return json(pl);
+  }
+  const rr = /^\/provisioning\/runs\/([^/]+)\/resume$/.exec(p);
+  if (rr) {
+    const r = runs[rr[1]!];
+    if (!r) return json({}, 404);
+    if (r.state !== 'failed') return json({ code: 'conflict', message_fa: 'فقط ساخت شکست‌خورده ادامه پیدا میکند.', status: 409, title: 'Conflict', type: 'about:blank' }, 409);
+    const i = r.steps.findIndex((s: any) => s.state === 'failed');
+    r.steps[i] = { ...r.steps[i], state: 'running', started_at: new Date().toISOString(), finished_at: null };
+    Object.assign(r, { state: 'running', error: null });
+    plans[r.plan].state = 'running';
+    const f = foundings.find((x) => x.plan === r.plan); if (f) Object.assign(f, { state: 'provisioning', updated_at: new Date().toISOString() });
+    return json(r);
   }
   return null;
 }

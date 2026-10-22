@@ -4,7 +4,7 @@
 // provisioning, backups. Prompts 7–9 implement them; until the OpenAPI file is regenerated, the types live here, written from the
 // contract. Same conventions as v13: X-HQ-Client and Idempotency-Key on writes, Problem errors as ApiError.
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { bodyTarget, stepUp } from '@/lib/auth';
 import { call, type Actor, type MediaRef } from './v13';
 
@@ -191,29 +191,43 @@ export function useMcpAction() {
 
 // --------------------------------------------- founding and provisioning --
 export type FoundingState = 'auditing' | 'proposed' | 'sealed' | 'provisioning' | 'ready_for_login' | 'active' | 'cancelled';
+export type AuditAxis = 'architecture' | 'quality' | 'security' | 'tests' | 'debt';
+// ⟨1.4.8⟩ as built (§18.16): names and code are null until the proposal; money is a decimal string (§1); audit scores are 0..10.
 export type Founding = {
-  id: string; ref: string; name_fa: string; name_en: string; code: string; source: { kind: 'repo' | 'idea'; repo: string | null; brief_md: string };
+  id: string; ref: string; name_fa: string | null; name_en: string | null; code: string | null; source: { kind: 'repo' | 'idea'; repo: string | null; brief_md: string };
   state: FoundingState;
-  audit: { session_ref: string; report_md: string; scores: Record<'architecture' | 'quality' | 'security' | 'tests' | 'debt', number> } | null;
-  proposal: { departments: string[]; kpis: Array<{ name_fa: string; target: string }>; team: Array<{ role: string; model: string; monthly_usd: number }>; roadmap_md: string; monthly_usd: number } | null;
-  decision_ref: string | null; plan: string | null; company: string | null; created_at: string; updated_at: string;
-  // ⟨1.4.6⟩ the step «مُهر شرکت» (§18.14), open once the company exists; a server before 1.4.6 sends none.
+  audit: { session_ref: string | null; report_md: string; scores: Record<AuditAxis, number | null> } | null;
+  proposal: { departments: string[]; kpis: Array<{ name_fa: string; target: string }>; team: Array<{ role: string; model: string; monthly_usd: string }>; roadmap_md: string; monthly_usd: string } | null;
+  decision_ref: string | null; plan: string | null; plan_detail?: ServerPlan | null; company: string | null; created_at: string; updated_at: string;
+  // ⟨1.4.6⟩ the step «مُهر شرکت» (§18.14), open once the company exists; `missing` until prompt 9.1.
   brand?: { state: 'missing' | 'proposed' | 'active'; version: number | null };
 };
 export type ServerPlan = {
   id: string; ref: string; founding: string | null; company: string; name: string; type: string; location: string; image: string; private_network: boolean;
-  firewall: Array<{ direction: 'in'; protocol: string; port: string; sources: string[]; note_fa: string }>; software: string[]; work_user: string;
-  repo: string | null; monthly_eur: number; digest: string; state: 'proposed' | 'sealed' | 'running' | 'done' | 'failed'; decision_ref: string | null; run: string | null;
+  // port is null for icmp
+  firewall: Array<{ direction: 'in'; protocol: string; port: string | null; sources: string[]; note_fa: string }>; software: string[]; work_user: string;
+  // no price, no seal; `problems` lists what stops the seal (empty once it may be sealed)
+  repo: string | null; monthly_eur: string | null; price?: { server: string; ipv4: string; network: string; source: string; at: string } | null; problems?: string[];
+  digest: string; state: 'proposed' | 'sealed' | 'running' | 'done' | 'failed'; decision_ref: string | null; run: string | null; sealed_at?: string | null; version?: number;
 };
 export type ProvisionRun = {
-  id: string; plan: string; state: 'running' | 'done' | 'failed';
-  steps: Array<{ key: string; title_fa: string; state: 'pending' | 'running' | 'done' | 'failed'; started_at: string | null; finished_at: string | null; log_tail: string }>;
-  server: { name: string; ipv4: string; ipv6: string; private_ip: string | null } | null; login: { ssh: string; then: string[] } | null;
+  id: string; plan: string; state: 'queued' | 'running' | 'done' | 'failed';
+  steps: Array<{ key: string; title_fa: string; state: 'pending' | 'running' | 'done' | 'failed'; started_at: string | null; finished_at: string | null; log_tail: string[] }>;
+  // the owner checks the host-key fingerprints before the first login
+  server: { name: string; ipv4: string | null; ipv6: string | null; private_ip: string | null; host_keys?: Array<{ type: string; fingerprint_sha256: string }> } | null;
+  login: { ssh: string; then: string[] } | null; error?: { code?: string; message?: string; step?: string } | null;
 };
-export const useFoundings = () => useQuery({ queryKey: ['founding'], queryFn: () => call<{ items: Founding[] }>('GET', '/foundings') });
+/** The founding's name as far as it is known: the proposal names it; before that, its repository or «ایده‌ی تازه». */
+export const foundingName = (f: Pick<Founding, 'name_fa' | 'source'>) => f.name_fa ?? f.source.repo?.split('/')[1] ?? 'ایده‌ی تازه';
+export const useFoundings = () => useInfiniteQuery({
+  queryKey: ['founding', 'list'],
+  queryFn: ({ pageParam }) => call<{ items: Founding[]; next_cursor: string | null }>('GET', `/foundings${pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : ''}`),
+  initialPageParam: null as string | null,
+  getNextPageParam: (last) => last.next_cursor,
+});
 export const useFounding = (ref: string) => useQuery({ queryKey: ['founding', ref], queryFn: () => call<Founding>('GET', `/foundings/${ref}`), refetchInterval: 5_000 });
-export const usePlan = (ref: string | null) => useQuery({ queryKey: ['founding', 'plan', ref], enabled: !!ref, queryFn: () => call<ServerPlan>('GET', `/provisioning/plans/${ref}`) });
-export const useRun = (id: string | null) => useQuery({ queryKey: ['founding', 'run', id], enabled: !!id, queryFn: () => call<ProvisionRun>('GET', `/provisioning/runs/${id}`), refetchInterval: (q) => (q.state.data?.state === 'running' ? 2_000 : false) });
+export const usePlan = (ref: string | null, seed?: ServerPlan | null) => useQuery({ queryKey: ['founding', 'plan', ref], enabled: !!ref, queryFn: () => call<ServerPlan>('GET', `/provisioning/plans/${ref}`), initialData: seed ?? undefined });
+export const useRun = (id: string | null) => useQuery({ queryKey: ['founding', 'run', id], enabled: !!id, queryFn: () => call<ProvisionRun>('GET', `/provisioning/runs/${id}`), refetchInterval: (q) => (q.state.data?.state === 'running' || q.state.data?.state === 'queued' ? 2_000 : false) });
 export function useFoundingAction() {
   const qc = useQueryClient();
   const done = () => qc.invalidateQueries({ queryKey: ['founding'] });
@@ -228,6 +242,8 @@ export function useFoundingAction() {
       onSuccess: () => Promise.all([done(), qc.invalidateQueries({ queryKey: ['companies'] })]),
     }),
     cancel: useMutation({ mutationFn: (ref: string) => call<Founding>('POST', `/foundings/${ref}/cancel`, {}), onSuccess: done }),
+    // ⟨1.4.8⟩ a failed run of a still-sealed plan continues from its failed step, on the same seal.
+    resume: useMutation({ mutationFn: (run: string) => call<ProvisionRun>('POST', `/provisioning/runs/${run}/resume`, {}), onSuccess: done }),
   };
 }
 

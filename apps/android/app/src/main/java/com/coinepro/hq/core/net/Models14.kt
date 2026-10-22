@@ -450,17 +450,18 @@ data class ServiceAccount(
 data class ToolInfo(val name: String, val `class`: String, val roles: List<String> = emptyList(), val status: String = "on", val via: String = "gateway")
 
 // ------------------------------------------------ founding and provisioning --
+// ⟨1.4.8⟩ as built (§18.16): names and code are null until the proposal; money is a decimal string (§1); audit scores are 0..10.
 @Serializable
 data class FoundingSource(val kind: String, val repo: String? = null, val briefMd: String = "")
 
 @Serializable
-data class FoundingAudit(val sessionRef: String, val reportMd: String = "", val scores: Map<String, Double> = emptyMap())
+data class FoundingAudit(val sessionRef: String? = null, val reportMd: String = "", val scores: Map<String, Double?> = emptyMap())
 
 @Serializable
 data class Kpi(val nameFa: String, val target: String)
 
 @Serializable
-data class TeamSeat(val role: String, val model: String, val monthlyUsd: Double)
+data class TeamSeat(val role: String, val model: String, val monthlyUsd: String? = null)
 
 @Serializable
 data class FoundingProposal(
@@ -468,31 +469,39 @@ data class FoundingProposal(
     val kpis: List<Kpi> = emptyList(),
     val team: List<TeamSeat> = emptyList(),
     val roadmapMd: String = "",
-    val monthlyUsd: Double = 0.0,
+    val monthlyUsd: String? = null,
 )
 
 @Serializable
 data class Founding(
     val id: String = "",
     val ref: String,
-    val nameFa: String,
-    val nameEn: String = "",
-    val code: String = "",
+    val nameFa: String? = null,
+    val nameEn: String? = null,
+    val code: String? = null,
     val source: FoundingSource,
     val state: String,
     val audit: FoundingAudit? = null,
     val proposal: FoundingProposal? = null,
     val decisionRef: String? = null,
     val plan: String? = null,
+    val planDetail: ServerPlan? = null,
     val company: String? = null,
     val createdAt: String,
     val updatedAt: String,
-    /** ⟨1.4.6⟩ the step «مُهر شرکت» (§18.14), open once the company exists. */
+    /** ⟨1.4.6⟩ the step «مُهر شرکت» (§18.14), open once the company exists; `missing` until prompt 9.1. */
     val brand: FoundingBrand = FoundingBrand(),
-)
+) {
+    /** The name as far as it is known: the proposal names it; before that, its repository or «ایده‌ی تازه». */
+    val title: String get() = nameFa ?: source.repo?.substringAfter('/') ?: "ایده‌ی تازه"
+}
+
+/** `port` is null for icmp. */
+@Serializable
+data class FirewallRule(val direction: String = "in", val protocol: String, val port: String? = null, val sources: List<String> = emptyList(), val noteFa: String = "")
 
 @Serializable
-data class FirewallRule(val direction: String = "in", val protocol: String, val port: String, val sources: List<String> = emptyList(), val noteFa: String = "")
+data class PlanPrice(val server: String? = null, val ipv4: String? = null, val network: String? = null, val source: String = "", val at: String? = null)
 
 @Serializable
 data class ServerPlan(
@@ -509,30 +518,46 @@ data class ServerPlan(
     val software: List<String> = emptyList(),
     val workUser: String,
     val repo: String? = null,
-    val monthlyEur: Double,
+    /** Null until Hetzner's price is known: no price, no seal. */
+    val monthlyEur: String? = null,
+    val price: PlanPrice? = null,
+    /** What stops the seal; empty once it may be sealed. */
+    val problems: List<String> = emptyList(),
     val digest: String,
     val state: String,
     val decisionRef: String? = null,
     val run: String? = null,
-)
+    val sealedAt: String? = null,
+    val version: Int = 1,
+) {
+    val sealable: Boolean get() = state == "proposed" && monthlyEur != null && problems.isEmpty()
+}
 
 @Serializable
-data class RunStep(val key: String, val titleFa: String, val state: String, val startedAt: String? = null, val finishedAt: String? = null, val logTail: String = "")
+data class RunStep(val key: String, val titleFa: String, val state: String, val startedAt: String? = null, val finishedAt: String? = null, val logTail: List<String> = emptyList())
 
 @Serializable
-data class NewServer(val name: String, val ipv4: String, val ipv6: String = "", val privateIp: String? = null)
+data class HostKey(val type: String, val fingerprintSha256: String)
+
+@Serializable
+data class NewServer(val name: String, val ipv4: String? = null, val ipv6: String? = null, val privateIp: String? = null, val hostKeys: List<HostKey> = emptyList())
 
 @Serializable
 data class Login(val ssh: String, val then: List<String> = emptyList())
 
 @Serializable
+data class RunError(val code: String? = null, val message: String? = null, val step: String? = null)
+
+@Serializable
 data class ProvisionRun(
     val id: String,
     val plan: String,
+    /** queued · running · done · failed */
     val state: String,
     val steps: List<RunStep> = emptyList(),
     val server: NewServer? = null,
     val login: Login? = null,
+    val error: RunError? = null,
 )
 
 // ---------------------------------------------------------------- backups --

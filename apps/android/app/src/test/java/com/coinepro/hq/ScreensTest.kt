@@ -108,6 +108,7 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "foundings" to { _ -> FoundingsScreen() },
             "founding-proposed" to { _ -> FoundingScreen("C-0002") },
             "founding-ready" to { _ -> FoundingScreen("C-0001") },
+            "founding-plan" to { _ -> FoundingScreen("PV-0003") },
             "tools" to { _ -> ToolsScreen() },
             // ⟨1.4.2⟩ the owner's own hire, filled in (the sheet's content)
             // ⟨1.4.3⟩ a hire story (welcome / dismiss) and a CEO's milestone

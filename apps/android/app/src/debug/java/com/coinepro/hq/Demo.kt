@@ -445,7 +445,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val src = body?.get("source")?.jsonObject
             val ref = "C-%04d".format(list("/foundings").size + 1)
             val f = buildJsonObject {
-                put("id", "fo${System.nanoTime()}"); put("ref", ref); put("name_fa", src?.str("repo")?.substringAfter('/') ?: "شرکت تازه"); put("name_en", ""); put("code", "")
+                put("id", "fo${System.nanoTime()}"); put("ref", ref); put("name_fa", JsonNull); put("name_en", JsonNull); put("code", JsonNull)
                 put("source", src ?: JsonNull); put("state", "auditing"); put("audit", JsonNull); put("proposal", JsonNull); put("decision_ref", JsonNull); put("plan", JsonNull); put("company", JsonNull)
                 put("created_at", stamp); put("updated_at", stamp)
             }
@@ -463,25 +463,42 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
                     putJsonArray("missing") { add(JsonPrimitive("brand")) }; put("status", 409); put("title", "Not ready"); put("type", "about:blank")
                 }
             }
+            // §18.16: cancelling returns a sealed but unrun plan to `proposed`.
+            val planRef = store["/foundings/$ref"]?.second?.jsonObject?.str("plan")
+            val plan = planRef?.let { store["/provisioning/plans/$it"]?.second?.jsonObject }
+            if (verb == "cancel" && plan?.str("state") == "sealed") store["/provisioning/plans/$planRef"] = 200 to JsonObject(plan + mapOf("state" to JsonPrimitive("proposed"), "sealed_at" to JsonNull))
             val f = saveFounding(ref) { it + mapOf("state" to JsonPrimitive(if (verb == "activate") "active" else "cancelled"), "updated_at" to stamp) } ?: return 404 to problem("not_found", "پیدا نشد.")
             return 200 to f
         }
         Regex("^/provisioning/plans/(PV-\\d+)/seal$").find(path)?.let { m ->
             val ref = m.groupValues[1]
             val pl = store["/provisioning/plans/$ref"]?.second?.jsonObject ?: return 404 to problem("not_found", "پیدا نشد.")
+            // No price, no seal (§18.16).
+            if (pl["monthly_eur"] !is JsonPrimitive || (pl["problems"] as? JsonArray)?.isNotEmpty() == true) return 409 to problem("price_unknown", "قیمت این طرح هنوز معلوم نیست؛ بدون قیمت مُهر نمیشود.")
             val id = "r${System.nanoTime()}"
             // The steps a build goes through are the hub's; the finished demo build lends its list.
             val template = store["/provisioning/runs/r1"]!!.second.jsonObject["steps"]!!.jsonArray
             store["/provisioning/runs/$id"] = 200 to buildJsonObject {
-                put("id", id); put("plan", ref); put("state", "running"); put("server", JsonNull); put("login", JsonNull)
-                put("steps", JsonArray(template.mapIndexed { i, s ->
-                    JsonObject(s.jsonObject + mapOf("state" to JsonPrimitive(if (i == 0) "running" else "pending"), "started_at" to if (i == 0) stamp else JsonNull, "finished_at" to JsonNull, "log_tail" to JsonPrimitive("")))
+                put("id", id); put("plan", ref); put("state", "queued"); put("server", JsonNull); put("login", JsonNull); put("error", JsonNull)
+                put("steps", JsonArray(template.map { s ->
+                    JsonObject(s.jsonObject + mapOf("state" to JsonPrimitive("pending"), "started_at" to JsonNull, "finished_at" to JsonNull, "log_tail" to JsonArray(emptyList())))
                 }))
             }
-            val sealed = JsonObject(pl + mapOf("state" to JsonPrimitive("running"), "run" to JsonPrimitive(id), "decision_ref" to JsonPrimitive("D-000025")))
+            val sealed = JsonObject(pl + mapOf("state" to JsonPrimitive("running"), "run" to JsonPrimitive(id), "decision_ref" to JsonPrimitive("D-000025"), "sealed_at" to stamp))
             store["/provisioning/plans/$ref"] = 200 to sealed
             pl.str("founding")?.let { saveFounding(it) { f -> f + mapOf("state" to JsonPrimitive("provisioning"), "updated_at" to stamp) } }
             return 200 to sealed
+        }
+        Regex("^/provisioning/runs/([^/]+)/resume$").find(path)?.let { m ->
+            val id = m.groupValues[1]
+            val r = store["/provisioning/runs/$id"]?.second?.jsonObject ?: return 404 to problem("not_found", "پیدا نشد.")
+            if (r.str("state") != "failed") return 409 to problem("conflict", "فقط ساخت شکست‌خورده ادامه پیدا میکند.")
+            val steps = r["steps"]!!.jsonArray.map { it.jsonObject }.toMutableList()
+            val i = steps.indexOfFirst { it.str("state") == "failed" }
+            if (i >= 0) steps[i] = JsonObject(steps[i] + mapOf("state" to JsonPrimitive("running"), "started_at" to stamp, "finished_at" to JsonNull))
+            val next = JsonObject(r + mapOf("state" to JsonPrimitive("running"), "error" to JsonNull, "steps" to JsonArray(steps)))
+            store["/provisioning/runs/$id"] = 200 to next
+            return 200 to next
         }
         return null
     }
@@ -647,15 +664,26 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private fun advanceRun(id: String): Pair<Int, JsonElement> {
         val (_, cur) = store["/provisioning/runs/$id"] ?: return 404 to problem("not_found", "پیدا نشد.")
         var r = cur.jsonObject
+        // The first poll starts a queued run.
+        if (r.str("state") == "queued") {
+            val steps = r["steps"]!!.jsonArray.map { it.jsonObject }.toMutableList()
+            steps[0] = JsonObject(steps[0] + mapOf("state" to JsonPrimitive("running"), "started_at" to stamp))
+            r = JsonObject(r + mapOf("state" to JsonPrimitive("running"), "steps" to JsonArray(steps)))
+            store["/provisioning/runs/$id"] = 200 to r
+            return 200 to r
+        }
         if (r.str("state") != "running") return 200 to r
         val plan = store["/provisioning/plans/${r.str("plan")}"]!!.second.jsonObject
         val steps = r["steps"]!!.jsonArray.map { it.jsonObject }.toMutableList()
         val i = steps.indexOfFirst { it.str("state") != "done" }
         if (i >= 0) {
-            steps[i] = JsonObject(steps[i] + mapOf("state" to JsonPrimitive("done"), "finished_at" to stamp, "log_tail" to JsonPrimitive(logFor(steps[i].str("key")!!, plan))))
+            steps[i] = JsonObject(steps[i] + mapOf("state" to JsonPrimitive("done"), "finished_at" to stamp, "log_tail" to JsonArray(logFor(steps[i].str("key")!!, plan).map { JsonPrimitive(it) })))
             if (i + 1 < steps.size) steps[i + 1] = JsonObject(steps[i + 1] + mapOf("state" to JsonPrimitive("running"), "started_at" to stamp))
             r = JsonObject(r + ("steps" to JsonArray(steps)))
-            if (steps[i].str("key") == "server") r = JsonObject(r + ("server" to buildJsonObject { put("name", plan.str("name")); put("ipv4", "203.0.113.31"); put("ipv6", "2001:db8::31"); put("private_ip", "10.10.1.6") }))
+            if (steps[i].str("key") == "server") r = JsonObject(r + ("server" to buildJsonObject { put("name", plan.str("name")); put("ipv4", "203.0.113.31"); put("ipv6", "2001:db8::31"); put("private_ip", "10.10.1.6")
+                // The demo build lends the finished one's host keys.
+                put("host_keys", store["/provisioning/runs/r1"]?.second?.jsonObject?.get("server")?.jsonObject?.get("host_keys") ?: JsonArray(emptyList()))
+            }))
         }
         if (steps.all { it.str("state") == "done" }) {
             r = JsonObject(r + mapOf("state" to JsonPrimitive("done"), "login" to buildJsonObject { put("ssh", "ssh ${plan.str("work_user")}@203.0.113.31"); putJsonArray("then") { add(JsonPrimitive("claude")) } }))
@@ -666,16 +694,18 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         return 200 to r
     }
 
-    private fun logFor(key: String, plan: JsonObject): String = when (key) {
-        "ssh-key" -> "owner key registered (label managed-by=coinepro-hq)"
-        "firewall" -> "firewall fw-${plan.str("name")!!.replace(Regex("-\\d+$"), "")}: " + plan["firewall"]!!.jsonArray.joinToString(", ") { w ->
-            "in ${w.jsonObject.str("port")}/tcp from ${if (w.jsonObject["sources"]!!.jsonArray.any { it.jsonPrimitive.content == "owner" }) "owner IPs" else "any"}"
+    /** The last lines a step leaves (§18.16), as the web's mock writes them from the plan being built. */
+    private fun logFor(key: String, plan: JsonObject): List<String> = when (key) {
+        "ssh-key" -> listOf("owner key registered (label managed-by=coinepro-hq)")
+        "firewall" -> listOf("firewall fw-${plan.str("name")!!.replace(Regex("-\\d+$"), "")}") + plan["firewall"]!!.jsonArray.map { w ->
+            val port = w.jsonObject.str("port")
+            "in ${w.jsonObject.str("protocol")}${port?.let { " $it" } ?: ""} from ${if (w.jsonObject["sources"]!!.jsonArray.any { it.jsonPrimitive.content == "owner" }) "owner IPs" else "any"}"
         }
-        "server" -> "${plan.str("type")} · ${plan.str("location")} · ${plan.str("image")} · no root password"
-        "boot" -> "running · ssh answers"
-        "cloud-init" -> "apt full-upgrade ✓ · unattended-upgrades ✓ · docker 28.x ✓ · node 22 LTS ✓ · claude-code ✓ · repo cloned ✓"
-        "verify" -> "ssh: keys only, root login off · auto security updates on"
-        else -> "ready"
+        "server" -> listOf("${plan.str("type")} · ${plan.str("location")} · ${plan.str("image")}", "no root password")
+        "boot" -> listOf("running", "ssh answers")
+        "cloud-init" -> listOf("apt full-upgrade ✓ · unattended-upgrades ✓", "docker 28.x ✓ · node 22 LTS ✓", "claude-code ✓ · repo cloned ✓")
+        "verify" -> listOf("ssh: keys only, root login off", "auto security updates on")
+        else -> listOf("ready")
     }
 
     /** Rules first, like the hub (§17.4): a named company, then the kind of work from known words. */

@@ -50,7 +50,7 @@ const paths = [
   '/inquiries?from=HQ-ADV', '/errands', '/stars/rollup?period=week', '/stars/rollup?period=month', '/stars/rubrics', '/lessons',
   '/skills', '/academy/curricula', '/academy/evals', '/academy/teach',
   '/egress/summary?period=day', '/egress', '/tools/mcp', '/tools/accounts', '/tools/catalog',
-  '/foundings', '/foundings/C-0001', '/foundings/C-0002', '/provisioning/plans/PV-0001', '/provisioning/plans/PV-0002', '/provisioning/runs/r1',
+  '/foundings', '/foundings/C-0001', '/foundings/C-0002', '/foundings/C-0003', '/provisioning/plans/PV-0001', '/provisioning/plans/PV-0002', '/provisioning/plans/PV-0003', '/provisioning/runs/r1',
   '/backups/status', '/threads/N/messages', '/threads/P/messages',
   // ⟨1.4.2⟩ hiring starts with the owner: the state and the charters the owner hires from.
   '/owner/hiring', '/roles',

@@ -1104,7 +1104,7 @@ Where the build differs from §18.8, this list is the contract.
 ```
 Founding   { …§18.8, name_fa|null, name_en|null, code|null,                      // null until the proposal
              source: {kind: "repo"|"idea", repo|null, brief_md},
-             audit: {session_ref|null, report_md, scores: {architecture|null, quality|null, security|null, tests|null, debt|null}}|null,
+             audit: {session_ref|null, report_md, scores: {architecture|null, quality|null, security|null, tests|null, debt|null}}|null,   // each 0..10
              plan: "PV-…"|null, plan_detail: ServerPlan|null, brand: {state, version|null} }
 ServerPlan { …§18.8, firewall: [{direction: "in", protocol, port|null, sources, note_fa}],     // port null for icmp
              monthly_eur: decimal string|null,                                        // null until Hetzner's price is known; no price, no seal

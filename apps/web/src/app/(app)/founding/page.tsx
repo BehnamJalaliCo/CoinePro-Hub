@@ -10,7 +10,7 @@ import { Card, Empty, ErrorState, PageHeader, Pill, Segmented, Skeleton } from '
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api/client';
 import { FOUNDING_STATE } from '@/components/v14/bits';
-import { useFoundingAction, useFoundings } from '@/lib/api/v14';
+import { foundingName, useFoundingAction, useFoundings } from '@/lib/api/v14';
 import { ago, cx } from '@/lib/format';
 
 
@@ -43,7 +43,7 @@ function Start({ onClose }: { onClose: () => void }) {
 export default function FoundingPage() {
   const q = useFoundings();
   const [start, setStart] = useState(false);
-  const items = q.data?.items ?? [];
+  const items = q.data?.pages.flatMap((pg) => pg.items) ?? [];
   return (
     <>
       <PageHeader eyebrow="از ریپو یا ایده تا شرکت فعال و سرور آماده" title="تأسیس شرکت" actions={<Button variant="primary" icon="add" onClick={() => setStart(true)}>تأسیس تازه</Button>}>
@@ -53,10 +53,11 @@ export default function FoundingPage() {
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {items.map((f) => (
             <Link key={f.ref} href={`/founding/${f.ref}`} className={cx('flex flex-col gap-2 rounded-[16px] p-4 hover:bg-hover', f.state === 'ready_for_login' || f.state === 'proposed' ? 'bg-gold-soft' : 'bg-card')}>
-              <span className="flex items-center gap-2"><Icon name="found" size={18} className="text-gold-ink" /><span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{f.name_fa}</span><Pill tone={FOUNDING_STATE[f.state].tone} live={FOUNDING_STATE[f.state].live} dot={!FOUNDING_STATE[f.state].live}>{FOUNDING_STATE[f.state].fa}</Pill></span>
+              <span className="flex items-center gap-2"><Icon name="found" size={18} className="text-gold-ink" /><span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{foundingName(f)}</span><Pill tone={FOUNDING_STATE[f.state].tone} live={FOUNDING_STATE[f.state].live} dot={!FOUNDING_STATE[f.state].live}>{FOUNDING_STATE[f.state].fa}</Pill></span>
               <span className="flex items-center gap-2 text-[12px] text-muted"><span className="fig">{f.ref}</span>{f.source.repo ? <span className="fig truncate">{f.source.repo}</span> : <span>ایده</span>}<span className="flex-1" /><span>{ago(f.updated_at)}</span></span>
             </Link>
           ))}
+          {q.hasNextPage ? <Button variant="secondary" size="sm" className="self-start" loading={q.isFetchingNextPage} onClick={() => q.fetchNextPage()}>بیشتر</Button> : null}
         </div>
       )}
       <Path />

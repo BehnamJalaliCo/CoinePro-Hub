@@ -13068,6 +13068,31 @@
    "items": [
     {
      "id": "fo0",
+     "ref": "C-0003",
+     "name_fa": null,
+     "name_en": null,
+     "code": null,
+     "source": {
+      "kind": "idea",
+      "repo": null,
+      "brief_md": "دستیار مالیات و حسابداری برای معامله‌گرهای کریپتو"
+     },
+     "state": "auditing",
+     "audit": null,
+     "proposal": null,
+     "decision_ref": null,
+     "plan": null,
+     "company": null,
+     "created_at": "@-25m",
+     "updated_at": "@-25m",
+     "plan_detail": null,
+     "brand": {
+      "state": "missing",
+      "version": null
+     }
+    },
+    {
+     "id": "fo1",
      "ref": "C-0002",
      "name_fa": "سیگنال‌بات",
      "name_en": "Signal Bot",
@@ -13081,11 +13106,11 @@
      "audit": {
       "session_ref": "S-0005",
       "scores": {
-       "architecture": 72,
-       "quality": 64,
-       "security": 58,
-       "tests": 41,
-       "debt": 55
+       "architecture": 7.2,
+       "quality": 6.4,
+       "security": 5.8,
+       "tests": 4.1,
+       "debt": 5.5
       },
       "report_md": "**خلاصه:** معماری ساده و قابل رشد است؛ تست‌ها کم‌اند (۴۱٪ پوشش) و دو کلید در تاریخچه‌ی git لو رفته‌اند که باید باطل شوند. پیش از انتشار عمومی: تست‌های پرداخت، محدودیت نرخ ربات، و انتقال رمزها به vault."
      },
@@ -13114,39 +13139,91 @@
        {
         "role": "ceo",
         "model": "claude-sonnet-5-5",
-        "monthly_usd": 18
+        "monthly_usd": "18.00"
        },
        {
         "role": "cto",
         "model": "claude-sonnet-5-5",
-        "monthly_usd": 22
+        "monthly_usd": "22.00"
        },
        {
         "role": "sre",
         "model": "claude-haiku-5-5",
-        "monthly_usd": 6
+        "monthly_usd": "6.00"
        },
        {
         "role": "growth",
         "model": "claude-sonnet-5-5",
-        "monthly_usd": 14
+        "monthly_usd": "14.00"
        }
       ],
       "roadmap_md": "**ماه ۱:** امن‌سازی و تست پرداخت. **ماه ۲:** انتشار بتا برای ۵۰ نفر. **ماه ۳:** رشد تا ۵۰۰ مشترک.",
-      "monthly_usd": 60
+      "monthly_usd": "60.00"
      },
      "decision_ref": "D-000024",
      "plan": "PV-0002",
      "company": null,
      "created_at": "@-360m",
      "updated_at": "@-40m",
+     "plan_detail": {
+      "id": "pv2",
+      "ref": "PV-0002",
+      "founding": "C-0002",
+      "company": "SB",
+      "name": "signal-bot-1",
+      "type": "cpx21",
+      "location": "fsn1",
+      "image": "ubuntu-24.04",
+      "private_network": true,
+      "firewall": [
+       {
+        "direction": "in",
+        "protocol": "tcp",
+        "port": "22",
+        "sources": [
+         "owner"
+        ],
+        "note_fa": "SSH فقط از IPهای مالک"
+       }
+      ],
+      "software": [
+       "system-upgrade",
+       "unattended-upgrades",
+       "work-user",
+       "ssh-hardening",
+       "docker",
+       "git",
+       "node-lts",
+       "claude-code",
+       "repo-clone",
+       "private-network",
+       "hetzner-firewall"
+      ],
+      "work_user": "sb-ops",
+      "repo": "behnamjalalico/signal-bot",
+      "monthly_eur": "9.20",
+      "price": {
+       "server": "8.70",
+       "ipv4": "0.50",
+       "network": "0.00",
+       "source": "hetzner",
+       "at": "@-240m"
+      },
+      "problems": [],
+      "digest": "4e0d7a91c3",
+      "state": "proposed",
+      "decision_ref": null,
+      "run": null,
+      "sealed_at": null,
+      "version": 1
+     },
      "brand": {
       "state": "missing",
       "version": null
      }
     },
     {
-     "id": "fo1",
+     "id": "fo2",
      "ref": "C-0001",
      "name_fa": "کوینه‌پرو آکادمی",
      "name_en": "CoinePro Academy",
@@ -13175,22 +13252,94 @@
        {
         "role": "ceo",
         "model": "claude-sonnet-5-5",
-        "monthly_usd": 18
+        "monthly_usd": "18.00"
        },
        {
         "role": "cto",
         "model": "claude-sonnet-5-5",
-        "monthly_usd": 20
+        "monthly_usd": "20.00"
        }
       ],
       "roadmap_md": "",
-      "monthly_usd": 38
+      "monthly_usd": "38.00"
      },
      "decision_ref": "D-000023",
      "plan": "PV-0001",
      "company": "AC",
      "created_at": "@-1800m",
      "updated_at": "@-180m",
+     "plan_detail": {
+      "id": "pv1",
+      "ref": "PV-0001",
+      "founding": "C-0001",
+      "company": "AC",
+      "name": "coine-academy-1",
+      "type": "cpx31",
+      "location": "nbg1",
+      "image": "ubuntu-24.04",
+      "private_network": true,
+      "firewall": [
+       {
+        "direction": "in",
+        "protocol": "tcp",
+        "port": "22",
+        "sources": [
+         "owner"
+        ],
+        "note_fa": "SSH فقط از IPهای مالک"
+       },
+       {
+        "direction": "in",
+        "protocol": "tcp",
+        "port": "80,443",
+        "sources": [
+         "0.0.0.0/0",
+         "::/0"
+        ],
+        "note_fa": "وب سایت"
+       },
+       {
+        "direction": "in",
+        "protocol": "icmp",
+        "port": null,
+        "sources": [
+         "owner"
+        ],
+        "note_fa": "ping"
+       }
+      ],
+      "software": [
+       "system-upgrade",
+       "unattended-upgrades",
+       "work-user",
+       "ssh-hardening",
+       "docker",
+       "git",
+       "node-lts",
+       "claude-code",
+       "repo-clone",
+       "private-network",
+       "hetzner-firewall",
+       "node-exporter"
+      ],
+      "work_user": "ac-ops",
+      "repo": "behnamjalalico/coinepro-academy",
+      "monthly_eur": "16.90",
+      "price": {
+       "server": "16.40",
+       "ipv4": "0.50",
+       "network": "0.00",
+       "source": "hetzner",
+       "at": "@-240m"
+      },
+      "problems": [],
+      "digest": "b81f4c0a2d",
+      "state": "done",
+      "decision_ref": "D-000023",
+      "run": "r1",
+      "sealed_at": "@-240m",
+      "version": 1
+     },
      "brand": {
       "state": "missing",
       "version": null
@@ -13203,7 +13352,7 @@
  "/foundings/C-0001": {
   "status": 200,
   "body": {
-   "id": "fo1",
+   "id": "fo2",
    "ref": "C-0001",
    "name_fa": "کوینه‌پرو آکادمی",
    "name_en": "CoinePro Academy",
@@ -13232,22 +13381,94 @@
      {
       "role": "ceo",
       "model": "claude-sonnet-5-5",
-      "monthly_usd": 18
+      "monthly_usd": "18.00"
      },
      {
       "role": "cto",
       "model": "claude-sonnet-5-5",
-      "monthly_usd": 20
+      "monthly_usd": "20.00"
      }
     ],
     "roadmap_md": "",
-    "monthly_usd": 38
+    "monthly_usd": "38.00"
    },
    "decision_ref": "D-000023",
    "plan": "PV-0001",
    "company": "AC",
    "created_at": "@-1800m",
    "updated_at": "@-180m",
+   "plan_detail": {
+    "id": "pv1",
+    "ref": "PV-0001",
+    "founding": "C-0001",
+    "company": "AC",
+    "name": "coine-academy-1",
+    "type": "cpx31",
+    "location": "nbg1",
+    "image": "ubuntu-24.04",
+    "private_network": true,
+    "firewall": [
+     {
+      "direction": "in",
+      "protocol": "tcp",
+      "port": "22",
+      "sources": [
+       "owner"
+      ],
+      "note_fa": "SSH فقط از IPهای مالک"
+     },
+     {
+      "direction": "in",
+      "protocol": "tcp",
+      "port": "80,443",
+      "sources": [
+       "0.0.0.0/0",
+       "::/0"
+      ],
+      "note_fa": "وب سایت"
+     },
+     {
+      "direction": "in",
+      "protocol": "icmp",
+      "port": null,
+      "sources": [
+       "owner"
+      ],
+      "note_fa": "ping"
+     }
+    ],
+    "software": [
+     "system-upgrade",
+     "unattended-upgrades",
+     "work-user",
+     "ssh-hardening",
+     "docker",
+     "git",
+     "node-lts",
+     "claude-code",
+     "repo-clone",
+     "private-network",
+     "hetzner-firewall",
+     "node-exporter"
+    ],
+    "work_user": "ac-ops",
+    "repo": "behnamjalalico/coinepro-academy",
+    "monthly_eur": "16.90",
+    "price": {
+     "server": "16.40",
+     "ipv4": "0.50",
+     "network": "0.00",
+     "source": "hetzner",
+     "at": "@-240m"
+    },
+    "problems": [],
+    "digest": "b81f4c0a2d",
+    "state": "done",
+    "decision_ref": "D-000023",
+    "run": "r1",
+    "sealed_at": "@-240m",
+    "version": 1
+   },
    "brand": {
     "state": "missing",
     "version": null
@@ -13257,7 +13478,7 @@
  "/foundings/C-0002": {
   "status": 200,
   "body": {
-   "id": "fo0",
+   "id": "fo1",
    "ref": "C-0002",
    "name_fa": "سیگنال‌بات",
    "name_en": "Signal Bot",
@@ -13271,11 +13492,11 @@
    "audit": {
     "session_ref": "S-0005",
     "scores": {
-     "architecture": 72,
-     "quality": 64,
-     "security": 58,
-     "tests": 41,
-     "debt": 55
+     "architecture": 7.2,
+     "quality": 6.4,
+     "security": 5.8,
+     "tests": 4.1,
+     "debt": 5.5
     },
     "report_md": "**خلاصه:** معماری ساده و قابل رشد است؛ تست‌ها کم‌اند (۴۱٪ پوشش) و دو کلید در تاریخچه‌ی git لو رفته‌اند که باید باطل شوند. پیش از انتشار عمومی: تست‌های پرداخت، محدودیت نرخ ربات، و انتقال رمزها به vault."
    },
@@ -13304,32 +13525,112 @@
      {
       "role": "ceo",
       "model": "claude-sonnet-5-5",
-      "monthly_usd": 18
+      "monthly_usd": "18.00"
      },
      {
       "role": "cto",
       "model": "claude-sonnet-5-5",
-      "monthly_usd": 22
+      "monthly_usd": "22.00"
      },
      {
       "role": "sre",
       "model": "claude-haiku-5-5",
-      "monthly_usd": 6
+      "monthly_usd": "6.00"
      },
      {
       "role": "growth",
       "model": "claude-sonnet-5-5",
-      "monthly_usd": 14
+      "monthly_usd": "14.00"
      }
     ],
     "roadmap_md": "**ماه ۱:** امن‌سازی و تست پرداخت. **ماه ۲:** انتشار بتا برای ۵۰ نفر. **ماه ۳:** رشد تا ۵۰۰ مشترک.",
-    "monthly_usd": 60
+    "monthly_usd": "60.00"
    },
    "decision_ref": "D-000024",
    "plan": "PV-0002",
    "company": null,
    "created_at": "@-360m",
    "updated_at": "@-40m",
+   "plan_detail": {
+    "id": "pv2",
+    "ref": "PV-0002",
+    "founding": "C-0002",
+    "company": "SB",
+    "name": "signal-bot-1",
+    "type": "cpx21",
+    "location": "fsn1",
+    "image": "ubuntu-24.04",
+    "private_network": true,
+    "firewall": [
+     {
+      "direction": "in",
+      "protocol": "tcp",
+      "port": "22",
+      "sources": [
+       "owner"
+      ],
+      "note_fa": "SSH فقط از IPهای مالک"
+     }
+    ],
+    "software": [
+     "system-upgrade",
+     "unattended-upgrades",
+     "work-user",
+     "ssh-hardening",
+     "docker",
+     "git",
+     "node-lts",
+     "claude-code",
+     "repo-clone",
+     "private-network",
+     "hetzner-firewall"
+    ],
+    "work_user": "sb-ops",
+    "repo": "behnamjalalico/signal-bot",
+    "monthly_eur": "9.20",
+    "price": {
+     "server": "8.70",
+     "ipv4": "0.50",
+     "network": "0.00",
+     "source": "hetzner",
+     "at": "@-240m"
+    },
+    "problems": [],
+    "digest": "4e0d7a91c3",
+    "state": "proposed",
+    "decision_ref": null,
+    "run": null,
+    "sealed_at": null,
+    "version": 1
+   },
+   "brand": {
+    "state": "missing",
+    "version": null
+   }
+  }
+ },
+ "/foundings/C-0003": {
+  "status": 200,
+  "body": {
+   "id": "fo0",
+   "ref": "C-0003",
+   "name_fa": null,
+   "name_en": null,
+   "code": null,
+   "source": {
+    "kind": "idea",
+    "repo": null,
+    "brief_md": "دستیار مالیات و حسابداری برای معامله‌گرهای کریپتو"
+   },
+   "state": "auditing",
+   "audit": null,
+   "proposal": null,
+   "decision_ref": null,
+   "plan": null,
+   "company": null,
+   "created_at": "@-25m",
+   "updated_at": "@-25m",
+   "plan_detail": null,
    "brand": {
     "state": "missing",
     "version": null
@@ -13367,6 +13668,15 @@
       "::/0"
      ],
      "note_fa": "وب سایت"
+    },
+    {
+     "direction": "in",
+     "protocol": "icmp",
+     "port": null,
+     "sources": [
+      "owner"
+     ],
+     "note_fa": "ping"
     }
    ],
    "software": [
@@ -13383,13 +13693,23 @@
     "hetzner-firewall",
     "node-exporter"
    ],
-   "work_user": "academy",
+   "work_user": "ac-ops",
    "repo": "behnamjalalico/coinepro-academy",
-   "monthly_eur": 16.9,
+   "monthly_eur": "16.90",
+   "price": {
+    "server": "16.40",
+    "ipv4": "0.50",
+    "network": "0.00",
+    "source": "hetzner",
+    "at": "@-240m"
+   },
+   "problems": [],
    "digest": "b81f4c0a2d",
    "state": "done",
    "decision_ref": "D-000023",
-   "run": "r1"
+   "run": "r1",
+   "sealed_at": "@-240m",
+   "version": 1
   }
  },
  "/provisioning/plans/PV-0002": {
@@ -13428,13 +13748,72 @@
     "private-network",
     "hetzner-firewall"
    ],
-   "work_user": "signalbot",
+   "work_user": "sb-ops",
    "repo": "behnamjalalico/signal-bot",
-   "monthly_eur": 9.2,
+   "monthly_eur": "9.20",
+   "price": {
+    "server": "8.70",
+    "ipv4": "0.50",
+    "network": "0.00",
+    "source": "hetzner",
+    "at": "@-240m"
+   },
+   "problems": [],
    "digest": "4e0d7a91c3",
    "state": "proposed",
    "decision_ref": null,
-   "run": null
+   "run": null,
+   "sealed_at": null,
+   "version": 1
+  }
+ },
+ "/provisioning/plans/PV-0003": {
+  "status": 200,
+  "body": {
+   "id": "pv3",
+   "ref": "PV-0003",
+   "founding": null,
+   "company": "TY",
+   "name": "tradeyar-worker-1",
+   "type": "cpx22",
+   "location": "fsn1",
+   "image": "ubuntu-24.04",
+   "private_network": true,
+   "firewall": [
+    {
+     "direction": "in",
+     "protocol": "tcp",
+     "port": "22",
+     "sources": [
+      "owner"
+     ],
+     "note_fa": "SSH فقط از IPهای مالک"
+    }
+   ],
+   "software": [
+    "system-upgrade",
+    "unattended-upgrades",
+    "work-user",
+    "ssh-hardening",
+    "docker",
+    "git",
+    "private-network",
+    "hetzner-firewall",
+    "node-exporter"
+   ],
+   "work_user": "ty-ops",
+   "repo": null,
+   "monthly_eur": null,
+   "price": null,
+   "problems": [
+    "monthly_eur: no price yet (the provisioner is off: make hetzner-token)"
+   ],
+   "digest": "9c2e5b7a10",
+   "state": "proposed",
+   "decision_ref": null,
+   "run": null,
+   "sealed_at": null,
+   "version": 1
   }
  },
  "/provisioning/runs/r1": {
@@ -13450,7 +13829,9 @@
      "state": "done",
      "started_at": "@-180m",
      "finished_at": "@-179m",
-     "log_tail": "owner key registered (label managed-by=coinepro-hq)"
+     "log_tail": [
+      "owner key registered (label managed-by=coinepro-hq)"
+     ]
     },
     {
      "key": "firewall",
@@ -13458,7 +13839,12 @@
      "state": "done",
      "started_at": "@-178m",
      "finished_at": "@-177m",
-     "log_tail": "firewall fw-coine-academy: in 22/tcp from owner IPs, in 80,443/tcp from any"
+     "log_tail": [
+      "firewall fw-coine-academy",
+      "in tcp 22 from owner IPs",
+      "in tcp 80,443 from any",
+      "in icmp from owner IPs"
+     ]
     },
     {
      "key": "server",
@@ -13466,7 +13852,10 @@
      "state": "done",
      "started_at": "@-176m",
      "finished_at": "@-175m",
-     "log_tail": "cpx31 · nbg1 · ubuntu-24.04 · no root password"
+     "log_tail": [
+      "cpx31 · nbg1 · ubuntu-24.04",
+      "no root password"
+     ]
     },
     {
      "key": "boot",
@@ -13474,7 +13863,10 @@
      "state": "done",
      "started_at": "@-174m",
      "finished_at": "@-173m",
-     "log_tail": "running · ssh answers"
+     "log_tail": [
+      "running",
+      "ssh answers"
+     ]
     },
     {
      "key": "cloud-init",
@@ -13482,7 +13874,11 @@
      "state": "done",
      "started_at": "@-172m",
      "finished_at": "@-171m",
-     "log_tail": "apt full-upgrade ✓ · unattended-upgrades ✓ · docker 28.x ✓ · node 22 LTS ✓ · claude-code ✓ · repo cloned ✓"
+     "log_tail": [
+      "apt full-upgrade ✓ · unattended-upgrades ✓",
+      "docker 28.x ✓ · node 22 LTS ✓",
+      "claude-code ✓ · repo cloned ✓"
+     ]
     },
     {
      "key": "verify",
@@ -13490,7 +13886,10 @@
      "state": "done",
      "started_at": "@-170m",
      "finished_at": "@-169m",
-     "log_tail": "ssh: keys only, root login off · auto security updates on"
+     "log_tail": [
+      "ssh: keys only, root login off",
+      "auto security updates on"
+     ]
     },
     {
      "key": "login",
@@ -13498,21 +13897,34 @@
      "state": "done",
      "started_at": "@-168m",
      "finished_at": "@-167m",
-     "log_tail": "ready"
+     "log_tail": [
+      "ready"
+     ]
     }
    ],
    "server": {
     "name": "coine-academy-1",
     "ipv4": "203.0.113.24",
     "ipv6": "2001:db8::24",
-    "private_ip": "10.10.1.5"
+    "private_ip": "10.10.1.5",
+    "host_keys": [
+     {
+      "type": "ssh-ed25519",
+      "fingerprint_sha256": "SHA256:3vK9mQ2xL7pT1rW8nB4cY6hJ0aE5fD2sG9uI7oP1kZc"
+     },
+     {
+      "type": "ecdsa-sha2-nistp256",
+      "fingerprint_sha256": "SHA256:Qp8Lr2Wm5Xn1Tc7Vb4Yh9Kd3Fs6Gj0Az2Ue8Io5Ry1M"
+     }
+    ]
    },
    "login": {
-    "ssh": "ssh academy@203.0.113.24",
+    "ssh": "ssh ac-ops@203.0.113.24",
     "then": [
      "claude"
     ]
-   }
+   },
+   "error": null
   }
  },
  "/backups/status": {
