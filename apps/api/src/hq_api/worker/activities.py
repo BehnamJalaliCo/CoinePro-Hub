@@ -29,6 +29,7 @@ from hq_api.errors import ApiError
 from hq_api.hub import Hub
 from hq_api.worker import report, schedules
 from hq_api.worker.academy_activities import AcademyActivities
+from hq_api.worker.desk_activities import DeskActivities
 from hq_api.worker.media_activities import MediaActivities
 from hq_api.worker.oversight_activities import OversightActivities
 from hq_api.worker.people_activities import PeopleActivities
@@ -71,9 +72,11 @@ class Activities:
         self.academy = AcademyActivities(hub, self.router, self._tx)
         self.oversight = OversightActivities(hub, self._tx)
         self.support = SupportActivities(hub, self._tx)
+        self.desk = DeskActivities(hub, self.router, self._tx)  # prompt 10 §4-§7, §11
 
     def all(self) -> list[Any]:
         return [
+            *self.desk.all(),
             *self.media.all(),
             *self.people.all(),
             *self.academy.all(),
@@ -377,6 +380,7 @@ class Activities:
             owner["morning_report_at"],
             owner["timezone"],
             ceo_daily=self.hub.settings.ceo_daily_reports,
+            support_sweep_min=self.hub.settings.support_handoff_digest_min,
         ):
             out["fixed"][d.id] = await schedules.upsert(client, d, tq)
         wanted: set[str] = set()

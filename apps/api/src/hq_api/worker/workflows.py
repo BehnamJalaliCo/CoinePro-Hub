@@ -203,6 +203,49 @@ class SupportRetention:
         return result
 
 
+# ⟨1.5⟩ the support desk (prompt 10 §4-§7, §11): every activity asks the launch
+# gate first and does nothing while the holding or the company is locked.
+@workflow.defn(name="SupportInbound")
+class SupportInbound:
+    """One stored customer message through the rules, then its sends."""
+
+    @workflow.run
+    async def run(self, message_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("support_inbound", message_id, limit=LONG)
+        return result
+
+
+@workflow.defn(name="SupportSend")
+class SupportSend:
+    """One queued outbound message (the owner's reply, an approved draft)."""
+
+    @workflow.run
+    async def run(self, message_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("support_send", message_id, limit=LONG)
+        return result
+
+
+@workflow.defn(name="SupportSweep")
+class SupportSweep:
+    """Every SUPPORT_HANDOFF_DIGEST_MIN minutes: expiry, reminders, the
+    owner's handoff line, held lifecycle sends, NPS waves (gated)."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("support_sweep", limit=timedelta(minutes=10))
+        return result
+
+
+@workflow.defn(name="SupportShadow")
+class SupportShadow:
+    """One shadow run of the support charter on the company's private suite."""
+
+    @workflow.run
+    async def run(self, run_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("support_shadow_run", run_id, limit=timedelta(hours=3))
+        return result
+
+
 @workflow.defn(name="ScoreJob")
 class ScoreJob:
     @workflow.run
@@ -378,6 +421,10 @@ class OrderRouting:
 
 
 WORKFLOWS = [
+    SupportInbound,
+    SupportSend,
+    SupportSweep,
+    SupportShadow,
     EvalRun,
     ProtocolRun,
     OversightWeekly,

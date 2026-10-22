@@ -12,6 +12,9 @@ Schedule ids:
     hq-stars-reminder         Friday 18:00 (owner's zone)  StarsReminder (prompt 08 §4)
     hq-stars-rollup           daily 08:00 (owner's zone)  StarsRollup: Saturday's week, a Jalali 1st's month
     hq-support-retention      daily 04:15 (owner's zone)  SupportRetention (prompt 10 §1.4; rule-only)
+    hq-support-sweep          every SUPPORT_HANDOFF_DIGEST_MIN (30) min  SupportSweep (prompt 10
+                              §4-§7: expiry, reminders, the handoff line, lifecycle, NPS);
+                              its activity does nothing while the holding is locked
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -53,7 +56,9 @@ CEO_DAILY = "hq-ceo-daily"
 STARS_REMINDER = "hq-stars-reminder"
 STARS_ROLLUP = "hq-stars-rollup"
 SUPPORT_RETENTION = "hq-support-retention"
+SUPPORT_SWEEP = "hq-support-sweep"
 FIXED = (
+    SUPPORT_SWEEP,
     MAINTENANCE,
     DIGEST,
     MORNING,
@@ -146,8 +151,18 @@ def every(minutes: int) -> ScheduleSpec:
     return ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=minutes))])
 
 
-def fixed(morning_at: time, tz: str, *, ceo_daily: bool = False) -> list[Desired]:
+def fixed(
+    morning_at: time, tz: str, *, ceo_daily: bool = False, support_sweep_min: int = 30
+) -> list[Desired]:
     return [
+        Desired(
+            SUPPORT_SWEEP,
+            "SupportSweep",
+            (),
+            every(max(5, support_sweep_min)),
+            timedelta(minutes=10),
+            timedelta(minutes=10),
+        ),
         Desired(
             SITE_CHECKS, "SiteChecks", (), every(5), timedelta(minutes=10), timedelta(minutes=4)
         ),
