@@ -64,6 +64,14 @@ QC = "OVS-MGR"
 
 
 # ------------------------------------------------------------------ models --
+class LastRun(BaseModel):
+    """A protocol's last finished run (contract §18.15: never `skipped`)."""
+
+    at: datetime
+    result: Literal["pass", "fail", "partial", "deferred"]
+    findings: int
+
+
 class Protocol(BaseModel):
     id: UUID
     ref: str
@@ -79,7 +87,7 @@ class Protocol(BaseModel):
     status: str
     version: int
     sealed_at: datetime | None
-    last_run: dict[str, Any] | None = None
+    last_run: LastRun | None = None
 
 
 class ProtocolIn(Model):
@@ -224,7 +232,7 @@ PROTOCOL_SQL = """
 def render_protocol(r: dict[str, Any]) -> Protocol:
     last = None
     if r.get("last_at"):
-        last = {"at": r["last_at"], "result": r["last_result"], "findings": r["last_findings"]}
+        last = LastRun(at=r["last_at"], result=r["last_result"], findings=r["last_findings"])
     return Protocol(
         id=r["id"],
         ref=r["ref"],

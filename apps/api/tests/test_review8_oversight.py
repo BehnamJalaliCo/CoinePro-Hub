@@ -285,7 +285,7 @@ async def test_the_overseer_takes_over_a_switch_a_ceo_engaged_first(
 # --------------------------------------------------------- §2.2 the runs --
 @pytest.mark.usefixtures("done_runs")
 async def test_the_count_cap_never_stops_a_critical_protocol_and_nothing_is_skipped(
-    wk: dict[str, Any], su: Any
+    wk: dict[str, Any], su: Any, client: httpx.AsyncClient, owner: dict[str, str]
 ) -> None:
     hub = wk["hub"]
     real = hub.settings
@@ -322,8 +322,13 @@ async def test_the_count_cap_never_stops_a_critical_protocol_and_nothing_is_skip
             "UPDATE oversight.protocol_runs SET result = 'skipped' WHERE protocol_ref = $1",
             medium["ref"],
         )
-    # No protocol's last run is `skipped` (contract §18.15).
+    # No protocol's last run is `skipped` (contract §18.15, §3k).
     assert not await su.fetchval("SELECT 1 FROM oversight.protocol_runs WHERE result = 'skipped'")
+    r = await client.get("/api/v1/oversight/protocols", headers=owner)
+    got = {p["ref"]: p for p in r.json()}
+    assert got[medium["ref"]]["last_run"]["result"] == "deferred"
+    seen = {p["last_run"]["result"] for p in got.values() if p["last_run"]}
+    assert seen <= {"pass", "fail", "partial", "deferred"}
 
 
 # ----------------------------------------------------------- §2.3 watch --
@@ -659,6 +664,8 @@ async def test_oversight_runs_nothing_on_its_own_while_the_holding_is_locked(
         assert tick["resumed"] == []  # the deferred run waits for the lock to lift
         week = await acts.oversight_weekly()
         assert week["work"] is None and week.get("skipped") == "holding_locked"
+        # Formal inquiries do not turn late while nobody can answer them.
+        assert await wk["acts"].inquiries_late() == {"late": 0, "skipped": "holding_locked"}
         assert await su.fetchval("SELECT count(*) FROM oversight.protocol_runs") == runs_before
         assert (
             await su.fetchval(

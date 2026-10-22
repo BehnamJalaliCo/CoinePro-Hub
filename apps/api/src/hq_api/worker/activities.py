@@ -514,8 +514,11 @@ class Activities:
     @activity.defn(name="inquiries_late")
     async def inquiries_late(self) -> dict[str, Any]:
         """Formal inquiries past their due time (prompt 08 §3): late, the owner
-        told once; they count against the asked company's compliance (PR-051)."""
+        told once; they count against the asked company's compliance (PR-051).
+        Nothing while the holding is locked: no agent can answer then."""
         async with self._tx() as tx:
+            if await _holding_locked(tx):
+                return {"late": 0, "skipped": "holding_locked"}
             rows = await inquiries.mark_late(tx)
         await self._push(rows)
         return {"late": len(rows)}
