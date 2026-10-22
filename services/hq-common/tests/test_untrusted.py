@@ -85,6 +85,19 @@ async def test_the_child_has_no_secret_and_its_limits(monkeypatch: pytest.Monkey
     assert seen["oom"] == "1000" and seen["cwd"] == "/"
 
 
+async def test_a_child_without_network_opens_no_socket() -> None:
+    """Prompt 9.1 §2 (the brand tracer): network=False -> no socket at all,
+    the kernel's seccomp filter refusing even the raw C call on x86_64."""
+    got = await U.run("untrusted_jobs:open_socket", limits=U.Limits(memory_mb=128, network=False))
+    assert got.ok, got
+    assert got.value["python"] == "refused"
+    if os.uname().machine == "x86_64":
+        assert got.usage["network"] == "off (seccomp)" and got.value["raw"] == "refused"
+    got = await U.run("untrusted_jobs:open_socket", limits=U.Limits(memory_mb=128))
+    assert got.ok and got.value == {"python": "opened", "raw": "opened"}
+    assert "network" not in got.usage
+
+
 async def test_the_child_writes_only_what_its_limits_allow(tmp_path: Path) -> None:
     out = tmp_path / "out"
     got = await U.run("untrusted_jobs:write", kwargs={"path": str(out), "size": 1024}, limits=QUICK)

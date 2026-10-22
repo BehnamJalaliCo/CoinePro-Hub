@@ -51,3 +51,19 @@ def inside() -> dict[str, Any]:
 def write(path: str, size: int) -> int:
     with open(path, "wb") as fh:
         return fh.write(b"\0" * size)
+
+
+def open_socket() -> dict[str, str]:
+    """Python's socket, then the raw C one (which only the kernel can refuse)."""
+    import _socket
+    import socket
+
+    out = {}
+    for name, make in (("python", socket.socket), ("raw", _socket.socket)):
+        try:
+            s = make(socket.AF_INET, socket.SOCK_STREAM)
+            s.close()
+            out[name] = "opened"
+        except OSError:
+            out[name] = "refused"
+    return out
