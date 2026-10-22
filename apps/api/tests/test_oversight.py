@@ -96,7 +96,8 @@ async def test_the_protocols_are_seeded_and_only_the_owner_seals_new_versions(
     r = await client.get("/api/v1/oversight/protocols", headers=owner)
     assert r.status_code == 200, r.text
     got = {p["ref"]: p for p in r.json()}
-    assert len(lib_file) == 52 and {p["ref"] for p in lib_file} <= set(got)
+    # Prompt 8's 52, plus the ones later prompts seeded paused (prompts 10-12).
+    assert len(lib_file) >= 52 and {p["ref"] for p in lib_file} <= set(got)
     assert len({p["area"] for p in lib_file}) == 11 and {"PR-099", "PR-100"} <= set(got)
     assert got["PR-070"]["method"] == "rule" and got["PR-001"]["version"] >= 1
     # Without the step-up: refused; with it bound to the exact body: a new protocol.
@@ -165,12 +166,22 @@ async def test_a_rule_protocol_runs_by_code_and_raises_one_finding(
         "SELECT result, by_kind, work_id, per_company FROM oversight.protocol_runs WHERE protocol_ref = 'PR-033'"
         " ORDER BY started_at DESC LIMIT 1"
     )
-    assert (run_row["result"], run_row["by_kind"], run_row["work_id"]) == ("fail", "system", None)
+    assert (run_row["result"], run_row["by_kind"]) == ("fail", "system")
     assert json.loads(run_row["per_company"])[co["code"]] == "fail"
-    assert len(agents.fake.calls) == calls  # no model was asked
-    # Found again while still open: the same finding, not a second one.
+    assert len(agents.fake.calls) == calls  # no model was asked by the check
+    # The failure wakes the overseer once (prompt 08 §2.3), with only the
+    # evidence the code collected, within the overseer's charter.
+    if out.get("woken"):
+        w = await su.fetchrow(
+            "SELECT id, brief, budget_tokens FROM work.work WHERE ref = $1", out["woken"]
+        )
+        assert w["id"] == run_row["work_id"] and "PR-033" in w["brief"]
+        assert "finding.update" in w["brief"] and 0 < w["budget_tokens"] <= 200_000
+    else:
+        assert out.get("why") in ("once_a_day", "daily_cap", "oversight_share"), out
+    # Found again while still open: the same finding, not a second one, and no wake.
     again = await acts.protocol_run("PR-033")
-    assert again["new"] == 0
+    assert again["new"] == 0 and "woken" not in again
     assert (
         await su.fetchval("SELECT count(*) FROM oversight.findings WHERE company_id = $1", co["id"])
         == 1
@@ -179,6 +190,7 @@ async def test_a_rule_protocol_runs_by_code_and_raises_one_finding(
     first = await acts.protocol_run("PR-073")
     second = await acts.protocol_run("PR-073")
     assert first["result"] == second["result"] == "pass"
+    assert "woken" not in first and "woken" not in second  # a pass never wakes the overseer
     assert set(C.CHECKS) >= {"PR-010", "PR-011", "PR-033", "PR-070", "PR-072", "PR-073"}
 
 
@@ -645,3 +657,236 @@ async def test_compliance_formula_with_fixed_data(
         assert (await O.compute_compliance(tx, co["id"]))[
             "score"
         ] == 40.0  # minus 10 for an open high
+
+
+# ------------------------------------------- paused protocols (v1.4.4) --
+async def test_paused_protocols_have_no_schedule_run_or_finding_and_do_not_count(
+    wk: dict[str, Any], su: Any, hub: Hub, new_company: Callable[..., Any]
+) -> None:
+    from temporalio.service import RPCError
+
+    from hq_api.principal import Principal
+    from hq_api.worker import oversight_activities as OA
+    from hq_api.worker import schedules
+
+    lib_file = O.protocol_file(charters.load().root)
+    paused = {p["ref"] for p in lib_file if p["status"] == "paused"}
+    assert {"PR-043", "PR-053", "PR-082", "PR-090"} <= paused
+    rows = await su.fetch(
+        "SELECT ref, status FROM oversight.current_protocols WHERE ref = ANY($1)", list(paused)
+    )
+    assert {r["ref"]: r["status"] for r in rows} == dict.fromkeys(paused, "paused")
+    acts = wk["acts"].oversight
+    client = wk["client"]
+    # A schedule left from before (an active version) is removed; none is made.
+    stale = OA.protocol_desired("PR-043", "FREQ=DAILY;BYHOUR=9;BYMINUTE=0", "Asia/Tehran", True)
+    await schedules.upsert(client, stale, wk["tq"])
+    out = await acts.reconcile(client, wk["tq"], "Asia/Tehran")
+    assert f"{OA.PROTOCOL_PREFIX}PR-043" in out["deleted"]
+    assert not {f"{OA.PROTOCOL_PREFIX}{ref}" for ref in paused} & set(out["protocols"])
+    assert f"{OA.PROTOCOL_PREFIX}PR-033" in out["protocols"]  # an active one has its schedule
+    for ref in paused:
+        with pytest.raises(RPCError):
+            await client.get_schedule_handle(f"{OA.PROTOCOL_PREFIX}{ref}").describe()
+    # Run by hand: nothing (no run row, no finding).
+    for ref in sorted(paused):
+        assert await acts.protocol_run(ref) == {"protocol": ref, "skipped": "paused"}
+    assert not await su.fetchval(
+        "SELECT count(*) FROM oversight.protocol_runs WHERE protocol_ref = ANY($1)", list(paused)
+    )
+    assert not await su.fetchval(
+        """SELECT count(*) FROM oversight.findings f JOIN oversight.protocols p ON p.id = f.protocol_id
+           WHERE p.ref = ANY($1)""",
+        list(paused),
+    )
+    # A protocol paused after it ran: its runs leave the compliance score.
+    co = await new_company()
+    holding = await hub.companies.holding()
+    owner = Principal(kind="owner", code="owner", role="owner")
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        p = await O.new_version(
+            tx, owner, holding.id, protocol_body(area="product"), ref=None, source="owner"
+        )
+        r = await O.start_run(tx, p)
+        await O.finish_run(tx, r["id"], "fail", per_company={co["code"]: "fail"})
+        assert (await O.compute_compliance(tx, co["id"]))["by_area"] == {"product": 0.0}
+        await O.new_version(
+            tx,
+            owner,
+            holding.id,
+            protocol_body(area="product", status="paused"),
+            ref=p["ref"],
+            source="owner",
+        )
+        c = await O.compute_compliance(tx, co["id"])
+        assert c["by_area"] == {} and c["protocols"] == {"passed": 0, "failed": 0}
+        assert c["score"] == 100.0
+
+
+# --------------------------------------- the oversight share (§2.3) --
+async def test_with_the_share_spent_a_high_protocol_is_deferred_and_a_critical_one_runs(
+    wk: dict[str, Any], su: Any, agents: Any
+) -> None:
+    from dataclasses import replace
+
+    from hq_api.principal import Principal
+
+    hub = wk["hub"]
+    real = hub.settings
+    acts = wk["acts"].oversight
+    holding = await hub.companies.holding()
+    owner = Principal(kind="owner", code="owner", role="owner")
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        high, medium, critical = [
+            await O.new_version(
+                tx,
+                owner,
+                holding.id,
+                protocol_body(method="llm", severity=sev),
+                ref=None,
+                source="owner",
+            )
+            for sev in ("high", "medium", "critical")
+        ]
+    # The overseer and QC spent more than 0.2 of today's 1M cap.
+    spend = await su.fetchval(
+        """INSERT INTO llm.calls (id, started_at, company_id, actor_ref, task_class, priority, caller,
+               status, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, meta)
+           VALUES (gen_random_uuid(), now(), $1, 'HQ-OVR', 'general', 2, 'hq-agents', 'ok',
+                   150000, 1000, 100000, 0, '{"run_id": "x", "charter": "overseer@2"}')
+           RETURNING id""",
+        holding.id,
+    )
+    try:
+        hub.settings = replace(
+            real,
+            oversight_model_runs_per_day=10_000,
+            agent_daily_token_cap=1_000_000,
+            oversight_daily_share=0.2,
+            oversight_run_tokens=900_000,  # above the charter: the charter wins
+        )
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            assert await O.oversight_tokens_today(tx) >= 251_000
+            assert await O.share_spent(tx, 1_000_000, 0.2)
+            assert not await O.share_spent(tx, 0, 0.2)  # no daily cap: no share either
+        assert await acts.protocol_run(high["ref"]) == {
+            "protocol": high["ref"],
+            "deferred": "oversight_share",
+        }
+        assert (await acts.protocol_run(medium["ref"]))["deferred"] == "oversight_share"
+        rows = await su.fetch(
+            "SELECT result, work_id, finished_at FROM oversight.protocol_runs WHERE protocol_ref = ANY($1)",
+            [high["ref"], medium["ref"]],
+        )
+        assert [(r["result"], r["work_id"]) for r in rows] == [("deferred", None)] * 2
+        assert all(r["finished_at"] for r in rows)
+        # A critical protocol still goes to the overseer, within its charter (200K).
+        out = await acts.protocol_run(critical["ref"])
+        assert out.get("work") and out["assignee"] == OVR, out
+        w = await su.fetchrow("SELECT id, budget_tokens FROM work.work WHERE ref = $1", out["work"])
+        assert (
+            w["budget_tokens"] == 200_000 == charters.load().get("overseer").limits.tokens_per_run
+        )
+        # Deferred is no failure: compliance counts only pass, fail and partial.
+        assert not await su.fetchval(
+            """SELECT count(*) FROM oversight.protocol_runs
+               WHERE protocol_ref = ANY($1) AND result IN ('pass', 'fail', 'partial')""",
+            [high["ref"], medium["ref"]],
+        )
+        # The overseer's run of the critical protocol: capped at 200K, and the
+        # router learns the protocol and its severity (it lets critical go on).
+        await su.execute("DELETE FROM llm.calls WHERE id = $1", spend)
+        run_id = await su.fetchval(
+            "SELECT id FROM agents.runs WHERE work_id = $1 AND state = 'queued'", w["id"]
+        )
+        agents.fake.enqueue(OVR, step("بررسی شد"))
+        await run(agents, run_id)
+        cap = await su.fetchval("SELECT token_cap FROM agents.runs WHERE id = $1", run_id)
+        assert cap == 200_000
+        meta = await su.fetchval(
+            "SELECT meta FROM llm.calls WHERE meta ->> 'run_id' = $1 ORDER BY started_at LIMIT 1",
+            str(run_id),
+        )
+        meta = json.loads(meta) if isinstance(meta, str) else meta
+        assert (meta["protocol"], meta["severity"]) == (critical["ref"], "critical")
+        # The next day (UTC) the deferred runs go first, the most severe first.
+        await su.execute(
+            """UPDATE oversight.protocol_runs SET started_at = now() - interval '1 day',
+                   finished_at = now() - interval '1 day' WHERE protocol_ref = ANY($1)""",
+            [high["ref"], medium["ref"]],
+        )
+        tick = await acts.oversight_tick()
+        resumed = [r for r in tick["resumed"] if r["protocol"] in (high["ref"], medium["ref"])]
+        assert [r["protocol"] for r in resumed] == [high["ref"], medium["ref"]]
+        assert all(r.get("work") for r in resumed), resumed
+        assert not [
+            r for r in (await acts.oversight_tick())["resumed"] if r["protocol"] == high["ref"]
+        ]
+    finally:
+        hub.settings = real
+        await su.execute("DELETE FROM llm.calls WHERE id = $1", spend)
+        await su.execute(
+            """UPDATE agents.runs r SET state = 'refused', error_code = 'test', finished_at = now()
+               FROM core.employees e
+               WHERE e.id = r.employee_id AND e.code IN ('HQ-OVR', 'HQ-OVS-MGR') AND r.state = 'queued'"""
+        )
+
+
+async def test_a_code_check_that_cannot_decide_wakes_the_overseer_with_its_evidence(
+    wk: dict[str, Any], su: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    from hq_api.principal import Principal
+
+    hub = wk["hub"]
+    real = hub.settings
+    acts = wk["acts"].oversight
+    holding = await hub.companies.holding()
+    owner = Principal(kind="owner", code="owner", role="owner")
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        p = await O.new_version(
+            tx, owner, holding.id, protocol_body(method="reconcile"), ref=None, source="owner"
+        )
+
+    async def undecided(ctx: C.CheckCtx) -> C.Checked:
+        item = C.Problem(
+            holding.id, holding.code, "دو عدد ناهمخوان", "", "k1", [{"kind": "query", "ref": "Q-1"}]
+        )
+        return C.Checked([], {holding.code: holding.id}, unclear=[item])
+
+    monkeypatch.setitem(C.CHECKS, p["ref"], undecided)
+    try:
+        hub.settings = replace(real, oversight_model_runs_per_day=10_000)
+        out = await acts.protocol_run(p["ref"])
+        assert out["result"] == "pending" and out["unclear"] == 1 and out["woken"], out
+        row = await su.fetchrow(
+            """SELECT r.result, r.by_kind, w.brief, w.budget_tokens FROM oversight.protocol_runs r
+               JOIN work.work w ON w.id = r.work_id WHERE r.protocol_ref = $1""",
+            p["ref"],
+        )
+        assert (row["result"], row["by_kind"]) == ("pending", "agent")  # the overseer finishes it
+        assert "query:Q-1" in row["brief"] and "protocol.result" in row["brief"]
+        assert row["budget_tokens"] <= 200_000
+    finally:
+        hub.settings = real
+        await su.execute(
+            """UPDATE agents.runs r SET state = 'refused', error_code = 'test', finished_at = now()
+               FROM core.employees e
+               WHERE e.id = r.employee_id AND e.code IN ('HQ-OVR', 'HQ-OVS-MGR') AND r.state = 'queued'"""
+        )
+
+
+def test_the_overseer_and_the_advisor_are_capped_by_their_charters() -> None:
+    from hq_api.agents.runner import RunCtx
+
+    lib = charters.load()
+    for role in ("overseer", "advisor"):
+        charter = lib.get(role)
+        assert charter is not None and charter.limits.tokens_per_run == 200_000
+        for recorded in (None, 0, 150_000, 600_000, 10**9):
+            rc = RunCtx(run={"token_cap": recorded}, emp={}, charter=charter, token="t")
+            assert rc.token_cap == min(recorded or 200_000, 200_000)
+        assert O.run_tokens(lib, role, 900_000) == 200_000
+        assert O.run_tokens(lib, role, 60_000) == 60_000
+    assert O.run_tokens(None, "overseer", 900_000) == 900_000  # no library: the setting

@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+from hq_common import oversight_share
+
 
 def _int(name: str, default: int) -> int:
     return int(os.environ.get(name, default))
@@ -75,3 +77,12 @@ class Settings:
     quota_warn_7d: int = field(default_factory=lambda: _int("LLM_QUOTA_WARN_TOKENS_7D", 0))
     quota_limit_7d: int = field(default_factory=lambda: _int("LLM_QUOTA_LIMIT_TOKENS_7D", 0))
     quota_interval_s: int = field(default_factory=lambda: _int("LLM_QUOTA_INTERVAL_S", 60))
+    # The oversight share (prompt 08 §2.3, contract §18.1 v1.4.4): the holding's
+    # overseer and QC together stop at this share of the agents' daily token cap
+    # (UTC day); 0 cap = no cap. Empty AGENT_DAILY_TOKEN_CAP = the api's default.
+    agent_daily_token_cap: int = field(
+        default_factory=lambda: int(os.environ.get("AGENT_DAILY_TOKEN_CAP") or 2_000_000)
+    )
+    oversight_daily_share: float = field(
+        default_factory=lambda: oversight_share.parse_share(os.environ.get("OVERSIGHT_DAILY_SHARE"))
+    )

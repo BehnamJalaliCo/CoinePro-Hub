@@ -55,6 +55,9 @@ class Checked:
     companies: dict[str, UUID]
     notes: str = ""
     data: dict[str, Any] = field(default_factory=dict)
+    # What the code could not decide (prompt 08 §2.3): no finding; the overseer
+    # judges it, woken with this pre-collected evidence only.
+    unclear: list[Problem] = field(default_factory=list)
 
 
 @dataclass

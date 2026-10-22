@@ -428,6 +428,9 @@ services:
       RUNTIME_URL: http://claude-runtime:8100
       LLM_MAX_CONCURRENCY: ${LLM_MAX_CONCURRENCY:?}
       LLM_RESERVED_HIGH: "1"
+      # The oversight share of the agents' daily cap (prompt 08 §2.3).
+      AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
+      OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -634,6 +637,7 @@ services:
       PROMETHEUS_URL: http://prometheus:9090
       HQ_HUB_STATUS_DIR: /hub-status
       AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
+      OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
       HQ_CEO_DAILY_REPORTS: ${HQ_CEO_DAILY_REPORTS:-off}
       HQ_MORNING_REPORT_LLM: ${HQ_MORNING_REPORT_LLM:-on}
       # Owner media (prompt 6 §2-§3): the file store (posters, key frames, sound
