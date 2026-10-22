@@ -660,9 +660,12 @@ async def test_challenges_and_compliance(
     }
     s = (await client.get("/api/v1/oversight/summary", headers=owner)).json()
     assert s["challenges_week"]["scored"] >= 1 and s["protocols"]["active"] >= 50
+    # The day is the owner's (Tehran, UTC+3:30): from 20:30 UTC it is already
+    # tomorrow there, so the window is the UTC day on either side.
     assert (
         await su.fetchval(
-            "SELECT count(*) FROM oversight.compliance WHERE day = current_date OR day = current_date - 1"
+            """SELECT count(*) FROM oversight.compliance
+               WHERE day BETWEEN current_date - 1 AND current_date + 1"""
         )
         >= 1
     )
