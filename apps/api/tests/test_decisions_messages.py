@@ -257,7 +257,13 @@ async def test_ceo_approves_recurring_work_within_quota(
         json={
             "kind": "deploy",
             "title": "deploy v2",
-            "payload": {"repo": "TradeYar", "pr_url": "https://github.com/x/y/pull/1"},
+            # ⟨1.5⟩ head_sha is required (prompt 11/12 §7); TradeYar is no workspace
+            # of this test company: diff_unavailable "no_access", no git call
+            "payload": {
+                "repo": "TradeYar",
+                "pr_url": "https://github.com/x/y/pull/1",
+                "head_sha": "0123abc",
+            },
         },
     )
     dep = r.json()["ref"]

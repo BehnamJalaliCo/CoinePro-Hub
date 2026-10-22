@@ -500,6 +500,7 @@ async def test_secrets_at_the_start_of_a_line_and_under_keys_never_reach_the_mod
             "payload": {
                 "repo": "x/y",
                 "pr_url": "https://example.com/pr/1",
+                "head_sha": "0123abc",  # ⟨1.5⟩ required (prompt 11/12 §7)
                 "ci": {"mobile_number": phone, "note": "ok"},
             },
         },

@@ -83,6 +83,20 @@ async def gather(tx: Tx, now: datetime, tz: str) -> dict[str, Any]:
         # Saturdays (prompt 10 §8.3): the week's support figures of a company
         # without a support lead, figures only.
         "support_week": await FB.morning_lines(tx, today) if today.weekday() == 5 else [],
+        # ⟨1.5⟩ prompt 12 §8, §11: rule-only lines (the waste of yesterday, the
+        # owner's waiting cards by age); no model, no outside call
+        **await _p12b_lines(tx, today, now),
+    }
+
+
+async def _p12b_lines(tx: Tx, today: date, now: datetime) -> dict[str, Any]:
+    from hq_api.domain import notes as NOTES
+    from hq_api.domain import waste as WASTE
+
+    yesterday = await WASTE.day_of(tx, today - timedelta(days=1), None)
+    return {
+        "waste_line": WASTE.morning_line(yesterday),
+        "reminders_line": await NOTES.morning_line(tx, now),
     }
 
 
@@ -114,6 +128,7 @@ def render(data: dict[str, Any]) -> tuple[str, str]:
         ),
         f"- **کارتابل خروجی:** {dl['new_24h']} خروجی در ۲۴ ساعت گذشته؛ {dl['unrated']} خروجی هنوز امتیاز ندارد",
         f"- **پیام‌ها:** {data['unread']} پیام نخوانده",
+        *[data[k] for k in ("reminders_line", "waste_line") if data.get(k)],
         "",
         "## شرکت‌ها",
         "| شرکت | تصمیم در انتظار | کار باز | عقب‌افتاده | خروجی تازه "

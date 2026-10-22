@@ -265,6 +265,10 @@ OP_CLASS: dict[str, str] = {
     "support.draft": "A2",
     "support.handoff": "A2",
     "support.mystery": "A2",
+    # prompt 12 part B (mgmt.rego): the TTS one-shot, the fact check of a claim
+    "tts.claim": "A0",
+    "tts.done": "A1",
+    "claim.verdict": "A2",
 }
 
 
@@ -555,6 +559,11 @@ async def deliver_work(
 ) -> Any:
     """Creates the Deliverable (cartable of outputs) and marks the work
     delivered; its delivered children become done. Requires `Idempotency-Key`."""
+    from hq_api.domain import briefings as BR
+    from hq_api.domain import hr as HR
+
+    # ⟨1.5⟩ a CEO's weekly letter: an unsourced figure sends it back once
+    unsourced_mark = await BR.letter_gate(ctx, id, body.body or "")
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
@@ -587,7 +596,7 @@ async def deliver_work(
             co=w["company_id"],
             w=w["id"],
             p=ctx.who.employee_id,
-            title=body.title,
+            title=BR.marked(body.title, unsourced_mark),
             summary=body.summary,
             body=body.body,
             att=[str(a) for a in body.attachments],
@@ -614,6 +623,9 @@ async def deliver_work(
         await founding.on_delivered(
             tx, w, dl["ref"], body.body or "", [e.model_dump(mode="json") for e in body.evidence]
         )
+        # ⟨1.5⟩ prompt 12: a CEO's letter becomes its briefing; an HR round's report
+        await BR.on_delivered(tx, ctx.hub.settings, w, dl, body.body or "", unsourced_mark)
+        await HR.on_delivered(tx, w, dl["ref"])
         await ctx.emit(
             tx,
             w["company"],
@@ -801,6 +813,14 @@ async def propose_decision(
         raise ApiError(403, "policy_denied", "agents only")
     assert ctx.who.company is not None
     assert ctx.who.company_id is not None
+    if body.kind == "deploy":
+        # ⟨1.5⟩ prompt 12 §7: the real diff, read with the hub's existing git
+        # access before the card exists (its payload never changes after)
+        from hq_api.domain import deploy_diff
+
+        body = body.model_copy(
+            update={"payload": await deploy_diff.attach(ctx.hub, body.payload, ctx.who.company_id)}
+        )
     async with ctx.tx() as tx:
         # The key first: a retried request gets the answer it already got.
         idem = await idempotency.claim(tx, request, ctx.who, required=True)

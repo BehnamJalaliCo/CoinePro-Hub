@@ -43,6 +43,9 @@ SCHEMAS = (
     "growth",
     "feedback",
     "intake",
+    # prompt 12 part B: briefings and letters; checked claims
+    "reports",
+    "quality",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.

@@ -205,7 +205,11 @@ async def approve_decision(
     `tool_enable` (step-up action `decision.approve`, target = the ref; a
     `tool_enable` card whose server changed since is superseded: 409
     decision_not_pending). Creates the resolution (M-…), tells
-    the proposer, and hands the effect to the worker. Requires `Idempotency-Key`."""
+    the proposer, and hands the effect to the worker. Requires `Idempotency-Key`.
+    ⟨1.5⟩ A deploy card whose PR branch moved since is set aside first (409)."""
+    from hq_api.domain import deploy_diff
+
+    await deploy_diff.before_seal(ctx.hub, ref)
     return await _decide(ctx, request, ref, "approved", note=body.note, amendments=body.amendments)
 
 

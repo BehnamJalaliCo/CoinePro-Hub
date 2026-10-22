@@ -48,6 +48,9 @@ SCHEMAS = (
     "growth",
     "feedback",
     "intake",
+    # prompt 12 part B: briefings and letters; checked claims
+    "reports",
+    "quality",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.
@@ -484,6 +487,81 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p12b(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 12 part B (migration 0027_1): one row of company `co` in each new
+    table (reports, quality; people.department_ranks/hr_rounds; owner.notes,
+    owner.decision_reminders; llm.waste_daily)."""
+    c = co["id"]
+    emp = await su.fetchrow(
+        "SELECT id, department_id FROM core.employees WHERE company_id = $1 AND kind = 'manager' LIMIT 1",
+        c,
+    )
+    work = await su.fetchval(
+        """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code)
+           VALUES ($1, 'one_off', 'p12b', 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    dl = await su.fetchrow(
+        """INSERT INTO cartable.deliverables (company_id, work_id, producer_id, title)
+           VALUES ($1, $2, $3, 'p12b') RETURNING id, ref""",
+        c,
+        work,
+        emp["id"],
+    )
+    await su.execute(
+        """INSERT INTO reports.briefings (company_id, kind, period_from, period_to, deliverable_id,
+               deliverable_ref, text_md, audio_state)
+           VALUES ($1, 'ceo_letter', current_date, current_date, $2, $3, 't', 'off')""",
+        c,
+        dl["id"],
+        dl["ref"],
+    )
+    await su.execute(
+        """INSERT INTO reports.ceo_letters (company_id, week, ceo_code, facts)
+           VALUES ($1, current_date - ((extract(isodow FROM current_date)::int + 1) % 7), 'X-CEO', '{}')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO people.department_ranks (company_id, period, key, department_id, department, score,
+               parts, employees, rank_company)
+           SELECT $1, 'week', '2000-01-01', id, code, 50, '{}', 1, 1 FROM core.departments
+           WHERE company_id = $1 LIMIT 1""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO people.hr_rounds (company_id, month, evaluator_kind, evaluator_code, due_at, employees)
+           VALUES ($1, '1405-08', 'agent', 'X-HR-MGR', now(), '[]')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO llm.waste_daily (company_id, scope, day, total_tokens, total_usd, waste_tokens, waste_usd,
+               share, items)
+           VALUES ($1, 'company', current_date, 0, 0, 0, 0, 0, '[]')""",
+        c,
+    )
+    await su.execute(
+        "INSERT INTO owner.notes (company_id, text_md, source) VALUES ($1, 'n', 'text')", c
+    )
+    d = await su.fetchval(
+        """INSERT INTO cartable.decisions (company_id, kind, action_class, title, proposer_kind, proposer_code)
+           VALUES ($1, 'proposal', 'A1', 'p12b', 'agent', 'x') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        "INSERT INTO owner.decision_reminders (company_id, decision_id, kind) VALUES ($1, $2, 'age_24h')",
+        c,
+        d,
+    )
+    await su.execute(
+        """INSERT INTO quality.claims (company_id, deliverable_id, deliverable_ref, claim_md, verdict,
+               checked_by_kind, checked_by_code)
+           VALUES ($1, $2, $3, 'c', 'confirmed', 'agent', 'HQ-OVR')""",
+        c,
+        dl["id"],
+        dl["ref"],
+    )
+
+
 async def _fill_p10(su: Any, co: dict[str, Any]) -> None:
     """Prompt 10 §1.1: one row of company `co` in every table of revenue,
     support, growth, feedback and intake (migration 0025)."""
@@ -688,6 +766,7 @@ async def test_no_table_leaks_between_companies(
     await _fill(client, hub, owner_session, b["code"])
     await _fill_agents(su, b)
     await _fill_p10(su, b)
+    await _fill_p12b(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name

@@ -223,6 +223,18 @@ class Settings:
     # Intake calls per source and minute before 429 (Caddy's stock image has no
     # rate limiter: the api counts them, before any row is written).
     intake_rate_per_min: int = field(default_factory=lambda: _int("INTAKE_RATE_PER_MIN", 120))
+    # ⟨1.5⟩ prompt 12 part B. The Persian voice (§21.4) is an opt-in profile:
+    # while HQ_TTS is not `on` no audio job is queued (audio_state "off").
+    tts: bool = field(default_factory=lambda: _env("HQ_TTS", "off") == "on")
+    tts_voice: str = field(default_factory=lambda: _env("HQ_TTS_VOICE", "fa_IR-amir-medium"))
+    # The deploy card's diff (§21.6): fetched with the hub's existing git access
+    # (a workspace's token in OpenBao) into mirrors under this directory; the
+    # remote of a repository `owner/name` (tests use file:// bare repositories).
+    git_mirrors: str = field(default_factory=lambda: _env("HQ_GIT_MIRRORS", "/var/lib/hq-git"))
+    git_remote: str = field(
+        default_factory=lambda: _env("HQ_GIT_REMOTE", "https://github.com/{repo}.git")
+    )
+    git_timeout_s: int = field(default_factory=lambda: _int("HQ_GIT_TIMEOUT_S", 120))
 
     @property
     def login_configured(self) -> bool:
