@@ -22,6 +22,7 @@ PROMPT_07 REPORT (hourly backups, the agents' internet, MCP)
 - 1.5 ok: the account's header is set per hop (route.fetch max_redirects=0, route.fulfill), so a 302 to another host never carries it. Test: the second host never receives the header
 - 1.6 ok: the data guard decodes first (percent-encoding until stable, NFKC, dash variants, invisible marks, Persian/Arabic digits, base64/hex runs ≥ 16); lowercase codes count when they are a real employee (a slug like fx-rates is not refused). Test: every string of §1.6 → internal_data
 - Round 2 (2026-10-22, after the weekly limit renewed):
+- Deployed 2026-10-22 (server/p07-platform ce5c041 = main 7813be1 + the review): make check 15/15 (api 355, services 519, OPA 84/84, backup gate on the real OpenBao path, pip-audit clean), migrations 0017_2 -> 0017_4 -> 0017_6 on the live database, 24 services healthy, tracing off (make tracing-off: Tempo and the collector stopped, data kept), systemd units refreshed, make verify-live passes with the gap shown: egress and SearXNG reach the neighbours 10.10.1.1-3 on 80/443, metadata 169.254.169.254:80 and 17 of the host's own addresses on 80/443 by IP (egress's guard refuses them for agents; closing it at the network is the owner's DOCKER-USER rule)
 - 0.1 ok: 6.1 complete except its ⛔ items (Review of 6)
 - 0.2 a ok: one browser session in full; MEM_BROWSER 768m (one session peaks ~380 MiB; the 2x rule needs 760, so not 640)
 - 0.2 b ok: claude-runtime and the router 4 concurrent runs; MEM_CLAUDE_RUNTIME 1856m
