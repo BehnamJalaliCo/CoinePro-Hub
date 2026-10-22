@@ -131,5 +131,6 @@ Branch `r81` (stage A1 of RUN_2026-10-22_A_TO_D), not deployed. Migrations: none
   - OPA: 100/100 at 100%
   - lint and mypy clean; OpenAPI regenerated
 - **Real-model spend:** 0 tokens; nothing was deployed.
+- **Deploy (2026-10-22, one deploy of 8 + 8.1 + 9 + 9.2 at `server/p09-founding` 62fbe77):** backup first (snapshot a559d46e, local + Google Drive ok); `make up` ran migrations 0017_6 → 0018 → 0019 → 0020 → 0021 → 0022 → 0023; 22 services healthy; `make verify-live` passed (only the known GAP lines: egress and SearXNG reach the neighbours and metadata by IP, the owner's DOCKER-USER rule). Full `make check` green before it (services 623, api 449, OPA 104/104, provisioning bench incl. bad Node sha256 and failing `sshd -t`, backup, live; gitleaks needed three identifier keys in the apps' demo fixtures allow-listed). The holding kill switch stays engaged and HQ_MORNING_REPORT_LLM=off: zero model calls since the deploy, no run, no protocol woke; HQ_PROVISIONING off (no provisioner container, no Hetzner token read). Memory after deploy: 2.65 GiB in use; the highest is Temporal at 71% of its cap.
 
 این گزارش را برای Claude سشن مشورت ببر.
