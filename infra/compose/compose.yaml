@@ -66,10 +66,14 @@ services:
           memory: ${MEM_HQ_TOOLS:?}
 
   backup-tools:
-    # The one-shot backup image (restic + rclone, prompt 07 §1): built and
-    # counted in the memory budget here; infra/backup/hourly.sh runs it with
+    # The one-shot backup image (restic + rclone, prompt 07 §1), defined here
+    # for its build and its limit; infra/backup/hourly.sh runs it with
     # `docker run` and this limit (and a network only when a remote is set).
+    # Its own profile (7.1 §3): no service depends on it, so `up --wait`
+    # never starts it (`make up` builds and checks it); the quality gates
+    # always count it in the memory budget (scripts/quality/lib.sh).
     <<: *job
+    profiles: [backup-tools]
     image: coinepro-hq/backup:0.1.0
     build: ../backup
     network_mode: none
@@ -613,11 +617,6 @@ services:
         condition: service_healthy
       temporal-namespace:
         condition: service_completed_successfully
-      # The backup image is built and checked (`restic version`) with the
-      # stack; the worker ingests its status. A one-shot needs a dependant,
-      # or `up --wait` counts its exit as a failure.
-      backup-tools:
-        condition: service_completed_successfully
     command: ["python", "-m", "hq_api.worker"]
     environment:
       <<: *api-env
@@ -904,6 +903,8 @@ services:
       - ../observability/prometheus/scrape-profile/${HQ_PROFILE:?use hq.sh}:/etc/prometheus/scrape-profile:ro
       # Tempo's and the collector's jobs only while tracing is on (hq.sh).
       - ../observability/prometheus/scrape-tracing/${HQ_TRACING_SCRAPE:-off}:/etc/prometheus/scrape-tracing:ro
+      # Alert rules (7.1 §2.4: the backup's dead-man's switch, independent of the worker).
+      - ../observability/prometheus/rules:/etc/prometheus/rules:ro
       # Bearer token for the llm-router / claude-runtime /metrics endpoints.
       - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/prometheus:/etc/prometheus/secrets:ro
       - prometheus-data:/prometheus

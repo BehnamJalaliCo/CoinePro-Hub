@@ -39,6 +39,9 @@ up: $(ENV_FILE) ## Start every service of the active profile and wait until heal
 	@infra/openbao/provision.sh
 	@infra/backup/anchor-dir.sh --check
 	$(HQ) up -d --build --remove-orphans --wait --wait-timeout 300
+	@# The hourly backup's image (own profile, nothing depends on it): built and checked here.
+	$(HQ) --profile backup-tools build backup-tools
+	$(HQ) --profile backup-tools run --rm --no-deps backup-tools >/dev/null
 
 down: ## Stop and remove the containers of every profile (volumes are kept)
 	HQ_ALL_PROFILES=1 $(HQ) down

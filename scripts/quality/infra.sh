@@ -233,7 +233,7 @@ fi
 over_budget() { # over_budget PROFILE -> 0 if PROFILE + stt is over 80% of its reference
   local ref sum
   ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$REPO_DIR/infra/compose/profiles/$1.env")"
-  sum="$(HQ_PROFILE="$1" HQ_STT=off "$HQ" --profile stt config --format json |
+  sum="$(HQ_PROFILE="$1" HQ_STT=off "$HQ" --profile stt --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   ((sum > ref * 80 / 100))
 }

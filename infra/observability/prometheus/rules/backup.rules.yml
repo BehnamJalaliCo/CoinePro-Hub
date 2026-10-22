@@ -1,0 +1,47 @@
+# The backup's alerts in Prometheus (7.1 §2.4): a dead-man's switch that does
+# not depend on the worker or Temporal. infra/backup/hourly.sh writes
+# hq_backup.prom into node-exporter's textfile directory after every run
+# (success or failure); if the runs stop, or stop succeeding, the timestamp
+# ages and the alert fires. The worker raises the owner's notifications for
+# the same conditions; these are the independent second line (Grafana's alert
+# list, GET /api/v1/alerts on 127.0.0.1:9090). Tested by scripts/quality/backup.sh.
+groups:
+  - name: hq-backup
+    rules:
+      - alert: HqBackupDeadMansSwitch
+        expr: time() - max(hq_backup_last_success_timestamp_seconds) > 7200
+        for: 5m
+        labels:
+          severity: urgent
+          category: data_loss
+        annotations:
+          summary: "No successful hourly backup for more than 2 hours"
+          description: "infra/backup/hourly.sh: journalctl -u coinepro-hq-backup-hourly.service; status/hourly.json"
+      - alert: HqBackupMetricsMissing
+        expr: absent(hq_backup_last_success_timestamp_seconds)
+        for: 2h
+        labels:
+          severity: urgent
+          category: data_loss
+        annotations:
+          summary: "The hourly backup has not reported for 2 hours (no hq_backup.prom, or node-exporter is down)"
+      - alert: HqBackupCheckFailed
+        expr: max(hq_backup_check_ok) == 0
+        labels:
+          severity: urgent
+          category: data_loss
+        annotations:
+          summary: "restic check failed on a backup repository"
+      - alert: HqWalArchivingFailing
+        expr: max(hq_backup_wal_failing) == 1
+        labels:
+          severity: urgent
+          category: data_loss
+        annotations:
+          summary: "WAL archiving is failing: point-in-time recovery is cut and pg_wal grows"
+      - alert: HqOpenBaoSnapshotFailing
+        expr: max(hq_backup_openbao_snapshot_ok) == 0
+        labels:
+          severity: decision
+        annotations:
+          summary: "The OpenBao snapshot (or its token's renewal) failed: the owner makes a new token (RUNBOOK §18)"
