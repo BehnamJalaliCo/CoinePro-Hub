@@ -407,7 +407,8 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     await su.execute(
         """INSERT INTO academy.eval_runs (company_id, suite_ref, subject, purpose, skill_version_id,
                requested_by_kind, requested_by_code)
-           VALUES ($1, $2, '{}', 'manual', $3, 'owner', 'owner')""",
+           VALUES ($1, $2, '{"kind": "skill", "ref": "SK-999", "version": 1}', 'manual', $3,
+                   'owner', 'owner')""",
         co["id"],
         f"EV-{n}",
         sv,
