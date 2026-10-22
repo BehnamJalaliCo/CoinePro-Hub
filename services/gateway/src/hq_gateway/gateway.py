@@ -42,6 +42,7 @@ from hq_common.charters import IMPLICIT_TOOLS, Library
 from hq_common.redact import fit_async, mask_secrets
 from hq_gateway import (
     founding,  # noqa: F401 - registers server.plan (prompt 09)
+    governance,  # noqa: F401 - prompt 11 §4-§10: kpi, okr, outcome, risk, calendar, authority
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
     oversight,  # noqa: F401 - registers the overseer's tools (prompt 08)
     people,  # noqa: F401 - registers stars, lessons, stories, hire.decide

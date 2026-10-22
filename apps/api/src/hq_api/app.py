@@ -35,6 +35,7 @@ from hq_api.routes import (
     feedback,
     files,
     founding,
+    governance,
     growth,
     growth_funnel,
     inbox,
@@ -142,6 +143,7 @@ def create_app(
         auth,
         org,
         work,
+        governance,  # prompt 11 §4-§10; before decisions: /decisions/batchable is no ref
         decisions,
         deliverables,
         files,
@@ -190,6 +192,7 @@ def create_app(
     app.include_router(founding.internal_router, prefix="/internal/v1")
     for p10 in (revenue, support, growth, growth_funnel, feedback):
         app.include_router(p10.internal_router, prefix="/internal/v1")
+    app.include_router(governance.internal_router, prefix="/internal/v1")  # prompt 11 §4-§10
     # The only public routes prompt 10 adds (webhooks; never /internal).
     app.include_router(intake.webhook_router, prefix="/intake/v1")
     app.state.version = __version__

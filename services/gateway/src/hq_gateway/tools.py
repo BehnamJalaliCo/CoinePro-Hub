@@ -245,6 +245,16 @@ class QuotaIn(In):
     usd: Usd | None = None
 
 
+class ExpectedIn(In):
+    """What a proposal promises (contract §20.6): the 30/60/90-day reviews."""
+
+    metric_fa: str = Field(min_length=1, max_length=300)
+    kpi: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{1,60}$")
+    baseline: float = Field(allow_inf_nan=False)
+    target: float = Field(allow_inf_nan=False)
+    by_days: Literal[30, 60, 90]
+
+
 class ProposeIn(In):
     kind: Literal[
         "hire",
@@ -263,8 +273,11 @@ class ProposeIn(In):
         # ⟨1.5⟩ prompt 10 §7: a template or a lifecycle rule for the owner's seal
         "message_template",
         "lifecycle_rule",
-    ]  # every API kind but server_plan (only server.plan makes it), tool_enable (the api's)
-    # and support_go_live (only a passed shadow run makes it)
+        # ⟨1.5⟩ prompt 11 §7, §8: a change of the authority matrix, a risk's acceptance
+        "authority_change",
+        "risk_acceptance",
+    ]  # every API kind but server_plan (only server.plan makes it), tool_enable (the api's),
+    # support_go_live (only a passed shadow run makes it) and okr (okr.draft makes it)
     title_fa: str = Field(min_length=1, max_length=300)
     what_md: str = Field(default="", max_length=20000)
     why_md: str = Field(default="", max_length=20000)
@@ -272,6 +285,8 @@ class ProposeIn(In):
     reversible: bool = True
     quota_estimate: QuotaIn | Tokens | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
+    # ⟨1.5⟩ prompt 11 §6: required for kind `proposal` (contract §20.6)
+    expected: ExpectedIn | None = None
 
     @field_validator("payload")
     @classmethod
@@ -354,6 +369,7 @@ class DelegateIn(In):
     title_fa: str = Field(min_length=1, max_length=300)
     brief_md: str = Field(default="", max_length=50000)
     budget: BudgetIn | Tokens | None = None
+    key_result: str | None = Field(default=None, pattern=r"^KR-[0-9]{4,}$")  # ⟨1.5⟩ prompt 11
 
 
 class RequestIn(In):
@@ -604,12 +620,19 @@ async def propose(api: Api, call: Call, a: ProposeIn) -> Result:
             "quota_estimate": quota,
             "payload": await _text(a.payload),
             **({"work_id": work_id} if work_id else {}),
+            **(
+                {"expected": await _text(a.expected.model_dump(exclude_none=True))}
+                if a.expected
+                else {}
+            ),
         },
         idem=call.idem("propose"),
     )
     r = from_response(resp)
     if r.outcome == "ok" and isinstance(r.data, dict):
-        r.data = {"decision": r.ref, "status": r.data.get("status"), "kind": a.kind}
+        warnings = r.data.get("warnings") or []
+        r.data = {"decision": r.ref, "status": r.data.get("status"), "kind": a.kind,
+                  **({"warnings": warnings} if warnings else {})}  # fmt: skip
     return r
 
 
@@ -733,6 +756,7 @@ async def work_delegate(api: Api, call: Call, a: DelegateIn) -> Result:
             "title": await _text(a.title_fa),
             "brief": await _text(a.brief_md),
             **({"budget": budget} if budget else {}),
+            **({"key_result": a.key_result} if a.key_result else {}),
         },
         idem=call.idem("work.delegate"),
     )

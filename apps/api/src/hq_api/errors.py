@@ -163,6 +163,12 @@ CODES: dict[str, tuple[int, str, str]] = {
     "send_blocked": (422, "Send blocked", "نگهبان خروجی این پیام را رد کرد؛ دلیل‌ها را ببین."),
     "opted_out": (409, "Opted out", "این مشتری پیام‌ها را لغو کرده است."),
     "send_limit": (429, "Send limit", "سقف ارسال امروز یا این ساعت پر شده است."),
+    # ⟨1.5⟩ prompt 11 §10 (contract §20.11): fields.items [{ref, reason}]
+    "batch_not_eligible": (
+        422,
+        "Batch not eligible",
+        "همه‌ی کارت‌های این مُهر گروهی شایسته نیستند؛ هیچ‌کدام مُهر نشد. دلیل هر کارت را ببین.",
+    ),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 
@@ -186,7 +192,8 @@ class Problem(BaseModel):
     code: str
     detail: str | None = None
     message_fa: str
-    fields: dict[str, str] | None = None
+    # field -> message; ⟨1.5⟩ batch_not_eligible: "items" -> [{ref, reason}] (contract §20.10)
+    fields: dict[str, Any] | None = None
     request_id: str | None = None
     # ⟨1.4.6⟩ 409 not_ready: what is still missing (§18.8, e.g. ["brand"])
     missing: list[str] | None = None
@@ -199,7 +206,7 @@ class ApiError(Exception):
         code: str,
         detail: str | None = None,
         *,
-        fields: dict[str, str] | None = None,
+        fields: dict[str, Any] | None = None,
         message_fa: str | None = None,
         headers: dict[str, str] | None = None,
         missing: list[str] | None = None,

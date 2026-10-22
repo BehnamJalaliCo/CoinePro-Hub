@@ -55,6 +55,29 @@ class Policy:
                 )
             raise ApiError(403, "policy_denied", ", ".join(v.reasons) or "denied")
 
+    async def value(self, path: str) -> Any:
+        """⟨1.5⟩ prompt 11 §7: one value of an hq rule (POST /v1/data/hq/<path>),
+        None when OPA cannot answer or the rule is undefined."""
+        try:
+            resp = await self._http.post(f"/v1/data/hq/{path}", json={"input": {}})
+            resp.raise_for_status()
+            return resp.json().get("result")
+        except (httpx.HTTPError, ValueError):
+            return None
+
+    async def put_authority(self, doc: dict[str, Any]) -> bool:
+        """⟨1.5⟩ prompt 11 §7: the authority matrix as data.hq.authority (the one
+        data write system.authz allows). False when OPA refused or is down."""
+        try:
+            resp = await self._http.put("/v1/data/hq/authority", json=doc)
+        except httpx.HTTPError as exc:
+            log.error("opa: authority push failed", extra={"error": type(exc).__name__})
+            return False
+        if resp.status_code not in (200, 204):
+            log.error("opa: authority push refused", extra={"status": resp.status_code})
+            return False
+        return True
+
     async def healthy(self) -> bool:
         try:
             return (await self._http.get("/health")).status_code == 200

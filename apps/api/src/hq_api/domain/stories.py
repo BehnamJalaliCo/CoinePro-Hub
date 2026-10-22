@@ -204,7 +204,9 @@ async def post(
         tz=tz,
         today=today,
     )
-    if int(posted) >= DAILY_LIMIT:
+    from hq_api.domain import gov_authority  # ⟨1.5⟩ the matrix's story.per_day
+
+    if int(posted) >= await gov_authority.limit_value(tx, "story.per_day", DAILY_LIMIT):
         raise ApiError(429, "story_limit")
     row = await tx.one(
         """INSERT INTO owner.stories (company_id, kind, author_kind, author_code, title_fa, body_fa,

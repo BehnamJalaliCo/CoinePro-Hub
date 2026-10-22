@@ -33,6 +33,9 @@ from temporalio import activity
 from temporalio.client import Client, ScheduleCalendarSpec, ScheduleRange, ScheduleSpec
 
 from hq_api import audit
+from hq_api.domain import (
+    gov_checks as _gov,  # noqa: F401 - registers PR-006/090/112/113/116 (prompt 11)
+)
 from hq_api.domain import oversight as O
 from hq_api.domain import oversight_checks as C
 from hq_api.domain import oversight_support as OS  # registers PR-043/101/102/103 (prompt 10)

@@ -31,6 +31,7 @@ from hq_api.worker import report, schedules
 from hq_api.worker.academy_activities import AcademyActivities
 from hq_api.worker.brand_activities import BrandActivities
 from hq_api.worker.desk_activities import DeskActivities
+from hq_api.worker.governance_activities import GovernanceActivities
 from hq_api.worker.media_activities import MediaActivities
 from hq_api.worker.oversight_activities import OversightActivities
 from hq_api.worker.people_activities import PeopleActivities
@@ -77,6 +78,7 @@ class Activities:
         self.support = SupportActivities(hub, self._tx)
         self.revenue = RevenueActivities(hub, self._tx, router=self.router)
         self.desk = DeskActivities(hub, self.router, self._tx)  # prompt 10 §4-§7, §11
+        self.governance = GovernanceActivities(hub, self._tx)  # prompt 11 §4-§10
 
     def all(self) -> list[Any]:
         return [
@@ -88,6 +90,7 @@ class Activities:
             *self.oversight.all(),
             *self.support.all(),
             *self.revenue.all(),
+            *self.governance.all(),
             self.decision_state,
             self.decision_expire,
             self.holding_locked,

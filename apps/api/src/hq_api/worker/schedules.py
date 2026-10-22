@@ -21,6 +21,9 @@ Schedule ids:
     hq-support-sweep          every SUPPORT_HANDOFF_DIGEST_MIN (30) min  SupportSweep (prompt 10
                               §4-§7: expiry, reminders, the handoff line, lifecycle, NPS);
                               its activity does nothing while the holding is locked
+    hq-kpi-collect            every 15 min  KpiCollect (prompt 11 §4.3; no model)
+    hq-governance-daily       daily 06:10 (owner's zone)  GovernanceDaily (prompt 11 §5, §6, §8, §9)
+                              (both ask the launch gate and do nothing while locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -69,6 +72,8 @@ FEEDBACK_BATCH = "hq-feedback-batch"
 SUPPORT_WEEKLY = "hq-support-weekly"
 TEHRAN = "Asia/Tehran"  # the exchange's settlement times are real times, not the owner's view
 SUPPORT_SWEEP = "hq-support-sweep"
+KPI_COLLECT = "hq-kpi-collect"
+GOVERNANCE_DAILY = "hq-governance-daily"
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -86,6 +91,8 @@ FIXED = (
     RESCUE,
     FEEDBACK_BATCH,
     SUPPORT_WEEKLY,
+    KPI_COLLECT,
+    GOVERNANCE_DAILY,
 )
 
 
@@ -242,6 +249,24 @@ def fixed(
             timedelta(minutes=30),
         ),
         *revenue_fixed(),
+        *governance_fixed(tz),
+    ]
+
+
+def governance_fixed(tz: str) -> list[Desired]:
+    """Prompt 11 §4-§10: they gate themselves (hq_api.domain.gate)."""
+    return [
+        Desired(
+            KPI_COLLECT, "KpiCollect", (), every(15), timedelta(minutes=15), timedelta(minutes=5)
+        ),
+        Desired(
+            GOVERNANCE_DAILY,
+            "GovernanceDaily",
+            (),
+            daily_at(time(6, 10), tz),
+            timedelta(hours=12),
+            timedelta(minutes=15),
+        ),
     ]
 
 

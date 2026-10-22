@@ -73,6 +73,9 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "feedback": ("feedback.",),
     # ⟨1.4.6⟩ prompt 9.1: brand.updated (contract §18.14)
     "companies": ("brand.",),
+    # ⟨1.5⟩ prompt 11 (contract §20.11): charter.sealed, kpi.stale, okr.updated,
+    # outcome.due, risk.updated, calendar.conflict
+    "governance": ("charter.", "kpi.", "okr.", "outcome.", "risk.", "calendar."),
 }
 
 
