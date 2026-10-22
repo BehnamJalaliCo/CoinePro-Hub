@@ -82,5 +82,5 @@ grant if {
 # whose actor is the owner takes the CEOs' approval back. Without the data the
 # default holds (the CEO approves, §0.7).
 knowledge_approval_taken_back if {
-	data.hq.authority["knowledge.approve.company"].actor == "owner"
+	data.hq.authority.rules["knowledge.approve.company"].actor == "owner"
 }

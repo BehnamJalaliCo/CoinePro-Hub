@@ -72,9 +72,9 @@ test_a_ceo_approves_its_own_company_only if {
 
 test_the_owner_takes_the_approval_back if {
 	not policy.allow with input as {"principal": f.ty_ceo, "op": "knowledge.approve", "target": {"company": "TY", "layer": "company"}}
-		with data.hq.authority as {"knowledge.approve.company": {"actor": "owner"}}
+		with data.hq.authority as {"version": "v-test", "rules": {"knowledge.approve.company": {"actor": "owner"}}}
 	policy.allow with input as {"principal": f.ty_ceo, "op": "knowledge.approve", "target": {"company": "TY", "layer": "company"}}
-		with data.hq.authority as {"knowledge.approve.company": {"actor": "ceo"}}
+		with data.hq.authority as {"version": "v-test", "rules": {"knowledge.approve.company": {"actor": "ceo"}}}
 }
 
 test_review_and_approval_are_a2_by_role if {
