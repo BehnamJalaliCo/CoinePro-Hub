@@ -44,6 +44,7 @@ def test_user_data_carries_public_values_and_a_single_use_token_only() -> None:
     assert steps.group(1).split() == [
         "system-upgrade", "unattended-upgrades", "work-user", "ssh-hardening", "private-network",
         "hetzner-firewall", "git", "docker", "node-lts", "claude-code", "repo-clone", "node-exporter",
+        "chatwoot",
     ]  # fmt: skip
     for key in steps.group(1).split():
         assert ud.count(f"step_{key.replace('-', '_')}() {{") == 1
@@ -99,3 +100,41 @@ def test_the_rendered_scripts_parse(tmp_path: Path) -> None:
     inner = ud.split("<<'COINEPRO_PROVISION_EOF'\n", 1)[1].split("\nCOINEPRO_PROVISION_EOF\n", 1)[0]
     (tmp_path / "inner.sh").write_text(inner)
     subprocess.run([BASH, "-n", str(tmp_path / "inner.sh")], check=True)
+
+
+def test_chatwoot_is_community_pinned_and_starts_only_with_the_owners_domain() -> None:
+    """Prompt 10 §10: built, never deployed by itself. The step writes the
+    Community (MIT) compose with images pinned by digest and memory limits for
+    a 4 GB server, makes its secrets on the server, publishes 443 only, and
+    starts nothing: the owner's `chatwoot-start <domain>` does, later."""
+    ud = render(plan=make_plan(software=["system-upgrade", "work-user", "ssh-hardening",
+                                         "docker", "chatwoot"]))  # fmt: skip
+    assert len(ud.encode()) <= cloudinit.MAX_BYTES
+    step = ud.split("step_chatwoot() {", 1)[1].split("\n}\n", 1)[0]
+    images = re.findall(r'^CW_[A-Z_]*IMAGE="([^"]+)"$', ud, re.M)
+    assert len(images) == 4 and all(re.search(r":[\w.-]+@sha256:[0-9a-f]{64}$", i) for i in images)
+    assert any(i.startswith("chatwoot/chatwoot:v") and "-ce@" in i for i in images)
+    assert "ENABLE_ACCOUNT_SIGNUP=false" in step and "DISABLE_TELEMETRY=true" in step
+    assert "enterprise" not in step.lower().replace("no enterprise edition", "")
+    for limit in ("mem_limit: 800m", "mem_limit: 700m", "mem_limit: 512m", "mem_limit: 128m",
+                  "mem_limit: 64m"):  # fmt: skip
+        assert limit in step
+    # Published: 443 for the TLS front, and the app on loopback only.
+    ports = re.findall(r"ports: \[([^\]]*)\]", step)
+    assert sorted(ports) == ['"127.0.0.1:3000:3000"', '"443:443"']
+    # Secrets are made there (openssl), 0600; no value of one is in the user data.
+    assert "openssl rand -hex 64" in step and 'chmod 0600 "$CW_DIR/.env"' in step
+    assert not re.search(r"(SECRET_KEY_BASE|POSTGRES_PASSWORD|REDIS_PASSWORD)=[A-Za-z0-9]", ud)
+    # Nothing is started by the build; only the owner's start script does that.
+    build = step.split("cat >/usr/local/sbin/chatwoot-start", 1)[0]
+    assert "compose up" not in build and "compose pull" not in build
+    assert "docker compose up -d" in step
+
+
+def test_chatwoot_is_opt_in_and_needs_docker() -> None:
+    from hq_common import provisioning as P
+
+    assert "chatwoot" in P.SOFTWARE and "chatwoot" not in P.DEFAULT_SOFTWARE
+    assert tuple(k for k in P.SOFTWARE if k != "chatwoot") == P.DEFAULT_SOFTWARE
+    problems = P.problems(make_plan(software=["work-user", "chatwoot"]))
+    assert any("chatwoot needs docker" in p for p in problems), problems
