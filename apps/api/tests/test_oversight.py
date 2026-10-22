@@ -208,7 +208,24 @@ async def test_every_code_checker_runs(
     )
     acts = wk["acts"].oversight
     results = {}
+    paused = {
+        r["ref"]
+        for r in await su.fetch(
+            "SELECT ref FROM oversight.current_protocols WHERE status <> 'active'"
+        )
+    }
+    whub = wk["hub"]
+    holding = await whub.companies.holding()
+    companies = {c.code: c.id for c in await whub.companies.all() if c.status == "active"}
     for ref in sorted(C.CHECKS):
+        if ref in paused:
+            # Seeded paused until its feature is live (prompt 10's PR-101,
+            # PR-103): its SQL still runs against the real schema.
+            async with whub.db.tx(await whub.companies.ids()) as tx:
+                ctx = C.CheckCtx(tx, holding.id, holding.code, companies, datetime.now(UTC), {})
+                checked = await C.CHECKS[ref](ctx)
+            assert isinstance(checked, C.Checked), ref
+            continue
         out = await acts.protocol_run(ref)
         if out.get("skipped") == "paused":
             continue  # seeded paused (prompt 10 §11: PR-103); its own test runs its checker

@@ -9,6 +9,7 @@ hq-egress-api; a client from anywhere else is refused).
     POST /v1/connectors/call  one call of a connector of code (prompt 10 §2.3):
                            a fixed endpoint of an exchange, signed by a
                            reviewed signer, its answer reduced in egress
+    POST /v1/support/send  a support message on Telegram or Chatwoot (the worker; support_out.py)
     GET  /v1/health
 
 Every answer is {outcome: ok | blocked | error, code, data, entries}: the
@@ -44,7 +45,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from hq_common import untrusted
-from hq_egress import __version__
+from hq_egress import __version__, support_out
 from hq_egress import connectors as K
 from hq_egress import extract as X
 from hq_egress.accounts import Account, margin, scrub, scrub_cut
@@ -495,6 +496,7 @@ def build_app(state: State) -> FastAPI:
     async def drain(a: DrainIn) -> JSONResponse:
         return answer("ok", {"call_id": a.call_id}, state.buckets.drain(a.call_id))
 
+    app.include_router(support_out.router)  # POST /v1/support/send (prompt 10 §4.2, §10)
     return app
 
 

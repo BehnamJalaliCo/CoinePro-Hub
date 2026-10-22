@@ -260,6 +260,11 @@ OP_CLASS: dict[str, str] = {
     "referral.check": "A0",
     "rescue.update": "A2",
     "feedback.tag": "A2",
+    # prompt 10 §12 (support_desk.rego): the support desk's writes
+    "kb.propose": "A1",
+    "support.draft": "A2",
+    "support.handoff": "A2",
+    "support.mystery": "A2",
 }
 
 

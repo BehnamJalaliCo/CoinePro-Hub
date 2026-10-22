@@ -86,7 +86,9 @@
           "hold",
           "oversight.hold",
           "rescue.update",
-          "feedback.tag"
+          "feedback.tag",
+          "support.draft",
+          "support.handoff"
         ],
         "assistant": [
           "errand.step",
@@ -121,7 +123,8 @@
           "kill_switch.engage",
           "kill_switch.set",
           "deploy.freeze",
-          "deploy_freeze.set"
+          "deploy_freeze.set",
+          "support.mystery"
         ]
       }
     }

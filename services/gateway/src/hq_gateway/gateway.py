@@ -46,6 +46,7 @@ from hq_gateway import (
     oversight,  # noqa: F401 - registers the overseer's tools (prompt 08)
     people,  # noqa: F401 - registers stars, lessons, stories, hire.decide
     revenue,  # noqa: F401 - prompt 10: revenue.read, funnel.read, rescue, feedback, referral
+    support,  # noqa: F401 - kb.*, support.draft/handoff/mystery (prompt 10)
     web,  # registers the internet tools (web.*, http.request)
 )
 from hq_gateway import mcp as M

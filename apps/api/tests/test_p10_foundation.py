@@ -352,8 +352,12 @@ async def test_the_new_charters_are_seeded_and_nobody_is_hired(
     assert "support.draft" in lib.allowed("support_agent")
     roles = {r["role"]: r for r in (await client.get("/api/v1/roles", headers=owner)).json()}
     assert set(expected) <= set(roles) and roles["support_agent"]["priority"] == "P1"
+    # Nobody is hired by the seed or the prompt (the support desk's own tests
+    # make employees in their throwaway companies, "Test <code>").
     hired = await su.fetchval(
-        "SELECT count(*) FROM core.employees WHERE role = ANY($1::text[])", list(expected)
+        """SELECT count(*) FROM core.employees e JOIN core.companies c ON c.id = e.company_id
+           WHERE e.role = ANY($1::text[]) AND c.name NOT LIKE 'Test %'""",
+        list(expected),
     )
     assert hired == 0
 

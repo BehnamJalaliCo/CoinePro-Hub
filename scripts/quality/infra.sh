@@ -28,7 +28,8 @@ T="$(mktemp -d)"
 NAME="hq-infra-$$"
 # shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
-  docker rm -f "$NAME-bao" "$NAME-web" "$NAME-edge-off" "$NAME-edge-on" >/dev/null 2>&1 || true
+  docker rm -f "$NAME-bao" "$NAME-web" "$NAME-edge-off" "$NAME-edge-on" "$NAME-api" "$NAME-edge-api" \
+    >/dev/null 2>&1 || true
   docker network rm "$NAME-net" >/dev/null 2>&1 || true
   rm -rf "$T"
   if [[ -n "${QUALITY_TMP:-}" ]]; then rm -rf "$QUALITY_TMP"; fi
@@ -270,6 +271,35 @@ expect_eq "X-Middleware-Subrequest never reaches the web" \
 expect_eq "a 2 MB body to the web is refused" "$(head -c 2000000 /dev/zero | code --data-binary @- "$edge_off/x")" 413
 expect_eq "a 1 KB body to the web passes" "$(head -c 1000 /dev/zero | code --data-binary @- "$edge_off/x")" 200
 expect_eq "/internal stays 404" "$(code "$edge_off/internal/v1/health")" 404
+expect_eq "intake stays closed without a domain" "$(code -X POST "$edge_off/intake/v1/product/TY")" 404
+
+# Prompt 10 §9: the three intake routes with the public API on (a stub api).
+docker run -d --name "$NAME-api" --network "$NAME-net" --network-alias api "$PYTHON_IMAGE" python -c '
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+class H(BaseHTTPRequestHandler):
+    def do_POST(self):
+        n = len(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
+        body = ("api:%s:%d" % (self.path, n)).encode()
+        self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers()
+        self.wfile.write(body)
+ThreadingHTTPServer(("0.0.0.0", 8000), H).serve_forever()' >/dev/null
+docker run -d --name "$NAME-edge-api" --network "$NAME-net" -p 127.0.0.1::80 \
+  -e HQ_SITE_ADDRESS=:80 -e HQ_API_EDGE=on -e HQ_WEB=on -e HQ_CANARY=off \
+  -v "$REPO_DIR/infra/caddy:/etc/caddy:ro" "$CADDY_IMAGE" >/dev/null
+edge_api="http://$(docker port "$NAME-edge-api" 80/tcp | head -n1)"
+for _ in $(seq 30); do
+  [[ "$(code -X POST "$edge_api/intake/v1/product/TY")" == 200 ]] && break
+  sleep 1
+done
+expect_eq "intake: a product event reaches the api" \
+  "$(curl -s -X POST --data-binary '{}' "$edge_api/intake/v1/product/TY")" "api:/intake/v1/product/TY:2"
+expect_eq "intake: a Chatwoot event reaches the api" "$(code -X POST "$edge_api/intake/v1/chatwoot/TY")" 200
+expect_eq "intake: Telegram's route only from Telegram's ranges" \
+  "$(code -X POST "$edge_api/intake/v1/telegram/TY/telegram_bot")" 403
+expect_eq "intake: a 2 MB body is refused" \
+  "$(head -c 2000000 /dev/zero | code --data-binary @- "$edge_api/intake/v1/product/TY")" 413
+expect_eq "intake: any other path is unknown" "$(code -X POST "$edge_api/intake/v1/other/TY")" 404
+expect_eq "/internal stays 404 with the api on" "$(code "$edge_api/internal/v1/health")" 404
 
 # --------------------------------------------------------------- systemd ----
 unit="$REPO_DIR/infra/systemd/coinepro-hq-container-metrics.service"

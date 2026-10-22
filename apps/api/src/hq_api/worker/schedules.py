@@ -18,6 +18,9 @@ Schedule ids:
     hq-feedback-batch         daily 02:30 Asia/Tehran   FeedbackBatch (prompt 10 §8.1)
     hq-support-weekly         Saturday 08:30 Asia/Tehran  SupportWeekly (prompt 10 §8.3)
                               (each of these five asks the launch gate and skips while locked)
+    hq-support-sweep          every SUPPORT_HANDOFF_DIGEST_MIN (30) min  SupportSweep (prompt 10
+                              §4-§7: expiry, reminders, the handoff line, lifecycle, NPS);
+                              its activity does nothing while the holding is locked
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -65,7 +68,9 @@ RESCUE = "hq-rescue-follow-ups"
 FEEDBACK_BATCH = "hq-feedback-batch"
 SUPPORT_WEEKLY = "hq-support-weekly"
 TEHRAN = "Asia/Tehran"  # the exchange's settlement times are real times, not the owner's view
+SUPPORT_SWEEP = "hq-support-sweep"
 FIXED = (
+    SUPPORT_SWEEP,
     MAINTENANCE,
     DIGEST,
     MORNING,
@@ -163,8 +168,18 @@ def every(minutes: int) -> ScheduleSpec:
     return ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=minutes))])
 
 
-def fixed(morning_at: time, tz: str, *, ceo_daily: bool = False) -> list[Desired]:
+def fixed(
+    morning_at: time, tz: str, *, ceo_daily: bool = False, support_sweep_min: int = 30
+) -> list[Desired]:
     return [
+        Desired(
+            SUPPORT_SWEEP,
+            "SupportSweep",
+            (),
+            every(max(5, support_sweep_min)),
+            timedelta(minutes=10),
+            timedelta(minutes=10),
+        ),
         Desired(
             SITE_CHECKS, "SiteChecks", (), every(5), timedelta(minutes=10), timedelta(minutes=4)
         ),

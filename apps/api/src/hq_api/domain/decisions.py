@@ -41,6 +41,10 @@ KINDS = (
     "company_found",
     "server_plan",
     "tool_enable",
+    # ⟨1.5⟩ prompt 10 (contract §19.9): a template, a lifecycle rule, a channel's go-live
+    "message_template",
+    "lifecycle_rule",
+    "support_go_live",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -61,6 +65,11 @@ ACTION_CLASS = {
     "company_found": "A2",
     "server_plan": "A3",
     "tool_enable": "A2",
+    # ⟨1.5⟩ sealing a rule is the owner's A3 approval in advance (§19.5); a
+    # channel's go-live lets approved answers reach customers without the owner
+    "message_template": "A2",
+    "lifecycle_rule": "A3",
+    "support_go_live": "A3",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -74,7 +83,13 @@ STEP_UP_KINDS = (
     "protocol",
     "company_found",
     "tool_enable",
+    # ⟨1.5⟩ all three are sealed with step-up (contract §19.9)
+    "message_template",
+    "lifecycle_rule",
+    "support_go_live",
 )
+# ⟨1.5⟩ applied in the deciding transaction, bound to their payload (§19.9)
+SEALED_CARD_KINDS = ("message_template", "lifecycle_rule", "support_go_live")
 EFFECT_KINDS = (
     "hire",
     "dismissal",
@@ -296,6 +311,36 @@ class ProtocolPayload(Model):
     status: Literal["active", "paused", "draft"] = "active"
 
 
+class MessageTemplatePayload(Model):
+    """⟨1.5.1⟩ {template: Template, sha256}: an agent's proposal arrives as
+    {template: {purpose, body_fa, variables?, ref?}} and the api writes the
+    proposed template version and its sha256 into the card."""
+
+    template: dict[str, Any]
+    sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
+class LifecycleRulePayload(Model):
+    """⟨1.5.1⟩ {rule: LifecycleRule, template: "TM-…@v", limits}: proposed as
+    {rule: {kind, template, channel, trigger?, limits?, ref?}}."""
+
+    rule: dict[str, Any]
+    template: str | None = Field(default=None, pattern=r"^TM-[0-9]{4,6}@[0-9]+$")
+    limits: dict[str, Any] | None = None
+
+
+class SupportGoLivePayload(Model):
+    """⟨1.5.1⟩ {company, channel, auto_send, verbatim_threshold,
+    grounded_threshold, shadow_report}: made by the system on a passed run."""
+
+    company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+    channel: Literal["telegram_business", "telegram_bot", "chatwoot", "product_bot"]
+    auto_send: Literal["kb_verbatim", "kb_grounded", "off"]
+    verbatim_threshold: float | None = Field(default=None, ge=0, le=1)
+    grounded_threshold: float | None = Field(default=None, ge=0, le=1)
+    shadow_report: dict[str, Any]
+
+
 PAYLOADS: dict[str, type[Model]] = {
     "hire": HirePayload,
     "dismissal": DismissalPayload,
@@ -312,6 +357,9 @@ PAYLOADS: dict[str, type[Model]] = {
     "company_found": CompanyFoundPayload,
     "server_plan": ServerPlanPayload,
     "tool_enable": ToolEnablePayload,
+    "message_template": MessageTemplatePayload,
+    "lifecycle_rule": LifecycleRulePayload,
+    "support_go_live": SupportGoLivePayload,
 }
 
 
@@ -332,6 +380,9 @@ class DecisionIn(Model):
         "company_found",
         "server_plan",
         "tool_enable",
+        "message_template",
+        "lifecycle_rule",
+        "support_go_live",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -605,6 +656,15 @@ async def propose(
         raise ApiError(
             422, "validation_failed", fields={"kind": "a server plan comes from server.plan"}
         )
+    if body.kind == "support_go_live" and who.kind != "service":
+        # ⟨1.5⟩ only a passed shadow run makes this card (contract §19.4)
+        raise ApiError(409, "shadow_not_passed", "a go-live card comes from a passed shadow run")
+    if body.kind in ("message_template", "lifecycle_rule"):
+        from hq_api.domain import lifecycle
+
+        payload = await lifecycle.card_payload(
+            tx, who, company_id, company_code, body.kind, payload
+        )
     if body.kind == "company_found":
         from hq_api.domain import founding
 
@@ -836,6 +896,17 @@ async def decide(
     if verdict == "approved" and d["kind"] == "tool_enable":
         # Bound to the listing it shows: superseded (409) when the server changed.
         server = await mcp.sealed_listing(tx, d)
+        effect = "applied"
+    if verdict == "approved" and d["kind"] in SEALED_CARD_KINDS:
+        if amendments:
+            raise ApiError(
+                422, "validation_failed", fields={"amendments": "this card is sealed as it is"}
+            )
+        # ⟨1.5⟩ bound to its payload: a template, rule or shadow report that
+        # changed since the card supersedes it (409, nothing changes)
+        from hq_api.domain import lifecycle
+
+        await lifecycle.apply_card(tx, d, step_up_id)
         effect = "applied"
     await tx.exec(
         """UPDATE cartable.decisions SET status = :st, decided_at = now(), decided_by_kind = :k,

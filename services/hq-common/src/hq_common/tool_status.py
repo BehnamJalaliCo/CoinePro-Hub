@@ -75,6 +75,12 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "rescue.update",
         "feedback.tag",
         "referral.check",
+        # prompt 10 §12: the support desk (none sends free text to a customer)
+        "kb.search",
+        "kb.propose",
+        "support.draft",
+        "support.handoff",
+        "support.mystery",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

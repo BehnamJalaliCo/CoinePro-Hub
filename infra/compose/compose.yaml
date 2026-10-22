@@ -635,8 +635,10 @@ services:
     # Temporal worker (task queue hq-core) + the NATS bridge into HQ_CORE.
     <<: *service
     image: coinepro-hq/api:0.1.0
-    # hq-core: Temporal; hq-agent: OPA and the Tool Gateway; hq-stt: speech to text.
-    networks: [hq-internal, hq-core, hq-agent, hq-stt]
+    # hq-core: Temporal; hq-agent: OPA and the Tool Gateway; hq-stt: speech to text;
+    # hq-egress-api: the support desk's sends through egress (prompt 10 §4.2,
+    # POST /v1/support/send; egress's own client check covers that subnet).
+    networks: [hq-internal, hq-core, hq-agent, hq-stt, hq-egress-api]
     depends_on:
       api:
         condition: service_healthy
@@ -663,6 +665,9 @@ services:
       HQ_FILES_ROOT: /data/files
       STT_URL: ${STT_URL:-}
       STT_PUNCTUATION: ${STT_PUNCTUATION:-on}
+      # Prompt 10 §4.2: support sends leave through egress (a channel's secret
+      # is read from OpenBao for one call and handed to egress only).
+      SUPPORT_EGRESS_URL: http://egress:8090
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]

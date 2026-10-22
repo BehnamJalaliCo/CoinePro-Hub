@@ -28,3 +28,14 @@ path "kv/data/support/pseudonym" {
 path "kv/data/hq-agents/connector" {
   capabilities = ["read"]
 }
+
+# Prompt 10 §4.2: a support channel's bot token, read for one send and handed
+# to egress only (make telegram-bot-token, the owner's terminal); Chatwoot's
+# token is a holding service account (make account-secret).
+path "kv/data/support/telegram/*" {
+  capabilities = ["read"]
+}
+
+path "kv/data/tools/accounts/*" {
+  capabilities = ["read"]
+}
