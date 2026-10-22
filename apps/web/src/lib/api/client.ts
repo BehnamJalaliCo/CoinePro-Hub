@@ -13,6 +13,10 @@ export class ApiError extends Error {
   readonly requestId?: string | null;
   /** ⟨1.4.6⟩ `409 not_ready`: what is still missing (§18.8, e.g. ["brand"]). */
   readonly missing?: string[];
+  /** ⟨1.5⟩ `422 send_blocked`: the outbound guard's refusal codes (§19.6). */
+  readonly blockedReasons: string[];
+  /** A `429` (`rate_limited`, `send_limit`, …): seconds from `Retry-After`, when the server sent one. */
+  readonly retryAfter: number | null;
 
   constructor(status: number, problem: Partial<Problem> | undefined) {
     super(problem?.title ?? `HTTP ${status}`);
@@ -23,6 +27,9 @@ export class ApiError extends Error {
     this.fields = problem?.fields;
     this.requestId = problem?.request_id;
     this.missing = (problem as { missing?: string[] } | undefined)?.missing;
+    const extra = problem as { blocked_reasons?: string[]; retry_after?: number } | undefined;
+    this.blockedReasons = extra?.blocked_reasons ?? [];
+    this.retryAfter = extra?.retry_after ?? null;
   }
 }
 

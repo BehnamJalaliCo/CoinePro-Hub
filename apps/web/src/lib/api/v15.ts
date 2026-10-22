@@ -27,7 +27,7 @@ export type Level = 'urgent' | 'decision' | 'report' | 'info' | 'learning';
 export const LEVELS: Level[] = ['urgent', 'decision', 'report', 'info', 'learning'];
 type Page<T> = { items: T[]; next_cursor: string | null };
 
-const qs = (o: Record<string, string | number | boolean | null | undefined | string[]>) => {
+export const qs = (o: Record<string, string | number | boolean | null | undefined | string[]>) => {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(o)) {
     if (v == null || v === '') continue;
@@ -37,7 +37,7 @@ const qs = (o: Record<string, string | number | boolean | null | undefined | str
   const s = p.toString();
   return s ? `?${s}` : '';
 };
-const ifMatch = (version: number) => ({ 'If-Match': `"${version}"` });
+export const ifMatch = (version: number) => ({ 'If-Match': `"${version}"` });
 
 // ------------------------------------------------------------ resolutions --
 export const useResolutionList = (f: { q?: string; company?: string | null } = {}) =>

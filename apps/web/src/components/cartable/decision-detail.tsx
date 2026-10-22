@@ -16,13 +16,16 @@ import { useAskAboutDecision, useCompanies, useDecide, useReviewWithAdvisor } fr
 import { stepUp } from '@/lib/auth';
 import { useNow } from '@/lib/store';
 import { companyOf } from '@/lib/company';
+import type { LifecycleRule, ShadowReport, Template } from '@/lib/api/v16';
+import { AUTO_SEND, CHANNEL_FA, PURPOSE_FA, triggerFa } from '@/components/v16/bits';
 import { ACTOR_FA, DECISION_KIND, DECISION_STATUS, RISK } from '@/lib/labels';
 import { ago, cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
 
 type Decision = Schemas['Decision'];
 // code_session: its seal creates a Code Workshop grant (contract §5.1 ⟨1.4.3⟩). The round-two kinds are sealed the same way, each card
 // bound to what it proposes (§18.13 ⟨1.4.5⟩); a server plan is sealed only on its own route, against its digest (§18.8).
-const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption']);
+// ⟨1.5⟩ the revenue-and-support cards (§19.9) are sealed the same way, each bound to its template, rule or shadow report.
+const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption', 'message_template', 'lifecycle_rule', 'support_go_live']);
 export const needsStepUp = (d: Decision) => d.action_class === 'A3' || STEP_UP_KINDS.has(d.kind);
 /** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8). */
 const OWN_ROUTE: Record<string, { href: (d: Decision) => string; fa: string }> = {
@@ -113,6 +116,53 @@ function Payload({ d }: { d: Decision }) {
           </dl>
         ) : null}
         <p className="text-[12px] text-muted">با مُهر، همین فراخوانی با همین ورودی فقط یک بار اجرا میشود.</p>
+      </Section>
+    );
+  }
+  if (d.kind === 'support_go_live') {
+    const r = (p.shadow_report ?? null) as ShadowReport | null;
+    return (
+      <Section title="شروع پشتیبانی">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Fact label="کانال">{CHANNEL_FA[String(p.channel)] ?? String(p.channel ?? '—')}</Fact>
+          <Fact label="ارسال بی‌تو">{AUTO_SEND[String(p.auto_send)]?.fa ?? String(p.auto_send ?? '—')}</Fact>
+          <Fact label="آستانه‌ی عین دانشنامه" mono>{p.verbatim_threshold != null ? String(p.verbatim_threshold) : '—'}</Fact>
+          <Fact label="آستانه‌ی پیش‌نویس مستند" mono>{p.grounded_threshold != null ? String(p.grounded_threshold) : '—'}</Fact>
+        </div>
+        {r ? (
+          <p className="text-[13px] leading-6 text-sec">
+            آزمون سایه‌ی <span className="fig text-ink">{r.suite}</span>: <span className="fig text-ink">{r.total ? Math.round((r.correct / r.total) * 100) : 0}%</span> درست از <span className="fig">{r.total}</span>،
+            خطای ایمنی <span className={cx('fig', r.safety_failures ? 'text-neg' : 'text-ink')}>{r.safety_failures}</span>، کد یا لینک اشتباه <span className={cx('fig', r.wrong_codes ? 'text-neg' : 'text-ink')}>{r.wrong_codes}</span> · {r.pass ? 'قبول' : 'رد'}.
+          </p>
+        ) : null}
+        <p className="text-[12px] text-muted">آستانه‌ها مسیر ویرایش ندارند؛ عوض کردنشان یعنی آزمون سایه‌ی تازه و کارت تازه. با مُهر، کانال روشن و آستانه‌ها همین اعداد میشوند.</p>
+      </Section>
+    );
+  }
+  if (d.kind === 'message_template') {
+    const t = (p.template ?? {}) as Partial<Template>;
+    const sha = String(p.sha256 || t.sha256 || '');
+    return (
+      <Section title={`قالب ${PURPOSE_FA[String(t.purpose)] ?? ''}`}>
+        <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted"><span className="fig">{t.ref}@{t.version}</span>{(t.variables ?? []).map((v) => <span key={v} className="fig rounded-[6px] bg-tile px-2 py-0.5 text-sec">{`{{${v}}}`}</span>)}</div>
+        <p className="whitespace-pre-wrap rounded-[12px] bg-tile p-3 text-[14px] leading-7 text-ink">{t.body_fa}</p>
+        {sha ? <p className="text-[11px] text-muted">مُهر به همین متن بسته است: <span className="fig">sha256 {sha.slice(0, 16)}…</span></p> : null}
+      </Section>
+    );
+  }
+  if (d.kind === 'lifecycle_rule') {
+    const r = (p.rule ?? {}) as Partial<LifecycleRule>;
+    const l = (p.limits ?? r.limits ?? null) as LifecycleRule['limits'] | null;
+    return (
+      <Section title="قاعده‌ی پیام">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Fact label="قاعده" mono>{r.ref}@{r.version}</Fact>
+          <Fact label="کی">{r.trigger ? triggerFa(r.trigger) : '—'}</Fact>
+          <Fact label="قالب" mono>{String(p.template ?? r.template ?? '—')}</Fact>
+          <Fact label="کانال">{CHANNEL_FA[String(r.channel)] ?? '—'}</Fact>
+        </div>
+        {l ? <p className="text-[13px] leading-6 text-sec">هر مشتری حداکثر یک بار در {l.per_customer_days} روز، سقف روزانه <span className="fig">{l.daily_cap}</span>، ساعت سکوت <span className="fig">{l.quiet_hours[0]}–{l.quiet_hours[1]}</span>{l.max_follow_ups ? <>، حداکثر {l.max_follow_ups} پیگیری</> : null}.</p> : null}
+        <p className="text-[12px] text-muted">مُهر این کارت تأیید پیشاپیش توست؛ قاعده فقط تا وقتی قالبِ همین نسخه مُهرشده است اجرا میشود.</p>
       </Section>
     );
   }

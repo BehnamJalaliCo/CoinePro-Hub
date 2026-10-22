@@ -5,6 +5,7 @@ const PAGES = [
   '/', '/cartable', '/outputs', '/advisor', '/oversight', '/assistant', '/companies', '/companies/FX', '/employees/FX-TECH-MGR',
   '/work/W-000104', '/messages', '/messages?thread=FX-CEO', '/workshop', '/workshop/S-0004', '/stars', '/founding', '/skills',
   '/academy', '/tools', '/treasury', '/planner', '/resolutions', '/runs', '/sites', '/control', '/audit', '/settings',
+  '/revenue', '/support', '/support/SC-000411', '/growth', '/feedback',
 ];
 
 /** Fails the test on any page error, console error or failed API call while [run] is going on. */

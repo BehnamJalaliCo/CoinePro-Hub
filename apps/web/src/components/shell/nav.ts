@@ -15,6 +15,11 @@ export const NAV_MAIN: NavItem[] = [
 ];
 
 export const NAV_TOOLS: NavItem[] = [
+  // ⟨1.5⟩ revenue and support (§19)
+  { href: '/revenue', label: 'درآمد', icon: 'chart' },
+  { href: '/support', label: 'پشتیبانی', icon: 'messages' },
+  { href: '/growth', label: 'رشد و پیام‌ها', icon: 'send' },
+  { href: '/feedback', label: 'بازخورد', icon: 'rate' },
   { href: '/stars', label: 'ستاره‌ها', icon: 'star' },
   { href: '/founding', label: 'تأسیس شرکت', icon: 'found' },
   { href: '/skills', label: 'مهارت‌ها', icon: 'skill' },

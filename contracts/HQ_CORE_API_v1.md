@@ -1203,7 +1203,8 @@ RescueCase { id, ref: "RC-000123", company, source: "support"|"product", convers
 ```
 SupportChannel { company, kind: "telegram_business"|"telegram_bot"|"chatwoot"|"product_bot"|"mystery",
                  state: "not_configured"|"shadow"|"live"|"paused", live_since|null, paused_reason|null,
-                 auto_send: "kb_verbatim"|"kb_grounded"|"off" }                  // what may leave without the owner
+                 auto_send: "kb_verbatim"|"kb_grounded"|"off",                   // what may leave without the owner
+                 version }                                                       // ⟨1.5.1⟩ for If-Match; "already went live" = live_since != null
 Conversation   { id, ref: "SC-000123", company, channel, customer: {display_name|null, handle_masked, lang},
                  state: "open"|"waiting_owner"|"answered"|"closed", opened_at, last_message_at,
                  handoff: {reason: "no_kb"|"low_confidence"|"blocked"|"asked_for_human"|"complaint"|"security", at}|null,
@@ -1221,7 +1222,7 @@ QueueItem      { conversation, kind: "handoff"|"low_confidence"|"blocked"|"shado
 | GET | `/support/conversations` | `?company&state&channel&q&cursor` |
 | GET | `/support/conversations/{ref}` | with messages, oldest first |
 | POST | `/support/conversations/{ref}/reply` | owner: `{body}` → sent as the owner, through the outbound guard; `422 send_blocked` with reasons · `Idempotency-Key` (required) |
-| POST | `/support/conversations/{ref}/teach` | owner: `{message_id?, answer_md, generalise: bool}` → sends the answer (if the conversation waits) and opens a `KbArticle` proposal from it · `Idempotency-Key` (required) |
+| POST | `/support/conversations/{ref}/teach` | owner: `{message_id?, answer_md, generalise: bool}` → sends the answer (if the conversation waits) and opens a `KbArticle` proposal from it → `{message: SupportMessage\|null, article: KbArticle}` · `Idempotency-Key` (required) |
 | POST | `/support/conversations/{ref}/close` | owner or support lead |
 | GET | `/support/queue` | the teaching queue: what waits for the owner, oldest first |
 - **Answering:** a customer message first meets the **rules**: an exact or near-exact match (Persian-normalised full-text, score above the company's
@@ -1317,7 +1318,11 @@ FeedbackItem { id, ref: "FB-000123", company, kind: "bug"|"feature"|"confusion"|
 
 ### 19.9 Decision kinds, step-up targets, stream, codes ⟨1.5⟩
 - **Decision kinds:** `message_template` (payload: the template and its sha256), `lifecycle_rule` (the rule, its template version and limits),
-  `support_go_live` (company, channel, `auto_send`, `verbatim_threshold`, `grounded_threshold`, the `ShadowReport`). All are sealed with step-up
+  `support_go_live` (company, channel, `auto_send`, `verbatim_threshold`, `grounded_threshold`, the `ShadowReport`).
+  ⟨1.5.1⟩ Payload shapes as the apps read them: `message_template` `{template: Template, sha256}` · `lifecycle_rule` `{rule: LifecycleRule,
+  template: "TM-…@v", limits}` · `support_go_live` `{company, channel, auto_send, verbatim_threshold, grounded_threshold, shadow_report: ShadowReport}`.
+  Rates and shares in §19 (`share`, `conversions[].rate`, `leaks[].rate`) are 0..1; the rescue rate is the client's `rescued / (rescued + lost)`.
+  `POST /intake/sources` body: `{company, kind, allowed_ips: [cidr], kinds: [event kind]}`. All are sealed with step-up
   (`decision.approve`, target = ref; §5.1 ⟨1.4.5⟩) and bound to their payload: a template, rule or shadow report that changes before the seal
   supersedes the card. The thresholds have no edit route: changing them takes a new shadow run and a new card.
 - **Step-up targets:** `revenue.account` (body hash), `support.kb` (`ref@version`), `support.channel` (`company/kind@auto_send`),

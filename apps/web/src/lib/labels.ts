@@ -16,6 +16,10 @@ export const DECISION_KIND: Record<string, { fa: string; icon: IconName }> = {
   company_found: { fa: 'تأسیس شرکت', icon: 'found' },
   server_plan: { fa: 'طرح سرور', icon: 'server' },
   lesson_adoption: { fa: 'پذیرش درس', icon: 'learning' },
+  // ⟨1.5⟩ §19.9
+  message_template: { fa: 'قالب پیام', icon: 'send' },
+  lifecycle_rule: { fa: 'قاعده‌ی پیام', icon: 'time' },
+  support_go_live: { fa: 'شروع پشتیبانی', icon: 'messages' },
 };
 
 export const DECISION_STATUS: Record<string, string> = {
@@ -89,6 +93,7 @@ export const ROLE_FA: Record<string, string> = {
   ceo: 'مدیرعامل', manager: 'مدیر', cto: 'مدیر فنی', sre: 'مهندس پایداری', growth: 'مدیر رشد', sales: 'فروش', support: 'پشتیبانی', quant: 'کوانت',
   advisor: 'مشاور کل', overseer: 'ناظر کل', assistant: 'دستیار', inspector: 'بازرس کیفیت', fact_checker: 'راستی‌آزما', security_analyst: 'تحلیلگر امنیت',
   aiops_head: 'مدیر عملیات AI', ai_safety: 'ایمنی AI', hub_platform_sre: 'پایداری پلتفرم هاب',
+  support_lead: 'سرپرست پشتیبانی', support_agent: 'کارشناس پشتیبانی', referral_rescue: 'متخصص نجات رفرال', revenue_analyst: 'تحلیلگر درآمد',
 };
 
 export const ACTOR_FA =(a: { kind: string; code: string; display_fa?: string | null } | null | undefined): string =>

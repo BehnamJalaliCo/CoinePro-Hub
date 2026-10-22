@@ -5,6 +5,7 @@ import { activeVersion, handleBrand } from './mock-brand';
 import { DEMO_CHART, DEMO_SKETCH, DEMO_VOICE } from './mock-media';
 import { handleOps } from './mock-ops';
 import { handle14 } from './mock-v14';
+import { DECISIONS_16, decided16, handle16 } from './mock-v16';
 import { roles } from './mock-roles';
 
 const now = Date.now();
@@ -70,6 +71,8 @@ const decisions: any[] = [
     what: 'بررسی هفتگی ۴۰ صفحه‌ی اصلی.', why: 'ورودی ارگانیک ۱۲٪ افت کرده.', quota_estimate: { tokens: 200000, usd: '3.20' }, risk_note: null,
     payload: {}, seal: { method: 'passkey_uv', sealed_at: iso(60 * 19), step_up_id: null }, decided_at: iso(60 * 19), decided_by: owner, note: null, resolution: 'M-0003', thread: null, expires_at: null, version: 2, effect_status: 'applied', work_id: null, id: 'd11', reason_code: null,
   },
+  // ⟨1.5⟩ the revenue-and-support cards (§19.9): a go-live after a passed shadow test, a template and a rule.
+  ...DECISIONS_16,
 ];
 
 const employees: any[] = [
@@ -340,6 +343,8 @@ export async function handle(req: Request): Promise<Response> {
   if (brand) return brand;
   const v14 = await handle14(req, p, u);
   if (v14) return v14;
+  const v16 = await handle16(req, p, u);
+  if (v16) return v16;
   const ops = await handleOps(req, p, u, { work, employees, control, companies, messages, threads, envelope, summary, connections });
   if (ops) return ops;
   if (m !== 'GET') {
@@ -386,6 +391,7 @@ export async function handle(req: Request): Promise<Response> {
     if (d) {
       const x = decisions.find((y) => y.ref === d[1]);
       if (x) Object.assign(x, { status: d[2] === 'approve' ? 'approved' : d[2] === 'reject' ? 'rejected' : 'returned', decided_at: new Date().toISOString(), decided_by: owner, seal: d[2] === 'approve' ? { method: 'passkey_uv', sealed_at: new Date().toISOString(), step_up_id: 'mock' } : null, resolution: d[2] === 'approve' ? 'M-0007' : null });
+      if (x && d[2] === 'approve') decided16(x);
       return json(x);
     }
     const r = /^\/deliverables\/(O-\d+)\/rating$/.exec(p);
