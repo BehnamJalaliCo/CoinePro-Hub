@@ -9,7 +9,7 @@ import { CompanyMark, Monogram, Wordmark } from '@/components/brand/marks';
 import { useCompanies, useInbox, usePresence, useSetKhalvat } from '@/lib/api/hooks';
 import { useScope } from '@/lib/scope';
 import { cx } from '@/lib/format';
-import { NAV_GOVERNANCE, NAV_MAIN, NAV_TOOLS, isActive, type NavItem } from './nav';
+import { NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_TOOLS, isActive, type NavItem } from './nav';
 
 function Badge({ n }: { n: number }) {
   if (!n) return null;
@@ -85,6 +85,11 @@ export function Sidebar() {
       {/* The lists scroll on their own when they are taller than the window; the logo, scope and owner card stay put. */}
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-1">
         <nav aria-label="ناوبری اصلی" className="flex flex-col gap-0.5">{NAV_MAIN.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
+        <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
+        <nav aria-label="ابزار مدیریت" className="flex flex-col gap-0.5">
+          <span className="px-3 pb-1 text-[11px] text-muted">ابزار مدیریت</span>
+          {NAV_MANAGEMENT.map((i) => <Item key={i.href} item={i} counts={counts} />)}
+        </nav>
         <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
         <nav aria-label="حاکمیت" className="flex flex-col gap-0.5">
           <span className="px-3 pb-1 text-[11px] text-muted">حاکمیت</span>

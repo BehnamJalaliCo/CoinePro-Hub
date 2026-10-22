@@ -9,6 +9,9 @@ const PAGES = [
   // ⟨1.5⟩ governance (§20)
   '/meetings', '/meetings/MT-0012', '/meetings/MT-0013', '/meetings/MT-0011', '/meetings/MT-0010', '/charter', '/knowledge', '/knowledge?ref=K-0009',
   '/scorecard', '/okr', '/outcomes', '/risks', '/calendar', '/authority',
+  // ⟨1.5⟩ management tools (§21)
+  '/notes', '/letter', '/letter?ref=BR-0021', '/substitutes', '/substitutes?creative=CR-0006', '/digital-ceo', '/cartable?ref=D-000017', '/cartable?ref=D-000040',
+  '/companies/TY', '/employees/TY-GROWTH-01',
 ];
 
 /** Fails the test on any page error, console error or failed API call while [run] is going on. */
@@ -99,5 +102,36 @@ test('speaks in a live meeting and moves it to the next round', async ({ page })
     await expect(page.getByText('حرفت در جلسه ثبت شد؛ نوبت بعد جواب میدهد.')).toBeVisible();
     await page.getByRole('button', { name: 'رفتن به دور ۲' }).click();
     await expect(page.getByText('دور ۲ شروع شد: رأی روی پیش‌نویس.')).toBeVisible();
+  });
+});
+
+test('asks the hub and gets a cited answer', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/');
+    await page.getByLabel('پرسش از هاب').fill('حداقل موجودی VIP کجا تعریف شده؟');
+    await page.getByRole('button', { name: 'بپرس', exact: true }).click();
+    await expect(page.getByText('src/bot/handlers/vip.py', { exact: false }).first()).toBeVisible();
+  });
+});
+
+test('writes a quick note and promotes it to work', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/notes');
+    await page.getByLabel('یادداشت تازه').fill('برای پرو-چارت یک SRE پیشنهاد بده #پرو-چارت');
+    await page.getByLabel('یادداشت تازه').press('Enter');
+    await expect(page.getByText(/یادداشت NT-\d+ ثبت شد/)).toBeVisible();
+    await page.getByRole('button', { name: 'تبدیل', exact: true }).first().click();
+    await page.getByRole('dialog').getByRole('button', { name: /پرو-چارت/ }).click();
+    await page.getByRole('button', { name: 'تبدیل کن' }).click();
+    await expect(page.getByText(/تبدیل شد به کار W-\d+/)).toBeVisible();
+  });
+});
+
+test('asks the advisor for a devil memo on the deploy card', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/cartable?ref=D-000017');
+    await expect(page.getByText('diff واقعی').first()).toBeVisible();
+    await page.getByRole('button', { name: 'مخالف‌خوان', exact: true }).click();
+    await expect(page.getByText('چرا نه').first()).toBeVisible();
   });
 });

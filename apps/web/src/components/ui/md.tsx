@@ -2,9 +2,10 @@ import { Fragment, type ReactNode } from 'react';
 
 /** A small, safe Markdown subset for agent-written text: paragraphs, ### headings, - lists,
  *  **bold**, `code` and refs (D-…, M-…, O-…, W-…, A-…; ⟨1.3⟩ F-…, S-…, G-…, AP-…; ⟨1.4⟩ FI-…, PR-…, CH-…, SO-…, H-…, Q-…, E-…,
- *  SK-…, EV-…, TE-…, L-…, C-…, PV-…, N-…, P-…; ⟨1.5⟩ MT-…, K-…, KB-…, OB-…, KR-…, OR-…, RK-…, CE-…, B-…) as Latin figures. No raw HTML, ever.
+ *  SK-…, EV-…, TE-…, L-…, C-…, PV-…, N-…, P-…; ⟨1.5⟩ MT-…, K-…, KB-…, OB-…, KR-…, OR-…, RK-…, CE-…, B-…; DM-…, AK-…, WR-…, BR-…, HR-…,
+ *  NT-…, CL-…, DP-…, CR-…) as Latin figures. No raw HTML, ever.
  *  A ref inside a path (`hq/S-0004`) stays part of that path. */
-const REF = /(?<![/\w-])([DMOWIFSGNPHQELCKB]-\d{3,6}|A-\d{4}|(?:AP|FI|PR|CH|SO|SK|EV|TE|PV|MT|KB|OB|KR|OR|RK|CE)-\d{3,4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\d{2,3}|MGR|CEO|ADV|OVR|PA|SYS)(?:-\d{4})?)\b/;
+const REF = /(?<![/\w-])([DMOWIFSGNPHQELCKB]-\d{3,6}|A-\d{4}|(?:AP|FI|PR|CH|SO|SK|EV|TE|PV|MT|KB|OB|KR|OR|RK|CE|DM|AK|WR|BR|HR|NT|CL|DP|CR)-\d{3,4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\d{2,3}|MGR|CEO|ADV|OVR|PA|SYS)(?:-\d{4})?)\b/;
 
 function inline(text: string, key: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -24,7 +25,7 @@ function inline(text: string, key: string): ReactNode[] {
 }
 
 // Latin tokens that carry digits (hashes, versions, model names, money) keep Latin digits.
-const LATIN = /((?:Opus|Sonnet|Haiku|Fable|Claude|GPT|Gemini) \d+(?:\.\d+)*|(?:\$|[A-Za-z])[A-Za-z0-9._%$/-]*\d[A-Za-z0-9._%/-]*|\d+[A-Za-z][A-Za-z0-9._-]*)/;
+const LATIN = /((?:Opus|Sonnet|Haiku|Fable|Claude|GPT|Gemini) \d+(?:\.\d+)*|(?:\$|[A-Za-z])[A-Za-z0-9._%$/-]*\d[A-Za-z0-9._%/-]*|\d+(?:[.,]\d+)*[A-Za-z][A-Za-z0-9._-]*)/;
 
 function refs(text: string, key: string): ReactNode[] {
   const parts = text.split(new RegExp(REF.source, 'g'));

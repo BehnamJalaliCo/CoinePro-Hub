@@ -14,6 +14,8 @@ import { useToast } from '@/components/ui/toast';
 import { ApiError, isMock, type Schemas } from '@/lib/api/client';
 import { useMarkRead, useMessages, useSend } from '@/lib/api/hooks';
 import type { MediaRef } from '@/lib/api/v13';
+import type { AdvisorMeta } from '@/lib/api/v18';
+import { TRIGGER } from '@/components/v18/bits';
 import { cx, jDateTime, jTime } from '@/lib/format';
 
 type Msg = Schemas['Message'];
@@ -32,6 +34,8 @@ function Bubble({ m, agentKind, onResolve }: { m: Msg; agentKind: string; onReso
   // ⟨1.3⟩ attachments carry kind, variants and transcript; the generated FileRef is still the 1.2 shape.
   const media = (m.attachments ?? []) as unknown as MediaRef[];
   const voice = m.kind === 'voice_transcript';
+  // ⟨1.5⟩ §21.1, §21.3: the advisor's devil's-advocate replies, proactive notes and the weekly review brief carry `meta`.
+  const meta = ((m as unknown as { meta?: AdvisorMeta | null }).meta ?? {}) as AdvisorMeta;
   return (
     <div className={cx('flex gap-3', mine ? 'flex-row-reverse' : '')}>
       {!mine ? <span className="mt-1">{agentKind === 'advisor' ? <Orb size={32} /> : <Avatar kind={agentKind} size={32} />}</span> : null}
@@ -43,6 +47,9 @@ function Bubble({ m, agentKind, onResolve }: { m: Msg; agentKind: string; onReso
           </div>
         ) : null}
         <div className={cx('flex flex-wrap items-center gap-2 px-1 text-[11px] text-muted', mine && 'flex-row-reverse')}>
+          {meta.mode === 'devil' ? <span className="rounded-full bg-neg-soft px-2 py-0.5 font-semibold text-neg">مخالف‌خوان</span> : null}
+          {meta.proactive ? <span className="inline-flex items-center gap-1 rounded-full bg-lapis-soft px-2 py-0.5 font-semibold text-lapis"><Icon name={TRIGGER[meta.proactive.kind]?.icon ?? 'bell'} size={12} />گزارش فعال · {TRIGGER[meta.proactive.kind]?.fa ?? meta.proactive.kind}</span> : null}
+          {meta.review ? <span className="rounded-full bg-gold-soft px-2 py-0.5 font-semibold text-gold-ink">مرور هفتگی <span className="fig">{meta.review}</span></span> : null}
           {voice ? <span className="flex items-center gap-1" title="از ویس، به متن دقیق"><Icon name="mic" size={12} />ویس</span> : null}
           <span title={jDateTime(m.created_at)}>{jTime(m.created_at)}</span>
           <span className="fig">{m.ref}</span>
@@ -95,7 +102,7 @@ function useLiveReply(code: string) {
   return { live, start, stop: () => { es.current?.close(); setLive({ state: 'idle', text: '' }); } };
 }
 
-export function Chat({ code, agentKind, placeholder, suggestions }: { code: string; agentKind: string; placeholder: string; suggestions?: string[] }) {
+export function Chat({ code, agentKind, placeholder, suggestions, mode }: { code: string; agentKind: string; placeholder: string; suggestions?: string[]; mode?: 'devil' | null }) {
   const q = useMessages(code);
   const send = useSend(code);
   const { mutate: markRead } = useMarkRead(code);
@@ -112,7 +119,7 @@ export function Chat({ code, agentKind, placeholder, suggestions }: { code: stri
   const submit = async (v: { body: string; attachments: string[] }) => {
     if (!v.body && !v.attachments.length) return;
     try {
-      await send.mutateAsync(v);
+      await send.mutateAsync({ ...v, mode });
       start();
     } catch (e) {
       toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'فرستاده نشد.' });

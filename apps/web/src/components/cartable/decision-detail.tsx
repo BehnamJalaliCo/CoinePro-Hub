@@ -19,6 +19,8 @@ import { companyOf } from '@/lib/company';
 import type { LifecycleRule, ShadowReport, Template } from '@/lib/api/v16';
 import { AUTO_SEND, CHANNEL_FA, PURPOSE_FA, triggerFa } from '@/components/v16/bits';
 import { DecisionOutcomes, ExpectedBlock, GovernancePayload } from '@/components/v17/cartable';
+import { DeployPayloadBlock, EvaluationBlock, MemoBlock, PredictionLine, WaitingLine } from '@/components/v18/decision';
+import type { Decision18 } from '@/lib/api/v18';
 import { ACTOR_FA, DECISION_KIND, DECISION_STATUS, RISK } from '@/lib/labels';
 import { ago, cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
 
@@ -26,8 +28,9 @@ type Decision = Schemas['Decision'];
 // code_session: its seal creates a Code Workshop grant (contract §5.1 ⟨1.4.3⟩). The round-two kinds are sealed the same way, each card
 // bound to what it proposes (§18.13 ⟨1.4.5⟩); a server plan is sealed only on its own route, against its digest (§18.8).
 // ⟨1.5⟩ the revenue-and-support cards (§19.9) are sealed the same way, each bound to its template, rule or shadow report; so are the
-// governance kinds marked 🔏 in §20.11 (a charter amendment, a risk acceptance, an authority change), target = ref.
-const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption', 'message_template', 'lifecycle_rule', 'support_go_live', 'charter_amendment', 'risk_acceptance', 'authority_change']);
+// governance kinds marked 🔏 in §20.11 (a charter amendment, a risk acceptance, an authority change), target = ref; and ⟨1.5⟩ §21.12 the
+// monthly HR round's `evaluation` (payload v2).
+const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption', 'message_template', 'lifecycle_rule', 'support_go_live', 'charter_amendment', 'risk_acceptance', 'authority_change', 'evaluation']);
 export const needsStepUp = (d: Decision) => d.action_class === 'A3' || STEP_UP_KINDS.has(d.kind);
 /** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8). */
 const OWN_ROUTE: Record<string, { href: (d: Decision) => string; fa: string }> = {
@@ -72,21 +75,10 @@ function Payload({ d }: { d: Decision }) {
       </Section>
     );
   }
-  if (d.kind === 'deploy') {
-    const ci = (p.ci ?? {}) as Record<string, unknown>;
-    const tests = (p.tests ?? {}) as Record<string, unknown>;
-    return (
-      <Section title="انتشار">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Fact label="ریپو" mono>{String(p.repo ?? '—')}</Fact>
-          <Fact label="تغییر" mono>{String(p.diff_stat ?? '—')}</Fact>
-          <Fact label="CI"><span className={ci.status === 'passed' ? 'text-pos' : 'text-neg'}>{ci.status === 'passed' ? 'سبز' : String(ci.status ?? '—')}</span></Fact>
-          <Fact label="تست‌ها" mono>{String(tests.passed ?? 0)} ✓ · {String(tests.failed ?? 0)} ✗</Fact>
-        </div>
-        {p.rollout ? <p className="text-[13px] text-sec">روش انتشار: <span className="fig text-ink">{String(p.rollout)}</span></p> : null}
-      </Section>
-    );
-  }
+  // ⟨1.5⟩ §21.6: one definition of the deploy payload, bound to head_sha, with the real diff and the substitute's second review.
+  if (d.kind === 'deploy') return <DeployPayloadBlock d={d as unknown as Decision18} />;
+  // ⟨1.5⟩ §21.5: the monthly HR round's evaluation, payload v2.
+  if (d.kind === 'evaluation') return <EvaluationBlock d={d as unknown as Decision18} />;
   if (d.kind === 'tool_enable') {
     const diff = (p.diff ?? {}) as Record<string, unknown>;
     const rows: [string, string, string][] = [['added', 'تازه', 'text-warn'], ['changed', 'عوض‌شده', 'text-warn'], ['removed', 'حذف‌شده', 'text-muted']];
@@ -244,6 +236,8 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
         </div>
         {d.expires_at && pending ? <span className={cx('text-[12px]', !!now && new Date(d.expires_at).getTime() - now < 12 * 3600_000 ? 'text-warn' : 'text-muted')}>{until(d.expires_at)}</span> : null}
       </div>
+      {/* ⟨1.5⟩ §21.8: how long it has waited and which reminders went out. */}
+      <WaitingLine d={d as unknown as Decision18} />
 
       <Section title="چی"><Md text={d.what} /></Section>
       <Section title="چرا"><Md text={d.why} /></Section>
@@ -251,6 +245,8 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
       {/* ⟨1.5⟩ §20.6: what the card promises, and its 30/60/90-day reviews once sealed. */}
       <ExpectedBlock d={d} />
       <DecisionOutcomes d={d} />
+      {/* ⟨1.5⟩ §21.1: the advisor's memo, standard or devil's advocate, with the substitutes' second and third opinions. */}
+      <MemoBlock d={d as unknown as Decision18} />
       <Section title="مصرف و ریسک">
         <div className="grid grid-cols-2 gap-2">
           <Fact label="برآورد توکن" mono>{tokens(d.quota_estimate.tokens)}</Fact>
@@ -293,6 +289,8 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
           </div>
         </div>
       ) : null}
+      {/* ⟨1.5⟩ §21.10: the digital CEO's sealed prediction, shown only once the owner has decided. */}
+      <PredictionLine d={d as unknown as Decision18} />
 
       <Dialog open={reject} onOpenChange={setReject} title="رد این تصمیم" actions={<>
         <Button variant="danger" loading={decide.isPending} onClick={async () => { try { await decide.mutateAsync({ ref: d.ref, verdict: 'reject', note, reasonCode: reason || undefined }); setReject(false); toast({ tone: 'info', text: 'رد شد و دلیلش برای یادگیری ثبت شد.' }); onDone?.(); } catch (e) { fail(e); } }}>رد کن</Button>

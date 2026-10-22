@@ -14,6 +14,14 @@ export const NAV_MAIN: NavItem[] = [
   { href: '/workshop', label: 'کارگاه کد', icon: 'code' },
 ];
 
+// ⟨1.5⟩ management tools (§21): quick notes, the spoken briefings and CEO letters, the substitute players, the digital CEO.
+export const NAV_MANAGEMENT: NavItem[] = [
+  { href: '/notes', label: 'یادداشت‌ها', icon: 'edit' },
+  { href: '/letter', label: 'گزارش صوتی و نامه‌ها', icon: 'mic' },
+  { href: '/substitutes', label: 'بازیکن‌های ذخیره', icon: 'agent' },
+  { href: '/digital-ceo', label: 'مدیر کل دیجیتال', icon: 'holding' },
+];
+
 // ⟨1.5⟩ governance (§20): the meeting room, the charter, knowledge, the cards, OKRs, outcomes, risks, the change calendar and authority.
 export const NAV_GOVERNANCE: NavItem[] = [
   { href: '/meetings', label: 'اتاق جلسه', icon: 'meeting' },

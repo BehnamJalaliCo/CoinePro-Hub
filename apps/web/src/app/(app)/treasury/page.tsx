@@ -6,6 +6,9 @@ import { CumulativeChart, HBars, StackedBar } from '@/components/charts/charts';
 import { Avatar } from '@/components/brand/avatar';
 import { Button } from '@/components/ui/button';
 import { BudgetEditor, CallsCard, ConnectionEditor, QuotaCard, WhatIfCard } from '@/components/v15/treasury';
+import { CONN } from '@/components/v18/bits';
+import { RoiCard, WasteCard } from '@/components/v18/treasury';
+import Link from 'next/link';
 import type { Connection } from '@/lib/api/v15';
 import { Bar, Card, ErrorState, PageHeader, Pill, SectionTitle, Segmented, Skeleton, StatTile, budgetTone } from '@/components/ui/primitives';
 import { useBreakdown, useCompanies, useConnections, useTreasury } from '@/lib/api/hooks';
@@ -77,6 +80,8 @@ export default function TreasuryPage() {
               ...(t.thinking_tokens ? [{ key: 'th', label: 'فکر', value: t.thinking_tokens, color: TOKEN_COLOR.thinking, fmt: tokens(t.thinking_tokens) }] : []),
             ]} /> : <Skeleton className="h-20" />}
           </Card>
+          {/* ⟨1.5⟩ §21.7: yesterday's waste, by category, with the 14 days before. */}
+          <WasteCard company={company} />
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="flex flex-col gap-4 p-5">
               <SectionTitle title="شرکت‌ها" note="رنگ هر شرکت ثابت است، نه بر اساس رتبه" />
@@ -117,9 +122,10 @@ export default function TreasuryPage() {
             ))}
           </Card>
           <Card className="flex flex-col gap-2 p-5">
-            <SectionTitle title="اتصال‌ها" note="کلیدها هرگز نمایش داده نمیشوند" />
+            <SectionTitle title="اتصال‌ها" note="کلیدها هرگز نمایش داده نمیشوند" action={<Link href="/tools" className="inline-flex h-8 items-center gap-1.5 rounded-[8px] px-3 text-[12px] font-semibold text-gold-ink hover:bg-gold-soft">اتصال تازه</Link>} />
             {(conns.data ?? []).map((c) => {
-              const st = CONNECTION_STATUS[c.status] ?? { label: c.status, tone: 'neutral' as const };
+              // ⟨1.5⟩ §21.7 adds pending_secret, verifying, ready and error.
+              const st: { label: string; tone: (typeof CONN)[string]['tone'] } = CONNECTION_STATUS[c.status] ?? { label: CONN[c.status]?.fa ?? c.status, tone: CONN[c.status]?.tone ?? 'neutral' };
               return (
                 <button type="button" key={c.id} onClick={() => setEditConn(c)} className="flex items-center gap-3 rounded-[12px] bg-tile p-3 text-start hover:bg-hover">
                   <ModelMark model={c.default_model ?? c.models[0]} provider={c.provider} size={22} />
@@ -140,6 +146,8 @@ export default function TreasuryPage() {
           <WhatIfCard company={company} />
         </div>
       </div>
+      {/* ⟨1.5⟩ §21.7: ROI by company, department and employee. */}
+      <RoiCard company={company} />
       <CallsCard company={company} />
       {editBudgets ? <BudgetEditor onClose={() => setEditBudgets(false)} /> : null}
       {editConn ? <ConnectionEditor c={editConn as Connection} onClose={() => setEditConn(null)} /> : null}

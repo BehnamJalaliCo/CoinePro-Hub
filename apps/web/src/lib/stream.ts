@@ -25,11 +25,14 @@ const EVENT_TYPES = [
   // ⟨1.5⟩ §20.11
   'meeting.scheduled', 'meeting.started', 'meeting.turn', 'meeting.claim', 'meeting.whisper', 'meeting.ended',
   'charter.sealed', 'kpi.stale', 'okr.updated', 'outcome.due', 'risk.updated', 'calendar.conflict', 'knowledge.updated', 'knowledge.expiring',
+  // ⟨1.5⟩ §21.12
+  'memo.ready', 'advisor.proactive', 'ask.answered', 'review.updated', 'briefing.ready', 'rankings.updated', 'hr.round', 'note.created',
+  'decision.reminded', 'claim.verdict', 'dceo.scored', 'substitute.updated', 'creative.updated',
 ] as const;
 
 const CORE_TOPICS = 'work,decisions,deliverables,messages,notifications,activity,llm,control';
 // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge`;
+const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives`;
 
 // Event type prefix -> query keys to refresh (contract §7, §16).
 const INVALIDATE: Array<[string, string[]]> = [
@@ -78,6 +81,21 @@ const INVALIDATE: Array<[string, string[]]> = [
   ['risk.', ['risks']],
   ['calendar.', ['calendar', 'planner', 'decisions']],
   ['knowledge.', ['knowledge']],
+  // ⟨1.5⟩ §21.12: a memo is ready (the card shows it), a proactive note (thread A), an answer, the weekly review, a briefing, ranks and
+  // the HR round (its cards), a note, a claim's verdict (the health board), a scored prediction, a substitute's state, a creative.
+  // `decision.reminded` is covered by `decision.`.
+  ['memo.', ['memos', 'decisions']],
+  ['advisor.', ['advisor', 'messages', 'threads']],
+  ['ask.', ['ask']],
+  ['review.', ['reviews']],
+  ['briefing.', ['briefings']],
+  ['rankings.', ['rankings']],
+  ['hr.', ['hr', 'decisions']],
+  ['note.', ['notes']],
+  ['claim.', ['claims', 'runs-health']],
+  ['dceo.', ['dceo', 'decisions']],
+  ['substitute.', ['substitutes', 'treasury']],
+  ['creative.', ['creatives']],
 ];
 
 export type StreamState = 'connecting' | 'live' | 'offline';

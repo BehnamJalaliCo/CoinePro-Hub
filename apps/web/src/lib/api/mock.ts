@@ -7,6 +7,7 @@ import { handleOps } from './mock-ops';
 import { handle14 } from './mock-v14';
 import { DECISIONS_16, decided16, handle16 } from './mock-v16';
 import { DECISIONS_17, decided17, handle17 } from './mock-v17';
+import { CONNECTIONS_18, DECISIONS_18, decided18, decorate18, handle18 } from './mock-v18';
 import { roles } from './mock-roles';
 
 const now = Date.now();
@@ -77,6 +78,8 @@ const decisions: any[] = [
   // ⟨1.5⟩ governance (§20.11): two low-risk cards the batch seal can take together, and the sealed history the outcome reviews,
   // the OKRs, the TY addendum and a risk acceptance came from.
   ...DECISIONS_17,
+  // ⟨1.5⟩ management tools (§21.5): the monthly HR round's evaluation card (payload v2).
+  ...DECISIONS_18,
 ];
 
 const employees: any[] = [
@@ -200,6 +203,8 @@ const connections: any[] = [
   { id: 'c3', key: 'openai', display_name: 'OpenAI API', kind: 'api_key', provider: 'openai', status: 'disabled', status_reason: 'no key yet', models: ['gpt-5', 'gpt-5-mini'], default_model: 'gpt-5-mini', fallback_priority: 3, has_secret_ref: false, limits: {}, pricing: {}, quota_reset_at: null, updated_at: iso(60 * 40), version: 1 },
   { id: 'c4', key: 'google-gemini', display_name: 'Google Gemini API', kind: 'api_key', provider: 'gemini', status: 'disabled', status_reason: 'no key yet', models: ['gemini-2.5-pro', 'gemini-2.5-flash'], default_model: 'gemini-2.5-flash', fallback_priority: 4, has_secret_ref: false, limits: {}, pricing: {}, quota_reset_at: null, updated_at: iso(60 * 40), version: 1 },
   { id: 'c5', key: 'openai-compatible', display_name: 'سازگار با OpenAI (Kimi، GLM، DeepSeek …)', kind: 'api_key', provider: 'openai_compatible', status: 'disabled', status_reason: 'no key yet', models: ['deepseek-chat', 'kimi-k2', 'glm-4.6'], default_model: 'deepseek-chat', fallback_priority: 5, has_secret_ref: false, limits: {}, pricing: {}, quota_reset_at: null, updated_at: iso(60 * 40), version: 1 },
+  // ⟨1.5⟩ §21.7, §21.13: the owner's ChatGPT, Gemini and DeepSeek accounts, the substitute players.
+  ...CONNECTIONS_18,
 ];
 
 const control = {
@@ -338,6 +343,9 @@ function routeOrder(text: string) {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const page = (items: unknown[]) => ({ items, next_cursor: null });
 
+// ⟨1.5⟩ §21 adds its fields to the lists above once: the deploy card's diff, memos, reminders, predictions, thread A, the letters.
+decorate18({ decisions, messages, employees, threads, deliverables, connections });
+
 export async function handle(req: Request): Promise<Response> {
   const u = new URL(req.url);
   const p = u.pathname.replace(/^\/api\/v1/, '');
@@ -345,6 +353,8 @@ export async function handle(req: Request): Promise<Response> {
   await new Promise((r) => setTimeout(r, 120 + Math.random() * 180));
   const brand = await handleBrand(req, p, files);
   if (brand) return brand;
+  const v18 = await handle18(req, p, u);
+  if (v18) return v18;
   const v14 = await handle14(req, p, u);
   if (v14) return v14;
   const v16 = await handle16(req, p, u);
@@ -398,6 +408,7 @@ export async function handle(req: Request): Promise<Response> {
       const x = decisions.find((y) => y.ref === d[1]);
       if (x) Object.assign(x, { status: d[2] === 'approve' ? 'approved' : d[2] === 'reject' ? 'rejected' : 'returned', decided_at: new Date().toISOString(), decided_by: owner, seal: d[2] === 'approve' ? { method: 'passkey_uv', sealed_at: new Date().toISOString(), step_up_id: 'mock' } : null, resolution: d[2] === 'approve' ? 'M-0007' : null });
       if (x && d[2] === 'approve') { decided16(x); decided17(x); }
+      if (x) decided18(x);
       return json(x);
     }
     const r = /^\/deliverables\/(O-\d+)\/rating$/.exec(p);
@@ -409,11 +420,13 @@ export async function handle(req: Request): Promise<Response> {
     }
     const t = /^\/threads\/([^/]+)\/messages$/.exec(p);
     if (t) {
-      const body = (await req.json()) as { body: string; attachments?: string[] };
+      const body = (await req.json()) as { body: string; attachments?: string[]; mode?: string };
+      // ⟨1.5⟩ §21.1: the devil's advocate lives in thread A only.
+      if (body.mode && (t[1] !== 'A' || body.mode !== 'devil')) return json({ code: 'validation_failed', message_fa: 'حالت مخالف‌خوان فقط در رشته‌ی مشاور کل است.', status: 422, title: 'Unprocessable', type: 'about:blank', fields: { mode: 'thread A only' } }, 422);
       const list = (messages[t[1]!] ??= []);
       const attachments = (body.attachments ?? []).map((id) => files.get(id) ?? ref(id, 'document', 'application/octet-stream', 'file', 0));
       const kind = body.body && attachments.some((a) => a.kind === 'audio') ? 'voice_transcript' : 'text';
-      const msg = { id: `m${Date.now()}`, ref: `${t[1]}-${String(list.length + 1).padStart(4, '0')}`, thread: t[1], author: owner, body: body.body, created_at: new Date().toISOString(), kind, attachments, links: {} };
+      const msg = { id: `m${Date.now()}`, ref: `${t[1]}-${String(list.length + 1).padStart(4, '0')}`, thread: t[1], author: owner, body: body.body, created_at: new Date().toISOString(), kind, attachments, links: {}, ...(body.mode ? { meta: { mode: body.mode } } : {}) };
       list.push(msg);
       return json({ message: msg, reply: { state: 'queued' } }, 201);
     }
@@ -544,7 +557,6 @@ export async function handle(req: Request): Promise<Response> {
   if (p === '/owner/hiring') return json(hiringView());
   if (p === '/stories') return json(rings());
   if (p === '/roles') return json(roles);
-  if (p === '/owner/settings') return json({ timezone: 'Asia/Tehran', calendars: ['jalali', 'gregorian'], morning_report_at: '08:00', digest_minutes: 30, ceo_daily_attention: 6, learning_daily_cap: 3, version: 1 });
   const ch = /^\/org\/([A-Z0-9]+)\/chart$/.exec(p);
   if (ch) { const es = employees.filter((e) => e.company === ch[1]); const ceo = es.find((e) => e.kind === 'ceo'); const node = (e: any): any => ({ code: e.code, kind: e.kind, title_fa: e.title_fa, display_name: null, department: e.department, activity: e.activity, status: 'active', children: [] }); return json({ company: ch[1], roots: ceo ? [{ ...node(ceo), children: es.filter((e) => e.kind !== 'ceo').map(node) }] : es.map(node) }); }
   return json({ code: 'not_found', message_fa: 'پیدا نشد.', status: 404, title: 'Not found', type: 'about:blank' }, 404);

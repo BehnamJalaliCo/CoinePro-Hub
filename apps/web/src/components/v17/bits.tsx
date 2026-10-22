@@ -101,6 +101,13 @@ export function refHref(ref: string): string | null {
   if (/^CE-\d+$/.test(ref)) return '/calendar';
   if (/^M-\d+$/.test(ref)) return '/resolutions';
   if (/^(?:TY|FX|PC|HQ)@\d+$|^holding@\d+$/.test(ref)) return '/charter';
+  // ⟨1.5⟩ §21
+  if (/^NT-\d+$/.test(ref)) return `/notes?ref=${ref}`;
+  if (/^BR-\d+$/.test(ref)) return `/letter?ref=${ref}`;
+  if (/^CR-\d+$/.test(ref)) return `/substitutes?creative=${ref}`;
+  if (/^(?:DM|WR)-\d+$/.test(ref)) return '/advisor';
+  if (/^DP-\d+$/.test(ref)) return '/digital-ceo';
+  if (/^CL-\d+$/.test(ref)) return '/runs';
   return null;
 }
 

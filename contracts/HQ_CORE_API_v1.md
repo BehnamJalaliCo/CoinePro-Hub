@@ -2078,6 +2078,37 @@ Its memory limit is measured and passes the memory gate, or it stays off.
 - **Step-up targets:** `connection.login` (id), `substitute.seats` (body hash), `substitute.web_logout` (player). **Stream:** `substitute.updated` on topic `treasury`,
   `creative.updated` on topic `creatives`. **Settings:** `owner_settings.substitutes: {behind_ratio, creative_default_image: "gpt"|"gemini"}`.
 
+### 21.14 Shapes as the apps read them ⟨1.5.1⟩
+Written with the web and Android screens (2026-10-22). Where §21.1–§21.13 leave a shape open, this is the contract.
+- **Empty states:** when there is nothing yet, these answer `404 not_found`: a decision with no memo, no current weekly review, no briefing yet.
+- **Memos and messages:**
+  - `DecisionMemo.third_opinion` is optional.
+  - Advisor messages carry `meta: {mode?: "devil", proactive?: {kind, key}, review?}`; the owner's own devil-mode message stores `meta.mode` too.
+- **Weekly review:** `POST …/start`, `…/finish` and `PATCH …/items/{n}` each return the whole `WeeklyReview`.
+- **Deploy card:**
+  - `GET /decisions/{ref}/diff?file=` returns one `files[]` row with its whole patch and `truncated: false`.
+  - `deploy.second_review.verified` is `bool|int`; each finding may carry `verified: true|false|null`.
+- **Waste and ROI:**
+  - `WasteDay.vs_7d` is the relative change against the 7-day average.
+  - `RoiRow.trend` is ROI for companies, and cost per accepted deliverable for departments and employees.
+- **New connection:**
+  - Providers: `anthropic`, `openai`, `google`, `deepseek`, `mistral`, `openai_compatible`.
+  - `pricing` is `{<model>: {input_per_mtok, output_per_mtok}}`; `limits` is `{rpm?, tpm?, daily_usd?}`.
+  - `status` gains `verifying` between created and ready.
+  - The substitute accounts (`chatgpt-plus`, `gemini-pro`, `deepseek-free`) are listed in `/connections` with `kind: "subscription"`; sign-in goes by connection id.
+- **Notes:** `POST /notes/{ref}/promote` `{to, company?, title?}` (`company` required when `to` is `work`).
+- **Digital chief:**
+  - `Prediction` also carries the card's `kind` and `title`.
+  - `GET /digital-ceo` → `{stats: [3 windows], settings, hidden}`.
+  - Editing or retiring a principle sends `{text_fa, status}`.
+- **Creative:**
+  - Seats show `per_day_video` and `used_today_video` beside the image cap.
+  - A failed creative carries its reason in `review_md`.
+  - Aspect hints by placement: `telegram_post` 16:9, `telegram_story` 9:16, `instagram_post` 4:5, `instagram_story` 9:16, `banner` 16:9, other 1:1.
+- **CLI sign-out:** 🔏 action `connection.logout`, target = the connection id.
+- **HR:** `HrRound.month` is the Jalali month the round runs in; the round shows `due_at`.
+- **Owner settings:** `PUT /owner/settings` (If-Match) sends each changed §21.12 block whole.
+
 ## 22. v1.6 — the media studio and the legal counsel (prompt 13)
 
 > **v1.6 (2026-10-22).** The owner's decisions of 2026-10-22: every company gets a **media department** that makes its posts, stories and

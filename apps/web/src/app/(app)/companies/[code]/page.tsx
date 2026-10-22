@@ -7,6 +7,7 @@ import { Avatar } from '@/components/brand/avatar';
 import { BrandBlock } from '@/components/brand/brand-block';
 import { Seal } from '@/components/brand/seal';
 import { Card, Empty, ErrorState, PageHeader, Pill, Segmented, Skeleton } from '@/components/ui/primitives';
+import { DepartmentRanks, HrRoundLine } from '@/components/v18/people';
 import { useCompany, useDepartments, useEmployees, useOrgChart, useWorkList } from '@/lib/api/hooks';
 import { ACTIVITY, DEPT_ICON, WORK_STATUS } from '@/lib/labels';
 import { ago, cx, jDate, modelLabel } from '@/lib/format';
@@ -77,10 +78,15 @@ export default function CompanyPage({ params }: { params: Promise<{ code: string
                 );
               })}
           </div>
-          <Card className="p-4">
-            <h2 className="pb-2 text-[14px] font-semibold">چارت سازمانی</h2>
-            {chart.isLoading ? <Skeleton className="h-64" /> : chart.data?.roots.length ? <ul className="flex flex-col gap-1">{chart.data.roots.map((n) => <OrgNode key={n.code} n={n} />)}</ul> : <Empty icon="department" title="هنوز کسی نیست" />}
-          </Card>
+          <div className="flex min-w-0 flex-col gap-4">
+            {/* ⟨1.5⟩ §21.5: the departments' rank and the latest monthly HR round. */}
+            <DepartmentRanks company={code} />
+            <HrRoundLine company={code} />
+            <Card className="p-4">
+              <h2 className="pb-2 text-[14px] font-semibold">چارت سازمانی</h2>
+              {chart.isLoading ? <Skeleton className="h-64" /> : chart.data?.roots.length ? <ul className="flex flex-col gap-1">{chart.data.roots.map((n) => <OrgNode key={n.code} n={n} />)}</ul> : <Empty icon="department" title="هنوز کسی نیست" />}
+            </Card>
+          </div>
         </div>
       ) : tab === 'brand' && c ? (
         <Card className="p-4"><BrandBlock code={c.code} nameFa={c.name_fa ?? c.code} nameEn={c.name_en ?? c.code} /></Card>
