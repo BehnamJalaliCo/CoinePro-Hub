@@ -496,6 +496,41 @@ async def test_caps(
     await _finish_runs(su, [me])
 
 
+async def test_the_egress_gate_takes_an_mcp_call(
+    client: httpx.AsyncClient, hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """7.1 §2.11 on the api's side: the gateway reserves an MCP call over http
+    like any internet call (tool mcp.call, the server's URL, every argument
+    string): an employee code is internal_data, an exhausted limit
+    egress_limit, a clean call gets its reservation; refusals are logged."""
+    co = (await new_company())["code"]
+    me = f"{co}-TECH-MGR"
+    h = await agent_headers(me)
+    url = "https://crm.example.com/mcp"
+    call = {"tool": "mcp.call", "class": "A0", "method": "POST", "url": url}
+    r = await client.post(
+        "/internal/v1/egress/reserve", headers=h, json={**call, "strings": ["lookup", "name", me]}
+    )
+    assert (r.status_code, r.json()["code"]) == (403, "internal_data")
+    clean = {**call, "strings": ["lookup", "name", "Sara"]}
+    r = await client.post("/internal/v1/egress/reserve", headers=h, json=clean)
+    assert r.status_code == 200 and r.json()["reservation"], r.text
+    real = hub.settings
+    hub.settings = replace(real, egress_run_requests=0)
+    try:
+        r = await client.post("/internal/v1/egress/reserve", headers=h, json=clean)
+    finally:
+        hub.settings = real
+    assert (r.status_code, r.json()["code"]) == (429, "egress_limit")
+    blocked = await su.fetch(
+        """SELECT blocked_reason FROM egress.log l JOIN core.companies c ON c.id = l.company_id
+           WHERE c.code = $1 AND l.tool = 'mcp.call' AND l.blocked_reason IS NOT NULL""",
+        co,
+    )
+    assert sorted(b["blocked_reason"] for b in blocked) == ["egress_limit", "internal_data"]
+    await _finish_runs(su, [me])
+
+
 async def test_a_changed_listing_raises_a_tool_enable_card(
     client: httpx.AsyncClient,
     hub: Hub,
