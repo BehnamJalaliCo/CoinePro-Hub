@@ -93,6 +93,9 @@ run() {
   # IRANYekanX for a creative's Persian overlay (prompt 12 §9.1), read-only.
   mounts+=(-v "$REPO_DIR/design/fonts/static:/fonts:ro")
   extra+=(-e HQ_FONTS_DIR=/fonts)
+  # The substitute players' reviewed web recipes (prompt 12 §9.1), read-only.
+  mounts+=(-v "$REPO_DIR/infra/egress/recipes:/recipes:ro")
+  extra+=(-e HQ_EGRESS_RECIPES=/recipes)
   if [[ "$TARGET" == api ]]; then
     mounts+=(-v "$API_DIR:/api:ro" -v "$REPO_DIR/infra/opa:/opa:ro")
     extra+=(-e TEST_TEMPORAL_ADDRESS=temporal:7233 -e TEST_OPA_URL=http://opa:8181)

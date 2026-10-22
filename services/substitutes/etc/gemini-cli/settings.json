@@ -1,0 +1,32 @@
+{
+  "general": {
+    "enableAutoUpdate": false,
+    "enableAutoUpdateNotification": false,
+    "checkpointing": {"enabled": false}
+  },
+  "privacy": {"usageStatisticsEnabled": false},
+  "telemetry": {"enabled": false},
+  "security": {
+    "auth": {"selectedType": "oauth-personal", "enforcedType": "oauth-personal"},
+    "folderTrust": {"enabled": false}
+  },
+  "admin": {
+    "extensions": {"enabled": false},
+    "mcp": {"enabled": false},
+    "skills": {"enabled": false}
+  },
+  "mcp": {"allowed": [], "excluded": ["*"]},
+  "tools": {
+    "core": [],
+    "exclude": [
+      "run_shell_command",
+      "write_file",
+      "replace",
+      "web_fetch",
+      "google_web_search",
+      "save_memory",
+      "write_todos"
+    ],
+    "useRipgrep": false
+  }
+}

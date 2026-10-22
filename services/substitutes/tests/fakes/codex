@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""A fake OpenAI Codex CLI for the runner's tests (never the real one).
+
+Mode (the file <tmp>/mode): ok | limited | signed_out | slow | no_usage | review | bad
+<tmp>/rec: a directory where argv and stdin of each call are written."""
+
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+# The test's own directory: HOME is <tmp>/work/.home (the runner's fixed env).
+base = Path(os.environ.get("HOME", "/tmp/x/.home")).parent.parent
+mode_file = base / "mode"
+mode = mode_file.read_text().strip() if mode_file.is_file() else "ok"
+record = str(base / "rec") if (base / "rec").is_dir() else None
+args = sys.argv[1:]
+home = Path(os.environ.get("CODEX_HOME", "/tmp/codex"))
+
+
+def ev(obj):
+    print(json.dumps(obj), flush=True)
+
+
+if args[:2] == ["login", "--device-auth"]:
+    print("Welcome to Codex.\nFollow these steps to sign in with ChatGPT using device code authorization:")
+    print("1. Open this link in your browser and sign in to your account")
+    print("   https://auth.openai.com/codex/device")
+    print("2. Enter this one-time code (expires in 15 minutes)")
+    print("   QWER-TY12Z", flush=True)
+    if mode == "signed_out":
+        time.sleep(0.5)
+        sys.exit(1)
+    time.sleep(0.5)
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "auth.json").write_text(json.dumps({"tokens": {"access_token": "fake"}}))
+    print("Successfully logged in")
+    sys.exit(0)
+if args[:1] == ["logout"]:
+    (home / "auth.json").unlink(missing_ok=True)
+    sys.exit(0)
+if args[:2] == ["debug", "models"]:
+    if mode == "signed_out":
+        print("Error: Not logged in", file=sys.stderr)
+        sys.exit(1)
+    print(json.dumps({"models": [
+        {"slug": "gpt-5.5", "visibility": "list"},
+        {"slug": "gpt-6-sol", "visibility": "list"},
+        {"slug": "codex-auto-review", "visibility": "hide"},
+    ]}))
+    sys.exit(0)
+
+prompt = sys.stdin.read()
+if record:
+    Path(record, "codex-argv.json").write_text(json.dumps(sys.argv))
+    Path(record, "codex-stdin.txt").write_text(prompt)
+    Path(record, "codex-cwd.txt").write_text(os.getcwd())
+    Path(record, "codex-env.json").write_text(json.dumps(sorted(os.environ)))
+ev({"type": "thread.started", "thread_id": "t1"})
+ev({"type": "turn.started"})
+if mode == "slow":
+    time.sleep(30)
+if mode == "limited":
+    ev({"type": "error", "message": "You've hit your usage limit. Upgrade to Pro or try again in 2 hours."})
+    ev({"type": "turn.failed", "error": {"message": "usage limit"}})
+    sys.exit(1)
+if mode == "signed_out":
+    ev({"type": "error", "message": "unexpected status 401 Unauthorized: Please log in again"})
+    sys.exit(1)
+if mode == "bad":
+    print("not json at all")
+    sys.exit(3)
+text = "پاسخ آزمایشی: " + prompt[:40]
+if mode == "review":
+    text = json.dumps({"findings": [
+        {"path": "app/x.py", "line": 12, "severity": "high", "title_fa": "خطای نمونه", "detail_md": "d"},
+        {"path": "/etc/passwd", "line": 1, "severity": "low", "title_fa": "t", "detail_md": ""},
+        {"path": "a.py", "line": 3, "severity": "urgent", "title_fa": "t", "detail_md": ""},
+    ]})
+ev({"type": "item.completed", "item": {"id": "i1", "type": "agent_message", "text": text}})
+if mode != "no_usage":
+    ev({"type": "turn.completed", "usage": {"input_tokens": 120, "cached_input_tokens": 0, "output_tokens": 30}})
+sys.exit(0)

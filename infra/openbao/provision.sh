@@ -26,6 +26,9 @@
 #     with cas 0, never printed; infra/openbao/kv-once.sh); the worker's api
 #     service token for the revenue connector (kv/hq-agents/connector; its
 #     digest in kv/hq-api/config service_tokens.worker)
+#   - prompt 12 §9.1: the substitute players' host dispatcher's api service
+#     token (its digest in kv/hq-api/config service_tokens.substitutes; the
+#     token only in $HQ_SECRETS_DIR/substitutes/api-auth, 600, Hub's own)
 # The root token is used only while the admin token does not exist yet; it is
 # NOT revoked here (owner's decision).
 #
@@ -325,6 +328,24 @@ if ! kv_exists hq-agents/connector; then
   CT="$conn_token" jq -n '{data: {api_token: env.CT}}' | kv_put hq-agents/connector
   unset conn_token
   log "worker: its api service token for the connector created (digest in hq-api/config; restart the api)"
+fi
+
+# --------------------------------------- the substitute players (p12) --
+# Prompt 12 §9.1: the host dispatcher's api service token ("substitutes",
+# infra/substitutes/dispatch.sh): its sha256 in the api's service_tokens, the
+# token itself only in a header file of Hub's own (600, no sudo), never
+# printed. Made once; the api reads service tokens at start.
+subs_auth="$SECRETS_DIR/substitutes/api-auth"
+if [[ ! -s "$subs_auth" ]]; then
+  subs_token="$(newtoken)"
+  expect "$(api GET kv/data/hq-api/config </dev/null)" 200
+  SH="$(printf '%s' "$subs_token" | sha256)" jq '{data: (.data.data | .service_tokens =
+      ((.service_tokens // {}) + {substitutes: env.SH}))}' "$WORK/resp" | kv_put hq-api/config
+  install -d -m 0700 "$SECRETS_DIR/substitutes"
+  (umask 077 && printf 'Authorization: Bearer %s\n' "$subs_token" >"$subs_auth.tmp")
+  mv "$subs_auth.tmp" "$subs_auth"
+  unset subs_token
+  log "substitutes: the dispatcher's api service token created (digest in hq-api/config; restart the api)"
 fi
 
 # ------------------------------------------------------------- backups (p07) --

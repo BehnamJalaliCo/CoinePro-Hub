@@ -177,6 +177,33 @@ for key in time codecortex; do
   [[ -n "$want" && "$have" == "$want" ]] || fail "mcp-$key runs $have, not the reviewed $want"
   ok "$before" "mcp-$key: the gateway reaches it; it reaches nothing (internet, 10.10.1.1, hub services); reviewed digest"
 done
+# ------------------------------------------------------------ 12 §9.1 ----
+# The substitute runner's network (hq-subs, with egress only): from it, egress's
+# CLI-host listener answers and tunnels to the CLIs' own hosts only; the
+# internet, a neighbour (10.10.1.1) and the hub's services are out of reach.
+# Probed from a throwaway container on the network (the runner is one-shot).
+if docker network inspect hq-subs >/dev/null 2>&1; then
+  before=$failures
+  probe hq-subs egress 3131 || fail "positive control: hq-subs cannot reach egress:3131"
+  for target in 1.1.1.1:443 10.10.1.1:443 10.10.1.1:22 api:8000 postgres:5432 openbao:8200; do
+    if probe hq-subs "${target%:*}" "${target#*:}"; then fail "hq-subs reaches $target"; fi
+  done
+  for url in https://example.com/ https://api.openai.com/ https://10.10.1.1/; do
+    code="$(docker run --rm --network hq-subs "$CURL_IMAGE" -s -o /dev/null -w '%{http_code}' \
+      -m 10 -x http://egress:3131 "$url" || true)"
+    [[ "$code" != 200 ]] || fail "hq-subs reaches $url through egress"
+  done
+  ok "$before" "hq-subs (the substitute runner) reaches egress's CLI-host listener only"
+fi
+# The profile browser (opt-in profile substitutes-web), when it runs.
+BROWSER_WEB="coinepro-hq-browser-web-1"
+if running "$BROWSER_WEB"; then
+  before=$failures
+  probe_from "$BROWSER_WEB" egress 3132 || fail "positive control: browser-web cannot reach egress:3132"
+  if probe_from "$BROWSER_WEB" 1.1.1.1 443; then fail "browser-web reaches the internet directly"; fi
+  unreachable_from "$BROWSER_WEB" browser-web api:8000 postgres:5432 openbao:8200 gateway:8080
+  ok "$before" "browser-web reaches egress's profile listener only"
+fi
 
 # ------------------------------------------------------------ 7.1 §2.19 ----
 # By address, beyond the hub's own services: the production neighbours

@@ -11,7 +11,8 @@ ENV_FILE := infra/compose/.env
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
-	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret
+	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret \
+	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login
 .PHONY: mcp-build mcp-test mcp-index
 
 help: ## Show the available commands
@@ -151,6 +152,23 @@ account-secret: ## OWNER: the secret of one holding service account (KEY=<key>; 
 
 connection-secret: ## OWNER: a new LLM connection's API key (KEY=<key>; hidden input -> OpenBao)
 	@infra/openbao/connection-secret.sh "$(KEY)"
+
+# Prompt 12 §9.1 (contract §21.13): the substitute players' sign-ins, by the
+# owner in their own terminal only (never Claude); also from the app.
+chatgpt-login: ## OWNER: sign the Codex CLI in with ChatGPT (device code; your own terminal)
+	@infra/substitutes/cli-login.sh codex
+
+gemini-login: ## OWNER: sign the Gemini CLI in with Google (paste the code back; your own terminal)
+	@infra/substitutes/cli-login.sh gemini
+
+chatgpt-web-login: ## OWNER: sign in to ChatGPT in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh chatgpt-web
+
+gemini-web-login: ## OWNER: sign in to Gemini in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh gemini-web
+
+deepseek-web-login: ## OWNER: sign in to DeepSeek in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh deepseek-web
 
 hetzner-token: ## OWNER: the Hetzner project's API token for new servers (hidden input -> OpenBao)
 	@infra/openbao/hetzner-token.sh
