@@ -293,8 +293,7 @@ fi
 # The restic repositories' password (local, Google Drive, Hetzner): made once
 # and kept; changing it would lock every existing snapshot. The owner keeps a
 # paper copy (`make backup-password` shows it in their own terminal only).
-if ! kv_exists backup/restic; then
-  RP="$(openssl rand -base64 48 | tr -d '\n')" jq -n '{data: {password: env.RP}}' | kv_put backup/restic
-  log "backup: restic repository password created (kv/backup/restic; never printed)"
-fi
+# 7.1 §2.9: written with KV check-and-set (cas 0), never over an existing one.
+HQ_BAO_ADDR="$BAO_ADDR" "$REPO_DIR/infra/openbao/restic-password.sh" "$WORK/auth" ||
+  die "backup: the restic password could not be checked or created"
 log "done"

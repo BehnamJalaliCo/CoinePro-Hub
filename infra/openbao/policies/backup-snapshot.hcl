@@ -4,3 +4,12 @@
 path "sys/storage/raft/snapshot" {
   capabilities = ["read"]
 }
+# 7.1 §2.2: the hourly backup renews the token after every snapshot (a
+# periodic token lapses after its period unused) and may read its own lease.
+# Both concern the token itself only (also in the default policy).
+path "auth/token/renew-self" {
+  capabilities = ["update"]
+}
+path "auth/token/lookup-self" {
+  capabilities = ["read"]
+}

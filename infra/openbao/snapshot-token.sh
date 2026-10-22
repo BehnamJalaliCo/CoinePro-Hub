@@ -34,9 +34,11 @@ policies="$(curl -sS -f -H @"$work/self" "$BAO_ADDR/v1/auth/token/lookup-self" 2
 [[ "$policies" == '["backup-snapshot"]' ]] ||
   die "that token's policies are ${policies:-unknown}; create one with only backup-snapshot; nothing was saved"
 printf 'X-Vault-Token: %s\n' "$(cat "$ADMIN_FILE")" >"$work/auth"
-code="$(TOK="$token" jq -n '{data: {token: env.TOK}}' |
+# The token reaches jq on stdin (printf is a builtin): never argv or an environment (7.1 §3).
+code="$(printf '%s' "$token" | jq -Rsc '{data: {token: .}}' |
   curl -sS -o /dev/null -w '%{http_code}' -H @"$work/auth" -H 'Content-Type: application/json' \
     --data-binary @- "$BAO_ADDR/v1/kv/data/backup/openbao-snapshot")"
 unset token
 [[ "$code" == 200 || "$code" == 204 ]] || die "OpenBao refused the write (HTTP $code); nothing was saved"
-printf 'Saved (kv/backup/openbao-snapshot). The next hourly backup includes the OpenBao snapshot.\n'
+printf 'Saved (kv/backup/openbao-snapshot). The next hourly backup includes the OpenBao snapshot\n'
+printf 'and renews the token after every snapshot, so it does not lapse while the backup runs.\n'
