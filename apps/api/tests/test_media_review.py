@@ -85,7 +85,12 @@ async def test_every_ffmpeg_call_is_fenced_and_the_fallback_is_bounded(
     for argv in calls:
         i = argv.index("-i")
         assert argv[i + 1] == f"file:{src}"
-        assert argv[i - 4 : i] == ("-protocol_whitelist", "file", "-format_whitelist", media.FORMATS)
+        assert argv[i - 4 : i] == (
+            "-protocol_whitelist",
+            "file",
+            "-format_whitelist",
+            media.FORMATS,
+        )
         assert argv.count("-threads") == 2 and argv[argv.index("-threads") + 1] == media.FF_THREADS
     assert calls[0][calls[0].index("-t") + 1] == str(10 * 60 + 1)  # the scene pass: video cap
     assert calls[-1][calls[-1].index("-t") + 1] == str(15 * 60 + 1)  # the sound: audio cap

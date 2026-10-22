@@ -318,7 +318,7 @@ def disposition(kind: str, name: str) -> str:
     return f"{kind}; filename=\"{fallback}\"; filename*=UTF-8''{encoded}"
 
 
-def byte_range(raw: str | None, total: int) -> tuple[int, int] | None | str:
+def byte_range(raw: str | None, total: int) -> tuple[int, int] | str | None:
     """One range `bytes=a-b`, `bytes=a-` or `bytes=-n` -> (start, end); None:
     serve the whole file (no header, a multi-range, another unit or a malformed
     value are ignored, RFC 9110 §14.2); "unsatisfiable": 416."""
