@@ -1612,6 +1612,13 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
         if error == "expired":
             await web_expired(tx, hub, p)
             await _skip_web(tx, hub, c, "expired")
+            # Its other waiting web calls are skipped too (never sent elsewhere).
+            for other in await tx.all(
+                """SELECT * FROM substitutes.calls WHERE player = :p AND via = 'web'
+                   AND state = 'queued' FOR UPDATE SKIP LOCKED""",
+                p=c["player"],
+            ):
+                await _skip_web(tx, hub, other, "expired")
             return
         if error == "off":
             await _skip_web(tx, hub, c, "off")

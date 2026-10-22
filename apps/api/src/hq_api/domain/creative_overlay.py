@@ -231,7 +231,10 @@ async def store_result(
     and the composed picture with the hub's Persian overlay -> (original id,
     composed id; None for a video)."""
     head = data[: media.HEAD_BYTES]
-    got = media.check_type(None, head)
+    # The type is the one the bytes are, never the one the download claims:
+    # a sniffed type the hub accepts, checked again against the bytes.
+    sniffed = sorted(t for t in media.sniff(head) if t in media.ALLOWED)
+    got = media.check_type(sniffed[0] if sniffed else "", head)
     if isinstance(got, str):
         raise Refused(got)
     mime, kind = got
