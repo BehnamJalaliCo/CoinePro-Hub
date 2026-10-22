@@ -183,9 +183,15 @@ def new_company(hub: Hub, owner_db: Database) -> Callable[..., Any]:
     """Create a fresh company from a template (as the owner role hq)."""
 
     async def make(template: str = "standard", code: str | None = None) -> dict[str, Any]:
-        code = code or random_code()
+        given = code is not None
         async with owner_db.raw() as tx:
             await tx.exec("SET LOCAL ROLE hq")
+            # The test database outlives a run: a random code may already exist.
+            while code is None or (
+                not given
+                and await tx.scalar("SELECT 1 FROM core.companies WHERE code = :c", c=code)
+            ):
+                code = random_code()
             row = await tx.one(
                 """INSERT INTO core.companies (code, name, kind, name_fa, name_en, color_index, template)
                    VALUES (:code, :name, 'company', :nfa, :name, NULL, :tpl) RETURNING id, code""",
