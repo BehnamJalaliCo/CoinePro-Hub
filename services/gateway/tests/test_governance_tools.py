@@ -37,7 +37,9 @@ def gw() -> Gateway:
 class Api:
     def __init__(self, mock: respx.MockRouter) -> None:
         self.sent: list[tuple[str, str, Any, httpx.Headers]] = []
-        mock.route(host="api.test", path__startswith="/internal/v1/governance/").mock(side_effect=self._answer)
+        mock.route(host="api.test", path__startswith="/internal/v1/governance/").mock(
+            side_effect=self._answer
+        )
 
     def _answer(self, request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content) if request.content else dict(request.url.params)
@@ -46,7 +48,9 @@ class Api:
         if path.endswith("/okr/draft"):
             return httpx.Response(200, json={"decision": "D-000042", "objectives": ["OB-0001"]})
         if path.endswith("/risks"):
-            return httpx.Response(201, json={"ref": "RK-0001", "score": 20, "status": "open", "version": 1})
+            return httpx.Response(
+                201, json={"ref": "RK-0001", "score": 20, "status": "open", "version": 1}
+            )
         if path.endswith("/authority"):
             return httpx.Response(200, json=[{"key": "hire.per_day", "limit": {"count_day": 5}}])
         return httpx.Response(200, json={"ok": True})
@@ -76,7 +80,9 @@ CALLS: list[tuple[str, dict[str, Any], str, str]] = [
 def test_the_ten_tools_are_live_and_in_the_ceos_charter() -> None:
     assert set(GV.TOOLS) <= set(T.TOOLS) and set(GV.TOOLS) <= tool_status.GATEWAY_TOOLS
     assert set(GV.TOOLS) <= set(LIB.allowed("ceo"))
-    assert not {t for t in T.TOOLS if t.startswith(("charter.", "authority.")) and t != "authority.read"}
+    assert not {
+        t for t in T.TOOLS if t.startswith(("charter.", "authority.")) and t != "authority.read"
+    }
 
 
 @pytest.mark.parametrize(("tool", "args", "method", "path"), CALLS)
@@ -110,28 +116,46 @@ async def test_a_secret_in_a_risk_is_redacted_and_bad_input_is_refused(
     bad = await call(gw, "calendar.add", {"company": "TY", "kind": "deploy", "title_fa": "x",
                                           "starts_at": NOW, "ends_at": NOW})  # fmt: skip
     assert bad["code"] == "invalid_args"  # a deploy comes from its card, never from calendar.add
-    bad = await call(gw, "kpi.record", {"company": "TY", "key": "users.active", "value": 1, "at": NOW})
+    bad = await call(
+        gw, "kpi.record", {"company": "TY", "key": "users.active", "value": 1, "at": NOW}
+    )
     assert bad["code"] == "invalid_args" and "source" in json.dumps(bad["fields"])
 
 
-async def test_propose_carries_expected_and_the_cards_warnings(mock: respx.MockRouter, gw: Gateway) -> None:
+async def test_propose_carries_expected_and_the_cards_warnings(
+    mock: respx.MockRouter, gw: Gateway
+) -> None:
     Stub(mock, CEO)
     seen: list[dict[str, Any]] = []
 
     def answer(request: httpx.Request) -> httpx.Response:
         seen.append(json.loads(request.content))
-        return httpx.Response(201, json={"ref": "D-000050", "status": "pending", "warnings": ["expected_missing"]})
+        return httpx.Response(
+            201, json={"ref": "D-000050", "status": "pending", "warnings": ["expected_missing"]}
+        )
 
     mock.post(f"{API}/internal/v1/decisions").mock(side_effect=answer)
     mock.get(f"{API}/internal/v1/work/ref/W-000101").mock(
-        return_value=httpx.Response(200, json={"id": "11111111-1111-1111-1111-111111111111", "ref": "W-000101"})
+        return_value=httpx.Response(
+            200, json={"id": "11111111-1111-1111-1111-111111111111", "ref": "W-000101"}
+        )
     )
-    expected = {"metric_fa": "کاربر فعال", "kpi": "users.active", "baseline": 100, "target": 150, "by_days": 60}
+    expected = {
+        "metric_fa": "کاربر فعال",
+        "kpi": "users.active",
+        "baseline": 100,
+        "target": 150,
+        "by_days": 60,
+    }
     out = await call(gw, "propose", {"kind": "proposal", "title_fa": "کمپین", "expected": expected})
     assert out["outcome"] == "ok" and seen[0]["expected"] == expected
     out = await call(gw, "propose", {"kind": "proposal", "title_fa": "بی‌قول"})
     assert out["result"]["warnings"] == ["expected_missing"] and "expected" not in seen[1]
-    bad = await call(gw, "propose", {"kind": "proposal", "title_fa": "x", "expected": {**expected, "by_days": 45}})
+    bad = await call(
+        gw,
+        "propose",
+        {"kind": "proposal", "title_fa": "x", "expected": {**expected, "by_days": 45}},
+    )
     assert bad["code"] == "invalid_args"
     for kind in ("authority_change", "risk_acceptance"):
         assert (await call(gw, "propose", {"kind": kind, "title_fa": "x"}))["outcome"] == "ok"
