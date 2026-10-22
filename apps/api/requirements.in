@@ -25,3 +25,9 @@ pillow==13.0.0
 pillow-heif==1.8.0
 # PDF text for files.read (prompt 07 §3; pypdf: BSD-3-Clause, pure Python)
 pypdf==6.21.1
+# The company's brand from the owner's logo (prompt 9.1 §2): code, no model. numpy
+# (BSD-3-Clause; the same version as stt's), VTracer (MIT, visioncortex), resvg
+# through resvg-py (MIT bindings; resvg Apache-2.0 OR MIT): the trace rasterised again.
+numpy==2.5.3
+vtracer==0.6.15
+resvg-py==0.5.0
