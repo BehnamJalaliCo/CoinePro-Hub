@@ -702,11 +702,10 @@ async def test_paused_protocols_have_no_schedule_run_or_finding_and_do_not_count
 ) -> None:
     from temporalio.service import RPCError
 
+    from hq_api.domain import governance_checks as GC
     from hq_api.principal import Principal
     from hq_api.worker import oversight_activities as OA
     from hq_api.worker import schedules
-
-    from hq_api.domain import governance_checks as GC
 
     lib_file = O.protocol_file(charters.load().root)
     # Seeded paused; prompt 11 switches its own on (version 2, active) once built.
