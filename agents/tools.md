@@ -90,6 +90,22 @@ internal names and `/internal` are unreachable. Service-account credentials are 
 | `teach.draft` | A1 | `{ref, proposal: {kind, diff_md}}` | Turn the owner's teaching into a precise proposal (AI Ops head); the overseer reviews, an eval runs, the owner approves. |
 | `server.plan` | A1 | `{founding?, company, name, type, location, private_network, firewall, software, work_user, repo?}` | A server plan with cost; the owner seals it, the provisioner (code, not an agent) builds it. |
 
+### Revenue and support (v1.5, prompt 10; contract §19)
+| Tool | Class | Input | What it does |
+|---|---|---|---|
+| `kb.search` | A0 | `{q, company?, kind?}` | The company's support knowledge base: approved articles only (the support lead also sees proposed ones). |
+| `kb.propose` | A1 | `{company, kind, question_fa, answer_md, variables?, source_ref, ref?}` | Propose a support article or a new version; the owner approves it (step-up `support.kb`). Referral codes and links come only from approved articles, never from a model. |
+| `support.draft` | A2 | `{conversation, body_md, kb_refs, confidence}` | A draft answer to a customer. Code decides what happens to it: sent under the sealed auto-send policy, queued for teaching, or blocked by the outbound guard. |
+| `support.handoff` | A2 | `{conversation, reason, note_fa}` | Hand a conversation to a person (the owner or the support lead). |
+| `referral.check` | A0 | `{company, exchange, uid}` | Whether a UID registered under the holding's referral and meets the minimum: `{invitee, meets_minimum}` only, never a balance. |
+| `rescue.update` | A2 | `{ref, state, note_fa}` | Move a referral-rescue case along. Nothing is sent by this tool: messages go out only as sealed templates by rule. |
+| `feedback.tag` | A2 | `{source_ref, kind, area, title_fa}` | File customer feedback into the company's feedback inbox. |
+| `revenue.read` | A0 | `{company?, from, to, by?}` | The revenue radar: commission and referrals by day, company and account, with incomplete days marked. |
+| `funnel.read` | A0 | `{company, period}` | The funnel stages; a stage with no source reads "not connected", never zero. |
+| `support.mystery` | A2 | `{company, question_fa}` | Overseer only (PR-043): a mystery-customer conversation that runs the whole pipeline but never reaches a customer channel. |
+
+No tool sends free text to a customer. Templates and lifecycle rules are proposed with `propose` and sealed by the owner.
+
 ### Which role has what (v2)
 Role charters list their tools in frontmatter; the gateway enforces them. In short: the **overseer** has every read tool, the web,
 and the oversight powers; the **advisor** has every read tool, the web and `inquiry.ask`; the **assistant** has the web, files,
