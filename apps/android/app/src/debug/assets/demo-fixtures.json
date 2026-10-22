@@ -78,10 +78,10 @@
  "/inbox/summary": {
   "status": 200,
   "body": {
-   "decisions_pending": 1,
+   "decisions_pending": 4,
    "decisions_by_risk": {
-    "low": 0,
-    "medium": 0,
+    "low": 2,
+    "medium": 1,
     "high": 1
    },
    "deliverables_unrated": 2,
@@ -141,7 +141,7 @@
    ],
    "decisions": {
     "new": 4,
-    "pending": 1,
+    "pending": 4,
     "top": [
      {
       "ref": "D-000017",
@@ -151,6 +151,33 @@
       "status": "pending",
       "title": "انتشار نسخه‌ی تازه‌ی ترمینال پرو-چارت",
       "created_at": "@-15m"
+     },
+     {
+      "ref": "D-000032",
+      "company": "TY",
+      "kind": "support_go_live",
+      "risk": "medium",
+      "status": "pending",
+      "title": "شروع پشتیبانی تلگرام بیزینس تریدیار",
+      "created_at": "@-1500m"
+     },
+     {
+      "ref": "D-000031",
+      "company": "TY",
+      "kind": "message_template",
+      "risk": "low",
+      "status": "pending",
+      "title": "قالب خوش‌آمد تریدیار",
+      "created_at": "@-360m"
+     },
+     {
+      "ref": "D-000033",
+      "company": "TY",
+      "kind": "lifecycle_rule",
+      "risk": "low",
+      "status": "pending",
+      "title": "قاعده‌ی خوش‌آمد تریدیار",
+      "created_at": "@-358m"
      }
     ]
    },
@@ -291,6 +318,199 @@
      "work_id": null,
      "id": "d17",
      "reason_code": null
+    },
+    {
+     "action_class": "A3",
+     "reversible": true,
+     "status": "pending",
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": null,
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "reason_code": null,
+     "quota_estimate": {
+      "tokens": 0,
+      "usd": "0.00"
+     },
+     "id": "d32",
+     "ref": "D-000032",
+     "kind": "support_go_live",
+     "company": "TY",
+     "risk": "medium",
+     "title": "شروع پشتیبانی تلگرام بیزینس تریدیار",
+     "proposer": {
+      "kind": "system",
+      "code": "system",
+      "display_fa": "سیستم"
+     },
+     "created_at": "@-1500m",
+     "expires_at": "@8640m",
+     "what": "کانال **telegram_business** تریدیار `live` میشود؛ فقط جواب‌های **عین دانشنامه** بی‌تو میروند (`kb_verbatim`)، بقیه منتظر تو میمانند.",
+     "why": "آزمون سایه با ۱۰۰ سؤال واقعی گذشته قبول شد: ۹۳٪ درست، صفر خطای ایمنی، صفر کد یا لینک اشتباه.",
+     "risk_note": "منتظر اتصال Premium: تا حساب Premium تو در Business ← Chatbots به ربات هلدینگ وصل نشود، مُهر کانال را روشن نمیکند.",
+     "payload": {
+      "company": "TY",
+      "channel": "telegram_business",
+      "auto_send": "kb_verbatim",
+      "verbatim_threshold": 0.82,
+      "grounded_threshold": 0.9,
+      "shadow_report": {
+       "company": "TY",
+       "suite": "support-shadow-TY@2",
+       "run_id": "er-sh-ty-2",
+       "at": "@-1560m",
+       "total": 100,
+       "correct": 93,
+       "partial": 5,
+       "wrong": 2,
+       "safety_failures": 0,
+       "wrong_codes": 0,
+       "pass": true,
+       "threshold": 0.9,
+       "disagreements": [
+        {
+         "case": "q-031",
+         "verdict": "partial",
+         "note_fa": "جواب درست بود ولی مرحله‌ی واریز را جا انداخت."
+        },
+        {
+         "case": "q-077",
+         "verdict": "wrong",
+         "note_fa": "سؤال درباره‌ی کارمزد برداشت بود؛ مقاله‌ای نبود و باید handoff میشد."
+        }
+       ]
+      }
+     }
+    },
+    {
+     "action_class": "A3",
+     "reversible": true,
+     "status": "pending",
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": null,
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "reason_code": null,
+     "quota_estimate": {
+      "tokens": 0,
+      "usd": "0.00"
+     },
+     "id": "d31",
+     "ref": "D-000031",
+     "kind": "message_template",
+     "company": "TY",
+     "risk": "low",
+     "title": "قالب خوش‌آمد تریدیار",
+     "proposer": {
+      "kind": "agent",
+      "code": "TY-GROWTH-MGR",
+      "display_fa": "مدیر مارکتینگ تریدیار"
+     },
+     "created_at": "@-360m",
+     "expires_at": "@4320m",
+     "what": "قالب **خوش‌آمد** (TM-0008، نسخه‌ی ۱) برای قاعده‌ی خوش‌آمد. فقط همین متن، با همین متغیرها، فرستاده میشود.",
+     "why": "کاربر تازه نمیداند VIP رایگان با ثبت UID فعال میشود؛ ۲۳ پرسش هفته‌ی گذشته همین بود (FB-000041).",
+     "risk_note": null,
+     "payload": {
+      "template": {
+       "id": "tm5",
+       "sha256": "7351fee2469c1e5fff2b9373b245743e4481a2bc19f1d0f53eb8b24601b6edbf",
+       "ref": "TM-0008",
+       "company": "TY",
+       "version": 1,
+       "purpose": "welcome",
+       "body_fa": "به تریدیار خوش آمدید {{name}}! برای VIP رایگان کافی است UID حساب LBank خود را در ربات ثبت کنید و حداقل موجودی را داشته باشید.",
+       "variables": [
+        "name"
+       ],
+       "status": "proposed",
+       "sealed_at": null
+      },
+      "sha256": "7351fee2469c1e5fff2b9373b245743e4481a2bc19f1d0f53eb8b24601b6edbf"
+     }
+    },
+    {
+     "action_class": "A3",
+     "reversible": true,
+     "status": "pending",
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": null,
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "reason_code": null,
+     "quota_estimate": {
+      "tokens": 0,
+      "usd": "0.00"
+     },
+     "id": "d33",
+     "ref": "D-000033",
+     "kind": "lifecycle_rule",
+     "company": "TY",
+     "risk": "low",
+     "title": "قاعده‌ی خوش‌آمد تریدیار",
+     "proposer": {
+      "kind": "agent",
+      "code": "TY-GROWTH-MGR",
+      "display_fa": "مدیر مارکتینگ تریدیار"
+     },
+     "created_at": "@-358m",
+     "expires_at": "@4320m",
+     "what": "بعد از رویداد **signup** از محصول، یک پیام خوش‌آمد با قالب TM-0008@1؛ بیرون از ساعت سکوت و زیر سقف روزانه.",
+     "why": "نرخ رسیدن به حداقل موجودی ۳۳٪ است و میانه‌ی ۴ هفته ۵۲٪.",
+     "risk_note": "تا رویداد signup از تریدیار نرسد (CR-009)، این قاعده هیچ کاندیدی ندارد.",
+     "payload": {
+      "rule": {
+       "id": "lr3",
+       "ref": "LR-0004",
+       "company": "TY",
+       "version": 1,
+       "kind": "welcome",
+       "trigger": {
+        "event": "signup",
+        "after_hours": 0
+       },
+       "template": "TM-0008@1",
+       "channel": "telegram_bot",
+       "limits": {
+        "per_customer_days": 365,
+        "daily_cap": 300,
+        "quiet_hours": [
+         "22:00",
+         "09:00"
+        ],
+        "max_follow_ups": 0
+       },
+       "status": "proposed",
+       "decision_ref": "D-000033",
+       "sent_30d": 0,
+       "opt_outs_30d": 0
+      },
+      "template": "TM-0008@1",
+      "limits": {
+       "per_customer_days": 365,
+       "daily_cap": 300,
+       "quiet_hours": [
+        "22:00",
+        "09:00"
+       ],
+       "max_follow_ups": 0
+      }
+     }
     }
    ],
    "next_cursor": null
@@ -561,6 +781,199 @@
      "work_id": null,
      "id": "d11",
      "reason_code": null
+    },
+    {
+     "action_class": "A3",
+     "reversible": true,
+     "status": "pending",
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": null,
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "reason_code": null,
+     "quota_estimate": {
+      "tokens": 0,
+      "usd": "0.00"
+     },
+     "id": "d32",
+     "ref": "D-000032",
+     "kind": "support_go_live",
+     "company": "TY",
+     "risk": "medium",
+     "title": "شروع پشتیبانی تلگرام بیزینس تریدیار",
+     "proposer": {
+      "kind": "system",
+      "code": "system",
+      "display_fa": "سیستم"
+     },
+     "created_at": "@-1500m",
+     "expires_at": "@8640m",
+     "what": "کانال **telegram_business** تریدیار `live` میشود؛ فقط جواب‌های **عین دانشنامه** بی‌تو میروند (`kb_verbatim`)، بقیه منتظر تو میمانند.",
+     "why": "آزمون سایه با ۱۰۰ سؤال واقعی گذشته قبول شد: ۹۳٪ درست، صفر خطای ایمنی، صفر کد یا لینک اشتباه.",
+     "risk_note": "منتظر اتصال Premium: تا حساب Premium تو در Business ← Chatbots به ربات هلدینگ وصل نشود، مُهر کانال را روشن نمیکند.",
+     "payload": {
+      "company": "TY",
+      "channel": "telegram_business",
+      "auto_send": "kb_verbatim",
+      "verbatim_threshold": 0.82,
+      "grounded_threshold": 0.9,
+      "shadow_report": {
+       "company": "TY",
+       "suite": "support-shadow-TY@2",
+       "run_id": "er-sh-ty-2",
+       "at": "@-1560m",
+       "total": 100,
+       "correct": 93,
+       "partial": 5,
+       "wrong": 2,
+       "safety_failures": 0,
+       "wrong_codes": 0,
+       "pass": true,
+       "threshold": 0.9,
+       "disagreements": [
+        {
+         "case": "q-031",
+         "verdict": "partial",
+         "note_fa": "جواب درست بود ولی مرحله‌ی واریز را جا انداخت."
+        },
+        {
+         "case": "q-077",
+         "verdict": "wrong",
+         "note_fa": "سؤال درباره‌ی کارمزد برداشت بود؛ مقاله‌ای نبود و باید handoff میشد."
+        }
+       ]
+      }
+     }
+    },
+    {
+     "action_class": "A3",
+     "reversible": true,
+     "status": "pending",
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": null,
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "reason_code": null,
+     "quota_estimate": {
+      "tokens": 0,
+      "usd": "0.00"
+     },
+     "id": "d31",
+     "ref": "D-000031",
+     "kind": "message_template",
+     "company": "TY",
+     "risk": "low",
+     "title": "قالب خوش‌آمد تریدیار",
+     "proposer": {
+      "kind": "agent",
+      "code": "TY-GROWTH-MGR",
+      "display_fa": "مدیر مارکتینگ تریدیار"
+     },
+     "created_at": "@-360m",
+     "expires_at": "@4320m",
+     "what": "قالب **خوش‌آمد** (TM-0008، نسخه‌ی ۱) برای قاعده‌ی خوش‌آمد. فقط همین متن، با همین متغیرها، فرستاده میشود.",
+     "why": "کاربر تازه نمیداند VIP رایگان با ثبت UID فعال میشود؛ ۲۳ پرسش هفته‌ی گذشته همین بود (FB-000041).",
+     "risk_note": null,
+     "payload": {
+      "template": {
+       "id": "tm5",
+       "sha256": "7351fee2469c1e5fff2b9373b245743e4481a2bc19f1d0f53eb8b24601b6edbf",
+       "ref": "TM-0008",
+       "company": "TY",
+       "version": 1,
+       "purpose": "welcome",
+       "body_fa": "به تریدیار خوش آمدید {{name}}! برای VIP رایگان کافی است UID حساب LBank خود را در ربات ثبت کنید و حداقل موجودی را داشته باشید.",
+       "variables": [
+        "name"
+       ],
+       "status": "proposed",
+       "sealed_at": null
+      },
+      "sha256": "7351fee2469c1e5fff2b9373b245743e4481a2bc19f1d0f53eb8b24601b6edbf"
+     }
+    },
+    {
+     "action_class": "A3",
+     "reversible": true,
+     "status": "pending",
+     "seal": null,
+     "decided_at": null,
+     "decided_by": null,
+     "note": null,
+     "resolution": null,
+     "thread": null,
+     "version": 1,
+     "effect_status": "none",
+     "work_id": null,
+     "reason_code": null,
+     "quota_estimate": {
+      "tokens": 0,
+      "usd": "0.00"
+     },
+     "id": "d33",
+     "ref": "D-000033",
+     "kind": "lifecycle_rule",
+     "company": "TY",
+     "risk": "low",
+     "title": "قاعده‌ی خوش‌آمد تریدیار",
+     "proposer": {
+      "kind": "agent",
+      "code": "TY-GROWTH-MGR",
+      "display_fa": "مدیر مارکتینگ تریدیار"
+     },
+     "created_at": "@-358m",
+     "expires_at": "@4320m",
+     "what": "بعد از رویداد **signup** از محصول، یک پیام خوش‌آمد با قالب TM-0008@1؛ بیرون از ساعت سکوت و زیر سقف روزانه.",
+     "why": "نرخ رسیدن به حداقل موجودی ۳۳٪ است و میانه‌ی ۴ هفته ۵۲٪.",
+     "risk_note": "تا رویداد signup از تریدیار نرسد (CR-009)، این قاعده هیچ کاندیدی ندارد.",
+     "payload": {
+      "rule": {
+       "id": "lr3",
+       "ref": "LR-0004",
+       "company": "TY",
+       "version": 1,
+       "kind": "welcome",
+       "trigger": {
+        "event": "signup",
+        "after_hours": 0
+       },
+       "template": "TM-0008@1",
+       "channel": "telegram_bot",
+       "limits": {
+        "per_customer_days": 365,
+        "daily_cap": 300,
+        "quiet_hours": [
+         "22:00",
+         "09:00"
+        ],
+        "max_follow_ups": 0
+       },
+       "status": "proposed",
+       "decision_ref": "D-000033",
+       "sent_30d": 0,
+       "opt_outs_30d": 0
+      },
+      "template": "TM-0008@1",
+      "limits": {
+       "per_customer_days": 365,
+       "daily_cap": 300,
+       "quiet_hours": [
+        "22:00",
+        "09:00"
+       ],
+       "max_follow_ups": 0
+      }
+     }
     }
    ],
    "next_cursor": null
@@ -21776,6 +22189,7721 @@
  "/companies/AC/brand/versions": {
   "status": 200,
   "body": []
+ },
+ "/revenue/accounts": {
+  "status": 200,
+  "body": [
+   {
+    "exchange": "lbank",
+    "adapter": "lbank-affiliate-v2",
+    "version": 2,
+    "id": "ra-ty",
+    "company": "TY",
+    "title_fa": "افیلیت LBank تریدیار",
+    "service_account": "lbank-affiliate-ty",
+    "status": "ok",
+    "last_pull_at": "@-240m",
+    "last_error": null
+   },
+   {
+    "exchange": "lbank",
+    "adapter": "lbank-affiliate-v2",
+    "version": 2,
+    "id": "ra-fx",
+    "company": "FX",
+    "title_fa": "افیلیت LBank کوینه‌پرو FX",
+    "service_account": "lbank-affiliate-fx",
+    "status": "ok",
+    "last_pull_at": "@-237m",
+    "last_error": null
+   },
+   {
+    "exchange": "lbank",
+    "adapter": "lbank-affiliate-v2",
+    "version": 2,
+    "id": "ra-pc",
+    "company": "PC",
+    "title_fa": "افیلیت LBank پرو-چارت",
+    "service_account": "lbank-affiliate-pc",
+    "status": "error",
+    "last_pull_at": "@-1680m",
+    "last_error": "pull failed twice in a row: LBank answered \"IP is not in the API whitelist\" (add the hub's public IP in the affiliate panel)"
+   }
+  ]
+ },
+ "/revenue/days": {
+  "status": 200,
+  "body": [
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-30d",
+    "commission_usdt": "274.96",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "197.97",
+      "usdt": "197.97",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00077510",
+      "usdt": "52.24",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009481",
+      "usdt": "24.75",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "687.39",
+    "volume_usdt": "687391.19",
+    "new_invitees": 12,
+    "active_traders": 97,
+    "deposits_usdt": "6872.99",
+    "complete": true,
+    "pulled_at": "@-42000m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-29d",
+    "commission_usdt": "202.38",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "145.71",
+      "usdt": "145.71",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00057049",
+      "usdt": "38.45",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.006978",
+      "usdt": "18.21",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "505.94",
+    "volume_usdt": "505938.64",
+    "new_invitees": 14,
+    "active_traders": 107,
+    "deposits_usdt": "9533.60",
+    "complete": true,
+    "pulled_at": "@-40560m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-28d",
+    "commission_usdt": "271.22",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "195.28",
+      "usdt": "195.28",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00076456",
+      "usdt": "51.53",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009352",
+      "usdt": "24.41",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "678.04",
+    "volume_usdt": "678044.41",
+    "new_invitees": 10,
+    "active_traders": 97,
+    "deposits_usdt": "6449.62",
+    "complete": true,
+    "pulled_at": "@-39120m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-27d",
+    "commission_usdt": "262.18",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "188.77",
+      "usdt": "188.77",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00073908",
+      "usdt": "49.81",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009041",
+      "usdt": "23.60",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "655.45",
+    "volume_usdt": "655446.30",
+    "new_invitees": 12,
+    "active_traders": 104,
+    "deposits_usdt": "7952.22",
+    "complete": true,
+    "pulled_at": "@-37680m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-26d",
+    "commission_usdt": "294.58",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "212.10",
+      "usdt": "212.10",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00083041",
+      "usdt": "55.97",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.010158",
+      "usdt": "26.51",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "736.44",
+    "volume_usdt": "736443.67",
+    "new_invitees": 10,
+    "active_traders": 92,
+    "deposits_usdt": "8912.26",
+    "complete": true,
+    "pulled_at": "@-36240m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-25d",
+    "commission_usdt": "253.65",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "182.63",
+      "usdt": "182.63",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00071503",
+      "usdt": "48.19",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.008747",
+      "usdt": "22.83",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "634.12",
+    "volume_usdt": "634121.36",
+    "new_invitees": 12,
+    "active_traders": 105,
+    "deposits_usdt": "5868.47",
+    "complete": true,
+    "pulled_at": "@-34800m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-24d",
+    "commission_usdt": "288.69",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "207.86",
+      "usdt": "207.86",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00081382",
+      "usdt": "54.85",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009955",
+      "usdt": "25.98",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "721.73",
+    "volume_usdt": "721732.06",
+    "new_invitees": 13,
+    "active_traders": 97,
+    "deposits_usdt": "9776.60",
+    "complete": true,
+    "pulled_at": "@-33360m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-23d",
+    "commission_usdt": "228.92",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "164.82",
+      "usdt": "164.82",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00064533",
+      "usdt": "43.50",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.007894",
+      "usdt": "20.60",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "572.31",
+    "volume_usdt": "572307.87",
+    "new_invitees": 11,
+    "active_traders": 92,
+    "deposits_usdt": "8949.44",
+    "complete": true,
+    "pulled_at": "@-31920m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-22d",
+    "commission_usdt": "202.77",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "145.99",
+      "usdt": "145.99",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00057160",
+      "usdt": "38.53",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.006992",
+      "usdt": "18.25",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "506.92",
+    "volume_usdt": "506917.70",
+    "new_invitees": 11,
+    "active_traders": 102,
+    "deposits_usdt": "6641.55",
+    "complete": true,
+    "pulled_at": "@-30480m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-21d",
+    "commission_usdt": "259.77",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "187.04",
+      "usdt": "187.04",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00073229",
+      "usdt": "49.36",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.008958",
+      "usdt": "23.38",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "649.43",
+    "volume_usdt": "649427.99",
+    "new_invitees": 9,
+    "active_traders": 94,
+    "deposits_usdt": "7027.31",
+    "complete": true,
+    "pulled_at": "@-29040m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-20d",
+    "commission_usdt": "271.39",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "195.40",
+      "usdt": "195.40",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00076504",
+      "usdt": "51.56",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009358",
+      "usdt": "24.42",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "678.47",
+    "volume_usdt": "678469.76",
+    "new_invitees": 9,
+    "active_traders": 106,
+    "deposits_usdt": "9221.81",
+    "complete": true,
+    "pulled_at": "@-27600m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-19d",
+    "commission_usdt": "229.05",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "164.91",
+      "usdt": "164.91",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00064568",
+      "usdt": "43.52",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.007898",
+      "usdt": "20.61",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "572.61",
+    "volume_usdt": "572613.19",
+    "new_invitees": 12,
+    "active_traders": 95,
+    "deposits_usdt": "8087.10",
+    "complete": true,
+    "pulled_at": "@-26160m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-18d",
+    "commission_usdt": "284.19",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "204.62",
+      "usdt": "204.62",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00080113",
+      "usdt": "54.00",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009800",
+      "usdt": "25.58",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "710.48",
+    "volume_usdt": "710479.56",
+    "new_invitees": 13,
+    "active_traders": 96,
+    "deposits_usdt": "6487.05",
+    "complete": true,
+    "pulled_at": "@-24720m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-17d",
+    "commission_usdt": "293.50",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "211.32",
+      "usdt": "211.32",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00082736",
+      "usdt": "55.76",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.010121",
+      "usdt": "26.41",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "733.74",
+    "volume_usdt": "733739.14",
+    "new_invitees": 13,
+    "active_traders": 107,
+    "deposits_usdt": "5967.46",
+    "complete": true,
+    "pulled_at": "@-23280m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-16d",
+    "commission_usdt": "270.48",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "194.74",
+      "usdt": "194.74",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00076247",
+      "usdt": "51.39",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009327",
+      "usdt": "24.34",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "676.19",
+    "volume_usdt": "676191.06",
+    "new_invitees": 10,
+    "active_traders": 95,
+    "deposits_usdt": "8534.78",
+    "complete": true,
+    "pulled_at": "@-21840m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-15d",
+    "commission_usdt": "258.72",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "186.28",
+      "usdt": "186.28",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00072933",
+      "usdt": "49.16",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.008921",
+      "usdt": "23.28",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "646.80",
+    "volume_usdt": "646797.66",
+    "new_invitees": 10,
+    "active_traders": 90,
+    "deposits_usdt": "10041.97",
+    "complete": true,
+    "pulled_at": "@-20400m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-14d",
+    "commission_usdt": "236.31",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "170.14",
+      "usdt": "170.14",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00066614",
+      "usdt": "44.90",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.008148",
+      "usdt": "21.27",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "590.76",
+    "volume_usdt": "590764.97",
+    "new_invitees": 9,
+    "active_traders": 91,
+    "deposits_usdt": "7725.77",
+    "complete": true,
+    "pulled_at": "@-18960m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-13d",
+    "commission_usdt": "252.31",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "181.66",
+      "usdt": "181.66",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00071125",
+      "usdt": "47.94",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.008700",
+      "usdt": "22.71",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "630.76",
+    "volume_usdt": "630762.68",
+    "new_invitees": 11,
+    "active_traders": 89,
+    "deposits_usdt": "8695.33",
+    "complete": true,
+    "pulled_at": "@-17520m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-12d",
+    "commission_usdt": "266.74",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "192.05",
+      "usdt": "192.05",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00075193",
+      "usdt": "50.68",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009198",
+      "usdt": "24.01",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "666.85",
+    "volume_usdt": "666845.88",
+    "new_invitees": 12,
+    "active_traders": 106,
+    "deposits_usdt": "10437.68",
+    "complete": true,
+    "pulled_at": "@-16080m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-11d",
+    "commission_usdt": "225.41",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "162.29",
+      "usdt": "162.29",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00063542",
+      "usdt": "42.83",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.007773",
+      "usdt": "20.29",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "563.52",
+    "volume_usdt": "563516.87",
+    "new_invitees": 10,
+    "active_traders": 93,
+    "deposits_usdt": "10012.36",
+    "complete": true,
+    "pulled_at": "@-14640m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-10d",
+    "commission_usdt": "279.67",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "201.36",
+      "usdt": "201.36",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00078839",
+      "usdt": "53.14",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009644",
+      "usdt": "25.17",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "699.18",
+    "volume_usdt": "699175.02",
+    "new_invitees": 11,
+    "active_traders": 92,
+    "deposits_usdt": "9750.07",
+    "complete": true,
+    "pulled_at": "@-13200m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-9d",
+    "commission_usdt": "240.07",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "172.85",
+      "usdt": "172.85",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00067676",
+      "usdt": "45.61",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.008278",
+      "usdt": "21.61",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "600.18",
+    "volume_usdt": "600178.56",
+    "new_invitees": 11,
+    "active_traders": 102,
+    "deposits_usdt": "9459.64",
+    "complete": true,
+    "pulled_at": "@-11760m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-8d",
+    "commission_usdt": "186.47",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "134.26",
+      "usdt": "134.26",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00052565",
+      "usdt": "35.43",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.006430",
+      "usdt": "16.78",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "466.17",
+    "volume_usdt": "466172.94",
+    "new_invitees": 13,
+    "active_traders": 91,
+    "deposits_usdt": "6368.71",
+    "complete": true,
+    "pulled_at": "@-10320m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-7d",
+    "commission_usdt": "224.87",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "161.91",
+      "usdt": "161.91",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00063390",
+      "usdt": "42.73",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.007754",
+      "usdt": "20.24",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "562.17",
+    "volume_usdt": "562172.41",
+    "new_invitees": 10,
+    "active_traders": 93,
+    "deposits_usdt": "8691.36",
+    "complete": true,
+    "pulled_at": "@-8880m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-6d",
+    "commission_usdt": "261.91",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "188.58",
+      "usdt": "188.58",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00073833",
+      "usdt": "49.76",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009032",
+      "usdt": "23.57",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "654.78",
+    "volume_usdt": "654784.17",
+    "new_invitees": 13,
+    "active_traders": 93,
+    "deposits_usdt": "6334.34",
+    "complete": true,
+    "pulled_at": "@-7440m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-5d",
+    "commission_usdt": "262.82",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "189.23",
+      "usdt": "189.23",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00074090",
+      "usdt": "49.94",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009063",
+      "usdt": "23.65",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "657.06",
+    "volume_usdt": "657059.13",
+    "new_invitees": 13,
+    "active_traders": 103,
+    "deposits_usdt": "5801.48",
+    "complete": true,
+    "pulled_at": "@-6000m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-4d",
+    "commission_usdt": "228.87",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "164.79",
+      "usdt": "164.79",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00064519",
+      "usdt": "43.49",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.007892",
+      "usdt": "20.60",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "572.18",
+    "volume_usdt": "572181.87",
+    "new_invitees": 10,
+    "active_traders": 101,
+    "deposits_usdt": "10068.57",
+    "complete": true,
+    "pulled_at": "@-4560m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-3d",
+    "commission_usdt": "225.30",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "162.22",
+      "usdt": "162.22",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00063513",
+      "usdt": "42.81",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.007769",
+      "usdt": "20.28",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "563.26",
+    "volume_usdt": "563259.99",
+    "new_invitees": 9,
+    "active_traders": 95,
+    "deposits_usdt": "9449.49",
+    "complete": true,
+    "pulled_at": "@-3120m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-2d",
+    "commission_usdt": "278.17",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "200.28",
+      "usdt": "200.28",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00078416",
+      "usdt": "52.85",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.009592",
+      "usdt": "25.04",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "695.42",
+    "volume_usdt": "695423.35",
+    "new_invitees": 9,
+    "active_traders": 106,
+    "deposits_usdt": "9775.27",
+    "complete": true,
+    "pulled_at": "@-1680m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "TY",
+    "account": "ra-ty",
+    "day": "@-1d",
+    "commission_usdt": "94.16",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "67.80",
+      "usdt": "67.80",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00026544",
+      "usdt": "17.89",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.003247",
+      "usdt": "8.47",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "235.40",
+    "volume_usdt": "235400.00",
+    "new_invitees": 11,
+    "active_traders": 90,
+    "deposits_usdt": "6220.82",
+    "complete": true,
+    "pulled_at": "@-240m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-30d",
+    "commission_usdt": "124.38",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "89.56",
+      "usdt": "89.56",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00035063",
+      "usdt": "23.63",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004289",
+      "usdt": "11.19",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "310.96",
+    "volume_usdt": "310956.21",
+    "new_invitees": 7,
+    "active_traders": 60,
+    "deposits_usdt": "3632.55",
+    "complete": true,
+    "pulled_at": "@-42000m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-29d",
+    "commission_usdt": "114.82",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "82.67",
+      "usdt": "82.67",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00032368",
+      "usdt": "21.82",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.003959",
+      "usdt": "10.33",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "287.06",
+    "volume_usdt": "287055.58",
+    "new_invitees": 6,
+    "active_traders": 53,
+    "deposits_usdt": "3242.14",
+    "complete": true,
+    "pulled_at": "@-40560m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-28d",
+    "commission_usdt": "145.93",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "105.07",
+      "usdt": "105.07",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00041136",
+      "usdt": "27.73",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.005032",
+      "usdt": "13.13",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "364.81",
+    "volume_usdt": "364813.23",
+    "new_invitees": 8,
+    "active_traders": 61,
+    "deposits_usdt": "5286.51",
+    "complete": true,
+    "pulled_at": "@-39120m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-27d",
+    "commission_usdt": "128.07",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "92.21",
+      "usdt": "92.21",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00036102",
+      "usdt": "24.33",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004416",
+      "usdt": "11.53",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "320.17",
+    "volume_usdt": "320171.46",
+    "new_invitees": 6,
+    "active_traders": 66,
+    "deposits_usdt": "5169.92",
+    "complete": true,
+    "pulled_at": "@-37680m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-26d",
+    "commission_usdt": "132.34",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "95.28",
+      "usdt": "95.28",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00037306",
+      "usdt": "25.14",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004563",
+      "usdt": "11.91",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "330.84",
+    "volume_usdt": "330844.75",
+    "new_invitees": 9,
+    "active_traders": 64,
+    "deposits_usdt": "3482.31",
+    "complete": true,
+    "pulled_at": "@-36240m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-25d",
+    "commission_usdt": "116.19",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "83.66",
+      "usdt": "83.66",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00032754",
+      "usdt": "22.08",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004007",
+      "usdt": "10.46",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "290.47",
+    "volume_usdt": "290472.73",
+    "new_invitees": 6,
+    "active_traders": 54,
+    "deposits_usdt": "5085.98",
+    "complete": true,
+    "pulled_at": "@-34800m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-24d",
+    "commission_usdt": "103.48",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "74.51",
+      "usdt": "74.51",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00029172",
+      "usdt": "19.66",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.003568",
+      "usdt": "9.31",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "258.71",
+    "volume_usdt": "258711.98",
+    "new_invitees": 8,
+    "active_traders": 58,
+    "deposits_usdt": "3856.42",
+    "complete": true,
+    "pulled_at": "@-33360m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-23d",
+    "commission_usdt": "144.89",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "104.32",
+      "usdt": "104.32",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00040845",
+      "usdt": "27.53",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004996",
+      "usdt": "13.04",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "362.23",
+    "volume_usdt": "362227.00",
+    "new_invitees": 8,
+    "active_traders": 69,
+    "deposits_usdt": "3915.23",
+    "complete": true,
+    "pulled_at": "@-31920m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-22d",
+    "commission_usdt": "128.09",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "92.22",
+      "usdt": "92.22",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00036108",
+      "usdt": "24.34",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004417",
+      "usdt": "11.53",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "320.22",
+    "volume_usdt": "320218.23",
+    "new_invitees": 8,
+    "active_traders": 68,
+    "deposits_usdt": "3615.50",
+    "complete": true,
+    "pulled_at": "@-30480m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-21d",
+    "commission_usdt": "126.67",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "91.20",
+      "usdt": "91.20",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00035707",
+      "usdt": "24.07",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004368",
+      "usdt": "11.40",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "316.67",
+    "volume_usdt": "316665.75",
+    "new_invitees": 9,
+    "active_traders": 59,
+    "deposits_usdt": "3828.50",
+    "complete": true,
+    "pulled_at": "@-29040m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-20d",
+    "commission_usdt": "150.50",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "108.36",
+      "usdt": "108.36",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00042425",
+      "usdt": "28.59",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.005190",
+      "usdt": "13.54",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "376.25",
+    "volume_usdt": "376245.52",
+    "new_invitees": 9,
+    "active_traders": 50,
+    "deposits_usdt": "3546.22",
+    "complete": true,
+    "pulled_at": "@-27600m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-19d",
+    "commission_usdt": "137.27",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "98.83",
+      "usdt": "98.83",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00038695",
+      "usdt": "26.08",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004733",
+      "usdt": "12.35",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "343.16",
+    "volume_usdt": "343164.79",
+    "new_invitees": 10,
+    "active_traders": 53,
+    "deposits_usdt": "4999.32",
+    "complete": true,
+    "pulled_at": "@-26160m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-18d",
+    "commission_usdt": "118.34",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "85.20",
+      "usdt": "85.20",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00033359",
+      "usdt": "22.48",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004081",
+      "usdt": "10.65",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "295.84",
+    "volume_usdt": "295843.27",
+    "new_invitees": 7,
+    "active_traders": 54,
+    "deposits_usdt": "4207.42",
+    "complete": true,
+    "pulled_at": "@-24720m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-17d",
+    "commission_usdt": "146.20",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "105.27",
+      "usdt": "105.27",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00041214",
+      "usdt": "27.78",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.005041",
+      "usdt": "13.16",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "365.50",
+    "volume_usdt": "365504.75",
+    "new_invitees": 5,
+    "active_traders": 51,
+    "deposits_usdt": "5148.97",
+    "complete": true,
+    "pulled_at": "@-23280m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-16d",
+    "commission_usdt": "117.24",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "84.41",
+      "usdt": "84.41",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00033049",
+      "usdt": "22.27",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004043",
+      "usdt": "10.55",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "293.09",
+    "volume_usdt": "293089.78",
+    "new_invitees": 5,
+    "active_traders": 65,
+    "deposits_usdt": "4269.30",
+    "complete": true,
+    "pulled_at": "@-21840m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-15d",
+    "commission_usdt": "102.75",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "73.98",
+      "usdt": "73.98",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00028966",
+      "usdt": "19.52",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.003543",
+      "usdt": "9.25",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "256.89",
+    "volume_usdt": "256885.19",
+    "new_invitees": 6,
+    "active_traders": 56,
+    "deposits_usdt": "3548.98",
+    "complete": true,
+    "pulled_at": "@-20400m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-14d",
+    "commission_usdt": "123.98",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "89.26",
+      "usdt": "89.26",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00034949",
+      "usdt": "23.56",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004275",
+      "usdt": "11.16",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "309.94",
+    "volume_usdt": "309941.51",
+    "new_invitees": 9,
+    "active_traders": 65,
+    "deposits_usdt": "4298.86",
+    "complete": true,
+    "pulled_at": "@-18960m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-13d",
+    "commission_usdt": "154.73",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "111.41",
+      "usdt": "111.41",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00043619",
+      "usdt": "29.40",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.005336",
+      "usdt": "13.93",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "386.83",
+    "volume_usdt": "386828.87",
+    "new_invitees": 8,
+    "active_traders": 66,
+    "deposits_usdt": "4628.28",
+    "complete": true,
+    "pulled_at": "@-17520m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-12d",
+    "commission_usdt": "116.80",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "84.10",
+      "usdt": "84.10",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00032926",
+      "usdt": "22.19",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004028",
+      "usdt": "10.51",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "292.00",
+    "volume_usdt": "291997.54",
+    "new_invitees": 5,
+    "active_traders": 60,
+    "deposits_usdt": "5240.29",
+    "complete": true,
+    "pulled_at": "@-16080m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-11d",
+    "commission_usdt": "135.29",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "97.41",
+      "usdt": "97.41",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00038139",
+      "usdt": "25.71",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004665",
+      "usdt": "12.18",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "338.23",
+    "volume_usdt": "338230.99",
+    "new_invitees": 10,
+    "active_traders": 57,
+    "deposits_usdt": "5057.45",
+    "complete": true,
+    "pulled_at": "@-14640m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-10d",
+    "commission_usdt": "139.76",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "100.63",
+      "usdt": "100.63",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00039397",
+      "usdt": "26.55",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004819",
+      "usdt": "12.58",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "349.39",
+    "volume_usdt": "349393.41",
+    "new_invitees": 5,
+    "active_traders": 56,
+    "deposits_usdt": "3483.96",
+    "complete": true,
+    "pulled_at": "@-13200m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-9d",
+    "commission_usdt": "140.84",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "101.40",
+      "usdt": "101.40",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00039702",
+      "usdt": "26.76",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004856",
+      "usdt": "12.68",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "352.09",
+    "volume_usdt": "352092.65",
+    "new_invitees": 8,
+    "active_traders": 58,
+    "deposits_usdt": "4134.19",
+    "complete": true,
+    "pulled_at": "@-11760m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-8d",
+    "commission_usdt": "125.03",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "90.02",
+      "usdt": "90.02",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00035247",
+      "usdt": "23.76",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004312",
+      "usdt": "11.25",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "312.58",
+    "volume_usdt": "312584.92",
+    "new_invitees": 9,
+    "active_traders": 63,
+    "deposits_usdt": "4082.53",
+    "complete": true,
+    "pulled_at": "@-10320m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-7d",
+    "commission_usdt": "147.40",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "106.13",
+      "usdt": "106.13",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00041551",
+      "usdt": "28.01",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.005083",
+      "usdt": "13.27",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "368.49",
+    "volume_usdt": "368491.16",
+    "new_invitees": 5,
+    "active_traders": 57,
+    "deposits_usdt": "5528.72",
+    "complete": true,
+    "pulled_at": "@-8880m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-6d",
+    "commission_usdt": "137.67",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "99.12",
+      "usdt": "99.12",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00038809",
+      "usdt": "26.16",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004747",
+      "usdt": "12.39",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "344.17",
+    "volume_usdt": "344171.88",
+    "new_invitees": 8,
+    "active_traders": 57,
+    "deposits_usdt": "5708.40",
+    "complete": true,
+    "pulled_at": "@-7440m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-5d",
+    "commission_usdt": "142.92",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "102.90",
+      "usdt": "102.90",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00040289",
+      "usdt": "27.15",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.004928",
+      "usdt": "12.86",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "357.30",
+    "volume_usdt": "357300.98",
+    "new_invitees": 8,
+    "active_traders": 59,
+    "deposits_usdt": "5134.11",
+    "complete": true,
+    "pulled_at": "@-6000m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-4d",
+    "commission_usdt": "106.56",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "76.72",
+      "usdt": "76.72",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00030039",
+      "usdt": "20.25",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.003674",
+      "usdt": "9.59",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "266.40",
+    "volume_usdt": "266398.69",
+    "new_invitees": 6,
+    "active_traders": 67,
+    "deposits_usdt": "5222.16",
+    "complete": true,
+    "pulled_at": "@-4560m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-3d",
+    "commission_usdt": "113.01",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "81.36",
+      "usdt": "81.36",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00031856",
+      "usdt": "21.47",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.003897",
+      "usdt": "10.17",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "282.51",
+    "volume_usdt": "282514.30",
+    "new_invitees": 7,
+    "active_traders": 61,
+    "deposits_usdt": "3949.37",
+    "complete": true,
+    "pulled_at": "@-3120m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-2d",
+    "commission_usdt": "152.61",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "109.88",
+      "usdt": "109.88",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00043021",
+      "usdt": "29.00",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.005262",
+      "usdt": "13.74",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "381.53",
+    "volume_usdt": "381529.56",
+    "new_invitees": 5,
+    "active_traders": 54,
+    "deposits_usdt": "4975.43",
+    "complete": true,
+    "pulled_at": "@-1680m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "FX",
+    "account": "ra-fx",
+    "day": "@-1d",
+    "commission_usdt": "105.16",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "75.72",
+      "usdt": "75.72",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00029646",
+      "usdt": "19.98",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.003626",
+      "usdt": "9.46",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "262.91",
+    "volume_usdt": "262910.35",
+    "new_invitees": 5,
+    "active_traders": 67,
+    "deposits_usdt": "4452.35",
+    "complete": true,
+    "pulled_at": "@-240m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-30d",
+    "commission_usdt": "47.36",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "34.10",
+      "usdt": "34.10",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00013350",
+      "usdt": "9.00",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001633",
+      "usdt": "4.26",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "118.39",
+    "volume_usdt": "118390.63",
+    "new_invitees": 2,
+    "active_traders": 27,
+    "deposits_usdt": "2026.56",
+    "complete": true,
+    "pulled_at": "@-42000m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-29d",
+    "commission_usdt": "51.57",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "37.13",
+      "usdt": "37.13",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00014537",
+      "usdt": "9.80",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001778",
+      "usdt": "4.64",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "128.92",
+    "volume_usdt": "128917.74",
+    "new_invitees": 3,
+    "active_traders": 37,
+    "deposits_usdt": "2504.52",
+    "complete": true,
+    "pulled_at": "@-40560m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-28d",
+    "commission_usdt": "46.85",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "33.73",
+      "usdt": "33.73",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00013207",
+      "usdt": "8.90",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001616",
+      "usdt": "4.22",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "117.13",
+    "volume_usdt": "117128.77",
+    "new_invitees": 5,
+    "active_traders": 25,
+    "deposits_usdt": "1553.24",
+    "complete": true,
+    "pulled_at": "@-39120m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-27d",
+    "commission_usdt": "56.18",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "40.45",
+      "usdt": "40.45",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00015838",
+      "usdt": "10.67",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001937",
+      "usdt": "5.06",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "140.46",
+    "volume_usdt": "140456.08",
+    "new_invitees": 3,
+    "active_traders": 31,
+    "deposits_usdt": "2047.14",
+    "complete": true,
+    "pulled_at": "@-37680m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-26d",
+    "commission_usdt": "40.61",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "29.24",
+      "usdt": "29.24",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00011447",
+      "usdt": "7.72",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001400",
+      "usdt": "3.65",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "101.52",
+    "volume_usdt": "101519.46",
+    "new_invitees": 4,
+    "active_traders": 35,
+    "deposits_usdt": "1665.18",
+    "complete": true,
+    "pulled_at": "@-36240m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-25d",
+    "commission_usdt": "57.49",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "41.39",
+      "usdt": "41.39",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00016207",
+      "usdt": "10.92",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001983",
+      "usdt": "5.17",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "143.73",
+    "volume_usdt": "143731.76",
+    "new_invitees": 4,
+    "active_traders": 22,
+    "deposits_usdt": "2170.77",
+    "complete": true,
+    "pulled_at": "@-34800m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-24d",
+    "commission_usdt": "47.65",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "34.31",
+      "usdt": "34.31",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00013432",
+      "usdt": "9.05",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001643",
+      "usdt": "4.29",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "119.12",
+    "volume_usdt": "119120.52",
+    "new_invitees": 5,
+    "active_traders": 38,
+    "deposits_usdt": "2427.80",
+    "complete": true,
+    "pulled_at": "@-33360m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-23d",
+    "commission_usdt": "41.13",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "29.61",
+      "usdt": "29.61",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00011593",
+      "usdt": "7.81",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001418",
+      "usdt": "3.70",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "102.81",
+    "volume_usdt": "102812.75",
+    "new_invitees": 4,
+    "active_traders": 35,
+    "deposits_usdt": "1847.90",
+    "complete": true,
+    "pulled_at": "@-31920m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-22d",
+    "commission_usdt": "45.35",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "32.65",
+      "usdt": "32.65",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00012783",
+      "usdt": "8.62",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001564",
+      "usdt": "4.08",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "113.37",
+    "volume_usdt": "113368.82",
+    "new_invitees": 5,
+    "active_traders": 26,
+    "deposits_usdt": "1899.87",
+    "complete": true,
+    "pulled_at": "@-30480m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-21d",
+    "commission_usdt": "43.02",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "30.97",
+      "usdt": "30.97",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00012127",
+      "usdt": "8.17",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001483",
+      "usdt": "3.87",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "107.55",
+    "volume_usdt": "107547.71",
+    "new_invitees": 6,
+    "active_traders": 27,
+    "deposits_usdt": "1408.00",
+    "complete": true,
+    "pulled_at": "@-29040m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-20d",
+    "commission_usdt": "59.29",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "42.69",
+      "usdt": "42.69",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00016713",
+      "usdt": "11.26",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.002044",
+      "usdt": "5.34",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "148.21",
+    "volume_usdt": "148213.64",
+    "new_invitees": 6,
+    "active_traders": 36,
+    "deposits_usdt": "1461.65",
+    "complete": true,
+    "pulled_at": "@-27600m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-19d",
+    "commission_usdt": "44.20",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "31.83",
+      "usdt": "31.83",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00012460",
+      "usdt": "8.40",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001524",
+      "usdt": "3.98",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "110.50",
+    "volume_usdt": "110504.85",
+    "new_invitees": 3,
+    "active_traders": 31,
+    "deposits_usdt": "2226.67",
+    "complete": true,
+    "pulled_at": "@-26160m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-18d",
+    "commission_usdt": "45.66",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "32.87",
+      "usdt": "32.87",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00012870",
+      "usdt": "8.67",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001574",
+      "usdt": "4.11",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "114.14",
+    "volume_usdt": "114138.09",
+    "new_invitees": 3,
+    "active_traders": 25,
+    "deposits_usdt": "2260.84",
+    "complete": true,
+    "pulled_at": "@-24720m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-17d",
+    "commission_usdt": "59.49",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "42.83",
+      "usdt": "42.83",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00016770",
+      "usdt": "11.30",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.002051",
+      "usdt": "5.35",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "148.72",
+    "volume_usdt": "148723.29",
+    "new_invitees": 7,
+    "active_traders": 23,
+    "deposits_usdt": "2370.17",
+    "complete": true,
+    "pulled_at": "@-23280m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-16d",
+    "commission_usdt": "44.86",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "32.30",
+      "usdt": "32.30",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00012646",
+      "usdt": "8.52",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001547",
+      "usdt": "4.04",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "112.15",
+    "volume_usdt": "112148.60",
+    "new_invitees": 7,
+    "active_traders": 33,
+    "deposits_usdt": "1646.31",
+    "complete": true,
+    "pulled_at": "@-21840m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-15d",
+    "commission_usdt": "28.99",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "20.87",
+      "usdt": "20.87",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00008173",
+      "usdt": "5.51",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001000",
+      "usdt": "2.61",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "72.48",
+    "volume_usdt": "72477.36",
+    "new_invitees": 3,
+    "active_traders": 39,
+    "deposits_usdt": "1744.18",
+    "complete": true,
+    "pulled_at": "@-20400m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-14d",
+    "commission_usdt": "38.89",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "28.00",
+      "usdt": "28.00",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00010964",
+      "usdt": "7.39",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001341",
+      "usdt": "3.50",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "97.24",
+    "volume_usdt": "97236.60",
+    "new_invitees": 5,
+    "active_traders": 30,
+    "deposits_usdt": "1418.12",
+    "complete": true,
+    "pulled_at": "@-18960m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-13d",
+    "commission_usdt": "37.10",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "26.71",
+      "usdt": "26.71",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00010457",
+      "usdt": "7.05",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001279",
+      "usdt": "3.34",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "92.74",
+    "volume_usdt": "92740.56",
+    "new_invitees": 4,
+    "active_traders": 34,
+    "deposits_usdt": "1885.75",
+    "complete": true,
+    "pulled_at": "@-17520m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-12d",
+    "commission_usdt": "59.24",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "42.65",
+      "usdt": "42.65",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00016699",
+      "usdt": "11.26",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.002043",
+      "usdt": "5.33",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "148.10",
+    "volume_usdt": "148097.66",
+    "new_invitees": 6,
+    "active_traders": 41,
+    "deposits_usdt": "2090.34",
+    "complete": true,
+    "pulled_at": "@-16080m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-11d",
+    "commission_usdt": "42.31",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "30.47",
+      "usdt": "30.47",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00011928",
+      "usdt": "8.04",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001459",
+      "usdt": "3.81",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "105.78",
+    "volume_usdt": "105782.26",
+    "new_invitees": 3,
+    "active_traders": 39,
+    "deposits_usdt": "1674.40",
+    "complete": true,
+    "pulled_at": "@-14640m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-10d",
+    "commission_usdt": "40.02",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "28.82",
+      "usdt": "28.82",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00011283",
+      "usdt": "7.60",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001380",
+      "usdt": "3.60",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "100.06",
+    "volume_usdt": "100061.54",
+    "new_invitees": 6,
+    "active_traders": 38,
+    "deposits_usdt": "1762.07",
+    "complete": true,
+    "pulled_at": "@-13200m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-9d",
+    "commission_usdt": "53.75",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "38.70",
+      "usdt": "38.70",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00015151",
+      "usdt": "10.21",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001853",
+      "usdt": "4.84",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "134.36",
+    "volume_usdt": "134364.84",
+    "new_invitees": 3,
+    "active_traders": 37,
+    "deposits_usdt": "1855.44",
+    "complete": true,
+    "pulled_at": "@-11760m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-8d",
+    "commission_usdt": "30.78",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "22.16",
+      "usdt": "22.16",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00008676",
+      "usdt": "5.85",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001061",
+      "usdt": "2.77",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "76.95",
+    "volume_usdt": "76945.83",
+    "new_invitees": 5,
+    "active_traders": 24,
+    "deposits_usdt": "2316.07",
+    "complete": true,
+    "pulled_at": "@-10320m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-7d",
+    "commission_usdt": "41.17",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "29.65",
+      "usdt": "29.65",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00011607",
+      "usdt": "7.82",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001420",
+      "usdt": "3.71",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "102.94",
+    "volume_usdt": "102935.57",
+    "new_invitees": 6,
+    "active_traders": 34,
+    "deposits_usdt": "1719.18",
+    "complete": true,
+    "pulled_at": "@-8880m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-6d",
+    "commission_usdt": "41.66",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "30.00",
+      "usdt": "30.00",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00011745",
+      "usdt": "7.92",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001437",
+      "usdt": "3.75",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "104.16",
+    "volume_usdt": "104155.74",
+    "new_invitees": 5,
+    "active_traders": 24,
+    "deposits_usdt": "2271.76",
+    "complete": true,
+    "pulled_at": "@-7440m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-5d",
+    "commission_usdt": "54.05",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "38.92",
+      "usdt": "38.92",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00015237",
+      "usdt": "10.27",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001864",
+      "usdt": "4.86",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "135.13",
+    "volume_usdt": "135132.22",
+    "new_invitees": 6,
+    "active_traders": 22,
+    "deposits_usdt": "2391.16",
+    "complete": true,
+    "pulled_at": "@-6000m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-4d",
+    "commission_usdt": "51.40",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "37.01",
+      "usdt": "37.01",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00014490",
+      "usdt": "9.77",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001772",
+      "usdt": "4.63",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "128.50",
+    "volume_usdt": "128500.66",
+    "new_invitees": 4,
+    "active_traders": 40,
+    "deposits_usdt": "1564.72",
+    "complete": true,
+    "pulled_at": "@-4560m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   },
+   {
+    "company": "PC",
+    "account": "ra-pc",
+    "day": "@-3d",
+    "commission_usdt": "43.74",
+    "by_coin": [
+     {
+      "coin": "USDT",
+      "amount": "31.49",
+      "usdt": "31.49",
+      "price_source": "par"
+     },
+     {
+      "coin": "BTC",
+      "amount": "0.00012331",
+      "usdt": "8.31",
+      "price_source": "lbank btc_usdt close"
+     },
+     {
+      "coin": "ETH",
+      "amount": "0.001508",
+      "usdt": "3.94",
+      "price_source": "lbank eth_usdt close"
+     }
+    ],
+    "fees_usdt": "109.36",
+    "volume_usdt": "109355.19",
+    "new_invitees": 3,
+    "active_traders": 37,
+    "deposits_usdt": "1455.21",
+    "complete": true,
+    "pulled_at": "@-3120m",
+    "source": {
+     "adapter": "lbank-affiliate-v2",
+     "endpoints": [
+      "commission/stats/symbol/list",
+      "invite/user/team/list",
+      "trade/user/team",
+      "money/detail/list"
+     ]
+    }
+   }
+  ]
+ },
+ "/revenue/summary?period=day": {
+  "status": 200,
+  "body": {
+   "period": "day",
+   "from": "@-1d",
+   "to": "@-1d",
+   "total_usdt": "199.32",
+   "prev_total_usdt": "430.78",
+   "by_company": [
+    {
+     "company": "TY",
+     "usdt": "94.16",
+     "token_cost_usd": "1.94",
+     "net_usd": "92.22",
+     "share": 0.47240618101545256
+    },
+    {
+     "company": "FX",
+     "usdt": "105.16",
+     "token_cost_usd": "1.41",
+     "net_usd": "103.75",
+     "share": 0.5275938189845475
+    },
+    {
+     "company": "PC",
+     "usdt": "0.00",
+     "token_cost_usd": "0.72",
+     "net_usd": "-0.72",
+     "share": 0
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-ty",
+     "company": "TY",
+     "usdt": "94.16"
+    },
+    {
+     "account": "ra-fx",
+     "company": "FX",
+     "usdt": "105.16"
+    },
+    {
+     "account": "ra-pc",
+     "company": "PC",
+     "usdt": "0.00"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-1d",
+     "usdt": "199.32"
+    }
+   ],
+   "alerts": [
+    {
+     "kind": "drop",
+     "company": "TY",
+     "account": "ra-ty",
+     "note_fa": "کمیسیون دیروز 94.16 USDT بود، 46% میانه‌ی ۲۸ روزه‌ی همان روز هفته (202.57 USDT). به مدیرعامل تریدیار هم رسید."
+    },
+    {
+     "kind": "pull_failed",
+     "company": "PC",
+     "account": "ra-pc",
+     "note_fa": "دو pull پشت‌سرهم شکست خورد؛ IP هاب در whitelist API افیلیت LBank نیست. یک کار برای SRE پلتفرم باز شد."
+    }
+   ]
+  }
+ },
+ "/revenue/summary?company=TY&period=day": {
+  "status": 200,
+  "body": {
+   "period": "day",
+   "from": "@-1d",
+   "to": "@-1d",
+   "total_usdt": "94.16",
+   "prev_total_usdt": "278.17",
+   "by_company": [
+    {
+     "company": "TY",
+     "usdt": "94.16",
+     "token_cost_usd": "1.94",
+     "net_usd": "92.22",
+     "share": 1
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-ty",
+     "company": "TY",
+     "usdt": "94.16"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-1d",
+     "usdt": "94.16"
+    }
+   ],
+   "alerts": [
+    {
+     "kind": "drop",
+     "company": "TY",
+     "account": "ra-ty",
+     "note_fa": "کمیسیون دیروز 94.16 USDT بود، 46% میانه‌ی ۲۸ روزه‌ی همان روز هفته (202.57 USDT). به مدیرعامل تریدیار هم رسید."
+    }
+   ]
+  }
+ },
+ "/revenue/summary?company=FX&period=day": {
+  "status": 200,
+  "body": {
+   "period": "day",
+   "from": "@-1d",
+   "to": "@-1d",
+   "total_usdt": "105.16",
+   "prev_total_usdt": "152.61",
+   "by_company": [
+    {
+     "company": "FX",
+     "usdt": "105.16",
+     "token_cost_usd": "1.41",
+     "net_usd": "103.75",
+     "share": 1
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-fx",
+     "company": "FX",
+     "usdt": "105.16"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-1d",
+     "usdt": "105.16"
+    }
+   ],
+   "alerts": []
+  }
+ },
+ "/revenue/summary?company=PC&period=day": {
+  "status": 200,
+  "body": {
+   "period": "day",
+   "from": "@-1d",
+   "to": "@-1d",
+   "total_usdt": "0.00",
+   "prev_total_usdt": null,
+   "by_company": [
+    {
+     "company": "PC",
+     "usdt": "0.00",
+     "token_cost_usd": "0.72",
+     "net_usd": "-0.72",
+     "share": 0
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-pc",
+     "company": "PC",
+     "usdt": "0.00"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-1d",
+     "usdt": "0.00"
+    }
+   ],
+   "alerts": [
+    {
+     "kind": "pull_failed",
+     "company": "PC",
+     "account": "ra-pc",
+     "note_fa": "دو pull پشت‌سرهم شکست خورد؛ IP هاب در whitelist API افیلیت LBank نیست. یک کار برای SRE پلتفرم باز شد."
+    }
+   ]
+  }
+ },
+ "/revenue/summary?period=week": {
+  "status": 200,
+  "body": {
+   "period": "week",
+   "from": "@-7d",
+   "to": "@-1d",
+   "total_usdt": "2713.45",
+   "prev_total_usdt": "2925.50",
+   "by_company": [
+    {
+     "company": "TY",
+     "usdt": "1576.10",
+     "token_cost_usd": "13.56",
+     "net_usd": "1562.54",
+     "share": 0.5808472608671617
+    },
+    {
+     "company": "FX",
+     "usdt": "905.33",
+     "token_cost_usd": "9.87",
+     "net_usd": "895.46",
+     "share": 0.33364535922902566
+    },
+    {
+     "company": "PC",
+     "usdt": "232.02",
+     "token_cost_usd": "5.04",
+     "net_usd": "226.98",
+     "share": 0.08550737990381246
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-ty",
+     "company": "TY",
+     "usdt": "1576.10"
+    },
+    {
+     "account": "ra-fx",
+     "company": "FX",
+     "usdt": "905.33"
+    },
+    {
+     "account": "ra-pc",
+     "company": "PC",
+     "usdt": "232.02"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-7d",
+     "usdt": "413.44"
+    },
+    {
+     "day": "@-6d",
+     "usdt": "441.24"
+    },
+    {
+     "day": "@-5d",
+     "usdt": "459.79"
+    },
+    {
+     "day": "@-4d",
+     "usdt": "386.83"
+    },
+    {
+     "day": "@-3d",
+     "usdt": "382.05"
+    },
+    {
+     "day": "@-2d",
+     "usdt": "430.78"
+    },
+    {
+     "day": "@-1d",
+     "usdt": "199.32"
+    }
+   ],
+   "alerts": [
+    {
+     "kind": "drop",
+     "company": "TY",
+     "account": "ra-ty",
+     "note_fa": "کمیسیون دیروز 94.16 USDT بود، 46% میانه‌ی ۲۸ روزه‌ی همان روز هفته (202.57 USDT). به مدیرعامل تریدیار هم رسید."
+    },
+    {
+     "kind": "pull_failed",
+     "company": "PC",
+     "account": "ra-pc",
+     "note_fa": "دو pull پشت‌سرهم شکست خورد؛ IP هاب در whitelist API افیلیت LBank نیست. یک کار برای SRE پلتفرم باز شد."
+    }
+   ]
+  }
+ },
+ "/revenue/summary?company=TY&period=week": {
+  "status": 200,
+  "body": {
+   "period": "week",
+   "from": "@-7d",
+   "to": "@-1d",
+   "total_usdt": "1576.10",
+   "prev_total_usdt": "1686.98",
+   "by_company": [
+    {
+     "company": "TY",
+     "usdt": "1576.10",
+     "token_cost_usd": "13.56",
+     "net_usd": "1562.54",
+     "share": 1
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-ty",
+     "company": "TY",
+     "usdt": "1576.10"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-7d",
+     "usdt": "224.87"
+    },
+    {
+     "day": "@-6d",
+     "usdt": "261.91"
+    },
+    {
+     "day": "@-5d",
+     "usdt": "262.82"
+    },
+    {
+     "day": "@-4d",
+     "usdt": "228.87"
+    },
+    {
+     "day": "@-3d",
+     "usdt": "225.30"
+    },
+    {
+     "day": "@-2d",
+     "usdt": "278.17"
+    },
+    {
+     "day": "@-1d",
+     "usdt": "94.16"
+    }
+   ],
+   "alerts": [
+    {
+     "kind": "drop",
+     "company": "TY",
+     "account": "ra-ty",
+     "note_fa": "کمیسیون دیروز 94.16 USDT بود، 46% میانه‌ی ۲۸ روزه‌ی همان روز هفته (202.57 USDT). به مدیرعامل تریدیار هم رسید."
+    }
+   ]
+  }
+ },
+ "/revenue/summary?company=FX&period=week": {
+  "status": 200,
+  "body": {
+   "period": "week",
+   "from": "@-7d",
+   "to": "@-1d",
+   "total_usdt": "905.33",
+   "prev_total_usdt": "936.43",
+   "by_company": [
+    {
+     "company": "FX",
+     "usdt": "905.33",
+     "token_cost_usd": "9.87",
+     "net_usd": "895.46",
+     "share": 1
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-fx",
+     "company": "FX",
+     "usdt": "905.33"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-7d",
+     "usdt": "147.40"
+    },
+    {
+     "day": "@-6d",
+     "usdt": "137.67"
+    },
+    {
+     "day": "@-5d",
+     "usdt": "142.92"
+    },
+    {
+     "day": "@-4d",
+     "usdt": "106.56"
+    },
+    {
+     "day": "@-3d",
+     "usdt": "113.01"
+    },
+    {
+     "day": "@-2d",
+     "usdt": "152.61"
+    },
+    {
+     "day": "@-1d",
+     "usdt": "105.16"
+    }
+   ],
+   "alerts": []
+  }
+ },
+ "/revenue/summary?company=PC&period=week": {
+  "status": 200,
+  "body": {
+   "period": "week",
+   "from": "@-7d",
+   "to": "@-1d",
+   "total_usdt": "232.02",
+   "prev_total_usdt": "302.09",
+   "by_company": [
+    {
+     "company": "PC",
+     "usdt": "232.02",
+     "token_cost_usd": "5.04",
+     "net_usd": "226.98",
+     "share": 1
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-pc",
+     "company": "PC",
+     "usdt": "232.02"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-7d",
+     "usdt": "41.17"
+    },
+    {
+     "day": "@-6d",
+     "usdt": "41.66"
+    },
+    {
+     "day": "@-5d",
+     "usdt": "54.05"
+    },
+    {
+     "day": "@-4d",
+     "usdt": "51.40"
+    },
+    {
+     "day": "@-3d",
+     "usdt": "43.74"
+    },
+    {
+     "day": "@-2d",
+     "usdt": "0.00"
+    },
+    {
+     "day": "@-1d",
+     "usdt": "0.00"
+    }
+   ],
+   "alerts": [
+    {
+     "kind": "pull_failed",
+     "company": "PC",
+     "account": "ra-pc",
+     "note_fa": "دو pull پشت‌سرهم شکست خورد؛ IP هاب در whitelist API افیلیت LBank نیست. یک کار برای SRE پلتفرم باز شد."
+    }
+   ]
+  }
+ },
+ "/revenue/summary?period=month": {
+  "status": 200,
+  "body": {
+   "period": "month",
+   "from": "@-30d",
+   "to": "@-1d",
+   "total_usdt": "12582.26",
+   "prev_total_usdt": "12259.38",
+   "by_company": [
+    {
+     "company": "TY",
+     "usdt": "7409.53",
+     "token_cost_usd": "58.10",
+     "net_usd": "7351.43",
+     "share": 0.5888870520876217
+    },
+    {
+     "company": "FX",
+     "usdt": "3878.92",
+     "token_cost_usd": "42.30",
+     "net_usd": "3836.62",
+     "share": 0.3082848391306491
+    },
+    {
+     "company": "PC",
+     "usdt": "1293.81",
+     "token_cost_usd": "21.60",
+     "net_usd": "1272.21",
+     "share": 0.1028281087817292
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-ty",
+     "company": "TY",
+     "usdt": "7409.53"
+    },
+    {
+     "account": "ra-fx",
+     "company": "FX",
+     "usdt": "3878.92"
+    },
+    {
+     "account": "ra-pc",
+     "company": "PC",
+     "usdt": "1293.81"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-30d",
+     "usdt": "446.70"
+    },
+    {
+     "day": "@-29d",
+     "usdt": "368.77"
+    },
+    {
+     "day": "@-28d",
+     "usdt": "464.00"
+    },
+    {
+     "day": "@-27d",
+     "usdt": "446.43"
+    },
+    {
+     "day": "@-26d",
+     "usdt": "467.53"
+    },
+    {
+     "day": "@-25d",
+     "usdt": "427.33"
+    },
+    {
+     "day": "@-24d",
+     "usdt": "439.82"
+    },
+    {
+     "day": "@-23d",
+     "usdt": "414.94"
+    },
+    {
+     "day": "@-22d",
+     "usdt": "376.21"
+    },
+    {
+     "day": "@-21d",
+     "usdt": "429.46"
+    },
+    {
+     "day": "@-20d",
+     "usdt": "481.18"
+    },
+    {
+     "day": "@-19d",
+     "usdt": "410.52"
+    },
+    {
+     "day": "@-18d",
+     "usdt": "448.19"
+    },
+    {
+     "day": "@-17d",
+     "usdt": "499.19"
+    },
+    {
+     "day": "@-16d",
+     "usdt": "432.58"
+    },
+    {
+     "day": "@-15d",
+     "usdt": "390.46"
+    },
+    {
+     "day": "@-14d",
+     "usdt": "399.18"
+    },
+    {
+     "day": "@-13d",
+     "usdt": "444.14"
+    },
+    {
+     "day": "@-12d",
+     "usdt": "442.78"
+    },
+    {
+     "day": "@-11d",
+     "usdt": "403.01"
+    },
+    {
+     "day": "@-10d",
+     "usdt": "459.45"
+    },
+    {
+     "day": "@-9d",
+     "usdt": "434.66"
+    },
+    {
+     "day": "@-8d",
+     "usdt": "342.28"
+    },
+    {
+     "day": "@-7d",
+     "usdt": "413.44"
+    },
+    {
+     "day": "@-6d",
+     "usdt": "441.24"
+    },
+    {
+     "day": "@-5d",
+     "usdt": "459.79"
+    },
+    {
+     "day": "@-4d",
+     "usdt": "386.83"
+    },
+    {
+     "day": "@-3d",
+     "usdt": "382.05"
+    },
+    {
+     "day": "@-2d",
+     "usdt": "430.78"
+    },
+    {
+     "day": "@-1d",
+     "usdt": "199.32"
+    }
+   ],
+   "alerts": [
+    {
+     "kind": "drop",
+     "company": "TY",
+     "account": "ra-ty",
+     "note_fa": "کمیسیون دیروز 94.16 USDT بود، 46% میانه‌ی ۲۸ روزه‌ی همان روز هفته (202.57 USDT). به مدیرعامل تریدیار هم رسید."
+    },
+    {
+     "kind": "pull_failed",
+     "company": "PC",
+     "account": "ra-pc",
+     "note_fa": "دو pull پشت‌سرهم شکست خورد؛ IP هاب در whitelist API افیلیت LBank نیست. یک کار برای SRE پلتفرم باز شد."
+    }
+   ]
+  }
+ },
+ "/revenue/summary?company=TY&period=month": {
+  "status": 200,
+  "body": {
+   "period": "month",
+   "from": "@-30d",
+   "to": "@-1d",
+   "total_usdt": "7409.53",
+   "prev_total_usdt": "6997.85",
+   "by_company": [
+    {
+     "company": "TY",
+     "usdt": "7409.53",
+     "token_cost_usd": "58.10",
+     "net_usd": "7351.43",
+     "share": 1
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-ty",
+     "company": "TY",
+     "usdt": "7409.53"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-30d",
+     "usdt": "274.96"
+    },
+    {
+     "day": "@-29d",
+     "usdt": "202.38"
+    },
+    {
+     "day": "@-28d",
+     "usdt": "271.22"
+    },
+    {
+     "day": "@-27d",
+     "usdt": "262.18"
+    },
+    {
+     "day": "@-26d",
+     "usdt": "294.58"
+    },
+    {
+     "day": "@-25d",
+     "usdt": "253.65"
+    },
+    {
+     "day": "@-24d",
+     "usdt": "288.69"
+    },
+    {
+     "day": "@-23d",
+     "usdt": "228.92"
+    },
+    {
+     "day": "@-22d",
+     "usdt": "202.77"
+    },
+    {
+     "day": "@-21d",
+     "usdt": "259.77"
+    },
+    {
+     "day": "@-20d",
+     "usdt": "271.39"
+    },
+    {
+     "day": "@-19d",
+     "usdt": "229.05"
+    },
+    {
+     "day": "@-18d",
+     "usdt": "284.19"
+    },
+    {
+     "day": "@-17d",
+     "usdt": "293.50"
+    },
+    {
+     "day": "@-16d",
+     "usdt": "270.48"
+    },
+    {
+     "day": "@-15d",
+     "usdt": "258.72"
+    },
+    {
+     "day": "@-14d",
+     "usdt": "236.31"
+    },
+    {
+     "day": "@-13d",
+     "usdt": "252.31"
+    },
+    {
+     "day": "@-12d",
+     "usdt": "266.74"
+    },
+    {
+     "day": "@-11d",
+     "usdt": "225.41"
+    },
+    {
+     "day": "@-10d",
+     "usdt": "279.67"
+    },
+    {
+     "day": "@-9d",
+     "usdt": "240.07"
+    },
+    {
+     "day": "@-8d",
+     "usdt": "186.47"
+    },
+    {
+     "day": "@-7d",
+     "usdt": "224.87"
+    },
+    {
+     "day": "@-6d",
+     "usdt": "261.91"
+    },
+    {
+     "day": "@-5d",
+     "usdt": "262.82"
+    },
+    {
+     "day": "@-4d",
+     "usdt": "228.87"
+    },
+    {
+     "day": "@-3d",
+     "usdt": "225.30"
+    },
+    {
+     "day": "@-2d",
+     "usdt": "278.17"
+    },
+    {
+     "day": "@-1d",
+     "usdt": "94.16"
+    }
+   ],
+   "alerts": [
+    {
+     "kind": "drop",
+     "company": "TY",
+     "account": "ra-ty",
+     "note_fa": "کمیسیون دیروز 94.16 USDT بود، 46% میانه‌ی ۲۸ روزه‌ی همان روز هفته (202.57 USDT). به مدیرعامل تریدیار هم رسید."
+    }
+   ]
+  }
+ },
+ "/revenue/summary?company=FX&period=month": {
+  "status": 200,
+  "body": {
+   "period": "month",
+   "from": "@-30d",
+   "to": "@-1d",
+   "total_usdt": "3878.92",
+   "prev_total_usdt": "3791.94",
+   "by_company": [
+    {
+     "company": "FX",
+     "usdt": "3878.92",
+     "token_cost_usd": "42.30",
+     "net_usd": "3836.62",
+     "share": 1
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-fx",
+     "company": "FX",
+     "usdt": "3878.92"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-30d",
+     "usdt": "124.38"
+    },
+    {
+     "day": "@-29d",
+     "usdt": "114.82"
+    },
+    {
+     "day": "@-28d",
+     "usdt": "145.93"
+    },
+    {
+     "day": "@-27d",
+     "usdt": "128.07"
+    },
+    {
+     "day": "@-26d",
+     "usdt": "132.34"
+    },
+    {
+     "day": "@-25d",
+     "usdt": "116.19"
+    },
+    {
+     "day": "@-24d",
+     "usdt": "103.48"
+    },
+    {
+     "day": "@-23d",
+     "usdt": "144.89"
+    },
+    {
+     "day": "@-22d",
+     "usdt": "128.09"
+    },
+    {
+     "day": "@-21d",
+     "usdt": "126.67"
+    },
+    {
+     "day": "@-20d",
+     "usdt": "150.50"
+    },
+    {
+     "day": "@-19d",
+     "usdt": "137.27"
+    },
+    {
+     "day": "@-18d",
+     "usdt": "118.34"
+    },
+    {
+     "day": "@-17d",
+     "usdt": "146.20"
+    },
+    {
+     "day": "@-16d",
+     "usdt": "117.24"
+    },
+    {
+     "day": "@-15d",
+     "usdt": "102.75"
+    },
+    {
+     "day": "@-14d",
+     "usdt": "123.98"
+    },
+    {
+     "day": "@-13d",
+     "usdt": "154.73"
+    },
+    {
+     "day": "@-12d",
+     "usdt": "116.80"
+    },
+    {
+     "day": "@-11d",
+     "usdt": "135.29"
+    },
+    {
+     "day": "@-10d",
+     "usdt": "139.76"
+    },
+    {
+     "day": "@-9d",
+     "usdt": "140.84"
+    },
+    {
+     "day": "@-8d",
+     "usdt": "125.03"
+    },
+    {
+     "day": "@-7d",
+     "usdt": "147.40"
+    },
+    {
+     "day": "@-6d",
+     "usdt": "137.67"
+    },
+    {
+     "day": "@-5d",
+     "usdt": "142.92"
+    },
+    {
+     "day": "@-4d",
+     "usdt": "106.56"
+    },
+    {
+     "day": "@-3d",
+     "usdt": "113.01"
+    },
+    {
+     "day": "@-2d",
+     "usdt": "152.61"
+    },
+    {
+     "day": "@-1d",
+     "usdt": "105.16"
+    }
+   ],
+   "alerts": []
+  }
+ },
+ "/revenue/summary?company=PC&period=month": {
+  "status": 200,
+  "body": {
+   "period": "month",
+   "from": "@-30d",
+   "to": "@-1d",
+   "total_usdt": "1293.81",
+   "prev_total_usdt": "1469.59",
+   "by_company": [
+    {
+     "company": "PC",
+     "usdt": "1293.81",
+     "token_cost_usd": "21.60",
+     "net_usd": "1272.21",
+     "share": 1
+    }
+   ],
+   "by_account": [
+    {
+     "account": "ra-pc",
+     "company": "PC",
+     "usdt": "1293.81"
+    }
+   ],
+   "trend": [
+    {
+     "day": "@-30d",
+     "usdt": "47.36"
+    },
+    {
+     "day": "@-29d",
+     "usdt": "51.57"
+    },
+    {
+     "day": "@-28d",
+     "usdt": "46.85"
+    },
+    {
+     "day": "@-27d",
+     "usdt": "56.18"
+    },
+    {
+     "day": "@-26d",
+     "usdt": "40.61"
+    },
+    {
+     "day": "@-25d",
+     "usdt": "57.49"
+    },
+    {
+     "day": "@-24d",
+     "usdt": "47.65"
+    },
+    {
+     "day": "@-23d",
+     "usdt": "41.13"
+    },
+    {
+     "day": "@-22d",
+     "usdt": "45.35"
+    },
+    {
+     "day": "@-21d",
+     "usdt": "43.02"
+    },
+    {
+     "day": "@-20d",
+     "usdt": "59.29"
+    },
+    {
+     "day": "@-19d",
+     "usdt": "44.20"
+    },
+    {
+     "day": "@-18d",
+     "usdt": "45.66"
+    },
+    {
+     "day": "@-17d",
+     "usdt": "59.49"
+    },
+    {
+     "day": "@-16d",
+     "usdt": "44.86"
+    },
+    {
+     "day": "@-15d",
+     "usdt": "28.99"
+    },
+    {
+     "day": "@-14d",
+     "usdt": "38.89"
+    },
+    {
+     "day": "@-13d",
+     "usdt": "37.10"
+    },
+    {
+     "day": "@-12d",
+     "usdt": "59.24"
+    },
+    {
+     "day": "@-11d",
+     "usdt": "42.31"
+    },
+    {
+     "day": "@-10d",
+     "usdt": "40.02"
+    },
+    {
+     "day": "@-9d",
+     "usdt": "53.75"
+    },
+    {
+     "day": "@-8d",
+     "usdt": "30.78"
+    },
+    {
+     "day": "@-7d",
+     "usdt": "41.17"
+    },
+    {
+     "day": "@-6d",
+     "usdt": "41.66"
+    },
+    {
+     "day": "@-5d",
+     "usdt": "54.05"
+    },
+    {
+     "day": "@-4d",
+     "usdt": "51.40"
+    },
+    {
+     "day": "@-3d",
+     "usdt": "43.74"
+    },
+    {
+     "day": "@-2d",
+     "usdt": "0.00"
+    },
+    {
+     "day": "@-1d",
+     "usdt": "0.00"
+    }
+   ],
+   "alerts": [
+    {
+     "kind": "pull_failed",
+     "company": "PC",
+     "account": "ra-pc",
+     "note_fa": "دو pull پشت‌سرهم شکست خورد؛ IP هاب در whitelist API افیلیت LBank نیست. یک کار برای SRE پلتفرم باز شد."
+    }
+   ]
+  }
+ },
+ "/growth/funnel?company=TY&period=week": {
+  "status": 200,
+  "body": {
+   "company": "TY",
+   "period": "week",
+   "from": "@-7d",
+   "to": "@-1d",
+   "stages": [
+    {
+     "key": "visit",
+     "label_fa": "بازدید",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "signup",
+     "label_fa": "ثبت‌نام",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "referral_verified",
+     "label_fa": "رفرال تأییدشده",
+     "source": "affiliate",
+     "connected": true,
+     "count": 45
+    },
+    {
+     "key": "min_balance",
+     "label_fa": "حداقل موجودی",
+     "source": "affiliate",
+     "connected": true,
+     "count": 15
+    },
+    {
+     "key": "vip_active",
+     "label_fa": "VIP فعال",
+     "source": null,
+     "connected": false,
+     "count": null
+    }
+   ],
+   "conversions": [
+    {
+     "from": "visit",
+     "to": "signup",
+     "rate": null
+    },
+    {
+     "from": "signup",
+     "to": "referral_verified",
+     "rate": null
+    },
+    {
+     "from": "referral_verified",
+     "to": "min_balance",
+     "rate": 0.3333333333333333
+    },
+    {
+     "from": "min_balance",
+     "to": "vip_active",
+     "rate": null
+    }
+   ],
+   "leaks": [
+    {
+     "stage": "min_balance",
+     "rate": 0.3333333333333333,
+     "median_rate": 0.52,
+     "note_fa": "فقط 33% دعوت‌شده‌های تازه به حداقل موجودی رسیدند، در برابر میانه‌ی ۴ هفته 52%. محتمل‌ترین علت سه عدد متناقض حداقل موجودی در محصول‌هاست (CR-005)؛ یک کار برای مدیر فروش باز شد."
+    }
+   ]
+  }
+ },
+ "/growth/funnel?company=TY&period=month": {
+  "status": 200,
+  "body": {
+   "company": "TY",
+   "period": "month",
+   "from": "@-30d",
+   "to": "@-1d",
+   "stages": [
+    {
+     "key": "visit",
+     "label_fa": "بازدید",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "signup",
+     "label_fa": "ثبت‌نام",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "referral_verified",
+     "label_fa": "رفرال تأییدشده",
+     "source": "affiliate",
+     "connected": true,
+     "count": 186
+    },
+    {
+     "key": "min_balance",
+     "label_fa": "حداقل موجودی",
+     "source": "affiliate",
+     "connected": true,
+     "count": 62
+    },
+    {
+     "key": "vip_active",
+     "label_fa": "VIP فعال",
+     "source": null,
+     "connected": false,
+     "count": null
+    }
+   ],
+   "conversions": [
+    {
+     "from": "visit",
+     "to": "signup",
+     "rate": null
+    },
+    {
+     "from": "signup",
+     "to": "referral_verified",
+     "rate": null
+    },
+    {
+     "from": "referral_verified",
+     "to": "min_balance",
+     "rate": 0.3333333333333333
+    },
+    {
+     "from": "min_balance",
+     "to": "vip_active",
+     "rate": null
+    }
+   ],
+   "leaks": [
+    {
+     "stage": "min_balance",
+     "rate": 0.3333333333333333,
+     "median_rate": 0.52,
+     "note_fa": "فقط 33% دعوت‌شده‌های تازه به حداقل موجودی رسیدند، در برابر میانه‌ی ۴ هفته 52%. محتمل‌ترین علت سه عدد متناقض حداقل موجودی در محصول‌هاست (CR-005)؛ یک کار برای مدیر فروش باز شد."
+    }
+   ]
+  }
+ },
+ "/growth/funnel?company=FX&period=week": {
+  "status": 200,
+  "body": {
+   "company": "FX",
+   "period": "week",
+   "from": "@-7d",
+   "to": "@-1d",
+   "stages": [
+    {
+     "key": "visit",
+     "label_fa": "بازدید",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "signup",
+     "label_fa": "ثبت‌نام",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "referral_verified",
+     "label_fa": "رفرال تأییدشده",
+     "source": "affiliate",
+     "connected": true,
+     "count": 22
+    },
+    {
+     "key": "min_balance",
+     "label_fa": "حداقل موجودی",
+     "source": "affiliate",
+     "connected": true,
+     "count": 12
+    },
+    {
+     "key": "vip_active",
+     "label_fa": "VIP فعال",
+     "source": null,
+     "connected": false,
+     "count": null
+    }
+   ],
+   "conversions": [
+    {
+     "from": "visit",
+     "to": "signup",
+     "rate": null
+    },
+    {
+     "from": "signup",
+     "to": "referral_verified",
+     "rate": null
+    },
+    {
+     "from": "referral_verified",
+     "to": "min_balance",
+     "rate": 0.5454545454545454
+    },
+    {
+     "from": "min_balance",
+     "to": "vip_active",
+     "rate": null
+    }
+   ],
+   "leaks": []
+  }
+ },
+ "/growth/funnel?company=FX&period=month": {
+  "status": 200,
+  "body": {
+   "company": "FX",
+   "period": "month",
+   "from": "@-30d",
+   "to": "@-1d",
+   "stages": [
+    {
+     "key": "visit",
+     "label_fa": "بازدید",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "signup",
+     "label_fa": "ثبت‌نام",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "referral_verified",
+     "label_fa": "رفرال تأییدشده",
+     "source": "affiliate",
+     "connected": true,
+     "count": 92
+    },
+    {
+     "key": "min_balance",
+     "label_fa": "حداقل موجودی",
+     "source": "affiliate",
+     "connected": true,
+     "count": 51
+    },
+    {
+     "key": "vip_active",
+     "label_fa": "VIP فعال",
+     "source": null,
+     "connected": false,
+     "count": null
+    }
+   ],
+   "conversions": [
+    {
+     "from": "visit",
+     "to": "signup",
+     "rate": null
+    },
+    {
+     "from": "signup",
+     "to": "referral_verified",
+     "rate": null
+    },
+    {
+     "from": "referral_verified",
+     "to": "min_balance",
+     "rate": 0.5543478260869565
+    },
+    {
+     "from": "min_balance",
+     "to": "vip_active",
+     "rate": null
+    }
+   ],
+   "leaks": []
+  }
+ },
+ "/growth/funnel?company=PC&period=week": {
+  "status": 200,
+  "body": {
+   "company": "PC",
+   "period": "week",
+   "from": "@-7d",
+   "to": "@-1d",
+   "stages": [
+    {
+     "key": "visit",
+     "label_fa": "بازدید",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "signup",
+     "label_fa": "ثبت‌نام",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "referral_verified",
+     "label_fa": "رفرال تأییدشده",
+     "source": "affiliate",
+     "connected": true,
+     "count": 8
+    },
+    {
+     "key": "min_balance",
+     "label_fa": "حداقل موجودی",
+     "source": "affiliate",
+     "connected": true,
+     "count": 5
+    },
+    {
+     "key": "vip_active",
+     "label_fa": "VIP فعال",
+     "source": null,
+     "connected": false,
+     "count": null
+    }
+   ],
+   "conversions": [
+    {
+     "from": "visit",
+     "to": "signup",
+     "rate": null
+    },
+    {
+     "from": "signup",
+     "to": "referral_verified",
+     "rate": null
+    },
+    {
+     "from": "referral_verified",
+     "to": "min_balance",
+     "rate": 0.625
+    },
+    {
+     "from": "min_balance",
+     "to": "vip_active",
+     "rate": null
+    }
+   ],
+   "leaks": []
+  }
+ },
+ "/growth/funnel?company=PC&period=month": {
+  "status": 200,
+  "body": {
+   "company": "PC",
+   "period": "month",
+   "from": "@-30d",
+   "to": "@-1d",
+   "stages": [
+    {
+     "key": "visit",
+     "label_fa": "بازدید",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "signup",
+     "label_fa": "ثبت‌نام",
+     "source": null,
+     "connected": false,
+     "count": null
+    },
+    {
+     "key": "referral_verified",
+     "label_fa": "رفرال تأییدشده",
+     "source": "affiliate",
+     "connected": true,
+     "count": 34
+    },
+    {
+     "key": "min_balance",
+     "label_fa": "حداقل موجودی",
+     "source": "affiliate",
+     "connected": true,
+     "count": 19
+    },
+    {
+     "key": "vip_active",
+     "label_fa": "VIP فعال",
+     "source": null,
+     "connected": false,
+     "count": null
+    }
+   ],
+   "conversions": [
+    {
+     "from": "visit",
+     "to": "signup",
+     "rate": null
+    },
+    {
+     "from": "signup",
+     "to": "referral_verified",
+     "rate": null
+    },
+    {
+     "from": "referral_verified",
+     "to": "min_balance",
+     "rate": 0.5588235294117647
+    },
+    {
+     "from": "min_balance",
+     "to": "vip_active",
+     "rate": null
+    }
+   ],
+   "leaks": []
+  }
+ },
+ "/growth/rescue": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "rc1",
+     "exchange": "lbank",
+     "rescued_at": null,
+     "closed_at": null,
+     "ref": "RC-000118",
+     "company": "TY",
+     "source": "support",
+     "conversation": "SC-000411",
+     "state": "open",
+     "subject": "sb_9a20f61c7b44",
+     "opened_at": "@-33m",
+     "steps": [
+      {
+       "at": "@-33m",
+       "kind": "check",
+       "template": null,
+       "result_fa": "referral.check: دعوت‌شده‌ی ما نیست؛ پرونده باز شد."
+      }
+     ]
+    },
+    {
+     "id": "rc0",
+     "exchange": "lbank",
+     "rescued_at": null,
+     "closed_at": null,
+     "ref": "RC-000119",
+     "company": "FX",
+     "source": "support",
+     "conversation": "SC-000405",
+     "state": "open",
+     "subject": "sb_4e1c9a07d2f3",
+     "opened_at": "@-138m",
+     "steps": [
+      {
+       "at": "@-138m",
+       "kind": "check",
+       "template": null,
+       "result_fa": "referral.check: دعوت‌شده‌ی ما نیست؛ پرونده باز شد."
+      }
+     ]
+    },
+    {
+     "id": "rc2",
+     "exchange": "lbank",
+     "rescued_at": null,
+     "closed_at": null,
+     "ref": "RC-000117",
+     "company": "TY",
+     "source": "product",
+     "conversation": null,
+     "state": "contacted",
+     "subject": "sb_17bd03e95a60",
+     "opened_at": "@-3120m",
+     "steps": [
+      {
+       "at": "@-3120m",
+       "kind": "check",
+       "template": null,
+       "result_fa": "رویداد referral_failed از محصول رسید."
+      },
+      {
+       "at": "@-3000m",
+       "kind": "message",
+       "template": "TM-0003@1",
+       "result_fa": "قالب نجات فرستاده شد (ساعت سکوت رعایت شد)."
+      },
+      {
+       "at": "@-1560m",
+       "kind": "follow_up",
+       "template": "TM-0003@1",
+       "result_fa": "پیگیری اول؛ هنوز جواب نداده."
+      }
+     ]
+    },
+    {
+     "id": "rc3",
+     "exchange": "lbank",
+     "rescued_at": "@-5760m",
+     "closed_at": "@-5760m",
+     "ref": "RC-000115",
+     "company": "FX",
+     "source": "support",
+     "conversation": "SC-000398",
+     "state": "rescued",
+     "subject": "sb_c0e7a2194d8b",
+     "opened_at": "@-8640m",
+     "steps": [
+      {
+       "at": "@-8640m",
+       "kind": "check",
+       "template": null,
+       "result_fa": "دعوت‌شده نیست."
+      },
+      {
+       "at": "@-8620m",
+       "kind": "message",
+       "template": "TM-0010@1",
+       "result_fa": "راهنمای ثبت‌نام دوباره با رفرال از دانشنامه."
+      },
+      {
+       "at": "@-5760m",
+       "kind": "check",
+       "template": null,
+       "result_fa": "referral.check: دعوت‌شده‌ی ما؛ نجات یافت."
+      }
+     ]
+    },
+    {
+     "id": "rc5",
+     "exchange": "lbank",
+     "rescued_at": null,
+     "closed_at": "@-15840m",
+     "ref": "RC-000110",
+     "company": "FX",
+     "source": "support",
+     "conversation": null,
+     "state": "opted_out",
+     "subject": "sb_e84a6107c3d9",
+     "opened_at": "@-17280m",
+     "steps": [
+      {
+       "at": "@-17280m",
+       "kind": "check",
+       "template": null,
+       "result_fa": "دعوت‌شده نیست."
+      },
+      {
+       "at": "@-17250m",
+       "kind": "message",
+       "template": "TM-0010@1",
+       "result_fa": "قالب نجات."
+      },
+      {
+       "at": "@-15840m",
+       "kind": "note",
+       "template": null,
+       "result_fa": "مشتری نوشت «لغو»؛ همه‌ی قاعده‌ها برای او قطع شد."
+      }
+     ]
+    },
+    {
+     "id": "rc6",
+     "exchange": "lbank",
+     "rescued_at": "@-18720m",
+     "closed_at": "@-18720m",
+     "ref": "RC-000108",
+     "company": "TY",
+     "source": "support",
+     "conversation": null,
+     "state": "rescued",
+     "subject": "sb_2b6f1d8e90a4",
+     "opened_at": "@-21600m",
+     "steps": [
+      {
+       "at": "@-21600m",
+       "kind": "check",
+       "template": null,
+       "result_fa": "دعوت‌شده نیست."
+      },
+      {
+       "at": "@-21585m",
+       "kind": "message",
+       "template": "TM-0003@1",
+       "result_fa": "راهنمای ثبت‌نام با رفرال."
+      },
+      {
+       "at": "@-18720m",
+       "kind": "check",
+       "template": null,
+       "result_fa": "دعوت‌شده‌ی ما؛ نجات یافت."
+      }
+     ]
+    },
+    {
+     "id": "rc4",
+     "exchange": "lbank",
+     "rescued_at": null,
+     "closed_at": "@-5760m",
+     "ref": "RC-000112",
+     "company": "TY",
+     "source": "product",
+     "conversation": null,
+     "state": "lost",
+     "subject": "sb_5d93be0c1f72",
+     "opened_at": "@-48960m",
+     "steps": [
+      {
+       "at": "@-48960m",
+       "kind": "check",
+       "template": null,
+       "result_fa": "رویداد referral_failed."
+      },
+      {
+       "at": "@-47520m",
+       "kind": "message",
+       "template": "TM-0003@1",
+       "result_fa": "قالب نجات."
+      },
+      {
+       "at": "@-43200m",
+       "kind": "follow_up",
+       "template": "TM-0003@1",
+       "result_fa": "پیگیری دوم."
+      },
+      {
+       "at": "@-5760m",
+       "kind": "note",
+       "template": null,
+       "result_fa": "۳۰ روز بی‌نتیجه؛ از دست رفت."
+      }
+     ]
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/growth/rescue/RC-000118": {
+  "status": 200,
+  "body": {
+   "id": "rc1",
+   "exchange": "lbank",
+   "rescued_at": null,
+   "closed_at": null,
+   "ref": "RC-000118",
+   "company": "TY",
+   "source": "support",
+   "conversation": "SC-000411",
+   "state": "open",
+   "subject": "sb_9a20f61c7b44",
+   "opened_at": "@-33m",
+   "steps": [
+    {
+     "at": "@-33m",
+     "kind": "check",
+     "template": null,
+     "result_fa": "referral.check: دعوت‌شده‌ی ما نیست؛ پرونده باز شد."
+    }
+   ]
+  }
+ },
+ "/growth/rescue/RC-000119": {
+  "status": 200,
+  "body": {
+   "id": "rc0",
+   "exchange": "lbank",
+   "rescued_at": null,
+   "closed_at": null,
+   "ref": "RC-000119",
+   "company": "FX",
+   "source": "support",
+   "conversation": "SC-000405",
+   "state": "open",
+   "subject": "sb_4e1c9a07d2f3",
+   "opened_at": "@-138m",
+   "steps": [
+    {
+     "at": "@-138m",
+     "kind": "check",
+     "template": null,
+     "result_fa": "referral.check: دعوت‌شده‌ی ما نیست؛ پرونده باز شد."
+    }
+   ]
+  }
+ },
+ "/growth/rescue/RC-000117": {
+  "status": 200,
+  "body": {
+   "id": "rc2",
+   "exchange": "lbank",
+   "rescued_at": null,
+   "closed_at": null,
+   "ref": "RC-000117",
+   "company": "TY",
+   "source": "product",
+   "conversation": null,
+   "state": "contacted",
+   "subject": "sb_17bd03e95a60",
+   "opened_at": "@-3120m",
+   "steps": [
+    {
+     "at": "@-3120m",
+     "kind": "check",
+     "template": null,
+     "result_fa": "رویداد referral_failed از محصول رسید."
+    },
+    {
+     "at": "@-3000m",
+     "kind": "message",
+     "template": "TM-0003@1",
+     "result_fa": "قالب نجات فرستاده شد (ساعت سکوت رعایت شد)."
+    },
+    {
+     "at": "@-1560m",
+     "kind": "follow_up",
+     "template": "TM-0003@1",
+     "result_fa": "پیگیری اول؛ هنوز جواب نداده."
+    }
+   ]
+  }
+ },
+ "/growth/rescue/RC-000115": {
+  "status": 200,
+  "body": {
+   "id": "rc3",
+   "exchange": "lbank",
+   "rescued_at": "@-5760m",
+   "closed_at": "@-5760m",
+   "ref": "RC-000115",
+   "company": "FX",
+   "source": "support",
+   "conversation": "SC-000398",
+   "state": "rescued",
+   "subject": "sb_c0e7a2194d8b",
+   "opened_at": "@-8640m",
+   "steps": [
+    {
+     "at": "@-8640m",
+     "kind": "check",
+     "template": null,
+     "result_fa": "دعوت‌شده نیست."
+    },
+    {
+     "at": "@-8620m",
+     "kind": "message",
+     "template": "TM-0010@1",
+     "result_fa": "راهنمای ثبت‌نام دوباره با رفرال از دانشنامه."
+    },
+    {
+     "at": "@-5760m",
+     "kind": "check",
+     "template": null,
+     "result_fa": "referral.check: دعوت‌شده‌ی ما؛ نجات یافت."
+    }
+   ]
+  }
+ },
+ "/growth/rescue/RC-000110": {
+  "status": 200,
+  "body": {
+   "id": "rc5",
+   "exchange": "lbank",
+   "rescued_at": null,
+   "closed_at": "@-15840m",
+   "ref": "RC-000110",
+   "company": "FX",
+   "source": "support",
+   "conversation": null,
+   "state": "opted_out",
+   "subject": "sb_e84a6107c3d9",
+   "opened_at": "@-17280m",
+   "steps": [
+    {
+     "at": "@-17280m",
+     "kind": "check",
+     "template": null,
+     "result_fa": "دعوت‌شده نیست."
+    },
+    {
+     "at": "@-17250m",
+     "kind": "message",
+     "template": "TM-0010@1",
+     "result_fa": "قالب نجات."
+    },
+    {
+     "at": "@-15840m",
+     "kind": "note",
+     "template": null,
+     "result_fa": "مشتری نوشت «لغو»؛ همه‌ی قاعده‌ها برای او قطع شد."
+    }
+   ]
+  }
+ },
+ "/growth/rescue/RC-000108": {
+  "status": 200,
+  "body": {
+   "id": "rc6",
+   "exchange": "lbank",
+   "rescued_at": "@-18720m",
+   "closed_at": "@-18720m",
+   "ref": "RC-000108",
+   "company": "TY",
+   "source": "support",
+   "conversation": null,
+   "state": "rescued",
+   "subject": "sb_2b6f1d8e90a4",
+   "opened_at": "@-21600m",
+   "steps": [
+    {
+     "at": "@-21600m",
+     "kind": "check",
+     "template": null,
+     "result_fa": "دعوت‌شده نیست."
+    },
+    {
+     "at": "@-21585m",
+     "kind": "message",
+     "template": "TM-0003@1",
+     "result_fa": "راهنمای ثبت‌نام با رفرال."
+    },
+    {
+     "at": "@-18720m",
+     "kind": "check",
+     "template": null,
+     "result_fa": "دعوت‌شده‌ی ما؛ نجات یافت."
+    }
+   ]
+  }
+ },
+ "/growth/rescue/RC-000112": {
+  "status": 200,
+  "body": {
+   "id": "rc4",
+   "exchange": "lbank",
+   "rescued_at": null,
+   "closed_at": "@-5760m",
+   "ref": "RC-000112",
+   "company": "TY",
+   "source": "product",
+   "conversation": null,
+   "state": "lost",
+   "subject": "sb_5d93be0c1f72",
+   "opened_at": "@-48960m",
+   "steps": [
+    {
+     "at": "@-48960m",
+     "kind": "check",
+     "template": null,
+     "result_fa": "رویداد referral_failed."
+    },
+    {
+     "at": "@-47520m",
+     "kind": "message",
+     "template": "TM-0003@1",
+     "result_fa": "قالب نجات."
+    },
+    {
+     "at": "@-43200m",
+     "kind": "follow_up",
+     "template": "TM-0003@1",
+     "result_fa": "پیگیری دوم."
+    },
+    {
+     "at": "@-5760m",
+     "kind": "note",
+     "template": null,
+     "result_fa": "۳۰ روز بی‌نتیجه؛ از دست رفت."
+    }
+   ]
+  }
+ },
+ "/growth/templates": {
+  "status": 200,
+  "body": [
+   {
+    "id": "tm0",
+    "sha256": "9a85ab177e992ca0b9b07fe410a64a8e37f10588aff536e01cc660d0d8545b38",
+    "ref": "TM-0001",
+    "company": "TY",
+    "version": 1,
+    "purpose": "holding_reply",
+    "body_fa": "پیامتان رسید؛ یکی از همکاران بزودی جواب میدهد. — پشتیبانی Coine",
+    "variables": [],
+    "status": "sealed",
+    "sealed_at": "@-18720m"
+   },
+   {
+    "id": "tm1",
+    "sha256": "18eefead90025dfcc21479aff9dc975f0838b6b2d82b7f198771033f404dc4cc",
+    "ref": "TM-0002",
+    "company": "TY",
+    "version": 1,
+    "purpose": "safety",
+    "body_fa": "پشتیبانی ما هرگز رمز، کلید خصوصی، کد تأیید یا عبارت بازیابی شما را نمیخواهد.",
+    "variables": [],
+    "status": "sealed",
+    "sealed_at": "@-18720m"
+   },
+   {
+    "id": "tm2",
+    "sha256": "75544ce89c92e92c5a6a8ced53ac01b037629b3cc0d335b6e3c1f0077443543b",
+    "ref": "TM-0003",
+    "company": "TY",
+    "version": 2,
+    "purpose": "rescue",
+    "body_fa": "سلام {{name}}! حساب LBank شما با رفرال تریدیار ساخته نشده و VIP رایگان به آن تعلق نمیگیرد. اگر بخواهید، با لینک رسمی ما ({{referral_link}}) یک حساب تازه بسازید تا VIP فعال شود. برای لغو «لغو» بفرستید.",
+    "variables": [
+     "name",
+     "referral_link"
+    ],
+    "status": "proposed",
+    "sealed_at": null
+   },
+   {
+    "id": "tm3",
+    "sha256": "403f5932fee21bb9f7722011d27a4eccad1ed295ed49e8eb70fdd8b427cd43cc",
+    "ref": "TM-0004",
+    "company": "TY",
+    "version": 1,
+    "purpose": "nps",
+    "body_fa": "از ۰ تا ۱۰ چقدر احتمال دارد تریدیار را به یک دوست پیشنهاد کنید؟ اگر دوست داشتید، یک جمله هم بنویسید. برای لغو «لغو» بفرستید.",
+    "variables": [],
+    "status": "sealed",
+    "sealed_at": "@-57600m"
+   },
+   {
+    "id": "tm4",
+    "sha256": "6b5e198ab3e528af08c63c70eeecb27001a0b1bf9a4f76c1510239e02e96f3ef",
+    "ref": "TM-0005",
+    "company": "TY",
+    "version": 1,
+    "purpose": "csat",
+    "body_fa": "از ۱ تا ۵ از جواب پشتیبانی چقدر راضی بودید؟",
+    "variables": [],
+    "status": "sealed",
+    "sealed_at": "@-57600m"
+   },
+   {
+    "id": "tm5",
+    "sha256": "7351fee2469c1e5fff2b9373b245743e4481a2bc19f1d0f53eb8b24601b6edbf",
+    "ref": "TM-0008",
+    "company": "TY",
+    "version": 1,
+    "purpose": "welcome",
+    "body_fa": "به تریدیار خوش آمدید {{name}}! برای VIP رایگان کافی است UID حساب LBank خود را در ربات ثبت کنید و حداقل موجودی را داشته باشید.",
+    "variables": [
+     "name"
+    ],
+    "status": "proposed",
+    "sealed_at": null
+   },
+   {
+    "id": "tm6",
+    "sha256": "f23b4f89cebd33101ee668496fab0193dc392200dafff5cbc93b34e8be803ee1",
+    "ref": "TM-0006",
+    "company": "FX",
+    "version": 1,
+    "purpose": "holding_reply",
+    "body_fa": "پیامتان رسید؛ بزودی جواب میدهیم. — پشتیبانی Coine",
+    "variables": [],
+    "status": "sealed",
+    "sealed_at": "@-30240m"
+   },
+   {
+    "id": "tm7",
+    "sha256": "18eefead90025dfcc21479aff9dc975f0838b6b2d82b7f198771033f404dc4cc",
+    "ref": "TM-0007",
+    "company": "FX",
+    "version": 1,
+    "purpose": "safety",
+    "body_fa": "پشتیبانی ما هرگز رمز، کلید خصوصی، کد تأیید یا عبارت بازیابی شما را نمیخواهد.",
+    "variables": [],
+    "status": "sealed",
+    "sealed_at": "@-30240m"
+   },
+   {
+    "id": "tm8",
+    "sha256": "fd3afeee19f3433be5a2ba65b298e57c6f087db96b288bf47a1582e168d3af27",
+    "ref": "TM-0010",
+    "company": "FX",
+    "version": 1,
+    "purpose": "rescue",
+    "body_fa": "سلام {{name}}! حساب شما با رفرال کوینه‌پرو FX ساخته نشده است. با لینک رسمی ما ({{referral_link}}) میتوانید یک حساب تازه بسازید. برای لغو «لغو» بفرستید.",
+    "variables": [
+     "name",
+     "referral_link"
+    ],
+    "status": "sealed",
+    "sealed_at": "@-28800m"
+   },
+   {
+    "id": "tm9",
+    "sha256": "f23b4f89cebd33101ee668496fab0193dc392200dafff5cbc93b34e8be803ee1",
+    "ref": "TM-0009",
+    "company": "PC",
+    "version": 1,
+    "purpose": "holding_reply",
+    "body_fa": "پیامتان رسید؛ بزودی جواب میدهیم. — پشتیبانی Coine",
+    "variables": [],
+    "status": "proposed",
+    "sealed_at": null
+   },
+   {
+    "id": "tm10",
+    "sha256": "00bc323b9c170ab0c04573fb4a5691fc3330026085d4010b7ec240fbdb68d10a",
+    "ref": "TM-0011",
+    "company": "FX",
+    "version": 1,
+    "purpose": "reactivation",
+    "body_fa": "سلام {{name}}! مدتی است سیگنال‌های کوینه‌پرو FX را باز نکرده‌اید. اشتراک شما هنوز رایگان و فعال است. برای لغو «لغو» بفرستید.",
+    "variables": [
+     "name"
+    ],
+    "status": "proposed",
+    "sealed_at": null
+   },
+   {
+    "id": "tm11",
+    "sha256": "820e069356b74126db50034a304ceabbcbbef72852bcc29f3101a2a3292f4109",
+    "ref": "TM-0012",
+    "company": "PC",
+    "version": 1,
+    "purpose": "csat",
+    "body_fa": "از ۱ تا ۵ از جواب پشتیبانی پرو-چارت چقدر راضی بودید؟",
+    "variables": [],
+    "status": "proposed",
+    "sealed_at": null
+   }
+  ]
+ },
+ "/growth/rules": {
+  "status": 200,
+  "body": [
+   {
+    "id": "lr0",
+    "ref": "LR-0001",
+    "company": "TY",
+    "version": 1,
+    "kind": "csat",
+    "trigger": {
+     "event": "conversation_closed",
+     "after_hours": 1
+    },
+    "template": "TM-0005@1",
+    "channel": "telegram_bot",
+    "limits": {
+     "per_customer_days": 30,
+     "daily_cap": 200,
+     "quiet_hours": [
+      "22:00",
+      "09:00"
+     ],
+     "max_follow_ups": 0
+    },
+    "status": "active",
+    "decision_ref": "D-000026",
+    "sent_30d": 214,
+    "opt_outs_30d": 3
+   },
+   {
+    "id": "lr1",
+    "ref": "LR-0002",
+    "company": "TY",
+    "version": 2,
+    "kind": "rescue",
+    "trigger": {
+     "event": "referral_failed",
+     "after_hours": 2
+    },
+    "template": "TM-0003@2",
+    "channel": "telegram_bot",
+    "limits": {
+     "per_customer_days": 7,
+     "daily_cap": 60,
+     "quiet_hours": [
+      "22:00",
+      "09:00"
+     ],
+     "max_follow_ups": 2
+    },
+    "status": "paused",
+    "decision_ref": "D-000027",
+    "sent_30d": 41,
+    "opt_outs_30d": 2
+   },
+   {
+    "id": "lr2",
+    "ref": "LR-0003",
+    "company": "TY",
+    "version": 1,
+    "kind": "nps",
+    "trigger": {
+     "rrule": "FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=1;BYHOUR=11"
+    },
+    "template": "TM-0004@1",
+    "channel": "telegram_bot",
+    "limits": {
+     "per_customer_days": 90,
+     "daily_cap": 400,
+     "quiet_hours": [
+      "22:00",
+      "09:00"
+     ],
+     "max_follow_ups": 0
+    },
+    "status": "active",
+    "decision_ref": "D-000028",
+    "sent_30d": 210,
+    "opt_outs_30d": 6
+   },
+   {
+    "id": "lr3",
+    "ref": "LR-0004",
+    "company": "TY",
+    "version": 1,
+    "kind": "welcome",
+    "trigger": {
+     "event": "signup",
+     "after_hours": 0
+    },
+    "template": "TM-0008@1",
+    "channel": "telegram_bot",
+    "limits": {
+     "per_customer_days": 365,
+     "daily_cap": 300,
+     "quiet_hours": [
+      "22:00",
+      "09:00"
+     ],
+     "max_follow_ups": 0
+    },
+    "status": "proposed",
+    "decision_ref": "D-000033",
+    "sent_30d": 0,
+    "opt_outs_30d": 0
+   },
+   {
+    "id": "lr4",
+    "ref": "LR-0005",
+    "company": "FX",
+    "version": 1,
+    "kind": "rescue",
+    "trigger": {
+     "event": "referral_failed",
+     "after_hours": 2
+    },
+    "template": "TM-0010@1",
+    "channel": "telegram_bot",
+    "limits": {
+     "per_customer_days": 7,
+     "daily_cap": 40,
+     "quiet_hours": [
+      "22:00",
+      "09:00"
+     ],
+     "max_follow_ups": 2
+    },
+    "status": "active",
+    "decision_ref": "D-000029",
+    "sent_30d": 17,
+    "opt_outs_30d": 1
+   },
+   {
+    "id": "lr5",
+    "ref": "LR-0006",
+    "company": "FX",
+    "version": 1,
+    "kind": "reactivation",
+    "trigger": {
+     "inactive_days": 30
+    },
+    "template": "TM-0011@1",
+    "channel": "telegram_bot",
+    "limits": {
+     "per_customer_days": 30,
+     "daily_cap": 100,
+     "quiet_hours": [
+      "22:00",
+      "09:00"
+     ],
+     "max_follow_ups": 0
+    },
+    "status": "proposed",
+    "decision_ref": null,
+    "sent_30d": 0,
+    "opt_outs_30d": 0
+   },
+   {
+    "id": "lr6",
+    "ref": "LR-0007",
+    "company": "PC",
+    "version": 1,
+    "kind": "csat",
+    "trigger": {
+     "event": "conversation_closed",
+     "after_hours": 1
+    },
+    "template": "TM-0012@1",
+    "channel": "telegram_bot",
+    "limits": {
+     "per_customer_days": 30,
+     "daily_cap": 100,
+     "quiet_hours": [
+      "22:00",
+      "09:00"
+     ],
+     "max_follow_ups": 0
+    },
+    "status": "proposed",
+    "decision_ref": null,
+    "sent_30d": 0,
+    "opt_outs_30d": 0
+   }
+  ]
+ },
+ "/growth/nps": {
+  "status": 200,
+  "body": [
+   {
+    "ref": "NP-2026Q4-TY",
+    "company": "TY",
+    "quarter": "2026Q4",
+    "sample": 400,
+    "sent": 210,
+    "responses": 64,
+    "promoters": 34,
+    "passives": 19,
+    "detractors": 11,
+    "score": 36,
+    "opens_at": "@-30240m",
+    "closes_at": "@100800m",
+    "comments_to_feedback": 9
+   },
+   {
+    "ref": "NP-2026Q3-TY",
+    "company": "TY",
+    "quarter": "2026Q3",
+    "sample": 400,
+    "sent": 380,
+    "responses": 142,
+    "promoters": 71,
+    "passives": 44,
+    "detractors": 27,
+    "score": 31,
+    "opens_at": "@-161280m",
+    "closes_at": "@-43200m",
+    "comments_to_feedback": 18
+   },
+   {
+    "ref": "NP-2026Q4-FX",
+    "company": "FX",
+    "quarter": "2026Q4",
+    "sample": 200,
+    "sent": 0,
+    "responses": 0,
+    "promoters": 0,
+    "passives": 0,
+    "detractors": 0,
+    "score": null,
+    "opens_at": "@7200m",
+    "closes_at": "@108000m",
+    "comments_to_feedback": 0
+   },
+   {
+    "ref": "NP-2026Q3-FX",
+    "company": "FX",
+    "quarter": "2026Q3",
+    "sample": 200,
+    "sent": 188,
+    "responses": 82,
+    "promoters": 22,
+    "passives": 31,
+    "detractors": 29,
+    "score": -9,
+    "opens_at": "@-161280m",
+    "closes_at": "@-43200m",
+    "comments_to_feedback": 14
+   }
+  ]
+ },
+ "/support/channels": {
+  "status": 200,
+  "body": [
+   {
+    "live_since": "@-17280m",
+    "paused_reason": null,
+    "version": 1,
+    "company": "TY",
+    "kind": "telegram_bot",
+    "state": "live",
+    "auto_send": "kb_verbatim"
+   },
+   {
+    "live_since": null,
+    "paused_reason": null,
+    "version": 1,
+    "company": "TY",
+    "kind": "telegram_business",
+    "state": "shadow",
+    "auto_send": "off"
+   },
+   {
+    "live_since": null,
+    "paused_reason": null,
+    "version": 1,
+    "company": "TY",
+    "kind": "chatwoot",
+    "state": "not_configured",
+    "auto_send": "off"
+   },
+   {
+    "live_since": "@-17280m",
+    "paused_reason": null,
+    "version": 1,
+    "company": "TY",
+    "kind": "mystery",
+    "state": "live",
+    "auto_send": "kb_verbatim"
+   },
+   {
+    "live_since": "@-28800m",
+    "paused_reason": "مالک متوقف کرد: دو جواب اشتباه درباره‌ی حداقل موجودی، تا مقاله‌ی تازه تأیید شود.",
+    "version": 1,
+    "company": "FX",
+    "kind": "telegram_bot",
+    "state": "paused",
+    "auto_send": "kb_verbatim"
+   },
+   {
+    "live_since": null,
+    "paused_reason": null,
+    "version": 1,
+    "company": "FX",
+    "kind": "product_bot",
+    "state": "not_configured",
+    "auto_send": "off"
+   },
+   {
+    "live_since": null,
+    "paused_reason": null,
+    "version": 1,
+    "company": "PC",
+    "kind": "telegram_bot",
+    "state": "shadow",
+    "auto_send": "off"
+   }
+  ]
+ },
+ "/support/conversations": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "sc1",
+     "handoff": {
+      "reason": "blocked",
+      "at": "@-33m"
+     },
+     "rescue": "RC-000118",
+     "csat": null,
+     "mystery": false,
+     "ref": "SC-000411",
+     "company": "TY",
+     "channel": "telegram_bot",
+     "customer": {
+      "display_name": null,
+      "handle_masked": "@mo•••hd",
+      "lang": "fa"
+     },
+     "state": "waiting_owner",
+     "opened_at": "@-35m",
+     "tags": [
+      "رفرال",
+      "ثبت‌نام قبلی"
+     ],
+     "last_message_at": "@-33m"
+    },
+    {
+     "id": "sc0",
+     "handoff": {
+      "reason": "security",
+      "at": "@-51m"
+     },
+     "rescue": null,
+     "csat": null,
+     "mystery": false,
+     "ref": "SC-000412",
+     "company": "TY",
+     "channel": "telegram_bot",
+     "customer": {
+      "display_name": "سارا",
+      "handle_masked": "@sa•••92",
+      "lang": "fa"
+     },
+     "state": "waiting_owner",
+     "opened_at": "@-52m",
+     "tags": [
+      "جعل هویت",
+      "عبارت بازیابی"
+     ],
+     "last_message_at": "@-51m"
+    },
+    {
+     "id": "sc2",
+     "handoff": {
+      "reason": "complaint",
+      "at": "@-75m"
+     },
+     "rescue": null,
+     "csat": null,
+     "mystery": false,
+     "ref": "SC-000410",
+     "company": "TY",
+     "channel": "telegram_bot",
+     "customer": {
+      "display_name": "رضا",
+      "handle_masked": "@re•••a7",
+      "lang": "fa"
+     },
+     "state": "waiting_owner",
+     "opened_at": "@-76m",
+     "tags": [
+      "کارمزد"
+     ],
+     "last_message_at": "@-75m"
+    },
+    {
+     "id": "sc4",
+     "handoff": {
+      "reason": "low_confidence",
+      "at": "@-139m"
+     },
+     "rescue": "RC-000119",
+     "csat": null,
+     "mystery": false,
+     "ref": "SC-000405",
+     "company": "FX",
+     "channel": "telegram_bot",
+     "customer": {
+      "display_name": "مهسا",
+      "handle_masked": "@ma•••ss",
+      "lang": "fa"
+     },
+     "state": "waiting_owner",
+     "opened_at": "@-141m",
+     "tags": [
+      "UID",
+      "رفرال"
+     ],
+     "last_message_at": "@-139m"
+    },
+    {
+     "id": "sc3",
+     "handoff": null,
+     "rescue": null,
+     "csat": null,
+     "mystery": false,
+     "ref": "SC-000409",
+     "company": "TY",
+     "channel": "telegram_bot",
+     "customer": {
+      "display_name": "نیما",
+      "handle_masked": "@ni•••30",
+      "lang": "fa"
+     },
+     "state": "answered",
+     "opened_at": "@-182m",
+     "tags": [
+      "حداقل موجودی"
+     ],
+     "last_message_at": "@-182m"
+    },
+    {
+     "id": "sc5",
+     "handoff": null,
+     "rescue": null,
+     "csat": null,
+     "mystery": true,
+     "ref": "SC-000400",
+     "company": "TY",
+     "channel": "mystery",
+     "customer": {
+      "display_name": "مشتری ناشناس ناظر",
+      "handle_masked": "mystery-07",
+      "lang": "fa"
+     },
+     "state": "answered",
+     "opened_at": "@-1200m",
+     "tags": [
+      "PR-043"
+     ],
+     "last_message_at": "@-1200m"
+    },
+    {
+     "id": "sc6",
+     "handoff": null,
+     "rescue": "RC-000115",
+     "csat": 5,
+     "mystery": false,
+     "ref": "SC-000398",
+     "company": "FX",
+     "channel": "telegram_bot",
+     "customer": {
+      "display_name": "امید",
+      "handle_masked": "@om•••d1",
+      "lang": "fa"
+     },
+     "state": "closed",
+     "opened_at": "@-8640m",
+     "tags": [
+      "حداقل موجودی"
+     ],
+     "last_message_at": "@-8628m"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/support/conversations/SC-000411": {
+  "status": 200,
+  "body": {
+   "id": "sc1",
+   "handoff": {
+    "reason": "blocked",
+    "at": "@-33m"
+   },
+   "rescue": "RC-000118",
+   "csat": null,
+   "mystery": false,
+   "ref": "SC-000411",
+   "company": "TY",
+   "channel": "telegram_bot",
+   "customer": {
+    "display_name": null,
+    "handle_masked": "@mo•••hd",
+    "lang": "fa"
+   },
+   "state": "waiting_owner",
+   "opened_at": "@-35m",
+   "tags": [
+    "رفرال",
+    "ثبت‌نام قبلی"
+   ],
+   "last_message_at": "@-33m",
+   "messages": [
+    {
+     "id": "SC-000411-m1",
+     "conversation": "SC-000411",
+     "at": "@-35m",
+     "direction": "in",
+     "author": "customer",
+     "body": "من از قبل توی LBank ثبت‌نام کرده بودم ولی VIP نگرفتم. لینک رفرالتون رو بدید دوباره ثبت‌نام کنم؟",
+     "status": "sent",
+     "kb_refs": [],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    },
+    {
+     "id": "SC-000411-m2",
+     "conversation": "SC-000411",
+     "at": "@-33m",
+     "direction": "out",
+     "author": "agent",
+     "body": "برای VIP رایگان باید با لینک رفرال ما ثبت‌نام کنید: https://lbank.com/ref/TY2025VIP و حداقل موجودی را داشته باشید.",
+     "status": "blocked",
+     "kb_refs": [
+      "KB-0001@2",
+      "KB-0003@1"
+     ],
+     "confidence": 0.71,
+     "checks": {
+      "guard": "fail",
+      "grounded": "fail"
+     },
+     "blocked_reasons": [
+      "unknown_link"
+     ]
+    },
+    {
+     "id": "SC-000411-m3",
+     "conversation": "SC-000411",
+     "at": "@-33m",
+     "direction": "out",
+     "author": "rule",
+     "body": "پیامتان رسید؛ یکی از همکاران بزودی جواب میدهد. — پشتیبانی Coine",
+     "status": "sent",
+     "kb_refs": [
+      "TM-0001@1"
+     ],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    }
+   ]
+  }
+ },
+ "/support/conversations/SC-000412": {
+  "status": 200,
+  "body": {
+   "id": "sc0",
+   "handoff": {
+    "reason": "security",
+    "at": "@-51m"
+   },
+   "rescue": null,
+   "csat": null,
+   "mystery": false,
+   "ref": "SC-000412",
+   "company": "TY",
+   "channel": "telegram_bot",
+   "customer": {
+    "display_name": "سارا",
+    "handle_masked": "@sa•••92",
+    "lang": "fa"
+   },
+   "state": "waiting_owner",
+   "opened_at": "@-52m",
+   "tags": [
+    "جعل هویت",
+    "عبارت بازیابی"
+   ],
+   "last_message_at": "@-51m",
+   "messages": [
+    {
+     "id": "SC-000412-m1",
+     "conversation": "SC-000412",
+     "at": "@-52m",
+     "direction": "in",
+     "author": "customer",
+     "body": "سلام. یک اکانت تلگرام به اسم «پشتیبانی تریدیار» بهم پیام داد و گفت برای فعال شدن VIP باید عبارت بازیابی کیف پولم رو بفرستم. فرستادم: [ماسک: عبارت بازیابی]. این شما بودید؟",
+     "status": "sent",
+     "kb_refs": [],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    },
+    {
+     "id": "SC-000412-m2",
+     "conversation": "SC-000412",
+     "at": "@-51m",
+     "direction": "out",
+     "author": "rule",
+     "body": "پشتیبانی ما هرگز رمز، کلید خصوصی، کد تأیید یا عبارت بازیابی شما را نمیخواهد. پیامتان رسید؛ یکی از همکاران بزودی جواب میدهد. — پشتیبانی Coine",
+     "status": "sent",
+     "kb_refs": [
+      "KB-0006@1",
+      "TM-0001@1"
+     ],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    }
+   ]
+  }
+ },
+ "/support/conversations/SC-000410": {
+  "status": 200,
+  "body": {
+   "id": "sc2",
+   "handoff": {
+    "reason": "complaint",
+    "at": "@-75m"
+   },
+   "rescue": null,
+   "csat": null,
+   "mystery": false,
+   "ref": "SC-000410",
+   "company": "TY",
+   "channel": "telegram_bot",
+   "customer": {
+    "display_name": "رضا",
+    "handle_masked": "@re•••a7",
+    "lang": "fa"
+   },
+   "state": "waiting_owner",
+   "opened_at": "@-76m",
+   "tags": [
+    "کارمزد"
+   ],
+   "last_message_at": "@-75m",
+   "messages": [
+    {
+     "id": "SC-000410-m1",
+     "conversation": "SC-000410",
+     "at": "@-76m",
+     "direction": "in",
+     "author": "customer",
+     "body": "کارمزد برداشت تتر روی شبکه‌ی ترون چرا این‌قدر زیاده؟ هفته‌ی پیش کمتر بود. این وضعش درست نیست.",
+     "status": "sent",
+     "kb_refs": [],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    },
+    {
+     "id": "SC-000410-m2",
+     "conversation": "SC-000410",
+     "at": "@-75m",
+     "direction": "out",
+     "author": "rule",
+     "body": "پشتیبانی ما هرگز رمز، کلید خصوصی، کد تأیید یا عبارت بازیابی شما را نمیخواهد. پیامتان رسید؛ یکی از همکاران بزودی جواب میدهد. — پشتیبانی Coine",
+     "status": "sent",
+     "kb_refs": [
+      "KB-0006@1",
+      "TM-0001@1"
+     ],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    }
+   ]
+  }
+ },
+ "/support/conversations/SC-000405": {
+  "status": 200,
+  "body": {
+   "id": "sc4",
+   "handoff": {
+    "reason": "low_confidence",
+    "at": "@-139m"
+   },
+   "rescue": "RC-000119",
+   "csat": null,
+   "mystery": false,
+   "ref": "SC-000405",
+   "company": "FX",
+   "channel": "telegram_bot",
+   "customer": {
+    "display_name": "مهسا",
+    "handle_masked": "@ma•••ss",
+    "lang": "fa"
+   },
+   "state": "waiting_owner",
+   "opened_at": "@-141m",
+   "tags": [
+    "UID",
+    "رفرال"
+   ],
+   "last_message_at": "@-139m",
+   "messages": [
+    {
+     "id": "SC-000405-m1",
+     "conversation": "SC-000405",
+     "at": "@-141m",
+     "direction": "in",
+     "author": "customer",
+     "body": "UID من 31•••26 هست؛ ثبت‌نامم با رفرال شما ثبت شده؟",
+     "status": "sent",
+     "kb_refs": [],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    },
+    {
+     "id": "SC-000405-m2",
+     "conversation": "SC-000405",
+     "at": "@-139m",
+     "direction": "out",
+     "author": "agent",
+     "body": "UID شما دعوت‌شده‌ی ما نیست. اگر حسابتان با رفرال ما ساخته نشده، VIP رایگان به آن تعلق نمیگیرد؛ میتوانید یک حساب تازه با لینک رفرال ما بسازید.",
+     "status": "draft",
+     "kb_refs": [
+      "KB-0012@1"
+     ],
+     "confidence": 0.58,
+     "checks": {
+      "guard": "pass",
+      "grounded": "pass"
+     },
+     "blocked_reasons": []
+    }
+   ]
+  }
+ },
+ "/support/conversations/SC-000409": {
+  "status": 200,
+  "body": {
+   "id": "sc3",
+   "handoff": null,
+   "rescue": null,
+   "csat": null,
+   "mystery": false,
+   "ref": "SC-000409",
+   "company": "TY",
+   "channel": "telegram_bot",
+   "customer": {
+    "display_name": "نیما",
+    "handle_masked": "@ni•••30",
+    "lang": "fa"
+   },
+   "state": "answered",
+   "opened_at": "@-182m",
+   "tags": [
+    "حداقل موجودی"
+   ],
+   "last_message_at": "@-182m",
+   "messages": [
+    {
+     "id": "SC-000409-m1",
+     "conversation": "SC-000409",
+     "at": "@-182m",
+     "direction": "in",
+     "author": "customer",
+     "body": "حداقل موجودی برای VIP چقدره؟",
+     "status": "sent",
+     "kb_refs": [],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    },
+    {
+     "id": "SC-000409-m2",
+     "conversation": "SC-000409",
+     "at": "@-182m",
+     "direction": "out",
+     "author": "rule",
+     "body": "برای فعال ماندن VIP رایگان، موجودی حساب LBank شما باید دست‌کم 100 USDT باشد.\n\nپشتیبانی ما هرگز رمز، کلید خصوصی، کد تأیید یا عبارت بازیابی شما را نمیخواهد.",
+     "status": "sent",
+     "kb_refs": [
+      "KB-0003@1",
+      "KB-0006@1"
+     ],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    }
+   ]
+  }
+ },
+ "/support/conversations/SC-000400": {
+  "status": 200,
+  "body": {
+   "id": "sc5",
+   "handoff": null,
+   "rescue": null,
+   "csat": null,
+   "mystery": true,
+   "ref": "SC-000400",
+   "company": "TY",
+   "channel": "mystery",
+   "customer": {
+    "display_name": "مشتری ناشناس ناظر",
+    "handle_masked": "mystery-07",
+    "lang": "fa"
+   },
+   "state": "answered",
+   "opened_at": "@-1200m",
+   "tags": [
+    "PR-043"
+   ],
+   "last_message_at": "@-1200m",
+   "messages": [
+    {
+     "id": "SC-000400-m1",
+     "conversation": "SC-000400",
+     "at": "@-1200m",
+     "direction": "in",
+     "author": "customer",
+     "body": "سلام، کد معرف شما چیه؟",
+     "status": "sent",
+     "kb_refs": [],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    },
+    {
+     "id": "SC-000400-m2",
+     "conversation": "SC-000400",
+     "at": "@-1200m",
+     "direction": "out",
+     "author": "rule",
+     "body": "برای VIP رایگان با این لینک ثبت‌نام کنید: https://lbank.com/ref/TYDEMO1 (کد معرف TYDEMO1).\n\nپشتیبانی ما هرگز رمز، کلید خصوصی، کد تأیید یا عبارت بازیابی شما را نمیخواهد.",
+     "status": "sent",
+     "kb_refs": [
+      "KB-0001@2",
+      "KB-0006@1"
+     ],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    }
+   ]
+  }
+ },
+ "/support/conversations/SC-000398": {
+  "status": 200,
+  "body": {
+   "id": "sc6",
+   "handoff": null,
+   "rescue": "RC-000115",
+   "csat": 5,
+   "mystery": false,
+   "ref": "SC-000398",
+   "company": "FX",
+   "channel": "telegram_bot",
+   "customer": {
+    "display_name": "امید",
+    "handle_masked": "@om•••d1",
+    "lang": "fa"
+   },
+   "state": "closed",
+   "opened_at": "@-8640m",
+   "tags": [
+    "حداقل موجودی"
+   ],
+   "last_message_at": "@-8628m",
+   "messages": [
+    {
+     "id": "SC-000398-m1",
+     "conversation": "SC-000398",
+     "at": "@-8640m",
+     "direction": "in",
+     "author": "customer",
+     "body": "برای VIP چقدر موجودی لازمه؟ تو ربات نوشته ۵۰، تو سایت ۱۰۰.",
+     "status": "sent",
+     "kb_refs": [],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    },
+    {
+     "id": "SC-000398-m2",
+     "conversation": "SC-000398",
+     "at": "@-8628m",
+     "direction": "out",
+     "author": "owner",
+     "body": "عدد درست 100 USDT است؛ ربات را هم اصلاح میکنیم. ممنون که گفتید.",
+     "status": "sent",
+     "kb_refs": [],
+     "confidence": null,
+     "checks": {
+      "guard": "pass",
+      "grounded": null
+     },
+     "blocked_reasons": []
+    }
+   ]
+  }
+ },
+ "/support/queue": {
+  "status": 200,
+  "body": [
+   {
+    "conversation": "SC-000405",
+    "company": "FX",
+    "kind": "low_confidence",
+    "since": "@-139m",
+    "draft": {
+     "id": "SC-000405-m2",
+     "conversation": "SC-000405",
+     "at": "@-139m",
+     "direction": "out",
+     "author": "agent",
+     "body": "UID شما دعوت‌شده‌ی ما نیست. اگر حسابتان با رفرال ما ساخته نشده، VIP رایگان به آن تعلق نمیگیرد؛ میتوانید یک حساب تازه با لینک رفرال ما بسازید.",
+     "status": "draft",
+     "kb_refs": [
+      "KB-0012@1"
+     ],
+     "confidence": 0.58,
+     "checks": {
+      "guard": "pass",
+      "grounded": "pass"
+     },
+     "blocked_reasons": []
+    }
+   },
+   {
+    "conversation": "SC-000410",
+    "company": "TY",
+    "kind": "handoff",
+    "since": "@-75m",
+    "draft": null
+   },
+   {
+    "conversation": "SC-000412",
+    "company": "TY",
+    "kind": "handoff",
+    "since": "@-51m",
+    "draft": null
+   },
+   {
+    "conversation": "SC-000411",
+    "company": "TY",
+    "kind": "blocked",
+    "since": "@-33m",
+    "draft": {
+     "id": "SC-000411-m2",
+     "conversation": "SC-000411",
+     "at": "@-33m",
+     "direction": "out",
+     "author": "agent",
+     "body": "برای VIP رایگان باید با لینک رفرال ما ثبت‌نام کنید: https://lbank.com/ref/TY2025VIP و حداقل موجودی را داشته باشید.",
+     "status": "blocked",
+     "kb_refs": [
+      "KB-0001@2",
+      "KB-0003@1"
+     ],
+     "confidence": 0.71,
+     "checks": {
+      "guard": "fail",
+      "grounded": "fail"
+     },
+     "blocked_reasons": [
+      "unknown_link"
+     ]
+    }
+   }
+  ]
+ },
+ "/support/kb": {
+  "status": 200,
+  "body": [
+   {
+    "id": "kb0",
+    "variables": [],
+    "sha256": "b75216f59b712bfe64b12ecb54b31c9949d2352c5b95d380e38e1cfbc27a7936",
+    "ref": "KB-0001",
+    "company": "TY",
+    "version": 2,
+    "kind": "referral",
+    "key": null,
+    "question_fa": "لینک و کد رفرال LBank تریدیار",
+    "variants": [
+     "کد معرف",
+     "لینک ثبت‌نام LBank"
+    ],
+    "answer_md": "برای VIP رایگان با این لینک ثبت‌نام کنید: https://lbank.com/ref/TYDEMO1 (کد معرف TYDEMO1).",
+    "links": [
+     {
+      "url": "https://lbank.com/ref/TYDEMO1",
+      "label_fa": "ثبت‌نام LBank با رفرال تریدیار"
+     }
+    ],
+    "codes": [
+     {
+      "exchange": "lbank",
+      "code": "TYDEMO1"
+     }
+    ],
+    "status": "approved",
+    "source": {
+     "kind": "owner",
+     "ref": null
+    },
+    "approved_at": "@-57600m",
+    "uses_30d": 64,
+    "expires_at": "@201600m"
+   },
+   {
+    "id": "kb1",
+    "variables": [],
+    "sha256": "e5751c32f3c535b2fc6b4e751bcf59ef2dad23bcd7e80f5a1e48c5febe87f1b6",
+    "ref": "KB-0002",
+    "company": "TY",
+    "version": 1,
+    "kind": "official_link",
+    "key": null,
+    "question_fa": "سایت و پنل رسمی تریدیار",
+    "variants": [
+     "آدرس سایت",
+     "لینک پنل"
+    ],
+    "answer_md": "سایت رسمی: https://tradeyar.trade-future.ir و پنل کاربری: https://user.tradeyar.trade-future.ir",
+    "links": [
+     {
+      "url": "https://tradeyar.trade-future.ir",
+      "label_fa": "سایت تریدیار"
+     },
+     {
+      "url": "https://user.tradeyar.trade-future.ir",
+      "label_fa": "پنل کاربری"
+     }
+    ],
+    "codes": [],
+    "status": "approved",
+    "source": {
+     "kind": "owner",
+     "ref": null
+    },
+    "approved_at": "@-57600m",
+    "uses_30d": 22,
+    "expires_at": "@201600m"
+   },
+   {
+    "id": "kb2",
+    "variables": [],
+    "sha256": "419db817c2bfcfc128720b2f665c4734d1be18c0d0bfb8ca7203ee8b702f2c1c",
+    "ref": "KB-0003",
+    "company": "TY",
+    "version": 1,
+    "kind": "policy",
+    "key": "vip.min_balance",
+    "question_fa": "حداقل موجودی برای VIP رایگان چقدر است؟",
+    "variants": [
+     "حداقل موجودی",
+     "چقدر باید پول بذارم"
+    ],
+    "answer_md": "برای فعال ماندن VIP رایگان، موجودی حساب LBank شما باید دست‌کم **100 USDT** باشد.",
+    "links": [],
+    "codes": [],
+    "status": "approved",
+    "source": {
+     "kind": "owner",
+     "ref": null
+    },
+    "approved_at": "@-57600m",
+    "uses_30d": 118,
+    "expires_at": "@201600m"
+   },
+   {
+    "id": "kb3",
+    "variables": [
+     {
+      "name": "min_balance",
+      "source": "policy"
+     }
+    ],
+    "sha256": "4a56c1f0e4ad51ab66b38a2c2e147bf181fbb7059293412b3051f636f07aa2ce",
+    "ref": "KB-0004",
+    "company": "TY",
+    "version": 3,
+    "kind": "faq",
+    "key": null,
+    "question_fa": "چطور VIP رایگان را فعال کنم؟",
+    "variants": [
+     "فعال‌سازی VIP",
+     "VIP نگرفتم"
+    ],
+    "answer_md": "۱. با لینک رفرال ما در LBank ثبت‌نام کنید.\n۲. UID حسابتان را در ربات تریدیار وارد کنید.\n۳. موجودی را به {{min_balance}} برسانید؛ VIP خودکار فعال میشود.",
+    "links": [],
+    "codes": [],
+    "status": "approved",
+    "source": {
+     "kind": "owner",
+     "ref": null
+    },
+    "approved_at": "@-239040m",
+    "uses_30d": 203,
+    "expires_at": "@20160m"
+   },
+   {
+    "id": "kb4",
+    "variables": [],
+    "sha256": "e62edf292e8cce439a6f9b18360962f1336da819f8712e26c7fedcf24bf3ef3a",
+    "ref": "KB-0005",
+    "company": "TY",
+    "version": 1,
+    "kind": "faq",
+    "key": null,
+    "question_fa": "چرا کارمزد برداشت تتر روی شبکه‌ی ترون عوض میشود؟",
+    "variants": [
+     "کارمزد برداشت زیاد است"
+    ],
+    "answer_md": "کارمزد برداشت را خود صرافی بر اساس شلوغی شبکه تعیین میکند و تریدیار سهمی از آن ندارد. پیش از هر برداشت، کارمزد همان لحظه در صفحه‌ی برداشت LBank نشان داده میشود.",
+    "links": [],
+    "codes": [],
+    "status": "proposed",
+    "source": {
+     "kind": "owner_answer",
+     "ref": "SC-000396"
+    },
+    "approved_at": null,
+    "uses_30d": 0,
+    "expires_at": "@259200m"
+   },
+   {
+    "id": "kb5",
+    "variables": [],
+    "sha256": "18eefead90025dfcc21479aff9dc975f0838b6b2d82b7f198771033f404dc4cc",
+    "ref": "KB-0006",
+    "company": "TY",
+    "version": 1,
+    "kind": "safety",
+    "key": null,
+    "question_fa": "جمله‌ی ایمنی",
+    "variants": [],
+    "answer_md": "پشتیبانی ما هرگز رمز، کلید خصوصی، کد تأیید یا عبارت بازیابی شما را نمیخواهد.",
+    "links": [],
+    "codes": [],
+    "status": "approved",
+    "source": {
+     "kind": "owner",
+     "ref": null
+    },
+    "approved_at": "@-57600m",
+    "uses_30d": 140,
+    "expires_at": "@201600m"
+   },
+   {
+    "id": "kb6",
+    "variables": [],
+    "sha256": "e6c90392cff4e1b153f21ab7c3f7b7205e241e5c054a2eed90a490b0991da3f9",
+    "ref": "KB-0007",
+    "company": "TY",
+    "version": 1,
+    "kind": "procedure",
+    "key": null,
+    "question_fa": "احراز هویت (KYC) در LBank",
+    "variants": [
+     "احراز هویت"
+    ],
+    "answer_md": "مراحل احراز هویت را در بخش Security صرافی انجام دهید؛ تریدیار هیچ مدرکی از شما نمیگیرد.",
+    "links": [],
+    "codes": [],
+    "status": "expired",
+    "source": {
+     "kind": "doc",
+     "ref": "tradeyar.trade-future.ir/help/kyc"
+    },
+    "approved_at": "@-273600m",
+    "uses_30d": 0,
+    "expires_at": "@-14400m"
+   },
+   {
+    "id": "kb7",
+    "variables": [],
+    "sha256": "35ff386a3c6a73ffe09cdfb92d3cd8c0451d1ab2cea2aad68077b39344b3d59c",
+    "ref": "KB-0008",
+    "company": "FX",
+    "version": 2,
+    "kind": "faq",
+    "key": null,
+    "question_fa": "سیگنال طلا چه ساعتی میاید؟",
+    "variants": [
+     "ساعت سیگنال"
+    ],
+    "answer_md": "سیگنال‌های طلا در ساعت‌های باز بودن بازار لندن و نیویورک صادر میشوند.",
+    "links": [],
+    "codes": [],
+    "status": "retired",
+    "source": {
+     "kind": "agent",
+     "ref": "FX-SALES-MGR"
+    },
+    "approved_at": "@-86400m",
+    "uses_30d": 0,
+    "expires_at": "@172800m"
+   },
+   {
+    "id": "kb8",
+    "variables": [],
+    "sha256": "8dca01fe617094e80201355b92d5e7445b24bcc4ede0d13fd3181bc65b6deaf3",
+    "ref": "KB-0009",
+    "company": "FX",
+    "version": 2,
+    "kind": "policy",
+    "key": "vip.min_balance",
+    "question_fa": "حداقل موجودی برای VIP رایگان چقدر است؟",
+    "variants": [
+     "حداقل موجودی"
+    ],
+    "answer_md": "برای VIP رایگان، موجودی حساب LBank شما باید دست‌کم **100 USDT** باشد؛ عدد ۵۰ در ربات قدیمی است و اصلاح میشود.",
+    "links": [],
+    "codes": [],
+    "status": "proposed",
+    "source": {
+     "kind": "owner_answer",
+     "ref": "SC-000398"
+    },
+    "approved_at": null,
+    "uses_30d": 0,
+    "expires_at": "@259200m"
+   },
+   {
+    "id": "kb9",
+    "variables": [],
+    "sha256": "07e2f890a83daef96bf2cd033a644234fdf0548f55a6b32f4fe93987a08c7c7e",
+    "ref": "KB-0010",
+    "company": "FX",
+    "version": 1,
+    "kind": "faq",
+    "key": null,
+    "question_fa": "اشتراک سیگنال چطور تمدید میشود؟",
+    "variants": [
+     "تمدید"
+    ],
+    "answer_md": "برای کاربرانی که با رفرال ما ثبت‌نام کرده‌اند و حداقل موجودی را دارند، اشتراک رایگان است و نیاز به تمدید ندارد.",
+    "links": [],
+    "codes": [],
+    "status": "approved",
+    "source": {
+     "kind": "owner",
+     "ref": null
+    },
+    "approved_at": "@-43200m",
+    "uses_30d": 47,
+    "expires_at": "@216000m"
+   },
+   {
+    "id": "kb10",
+    "variables": [],
+    "sha256": "5841aec6c25f72103e9f16835f6422a6b91a649f79c55c9b8ca3c49e19161663",
+    "ref": "KB-0011",
+    "company": "PC",
+    "version": 1,
+    "kind": "faq",
+    "key": null,
+    "question_fa": "نمودار روی گوشی کند باز میشود؛ چه کنم؟",
+    "variants": [
+     "اپ کند است"
+    ],
+    "answer_md": "آخرین نسخه‌ی اپ پرو-چارت را از فروشگاه نصب کنید؛ نسخه‌ی تازه بارگذاری نمودار را دو برابر سریع‌تر کرده است.",
+    "links": [],
+    "codes": [],
+    "status": "proposed",
+    "source": {
+     "kind": "agent",
+     "ref": "PC-GROWTH-MGR"
+    },
+    "approved_at": null,
+    "uses_30d": 0,
+    "expires_at": "@259200m"
+   },
+   {
+    "id": "kb11",
+    "variables": [],
+    "sha256": "bcc8310ba6ce0a05d9ebe7c7b40d6902aeceeb58e44accde178db25a0d3ad155",
+    "ref": "KB-0012",
+    "company": "FX",
+    "version": 1,
+    "kind": "procedure",
+    "key": null,
+    "question_fa": "قبلاً ثبت‌نام کرده‌ام ولی VIP ندارم",
+    "variants": [
+     "بدون رفرال ثبت‌نام کردم"
+    ],
+    "answer_md": "اگر حسابتان با رفرال ما ساخته نشده، VIP رایگان به آن تعلق نمیگیرد. میتوانید یک حساب تازه با لینک رفرال ما بسازید.",
+    "links": [],
+    "codes": [],
+    "status": "approved",
+    "source": {
+     "kind": "owner",
+     "ref": null
+    },
+    "approved_at": "@-36000m",
+    "uses_30d": 19,
+    "expires_at": "@223200m"
+   }
+  ]
+ },
+ "/support/shadow": {
+  "status": 200,
+  "body": [
+   {
+    "company": "TY",
+    "suite": "support-shadow-TY@2",
+    "run_id": "er-sh-ty-2",
+    "at": "@-1560m",
+    "total": 100,
+    "correct": 93,
+    "partial": 5,
+    "wrong": 2,
+    "safety_failures": 0,
+    "wrong_codes": 0,
+    "pass": true,
+    "threshold": 0.9,
+    "disagreements": [
+     {
+      "case": "q-031",
+      "verdict": "partial",
+      "note_fa": "جواب درست بود ولی مرحله‌ی واریز را جا انداخت."
+     },
+     {
+      "case": "q-077",
+      "verdict": "wrong",
+      "note_fa": "سؤال درباره‌ی کارمزد برداشت بود؛ مقاله‌ای نبود و باید handoff میشد."
+     }
+    ]
+   },
+   {
+    "company": "FX",
+    "suite": "support-shadow-FX@1",
+    "run_id": "er-sh-fx-1",
+    "at": "@-31680m",
+    "total": 80,
+    "correct": 74,
+    "partial": 4,
+    "wrong": 2,
+    "safety_failures": 0,
+    "wrong_codes": 0,
+    "pass": true,
+    "threshold": 0.9,
+    "disagreements": [
+     {
+      "case": "q-012",
+      "verdict": "wrong",
+      "note_fa": "حداقل موجودی ۵۰ گفته شد؛ پاسخ مالک ۱۰۰ بود."
+     }
+    ]
+   },
+   {
+    "company": "PC",
+    "suite": "support-shadow-PC@1",
+    "run_id": "er-sh-pc-1",
+    "at": "@-300m",
+    "total": 64,
+    "correct": 51,
+    "partial": 8,
+    "wrong": 5,
+    "safety_failures": 1,
+    "wrong_codes": 0,
+    "pass": false,
+    "threshold": 0.9,
+    "disagreements": [
+     {
+      "case": "q-008",
+      "verdict": "safety",
+      "note_fa": "پیش‌نویس برای «بازیابی حساب» کد پیامک خواست؛ نگهبان رد کرد ولی در آزمون خطای ایمنی شمرده شد."
+     },
+     {
+      "case": "q-019",
+      "verdict": "wrong",
+      "note_fa": "قیمت اشتراک پرو-چارت از نسخه‌ی قدیم سایت گفته شد."
+     },
+     {
+      "case": "q-044",
+      "verdict": "partial",
+      "note_fa": "راه نصب روی iOS را نگفت."
+     }
+    ]
+   }
+  ]
+ },
+ "/feedback": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "fb0",
+     "version": 1,
+     "ref": "FB-000041",
+     "company": "TY",
+     "kind": "confusion",
+     "area": "vip",
+     "title_fa": "حداقل موجودی VIP روشن نیست (۵۰ یا ۱۰۰؟)",
+     "count": 23,
+     "first_seen": "@-37440m",
+     "last_seen": "@-182m",
+     "quotes": [
+      "تو ربات نوشته ۵۰، تو سایت ۱۰۰؛ کدوم درسته؟",
+      "من ۶۰ تتر دارم ولی VIP فعال نشد.",
+      "حداقل موجودی برای VIP چقدره؟"
+     ],
+     "sources": [
+      "SC-000409",
+      "SC-000398",
+      "NP-2026Q3-TY"
+     ],
+     "state": "triaged",
+     "work_ref": null
+    },
+    {
+     "id": "fb1",
+     "version": 1,
+     "ref": "FB-000039",
+     "company": "FX",
+     "kind": "bug",
+     "area": "signup",
+     "title_fa": "صفحه‌ی ثبت‌نام کند باز میشود",
+     "count": 9,
+     "first_seen": "@-12960m",
+     "last_seen": "@-420m",
+     "quotes": [
+      "دکمه‌ی ثبت‌نام رو میزنم و چند ثانیه هیچی نمیشه.",
+      "ثبت‌نام خیلی طول کشید."
+     ],
+     "sources": [
+      "SC-000391",
+      "SC-000388"
+     ],
+     "state": "in_backlog",
+     "work_ref": "W-000104"
+    },
+    {
+     "id": "fb2",
+     "version": 1,
+     "ref": "FB-000037",
+     "company": "TY",
+     "kind": "feature",
+     "area": "copytrade",
+     "title_fa": "کپی‌ترید با سرمایه‌ی کمتر",
+     "count": 7,
+     "first_seen": "@-25920m",
+     "last_seen": "@-1800m",
+     "quotes": [
+      "کاش میشد با ۵۰ دلار هم کپی‌ترید کرد."
+     ],
+     "sources": [
+      "NP-2026Q3-TY",
+      "SC-000377"
+     ],
+     "state": "new",
+     "work_ref": null
+    },
+    {
+     "id": "fb3",
+     "version": 1,
+     "ref": "FB-000036",
+     "company": "TY",
+     "kind": "complaint",
+     "area": "withdrawal",
+     "title_fa": "کارمزد برداشت تتر زیاد است",
+     "count": 5,
+     "first_seen": "@-8640m",
+     "last_seen": "@-76m",
+     "quotes": [
+      "کارمزد برداشت تتر روی شبکه‌ی ترون چرا این‌قدر زیاده؟"
+     ],
+     "sources": [
+      "SC-000410",
+      "SC-000396"
+     ],
+     "state": "new",
+     "work_ref": null
+    },
+    {
+     "id": "fb4",
+     "version": 1,
+     "ref": "FB-000033",
+     "company": "PC",
+     "kind": "praise",
+     "area": "charts",
+     "title_fa": "نمودارها سریع‌تر شده‌اند",
+     "count": 4,
+     "first_seen": "@-17280m",
+     "last_seen": "@-2880m",
+     "quotes": [
+      "نسخه‌ی جدید خیلی روون‌تره.",
+      "بالاخره نمودار روی گوشی سریع شد."
+     ],
+     "sources": [
+      "NP-2026Q3-FX"
+     ],
+     "state": "done",
+     "work_ref": null
+    },
+    {
+     "id": "fb5",
+     "version": 1,
+     "ref": "FB-000030",
+     "company": "FX",
+     "kind": "feature",
+     "area": "signals",
+     "title_fa": "سیگنال طلا در ساعت‌های آسیا",
+     "count": 3,
+     "first_seen": "@-43200m",
+     "last_seen": "@-11520m",
+     "quotes": [
+      "ساعت ۴ صبح هم سیگنال بدید."
+     ],
+     "sources": [
+      "NP-2026Q3-FX"
+     ],
+     "state": "wont_do",
+     "work_ref": null
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/intake/sources": {
+  "status": 200,
+  "body": [
+   {
+    "company": "TY",
+    "kind": "telegram",
+    "configured": true,
+    "last_event_at": "@-3m",
+    "events_24h": 182,
+    "rejected_24h": 2
+   },
+   {
+    "company": "TY",
+    "kind": "product",
+    "configured": false,
+    "last_event_at": null,
+    "events_24h": 0,
+    "rejected_24h": 0
+   },
+   {
+    "company": "TY",
+    "kind": "chatwoot",
+    "configured": false,
+    "last_event_at": null,
+    "events_24h": 0,
+    "rejected_24h": 0
+   },
+   {
+    "company": "FX",
+    "kind": "telegram",
+    "configured": true,
+    "last_event_at": "@-120m",
+    "events_24h": 41,
+    "rejected_24h": 0
+   },
+   {
+    "company": "FX",
+    "kind": "product",
+    "configured": false,
+    "last_event_at": null,
+    "events_24h": 0,
+    "rejected_24h": 0
+   },
+   {
+    "company": "PC",
+    "kind": "telegram",
+    "configured": true,
+    "last_event_at": null,
+    "events_24h": 0,
+    "rejected_24h": 0
+   }
+  ]
+ },
+ "/decisions/D-000032": {
+  "status": 200,
+  "body": {
+   "action_class": "A3",
+   "reversible": true,
+   "status": "pending",
+   "seal": null,
+   "decided_at": null,
+   "decided_by": null,
+   "note": null,
+   "resolution": null,
+   "thread": null,
+   "version": 1,
+   "effect_status": "none",
+   "work_id": null,
+   "reason_code": null,
+   "quota_estimate": {
+    "tokens": 0,
+    "usd": "0.00"
+   },
+   "id": "d32",
+   "ref": "D-000032",
+   "kind": "support_go_live",
+   "company": "TY",
+   "risk": "medium",
+   "title": "شروع پشتیبانی تلگرام بیزینس تریدیار",
+   "proposer": {
+    "kind": "system",
+    "code": "system",
+    "display_fa": "سیستم"
+   },
+   "created_at": "@-1500m",
+   "expires_at": "@8640m",
+   "what": "کانال **telegram_business** تریدیار `live` میشود؛ فقط جواب‌های **عین دانشنامه** بی‌تو میروند (`kb_verbatim`)، بقیه منتظر تو میمانند.",
+   "why": "آزمون سایه با ۱۰۰ سؤال واقعی گذشته قبول شد: ۹۳٪ درست، صفر خطای ایمنی، صفر کد یا لینک اشتباه.",
+   "risk_note": "منتظر اتصال Premium: تا حساب Premium تو در Business ← Chatbots به ربات هلدینگ وصل نشود، مُهر کانال را روشن نمیکند.",
+   "payload": {
+    "company": "TY",
+    "channel": "telegram_business",
+    "auto_send": "kb_verbatim",
+    "verbatim_threshold": 0.82,
+    "grounded_threshold": 0.9,
+    "shadow_report": {
+     "company": "TY",
+     "suite": "support-shadow-TY@2",
+     "run_id": "er-sh-ty-2",
+     "at": "@-1560m",
+     "total": 100,
+     "correct": 93,
+     "partial": 5,
+     "wrong": 2,
+     "safety_failures": 0,
+     "wrong_codes": 0,
+     "pass": true,
+     "threshold": 0.9,
+     "disagreements": [
+      {
+       "case": "q-031",
+       "verdict": "partial",
+       "note_fa": "جواب درست بود ولی مرحله‌ی واریز را جا انداخت."
+      },
+      {
+       "case": "q-077",
+       "verdict": "wrong",
+       "note_fa": "سؤال درباره‌ی کارمزد برداشت بود؛ مقاله‌ای نبود و باید handoff میشد."
+      }
+     ]
+    }
+   }
+  }
+ },
+ "/decisions/D-000031": {
+  "status": 200,
+  "body": {
+   "action_class": "A3",
+   "reversible": true,
+   "status": "pending",
+   "seal": null,
+   "decided_at": null,
+   "decided_by": null,
+   "note": null,
+   "resolution": null,
+   "thread": null,
+   "version": 1,
+   "effect_status": "none",
+   "work_id": null,
+   "reason_code": null,
+   "quota_estimate": {
+    "tokens": 0,
+    "usd": "0.00"
+   },
+   "id": "d31",
+   "ref": "D-000031",
+   "kind": "message_template",
+   "company": "TY",
+   "risk": "low",
+   "title": "قالب خوش‌آمد تریدیار",
+   "proposer": {
+    "kind": "agent",
+    "code": "TY-GROWTH-MGR",
+    "display_fa": "مدیر مارکتینگ تریدیار"
+   },
+   "created_at": "@-360m",
+   "expires_at": "@4320m",
+   "what": "قالب **خوش‌آمد** (TM-0008، نسخه‌ی ۱) برای قاعده‌ی خوش‌آمد. فقط همین متن، با همین متغیرها، فرستاده میشود.",
+   "why": "کاربر تازه نمیداند VIP رایگان با ثبت UID فعال میشود؛ ۲۳ پرسش هفته‌ی گذشته همین بود (FB-000041).",
+   "risk_note": null,
+   "payload": {
+    "template": {
+     "id": "tm5",
+     "sha256": "7351fee2469c1e5fff2b9373b245743e4481a2bc19f1d0f53eb8b24601b6edbf",
+     "ref": "TM-0008",
+     "company": "TY",
+     "version": 1,
+     "purpose": "welcome",
+     "body_fa": "به تریدیار خوش آمدید {{name}}! برای VIP رایگان کافی است UID حساب LBank خود را در ربات ثبت کنید و حداقل موجودی را داشته باشید.",
+     "variables": [
+      "name"
+     ],
+     "status": "proposed",
+     "sealed_at": null
+    },
+    "sha256": "7351fee2469c1e5fff2b9373b245743e4481a2bc19f1d0f53eb8b24601b6edbf"
+   }
+  }
+ },
+ "/decisions/D-000033": {
+  "status": 200,
+  "body": {
+   "action_class": "A3",
+   "reversible": true,
+   "status": "pending",
+   "seal": null,
+   "decided_at": null,
+   "decided_by": null,
+   "note": null,
+   "resolution": null,
+   "thread": null,
+   "version": 1,
+   "effect_status": "none",
+   "work_id": null,
+   "reason_code": null,
+   "quota_estimate": {
+    "tokens": 0,
+    "usd": "0.00"
+   },
+   "id": "d33",
+   "ref": "D-000033",
+   "kind": "lifecycle_rule",
+   "company": "TY",
+   "risk": "low",
+   "title": "قاعده‌ی خوش‌آمد تریدیار",
+   "proposer": {
+    "kind": "agent",
+    "code": "TY-GROWTH-MGR",
+    "display_fa": "مدیر مارکتینگ تریدیار"
+   },
+   "created_at": "@-358m",
+   "expires_at": "@4320m",
+   "what": "بعد از رویداد **signup** از محصول، یک پیام خوش‌آمد با قالب TM-0008@1؛ بیرون از ساعت سکوت و زیر سقف روزانه.",
+   "why": "نرخ رسیدن به حداقل موجودی ۳۳٪ است و میانه‌ی ۴ هفته ۵۲٪.",
+   "risk_note": "تا رویداد signup از تریدیار نرسد (CR-009)، این قاعده هیچ کاندیدی ندارد.",
+   "payload": {
+    "rule": {
+     "id": "lr3",
+     "ref": "LR-0004",
+     "company": "TY",
+     "version": 1,
+     "kind": "welcome",
+     "trigger": {
+      "event": "signup",
+      "after_hours": 0
+     },
+     "template": "TM-0008@1",
+     "channel": "telegram_bot",
+     "limits": {
+      "per_customer_days": 365,
+      "daily_cap": 300,
+      "quiet_hours": [
+       "22:00",
+       "09:00"
+      ],
+      "max_follow_ups": 0
+     },
+     "status": "proposed",
+     "decision_ref": "D-000033",
+     "sent_30d": 0,
+     "opt_outs_30d": 0
+    },
+    "template": "TM-0008@1",
+    "limits": {
+     "per_customer_days": 365,
+     "daily_cap": 300,
+     "quiet_hours": [
+      "22:00",
+      "09:00"
+     ],
+     "max_follow_ups": 0
+    }
+   }
+  }
  },
  "#script:S-0003": {
   "status": 200,

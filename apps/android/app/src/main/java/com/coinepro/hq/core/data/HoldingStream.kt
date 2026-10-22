@@ -118,7 +118,7 @@ class HoldingStream(
         const val CORE_TOPICS = "work,decisions,deliverables,messages,notifications,activity,llm,control"
 
         // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies"
+        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback"
 
         // Event type prefix -> query tags to refresh (mirrors apps/web/src/lib/stream.ts).
         val INVALIDATE: List<Pair<String, Array<String>>> = listOf(
@@ -150,6 +150,14 @@ class HoldingStream(
             "backup." to arrayOf("backups"),
             // ⟨1.4.6⟩ §18.14: a traced or sealed brand — the company's versions, every mark and seal, the founding's step.
             "brand." to arrayOf("brand", "brands", "companies", "founding"),
+            // ⟨1.5⟩ §19.9: the radar (revenue.day, revenue.alert), the desk (support.message, .queue, .channel), rescue and lifecycle
+            // sends, a closed NPS wave (its comments reach the feedback inbox), and feedback items.
+            "revenue." to arrayOf("revenue"),
+            "support." to arrayOf("support"),
+            "rescue." to arrayOf("growth"),
+            "lifecycle." to arrayOf("growth"),
+            "nps." to arrayOf("growth", "feedback"),
+            "feedback." to arrayOf("feedback"),
         )
     }
 }

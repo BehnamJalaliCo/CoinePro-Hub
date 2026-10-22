@@ -86,6 +86,12 @@ roborazzi {
     outputDir.set(file("src/test/screenshots"))
 }
 
+// Every screenshot starts a Robolectric app with the demo holding in one test JVM; past ~150 screens the default 512 MB
+// heap runs out, so the unit tests get room for every screen, night and day.
+tasks.withType<Test>().configureEach {
+    maxHeapSize = "2g"
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

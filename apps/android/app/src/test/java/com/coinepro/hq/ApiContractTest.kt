@@ -415,4 +415,163 @@ class ApiContractTest {
         assertEquals(false, api.deployFreeze("FX", "2026-10-18T09:00:00Z", "برداشته شد").active)
         assertEquals("/api/v1/control/deploy-freeze", server.takeRequest().url.encodedPath)
     }
+
+    // ------------------------------------------------------------ ⟨1.5⟩ --
+    @Test
+    fun revenueAccountAndIntakeSourceAreSealedOnTheExactBody() = runTest {
+        val acc = signed("""{"id":"ra-ty","company":"TY","exchange":"lbank","adapter":"lbank-affiliate-v2","service_account":"lbank-affiliate-ty","title_fa":"x","status":"not_configured","version":1}""") {
+            api.saveRevenueAccount(com.coinepro.hq.core.net.RevenueAccountIn("TY", "lbank", "lbank-affiliate-v2", "lbank-affiliate-ty", "افیلیت LBank تریدیار"), it)
+        }
+        val body = acc.third.body!!.utf8()
+        assertEquals("revenue.account" to Api.sha256(body), acc.first to acc.second)
+        assertEquals("/api/v1/revenue/accounts", acc.third.url.encodedPath)
+        assertEquals("""{"company":"TY","exchange":"lbank","adapter":"lbank-affiliate-v2","service_account":"lbank-affiliate-ty","title_fa":"افیلیت LBank تریدیار"}""", body)
+        val src = signed("""{"company":"TY","kind":"product","configured":false,"last_event_at":null,"events_24h":0,"rejected_24h":0}""") {
+            api.registerIntake(com.coinepro.hq.core.net.IntakeSourceIn("TY", "product", listOf("203.0.113.10/32"), listOf("signup", "referral_failed")), it)
+        }
+        val text = src.third.body!!.utf8()
+        assertEquals("intake.source" to Api.sha256(text), src.first to src.second)
+        assertEquals("""{"company":"TY","kind":"product","allowed_ips":["203.0.113.10/32"],"kinds":["signup","referral_failed"]}""", text)
+    }
+
+    @Test
+    fun pullReplyAndTeachCarryTheCallersIdempotencyKey() = runTest {
+        server.enqueue(json(202, """{"account":"ra-ty","state":"queued"}"""))
+        api.pullRevenue("ra-ty", "k-pull", from = "2026-10-01", to = "2026-10-16")
+        val pull = server.takeRequest()
+        assertEquals("/api/v1/revenue/accounts/ra-ty/pull", pull.url.encodedPath)
+        assertEquals("from=2026-10-01&to=2026-10-16", pull.url.encodedQuery)
+        assertEquals("k-pull", pull.headers["Idempotency-Key"])
+        assertNull(pull.headers["X-Step-Up"])
+        val msg = """{"id":"m9","conversation":"SC-000411","at":"2026-10-17T10:00:00Z","direction":"out","author":"owner","body":"x","status":"sent","checks":{"guard":"pass","grounded":null}}"""
+        server.enqueue(json(201, msg))
+        assertEquals("sent", api.reply("SC-000411", "متن تو", "k-reply").status)
+        val reply = server.takeRequest()
+        assertEquals("/api/v1/support/conversations/SC-000411/reply", reply.url.encodedPath)
+        assertEquals("k-reply" to """{"body":"متن تو"}""", reply.headers["Idempotency-Key"] to reply.body!!.utf8())
+        server.enqueue(json(201, """{"message":null,"article":{"ref":"KB-0013","company":"TY","kind":"faq","question_fa":"q","status":"proposed"}}"""))
+        val out = api.teach("SC-000411", "SC-000411-m2", "جواب درست", true, "k-teach")
+        val teach = server.takeRequest()
+        assertEquals("k-teach", teach.headers["Idempotency-Key"])
+        assertEquals("""{"message_id":"SC-000411-m2","answer_md":"جواب درست","generalise":true}""", teach.body!!.utf8())
+        assertTrue(out.message == null && out.article.ref == "KB-0013")
+        server.enqueue(json(201, """{"message":$msg,"article":{"ref":"KB-0014","company":"TY","kind":"faq","question_fa":"q","status":"proposed"}}"""))
+        api.teach("SC-000405", null, "جواب", false, "k-2")
+        assertEquals("""{"answer_md":"جواب","generalise":false}""", server.takeRequest().body!!.utf8())
+    }
+
+    @Test
+    fun theGuardsRefusalAndTheStableCodesReadInPersian() = runTest {
+        server.enqueue(json(422, """{"type":"about:blank","title":"send_blocked","status":422,"code":"send_blocked","message_fa":"رد شد.","blocked_reasons":["unknown_link","profit_promise"]}"""))
+        try {
+            api.reply("SC-000411", "https://lbank.com/ref/X سود تضمینی", "k")
+            fail("expected ApiException")
+        } catch (e: ApiException) {
+            assertEquals(listOf("unknown_link", "profit_promise"), e.blockedReasons)
+            assertEquals("نگهبان خروجی این پیام را رد کرد و فرستاده نشد.", com.coinepro.hq.core.net.faError(e))
+        }
+        server.enqueue(MockResponse.Builder().code(429).addHeader("Content-Type", "application/json").addHeader("Retry-After", "30")
+            .body("""{"code":"send_limit","message_fa":"سقف.","status":429}""").build())
+        try {
+            api.reply("SC-000411", "x", "k2")
+            fail("expected ApiException")
+        } catch (e: ApiException) {
+            assertEquals(30, e.retryAfter)
+            assertEquals("سقف ارسال پر شده است؛ 30 ثانیه‌ی دیگر دوباره امتحان کن.", com.coinepro.hq.core.net.faError(e))
+        }
+        for (code in listOf("shadow_not_passed", "template_not_sealed", "channel_not_live", "opted_out")) {
+            val e = ApiException(409, code, "server sentence")
+            assertTrue(code, com.coinepro.hq.core.net.faError(e) != "server sentence")
+        }
+        assertEquals("server sentence", com.coinepro.hq.core.net.faError(ApiException(409, "version_conflict", "server sentence")))
+    }
+
+    @Test
+    fun channelWideningIsSignedNarrowingAndPausingAreNot() = runTest {
+        val ch = com.coinepro.hq.core.net.SupportChannel("TY", "telegram_bot", "live", liveSince = "2026-10-05T10:00:00Z", autoSend = "kb_verbatim", version = 3)
+        val back = """{"company":"TY","kind":"telegram_bot","state":"live","auto_send":"kb_grounded","version":4}"""
+        var signedOn: Pair<String, String>? = null
+        server.enqueue(json(200, back))
+        api.patchChannel(ch, autoSend = "kb_grounded") { a, t -> signedOn = a to t; "su" }
+        val widen = server.takeRequest()
+        assertEquals("support.channel" to "TY/telegram_bot@kb_grounded", signedOn)
+        assertEquals("PATCH", widen.method)
+        assertEquals("\"3\"" to "su", widen.headers["If-Match"] to widen.headers["X-Step-Up"])
+        assertEquals("""{"auto_send":"kb_grounded"}""", widen.body!!.utf8())
+        // Narrowing needs no passkey.
+        signedOn = null
+        server.enqueue(json(200, back))
+        api.patchChannel(ch.copy(autoSend = "kb_grounded", version = 4), autoSend = "off") { a, t -> signedOn = a to t; "su" }
+        val narrow = server.takeRequest()
+        assertNull(signedOn)
+        assertNull(narrow.headers["X-Step-Up"])
+        assertEquals("\"4\"", narrow.headers["If-Match"])
+        // A paused channel that already went live comes back with a passkey, on its current auto_send.
+        server.enqueue(json(200, back))
+        api.patchChannel(ch.copy(state = "paused"), live = true) { a, t -> signedOn = a to t; "su" }
+        assertEquals("""{"state":"live"}""", server.takeRequest().body!!.utf8())
+        assertEquals("support.channel" to "TY/telegram_bot@kb_verbatim", signedOn)
+        // Stopping is always safe.
+        server.enqueue(json(200, back))
+        api.pauseChannel(ch)
+        val pause = server.takeRequest()
+        assertEquals("/api/v1/support/channels/TY/telegram_bot/pause", pause.url.encodedPath)
+        assertNull(pause.headers["X-Step-Up"])
+    }
+
+    @Test
+    fun knowledgeTemplatesAndRulesAreSealedOnTheirVersion() = runTest {
+        val a = com.coinepro.hq.core.net.KbArticle(ref = "KB-0005", company = "TY", version = 2, kind = "faq", questionFa = "q", status = "proposed")
+        val kb = signed("""{"ref":"KB-0005","company":"TY","version":2,"kind":"faq","question_fa":"q","status":"approved"}""") { api.approveKb(a, it) }
+        assertEquals("support.kb" to "KB-0005@2", kb.first to kb.second)
+        assertEquals("/api/v1/support/kb/KB-0005/approve", kb.third.url.encodedPath)
+        val t = com.coinepro.hq.core.net.Template(ref = "TM-0008", company = "TY", version = 1, purpose = "welcome", bodyFa = "x", status = "proposed", sha256 = "7351fee2")
+        val tm = signed("""{"ref":"TM-0008","company":"TY","version":1,"purpose":"welcome","status":"sealed"}""") { api.sealTemplate(t, it) }
+        assertEquals("growth.template" to "TM-0008@1:7351fee2", tm.first to tm.second)
+        val limits = com.coinepro.hq.core.net.RuleLimits(7, 60, listOf("22:00", "09:00"), 2)
+        val r = com.coinepro.hq.core.net.LifecycleRule(ref = "LR-0002", company = "TY", version = 2, kind = "rescue", template = "TM-0003@2", channel = "telegram_bot", limits = limits, status = "paused")
+        val ruleJson = """{"ref":"LR-0002","company":"TY","version":2,"kind":"rescue","template":"TM-0003@2","channel":"telegram_bot","limits":{"per_customer_days":7,"daily_cap":60,"quiet_hours":["22:00","09:00"],"max_follow_ups":2},"status":"active"}"""
+        val seal = signed(ruleJson) { api.sealRule(r, it) }
+        assertEquals("growth.rule" to "LR-0002@2", seal.first to seal.second)
+        val resume = signed(ruleJson) { api.resumeRule(r, it) }
+        assertEquals("growth.rule" to "LR-0002@2", resume.first to resume.second)
+        assertEquals("/api/v1/growth/rules/LR-0002/resume", resume.third.url.encodedPath)
+        server.enqueue(json(200, ruleJson))
+        api.pauseRule("LR-0002")
+        assertNull(server.takeRequest().headers["X-Step-Up"])
+        // A new rule sends every limit, including those at their usual values.
+        server.enqueue(json(201, ruleJson))
+        api.createRule(com.coinepro.hq.core.net.LifecycleRuleIn("TY", "csat", com.coinepro.hq.core.net.RuleTrigger(event = "conversation_closed", afterHours = 1), "TM-0005@1", "telegram_bot", com.coinepro.hq.core.net.RuleLimits(30, 100, listOf("22:00", "09:00"), 0)))
+        assertEquals(
+            """{"company":"TY","kind":"csat","trigger":{"event":"conversation_closed","after_hours":1},"template":"TM-0005@1","channel":"telegram_bot","limits":{"per_customer_days":30,"daily_cap":100,"quiet_hours":["22:00","09:00"],"max_follow_ups":0}}""",
+            server.takeRequest().body!!.utf8(),
+        )
+    }
+
+    @Test
+    fun feedbackPatchUsesIfMatchAndCanDetachWork() = runTest {
+        val x = com.coinepro.hq.core.net.FeedbackItem(ref = "FB-000041", company = "TY", kind = "confusion", titleFa = "t", firstSeen = "2026-10-01T00:00:00Z", lastSeen = "2026-10-17T00:00:00Z", state = "triaged", version = 2)
+        val back = """{"ref":"FB-000041","company":"TY","kind":"confusion","title_fa":"t","first_seen":"2026-10-01T00:00:00Z","last_seen":"2026-10-17T00:00:00Z","state":"in_backlog","work_ref":"W-000104","version":3}"""
+        server.enqueue(json(200, back))
+        assertEquals(3, api.patchFeedback(x, state = "in_backlog", workRef = "W-000104", setWork = true).version)
+        val link = server.takeRequest()
+        assertEquals("PATCH" to "\"2\"", link.method to link.headers["If-Match"])
+        assertEquals("""{"state":"in_backlog","work_ref":"W-000104"}""", link.body!!.utf8())
+        server.enqueue(json(200, back))
+        api.patchFeedback(x, setWork = true)
+        assertEquals("""{"work_ref":null}""", server.takeRequest().body!!.utf8())
+    }
+
+    @Test
+    fun section19ListsAreReadBareOrPaged() = runTest {
+        val ch = """{"company":"TY","kind":"telegram_bot","state":"live","auto_send":"kb_verbatim","version":1}"""
+        server.enqueue(json(200, "[$ch]"))
+        server.enqueue(json(200, """{"items":[$ch],"next_cursor":null}"""))
+        assertEquals(api.supportChannels("TY"), api.supportChannels("TY"))
+        assertEquals("company=TY", server.takeRequest().url.encodedQuery)
+        server.takeRequest()
+        server.enqueue(json(200, """{"items":[],"next_cursor":"c2"}"""))
+        assertEquals("c2", api.conversations(company = "TY", state = "waiting_owner", q = "  ").nextCursor)
+        assertEquals("company=TY&state=waiting_owner&limit=30", server.takeRequest().url.encodedQuery)
+    }
 }

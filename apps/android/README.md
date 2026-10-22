@@ -72,6 +72,19 @@ Every library is free and open source and pinned to an exact version (`gradle/li
     shown with a banner when the network is gone; nothing is written offline. Cleared on sign-out.
   - **Cartable widget** — pending seals and urgent items as the app last saw them (the widget never calls the hub), and
     a **quick-settings tile** that opens the voice order sheet.
+- **Revenue and support** ⟨1.5⟩ (contract §19), from the tools sheet, the same data and words as the web:
+  - **Revenue** — the radar (period totals against the token treasury, a 30-day line per company with direct end
+    labels and its table, the companies' shares), drop and failed-pull alerts, affiliate accounts (added on the exact
+    body with the passkey, the key only in the owner's terminal, pull now), the funnel (a stage without a source has
+    no number) and referral rescue with its rate and steps.
+  - **Support** — the teaching queue, conversations, channels (pausing is free, widening what leaves without the owner
+    takes the passkey, go-live is a card), knowledge (approved with the passkey on `ref@version`) and the shadow test
+    (a chat export uploaded, a run started); a conversation shows every message with its checks, sends the owner's
+    reply through the outbound guard (its refusals in Persian) and teaches a knowledge proposal from the answer.
+  - **Growth** — templates sealed on `ref@version:sha256`, lifecycle rules with their limits (sealed, paused,
+    resumed), NPS waves. **Feedback** — the inbox, most frequent first, with state and a link to work (If-Match).
+  - **Intake** on the tools screen, and the three new cards (`message_template`, `lifecycle_rule`,
+    `support_go_live`) sealed with the passkey in the cartable.
 - **Live** — one SSE connection to `/api/v1/stream` while the app is in the foreground; events refresh the
   screens that show the touched data (the same invalidation map as the web).
 
@@ -79,7 +92,7 @@ Every library is free and open source and pinned to an exact version (`gradle/li
 
 ```
 app/src/main/java/com/coinepro/hq/
-  core/net/        Api (contract v1.4; every 🔏 write names its step-up action and target), Models, Models14
+  core/net/        Api (contract v1.5; every 🔏 write names its step-up action and target), Models, Models14, Models15, Models16
   core/auth/       Auth (sign-in, enrolment, step-up), Passkeys, TokenVault
   core/data/       QueryCache (shared cached queries), HoldingStream (SSE)
   core/format/     Jalali dates, figures, Persian labels

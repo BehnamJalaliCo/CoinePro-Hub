@@ -232,4 +232,114 @@ class FixturesDecodeTest {
         assertTrue(list("/ops/incidents", com.coinepro.hq.core.net.Incident.serializer()).any { it.closedAt == null })
         assertTrue(decode("/planner", com.coinepro.hq.core.net.Planner.serializer()).days.size > 60)
     }
+
+    // ------------------------------------------------------------ ⟨1.5⟩ --
+    private val operating: List<String> get() = list("/companies", com.coinepro.hq.core.net.Company.serializer()).filter { it.kind != "holding" }.map { it.code }
+
+    @Test
+    fun revenueRadarFunnelAndRescueDecode() {
+        // §19.1: the accounts, 30 settled days of each, and every period's summary for the holding and for each company.
+        val accounts = list("/revenue/accounts", com.coinepro.hq.core.net.RevenueAccount.serializer())
+        assertTrue(accounts.isNotEmpty() && accounts.any { it.status == "error" && it.lastError != null } && accounts.any { it.status == "ok" && it.lastPullAt != null })
+        val days = list("/revenue/days", com.coinepro.hq.core.net.RevenueDay.serializer())
+        assertEquals(30, days.map { it.day }.distinct().size)
+        assertTrue(days.all { it.commissionUsdt.toDouble() >= 0 && it.byCoin.isNotEmpty() && it.source.endpoints.isNotEmpty() })
+        assertTrue(days.map { it.account }.toSet() == accounts.map { it.id }.toSet())
+        for (p in listOf("day", "week", "month")) {
+            val s = decode("/revenue/summary?period=$p", com.coinepro.hq.core.net.RevenueSummary.serializer())
+            assertEquals(p, s.period)
+            // ⟨1.5.1⟩ shares are 0..1 and add up; money is a decimal string.
+            assertTrue(s.byCompany.all { it.share in 0.0..1.0 })
+            assertEquals(1.0, s.byCompany.sumOf { it.share }, 0.001)
+            assertEquals(s.totalUsdt.toDouble(), s.byCompany.sumOf { it.usdt.toDouble() }, 0.05)
+            for (co in operating) {
+                val one = decode("/revenue/summary?company=$co&period=$p", com.coinepro.hq.core.net.RevenueSummary.serializer())
+                assertTrue(one.byCompany.all { it.company == co } && one.alerts.all { it.company == co })
+            }
+        }
+        val month = decode("/revenue/summary?period=month", com.coinepro.hq.core.net.RevenueSummary.serializer())
+        assertTrue(month.alerts.any { it.kind == "drop" } && month.alerts.any { it.kind == "pull_failed" } && month.prevTotalUsdt != null)
+        assertEquals(30, month.trend.size)
+        // §19.2: a stage with no source has no count, and a rate is never estimated.
+        for (co in operating) for (p in listOf("week", "month")) {
+            val f = decode("/growth/funnel?company=$co&period=$p", com.coinepro.hq.core.net.Funnel.serializer())
+            assertTrue(f.stages.size == 5 && f.stages.all { (it.count != null) == it.connected && (it.source != null) == it.connected })
+            assertTrue(f.conversions.all { c -> c.rate == null || c.rate!! in 0.0..1.0 } && f.leaks.all { it.rate in 0.0..1.0 && it.medianRate in 0.0..1.0 })
+        }
+        val rescue = page("/growth/rescue", com.coinepro.hq.core.net.RescueCase.serializer())
+        assertTrue(rescue.map { it.state }.containsAll(listOf("open", "contacted", "rescued", "lost", "opted_out")))
+        for (rc in rescue) assertEquals(rc, decode("/growth/rescue/${rc.ref}", com.coinepro.hq.core.net.RescueCase.serializer()))
+        assertTrue(rescue.all { it.subject.startsWith("sb_") && (it.state != "rescued" || it.rescuedAt != null) })
+    }
+
+    @Test
+    fun supportDeskDecodes() {
+        // §19.3: channels in every state, every conversation with its messages, and the teaching queue.
+        val channels = list("/support/channels", com.coinepro.hq.core.net.SupportChannel.serializer())
+        assertTrue(channels.map { it.state }.toSet().containsAll(listOf("live", "shadow", "paused", "not_configured")))
+        assertTrue(channels.filter { it.state == "paused" || it.state == "live" }.all { it.liveSince != null } && channels.all { it.version >= 1 })
+        val convs = page("/support/conversations", com.coinepro.hq.core.net.Conversation.serializer())
+        assertTrue(convs.isNotEmpty() && convs.all { it.messages.isEmpty() })
+        for (c in convs) {
+            val d = decode("/support/conversations/${c.ref}", com.coinepro.hq.core.net.Conversation.serializer())
+            assertTrue(d.messages.isNotEmpty() && d.messages.all { it.conversation == c.ref } && d.lastMessageAt == c.lastMessageAt)
+        }
+        // The agent's draft the guard refused: stored, never sent, with its reasons.
+        val blocked = decode("/support/conversations/SC-000411", com.coinepro.hq.core.net.Conversation.serializer()).messages.single { it.status == "blocked" }
+        assertTrue(blocked.checks.guard == "fail" && blocked.blockedReasons == listOf("unknown_link") && blocked.kbRefs.isNotEmpty() && blocked.confidence != null)
+        assertTrue(convs.any { it.mystery } && convs.any { it.handoff?.reason == "security" } && convs.any { it.csat != null })
+        val queue = list("/support/queue", com.coinepro.hq.core.net.QueueItem.serializer())
+        assertTrue(queue.isNotEmpty() && queue.all { q -> convs.any { it.ref == q.conversation && it.state == "waiting_owner" } })
+        assertTrue(queue.any { it.kind == "blocked" && it.draft?.blockedReasons == listOf("unknown_link") } && queue.any { it.draft == null })
+        // §19.4: knowledge with its digest, the policy key, approved links and codes; the shadow reports.
+        val kb = list("/support/kb", com.coinepro.hq.core.net.KbArticle.serializer())
+        assertTrue(kb.all { it.sha256.length == 64 && it.expiresAt.isNotEmpty() } && kb.map { it.status }.toSet() == setOf("proposed", "approved", "expired", "retired"))
+        assertTrue(kb.any { it.kind == "referral" && it.status == "approved" && it.codes.isNotEmpty() && it.links.isNotEmpty() } && kb.any { it.key == "vip.min_balance" })
+        val shadow = list("/support/shadow", com.coinepro.hq.core.net.ShadowReport.serializer())
+        assertTrue(shadow.any { it.pass } && shadow.any { !it.pass && it.safetyFailures > 0 } && shadow.all { it.correct + it.partial + it.wrong == it.total && it.threshold == 0.9 })
+    }
+
+    @Test
+    fun growthFeedbackIntakeAndTheirCardsDecode() {
+        // §19.5: templates with their digest, rules naming a template version, NPS waves (no score without answers).
+        val templates = list("/growth/templates", com.coinepro.hq.core.net.Template.serializer())
+        assertTrue(templates.all { it.sha256.length == 64 } && templates.any { it.status == "proposed" } && templates.any { it.status == "sealed" && it.sealedAt != null })
+        val rules = list("/growth/rules", com.coinepro.hq.core.net.LifecycleRule.serializer())
+        assertTrue(rules.all { Regex("^TM-\\d{4}@\\d+$").matches(it.template) && it.limits.quietHours.size == 2 } && rules.map { it.status }.toSet() == setOf("active", "paused", "proposed"))
+        assertTrue(rules.any { it.trigger.rrule != null } && rules.any { it.trigger.inactiveDays != null } && rules.any { it.trigger.event != null })
+        val waves = list("/growth/nps", com.coinepro.hq.core.net.NpsWave.serializer())
+        assertTrue(waves.all { w -> (w.score == null) == (w.responses == 0) && (w.score ?: 0) in -100..100 && w.promoters + w.passives + w.detractors == w.responses })
+        // §19.7: most frequent first, at most three masked quotes.
+        val feedback = page("/feedback", com.coinepro.hq.core.net.FeedbackItem.serializer())
+        assertEquals(feedback.sortedByDescending { it.count }, feedback)
+        assertTrue(feedback.all { it.quotes.size <= 3 && it.sources.all { s -> s.startsWith("SC-") || s.startsWith("NP-") } } && feedback.any { it.workRef != null })
+        // §19.8
+        val intake = list("/intake/sources", com.coinepro.hq.core.net.IntakeSource.serializer())
+        assertTrue(intake.any { it.configured && it.events24h > 0 } && intake.any { !it.configured && it.lastEventAt == null })
+        // §19.9 ⟨1.5.1⟩: the three cards wait in the cartable, each payload in the shape the apps read.
+        val pending = page("/decisions?status=pending", com.coinepro.hq.core.net.Decision.serializer())
+        val cards = pending.filter { it.kind in setOf("message_template", "lifecycle_rule", "support_go_live") }
+        assertEquals(setOf("message_template", "lifecycle_rule", "support_go_live"), cards.map { it.kind }.toSet())
+        for (d in cards) assertEquals(d.ref, decode("/decisions/${d.ref}", com.coinepro.hq.core.net.Decision.serializer()).ref)
+        val tpl = cards.single { it.kind == "message_template" }.payload
+        val t = Api.json.decodeFromJsonElement(com.coinepro.hq.core.net.Template.serializer(), tpl["template"]!!)
+        assertEquals(t.sha256, (tpl["sha256"] as kotlinx.serialization.json.JsonPrimitive).content)
+        val rule = cards.single { it.kind == "lifecycle_rule" }.payload
+        val r = Api.json.decodeFromJsonElement(com.coinepro.hq.core.net.LifecycleRule.serializer(), rule["rule"]!!)
+        assertEquals(r.template, (rule["template"] as kotlinx.serialization.json.JsonPrimitive).content)
+        assertEquals(r.limits, Api.json.decodeFromJsonElement(com.coinepro.hq.core.net.RuleLimits.serializer(), rule["limits"]!!))
+        val live = cards.single { it.kind == "support_go_live" }.payload
+        val report = Api.json.decodeFromJsonElement(com.coinepro.hq.core.net.ShadowReport.serializer(), live["shadow_report"]!!)
+        assertTrue(report.pass && channels(live["channel"]).let { ch -> ch.state == "shadow" && ch.liveSince == null })
+    }
+
+    private fun channels(kind: kotlinx.serialization.json.JsonElement?): com.coinepro.hq.core.net.SupportChannel =
+        list("/support/channels", com.coinepro.hq.core.net.SupportChannel.serializer()).first { it.kind == (kind as kotlinx.serialization.json.JsonPrimitive).content }
+
+    @Test
+    fun guardRefusalDecodes() {
+        // §19.9: `422 send_blocked` carries the guard's codes.
+        val p = Api.json.decodeFromString(com.coinepro.hq.core.net.Problem.serializer(), """{"code":"send_blocked","message_fa":"…","status":422,"blocked_reasons":["unknown_link","profit_promise"]}""")
+        assertEquals(listOf("unknown_link", "profit_promise"), p.blockedReasons)
+    }
 }

@@ -545,6 +545,8 @@ data class Problem(
     val fields: Map<String, String>? = null,
     /** ⟨1.4.6⟩ `409 not_ready`: what is still missing (§18.8, e.g. ["brand"]). */
     val missing: List<String> = emptyList(),
+    /** ⟨1.5⟩ `422 send_blocked`: the outbound guard's refusal codes (§19.6). */
+    val blockedReasons: List<String> = emptyList(),
 )
 
 /** One event of the holding stream (contract §7). */
