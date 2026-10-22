@@ -66,16 +66,17 @@ import org.robolectric.ParameterizedRobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 /** Renders every screen with the demo holding (the same fixtures as the web) in both themes. The images
- *  (src/test/screenshots) are how a change to the design is reviewed; `recordRoborazziDebug` refreshes them. */
-@RunWith(ParameterizedRobolectricTestRunner::class)
-@GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = "w400dp-h880dp-xxhdpi")
-class ScreensTest(private val name: String, private val night: Boolean) {
+ *  (src/test/screenshots) are how a change to the design is reviewed; `recordRoborazziDebug` refreshes them.
+ *  The screens run in [SHARDS] classes (the end of this file), each in a fresh test JVM: one JVM for every screen ran out of heap. */
+abstract class ScreensTest(private val name: String, private val night: Boolean) {
 
     companion object {
-        @JvmStatic
-        @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
-        fun params(): List<Array<Any>> = SCREENS.keys.flatMap { listOf(arrayOf<Any>(it, true), arrayOf<Any>(it, false)) }
+        const val SHARDS = 3
+
+        /** The screens of shard [i], night and day, in the order they are listed. */
+        fun shard(i: Int): List<Array<Any>> =
+            SCREENS.keys.toList().let { keys -> keys.chunked((keys.size + SHARDS - 1) / SHARDS).getOrElse(i) { emptyList() } }
+                .flatMap { listOf(arrayOf<Any>(it, true), arrayOf<Any>(it, false)) }
 
         private val SCREENS: Map<String, @Composable (AppGraph) -> Unit> = linkedMapOf(
             "home" to { _ -> HomeScreen(onNewOrder = {}) },
@@ -321,5 +322,38 @@ class ScreensTest(private val name: String, private val night: Boolean) {
                 compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.002f),
             ),
         )
+    }
+}
+
+@RunWith(ParameterizedRobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "w400dp-h880dp-xxhdpi")
+class ScreensShard1Test(name: String, night: Boolean) : ScreensTest(name, night) {
+    companion object {
+        @JvmStatic
+        @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
+        fun params(): List<Array<Any>> = ScreensTest.shard(0)
+    }
+}
+
+@RunWith(ParameterizedRobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "w400dp-h880dp-xxhdpi")
+class ScreensShard2Test(name: String, night: Boolean) : ScreensTest(name, night) {
+    companion object {
+        @JvmStatic
+        @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
+        fun params(): List<Array<Any>> = ScreensTest.shard(1)
+    }
+}
+
+@RunWith(ParameterizedRobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "w400dp-h880dp-xxhdpi")
+class ScreensShard3Test(name: String, night: Boolean) : ScreensTest(name, night) {
+    companion object {
+        @JvmStatic
+        @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
+        fun params(): List<Array<Any>> = ScreensTest.shard(2)
     }
 }
