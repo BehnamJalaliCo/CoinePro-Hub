@@ -36,6 +36,9 @@ META_KEYS = frozenset(
         # `critical` one still runs once the oversight share is spent)
         "protocol",
         "severity",
+        # prompt 12 §15: an owner-zone call is "auto" (stops at the owner zone
+        # share) or "direct" (the owner asked: always runs inside the cap)
+        "owner_zone",
     }
 )
 # Keys whose value is a list of short refs ("SK-001@3", "TE-0001").

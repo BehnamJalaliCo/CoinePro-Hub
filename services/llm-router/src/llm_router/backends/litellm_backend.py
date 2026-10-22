@@ -32,6 +32,10 @@ PROVIDER_PREFIX = {
     "anthropic": "anthropic",
     "openai": "openai",
     "gemini": "gemini",
+    # prompt 12 §9 (contract §21.14): the providers a new connection may name
+    "google": "gemini",
+    "deepseek": "deepseek",
+    "mistral": "mistral",
     "openai_compatible": "openai",
 }
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-from hq_common import oversight_share
+from hq_common import oversight_share, owner_zone
 
 
 def _int(name: str, default: int) -> int:
@@ -85,6 +85,16 @@ class Settings:
     )
     oversight_daily_share: float = field(
         default_factory=lambda: oversight_share.parse_share(os.environ.get("OVERSIGHT_DAILY_SHARE"))
+    )
+    # Prompt 12 §15 (contract §21.0): the owner zone's automatic runs together
+    # stop at this share of the agents' daily token cap (UTC day).
+    owner_zone_daily_share: float = field(
+        default_factory=lambda: owner_zone.parse_share(os.environ.get("OWNER_ZONE_DAILY_SHARE"))
+    )
+    # Prompt 12 §9 (contract §21.7): a new connection's secret is verified by a
+    # call that costs no tokens (its model list), at most every this many seconds.
+    connection_verify_interval_s: int = field(
+        default_factory=lambda: _int("LLM_CONNECTION_VERIFY_INTERVAL_S", 30)
     )
     # Prompt 10 §4.3 (contract §19.3): one company's support drafts per UTC day,
     # the scope support_draft:<company> = its support agent's role counter; 0 = none.

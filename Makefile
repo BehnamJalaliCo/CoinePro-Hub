@@ -11,7 +11,7 @@ ENV_FILE := infra/compose/.env
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
-	hetzner-token owner-ssh-key intake-secret telegram-bot-token
+	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -136,6 +136,9 @@ mcp-secret: ## OWNER: the secret of one MCP server, KEY=<server key> [FILE=<json
 
 account-secret: ## OWNER: the secret of one holding service account (KEY=<key>; hidden input)
 	@infra/openbao/account-secret.sh "$(KEY)"
+
+connection-secret: ## OWNER: a new LLM connection's API key (KEY=<key>; hidden input -> OpenBao)
+	@infra/openbao/connection-secret.sh "$(KEY)"
 
 hetzner-token: ## OWNER: the Hetzner project's API token for new servers (hidden input -> OpenBao)
 	@infra/openbao/hetzner-token.sh

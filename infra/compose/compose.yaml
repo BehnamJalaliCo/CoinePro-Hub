@@ -432,6 +432,8 @@ services:
       # The oversight share of the agents' daily cap (prompt 08 §2.3).
       AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
       OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
+      # Prompt 12 §15: the owner zone's automatic runs (advisor, librarian, digital CEO).
+      OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
       # Prompt 10 §4.3: one company's support drafts per UTC day (scope support_draft:<company>).
       SUPPORT_DRAFT_DAILY_TOKENS: ${SUPPORT_DRAFT_DAILY_TOKENS:-60000}
     user: "10001:10001"
@@ -614,6 +616,11 @@ services:
       REVENUE_BACKFILL_DAYS: ${REVENUE_BACKFILL_DAYS:-90}
       REVENUE_PULL_MAX_DAYS: ${REVENUE_PULL_MAX_DAYS:-31}
       INTAKE_MAX_SKEW_S: ${INTAKE_MAX_SKEW_S:-300}
+      # Prompt 12 (contract §21.0, §21.7): the owner zone's share (the api defers
+      # what no longer fits) and the route a new connection's secret may take.
+      AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
+      OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
+      CONNECTION_SECRET_ROUTE: ${CONNECTION_SECRET_ROUTE:-api}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -661,6 +668,7 @@ services:
       HQ_HUB_STATUS_DIR: /hub-status
       AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
       OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
+      OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
       HQ_CEO_DAILY_REPORTS: ${HQ_CEO_DAILY_REPORTS:-off}
       HQ_MORNING_REPORT_LLM: ${HQ_MORNING_REPORT_LLM:-on}
       # Owner media (prompt 6 §2-§3): the file store (posters, key frames, sound
