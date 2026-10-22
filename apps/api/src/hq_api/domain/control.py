@@ -96,17 +96,28 @@ async def set_kill_switch(
     """Returns whether the state (or its owner) changed. Emits control.changed on
     the company (and, for the holding, on every company's subject so each stream
     sees it). The owner engaging a switch an agent engaged takes it over: from
-    then on only the owner (with step-up) releases it."""
+    then on only the owner (with step-up) releases it. The Chief Overseer's
+    engage takes it over the same way, unless the owner or the overseer holds
+    it already (contract §18.15): a CEO that engaged first cannot release the
+    overseer's switch."""
     cur = await tx.first(
-        "SELECT state, changed_by_kind FROM control.kill_switches WHERE company_id = :co FOR UPDATE",
+        """SELECT k.state, k.changed_by_kind,
+                  EXISTS (SELECT 1 FROM core.employees e
+                          WHERE k.changed_by_kind = 'agent' AND e.code = k.changed_by_code
+                            AND e.kind = 'overseer') AS by_overseer
+           FROM control.kill_switches k WHERE k.company_id = :co FOR UPDATE OF k""",
         co=company["id"],
     )
     if cur is None:
         await tx.exec(
             "INSERT INTO control.kill_switches (company_id) VALUES (:co)", co=company["id"]
         )
-        cur = {"state": "released", "changed_by_kind": None}
-    takeover = state_ == "engaged" and who.is_owner and cur["changed_by_kind"] != "owner"
+        cur = {"state": "released", "changed_by_kind": None, "by_overseer": False}
+    overseer = who.is_agent and who.role == "overseer"
+    takeover = state_ == "engaged" and (
+        (who.is_owner and cur["changed_by_kind"] != "owner")
+        or (overseer and cur["changed_by_kind"] != "owner" and not cur["by_overseer"])
+    )
     if cur["state"] == state_ and not takeover:
         return False
     await tx.exec(
