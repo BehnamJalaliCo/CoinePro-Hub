@@ -208,6 +208,15 @@ class Settings:
     revenue_pull_max_days: int = field(default_factory=lambda: _int("REVENUE_PULL_MAX_DAYS", 31))
     # Signed intake (Chatwoot, products): the timestamp window (seconds).
     intake_max_skew_s: int = field(default_factory=lambda: _int("INTAKE_MAX_SKEW_S", 300))
+    # The support desk's sends leave through egress (POST /v1/support/send; the
+    # worker on hq-egress-api); intake bodies are capped like Caddy's 1 MB.
+    support_egress_url: str = field(
+        default_factory=lambda: _env("SUPPORT_EGRESS_URL", "http://egress:8090")
+    )
+    intake_max_body: int = field(default_factory=lambda: _int("INTAKE_MAX_BODY", 1024 * 1024))
+    # Intake calls per source and minute before 429 (Caddy's stock image has no
+    # rate limiter: the api counts them, before any row is written).
+    intake_rate_per_min: int = field(default_factory=lambda: _int("INTAKE_RATE_PER_MIN", 120))
 
     @property
     def login_configured(self) -> bool:
