@@ -18,14 +18,14 @@
   its events (a lost cursor) never makes a second approval for the same ask.
 
 Revision ID: 0017_6
-Revises: 0017_2
+Revises: 0017_4
 Create Date: 2026-10-22
 """
 
 from hq_api.migration_sql import execute_script
 
 revision = "0017_6"
-down_revision = "0017_2"
+down_revision = "0017_4"
 branch_labels = None
 depends_on = None
 
