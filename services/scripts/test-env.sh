@@ -90,6 +90,9 @@ run() {
   # The companies' flat marks and the design tokens (prompt 9.1: the brand seed), read-only.
   mounts+=(-v "$REPO_DIR/design/brand/companies:/brands:ro" -v "$REPO_DIR/design/tokens:/design-tokens:ro")
   extra+=(-e HQ_BRANDS_DIR=/brands -e HQ_DESIGN_TOKENS=/design-tokens/divan.tokens.json)
+  # IRANYekanX for a creative's Persian overlay (prompt 12 §9.1), read-only.
+  mounts+=(-v "$REPO_DIR/design/fonts/static:/fonts:ro")
+  extra+=(-e HQ_FONTS_DIR=/fonts)
   if [[ "$TARGET" == api ]]; then
     mounts+=(-v "$API_DIR:/api:ro" -v "$REPO_DIR/infra/opa:/opa:ro")
     extra+=(-e TEST_TEMPORAL_ADDRESS=temporal:7233 -e TEST_OPA_URL=http://opa:8181)

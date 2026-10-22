@@ -21,6 +21,11 @@ Schedule ids:
     hq-support-sweep          every SUPPORT_HANDOFF_DIGEST_MIN (30) min  SupportSweep (prompt 10
                               §4-§7: expiry, reminders, the handoff line, lifecycle, NPS);
                               its activity does nothing while the holding is locked
+    hq-advisor-sweep          every 2 min   AdvisorSweep (prompt 12 §1: automatic memos,
+                              proactive triggers; no memo and every trigger `deferred` while locked)
+    hq-substitute-web         every minute  SubstituteWebJobs (prompt 12 §9.1; nothing while locked)
+    hq-substitute-daily       daily 09:15 Asia/Tehran  SubstituteDaily (the Jalali 15th's value
+                              ratio; the CLIs' model lists, not while locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -86,6 +91,9 @@ FIXED = (
     RESCUE,
     FEEDBACK_BATCH,
     SUPPORT_WEEKLY,
+    "hq-advisor-sweep",
+    "hq-substitute-web",
+    "hq-substitute-daily",
 )
 
 
@@ -242,6 +250,37 @@ def fixed(
             timedelta(minutes=30),
         ),
         *revenue_fixed(),
+        *management_fixed(),
+    ]
+
+
+ADVISOR_SWEEP = "hq-advisor-sweep"
+SUBSTITUTE_WEB = "hq-substitute-web"
+SUBSTITUTE_DAILY = "hq-substitute-daily"
+
+
+def management_fixed() -> list[Desired]:
+    """Prompt 12 part A (contract §21.1, §21.13): they gate themselves."""
+    return [
+        Desired(
+            ADVISOR_SWEEP, "AdvisorSweep", (), every(2), timedelta(minutes=5), timedelta(minutes=6)
+        ),
+        Desired(
+            SUBSTITUTE_WEB,
+            "SubstituteWebJobs",
+            (),
+            every(1),
+            timedelta(minutes=2),
+            timedelta(minutes=16),
+        ),
+        Desired(
+            SUBSTITUTE_DAILY,
+            "SubstituteDaily",
+            (),
+            daily_at(time(9, 15), TEHRAN),
+            timedelta(hours=6),
+            timedelta(minutes=10),
+        ),
     ]
 
 

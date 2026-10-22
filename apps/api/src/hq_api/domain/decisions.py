@@ -444,10 +444,15 @@ class Decision(BaseModel):
     effect_status: str
     version: int
     created_at: datetime
+    # ⟨1.5⟩ the advisor's memos on this card (contract §21.1), oldest first
+    memos: list[dict[str, Any]] = Field(default_factory=list)
 
 
 DECISION_SQL = """
-    SELECT d.*, c.code AS company, r.ref AS resolution
+    SELECT d.*, c.code AS company, r.ref AS resolution,
+           (SELECT COALESCE(jsonb_agg(jsonb_build_object('ref', m.ref, 'mode', m.mode, 'state', m.state)
+                                      ORDER BY m.created_at), '[]'::jsonb)
+              FROM advisor.memos m WHERE m.decision_id = d.id) AS memos
     FROM cartable.decisions d
     JOIN core.companies c ON c.id = d.company_id
     LEFT JOIN cartable.resolutions r ON r.id = d.resolution_id
@@ -489,6 +494,7 @@ def render(r: dict[str, Any]) -> Decision:
         effect_status=r["effect_status"],
         version=r["version"],
         created_at=r["created_at"],
+        memos=list(r.get("memos") or []),
     )
 
 

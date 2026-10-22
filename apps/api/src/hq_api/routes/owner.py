@@ -4,6 +4,7 @@ record of their own interactions (contract §6, §1.8)."""
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import re
 from datetime import UTC, datetime, time, timedelta
@@ -12,7 +13,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
@@ -115,6 +116,53 @@ class AwaySummary(BaseModel):
     companies: list[CompanyAway]
 
 
+class AutoMemoSettings(BaseModel):
+    enabled: bool = True
+    max_per_day: int = 3
+
+
+class AdvisorSettings(BaseModel):
+    """⟨1.5⟩ the premium advisor (contract §21.12; §0.8 #1-#2 defaults)."""
+
+    auto_memo: AutoMemoSettings = Field(default_factory=AutoMemoSettings)
+    proactive_per_day: int = 3
+
+
+class SubstituteSettings(BaseModel):
+    """⟨1.5⟩ the substitute players (contract §21.13; §0.8 #11 default)."""
+
+    behind_ratio: float = 0.4
+    creative_default_image: Literal["gpt", "gemini"] = "gpt"
+
+
+class AutoMemoIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool | None = None
+    max_per_day: int | None = Field(default=None, ge=0, le=20)
+
+
+class AdvisorSettingsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    auto_memo: AutoMemoIn | None = None
+    proactive_per_day: int | None = Field(default=None, ge=0, le=20)
+
+
+class SubstituteSettingsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    behind_ratio: float | None = Field(default=None, ge=0, le=1)
+    creative_default_image: Literal["gpt", "gemini"] | None = None
+
+
+def _merged(cur: dict[str, Any] | None, patch: BaseModel | None) -> str | None:
+    """A §21.12 block with the fields sent (a nested block merged too)."""
+    if patch is None:
+        return None
+    out = dict(cur or {})
+    for k, v in patch.model_dump(exclude_none=True).items():
+        out[k] = {**(out.get(k) or {}), **v} if isinstance(v, dict) else v
+    return json.dumps(out)
+
+
 class OwnerSettings(BaseModel):
     timezone: str
     morning_report_at: str
@@ -127,6 +175,9 @@ class OwnerSettings(BaseModel):
     # ⟨1.4⟩ prompt 09: the owner's addresses SSH may come from on a new server
     # (a server plan never opens SSH to the whole internet)
     provision_ssh_sources: list[str] = Field(default_factory=list)
+    # ⟨1.5⟩ prompt 12 part A (contract §21.12)
+    advisor: AdvisorSettings = Field(default_factory=AdvisorSettings)
+    substitutes: SubstituteSettings = Field(default_factory=SubstituteSettings)
     version: int
 
 
@@ -143,6 +194,8 @@ class OwnerSettingsIn(BaseModel):
     )
     watch_after_hours: int | None = Field(default=None, ge=1, le=72)
     provision_ssh_sources: list[str] | None = Field(default=None, max_length=20)
+    advisor: AdvisorSettingsIn | None = None
+    substitutes: SubstituteSettingsIn | None = None
 
     @field_validator("provision_ssh_sources")
     @classmethod
@@ -302,13 +355,15 @@ def _settings_out(row: dict[str, Any]) -> OwnerSettings:
         calendars=row["calendars"],
         watch_after_hours=row["watch_after_hours"],
         provision_ssh_sources=list(row["provision_ssh_sources"] or []),
+        advisor=AdvisorSettings.model_validate(row.get("advisor") or {}),
+        substitutes=SubstituteSettings.model_validate(row.get("substitutes") or {}),
         version=row["version"],
     )
 
 
 SETTINGS_COLS = (
     "timezone, morning_report_at, digest_minutes, ceo_daily_attention, learning_daily_cap, "
-    "calendars, watch_after_hours, provision_ssh_sources, version"
+    "calendars, watch_after_hours, provision_ssh_sources, advisor, substitutes, version"
 )
 
 
@@ -332,6 +387,9 @@ async def put_owner_settings(
     holding = await ctx.hub.companies.holding()
     changes = body.model_dump(exclude_none=True)
     async with ctx.tx() as tx:
+        blocks = await tx.one(
+            "SELECT advisor, substitutes FROM owner.settings WHERE id = 1 FOR UPDATE"
+        )
         row = await tx.first(
             f"""UPDATE owner.settings SET
                    timezone = COALESCE(:tz, timezone),
@@ -341,8 +399,12 @@ async def put_owner_settings(
                    learning_daily_cap = COALESCE(:ldc, learning_daily_cap),
                    calendars = COALESCE(CAST(:cal AS text[]), calendars),
                    watch_after_hours = COALESCE(:wah, watch_after_hours),
-                   provision_ssh_sources = COALESCE(CAST(:pss AS text[]), provision_ssh_sources)
+                   provision_ssh_sources = COALESCE(CAST(:pss AS text[]), provision_ssh_sources),
+                   advisor = COALESCE(CAST(:adv AS jsonb), advisor),
+                   substitutes = COALESCE(CAST(:subs AS jsonb), substitutes)
                WHERE id = 1 AND version = :v RETURNING {SETTINGS_COLS}""",  # noqa: S608 - constant column list, values are bound
+            adv=_merged(blocks["advisor"], body.advisor),
+            subs=_merged(blocks["substitutes"], body.substitutes),
             tz=body.timezone,
             mra=time.fromisoformat(body.morning_report_at) if body.morning_report_at else None,
             dm=body.digest_minutes,

@@ -77,9 +77,14 @@ class Activities:
         self.support = SupportActivities(hub, self._tx)
         self.revenue = RevenueActivities(hub, self._tx, router=self.router)
         self.desk = DeskActivities(hub, self.router, self._tx)  # prompt 10 §4-§7, §11
+        # prompt 12 part A: the advisor's sweep and the substitute players
+        from hq_api.worker.management_activities import ManagementActivities
+
+        self.management = ManagementActivities(hub, self._tx)
 
     def all(self) -> list[Any]:
         return [
+            *self.management.all(),
             *self.desk.all(),
             *self.media.all(),
             *self.brand.all(),

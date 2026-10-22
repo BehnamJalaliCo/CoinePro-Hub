@@ -265,6 +265,11 @@ OP_CLASS: dict[str, str] = {
     "support.draft": "A2",
     "support.handoff": "A2",
     "support.mystery": "A2",
+    # prompt 12 part A (advisor_substitutes.rego): the advisor's memo, the
+    # substitute players' seat calls, and the runner's job queue (service)
+    "memo.write": "A1",
+    "substitute.call": "A0",
+    "substitutes.jobs": "A0",
 }
 
 
@@ -945,6 +950,12 @@ async def agent_message(
 
             async with read_tx(ctx) as rtx:
                 kept, dropped = await validate_citations(rtx, body.citations)
+        # ⟨1.5⟩ the advisor's reply in A: a proactive note or a devil's answer (§21.1).
+        from hq_api.domain import advisor as ADV
+
+        meta: dict[str, Any] = await ADV.reply_meta(tx, ctx.who, code)
+        if body.citations:
+            meta["citations_dropped"] = dropped
         m = await post_message(
             ctx,
             tx,
@@ -953,8 +964,9 @@ async def agent_message(
             links,
             body.attachments,
             citations=kept,
-            meta={"citations_dropped": dropped} if body.citations else None,
+            meta=meta or None,
         )
+        await ADV.after_reply(tx, ctx.who, m, meta)
         result = (
             await render_messages(tx, [await tx.one(MESSAGE_SQL + " WHERE m.id = :id", id=m["id"])])
         )[0]

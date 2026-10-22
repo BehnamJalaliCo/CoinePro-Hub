@@ -621,6 +621,10 @@ services:
       AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
       OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
       CONNECTION_SECRET_ROUTE: ${CONNECTION_SECRET_ROUTE:-api}
+      # Prompt 12 §9.1: hq.sh sets it on only while the substitutes runner's
+      # opt-in profile is on and fits the memory budget (else the app's CLI
+      # sign-in answers 409 not_ready; the owner's terminal still works).
+      SUBSTITUTES_RUNNER: ${SUBSTITUTES_RUNNER:-off}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -679,6 +683,8 @@ services:
       # Prompt 10 §4.2: support sends leave through egress (a channel's secret
       # is read from OpenBao for one call and handed to egress only).
       SUPPORT_EGRESS_URL: http://egress:8090
+      # Prompt 12 §9.1: a creative's Persian overlay is set in IRANYekanX by code.
+      HQ_FONTS_DIR: /app/fonts
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -686,6 +692,7 @@ services:
     volumes:
       - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/hq-worker:/run/secrets/hq:ro
       - hq-files:/data/files
+      - ../../design/fonts/static:/app/fonts:ro
       # Append-only anchor file of the audit chain, outside the Postgres volume
       # and inside the backup set (created by `make bootstrap`, owner uid 10001).
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors

@@ -73,6 +73,11 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "feedback": ("feedback.",),
     # ⟨1.4.6⟩ prompt 9.1: brand.updated (contract §18.14)
     "companies": ("brand.",),
+    # ⟨1.5⟩ prompt 12 part A (contract §21.12): memo.ready, advisor.proactive;
+    # substitute.updated; creative.updated
+    "advisor": ("memo.", "advisor."),
+    "treasury": ("substitute.",),
+    "creatives": ("creative.",),
 }
 
 

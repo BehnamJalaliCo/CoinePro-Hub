@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
-from hq_common import oversight_share
+from hq_common import oversight_share, owner_zone
 
 
 def _int(name: str, default: int) -> int:
@@ -131,6 +131,31 @@ class Settings:
     oversight_daily_share: float = field(
         default_factory=lambda: oversight_share.parse_share(_env("OVERSIGHT_DAILY_SHARE"))
     )
+    # Prompt 12 §15 (contract §21.0): the owner zone's automatic runs together
+    # stop at this share of AGENT_DAILY_TOKEN_CAP (llm-router enforces it; the
+    # api defers automatic memos and proactive notes once it is spent).
+    owner_zone_daily_share: float = field(
+        default_factory=lambda: owner_zone.parse_share(_env("OWNER_ZONE_DAILY_SHARE"))
+    )
+    # Prompt 12 §9 (contract §21.7): "api" (the app's write-only secret route and
+    # the terminal) or "terminal" (`make connection-secret` only).
+    connection_secret_route: str = field(
+        default_factory=lambda: (
+            "terminal" if _env("CONNECTION_SECRET_ROUTE", "api") == "terminal" else "api"
+        )
+    )
+    # Prompt 12 §9.1: the substitutes' CLI runner (opt-in profile "substitutes";
+    # hq.sh sets on only while it is on and fits the memory budget). Off: the
+    # app's CLI sign-in answers 409 not_ready (the owner's terminal still works).
+    substitutes_runner: bool = field(
+        default_factory=lambda: _env("SUBSTITUTES_RUNNER", "off") == "on"
+    )
+    # The Persian overlay of a creative: IRANYekanX (design/fonts, read-only).
+    fonts_dir: str = field(default_factory=lambda: _env("HQ_FONTS_DIR", "/app/fonts"))
+    # How long substitute.call waits for an answer before it says `queued` (kept
+    # under the gateway's 10-s api timeout); a later answer goes back to the
+    # calling agent as a work item.
+    substitute_wait_s: int = field(default_factory=lambda: _int("SUBSTITUTE_WAIT_S", 6))
     # Off: the protocols' schedules exist but stay paused (tests).
     oversight_schedules: bool = field(
         default_factory=lambda: _env("HQ_OVERSIGHT_SCHEDULES", "on") == "on"

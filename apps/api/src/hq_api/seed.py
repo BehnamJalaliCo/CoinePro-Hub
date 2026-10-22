@@ -82,4 +82,10 @@ async def seed(tx: Tx) -> dict[str, Any]:
     # Prompt 9.1 §5: version 1 of the brand of every company with a folder in
     # design/brand/companies/ (HQ_BRANDS_DIR, read-only; folders, not codes).
     added["brands"] = await brands.seed(tx)
+    # Prompt 12 §9.1: the substitute players and their default seats (once;
+    # every sign-in is the owner's, so they start signed out and off).
+    if holding is not None:
+        from hq_api.domain import substitutes
+
+        added["substitutes"] = await substitutes.seed(tx, holding["id"])
     return {"companies_filled": filled, **added}

@@ -60,6 +60,8 @@ from hq_api.routes import (
     work,
     workshop,
 )
+from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
+from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 
 log = logging.getLogger("hq_api.access")
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
@@ -190,6 +192,11 @@ def create_app(
     app.include_router(founding.internal_router, prefix="/internal/v1")
     for p10 in (revenue, support, growth, growth_funnel, feedback):
         app.include_router(p10.internal_router, prefix="/internal/v1")
+    # Prompt 12 part A (contract §21.1, §21.13): the advisor's memos and the
+    # substitute players.
+    for p12a in (advisor_routes, substitute_routes):
+        app.include_router(p12a.router, prefix="/api/v1")
+        app.include_router(p12a.internal_router, prefix="/internal/v1")
     # The only public routes prompt 10 adds (webhooks; never /internal).
     app.include_router(intake.webhook_router, prefix="/intake/v1")
     app.state.version = __version__
