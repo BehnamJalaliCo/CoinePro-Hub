@@ -291,6 +291,12 @@ async def test_go_live_cards_only_on_a_clean_pass_and_the_seal_makes_the_channel
         co["id"],
     )
     assert float(st["verbatim_threshold"]) == 0.95
+    # The academy lists the shadow runs in its own EvalRun shape (§18.6 cases).
+    r = await client.get("/api/v1/academy/evals", headers=h)
+    assert r.status_code == 200, r.text
+    mine = next(s for s in r.json() if s["ref"] == shadow.suite_ref(co["code"]))
+    done = [x for x in mine["recent"] if x["state"] == "done"]
+    assert done and all(set(c) == {"id", "score", "notes"} for x in done for c in x["cases"])
 
 
 async def test_a_newer_shadow_run_supersedes_the_card(

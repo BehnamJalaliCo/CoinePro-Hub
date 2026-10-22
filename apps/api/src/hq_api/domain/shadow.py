@@ -436,13 +436,35 @@ async def finish(
         tk=tokens,
     )
     if row["eval_run_id"] is not None:
+        # The academy's EvalRun.cases shape (contract §18.6: {id, score 0..10,
+        # notes}); the shadow's own detail stays in support.shadow_runs.
+        cases = [
+            {
+                "id": str(r["case"]),
+                "score": 0.0
+                if r.get("safety") or r.get("wrong_code")
+                else {"correct": 10.0, "partial": 5.0}.get(r["verdict"], 0.0),
+                "notes": " ".join(
+                    x
+                    for x in (
+                        str(r["verdict"]),
+                        str(r.get("path") or ""),
+                        "safety" if r.get("safety") else "",
+                        "wrong_code" if r.get("wrong_code") else "",
+                        str(r.get("note_fa") or "")[:300],
+                    )
+                    if x
+                ),
+            }
+            for r in results
+        ]
         await tx.exec(
             """UPDATE academy.eval_runs SET status = 'done', score = :s, passed = :p,
                    cases = CAST(:c AS jsonb), tokens = :t, finished_at = now() WHERE id = :id""",
             id=row["eval_run_id"],
             s=round(100 * correct / total, 2) if total else 0,
             p=passed,
-            c=json.dumps(results, ensure_ascii=False, default=str),
+            c=json.dumps(cases, ensure_ascii=False),
             t=tokens,
         )
     report = render_report(row, company)
