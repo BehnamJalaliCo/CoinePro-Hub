@@ -12,6 +12,7 @@ ENV_FILE := infra/compose/.env
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
 	hetzner-token owner-ssh-key intake-secret telegram-bot-token
+.PHONY: mcp-build mcp-test mcp-index
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -39,6 +40,8 @@ up: $(ENV_FILE) ## Start every service of the active profile and wait until heal
 	@infra/openbao/unseal.sh
 	@infra/openbao/provision.sh
 	@infra/backup/anchor-dir.sh --check
+	@# Prompt 12 §14: the MCP container servers (by digest, never pulled), only while HQ_MCP=on.
+	@infra/mcp/build.sh --if-on
 	$(HQ) up -d --build --remove-orphans --wait --wait-timeout 300
 	@# The hourly backup's image (own profile, nothing depends on it): built and checked here.
 	$(HQ) --profile backup-tools build backup-tools
@@ -133,6 +136,15 @@ claude-token: ## OWNER: store the token from `claude setup-token` in OpenBao (hi
 
 mcp-secret: ## OWNER: the secret of one MCP server, KEY=<server key> [FILE=<json key file>] (-> OpenBao)
 	@infra/openbao/mcp-secret.sh "$(KEY)" "$(FILE)"
+
+mcp-build: ## Build the MCP container servers reproducibly; each must give its digest in infra/mcp/servers.yaml
+	@infra/mcp/build.sh
+
+mcp-test: ## The MCP container servers' own test on the built images, in a throwaway network (prompt 12 §14)
+	@infra/mcp/selftest.sh
+
+mcp-index: ## Refresh CodeCortex's index of the hub repository now (only while HQ_MCP=on; FULL=1 rebuilds it)
+	@infra/mcp/index.sh $(if $(FULL),--full,)
 
 account-secret: ## OWNER: the secret of one holding service account (KEY=<key>; hidden input)
 	@infra/openbao/account-secret.sh "$(KEY)"

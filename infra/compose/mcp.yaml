@@ -1,0 +1,100 @@
+# MCP servers in containers (prompt 12 §14, contract §21.11): opt-in profile
+# "mcp", OFF by default (HQ_MCP=off). hq.sh adds this file to every compose
+# command and switches the profile on only with HQ_MCP=on while the active
+# memory profile plus mcp fits the budget (scripts/quality/memory-budget.sh
+# counts it like stt). One service per entry of the reviewed allow-list
+# infra/mcp/servers.yaml, run by the digest written there (built by
+# `make mcp-build`, never pulled; a different build cannot start).
+# Every server: non-root, read-only root, every capability dropped,
+# no-new-privileges, only the internal network hq-mcp (no route out; its only
+# other member is the Tool Gateway), never the Docker socket, no secret.
+# A server is used by agents only after the owner's two seals (mcp.add,
+# mcp.enable); this file only makes it reachable.
+
+x-mcp-logging: &mcp-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    labels: "com.docker.compose.service,com.docker.compose.project"
+
+x-mcp-server: &mcp-server
+  profiles: [mcp]
+  restart: unless-stopped
+  logging: *mcp-logging
+  pull_policy: never
+  networks: [hq-mcp]
+  user: "10001:10001"
+  read_only: true
+  tmpfs: ["/tmp:size=16m,mode=1777"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  healthcheck:
+    test: ["CMD", "python", "-c",
+           "import socket; socket.create_connection(('127.0.0.1', 8080), 3).close()"]
+    interval: 30s
+    timeout: 5s
+    retries: 5
+    start_period: 20s
+
+services:
+  mcp-time:
+    # The reference server "time" (MIT): get_current_time, convert_time; A0.
+    <<: *mcp-server
+    image: coinepro-hq/mcp-time:0.1.0@sha256:8552b94bf09d743779cc643f5cf295029fdac301af234a29b0036186fe8c385a
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_MCP_TIME:?}
+
+  mcp-codecortex:
+    # CodeCortex (the owner's own project, Apache-2.0): read-only code
+    # intelligence over the copy of the hub's repository the index job keeps.
+    # The copies are mounted read-only; only the repository's .codecortex
+    # state (the index, CodeCortex's manifest lock and runtime files) is
+    # writable. Nothing is indexed while answering.
+    <<: *mcp-server
+    image: coinepro-hq/mcp-codecortex:0.1.0@sha256:c1766a8aa2d353fd2baa37f6870b121353b240a806719d6fe38a978e68afeeba
+    depends_on:
+      mcp-codecortex-index:
+        condition: service_completed_successfully
+    volumes:
+      - mcp-codecortex-repos:/index:ro
+      - mcp-codecortex-state-hub:/index/coinepro-hub/.codecortex
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_MCP_CODECORTEX:?}
+
+  mcp-codecortex-index:
+    # The one-shot index job (rule-only: no model, no outside call, no
+    # network at all; it may run while the holding is locked): at `make up`
+    # with the profile, nightly at 03:30 Tehran and after a push to the hub's
+    # repository (infra/systemd coinepro-hq-mcp-index.*: hq.sh run --rm).
+    # The hub's repository is mounted read-only; it writes only its volumes.
+    profiles: [mcp]
+    restart: "no"
+    logging: *mcp-logging
+    pull_policy: never
+    image: coinepro-hq/mcp-codecortex:0.1.0@sha256:c1766a8aa2d353fd2baa37f6870b121353b240a806719d6fe38a978e68afeeba
+    network_mode: none
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    entrypoint: ["/opt/server/bin/python", "/opt/hq/index.py"]
+    volumes:
+      - ../..:/src/coinepro-hub:ro
+      - mcp-codecortex-repos:/index
+      - mcp-codecortex-state-hub:/index/coinepro-hub/.codecortex
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_MCP_CODECORTEX_INDEX:?}
+
+volumes:
+  # The copies of the repositories CodeCortex reads (rebuilt by the job; not
+  # in the backups) and each repository's CodeCortex state.
+  mcp-codecortex-repos:
+  mcp-codecortex-state-hub:
