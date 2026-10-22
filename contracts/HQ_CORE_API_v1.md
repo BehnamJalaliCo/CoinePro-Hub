@@ -2117,6 +2117,9 @@ Voice     { id, engine, name_fa, licence, licence_commercial: bool, rtf, mem_mb,
   - permissive multilingual models (Apache-2.0 or MIT) if their own card lists Persian;
   - ParsVoice-XTTS (Coqui Public Model License) and the Persian Chatterbox fine-tune (CC BY-NC) are labelled non-commercial on their cards:
     measured, never activated without the owner's explicit choice.
+  - **The owner's own voice** (owner, 2026-10-22): the candidates that clone from a short sample (ParsVoice-XTTS, Chatterbox) also speak the
+    test scripts in the owner's voice, from a reference the owner records in the app (`POST /media/voices/reference` `{file_id}`, owner only,
+    1–3 minutes of clean speech; stored like any owner file and never sent anywhere). The owner hears both and picks.
 - Every `Voice` records its licence; `licence_commercial: false` is shown on every use.
 
 ### 22.4 The legal counsel ⟨1.6⟩
