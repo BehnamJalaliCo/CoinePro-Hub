@@ -312,6 +312,42 @@ async def test_the_oversight_share_stops_overseer_and_qc_but_not_critical(
     assert (await svc.run(oversight("overseer"), "t", 10_000)).status == "ok"
 
 
+async def test_a_companys_support_drafts_stop_at_the_daily_draft_budget(
+    su: asyncpg.Connection, make_service: Any
+) -> None:
+    # Prompt 10 §4.3: support_draft:<company> = the support agent's day counter.
+    from dataclasses import replace
+
+    svc = make_service(
+        subscription=FakeBackend(
+            ok_result(input_tokens=60, output_tokens=20),
+            ok_result(input_tokens=60, output_tokens=20),
+        )
+    )
+    used = await su.fetchval(
+        """SELECT COALESCE(sum(tokens), 0) FROM llm.usage WHERE scope_type = 'role'
+             AND scope_ref = 'TY:support_agent' AND period = 'day'
+             AND period_start = (now() AT TIME ZONE 'UTC')::date"""
+    )
+    svc.s = replace(svc.s, support_draft_daily_tokens=int(used) + 100)  # 100 left today
+
+    def draft(**kw: Any) -> RunRequest:
+        return req(role="support_agent", department="SALES", actor_ref="TY-SALES-01", **kw)
+
+    await svc.run(draft(), "t", 10_000)  # 80 used
+    await svc.run(draft(), "t", 10_000)  # the pre-check saw 80 < 100; now 160
+    with pytest.raises(RouterError) as exc:
+        await svc.run(draft(priority=1), "t", 10_000)
+    assert (exc.value.code, exc.value.status_code) == ("budget_exhausted", 429)
+    rejected = await su.fetchrow(
+        "SELECT status, error_class FROM llm.calls WHERE id = $1", exc.value.call_id
+    )
+    assert tuple(rejected) == ("rejected_budget", "support_draft")
+    assert (await svc.run(req(role="sre"), "t", 10_000)).status == "ok"  # other roles go on
+    svc.s = replace(svc.s, support_draft_daily_tokens=0)  # 0 = no draft budget
+    assert (await svc.run(draft(), "t", 10_000)).status == "ok"
+
+
 # ----------------------------------------------------- quota and fallback --
 async def test_quota_guard_fallback_and_recovery(su: asyncpg.Connection, make_service: Any) -> None:
     reset = time.time() + 1.5

@@ -58,6 +58,7 @@ from llm_router.schemas import RunRequest, RunResponse, UsageOut
 from llm_router.uuid7 import uuid7
 
 log = logging.getLogger("llm_router.service")
+SUPPORT_DRAFT_ROLE = "support_agent"  # prompt 10 §4.3: its drafts are the support_draft scope
 
 
 class RouterError(Exception):
@@ -285,6 +286,7 @@ class RouterService:
 
         await self._check_budgets(snap, req, company, chain, row, rls, now)
         await self._check_oversight_share(req, company, holding, row, rls, now)
+        await self._check_support_draft(req, company, row, rls, now)
 
         try:
             await self.scheduler.acquire(req.priority, timeout=req.timeout_s)
@@ -403,6 +405,40 @@ class RouterService:
             429,
             "budget_exhausted",
             f"the oversight share of today's token cap is used up ({used}/{cap})",
+            retry_after=retry,
+            call_id=row.id,
+        )
+
+    async def _check_support_draft(
+        self,
+        req: RunRequest,
+        company: Company,
+        row: ledger.CallRow,
+        rls: set[str],
+        now: datetime,
+    ) -> None:
+        """The support draft budget (prompt 10 §4.3, contract §19.3): one
+        company's support agent stops at SUPPORT_DRAFT_DAILY_TOKENS per UTC
+        day (the scope support_draft:<company>, kept as the role counter
+        <CO>:support_agent), so support never eats every agent's daily cap;
+        the api hands the rest of the day's messages off without a model."""
+        cap = self.s.support_draft_daily_tokens
+        if cap <= 0 or req.role != SUPPORT_DRAFT_ROLE:
+            return
+        keys = [("role", f"{company.code}:{SUPPORT_DRAFT_ROLE}", "day")]
+        async with self.db.scoped({company.id}) as conn:
+            usage = await ledger.load_usage(conn, keys, now)
+        used = sum(c.tokens for c in usage.values())
+        if used < cap:
+            return
+        self.metrics.budget_rejections.labels(company.code).inc()
+        async with self.db.scoped(rls) as conn:
+            await ledger.record_decision(conn, row, "rejected_budget", "support_draft")
+        retry = max(1, int((next_period_start("day", now) - now).total_seconds()))
+        raise RouterError(
+            429,
+            "budget_exhausted",
+            f"support_draft:{company.code} is used up for today ({used}/{cap})",
             retry_after=retry,
             call_id=row.id,
         )
