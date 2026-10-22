@@ -209,7 +209,9 @@ async def give_code(
 
 
 @router.post("/connections/{id}/logout", response_model=S.Substitute, responses=E)
-async def logout(id: UUID, request: Request, ctx: Ctx = Depends(owner_ctx)) -> S.Substitute:
+async def connection_logout(
+    id: UUID, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> S.Substitute:
     """Removes the stored CLI sign-in. 🔏 connection.logout on the id."""
     holding = await ctx.hub.companies.holding()
     async with ctx.tx() as tx:

@@ -696,15 +696,30 @@ async def test_a_second_review_waits_for_the_cto_and_approval_is_the_same_withou
 async def test_a_paid_player_behind_on_the_15th_gets_one_report_and_nothing_widens(
     hub: Hub, su: Any
 ) -> None:
-    async with bench(su, hub, cli=("gpt",)):
+    async with bench(su, hub, cli=("gpt", "gemini")):
         seats_before = await su.fetch(
             "SELECT player, seat, enabled, per_day FROM substitutes.seats ORDER BY 1, 2"
         )
-        async with hub.db.tx(await hub.companies.ids()) as tx:
-            not_15th = await S.behind_check(tx, hub, datetime(2026, 11, 5, 9, tzinfo=UTC))
-            first = await S.behind_check(tx, hub, datetime(2026, 11, 6, 9, tzinfo=UTC))
-            second = await S.behind_check(tx, hub, datetime(2026, 11, 6, 10, tzinfo=UTC))
+        # The owner's price table (§10) for GPT's models; Gemini's stays empty:
+        # its equivalent is unknown, so it is never called behind.
+        await su.execute(
+            """UPDATE llm.connections SET pricing = '{"gpt-5.5": {"input_per_mtok": "1", "output_per_mtok": "8"}}'
+               WHERE key = 'chatgpt-plus'"""
+        )
+        try:
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                not_15th = await S.behind_check(tx, hub, datetime(2026, 11, 5, 9, tzinfo=UTC))
+                first = await S.behind_check(tx, hub, datetime(2026, 11, 6, 9, tzinfo=UTC))
+                second = await S.behind_check(tx, hub, datetime(2026, 11, 6, 10, tzinfo=UTC))
+        finally:
+            await su.execute("UPDATE llm.connections SET pricing = '{}' WHERE key = 'chatgpt-plus'")
         assert not_15th == 0 and first <= 1 and second == 0  # one per player and Jalali month
+        assert (
+            await su.fetchval(
+                "SELECT count(*) FROM notify.notifications WHERE link_ref LIKE 'substitute-behind:gemini:%'"
+            )
+            == 0
+        )
         month = S.month_key(S.owner_day())
         n = await su.fetchval(
             "SELECT count(*) FROM notify.notifications WHERE link_kind = 'substitute' AND link_ref = $1",

@@ -348,6 +348,121 @@
         "title": "Adoption",
         "type": "object"
       },
+      "AdvisorSettings": {
+        "description": "⟨1.5⟩ the premium advisor (contract §21.12; §0.8 #1-#2 defaults).",
+        "properties": {
+          "auto_memo": {
+            "$ref": "#/components/schemas/AutoMemoSettings"
+          },
+          "proactive_per_day": {
+            "default": 3,
+            "title": "Proactive Per Day",
+            "type": "integer"
+          }
+        },
+        "title": "AdvisorSettings",
+        "type": "object"
+      },
+      "AdvisorSettingsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_memo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoMemoIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proactive_per_day": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proactive Per Day"
+          }
+        },
+        "title": "AdvisorSettingsIn",
+        "type": "object"
+      },
+      "AdvisorTrigger": {
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "facts": {
+            "additionalProperties": true,
+            "title": "Facts",
+            "type": "object"
+          },
+          "fired_at": {
+            "format": "date-time",
+            "title": "Fired At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "message_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Ref"
+          },
+          "state": {
+            "enum": [
+              "sent",
+              "deferred",
+              "capped"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "kind",
+          "company",
+          "fired_at",
+          "facts",
+          "message_ref",
+          "state"
+        ],
+        "title": "AdvisorTrigger",
+        "type": "object"
+      },
       "AgentDecide": {
         "additionalProperties": false,
         "properties": {
@@ -1212,6 +1327,53 @@
         "title": "AuditIn",
         "type": "object"
       },
+      "AutoMemoIn": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "max_per_day": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Per Day"
+          }
+        },
+        "title": "AutoMemoIn",
+        "type": "object"
+      },
+      "AutoMemoSettings": {
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "max_per_day": {
+            "default": 3,
+            "title": "Max Per Day",
+            "type": "integer"
+          }
+        },
+        "title": "AutoMemoSettings",
+        "type": "object"
+      },
       "AwaySummary": {
         "properties": {
           "companies": {
@@ -1694,7 +1856,8 @@
             "enum": [
               "cookie",
               "header",
-              "form"
+              "form",
+              "profile"
             ],
             "title": "Kind",
             "type": "string"
@@ -2203,6 +2366,140 @@
           "error_class"
         ],
         "title": "Call",
+        "type": "object"
+      },
+      "CallIn": {
+        "additionalProperties": false,
+        "description": "substitute.call (agents/tools.md, contract §21.13).",
+        "properties": {
+          "duration_s": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "file_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "File Ids",
+            "type": "array"
+          },
+          "head_sha": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{7,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Sha"
+          },
+          "input_md": {
+            "maxLength": 200000,
+            "minLength": 1,
+            "title": "Input Md",
+            "type": "string"
+          },
+          "kind": {
+            "default": "text",
+            "enum": [
+              "text",
+              "image",
+              "video"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "overlay": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Overlay"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "placement": {
+            "anyOf": [
+              {
+                "enum": [
+                  "telegram_post",
+                  "telegram_story",
+                  "instagram_post",
+                  "instagram_story",
+                  "banner",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement"
+          },
+          "player": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gpt",
+                  "gemini",
+                  "deepseek"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
+          },
+          "seat": {
+            "enum": [
+              "advisor_second_opinion",
+              "code_review",
+              "overseer_cross_check",
+              "assistant_errand",
+              "content_draft",
+              "long_read",
+              "quick_search",
+              "third_opinion",
+              "creative"
+            ],
+            "title": "Seat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seat",
+          "input_md"
+        ],
+        "title": "CallIn",
         "type": "object"
       },
       "CallbackToken": {
@@ -3872,6 +4169,157 @@
         "title": "Connection",
         "type": "object"
       },
+      "ConnectionIn": {
+        "additionalProperties": false,
+        "description": "⟨1.5⟩ a new connection (contract §21.7, §21.14).",
+        "properties": {
+          "base_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "default_model": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Model"
+          },
+          "display_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "fallback_priority": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Priority"
+          },
+          "key": {
+            "pattern": "^[a-z0-9][a-z0-9-]{1,62}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "subscription",
+              "api_key"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/ConnectionLimits"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Models",
+            "type": "array"
+          },
+          "pricing": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelPrice"
+            },
+            "title": "Pricing",
+            "type": "object"
+          },
+          "provider": {
+            "enum": [
+              "anthropic",
+              "openai",
+              "google",
+              "deepseek",
+              "mistral",
+              "openai_compatible"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "provider",
+          "kind",
+          "display_name",
+          "models"
+        ],
+        "title": "ConnectionIn",
+        "type": "object"
+      },
+      "ConnectionLimits": {
+        "additionalProperties": false,
+        "properties": {
+          "daily_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Usd"
+          },
+          "rpm": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rpm"
+          },
+          "tpm": {
+            "anyOf": [
+              {
+                "maximum": 100000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tpm"
+          }
+        },
+        "title": "ConnectionLimits",
+        "type": "object"
+      },
       "ConnectionPatch": {
         "additionalProperties": false,
         "properties": {
@@ -4347,6 +4795,294 @@
         "title": "Count",
         "type": "object"
       },
+      "Creative": {
+        "properties": {
+          "ai_generated": {
+            "title": "Ai Generated",
+            "type": "boolean"
+          },
+          "aspect": {
+            "title": "Aspect",
+            "type": "string"
+          },
+          "brief_md": {
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "composed": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Composed"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "errand_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errand Ref"
+          },
+          "files": {
+            "items": {},
+            "title": "Files",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "video"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "overlay": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overlay"
+          },
+          "path": {
+            "enum": [
+              "web",
+              "cli",
+              "api"
+            ],
+            "title": "Path",
+            "type": "string"
+          },
+          "placement": {
+            "title": "Placement",
+            "type": "string"
+          },
+          "player": {
+            "enum": [
+              "gpt",
+              "gemini"
+            ],
+            "title": "Player",
+            "type": "string"
+          },
+          "prompt_md": {
+            "title": "Prompt Md",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "requested_by": {
+            "title": "Requested By"
+          },
+          "review_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Md"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "generating",
+              "review",
+              "accepted",
+              "rejected",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "company",
+          "kind",
+          "brief_md",
+          "prompt_md",
+          "placement",
+          "aspect",
+          "duration_s",
+          "overlay",
+          "composed",
+          "player",
+          "model",
+          "path",
+          "state",
+          "requested_by",
+          "work_ref",
+          "errand_ref",
+          "files",
+          "review_md",
+          "source",
+          "ai_generated",
+          "created_at",
+          "updated_at",
+          "version"
+        ],
+        "title": "Creative",
+        "type": "object"
+      },
+      "CreativeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "brief_md": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "video"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "overlay": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Overlay"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "placement": {
+            "enum": [
+              "telegram_post",
+              "telegram_story",
+              "instagram_post",
+              "instagram_story",
+              "banner",
+              "other"
+            ],
+            "title": "Placement",
+            "type": "string"
+          },
+          "player": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gpt",
+                  "gemini"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player"
+          }
+        },
+        "required": [
+          "company",
+          "kind",
+          "brief_md",
+          "placement"
+        ],
+        "title": "CreativeIn",
+        "type": "object"
+      },
       "Criterion": {
         "additionalProperties": false,
         "properties": {
@@ -4543,6 +5279,14 @@
           "kind": {
             "title": "Kind",
             "type": "string"
+          },
+          "memos": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Memos",
+            "type": "array"
           },
           "note": {
             "anyOf": [
@@ -4814,6 +5558,186 @@
           "title"
         ],
         "title": "DecisionIn",
+        "type": "object"
+      },
+      "DecisionMemo": {
+        "properties": {
+          "against_md": {
+            "title": "Against Md",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "citations_dropped": {
+            "title": "Citations Dropped",
+            "type": "integer"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          },
+          "decision_version": {
+            "title": "Decision Version",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "standard",
+              "devil"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "recommendation": {
+            "anyOf": [
+              {
+                "enum": [
+                  "approve",
+                  "reject",
+                  "return",
+                  "ask"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommendation"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "risks": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Risks",
+            "type": "array"
+          },
+          "second_opinion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Opinion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "enum": [
+              "writing",
+              "ready",
+              "failed",
+              "stale"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "state_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Reason"
+          },
+          "summary_fa": {
+            "title": "Summary Fa",
+            "type": "string"
+          },
+          "third_opinion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Opinion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trigger": {
+            "enum": [
+              "owner",
+              "auto"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/hq_api__domain__advisor__Usage"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "decision",
+          "decision_version",
+          "mode",
+          "state",
+          "trigger",
+          "summary_fa",
+          "recommendation",
+          "confidence",
+          "options",
+          "against_md",
+          "risks",
+          "questions",
+          "citations",
+          "citations_dropped",
+          "usage",
+          "second_opinion",
+          "created_at"
+        ],
+        "title": "DecisionMemo",
         "type": "object"
       },
       "DecisionsBox": {
@@ -5707,6 +6631,119 @@
           "knowledge_transfer_work"
         ],
         "title": "DismissResult",
+        "type": "object"
+      },
+      "DoneIn": {
+        "additionalProperties": false,
+        "description": "The dispatcher's result of one CLI job (the interface file).",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "enum": [
+                  "limited",
+                  "signed_out",
+                  "timeout",
+                  "failed",
+                  "no_access",
+                  "not_ready"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "findings": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Findings"
+          },
+          "limited_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limited Until"
+          },
+          "models": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Models"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason"
+          },
+          "text_md": {
+            "anyOf": [
+              {
+                "maxLength": 200000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Md"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "DoneIn",
         "type": "object"
       },
       "DraftIn": {
@@ -11588,6 +12625,72 @@
         "title": "LogIn",
         "type": "object"
       },
+      "Login": {
+        "properties": {
+          "last_ok_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ok At"
+          },
+          "plan_fa": {
+            "title": "Plan Fa",
+            "type": "string"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "state": {
+            "enum": [
+              "signed_out",
+              "signing_in",
+              "signed_in",
+              "expired"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "plan_fa",
+          "since",
+          "last_ok_at"
+        ],
+        "title": "Login",
+        "type": "object"
+      },
+      "LoginCode": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "LoginCode",
+        "type": "object"
+      },
       "LoginOut": {
         "properties": {
           "session": {
@@ -11598,6 +12701,43 @@
           "session"
         ],
         "title": "LoginOut",
+        "type": "object"
+      },
+      "LoginStarted": {
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "enum": [
+              "device_code",
+              "auth_code"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "user_code": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Code"
+          },
+          "verification_url": {
+            "maxLength": 2000,
+            "pattern": "^https://",
+            "title": "Verification Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "verification_url"
+        ],
+        "title": "LoginStarted",
         "type": "object"
       },
       "LoginVerifyIn": {
@@ -11939,6 +13079,145 @@
         "title": "McpToolOut",
         "type": "object"
       },
+      "MemoCitation": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "decision",
+              "resolution",
+              "deliverable",
+              "work",
+              "message",
+              "audit"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "title": "MemoCitation",
+        "type": "object"
+      },
+      "MemoIn": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "default": "standard",
+            "enum": [
+              "standard",
+              "devil"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "MemoIn",
+        "type": "object"
+      },
+      "MemoWrite": {
+        "additionalProperties": false,
+        "description": "memo.write (A1, the advisor only; agents/tools.md).",
+        "properties": {
+          "against_md": {
+            "maxLength": 20000,
+            "title": "Against Md",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/MemoCitation"
+            },
+            "maxItems": 50,
+            "title": "Citations",
+            "type": "array"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "decision": {
+            "pattern": "^D-[0-9]{4,9}$",
+            "title": "Decision",
+            "type": "string"
+          },
+          "decision_version": {
+            "minimum": 1.0,
+            "title": "Decision Version",
+            "type": "integer"
+          },
+          "mode": {
+            "default": "standard",
+            "enum": [
+              "standard",
+              "devil"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/Option"
+            },
+            "maxItems": 8,
+            "title": "Options",
+            "type": "array"
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Questions",
+            "type": "array"
+          },
+          "recommendation": {
+            "enum": [
+              "approve",
+              "reject",
+              "return",
+              "ask"
+            ],
+            "title": "Recommendation",
+            "type": "string"
+          },
+          "risks": {
+            "items": {
+              "$ref": "#/components/schemas/Risk"
+            },
+            "maxItems": 20,
+            "title": "Risks",
+            "type": "array"
+          },
+          "summary_fa": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Summary Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "decision_version",
+          "summary_fa",
+          "recommendation",
+          "confidence",
+          "against_md"
+        ],
+        "title": "MemoWrite",
+        "type": "object"
+      },
       "MemoryIn": {
         "additionalProperties": false,
         "properties": {
@@ -12105,6 +13384,18 @@
                 "type": "null"
               }
             ]
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "const": "devil",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
           }
         },
         "title": "MessageIn",
@@ -12371,6 +13662,135 @@
           "effort"
         ],
         "title": "ModelChoice",
+        "type": "object"
+      },
+      "ModelPrice": {
+        "additionalProperties": false,
+        "properties": {
+          "input_per_mtok": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Input Per Mtok"
+          },
+          "output_per_mtok": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Output Per Mtok"
+          }
+        },
+        "required": [
+          "input_per_mtok",
+          "output_per_mtok"
+        ],
+        "title": "ModelPrice",
+        "type": "object"
+      },
+      "ModelRow": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "tier": {
+            "enum": [
+              "strong",
+              "light"
+            ],
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "tier",
+          "available"
+        ],
+        "title": "ModelRow",
+        "type": "object"
+      },
+      "Month": {
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "equiv_usd": {
+            "title": "Equiv Usd",
+            "type": "string"
+          },
+          "estimated": {
+            "title": "Estimated",
+            "type": "boolean"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "price_usd": {
+            "title": "Price Usd",
+            "type": "string"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          },
+          "value_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Ratio"
+          }
+        },
+        "required": [
+          "key",
+          "calls",
+          "skipped",
+          "input_tokens",
+          "output_tokens",
+          "estimated",
+          "equiv_usd",
+          "price_usd",
+          "value_ratio"
+        ],
+        "title": "Month",
         "type": "object"
       },
       "NoteIn": {
@@ -12907,6 +14327,86 @@
         "title": "OpenbaoSnapshot",
         "type": "object"
       },
+      "Opinion": {
+        "properties": {
+          "agrees": {
+            "title": "Agrees",
+            "type": "boolean"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "differences": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Differences",
+            "type": "array"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "player": {
+            "title": "Player",
+            "type": "string"
+          },
+          "recommendation": {
+            "enum": [
+              "approve",
+              "reject",
+              "return",
+              "ask"
+            ],
+            "title": "Recommendation",
+            "type": "string"
+          },
+          "summary_fa": {
+            "title": "Summary Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "player",
+          "model",
+          "recommendation",
+          "confidence",
+          "summary_fa",
+          "differences",
+          "agrees"
+        ],
+        "title": "Opinion",
+        "type": "object"
+      },
+      "Option": {
+        "additionalProperties": false,
+        "properties": {
+          "cons_md": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Cons Md",
+            "type": "string"
+          },
+          "pros_md": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Pros Md",
+            "type": "string"
+          },
+          "title_fa": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title_fa"
+        ],
+        "title": "Option",
+        "type": "object"
+      },
       "OrderOut": {
         "properties": {
           "ref": {
@@ -13096,8 +14596,56 @@
         "title": "OrderRoute",
         "type": "object"
       },
+      "Overlay": {
+        "additionalProperties": false,
+        "properties": {
+          "body_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Fa"
+          },
+          "cta_fa": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cta Fa"
+          },
+          "mark": {
+            "default": true,
+            "title": "Mark",
+            "type": "boolean"
+          },
+          "title_fa": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title_fa"
+        ],
+        "title": "Overlay",
+        "type": "object"
+      },
       "OwnerSettings": {
         "properties": {
+          "advisor": {
+            "$ref": "#/components/schemas/AdvisorSettings"
+          },
           "calendars": {
             "items": {
               "enum": [
@@ -13132,6 +14680,9 @@
             "title": "Provision Ssh Sources",
             "type": "array"
           },
+          "substitutes": {
+            "$ref": "#/components/schemas/SubstituteSettings"
+          },
           "timezone": {
             "title": "Timezone",
             "type": "string"
@@ -13161,6 +14712,16 @@
       "OwnerSettingsIn": {
         "description": "Fields left out keep their current value.",
         "properties": {
+          "advisor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisorSettingsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "calendars": {
             "anyOf": [
               {
@@ -13245,6 +14806,16 @@
               }
             ],
             "title": "Provision Ssh Sources"
+          },
+          "substitutes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubstituteSettingsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "timezone": {
             "anyOf": [
@@ -13435,6 +15006,60 @@
           "items"
         ],
         "title": "Page[Conversation]",
+        "type": "object"
+      },
+      "Page_Creative_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Creative"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Creative]",
+        "type": "object"
+      },
+      "Page_DecisionMemo_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionMemo"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[DecisionMemo]",
         "type": "object"
       },
       "Page_Decision_": {
@@ -17029,6 +18654,48 @@
         "title": "ReviewOut",
         "type": "object"
       },
+      "Risk": {
+        "additionalProperties": false,
+        "properties": {
+          "impact": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Impact",
+            "type": "string"
+          },
+          "likelihood": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Likelihood",
+            "type": "string"
+          },
+          "mitigation_fa": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Mitigation Fa",
+            "type": "string"
+          },
+          "title_fa": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title_fa",
+          "likelihood",
+          "impact"
+        ],
+        "title": "Risk",
+        "type": "object"
+      },
       "Role": {
         "properties": {
           "department": {
@@ -17953,6 +19620,136 @@
           "rank"
         ],
         "title": "SearchHit",
+        "type": "object"
+      },
+      "SeatIn": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "model": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "per_day": {
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Per Day",
+            "type": "integer"
+          },
+          "per_day_video": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Day Video"
+          },
+          "seat": {
+            "enum": [
+              "advisor_second_opinion",
+              "code_review",
+              "overseer_cross_check",
+              "assistant_errand",
+              "content_draft",
+              "long_read",
+              "quick_search",
+              "third_opinion",
+              "creative"
+            ],
+            "title": "Seat",
+            "type": "string"
+          },
+          "via": {
+            "enum": [
+              "cli",
+              "web"
+            ],
+            "title": "Via",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seat",
+          "via",
+          "model",
+          "enabled",
+          "per_day"
+        ],
+        "title": "SeatIn",
+        "type": "object"
+      },
+      "SeatOut": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "per_day": {
+            "title": "Per Day",
+            "type": "integer"
+          },
+          "per_day_video": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Day Video"
+          },
+          "seat": {
+            "title": "Seat",
+            "type": "string"
+          },
+          "used_today": {
+            "title": "Used Today",
+            "type": "integer"
+          },
+          "used_today_video": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used Today Video"
+          },
+          "via": {
+            "enum": [
+              "cli",
+              "web"
+            ],
+            "title": "Via",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seat",
+          "via",
+          "model",
+          "enabled",
+          "per_day",
+          "used_today"
+        ],
+        "title": "SeatOut",
         "type": "object"
       },
       "SecretIn": {
@@ -20277,6 +22074,279 @@
         "title": "Subscription",
         "type": "object"
       },
+      "Substitute": {
+        "properties": {
+          "capabilities": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "object"
+          },
+          "connection": {
+            "title": "Connection",
+            "type": "string"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id"
+          },
+          "limited_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limited Until"
+          },
+          "login": {
+            "$ref": "#/components/schemas/Login"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRow"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "month": {
+            "$ref": "#/components/schemas/Month"
+          },
+          "player": {
+            "enum": [
+              "gpt",
+              "gemini",
+              "deepseek"
+            ],
+            "title": "Player",
+            "type": "string"
+          },
+          "runner": {
+            "anyOf": [
+              {
+                "enum": [
+                  "codex_cli",
+                  "gemini_cli"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runner"
+          },
+          "seats": {
+            "items": {
+              "$ref": "#/components/schemas/SeatOut"
+            },
+            "title": "Seats",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "limited",
+              "off",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "web": {
+            "$ref": "#/components/schemas/Web"
+          }
+        },
+        "required": [
+          "player",
+          "connection",
+          "connection_id",
+          "runner",
+          "login",
+          "status",
+          "limited_until",
+          "status_reason",
+          "models",
+          "capabilities",
+          "web",
+          "seats",
+          "month",
+          "version"
+        ],
+        "title": "Substitute",
+        "type": "object"
+      },
+      "SubstituteLogin": {
+        "properties": {
+          "connection": {
+            "title": "Connection",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "device_code",
+                  "auth_code"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "state": {
+            "enum": [
+              "waiting",
+              "done",
+              "expired",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason"
+          },
+          "user_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Code"
+          },
+          "verification_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Url"
+          }
+        },
+        "required": [
+          "id",
+          "connection",
+          "method",
+          "verification_url",
+          "user_code",
+          "expires_at",
+          "state",
+          "status_reason"
+        ],
+        "title": "SubstituteLogin",
+        "type": "object"
+      },
+      "SubstituteSettings": {
+        "description": "⟨1.5⟩ the substitute players (contract §21.13; §0.8 #11 default).",
+        "properties": {
+          "behind_ratio": {
+            "default": 0.4,
+            "title": "Behind Ratio",
+            "type": "number"
+          },
+          "creative_default_image": {
+            "default": "gpt",
+            "enum": [
+              "gpt",
+              "gemini"
+            ],
+            "title": "Creative Default Image",
+            "type": "string"
+          }
+        },
+        "title": "SubstituteSettings",
+        "type": "object"
+      },
+      "SubstituteSettingsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "behind_ratio": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Behind Ratio"
+          },
+          "creative_default_image": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gpt",
+                  "gemini"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Creative Default Image"
+          }
+        },
+        "title": "SubstituteSettingsIn",
+        "type": "object"
+      },
       "SummaryAlert": {
         "additionalProperties": false,
         "properties": {
@@ -22276,6 +24346,59 @@
         "title": "WatchReport",
         "type": "object"
       },
+      "Web": {
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "last_failure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Failure"
+          },
+          "last_ok_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ok At"
+          },
+          "recipe_version": {
+            "title": "Recipe Version",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "signed_in",
+              "expired",
+              "signed_out"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "state",
+          "last_ok_at",
+          "recipe_version",
+          "last_failure"
+        ],
+        "title": "Web",
+        "type": "object"
+      },
       "WebPushKeys": {
         "properties": {
           "auth": {
@@ -23476,6 +25599,24 @@
           "output"
         ],
         "title": "RunTokens",
+        "type": "object"
+      },
+      "hq_api__domain__advisor__Usage": {
+        "properties": {
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tokens",
+          "usd"
+        ],
+        "title": "Usage",
         "type": "object"
       },
       "hq_api__domain__errands__FinishIn": {
@@ -26164,6 +28305,348 @@
         "summary": "Reject Teaching",
         "tags": [
           "academy"
+        ]
+      }
+    },
+    "/api/v1/advisor/memos": {
+      "get": {
+        "operationId": "list_memos",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "decision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^D-[0-9]{4,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Decision"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "against_md": "x",
+                      "citations": [
+                        {}
+                      ],
+                      "citations_dropped": 1,
+                      "confidence": 1.0,
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "decision": "D-000123",
+                      "decision_version": 1,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "mode": "standard",
+                      "options": [
+                        {}
+                      ],
+                      "questions": [
+                        "x"
+                      ],
+                      "recommendation": "approve",
+                      "ref": "W-000789",
+                      "risks": [
+                        {}
+                      ],
+                      "second_opinion": {
+                        "agrees": false,
+                        "confidence": 1.0,
+                        "differences": [
+                          "x"
+                        ],
+                        "model": "claude-sonnet-5-5",
+                        "player": "x",
+                        "recommendation": "approve",
+                        "summary_fa": "x"
+                      },
+                      "state": "writing",
+                      "state_reason": "x",
+                      "summary_fa": "x",
+                      "third_opinion": {
+                        "agrees": false,
+                        "confidence": 1.0,
+                        "differences": [
+                          "x"
+                        ],
+                        "model": "claude-sonnet-5-5",
+                        "player": "x",
+                        "recommendation": "approve",
+                        "summary_fa": "x"
+                      },
+                      "trigger": "owner",
+                      "usage": {
+                        "tokens": 1,
+                        "usd": "2.410000"
+                      }
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_DecisionMemo_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Memos",
+        "tags": [
+          "advisor"
+        ]
+      }
+    },
+    "/api/v1/advisor/triggers": {
+      "get": {
+        "description": "The rule triggers (newest first, at most 200): `sent` woke the advisor,\n`deferred` waited (the holding locked or the owner zone spent), `capped`\nwent over the day's proactive_per_day.",
+        "operationId": "list_triggers",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "budget",
+                    "quota",
+                    "compliance",
+                    "incident",
+                    "revenue",
+                    "waiting_decisions",
+                    "finding",
+                    "okr"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "company": "TY",
+                    "facts": {},
+                    "fired_at": "2026-10-17T05:42:00Z",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "key": "x",
+                    "kind": "one_off",
+                    "message_ref": "A-0142",
+                    "state": "sent"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdvisorTrigger"
+                  },
+                  "title": "Response List Triggers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Triggers",
+        "tags": [
+          "advisor"
         ]
       }
     },
@@ -29749,6 +32232,129 @@
         "tags": [
           "treasury"
         ]
+      },
+      "post": {
+        "description": "⟨1.5⟩ 🔏 step-up `connection.create` (target = the SHA-256 of the exact\nbody); `Idempotency-Key` required. -> `pending_secret`: its key goes\nthrough the write-only POST /connections/{id}/secret or the owner's\n`make connection-secret KEY=<key>`; the router then verifies it at no\ntoken cost (`verifying` -> `ready` or `error`). Used only through\nPUT /assignments. A duplicate key is 409 version_conflict. A new\nsubscription runs through its own CLI and is not made here (409\nnot_ready): the substitute accounts are seeded.",
+        "operationId": "create_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "base_url": "x",
+                "default_model": "x",
+                "display_name": "آرش",
+                "fallback_priority": 1,
+                "key": "x",
+                "kind": "subscription",
+                "limits": {
+                  "daily_usd": 0.0,
+                  "rpm": 1,
+                  "tpm": 1
+                },
+                "models": [
+                  "claude-sonnet-5-5"
+                ],
+                "pricing": {},
+                "provider": "anthropic"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "default_model": "x",
+                  "display_name": "آرش",
+                  "fallback_priority": 1,
+                  "has_secret_ref": false,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "key": "x",
+                  "kind": "one_off",
+                  "limits": {},
+                  "models": [
+                    "claude-sonnet-5-5"
+                  ],
+                  "pricing": {},
+                  "provider": "anthropic",
+                  "quota_reset_at": "2026-10-17T05:42:00Z",
+                  "status": "active",
+                  "status_reason": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Create Connection",
+        "tags": [
+          "treasury"
+        ]
       }
     },
     "/api/v1/connections/{id}": {
@@ -29883,6 +32489,655 @@
         "summary": "Update Connection",
         "tags": [
           "treasury"
+        ]
+      }
+    },
+    "/api/v1/connections/{id}/login": {
+      "post": {
+        "description": "The CLI's own headless sign-in (a device code, or a browserless auth\ncode). 🔏 connection.login on the connection id. 409 not_ready when the\nCLI has none, or while the runner is off: the app shows the terminal\ncommand (`make chatgpt-login`, `make gemini-login`).",
+        "operationId": "start_login",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "connection": "claude-max",
+                  "expires_at": "2026-10-17T05:42:00Z",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "method": "device_code",
+                  "state": "waiting",
+                  "status_reason": "x",
+                  "user_code": "x",
+                  "verification_url": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SubstituteLogin"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Start Login",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
+    "/api/v1/connections/{id}/login/{login_id}": {
+      "get": {
+        "operationId": "get_login",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "login_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Login Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "connection": "claude-max",
+                  "expires_at": "2026-10-17T05:42:00Z",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "method": "device_code",
+                  "state": "waiting",
+                  "status_reason": "x",
+                  "user_code": "x",
+                  "verification_url": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SubstituteLogin"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Login",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
+    "/api/v1/connections/{id}/login/{login_id}/code": {
+      "post": {
+        "description": "Write-only (covered by the start's step-up): an `auth_code` sign-in's\ncode while it waits, at most 10 minutes; it is never shown, logged or\naudited, and handed to the runner once.",
+        "operationId": "give_code",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "login_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Login Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "code": "TY"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/LoginCode"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "connection": "claude-max",
+                  "expires_at": "2026-10-17T05:42:00Z",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "method": "device_code",
+                  "state": "waiting",
+                  "status_reason": "x",
+                  "user_code": "x",
+                  "verification_url": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SubstituteLogin"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Give Code",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
+    "/api/v1/connections/{id}/logout": {
+      "post": {
+        "description": "Removes the stored CLI sign-in. 🔏 connection.logout on the id.",
+        "operationId": "connection_logout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "capabilities": {},
+                  "connection": "claude-max",
+                  "connection_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "limited_until": "2026-10-17T05:42:00Z",
+                  "login": {
+                    "last_ok_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x",
+                    "since": "2026-10-17T05:42:00Z",
+                    "state": "signed_out"
+                  },
+                  "models": [
+                    {
+                      "available": false,
+                      "id": "x",
+                      "label": "x",
+                      "tier": "strong"
+                    }
+                  ],
+                  "month": {
+                    "calls": 1,
+                    "equiv_usd": "2.410000",
+                    "estimated": false,
+                    "input_tokens": 1,
+                    "key": "x",
+                    "output_tokens": 1,
+                    "price_usd": "2.410000",
+                    "skipped": 1,
+                    "value_ratio": 1.0
+                  },
+                  "player": "gpt",
+                  "runner": "codex_cli",
+                  "seats": [
+                    {
+                      "enabled": false,
+                      "model": "claude-sonnet-5-5",
+                      "per_day": 1,
+                      "per_day_video": 1,
+                      "seat": "x",
+                      "used_today": 1,
+                      "used_today_video": 1,
+                      "via": "cli"
+                    }
+                  ],
+                  "status": "ready",
+                  "status_reason": "x",
+                  "version": 1,
+                  "web": {
+                    "account": "x",
+                    "last_failure": "x",
+                    "last_ok_at": "2026-10-17T05:42:00Z",
+                    "recipe_version": "x",
+                    "state": "signed_in"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Substitute"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Connection Logout",
+        "tags": [
+          "substitutes"
         ]
       }
     },
@@ -30325,6 +33580,920 @@
         ]
       }
     },
+    "/api/v1/creatives": {
+      "get": {
+        "operationId": "list_creatives",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "queued",
+                    "generating",
+                    "review",
+                    "accepted",
+                    "rejected",
+                    "failed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "image",
+                    "video"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "ai_generated": false,
+                      "aspect": "x",
+                      "brief_md": "x",
+                      "company": "TY",
+                      "composed": null,
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "duration_s": 1,
+                      "errand_ref": "x",
+                      "files": [],
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
+                      "model": "claude-sonnet-5-5",
+                      "overlay": {},
+                      "path": "web",
+                      "placement": "x",
+                      "player": "gpt",
+                      "prompt_md": "x",
+                      "ref": "W-000789",
+                      "requested_by": null,
+                      "review_md": "x",
+                      "source": {},
+                      "state": "queued",
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "version": 1,
+                      "work_ref": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Creative_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Creatives",
+        "tags": [
+          "substitutes"
+        ]
+      },
+      "post": {
+        "description": "The owner's ad image or video: the hub's own prompt from the brief and\nthe placement (no text inside the picture; the Persian overlay is set by\nthe hub). Requires `Idempotency-Key`.",
+        "operationId": "create_creative",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "brief_md": "x",
+                "company": "TY",
+                "duration_s": 1,
+                "kind": "image",
+                "overlay": {
+                  "body_fa": "توضیح کوتاه",
+                  "cta_fa": "x",
+                  "mark": false,
+                  "title_fa": "گزارش هفتگی رشد"
+                },
+                "placement": "telegram_post",
+                "player": "gpt"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CreativeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ai_generated": false,
+                  "aspect": "x",
+                  "brief_md": "x",
+                  "company": "TY",
+                  "composed": null,
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "duration_s": 1,
+                  "errand_ref": "x",
+                  "files": [],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "image",
+                  "model": "claude-sonnet-5-5",
+                  "overlay": {},
+                  "path": "web",
+                  "placement": "x",
+                  "player": "gpt",
+                  "prompt_md": "x",
+                  "ref": "W-000789",
+                  "requested_by": null,
+                  "review_md": "x",
+                  "source": {},
+                  "state": "queued",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1,
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Creative"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Create Creative",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
+    "/api/v1/creatives/{ref}": {
+      "get": {
+        "operationId": "get_creative",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ai_generated": false,
+                  "aspect": "x",
+                  "brief_md": "x",
+                  "company": "TY",
+                  "composed": null,
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "duration_s": 1,
+                  "errand_ref": "x",
+                  "files": [],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "image",
+                  "model": "claude-sonnet-5-5",
+                  "overlay": {},
+                  "path": "web",
+                  "placement": "x",
+                  "player": "gpt",
+                  "prompt_md": "x",
+                  "ref": "W-000789",
+                  "requested_by": null,
+                  "review_md": "x",
+                  "source": {},
+                  "state": "queued",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1,
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Creative"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Creative",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
+    "/api/v1/creatives/{ref}/accept": {
+      "post": {
+        "description": "Accepting is not publishing: a post or a story is an A3 decision card.",
+        "operationId": "accept_creative",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "note": "یادداشت"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/NoteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ai_generated": false,
+                  "aspect": "x",
+                  "brief_md": "x",
+                  "company": "TY",
+                  "composed": null,
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "duration_s": 1,
+                  "errand_ref": "x",
+                  "files": [],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "image",
+                  "model": "claude-sonnet-5-5",
+                  "overlay": {},
+                  "path": "web",
+                  "placement": "x",
+                  "player": "gpt",
+                  "prompt_md": "x",
+                  "ref": "W-000789",
+                  "requested_by": null,
+                  "review_md": "x",
+                  "source": {},
+                  "state": "queued",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1,
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Creative"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Accept Creative",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
+    "/api/v1/creatives/{ref}/reject": {
+      "post": {
+        "operationId": "reject_creative",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "note": "یادداشت"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/NoteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ai_generated": false,
+                  "aspect": "x",
+                  "brief_md": "x",
+                  "company": "TY",
+                  "composed": null,
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "duration_s": 1,
+                  "errand_ref": "x",
+                  "files": [],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "image",
+                  "model": "claude-sonnet-5-5",
+                  "overlay": {},
+                  "path": "web",
+                  "placement": "x",
+                  "player": "gpt",
+                  "prompt_md": "x",
+                  "ref": "W-000789",
+                  "requested_by": null,
+                  "review_md": "x",
+                  "source": {},
+                  "state": "queued",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1,
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Creative"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Reject Creative",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
     "/api/v1/decisions": {
       "get": {
         "description": "Default `status=pending`, oldest first. ⟨1.4.3⟩ by default only the cards\nthe owner decides (`approver` null); `?approver=all` adds the CEOs' (§18.11).",
@@ -30508,6 +34677,9 @@
                       "expires_at": "2026-10-17T05:42:00Z",
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "kind": "hire",
+                      "memos": [
+                        {}
+                      ],
                       "note": "یادداشت",
                       "payload": {},
                       "proposer": {
@@ -30650,6 +34822,9 @@
                   "expires_at": "2026-10-17T05:42:00Z",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "kind": "hire",
+                  "memos": [
+                    {}
+                  ],
                   "note": "یادداشت",
                   "payload": {},
                   "proposer": {
@@ -30802,6 +34977,9 @@
                   "expires_at": "2026-10-17T05:42:00Z",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "kind": "hire",
+                  "memos": [
+                    {}
+                  ],
                   "note": "یادداشت",
                   "payload": {},
                   "proposer": {
@@ -31006,6 +35184,337 @@
         ]
       }
     },
+    "/api/v1/decisions/{ref}/memo": {
+      "get": {
+        "description": "The card's latest memo in this mode (any version), or 404.",
+        "operationId": "get_memo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "standard",
+              "enum": [
+                "standard",
+                "devil"
+              ],
+              "title": "Mode",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "against_md": "x",
+                  "citations": [
+                    {}
+                  ],
+                  "citations_dropped": 1,
+                  "confidence": 1.0,
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decision": "D-000123",
+                  "decision_version": 1,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "mode": "standard",
+                  "options": [
+                    {}
+                  ],
+                  "questions": [
+                    "x"
+                  ],
+                  "recommendation": "approve",
+                  "ref": "W-000789",
+                  "risks": [
+                    {}
+                  ],
+                  "second_opinion": {
+                    "agrees": false,
+                    "confidence": 1.0,
+                    "differences": [
+                      "x"
+                    ],
+                    "model": "claude-sonnet-5-5",
+                    "player": "x",
+                    "recommendation": "approve",
+                    "summary_fa": "x"
+                  },
+                  "state": "writing",
+                  "state_reason": "x",
+                  "summary_fa": "x",
+                  "third_opinion": {
+                    "agrees": false,
+                    "confidence": 1.0,
+                    "differences": [
+                      "x"
+                    ],
+                    "model": "claude-sonnet-5-5",
+                    "player": "x",
+                    "recommendation": "approve",
+                    "summary_fa": "x"
+                  },
+                  "trigger": "owner",
+                  "usage": {
+                    "tokens": 1,
+                    "usd": "2.410000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionMemo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Memo",
+        "tags": [
+          "advisor"
+        ]
+      },
+      "post": {
+        "description": "The advisor's memo on a pending card (standard, or `devil`: why not).\nThe same card, mode and version again answers the same memo. 423 while\nthe holding's kill switch is engaged (no model runs before launch).",
+        "operationId": "request_memo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "mode": "standard"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/MemoIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "against_md": "x",
+                  "citations": [
+                    {}
+                  ],
+                  "citations_dropped": 1,
+                  "confidence": 1.0,
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decision": "D-000123",
+                  "decision_version": 1,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "mode": "standard",
+                  "options": [
+                    {}
+                  ],
+                  "questions": [
+                    "x"
+                  ],
+                  "recommendation": "approve",
+                  "ref": "W-000789",
+                  "risks": [
+                    {}
+                  ],
+                  "second_opinion": {
+                    "agrees": false,
+                    "confidence": 1.0,
+                    "differences": [
+                      "x"
+                    ],
+                    "model": "claude-sonnet-5-5",
+                    "player": "x",
+                    "recommendation": "approve",
+                    "summary_fa": "x"
+                  },
+                  "state": "writing",
+                  "state_reason": "x",
+                  "summary_fa": "x",
+                  "third_opinion": {
+                    "agrees": false,
+                    "confidence": 1.0,
+                    "differences": [
+                      "x"
+                    ],
+                    "model": "claude-sonnet-5-5",
+                    "player": "x",
+                    "recommendation": "approve",
+                    "summary_fa": "x"
+                  },
+                  "trigger": "owner",
+                  "usage": {
+                    "tokens": 1,
+                    "usd": "2.410000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionMemo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Request Memo",
+        "tags": [
+          "advisor"
+        ]
+      }
+    },
     "/api/v1/decisions/{ref}/reject": {
       "post": {
         "description": "Requires `Idempotency-Key`.",
@@ -31060,6 +35569,9 @@
                   "expires_at": "2026-10-17T05:42:00Z",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "kind": "hire",
+                  "memos": [
+                    {}
+                  ],
                   "note": "یادداشت",
                   "payload": {},
                   "proposer": {
@@ -31212,6 +35724,9 @@
                   "expires_at": "2026-10-17T05:42:00Z",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "kind": "hire",
+                  "memos": [
+                    {}
+                  ],
                   "note": "یادداشت",
                   "payload": {},
                   "proposer": {
@@ -39140,6 +43655,9 @@
                     "expires_at": "2026-10-17T05:42:00Z",
                     "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                     "kind": "hire",
+                    "memos": [
+                      {}
+                    ],
                     "note": "یادداشت",
                     "payload": {},
                     "proposer": {
@@ -42326,6 +46844,13 @@
             "content": {
               "application/json": {
                 "example": {
+                  "advisor": {
+                    "auto_memo": {
+                      "enabled": false,
+                      "max_per_day": 1
+                    },
+                    "proactive_per_day": 1
+                  },
                   "calendars": [
                     "jalali"
                   ],
@@ -42336,6 +46861,10 @@
                   "provision_ssh_sources": [
                     "x"
                   ],
+                  "substitutes": {
+                    "behind_ratio": 1.0,
+                    "creative_default_image": "gpt"
+                  },
                   "timezone": "Asia/Tehran",
                   "version": 1,
                   "watch_after_hours": 1
@@ -42371,6 +46900,13 @@
           "content": {
             "application/json": {
               "example": {
+                "advisor": {
+                  "auto_memo": {
+                    "enabled": false,
+                    "max_per_day": 0
+                  },
+                  "proactive_per_day": 0
+                },
                 "calendars": [
                   "jalali"
                 ],
@@ -42381,6 +46917,10 @@
                 "provision_ssh_sources": [
                   "x"
                 ],
+                "substitutes": {
+                  "behind_ratio": 0.0,
+                  "creative_default_image": "gpt"
+                },
                 "timezone": "Asia/Tehran",
                 "watch_after_hours": 1
               },
@@ -42396,6 +46936,13 @@
             "content": {
               "application/json": {
                 "example": {
+                  "advisor": {
+                    "auto_memo": {
+                      "enabled": false,
+                      "max_per_day": 1
+                    },
+                    "proactive_per_day": 1
+                  },
                   "calendars": [
                     "jalali"
                   ],
@@ -42406,6 +46953,10 @@
                   "provision_ssh_sources": [
                     "x"
                   ],
+                  "substitutes": {
+                    "behind_ratio": 1.0,
+                    "creative_default_image": "gpt"
+                  },
                   "timezone": "Asia/Tehran",
                   "version": 1,
                   "watch_after_hours": 1
@@ -47839,6 +52390,586 @@
         ]
       }
     },
+    "/api/v1/substitutes": {
+      "get": {
+        "description": "Sign-in, status, models, capabilities, seats (with today's use) and the\nJalali month's use of each player (`value_ratio` = equiv_usd ÷ price_usd;\nnull for a free account).",
+        "operationId": "list_substitutes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "capabilities": {},
+                    "connection": "claude-max",
+                    "connection_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "limited_until": "2026-10-17T05:42:00Z",
+                    "login": {
+                      "last_ok_at": "2026-10-17T05:42:00Z",
+                      "plan_fa": "x",
+                      "since": "2026-10-17T05:42:00Z",
+                      "state": "signed_out"
+                    },
+                    "models": [
+                      {
+                        "available": false,
+                        "id": "x",
+                        "label": "x",
+                        "tier": "strong"
+                      }
+                    ],
+                    "month": {
+                      "calls": 1,
+                      "equiv_usd": "2.410000",
+                      "estimated": false,
+                      "input_tokens": 1,
+                      "key": "x",
+                      "output_tokens": 1,
+                      "price_usd": "2.410000",
+                      "skipped": 1,
+                      "value_ratio": 1.0
+                    },
+                    "player": "gpt",
+                    "runner": "codex_cli",
+                    "seats": [
+                      {
+                        "enabled": false,
+                        "model": "claude-sonnet-5-5",
+                        "per_day": 1,
+                        "per_day_video": 1,
+                        "seat": "x",
+                        "used_today": 1,
+                        "used_today_video": 1,
+                        "via": "cli"
+                      }
+                    ],
+                    "status": "ready",
+                    "status_reason": "x",
+                    "version": 1,
+                    "web": {
+                      "account": "x",
+                      "last_failure": "x",
+                      "last_ok_at": "2026-10-17T05:42:00Z",
+                      "recipe_version": "x",
+                      "state": "signed_in"
+                    }
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Substitute"
+                  },
+                  "title": "Response List Substitutes",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Substitutes",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
+    "/api/v1/substitutes/{player}/seats": {
+      "put": {
+        "description": "The player's seats as a whole list (a seat left out is switched off).\n🔏 substitute.seats on the SHA-256 of the exact body; If-Match = version.",
+        "operationId": "put_seats",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "player",
+            "required": true,
+            "schema": {
+              "title": "Player",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": [
+                {
+                  "enabled": false,
+                  "model": "claude-sonnet-5-5",
+                  "per_day": 0,
+                  "per_day_video": 0,
+                  "seat": "advisor_second_opinion",
+                  "via": "cli"
+                }
+              ],
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/SeatIn"
+                },
+                "title": "Body",
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "capabilities": {},
+                  "connection": "claude-max",
+                  "connection_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "limited_until": "2026-10-17T05:42:00Z",
+                  "login": {
+                    "last_ok_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x",
+                    "since": "2026-10-17T05:42:00Z",
+                    "state": "signed_out"
+                  },
+                  "models": [
+                    {
+                      "available": false,
+                      "id": "x",
+                      "label": "x",
+                      "tier": "strong"
+                    }
+                  ],
+                  "month": {
+                    "calls": 1,
+                    "equiv_usd": "2.410000",
+                    "estimated": false,
+                    "input_tokens": 1,
+                    "key": "x",
+                    "output_tokens": 1,
+                    "price_usd": "2.410000",
+                    "skipped": 1,
+                    "value_ratio": 1.0
+                  },
+                  "player": "gpt",
+                  "runner": "codex_cli",
+                  "seats": [
+                    {
+                      "enabled": false,
+                      "model": "claude-sonnet-5-5",
+                      "per_day": 1,
+                      "per_day_video": 1,
+                      "seat": "x",
+                      "used_today": 1,
+                      "used_today_video": 1,
+                      "via": "cli"
+                    }
+                  ],
+                  "status": "ready",
+                  "status_reason": "x",
+                  "version": 1,
+                  "web": {
+                    "account": "x",
+                    "last_failure": "x",
+                    "last_ok_at": "2026-10-17T05:42:00Z",
+                    "recipe_version": "x",
+                    "state": "signed_in"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Substitute"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Put Seats",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
+    "/api/v1/substitutes/{player}/web/logout": {
+      "post": {
+        "description": "Wipes the signed-in browser profile (egress, on the worker's next\npass); signing in again is the owner's terminal (`make <x>-web-login`).",
+        "operationId": "web_logout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "player",
+            "required": true,
+            "schema": {
+              "title": "Player",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "capabilities": {},
+                  "connection": "claude-max",
+                  "connection_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "limited_until": "2026-10-17T05:42:00Z",
+                  "login": {
+                    "last_ok_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x",
+                    "since": "2026-10-17T05:42:00Z",
+                    "state": "signed_out"
+                  },
+                  "models": [
+                    {
+                      "available": false,
+                      "id": "x",
+                      "label": "x",
+                      "tier": "strong"
+                    }
+                  ],
+                  "month": {
+                    "calls": 1,
+                    "equiv_usd": "2.410000",
+                    "estimated": false,
+                    "input_tokens": 1,
+                    "key": "x",
+                    "output_tokens": 1,
+                    "price_usd": "2.410000",
+                    "skipped": 1,
+                    "value_ratio": 1.0
+                  },
+                  "player": "gpt",
+                  "runner": "codex_cli",
+                  "seats": [
+                    {
+                      "enabled": false,
+                      "model": "claude-sonnet-5-5",
+                      "per_day": 1,
+                      "per_day_video": 1,
+                      "seat": "x",
+                      "used_today": 1,
+                      "used_today_video": 1,
+                      "via": "cli"
+                    }
+                  ],
+                  "status": "ready",
+                  "status_reason": "x",
+                  "version": 1,
+                  "web": {
+                    "account": "x",
+                    "last_failure": "x",
+                    "last_ok_at": "2026-10-17T05:42:00Z",
+                    "recipe_version": "x",
+                    "state": "signed_in"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Substitute"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Web Logout",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
     "/api/v1/support/channels": {
       "get": {
         "description": "Every customer channel of each company (made on first use with its\ndefaults: not_configured, kb_verbatim). The mystery channel is PR-043's.",
@@ -51705,7 +56836,7 @@
     },
     "/api/v1/tools/catalog": {
       "get": {
-        "description": "Every tool the agents may be given (agents/tools.md, and each sealed\nMCP tool): class (`A0/A2` = decided per call; `per tool` = the server's\nregistration), the roles whose charters grant it, and its status in this\nbuild (`live`, `off`, `channel_not_configured`, `pending`). A `container`\nserver's tools are `channel_not_configured`: not runnable yet.",
+        "description": "Every tool the agents may be given (agents/tools.md, and each sealed\nMCP tool): class (`A0/A2` = decided per call; `per tool` = the server's\nregistration), the roles whose charters grant it, and its status in this\nbuild (`live`, `off`, `channel_not_configured`, `pending`). A `container`\nserver's tools are `channel_not_configured` while the `mcp` profile is off\n(or its sealed image is no longer the reviewed one).",
         "operationId": "tool_catalog",
         "responses": {
           "200": {
@@ -51912,7 +57043,7 @@
         ]
       },
       "post": {
-        "description": "🔏 (`mcp.add`, target = SHA-256 of the exact body). Registers a server,\nor a new version of it: its transport (`http` through the egress proxy;\n`container` on the internal network hq-mcp, not runnable yet), the tools\nwith their class and the companies that may call it. Pending until\n`/enable`; the same body again changes nothing. Another host voids the\nstored secret (`has_secret` false until it is written again). The secret\nis written on the server (`make mcp-secret KEY=…`), never through the API.\nRequires `Idempotency-Key`.",
+        "description": "🔏 (`mcp.add`, target = SHA-256 of the exact body). Registers a server,\nor a new version of it: its transport (`http` through the egress proxy;\n`container` on the internal network hq-mcp, only exactly as the reviewed\nallow-list infra/mcp/servers.yaml names it: else 422, and 409 not_ready\nfor one that needs the internet or a secret), the tools with their class\nand the companies that may call it. Pending until `/enable`; the same body\nagain changes nothing. Another host voids the stored secret (`has_secret`\nfalse until it is written again). The secret is written on the server\n(`make mcp-secret KEY=…`), never through the API. Requires\n`Idempotency-Key`.",
         "operationId": "add_mcp",
         "requestBody": {
           "content": {
@@ -52163,7 +57294,7 @@
     },
     "/api/v1/tools/mcp/{key}/enable": {
       "post": {
-        "description": "🔏 (`mcp.enable`, target = the key). The gateway pins the server's tool\nlisting on its next call; a later change switches it off again. A\n`container` server is not runnable yet: 409 not_ready (its status_reason\nsays why). Requires `Idempotency-Key`.",
+        "description": "🔏 (`mcp.enable`, target = the key). The gateway pins the server's tool\nlisting on its next call; a later change switches it off again. A\n`container` server runs only while the `mcp` profile is on and its sealed\nimage is still the reviewed one: else 409 not_ready (the detail says\nwhy). Requires `Idempotency-Key`.",
         "operationId": "enable_mcp",
         "parameters": [
           {
@@ -57440,6 +62571,191 @@
         ]
       }
     },
+    "/internal/v1/advisor/memos": {
+      "post": {
+        "description": "memo.write (A1): the advisor's memo on a pending card. A decided card\nis 409 decision_not_pending; another version of the card 409\nversion_conflict; an empty `against_md` 422; an invented citation is\ndropped and counted (`citations_dropped`).",
+        "operationId": "memo_write",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "against_md": "x",
+                "citations": [
+                  {
+                    "kind": "decision",
+                    "ref": "W-000789"
+                  }
+                ],
+                "confidence": 0.0,
+                "decision": "D-000123",
+                "decision_version": 1,
+                "mode": "standard",
+                "options": [
+                  {
+                    "cons_md": "x",
+                    "pros_md": "x",
+                    "title_fa": "گزارش هفتگی رشد"
+                  }
+                ],
+                "questions": [
+                  "x"
+                ],
+                "recommendation": "approve",
+                "risks": [
+                  {
+                    "impact": "low",
+                    "likelihood": "low",
+                    "mitigation_fa": "x",
+                    "title_fa": "گزارش هفتگی رشد"
+                  }
+                ],
+                "summary_fa": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/MemoWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "against_md": "x",
+                  "citations": [
+                    {}
+                  ],
+                  "citations_dropped": 1,
+                  "confidence": 1.0,
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decision": "D-000123",
+                  "decision_version": 1,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "mode": "standard",
+                  "options": [
+                    {}
+                  ],
+                  "questions": [
+                    "x"
+                  ],
+                  "recommendation": "approve",
+                  "ref": "W-000789",
+                  "risks": [
+                    {}
+                  ],
+                  "second_opinion": {
+                    "agrees": false,
+                    "confidence": 1.0,
+                    "differences": [
+                      "x"
+                    ],
+                    "model": "claude-sonnet-5-5",
+                    "player": "x",
+                    "recommendation": "approve",
+                    "summary_fa": "x"
+                  },
+                  "state": "writing",
+                  "state_reason": "x",
+                  "summary_fa": "x",
+                  "third_opinion": {
+                    "agrees": false,
+                    "confidence": 1.0,
+                    "differences": [
+                      "x"
+                    ],
+                    "model": "claude-sonnet-5-5",
+                    "player": "x",
+                    "recommendation": "approve",
+                    "summary_fa": "x"
+                  },
+                  "trigger": "owner",
+                  "usage": {
+                    "tokens": 1,
+                    "usd": "2.410000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionMemo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Memo Write",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/audit/recent": {
       "get": {
         "description": "audit.recent: audit rows (metadata only) for oversight roles and the advisor.",
@@ -58474,6 +63790,9 @@
                   "expires_at": "2026-10-17T05:42:00Z",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "kind": "hire",
+                  "memos": [
+                    {}
+                  ],
                   "note": "یادداشت",
                   "payload": {},
                   "proposer": {
@@ -58638,6 +63957,9 @@
                   "expires_at": "2026-10-17T05:42:00Z",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "kind": "hire",
+                  "memos": [
+                    {}
+                  ],
                   "note": "یادداشت",
                   "payload": {},
                   "proposer": {
@@ -58802,6 +64124,9 @@
                   "expires_at": "2026-10-17T05:42:00Z",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "kind": "hire",
+                  "memos": [
+                    {}
+                  ],
                   "note": "یادداشت",
                   "payload": {},
                   "proposer": {
@@ -61123,6 +66448,9 @@
                   "expires_at": "2026-10-17T05:42:00Z",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "kind": "hire",
+                  "memos": [
+                    {}
+                  ],
                   "note": "یادداشت",
                   "payload": {},
                   "proposer": {
@@ -65220,6 +70548,728 @@
           }
         },
         "summary": "Agent Story",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/substitutes/call": {
+      "post": {
+        "description": "substitute.call (A0): one bounded question to a substitute player at a\nseat the role may use. Masked input only; the answer is labelled with\nits `source` and is never evidence. Refusals: channel_not_configured\n(signed out or off), rate_limited (the seat's daily cap, or the player\nis limited), policy_denied (a seat the role may not use, or input the\ndata guard refuses); 423 while the holding is locked.",
+        "operationId": "substitute_call",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "duration_s": 1,
+                "file_ids": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "head_sha": "x",
+                "input_md": "x",
+                "kind": "text",
+                "overlay": {
+                  "body_fa": "توضیح کوتاه",
+                  "cta_fa": "x",
+                  "mark": false,
+                  "title_fa": "گزارش هفتگی رشد"
+                },
+                "placement": "telegram_post",
+                "player": "gpt",
+                "repo": "x",
+                "seat": "advisor_second_opinion"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CallIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Substitute Call",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Substitute Call",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/substitutes/jobs/claim": {
+      "post": {
+        "description": "The next CLI job, one at a time for both players; none while the\nholding's kill switch is engaged.",
+        "operationId": "claim_job",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Claim Job",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Claim Job",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/substitutes/jobs/{id}/done": {
+      "post": {
+        "operationId": "job_done",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "error": "limited",
+                "findings": [
+                  {}
+                ],
+                "limited_until": "2026-10-17T05:42:00Z",
+                "models": [
+                  "claude-sonnet-5-5"
+                ],
+                "ok": false,
+                "status_reason": "x",
+                "text_md": "x",
+                "usage": {}
+              },
+              "schema": {
+                "$ref": "#/components/schemas/DoneIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Job Done",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Job Done",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/substitutes/logins/{id}/code": {
+      "post": {
+        "description": "The owner's pasted code, once; never logged.",
+        "operationId": "login_code",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Login Code",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Login Code",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/substitutes/logins/{id}/started": {
+      "post": {
+        "operationId": "login_started",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "method": "device_code",
+                "user_code": "x",
+                "verification_url": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/LoginStarted"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Login Started",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Login Started",
         "tags": [
           "internal"
         ]

@@ -1442,6 +1442,11 @@ async def behind_check(tx: Tx, hub: Any, now: datetime | None = None) -> int:
             or Decimal(s.month.price_usd) <= 0
         ):
             continue
+        # Without the price table (§10) the equivalent is unknown, not zero.
+        if not await tx.scalar(
+            "SELECT pricing <> '{}'::jsonb FROM llm.connections WHERE key = :k", k=s.connection
+        ):
+            continue
         if s.month.value_ratio >= ratio:
             continue
         key = f"substitute-behind:{s.player}:{s.month.key}"
