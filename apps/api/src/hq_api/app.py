@@ -39,6 +39,7 @@ from hq_api.routes import (
     inquiries,
     intake,
     internal,
+    lifecycle,
     messages,
     meta,
     notifications,
@@ -168,6 +169,7 @@ def create_app(
         growth,
         feedback,
         intake,
+        lifecycle,  # /growth/templates, /growth/rules, /growth/nps (prompt 10 §7)
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")

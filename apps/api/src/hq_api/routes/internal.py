@@ -255,6 +255,11 @@ OP_CLASS: dict[str, str] = {
     "kb.read": "A0",
     "revenue.read": "A0",
     "funnel.read": "A0",
+    # prompt 10 §12 (support_desk.rego): the support desk's writes
+    "kb.propose": "A1",
+    "support.draft": "A2",
+    "support.handoff": "A2",
+    "support.mystery": "A2",
 }
 
 
