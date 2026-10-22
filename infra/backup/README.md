@@ -17,7 +17,7 @@
   - sha256 فایل‌ها چک میشود.
   - PITR به یک لحظه‌ی تصادفی در ۲۴ ساعت گذشته انجام میشود.
   - یک اجرا در هر لحظه (`flock` پیش از trap)، `--retry-lock 30m`، و مقایسه‌ی اندازه‌ی بازیابی با جای دیسک.
-- `gdrive-auth.sh` (`make gdrive-auth`) و `show-password.sh` (`make backup-password`): فقط در ترمینال خود مالک. client اختصاصی مالک هم با scope ‏`drive.file`.
+- `gdrive-auth.sh` (`make gdrive-auth`): یک لینک Google و بعد آدرسی که مرورگر بعد از Allow به آن میرسد (`step=link` و `step=code` برای دو مرحله؛ `own=1` برای client اختصاصی مالک). همه با scope ‏`drive.file`. `show-password.sh` (`make backup-password`): فقط در ترمینال خود مالک.
 - `restic-lib.sh`: بخش مشترک. رمزها فقط برای همان اجرا در `RuntimeDirectory=` همان unit (tmpfs) میمانند و هرگز در argv یا env نمیروند. فقط پاسخ 404 ‏OpenBao یعنی «پیکربندی نشده».
 - رمز restic را `infra/openbao/restic-password.sh` (از `make up`) فقط یک بار و با KV check-and-set میسازد.
 - `offsite.sh`: Hetzner حالا یک مخزن restic دوم است، به‌جای کپی خام. با `HQ_BACKUP_S3_ENABLED=true` روشن میشود.
