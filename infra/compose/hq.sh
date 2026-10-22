@@ -139,6 +139,32 @@ if [[ "$stt" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
     esac
   fi
 fi
+# Tracing (review 7.1 §0.2): opt-in profile "tracing" (Tempo + otel-collector),
+# off by default, switched on with HQ_TRACING=on (.env; `make tracing-on`),
+# refused like stt while it does not fit the memory budget. Prometheus scrapes
+# the two only while it is on (HQ_TRACING_SCRAPE).
+tracing="${HQ_TRACING:-$(sed -n 's/^HQ_TRACING=//p' "$ENV_FILE" | tail -n1)}"
+export HQ_TRACING_SCRAPE=off
+if [[ "$tracing" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  sum="$(compose "${profile_args[@]}" --profile tracing config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile tracing)
+    export HQ_TRACING_SCRAPE=on
+  else
+    over="the $profile profile plus tracing needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_TRACING=on refused: $over (make tracing-off)." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_TRACING=on ignored ($over)" >&2 ;;
+    esac
+  fi
+fi
 if [[ "${HQ_ALL_PROFILES:-0}" == "1" ]]; then
   profile_args=(--profile "*")
 fi

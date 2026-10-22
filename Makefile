@@ -9,7 +9,7 @@ ENV_FILE := infra/compose/.env
 
 .PHONY: help env bootstrap profile up down ps logs backup restore-test check openbao-init unseal \
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
-	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval \
+	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret
 
 help: ## Show the available commands
@@ -80,6 +80,15 @@ bootstrap-month1: ## Month-1 setup work (seed/bootstrap/month1.yaml) as service 
 prompt-check: ## One REAL call with a charter's prompt (role=advisor): schema and answer checked, nothing stored
 	@infra/compose/hq.sh exec -T worker python -m hq_api.agents.check_prompt "$(or $(role),advisor)" \
 	  <"$${HQ_SECRETS_DIR:-/home/Hub/.secrets}/llm-router-caller-hq-ops.token"
+
+tracing-on: ## Switch traces on: opt-in profile "tracing" (Tempo + otel-collector), refused over the memory budget
+	@infra/compose/set-env.sh HQ_TRACING on
+	$(HQ) up -d --wait tempo otel-collector prometheus
+
+tracing-off: ## Switch traces off again (the default): Tempo and the collector stop, Prometheus stops scraping them
+	@infra/compose/set-env.sh HQ_TRACING off
+	HQ_ALL_PROFILES=1 $(HQ) stop tempo otel-collector
+	$(HQ) up -d --wait prometheus
 
 stt-fetch: ## Download the pinned speech model into the stt-models volume (sha256-checked; model=large-v3-turbo)
 	HQ_STT=off $(HQ) --profile stt build stt-fetch

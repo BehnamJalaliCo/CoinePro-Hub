@@ -902,6 +902,8 @@ services:
       - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ../observability/prometheus/scrape:/etc/prometheus/scrape:ro
       - ../observability/prometheus/scrape-profile/${HQ_PROFILE:?use hq.sh}:/etc/prometheus/scrape-profile:ro
+      # Tempo's and the collector's jobs only while tracing is on (hq.sh).
+      - ../observability/prometheus/scrape-tracing/${HQ_TRACING_SCRAPE:-off}:/etc/prometheus/scrape-tracing:ro
       # Bearer token for the llm-router / claude-runtime /metrics endpoints.
       - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/prometheus:/etc/prometheus/secrets:ro
       - prometheus-data:/prometheus
@@ -1045,10 +1047,12 @@ services:
         limits:
           memory: ${MEM_NODE_EXPORTER:?}
 
-  # -------------------------------------------------- full profile only --
+  # ------------------------------- opt-in profile "tracing" (review 7.1) --
+  # Tempo and the collector are off by default (no service sends traces yet);
+  # `make tracing-on` switches them on (HQ_TRACING=on), in either profile.
   tempo:
     <<: *service
-    profiles: [full]
+    profiles: [tracing]
     image: grafana/tempo:3.1.0
     depends_on:
       hq-tools:
@@ -1073,7 +1077,7 @@ services:
 
   otel-collector:
     <<: *service
-    profiles: [full]
+    profiles: [tracing]
     image: otel/opentelemetry-collector-contrib:0.162.0
     depends_on:
       hq-tools:
