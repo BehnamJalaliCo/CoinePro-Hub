@@ -18,7 +18,9 @@ from hq_gateway import tools as T
 from hq_gateway.gateway import Gateway, Opa
 
 ADVISOR = gate(employee="HQ-ADV", company="HQ", kind="advisor", role="advisor", scope="holding")
-ASSISTANT = gate(employee="HQ-PA", company="HQ", kind="assistant", role="assistant", scope="holding")
+ASSISTANT = gate(
+    employee="HQ-PA", company="HQ", kind="assistant", role="assistant", scope="holding"
+)
 DEV = gate(employee="TY-TECH-01", kind="employee", role="sre", department="TECH")
 
 
@@ -54,8 +56,12 @@ async def test_memo_write_sends_the_memo_redacted_with_its_idempotency_key(
     seen: list[dict[str, Any]] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
-        seen.append({"body": json.loads(request.content), "idem": request.headers.get("idempotency-key")})
-        return httpx.Response(200, json={"ref": "DM-0007", "state": "ready", "citations_dropped": 1})
+        seen.append(
+            {"body": json.loads(request.content), "idem": request.headers.get("idempotency-key")}
+        )
+        return httpx.Response(
+            200, json={"ref": "DM-0007", "state": "ready", "citations_dropped": 1}
+        )
 
     mock.post(f"{API}/internal/v1/advisor/memos").mock(side_effect=handle)
     out = await call(gw, "memo.write", MEMO)
@@ -88,12 +94,16 @@ async def test_substitute_call_asks_the_api_and_returns_its_labelled_answer(
         return httpx.Response(200, json={"state": "queued", "call": "c-1"})
 
     mock.post(f"{API}/internal/v1/substitutes/call").mock(side_effect=handle)
-    out = await call(gw, "substitute.call", {"seat": "assistant_errand", "input_md": "خلاصه کن: ali@x.example"})
+    out = await call(
+        gw, "substitute.call", {"seat": "assistant_errand", "input_md": "خلاصه کن: ali@x.example"}
+    )
     assert (out["outcome"], out["class"], out["ref"]) == ("ok", "A0", "c-1"), out
     assert seen[0]["seat"] == "assistant_errand" and "ali@x.example" not in seen[0]["input_md"]
     # The api's refusals come back as they are.
     mock.post(f"{API}/internal/v1/substitutes/call").mock(
-        return_value=httpx.Response(503, json={"code": "channel_not_configured", "message_fa": "خارج شده"})
+        return_value=httpx.Response(
+            503, json={"code": "channel_not_configured", "message_fa": "خارج شده"}
+        )
     )
     off = await call(gw, "substitute.call", {"seat": "assistant_errand", "input_md": "x"})
     assert (off["outcome"], off["code"]) == ("error", "channel_not_configured")

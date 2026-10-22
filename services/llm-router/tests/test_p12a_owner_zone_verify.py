@@ -62,7 +62,9 @@ async def test_the_owner_zone_share_stops_automatic_runs_but_never_the_owners_ow
         await svc.run(req(), "t", 10_000)
     # What the owner asked for directly always runs (inside the overall cap).
     assert (await svc.run(req(meta={"owner_zone": "direct"}), "t", 10_000)).status == "ok"
-    assert (await svc.run(req(task_class="ask_hub", meta={"owner_zone": "direct"}), "t", 10_000)).status == "ok"
+    assert (
+        await svc.run(req(task_class="ask_hub", meta={"owner_zone": "direct"}), "t", 10_000)
+    ).status == "ok"
     # Outside the zone nothing changes (the advisor's own conversation, a company).
     assert (await svc.run(req(task_class="advisor"), "t", 10_000)).status == "ok"
     assert (await svc.run(req(task_class="ceo_letter", company_code="TY", actor_ref="TY-CEO",
@@ -81,7 +83,9 @@ def test_owner_zone_parsing_and_the_zone() -> None:
     assert owner_zone.limit(600_000, 0.25) == 150_000 and owner_zone.limit(0, 0.25) == 0
     assert owner_zone.applies("advisor_memo", "auto") and owner_zone.applies("ask_hub", None)
     assert not owner_zone.applies("advisor_memo", "direct")
-    assert not owner_zone.applies("ceo_letter", "auto") and not owner_zone.applies("advisor", "auto")
+    assert not owner_zone.applies("ceo_letter", "auto") and not owner_zone.applies(
+        "advisor", "auto"
+    )
 
 
 # --------------------------------------------------------- a new connection --
@@ -126,7 +130,9 @@ async def test_a_new_connection_is_verified_by_its_model_list_and_never_while_lo
     await _connection(su, "p12a-good", "openai", "verifying")
     await _connection(su, "p12a-bad", "mistral", "verifying")
     await _connection(su, "p12a-wait", "deepseek", "pending_secret")
-    await _connection(su, "p12a-private", "openai_compatible", "verifying", "https://llm.example.org/v1")
+    await _connection(
+        su, "p12a-private", "openai_compatible", "verifying", "https://llm.example.org/v1"
+    )
     secrets = {
         "llm-connections/p12a-good": {"api_key": "sk-test-good-0000000000"},
         "llm-connections/p12a-bad": {"api_key": "sk-test-bad-00000000000"},
@@ -171,7 +177,9 @@ async def test_a_new_connection_is_verified_by_its_model_list_and_never_while_lo
     # The terminal route: the key appears in OpenBao -> verified on the next pass.
     secrets["llm-connections/p12a-wait"] = {"api_key": "sk-test-wait-0000000000"}
     await verify.scan(db, read, _lock(None), client=client, resolve=resolve)
-    assert await su.fetchval("SELECT status FROM llm.connections WHERE key = 'p12a-wait'") == "ready"
+    assert (
+        await su.fetchval("SELECT status FROM llm.connections WHERE key = 'p12a-wait'") == "ready"
+    )
     await su.execute("DELETE FROM llm.connections WHERE key LIKE 'p12a-%'")
 
 
@@ -189,7 +197,10 @@ def test_the_guard_refuses_what_is_not_public() -> None:
         assert verify.not_public(addr) == why, addr
     assert verify.not_public("93.184.216.34") is None
     assert verify.models_url("google", None).startswith("https://generativelanguage.googleapis.com")
-    assert verify.models_url("openai_compatible", "https://x.example/v1/") == "https://x.example/v1/models"
+    assert (
+        verify.models_url("openai_compatible", "https://x.example/v1/")
+        == "https://x.example/v1/models"
+    )
     with pytest.raises(ValueError):
         verify.models_url("openai_compatible", None)
     assert verify.auth_headers("anthropic", "k")["x-api-key"] == "k"

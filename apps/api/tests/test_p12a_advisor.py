@@ -456,11 +456,17 @@ async def test_the_advisor_and_substitute_settings_are_blocks_merged_field_by_fi
     r = await client.put(
         "/api/v1/owner/settings",
         headers={**owner, "If-Match": str(s["version"])},
-        json={"advisor": {"auto_memo": {"max_per_day": 5}}, "substitutes": {"creative_default_image": "gemini"}},
+        json={
+            "advisor": {"auto_memo": {"max_per_day": 5}},
+            "substitutes": {"creative_default_image": "gemini"},
+        },
     )
     assert r.status_code == 200, r.text
     out = r.json()
-    assert out["advisor"]["auto_memo"] == {"enabled": s["advisor"]["auto_memo"]["enabled"], "max_per_day": 5}
+    assert out["advisor"]["auto_memo"] == {
+        "enabled": s["advisor"]["auto_memo"]["enabled"],
+        "max_per_day": 5,
+    }
     assert out["advisor"]["proactive_per_day"] == s["advisor"]["proactive_per_day"]
     assert out["substitutes"] == {**s["substitutes"], "creative_default_image": "gemini"}
     bad = await client.put(
