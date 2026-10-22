@@ -18,7 +18,15 @@ from hq_api.worker import schedules
 
 from .conftest import agent_headers, idem
 from .p10_support import holding_switch, llm_calls
-from .p11b_helpers import acts, card_of, ceo, manual_kpi, quarter, record
+from .p11b_helpers import (
+    acts,
+    card_of,
+    ceo,
+    governance_seeded,  # noqa: F401 - the seed before each test (autouse)
+    manual_kpi,
+    quarter,
+    record,
+)
 
 
 async def _checks(su: Any, co: dict[str, Any], oks: list[bool]) -> None:
@@ -44,7 +52,9 @@ async def _checks(su: Any, co: dict[str, Any], oks: list[bool]) -> None:
 async def _run_check(hub: Hub, ref: str) -> OC.Checked:
     async with hub.db.tx(await hub.companies.ids()) as tx:
         holding = await tx.one("SELECT id, code FROM core.companies WHERE kind = 'holding'")
-        companies = {r["code"]: r["id"] for r in await tx.all("SELECT id, code FROM core.companies")}
+        companies = {
+            r["code"]: r["id"] for r in await tx.all("SELECT id, code FROM core.companies")
+        }
         ctx = OC.CheckCtx(tx, holding["id"], holding["code"], companies, datetime.now(UTC), {})
         return await OC.CHECKS[ref](ctx)
 
@@ -61,7 +71,9 @@ async def test_a_health_kpi_is_measured_by_code_with_no_model(
     assert out["measured"] >= 1
     k = await card_of(client, owner, co["code"], "health.uptime_24h")
     assert k["state"] == "ok" and k["value"] == 75.0 and k["card"] == "stability"
-    assert k["source_ref"]["kind"] == "query" and k["source_ref"]["ref"].startswith("health.uptime_24h:")
+    assert k["source_ref"]["kind"] == "query" and k["source_ref"]["ref"].startswith(
+        "health.uptime_24h:"
+    )
     assert k["at"] and k["trend"][-1] == 75.0 and len(k["trend"]) == 30
     assert await llm_calls(su) == before  # by code: no model, no agent run
 
@@ -136,7 +148,10 @@ async def test_a_query_outside_the_registry_is_422(
     r = await client.put(
         f"/api/v1/kpis/{co['code']}", headers={**owner, "If-Match": str(version)}, json=bad
     )
-    assert r.status_code == 422 and "not a query of the registry" in r.json()["fields"]["kpis.0.source"]
+    assert (
+        r.status_code == 422
+        and "not a query of the registry" in r.json()["fields"]["kpis.0.source"]
+    )
     # A target change needs the current version (If-Match) and is versioned.
     ok = {"kpis": [{"key": "health.uptime_24h", "target": 99.9}]}
     r = await client.put(f"/api/v1/kpis/{co['code']}", headers=owner, json=ok)
@@ -162,7 +177,11 @@ async def test_the_holding_card_aggregates_one_more_company(
     for co, v in ((a, 3), (b, 4)):
         assert (await record(client, co, key, v)).status_code == 200
     holding = await card_of(client, owner, "HQ", key)
-    assert (holding["value"], holding["state"], holding["source_ref"]["ref"]) == (7.0, "ok", "sum:2")
+    assert (holding["value"], holding["state"], holding["source_ref"]["ref"]) == (
+        7.0,
+        "ok",
+        "sum:2",
+    )
     await manual_kpi(client, owner, c, key)
     # A company with the KPI but no value yet is left out, never counted as zero.
     assert (await card_of(client, owner, "HQ", key))["value"] == 7.0
@@ -202,7 +221,9 @@ async def test_the_scorecard_is_paged_and_searchable(
     page = await client.get("/api/v1/scorecards", headers=owner, params={"limit": 1})
     assert len(page.json()["items"]) == 1 and page.json()["next_cursor"]
     nxt = await client.get(
-        "/api/v1/scorecards", headers=owner, params={"limit": 1, "cursor": page.json()["next_cursor"]}
+        "/api/v1/scorecards",
+        headers=owner,
+        params={"limit": 1, "cursor": page.json()["next_cursor"]},
     )
     assert nxt.json()["items"][0]["company"] > page.json()["items"][0]["company"]
 
@@ -220,7 +241,9 @@ async def test_kpi_attainment_is_the_share_of_scorecard_kpis_at_target(
 
 
 # ------------------------------------------------------------------- §5 --
-async def _draft(client: httpx.AsyncClient, co: dict[str, Any], kpi: str, **kr: Any) -> httpx.Response:
+async def _draft(
+    client: httpx.AsyncClient, co: dict[str, Any], kpi: str, **kr: Any
+) -> httpx.Response:
     body = {
         "company": co["code"],
         "quarter": quarter(),
@@ -307,7 +330,9 @@ async def test_a_kpi_key_result_takes_the_kpis_value_and_work_serves_it(
         json={"to": f"{co['code']}-GROWTH-MGR", "title": "بخش رشد"},
     )
     assert child.status_code == 201 and child.json()["key_result"] == kr["ref"]
-    p = await client.get("/api/v1/planner", headers=owner, params={"scope": f"company:{co['code']}"})
+    p = await client.get(
+        "/api/v1/planner", headers=owner, params={"scope": f"company:{co['code']}"}
+    )
     items = [i for d in p.json()["days"] for i in d["items"] if i["ref"] == w.json()["ref"]]
     assert items and items[0]["key_result"] == kr["ref"]
     other = await new_company()

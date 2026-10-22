@@ -48,6 +48,8 @@ SCHEMAS = (
     "growth",
     "feedback",
     "intake",
+    # prompt 11 §4-§10: the cards, OKRs, outcomes, risks, the calendar, batches
+    "governance",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.
@@ -676,6 +678,86 @@ async def _fill_p10(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p11b(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 11 §4-§10's company tables: a row of `co` in each (superuser)."""
+    c = co["id"]
+    await su.execute(
+        "INSERT INTO governance.kpi_sets (company_id, seeded_from) VALUES ($1, 'standard') ON CONFLICT DO NOTHING",
+        c,
+    )
+    kpi = await su.fetchval(
+        """INSERT INTO governance.kpis (company_id, key, card, name_fa, direction, source, freshness_hours, origin)
+           VALUES ($1, 'rls.k', 'growth', 'سنجه', 'up', '{"kind": "manual"}', 24, 'owner') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO governance.kpi_values (company_id, kpi_id, at, value, source_ref, recorded_by_kind,
+               recorded_by_code)
+           VALUES ($1, $2, now(), 1, '{"kind": "metric", "ref": "x"}', 'owner', 'owner')""",
+        c,
+        kpi,
+    )
+    await su.execute(
+        """INSERT INTO governance.kpi_changes (company_id, kpi_id, version, change, by_kind, by_code)
+           VALUES ($1, $2, 1, '{}', 'owner', 'owner')""",
+        c,
+        kpi,
+    )
+    ob = await su.fetchval(
+        """INSERT INTO governance.objectives (company_id, quarter, title_fa, owner_kind, owner_code,
+               created_by_kind, created_by_code)
+           VALUES ($1, '1405-Q3', 'هدف', 'owner', 'owner', 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    kr = await su.fetchval(
+        """INSERT INTO governance.key_results (company_id, objective_id, title_fa, metric_fa, start, target)
+           VALUES ($1, $2, 'نتیجه', 'سنجه', 0, 1) RETURNING id""",
+        c,
+        ob,
+    )
+    await su.execute(
+        """INSERT INTO governance.okr_checkins (company_id, key_result_id, by_kind, by_code, confidence, note_md)
+           VALUES ($1, $2, 'owner', 'owner', 0.5, 'x')""",
+        c,
+        kr,
+    )
+    d = await su.fetchval(
+        """INSERT INTO cartable.decisions (company_id, kind, action_class, title, proposer_kind, proposer_code)
+           VALUES ($1, 'proposal', 'A1', 'rls', 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO governance.outcome_reviews (company_id, decision_id, decision_ref, day, due_at, expected,
+               proposer_kind, proposer_code)
+           SELECT $1, $2, ref, 30, now(), '{}', 'owner', 'owner' FROM cartable.decisions WHERE id = $2""",
+        c,
+        d,
+    )
+    risk = await su.fetchval(
+        """INSERT INTO governance.risks (company_id, title_fa, category, likelihood, impact, owner_kind, owner_code,
+               review_at, origin, created_by_kind, created_by_code)
+           VALUES ($1, 'ریسک', 'ops', 2, 2, 'owner', 'owner', now(), 'owner', 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO governance.risk_history (company_id, risk_id, by_kind, by_code, change)
+           VALUES ($1, $2, 'owner', 'owner', '{}')""",
+        c,
+        risk,
+    )
+    await su.execute(
+        """INSERT INTO governance.calendar_events (company_id, kind, title_fa, starts_at, ends_at, created_by_kind,
+               created_by_code)
+           VALUES ($1, 'event', 'رویداد', now(), now() + interval '1 hour', 'owner', 'owner')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO governance.batches (company_id, items, target_sha256, step_up_id)
+           VALUES ($1, '[{"ref": "D-000001", "version": 1}]', repeat('a', 64), gen_random_uuid())""",
+        c,
+    )
+
+
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_no_table_leaks_between_companies(
     client: httpx.AsyncClient,
@@ -688,6 +770,7 @@ async def test_no_table_leaks_between_companies(
     await _fill(client, hub, owner_session, b["code"])
     await _fill_agents(su, b)
     await _fill_p10(su, b)
+    await _fill_p11b(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name

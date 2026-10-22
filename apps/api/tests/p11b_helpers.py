@@ -11,7 +11,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+import pytest
 
+from hq_api.domain import gov_authority, gov_calendar, gov_checks, oversight
 from hq_api.domain import gov_common as G
 from hq_api.domain import gov_kpis as K
 from hq_api.hub import Hub
@@ -20,7 +22,21 @@ from hq_api.worker.governance_activities import GovernanceActivities
 
 from .conftest import agent_headers, idem
 
-__all__ = ["acts", "ceo", "manual_kpi", "propose", "quarter", "record", "txf"]
+__all__ = ["acts", "ceo", "governance_seeded", "manual_kpi", "propose", "quarter", "record", "txf"]
+
+
+@pytest.fixture(autouse=True)
+async def governance_seeded(hub: Hub, owner_db: Any) -> None:
+    """The seed's governance part (as the owner role hq): another file's 0009
+    migration round trip (test_hiring) empties the tables for the rest of the
+    session, as it does the protocols (test_people's `seeded`)."""
+    async with owner_db.raw() as tx:
+        await tx.exec("SET LOCAL ROLE hq")
+        holding = await hub.companies.holding()
+        await oversight.seed_protocols(tx, holding.id, hub.charters.root)
+        await gov_authority.seed(tx)
+        await gov_calendar.seed_holidays(tx)
+        await gov_checks.activate(tx)
 
 
 def txf(hub: Hub) -> Callable[[], Any]:
@@ -73,7 +89,11 @@ async def manual_kpi(
 
 
 async def record(
-    client: httpx.AsyncClient, co: dict[str, Any], key: str, value: float, at: datetime | None = None
+    client: httpx.AsyncClient,
+    co: dict[str, Any],
+    key: str,
+    value: float,
+    at: datetime | None = None,
 ) -> httpx.Response:
     return await client.post(
         "/internal/v1/governance/kpis/record",
@@ -94,9 +114,7 @@ async def propose(
     """A low-risk A1 proposal by the company's CEO."""
     body = {"kind": "proposal", "title": title, "payload": {}, "risk": "low",
             "quota_estimate": {"usd": "1"}, **extra}  # fmt: skip
-    r = await client.post(
-        "/internal/v1/decisions", headers={**await ceo(co), **idem()}, json=body
-    )
+    r = await client.post("/internal/v1/decisions", headers={**await ceo(co), **idem()}, json=body)
     assert r.status_code == 201, r.text
     out: dict[str, Any] = r.json()
     return out
@@ -116,4 +134,4 @@ def j(v: Any) -> Any:
     return json.loads(v) if isinstance(v, str) else v
 
 
-__all__ += ["card_of", "j", "K"]
+__all__ += ["K", "card_of", "j"]
