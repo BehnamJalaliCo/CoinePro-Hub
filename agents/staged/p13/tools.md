@@ -150,6 +150,9 @@ There is no tool that writes the charter or the authority matrix: agents propose
 | `email.draft` | A1 | `{case, to, cc?, subject, body_md, lang, file_ids?}` | Draft an email for a case; it becomes an `email_send` card with the exact message. Nothing is ever sent without the owner's seal. |
 | `mail.read` | A0 | `{case}` | The masked emails of the counsel's own cases. |
 
+| `role.draft` | A1 | `{company, department, role, title_fa, title_en, why_md, compared: [role], charter_md, tools, model, effort, limits, eval_cases}` | A department manager writes a role the work needs and no charter covers (contract §22.5). Tools must fit the department's ceiling (else 422); the draft then goes through the originality check, the overseer's review, its own eval and approval. |
+| `role.decide` | A2 | `{ref, verdict: "approve"/"reject"/"return", note}` | A CEO approves a role draft of its own company that passed review and eval and fits the ceiling, while hiring is delegated; otherwise the owner decides. |
+
 Publishing has no tool: code publishes a sealed series' items through the official APIs, and everything else is a card.
 
 ### Which role has what (v2)

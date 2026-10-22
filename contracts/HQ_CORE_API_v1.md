@@ -2009,8 +2009,10 @@ Its memory limit is measured and passes the memory gate, or it stays off.
 > work by hand in Claude. Everything above still holds: A3 needs the owner's seal (here, once per series or per email), A4 never happens.
 
 ### 22.0 Principles ⟨1.6⟩
-- **A department knows its own team.** A department in a template carries a **team blueprint**; its manager hires from it as the work needs
-  (§18.11), and the owner never has to define the roles again.
+- **A department is defined by its mandate, not by a fixed list of roles** (owner, 2026-10-22: «نباید محدود کنیم به یه سری نقش‌ها؛ فقط
+  مبدأ و مقصد مشخص باشه و شخصیت دپارتمان و مدیر بخشش»). Each department has a **mandate** (where it starts, where it must arrive, what it
+  delivers, its limits) and an **identity**; its manager writes **any role the work needs** (§22.5). The team blueprint is only where it
+  starts.
 - **Media is made by code where code can, and by models only where it must.** The schedule, the checks, the rendering, the captions, the
   Persian text on images and the publishing are code. Models write the script, the direction and the motion-graphics composition.
 - **Publishing only through official APIs** (Telegram Bot API, Instagram Graph API for business accounts), never through a browser session
@@ -2020,12 +2022,22 @@ Its memory limit is measured and passes the memory gate, or it stays off.
 - **Every outgoing email of the counsel is the owner's seal**, on the exact message.
 - New **task classes**: `media_script`, `media_direction`, `media_motion`, `media_review`, `ui_design`, `legal_case`, `legal_email`.
 
-### 22.1 Department blueprints ⟨1.6⟩
+### 22.1 Department mandate, identity and starting team ⟨1.6⟩
 ```
-Department { …§3.2, team: [{role, title_fa, why_fa, first: bool}] }    // from the template; `first` = the first hires a new company makes
+Department { …§3.2,
+             mandate: { from_fa, to_fa, outputs_fa: [string], boundaries_fa: [string],      // «مبدأ و مقصد»: what it starts from, what it must reach
+                        tool_ceiling: [tool], model_ceiling: "claude-haiku-5-5"|"claude-sonnet-5-5"|"claude-opus-5-5" },
+             identity_md,                                                            // the department's character, tone and taste; every member reads it
+             team: [{role, title_fa, why_fa, first: bool}],                          // a starting suggestion, never a limit
+             version }
 ```
-- `GET /templates` and `company.state` return each department's `team`. A manager proposes hires from it when the work needs them; the CEO
-  decides inside the envelope (§18.11). A role in `team` is always an existing `employee` charter.
+| Method | Path | Notes |
+|---|---|---|
+| PUT | `/companies/{code}/departments/{dept}/mandate` 🔏 | owner · `department.mandate`, target = SHA-256 of the body · `{mandate, identity_md}` · `If-Match` |
+- Seeded from the template; the owner changes them in the app. `GET /templates` and `company.state` return them.
+- The runtime puts the department's `identity_md` after the charter (and before skills) in the system prompt of the manager and every
+  employee of that department, and records its version on the run.
+- `team` lists existing charters the manager may start with; a role the work needs and the list lacks is written by the manager (§22.5).
 - **The standard template gains `MEDIA`** («رسانه و طراحی», head role `media_director`, sort 25) with the team `scriptwriter`,
   `video_director`, `motion_designer`, `voice_producer`, `visual_designer`, `ui_designer`. Existing companies get the department (and its
   asleep manager) by migration; no employee is created.
@@ -2137,8 +2149,41 @@ EmailDraft { case: "LC-…", from, to: [addr], cc: [addr], subject, body_md, att
   the counsel's own cases only).
 - Stream: `legal.case` on topic `legal`. Decision kind: `email_send` (A3, 🔏 on the message digest).
 
-### 22.5 Kinds, stream, step-up, codes ⟨1.6⟩
-- **Decision kinds:** `media_series`, `media_publish`, `email_send` (all sealed with step-up, §5.1).
+### 22.5 Roles written on demand ⟨1.6⟩
+Any department can grow a role nobody listed: the owner says «یه تدوینگر پادکست میخوام» or the work shows the gap, and the department's
+manager writes the role's charter. It goes through the same gates as every charter, and it can never give more than the department has.
+```
+RoleDraft { id, ref: "RD-0001", company, department, role (snake_case, unique in the company), title_fa, title_en, why_md,
+            charter_md,                                                // the body, in the hub's charter format (§16.1)
+            tools: [tool], model, effort, limits: {steps_per_run, tokens_per_step, tokens_per_run},
+            eval: {suite: "EV-…", cases: [{id, input_md, rubric_md, weight}]},     // at least 3 cases written with the draft
+            state: "drafting"|"in_review"|"eval"|"proposed"|"active"|"rejected"|"retired",
+            review: {by: Actor, verdict, checks: {injection, secrets, conflicts, policy, ceiling}, sha256}|null, eval_run: EvalRun|null,
+            approver: Actor|null, decision_ref|null, version, created_at, activated_at|null }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/roles/drafts` · `/roles/drafts/{ref}` | `?company&department&state` |
+| POST | `/roles/drafts` | owner · `{company, department, brief_md}` — the owner asks; the manager is woken to write it |
+| POST | `/roles/drafts/{ref}/retire` | owner · stops new hires on it; employees on it keep running until moved or dismissed |
+- **Who writes:** the department's manager, with `role.draft` (A1), from the department's mandate and identity, after checking that no
+  existing charter fits (it says which it compared). It writes the body, the tools, the model and the eval cases.
+- **The ceiling is hard:** `tools` ⊆ the department's `tool_ceiling`, and never an oversight power, `hire.decide`, `role.decide`,
+  `kill_switch.*`, `message.owner` or anything A4; `model` ≤ `model_ceiling`; `limits` ≤ the manager's own. Anything outside → `422`.
+  `_common.md` always comes first at runtime, so A3 stays `propose` and A4 stays impossible whatever the body says.
+- **Gates, in order:** the originality check (rule; staged hiring README) → the overseer's review with the full masked text and its sha256
+  (§18.15; `ceiling` is a fifth check) → the eval run of its own cases (must pass; it also becomes the role's baseline) → approval.
+- **Approval:** the company's CEO with `role.decide` (A2) when hiring is `delegated` and the draft is inside the ceiling; otherwise, and
+  always for the holding, a `role_new` card for the owner (🔏). The owner sees every new role as a story («نقش تازه در …») and can retire it.
+- **Where it lives:** an active draft is a charter **on the server** (a database row), scoped to its company and department; files in
+  `agents/` are never written. The charter loader merges file charters and active drafts; `GET /roles` lists both (`source:
+  "file"|"draft"`). A hire may name either (§16.6).
+- **Changing it:** a new version is a new draft through the same gates; teachings and addenda work on it as on any charter (§18.6).
+- Agent tools: `role.draft` (A1, department managers), `role.decide` (A2, CEOs). Stream: `role.updated` on topic `people`. Decision kind:
+  `role_new` (🔏, target = ref). Step-up target: `department.mandate` (body hash).
+
+### 22.6 Kinds, stream, step-up, codes ⟨1.6⟩
+- **Decision kinds:** `media_series`, `media_publish`, `email_send`, `role_new` (all sealed with step-up, §5.1).
 - **Step-up targets:** `media.series` (series digest), `media.unpublish` (ref), and `decision.approve` on `email_send` bound to the message
   digest.
 - **Stream topics:** `media` (`media.item`), `legal` (`legal.case`).
