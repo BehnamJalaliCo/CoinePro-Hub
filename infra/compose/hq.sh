@@ -66,6 +66,20 @@ if [[ "$site" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)
 else
   export HQ_API_EDGE=off HQ_PUBLIC_ORIGIN="" HQ_WEBAUTHN_RP_ID=""
 fi
+# The hub's own addresses (prompt 7.1): egress refuses the hub's /internal by
+# them as by its name, and a name that resolves to one of them. The host's
+# global addresses and what its domain resolves to (a private one among them
+# is refused by egress anyway). Read only; nothing on the host changes.
+hub_addresses() {
+  {
+    ip -o addr show scope global 2>/dev/null | awk '{ split($4, a, "/"); print a[1] }'
+    if [[ "$HQ_WEBAUTHN_RP_ID" == *.* ]]; then
+      getent ahosts "$HQ_WEBAUTHN_RP_ID" 2>/dev/null | awk '{ print $1 }'
+    fi
+  } | sort -u | paste -sd, -
+}
+HQ_HUB_ADDRESSES="${HQ_HUB_ADDRESSES:-$(hub_addresses || true)}"
+export HQ_HUB_ADDRESSES
 # The web panel (prompt 05 §10) runs once apps/web/Dockerfile exists: profile
 # "web", and Caddy sends every path but /api to it (HQ_WEB).
 profile_args=(--profile "$profile")
