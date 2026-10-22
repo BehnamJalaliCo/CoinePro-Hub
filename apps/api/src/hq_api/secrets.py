@@ -5,6 +5,8 @@ kv/hq-api/webpush           private_key_pem, public_key (base64url), subject
 kv/hq-api/channels/fcm      service_account_json (empty -> channel off)
 kv/hq-api/channels/telegram bot_token, chat_id (empty -> channel off)
 kv/hq-agents/runtime        llm_router_token, gateway_token (the worker as agent runtime)
+kv/support/pseudonym        key (hex, 32 bytes): the customer pseudonym's HMAC key (prompt 10
+                            §1.2; made once with cas 0, read by the api and the worker)
 """
 
 from __future__ import annotations
@@ -32,6 +34,8 @@ class Secrets:
     # The agent runtime (worker, prompt 05): its llm-router caller and gateway tokens.
     llm_router_token: str = field(default="", repr=False)
     gateway_token: str = field(default="", repr=False)
+    # Prompt 10 §1.2: hq_common.pseudonym's key (empty: no subject can be made).
+    support_pseudonym_key: bytes = field(default=b"", repr=False)
 
     @property
     def runtime_ready(self) -> bool:
@@ -57,6 +61,18 @@ async def _read(bao: OpenBaoClient, path: str) -> dict[str, Any]:
         return {}
 
 
+async def _optional(bao: OpenBaoClient, path: str) -> dict[str, Any]:
+    """A secret whose absence (or a policy not applied yet) only switches its
+    feature off: it never stops the rest of the secrets from loading."""
+    try:
+        return await bao.read_kv(path)
+    except SecretNotFound:
+        return {}
+    except OpenBaoError:
+        log.warning("optional secret unavailable; its feature stays off", extra={"path": path})
+        return {}
+
+
 async def load(bao: OpenBaoClient, *, api_config: bool = True, runtime: bool = False) -> Secrets:
     """The api reads its config (service token digests too); the worker
     (`api_config=False, runtime=True`) reads only the agent token key from it,
@@ -67,6 +83,7 @@ async def load(bao: OpenBaoClient, *, api_config: bool = True, runtime: bool = F
         fcm = await _read(bao, "hq-api/channels/fcm")
         tg = await _read(bao, "hq-api/channels/telegram")
         rt = await _read(bao, "hq-agents/runtime") if runtime else {}
+        pseudonym = await _optional(bao, "support/pseudonym")
     except OpenBaoError:
         log.warning("openbao unavailable; secrets not (re)loaded")
         raise
@@ -90,4 +107,14 @@ async def load(bao: OpenBaoClient, *, api_config: bool = True, runtime: bool = F
         telegram_chat_id=str(tg.get("chat_id") or ""),
         llm_router_token=str(rt.get("llm_router_token") or ""),
         gateway_token=str(rt.get("gateway_token") or ""),
+        support_pseudonym_key=_hex_key(pseudonym.get("key")),
     )
+
+
+def _hex_key(value: Any) -> bytes:
+    """A hex key from KV; anything else reads as absent (never half a key)."""
+    try:
+        return bytes.fromhex(str(value or ""))
+    except ValueError:
+        log.warning("kv/support/pseudonym holds no hex key; pseudonyms stay off")
+        return b""

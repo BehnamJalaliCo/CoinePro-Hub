@@ -192,6 +192,17 @@ class StarsRollup:
         return result
 
 
+@workflow.defn(name="SupportRetention")
+class SupportRetention:
+    """Daily 04:15 (owner zone): customer texts older than SUPPORT_RETENTION_DAYS
+    are removed, the rows stay (prompt 10 §1.4). Rule-only: runs while locked."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("support_retention", limit=timedelta(minutes=30))
+        return result
+
+
 @workflow.defn(name="ScoreJob")
 class ScoreJob:
     @workflow.run
@@ -386,4 +397,5 @@ WORKFLOWS = [
     ScoreJob,
     StarsReminder,
     StarsRollup,
+    SupportRetention,
 ]

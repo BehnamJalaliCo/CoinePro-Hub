@@ -32,6 +32,7 @@ from hq_api.worker.academy_activities import AcademyActivities
 from hq_api.worker.media_activities import MediaActivities
 from hq_api.worker.oversight_activities import OversightActivities
 from hq_api.worker.people_activities import PeopleActivities
+from hq_api.worker.support_activities import SupportActivities
 
 log = logging.getLogger("hq_api.worker")
 SYSTEM = audit.SYSTEM
@@ -69,6 +70,7 @@ class Activities:
         self.people = PeopleActivities(hub, self._tx)
         self.academy = AcademyActivities(hub, self.router, self._tx)
         self.oversight = OversightActivities(hub, self._tx)
+        self.support = SupportActivities(hub, self._tx)
 
     def all(self) -> list[Any]:
         return [
@@ -76,6 +78,7 @@ class Activities:
             *self.people.all(),
             *self.academy.all(),
             *self.oversight.all(),
+            *self.support.all(),
             self.decision_state,
             self.decision_expire,
             self.holding_locked,

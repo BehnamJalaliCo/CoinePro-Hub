@@ -4,6 +4,7 @@
 # coinepro-hq stack, its volumes or the host's secrets:
 #   provision   provision.sh without sudo stops before any KV write that a
 #               file install depends on (a dev OpenBao in a container)
+#   kv-once     kv/support/pseudonym is made once with cas 0 and kept (p10)
 #   backup      every failed backup records ok:false (no stale ok:true) and
 #               leaves no partial set; a busy lock records nothing
 #   stt         an opt-in profile over the memory budget: shown while off, a
@@ -86,6 +87,30 @@ elif [[ "$(kv_code llm-router/config)" != 404 || "$(kv_code claude-runtime/confi
 else
   pass "provision: without sudo it stops before any KV write a file install depends on"
 fi
+
+# ------------------------------------------------------------ kv-once ----
+# Prompt 10 §1.2: kv/support/pseudonym is made once (cas 0) and kept on every
+# later run; the value is 32 random bytes in hex and is never printed.
+printf 'X-Vault-Token: %s\n' "$dev_token" >"$T/root.auth"
+chmod 600 "$T/root.auth"
+curl -s -o /dev/null -X POST -H @"$T/root.auth" -H 'Content-Type: application/json' \
+  -d '{"type": "kv", "options": {"version": "2"}}' "$bao/v1/sys/mounts/kv" || true
+kv_key() { curl -s -H @"$T/root.auth" "$bao/v1/kv/data/support/pseudonym" | jq -r '.data.data.key // empty'; }
+kv_version() { curl -s -H @"$T/root.auth" "$bao/v1/kv/metadata/support/pseudonym" | jq -r '.data.current_version // 0'; }
+once_out="$(HQ_BAO_ADDR="$bao" "$REPO_DIR/infra/openbao/kv-once.sh" "$T/root.auth" support/pseudonym key 2>&1)" &&
+  k1=0 || k1=$?
+first="$(kv_key)"
+HQ_BAO_ADDR="$bao" "$REPO_DIR/infra/openbao/kv-once.sh" "$T/root.auth" support/pseudonym key >/dev/null 2>&1 &&
+  k2=0 || k2=$?
+HQ_BAO_ADDR="http://127.0.0.1:9" "$REPO_DIR/infra/openbao/kv-once.sh" "$T/root.auth" support/pseudonym key \
+  >/dev/null 2>&1 && k3=0 || k3=$?
+if [[ $k1 == 0 && $k2 == 0 && $k3 != 0 && "$first" =~ ^[0-9a-f]{64}$ && "$(kv_key)" == "$first" &&
+  "$(kv_version)" == 1 && "$once_out" != *"$first"* ]]; then
+  pass "kv-once: the pseudonym key is made once (cas 0), kept on a rerun, never printed; no OpenBao, no write"
+else
+  fail "kv-once: first=$k1 rerun=$k2 unreachable=$k3 version=$(kv_version) ($(tail -n1 <<<"$once_out"))"
+fi
+unset first
 unset dev_token
 
 # ---------------------------------------------------------------- backup ----

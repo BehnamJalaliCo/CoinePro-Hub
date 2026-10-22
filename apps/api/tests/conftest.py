@@ -51,6 +51,7 @@ PROVISIONER_TOKEN = "test-provisioner-token-" + "1" * 40  # the provisioner serv
 AGENT_KEY = bytes.fromhex("11" * 32)
 ROUTER_TOKEN = "test-router-token-" + "1" * 40
 GATEWAY_TOKEN = "test-gateway-token-" + "2" * 40
+PSEUDONYM_KEY = bytes.fromhex("33" * 32)  # kv/support/pseudonym in tests (prompt 10 §1.2)
 
 if "TEST_DB_HOST" not in os.environ:
     pytest.skip("needs services/scripts/test-env.sh (HQ_TEST_TARGET=api)", allow_module_level=True)
@@ -108,6 +109,7 @@ def make_secrets() -> Secrets:
         },
         llm_router_token=ROUTER_TOKEN,
         gateway_token=GATEWAY_TOKEN,
+        support_pseudonym_key=PSEUDONYM_KEY,
     )
 
 

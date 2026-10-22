@@ -11,6 +11,7 @@ Schedule ids:
     hq-ceo-daily              daily 07:30 (owner's zone)  CeoDaily, paused unless HQ_CEO_DAILY_REPORTS=on
     hq-stars-reminder         Friday 18:00 (owner's zone)  StarsReminder (prompt 08 §4)
     hq-stars-rollup           daily 08:00 (owner's zone)  StarsRollup: Saturday's week, a Jalali 1st's month
+    hq-support-retention      daily 04:15 (owner's zone)  SupportRetention (prompt 10 §1.4; rule-only)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -51,6 +52,7 @@ SITE_CHECKS = "hq-site-checks"
 CEO_DAILY = "hq-ceo-daily"
 STARS_REMINDER = "hq-stars-reminder"
 STARS_ROLLUP = "hq-stars-rollup"
+SUPPORT_RETENTION = "hq-support-retention"
 FIXED = (
     MAINTENANCE,
     DIGEST,
@@ -61,6 +63,7 @@ FIXED = (
     CEO_DAILY,
     STARS_REMINDER,
     STARS_ROLLUP,
+    SUPPORT_RETENTION,
 )
 
 
@@ -197,6 +200,14 @@ def fixed(morning_at: time, tz: str, *, ceo_daily: bool = False) -> list[Desired
             daily_at(time(8, 0), tz),
             timedelta(hours=12),
             timedelta(minutes=45),
+        ),
+        Desired(
+            SUPPORT_RETENTION,
+            "SupportRetention",
+            (),
+            daily_at(time(4, 15), tz),
+            timedelta(hours=12),
+            timedelta(minutes=30),
         ),
     ]
 

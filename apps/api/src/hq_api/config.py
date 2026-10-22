@@ -176,6 +176,38 @@ class Settings:
     provisioner_url: str = field(default_factory=lambda: _env("PROVISIONER_URL", ""))
     workshop_model: str = field(default_factory=lambda: _env("WORKSHOP_MODEL", "claude-opus-5-5"))
     workshop_effort: str = field(default_factory=lambda: _env("WORKSHOP_EFFORT", "high"))
+    # Prompt 10 (contract §19): revenue, support, lifecycle, intake. Per-company
+    # values that differ live in support.settings; these are the defaults.
+    # Conversation texts older than this are purged by the daily retention job
+    # (rows, times, states and tags stay; owner decision §0.1 #4: 180 days).
+    support_retention_days: int = field(default_factory=lambda: _int("SUPPORT_RETENTION_DAYS", 180))
+    # Model drafts of one company per UTC day (the router's scope
+    # support_draft:<company>); spent -> the day's other messages are handed off.
+    support_draft_daily_tokens: int = field(
+        default_factory=lambda: _int("SUPPORT_DRAFT_DAILY_TOKENS", 60_000)
+    )
+    # Automatic outbound messages of one company per day (429 send_limit), and
+    # automatic replies in one conversation per hour (the loop guard).
+    support_daily_outbound_cap: int = field(
+        default_factory=lambda: _int("SUPPORT_DAILY_OUTBOUND_CAP", 300)
+    )
+    support_auto_replies_per_hour: int = field(
+        default_factory=lambda: _int("SUPPORT_AUTO_REPLIES_PER_HOUR", 20)
+    )
+    # The owner's digest line for handoffs, batched (minutes).
+    support_handoff_digest_min: int = field(
+        default_factory=lambda: _int("SUPPORT_HANDOFF_DIGEST_MIN", 30)
+    )
+    # referral.check: per company per hour, and how long an answer is reused.
+    referral_checks_per_hour: int = field(
+        default_factory=lambda: _int("REFERRAL_CHECKS_PER_HOUR", 30)
+    )
+    referral_check_cache_s: int = field(default_factory=lambda: _int("REFERRAL_CHECK_CACHE_S", 600))
+    # The revenue radar: the first pull's backfill and a manual pull's range (days).
+    revenue_backfill_days: int = field(default_factory=lambda: _int("REVENUE_BACKFILL_DAYS", 90))
+    revenue_pull_max_days: int = field(default_factory=lambda: _int("REVENUE_PULL_MAX_DAYS", 31))
+    # Signed intake (Chatwoot, products): the timestamp window (seconds).
+    intake_max_skew_s: int = field(default_factory=lambda: _int("INTAKE_MAX_SKEW_S", 300))
 
     @property
     def login_configured(self) -> bool:

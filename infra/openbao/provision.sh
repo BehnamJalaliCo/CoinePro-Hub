@@ -22,6 +22,8 @@
 #   - prompt 07: the backups' restic password (kv/backup/restic, generated once,
 #     never printed) and the hq-backup AppRole of the host's backup scripts
 #       -> $HQ_SECRETS_DIR/backup/approle.json (600, Hub's own: no sudo)
+#   - prompt 10: the customer pseudonym's key (kv/support/pseudonym, made once
+#     with cas 0, never printed; infra/openbao/kv-once.sh)
 # The root token is used only while the admin token does not exist yet; it is
 # NOT revoked here (owner's decision).
 #
@@ -315,4 +317,11 @@ fi
 # 7.1 §2.9: written with KV check-and-set (cas 0), never over an existing one.
 HQ_BAO_ADDR="$BAO_ADDR" "$REPO_DIR/infra/openbao/restic-password.sh" "$WORK/auth" ||
   die "backup: the restic password could not be checked or created"
+
+# ------------------------------------------------- support pseudonym (p10) --
+# The customer pseudonym's HMAC key (kv/support/pseudonym): made once with
+# KV check-and-set (cas 0), never rotated unless the owner asks; read by the
+# api and the worker (policies hq-api, hq-worker).
+HQ_BAO_ADDR="$BAO_ADDR" "$REPO_DIR/infra/openbao/kv-once.sh" "$WORK/auth" support/pseudonym key ||
+  die "support: the pseudonym key could not be checked or created"
 log "done"

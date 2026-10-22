@@ -432,6 +432,8 @@ services:
       # The oversight share of the agents' daily cap (prompt 08 §2.3).
       AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
       OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
+      # Prompt 10 §4.3: one company's support drafts per UTC day (scope support_draft:<company>).
+      SUPPORT_DRAFT_DAILY_TOKENS: ${SUPPORT_DRAFT_DAILY_TOKENS:-60000}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -598,6 +600,17 @@ services:
       # The provisioner (prompt 09, opt-in profile "provisioning"): hq.sh sets it
       # while HQ_PROVISIONING=on, else empty (pricing and builds wait).
       PROVISIONER_URL: ${PROVISIONER_URL:-}
+      # Prompt 10 (contract §19): support, referral checks, the revenue radar, intake.
+      SUPPORT_RETENTION_DAYS: ${SUPPORT_RETENTION_DAYS:-180}
+      SUPPORT_DRAFT_DAILY_TOKENS: ${SUPPORT_DRAFT_DAILY_TOKENS:-60000}
+      SUPPORT_DAILY_OUTBOUND_CAP: ${SUPPORT_DAILY_OUTBOUND_CAP:-300}
+      SUPPORT_AUTO_REPLIES_PER_HOUR: ${SUPPORT_AUTO_REPLIES_PER_HOUR:-20}
+      SUPPORT_HANDOFF_DIGEST_MIN: ${SUPPORT_HANDOFF_DIGEST_MIN:-30}
+      REFERRAL_CHECKS_PER_HOUR: ${REFERRAL_CHECKS_PER_HOUR:-30}
+      REFERRAL_CHECK_CACHE_S: ${REFERRAL_CHECK_CACHE_S:-600}
+      REVENUE_BACKFILL_DAYS: ${REVENUE_BACKFILL_DAYS:-90}
+      REVENUE_PULL_MAX_DAYS: ${REVENUE_PULL_MAX_DAYS:-31}
+      INTAKE_MAX_SKEW_S: ${INTAKE_MAX_SKEW_S:-300}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]

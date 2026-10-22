@@ -16,3 +16,9 @@ path "kv/data/hq-api/config" {
 path "kv/data/hq-agents/runtime" {
   capabilities = ["read"]
 }
+
+# The customer pseudonym's HMAC key (prompt 10 §1.2): read only; made once by
+# provision.sh (kv-once.sh, cas 0).
+path "kv/data/support/pseudonym" {
+  capabilities = ["read"]
+}

@@ -16,3 +16,9 @@ path "kv/data/llm-connections/*" {
 path "kv/data/tools/accounts/*" {
   capabilities = ["read"]
 }
+
+# The customer pseudonym's HMAC key (prompt 10 §1.2): read only; made once by
+# provision.sh (kv-once.sh, cas 0).
+path "kv/data/support/pseudonym" {
+  capabilities = ["read"]
+}
