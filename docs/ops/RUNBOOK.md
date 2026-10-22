@@ -1113,3 +1113,16 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **`GET /infra/servers`** فقط‌خواندنی است. **هیچ حذفی در API نیست**: سرور را فقط مالک در کنسول هتزنر حذف میکند.
   - این مسیر فهرست پروژه‌ی هتزنر را هم میدهد. api آن را هر ۶ ساعت و با هر بار باز شدن این صفحه تازه میکند.
   - پروتکل **PR-063** هر روز ساعت ۰۶:۰۰ با کد آن را با طرح‌های مُهرشده تطبیق میدهد. سرور بی‌طرح، از جمله سرورهای قدیمی همان پروژه، یافته‌ی critical میسازد. یافته‌ای که مالک ببندد (مثلاً «سرور خود ما، از قبل») دوباره ساخته نمیشود.
+
+## ۲۷. درآمد و پشتیبانی: پایه (پرامپت ۱۰ §۱، قرارداد §۱۹)
+- **پنج schema:** `revenue`، `support`، `growth`، `feedback`، `intake` (migration `0025`). همه‌ی جدول‌ها `company_id` و RLS **FORCE** دارند؛ هیچ جدول بی‌شرکتی نیست.
+- **نام مستعار مشتری:** `subject = HMAC-SHA256(key, company || channel || external_id)` (`hq_common.pseudonym`).
+  - کلید در `kv/support/pseudonym` است. `make up` آن را یک بار با KV check-and-set (`cas: 0`) میسازد (`infra/openbao/kv-once.sh`) و هرگز عوض نمیکند؛ چاپ نمیشود. api و worker فقط میخوانند.
+  - **چرخاندن فقط با خواست مالک:** کلید تازه همه‌ی `subject`های گذشته را غریبه میکند (قیف، نجات، NPS از نو شروع میشوند).
+  - handle، شناسه‌ی کاربر کانال و UID خام فقط در `support.customers` میمانند. بقیه‌ی جدول‌ها فقط `subject` دارند (CHECK: hex ۶۴).
+- **ماسک پیش از ذخیره:** هر پیام مشتری از `hq_common.customer_mask.mask` رد میشود: ماسک §۱۶.۶ به‌علاوه‌ی عبارت بازیابی (۱۲+ کلمه‌ی BIP-39)، کلید خصوصی (hex ۶۴، WIF، xprv، هر بلوک `-----BEGIN`) و شماره‌ی کارت (Luhn). متن خام هرگز ذخیره نمیشود و به مدل نمیرسد. hash تراکنش هم hex ۶۴ است و ماسک میشود (سمت امن).
+- **نگهداری:** job روزانه‌ی `hq-support-retention` (۰۴:۱۵ به وقت مالک) متن‌های مشتری قدیمی‌تر از `SUPPORT_RETENTION_DAYS` (پیش‌فرض ۱۸۰) را پاک میکند: بدنه‌ی پیام‌ها، توضیح NPS، نقل‌قول بازخورد و داده‌ی رویدادهای intake. ردیف، زمان، وضعیت و برچسب‌ها میمانند.
+  - این job فقط قاعده است (بی‌مدل، بی‌تماس بیرونی)، پس با کلید توقف هلدینگ هم اجرا میشود.
+  - **backup:** متنی که پاک شد، در snapshotهای restic تا پایان نگهداری همان snapshot میماند (§۱۸: ساعتی ۷ روز، روزانه ۹۰، هفتگی ۵۲، ماهانه ۳۶، سالانه ۱۰). پاک کردن آن از backup فقط با تصمیم مالک است.
+- **دروازه‌ی راه‌اندازی:** هر چیزی از پرامپت ۱۰ که خودش اجرا میشود (pull، ارسال، پیش‌نویس، batch، پروتکل) اول `hq_api.domain.gate` را میپرسد و تا قفل هلدینگ یا شرکت هست، بی‌مدل و بی‌تماس بیرونی رد میشود (`skipped`).
+- **متغیرها** (`.env`، خالی یعنی پیش‌فرض): `SUPPORT_RETENTION_DAYS`، `SUPPORT_DRAFT_DAILY_TOKENS` (۶۰ هزار برای هر شرکت در روز)، `SUPPORT_DAILY_OUTBOUND_CAP`، `SUPPORT_AUTO_REPLIES_PER_HOUR`، `SUPPORT_HANDOFF_DIGEST_MIN`، `REFERRAL_CHECKS_PER_HOUR`، `REFERRAL_CHECK_CACHE_S`، `REVENUE_BACKFILL_DAYS`، `REVENUE_PULL_MAX_DAYS`، `INTAKE_MAX_SKEW_S`.
