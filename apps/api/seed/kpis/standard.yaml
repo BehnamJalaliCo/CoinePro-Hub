@@ -1,0 +1,39 @@
+# The standard KPIs of the three cards (prompt 11 §4.4, contract §20.4), seeded
+# for every company that has no KPIs yet. Only queries of the closed registry
+# (apps/api/src/hq_api/domain/gov_kpis.py REGISTRY) or `manual`; a query whose
+# source is not built shows `no_source`, never zero. A founding's proposed KPIs
+# (prompt 09, proposal.kpis) become manual KPIs of the growth card instead of
+# the standard growth set; the stability and safety-and-cost cards stay.
+# The owner changes targets in the app (PUT /kpis/{company}).
+#
+# card: stability | growth | safety_cost; direction: up | down | range;
+# aggregate (the holding card): sum | avg | min | max.
+company:
+  stability:
+    - {key: health.uptime_24h, name_fa: "دسترس‌پذیری ۲۴ ساعته", unit: "%", direction: up, freshness_hours: 2, target: 99.5, scorecard: true, aggregate: avg}
+    - {key: health.p95_latency_ms, name_fa: "تأخیر p95", unit: "ms", direction: down, freshness_hours: 2, target: 1500, aggregate: max}
+    - {key: health.open_incidents, name_fa: "حادثه‌های باز", unit: "", direction: down, freshness_hours: 2, target: 0, aggregate: sum}
+    - {key: health.tls_min_days, name_fa: "کمترین روز باقی‌مانده‌ی گواهی", unit: "روز", direction: up, freshness_hours: 24, target: 14, aggregate: min}
+  growth:
+    - {key: revenue.commission_7d_usdt, name_fa: "درآمد کمیسیون ۷ روز", unit: "USDT", direction: up, freshness_hours: 48, scorecard: true, aggregate: sum}
+    - {key: revenue.new_invitees_7d, name_fa: "دعوت‌شده‌های تازه‌ی ۷ روز", unit: "", direction: up, freshness_hours: 48, aggregate: sum}
+    - {key: users.active, source: manual, name_fa: "کاربر فعال", unit: "", direction: up, freshness_hours: 168, scorecard: true, aggregate: sum}
+    - {key: funnel.conversion_7d, name_fa: "نرخ تبدیل ثبت‌نام به VIP (۷ روز)", unit: "%", direction: up, freshness_hours: 48, scorecard: true, aggregate: avg}
+    - {key: funnel.signups_7d, name_fa: "ثبت‌نام ۷ روز", unit: "", direction: up, freshness_hours: 48, aggregate: sum}
+    - {key: work.on_time_rate, name_fa: "کار به‌موقع (۳۰ روز)", unit: "%", direction: up, freshness_hours: 24, target: 85, aggregate: avg}
+  safety_cost:
+    - {key: treasury.cost_month_usd, name_fa: "هزینه‌ی ایجنت‌ها این ماه", unit: "USD", direction: down, freshness_hours: 2, scorecard: true, aggregate: sum}
+    - {key: treasury.budget_use_pct, name_fa: "مصرف بودجه‌ی ماه", unit: "%", direction: down, freshness_hours: 2, target: 90, aggregate: max}
+    - {key: treasury.cost_per_accepted, name_fa: "هزینه‌ی هر خروجی پذیرفته", unit: "USD", direction: down, freshness_hours: 24, aggregate: avg}
+    - {key: work.overdue_open, name_fa: "کار باز دیرکرده", unit: "", direction: down, freshness_hours: 2, target: 0, aggregate: sum}
+    - {key: oversight.compliance, name_fa: "انطباق نظارت (۷ روز)", unit: "%", direction: up, freshness_hours: 48, target: 90, aggregate: avg}
+    - {key: oversight.findings_open_high, name_fa: "یافته‌ی باز بالا و بحرانی", unit: "", direction: down, freshness_hours: 2, target: 0, aggregate: sum}
+    - {key: support.csat_30d, name_fa: "رضایت پشتیبانی (۳۰ روز)", unit: "از ۵", direction: up, freshness_hours: 48, target: 4.2, aggregate: avg}
+    - {key: stars.company_score, name_fa: "امتیاز شرکت", unit: "از ۱۰۰", direction: up, freshness_hours: 192, aggregate: avg}
+# The holding's own KPIs (its card adds the companies' KPIs, aggregated).
+holding:
+  stability:
+    - {key: hub.services_up_pct, name_fa: "سرویس‌های روشن هاب", unit: "%", direction: up, freshness_hours: 1, target: 100, aggregate: min}
+    - {key: hub.backup_age_hours, name_fa: "سن آخرین پشتیبان", unit: "ساعت", direction: down, freshness_hours: 2, target: 2, aggregate: max}
+  safety_cost:
+    - {key: treasury.agents_cost_month_usd, name_fa: "هزینه‌ی همه‌ی ایجنت‌ها این ماه", unit: "USD", direction: down, freshness_hours: 2, aggregate: sum}
