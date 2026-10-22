@@ -166,6 +166,7 @@ async def create_meeting(
 
 @router.get("/meetings/settings", response_model=list[MT.MeetingType], responses=E)
 async def meeting_settings(ctx: Ctx = Depends(owner_ctx)) -> list[MT.MeetingType]:
+    """The meeting types (MeetingType) the owner edits, each with its version."""
     async with ctx.tx() as tx:
         return [MT.render_type(t) for t in await MT.types(tx)]
 

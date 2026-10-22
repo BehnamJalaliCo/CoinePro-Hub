@@ -177,7 +177,12 @@ def every(minutes: int) -> ScheduleSpec:
 
 
 def fixed(
-    morning_at: time, tz: str, *, ceo_daily: bool = False, support_sweep_min: int = 30
+    morning_at: time,
+    tz: str,
+    *,
+    ceo_daily: bool = False,
+    support_sweep_min: int = 30,
+    meetings_paused: bool = False,
 ) -> list[Desired]:
     return [
         Desired(
@@ -250,14 +255,23 @@ def fixed(
             timedelta(minutes=30),
         ),
         *revenue_fixed(),
-        *governance_fixed(tz),
+        *governance_fixed(tz, paused=meetings_paused),
     ]
 
 
-def governance_fixed(tz: str) -> list[Desired]:
-    """Prompt 11 §1-§3: they gate themselves (hq_api.domain.gate)."""
+def governance_fixed(tz: str, *, paused: bool = False) -> list[Desired]:
+    """Prompt 11 §1-§3: they gate themselves (hq_api.domain.gate); paused only
+    when HQ_MEETINGS_SCHEDULES=off (tests)."""
     return [
-        Desired(MEETINGS, "MeetingsTick", (), every(1), timedelta(minutes=2), timedelta(minutes=5)),
+        Desired(
+            MEETINGS,
+            "MeetingsTick",
+            (),
+            every(1),
+            timedelta(minutes=2),
+            timedelta(minutes=5),
+            paused=paused,
+        ),
         Desired(
             KNOWLEDGE_DAILY,
             "KnowledgeDaily",
@@ -265,6 +279,7 @@ def governance_fixed(tz: str) -> list[Desired]:
             daily_at(time(6, 30), tz),
             timedelta(hours=12),
             timedelta(minutes=15),
+            paused=paused,
         ),
     ]
 

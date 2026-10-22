@@ -152,7 +152,7 @@ async def _company_days(
     z = R.zone(tz)
     last = await tx.all(
         """SELECT DISTINCT ON (company_id) company_id, starts_at FROM meetings.meetings
-           WHERE type = 'company' ORDER BY company_id, starts_at DESC"""
+           WHERE type = 'company' AND origin = 'schedule' ORDER BY company_id, starts_at DESC"""
     )
     by_co = {r["company_id"]: r["starts_at"].astimezone(z).weekday() for r in last}
     load = dict.fromkeys(days, 0)

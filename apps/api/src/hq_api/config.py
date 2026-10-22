@@ -138,6 +138,11 @@ class Settings:
     meetings_daily_share: float = field(
         default_factory=lambda: meetings_share.parse_share(_env("MEETINGS_DAILY_SHARE"))
     )
+    # Off: the meeting room's schedules (hq-meetings, hq-knowledge-daily) exist
+    # but stay paused (tests: a test drives the meeting room by hand).
+    meetings_schedules: bool = field(
+        default_factory=lambda: _env("HQ_MEETINGS_SCHEDULES", "on") == "on"
+    )
     # Off: the protocols' schedules exist but stay paused (tests).
     oversight_schedules: bool = field(
         default_factory=lambda: _env("HQ_OVERSIGHT_SCHEDULES", "on") == "on"

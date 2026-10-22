@@ -160,6 +160,7 @@ async def get_knowledge(
 async def knowledge_versions(
     ref: str = Path(pattern=REF), ctx: Ctx = Depends(owner_ctx)
 ) -> list[K.KnowledgeEntry]:
+    """Every version of an entry or a support article, newest first."""
     async with ctx.tx() as tx:
         if ref.startswith("KB-"):
             rows = await tx.all(K.SUPPORT_SQL + " WHERE s.ref = :r ORDER BY s.version DESC", r=ref)
@@ -218,6 +219,7 @@ async def update_knowledge(
 async def retire_knowledge(
     ref: str = Path(pattern=REF), ctx: Ctx = Depends(owner_ctx)
 ) -> K.KnowledgeEntry:
+    """The owner retires an entry (every version); a support article: 405."""
     _not_here(ref)
     async with ctx.tx() as tx:
         row = await K.retire(tx, ctx.who, ref)

@@ -62,6 +62,7 @@ async def charter_versions(
 async def charter_version(
     version: int = Path(ge=1), scope: str = ScopeP, ctx: Ctx = Depends(owner_ctx)
 ) -> CH.CharterVersion:
+    """One version of a scope, with its body_sha256 (the seal's target)."""
     async with ctx.tx() as tx:
         return CH.render(await CH.load(tx, scope, version))
 

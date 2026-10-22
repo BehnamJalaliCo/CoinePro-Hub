@@ -394,6 +394,7 @@ class Activities:
             owner["timezone"],
             ceo_daily=self.hub.settings.ceo_daily_reports,
             support_sweep_min=self.hub.settings.support_handoff_digest_min,
+            meetings_paused=not self.hub.settings.meetings_schedules,
         ):
             out["fixed"][d.id] = await schedules.upsert(client, d, tq)
         wanted: set[str] = set()

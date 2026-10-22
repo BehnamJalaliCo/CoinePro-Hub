@@ -706,8 +706,11 @@ async def test_paused_protocols_have_no_schedule_run_or_finding_and_do_not_count
     from hq_api.worker import oversight_activities as OA
     from hq_api.worker import schedules
 
+    from hq_api.domain import governance_checks as GC
+
     lib_file = O.protocol_file(charters.load().root)
-    paused = {p["ref"] for p in lib_file if p["status"] == "paused"}
+    # Seeded paused; prompt 11 switches its own on (version 2, active) once built.
+    paused = {p["ref"] for p in lib_file if p["status"] == "paused"} - set(GC.SWITCHED_ON)
     assert {"PR-043", "PR-053", "PR-082", "PR-090"} <= paused
     rows = await su.fetch(
         "SELECT ref, status FROM oversight.current_protocols WHERE ref = ANY($1)", list(paused)

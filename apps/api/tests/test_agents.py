@@ -96,7 +96,7 @@ async def test_records_wake_the_right_agent(
     assert (
         await su.fetchval(
             """SELECT count(*) FROM agents.runs r JOIN core.employees e ON e.id = r.employee_id
-           WHERE e.kind = 'system'"""
+           WHERE e.kind = 'system' AND r.trigger <> 'meeting'"""  # ⟨1.5⟩ the secretary's summary only
         )
         == 0
     )
