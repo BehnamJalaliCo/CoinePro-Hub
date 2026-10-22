@@ -314,27 +314,23 @@ async def test_without_an_opener_or_proxy_nothing_connects(mock: respx.MockRoute
 
 
 def test_listing_digest_and_render() -> None:
-    class T1:
-        name, description, input_schema = "a", "x", {"type": "object"}
-        title, output_schema, annotations = None, None, None
+    from types import SimpleNamespace as Tool
 
-    class T2(T1):
-        description = "y"
-
-    class T3(T1):
-        title = "A tool"
-
-    class T4(T1):
-        output_schema = {"type": "object", "properties": {"n": {"type": "integer"}}}
-
-    class T5(T1):
-        annotations = {"destructive_hint": True}
-
-    digests = {M.listing_of([t()]).sha256 for t in (T1, T2, T3, T4, T5)}
+    base = {"name": "a", "description": "x", "input_schema": {"type": "object"}, "title": None,
+            "output_schema": None, "annotations": None}  # fmt: skip
+    variants = [
+        {},
+        {"description": "y"},
+        {"title": "A tool"},
+        {"output_schema": {"type": "object", "properties": {"n": {"type": "integer"}}}},
+        {"annotations": {"destructive_hint": True}},
+    ]
+    digests = {M.listing_of([Tool(**{**base, **v})]).sha256 for v in variants}
     assert len(digests) == 5  # description, title, output schema and annotations all count
-    one = M.listing_of([T1()])
+    one = M.listing_of([Tool(**base)])
     assert one.names == ["a"] and one.tools[0]["name"] == "a" and len(one.tools[0]["sha256"]) == 64
-    assert M.listing_of([T1(), T5()]).tools[0]["sha256"] == one.tools[0]["sha256"]
+    two = M.listing_of([Tool(**base), Tool(**{**base, "name": "b"})])
+    assert two.tools[0]["sha256"] == one.tools[0]["sha256"] != two.sha256
 
     class Block:
         def __init__(self, kind: str, text: str = "") -> None:

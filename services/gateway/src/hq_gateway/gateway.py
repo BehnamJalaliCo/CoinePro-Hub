@@ -425,7 +425,9 @@ class Gateway:
         grant = r.data if isinstance(r.data, dict) else {}
         return None, grant.get("reservation")
 
-    async def _mcp_egress_log(self, token: str, spec: M.ServerSpec, reservation: Any = None) -> None:
+    async def _mcp_egress_log(
+        self, token: str, spec: M.ServerSpec, reservation: Any = None
+    ) -> None:
         """The proxied connections of one MCP call, from egress to the egress
         log (an http server only; a failure here never fails the call); they
         settle the call's reservation."""
