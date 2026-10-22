@@ -724,4 +724,123 @@ class ApiContractTest {
         api.charterDiff("TY", 2, 1)
         assertEquals("/api/v1/charter/TY/versions/2/diff?against=1", server.takeRequest().url.let { "${it.encodedPath}?${it.encodedQuery}" })
     }
+    // ------------------------------------------------------------ ⟨1.5⟩ §21 --
+    private val sub = """{"player":"gpt","connection":"chatgpt-plus","runner":"codex_cli","status":"ready","version":3,"login":{"state":"signed_in"},"models":[{"id":"gpt-5.5"}],"capabilities":{},"web":{"account":"chatgpt-web","state":"signed_in"},"seats":[],"month":{"key":"1405-07"}}"""
+
+    @Test
+    fun aNewConnectionIsSealedOnItsExactBodyWithTheCallersKey() = runTest {
+        val body = com.coinepro.hq.core.net.ConnectionIn(
+            key = "openrouter-main", provider = "openai_compatible", kind = "api_key", displayName = "OpenRouter", baseUrl = "https://openrouter.ai/api/v1",
+            models = listOf("deepseek-v3.2"), pricing = mapOf("deepseek-v3.2" to com.coinepro.hq.core.net.Price("0.27", "1.10")), limits = com.coinepro.hq.core.net.ConnLimits(rpm = 60),
+        )
+        server.enqueue(json(201, """{"id":"c9","key":"openrouter-main","display_name":"OpenRouter","kind":"api_key","provider":"openai_compatible","status":"pending_secret","models":["deepseek-v3.2"],"version":1}"""))
+        var signedOn: Pair<String, String>? = null
+        val c = api.createConnection(body, "k-wizard") { a, t -> signedOn = a to t; "su" }
+        val req = server.takeRequest()
+        val text = req.body!!.utf8()
+        // pricing and limits are always written; a field left out is not sent as null.
+        assertEquals("""{"key":"openrouter-main","provider":"openai_compatible","kind":"api_key","display_name":"OpenRouter","base_url":"https://openrouter.ai/api/v1","models":["deepseek-v3.2"],"pricing":{"deepseek-v3.2":{"input_per_mtok":"0.27","output_per_mtok":"1.10"}},"limits":{"rpm":60}}""", text)
+        assertEquals("connection.create" to Api.sha256(text), signedOn)
+        assertEquals("k-wizard" to "su", req.headers["Idempotency-Key"] to req.headers["X-Step-Up"])
+        assertEquals("pending_secret", c.status)
+        assertTrue(com.coinepro.hq.core.net.CONNECTION_KEY.matches("openrouter-main") && !com.coinepro.hq.core.net.CONNECTION_KEY.matches("Open_Router"))
+        assertTrue(com.coinepro.hq.core.net.publicHttps("https://openrouter.ai/api/v1") && !com.coinepro.hq.core.net.publicHttps("https://192.168.1.4/v1") && !com.coinepro.hq.core.net.publicHttps("http://openrouter.ai"))
+    }
+
+    @Test
+    fun seatsAndSignInsAreSealedOnTheirTargets() = runTest {
+        val s = Api.json.decodeFromString(com.coinepro.hq.core.net.Substitute.serializer(), sub)
+        server.enqueue(json(200, sub))
+        var signedOn: Pair<String, String>? = null
+        api.putSeats(s, listOf(com.coinepro.hq.core.net.SeatIn("creative", "web", "gpt-5.5", true, 20), com.coinepro.hq.core.net.SeatIn("creative", "web", "gpt-5.5", true, 20, perDayVideo = 3))) { a, t -> signedOn = a to t; "su" }
+        val put = server.takeRequest()
+        val list = put.body!!.utf8()
+        assertEquals("""[{"seat":"creative","via":"web","model":"gpt-5.5","enabled":true,"per_day":20},{"seat":"creative","via":"web","model":"gpt-5.5","enabled":true,"per_day":20,"per_day_video":3}]""", list)
+        assertEquals("substitute.seats" to Api.sha256(list), signedOn)
+        assertEquals(Triple("PUT", "\"3\"", "/api/v1/substitutes/gpt/seats"), Triple(put.method, put.headers["If-Match"], put.url.encodedPath))
+        val (a1, t1, r1) = signed(sub) { api.webLogout("gpt", it) }
+        assertEquals(Triple("substitute.web_logout", "gpt", "/api/v1/substitutes/gpt/web/logout"), Triple(a1, t1, r1.url.encodedPath))
+        val (a2, t2, r2) = signed("""{"id":"lg1","connection":"chatgpt-plus","method":"device_code","verification_url":"https://auth.openai.com/codex/device","user_code":"AK7M-4TZP","expires_at":"2026-10-17T08:40:00Z","state":"waiting"}""") { api.connectionLogin("c6", it) }
+        assertEquals(Triple("connection.login", "c6", "/api/v1/connections/c6/login"), Triple(a2, t2, r2.url.encodedPath))
+        val (a3, t3, r3) = signed("""{"connection":"chatgpt-plus","signed_out":true}""") { api.connectionLogout("c6", it) }
+        assertEquals(Triple("connection.logout", "c6", "/api/v1/connections/c6/logout"), Triple(a3, t3, r3.url.encodedPath))
+        // The code of an auth-code sign-in is covered by the start's step-up.
+        server.enqueue(json(200, """{"id":"lg2","connection":"gemini-pro","method":"auth_code","verification_url":"https://accounts.google.com/x","state":"done"}"""))
+        api.connectionLoginCode("c7", "lg2", "4/0Ab-xyz")
+        val code = server.takeRequest()
+        assertEquals("/api/v1/connections/c7/login/lg2/code" to """{"code":"4/0Ab-xyz"}""", code.url.encodedPath to code.body!!.utf8())
+        assertNull(code.headers["X-Step-Up"])
+    }
+
+    @Test
+    fun section21WritesCarryIfMatchAndTheCallersKey() = runTest {
+        // The owner's settings: each changed block whole, with the version.
+        server.enqueue(json(200, """{"version":5}"""))
+        api.saveOwnerSettings(4, mapOf("digital_ceo" to Api.jsonBody.encodeToJsonElement(com.coinepro.hq.core.net.DceoSettings.serializer(), com.coinepro.hq.core.net.DceoSettings(reveal = "before"))))
+        val settings = server.takeRequest()
+        assertEquals(Triple("PUT", "\"4\"", """{"digital_ceo":{"enabled":true,"reveal":"before","model_predictions":true,"max_model_per_day":20}}"""), Triple(settings.method, settings.headers["If-Match"], settings.body!!.utf8()))
+        // An ask and a note carry the press's key; a memo names its mode.
+        server.enqueue(json(202, """{"ref":"AK-0004","q":"چرا؟","state":"queued"}"""))
+        assertTrue(api.askHub("چرا؟", listOf("FX"), "k-ask").live)
+        val ask = server.takeRequest()
+        assertEquals("k-ask" to """{"q":"چرا؟","scope":{"companies":["FX"]}}""", ask.headers["Idempotency-Key"] to ask.body!!.utf8())
+        server.enqueue(json(201, """{"ref":"NT-0007","text_md":"x","status":"open","version":1}"""))
+        api.createNote("x #خزانه", "text", null, com.coinepro.hq.core.net.tagsOf("خزانه"), "k-note")
+        val note = server.takeRequest()
+        assertEquals("k-note" to """{"text_md":"x #خزانه","source":"text","tags":["خزانه"]}""", note.headers["Idempotency-Key"] to note.body!!.utf8())
+        val n = Api.json.decodeFromString(com.coinepro.hq.core.net.OwnerNote.serializer(), """{"ref":"NT-0006","text_md":"x","status":"open","version":2}""")
+        server.enqueue(json(200, """{"ref":"NT-0006","text_md":"x","status":"archived","version":3}"""))
+        api.patchNote(n, archive = true)
+        assertEquals("\"2\"" to """{"status":"archived"}""", server.takeRequest().let { it.headers["If-Match"] to it.body!!.utf8() })
+        server.enqueue(json(200, """{"ref":"NT-0006","text_md":"x","status":"promoted","version":3}"""))
+        api.promoteNote("NT-0006", "work", "PC")
+        assertEquals("""{"to":"work","company":"PC"}""", server.takeRequest().body!!.utf8())
+        server.enqueue(json(202, """{"ref":"DM-0004","decision":"D-000040","mode":"devil","state":"writing"}"""))
+        api.requestMemo("D-000040", "devil")
+        assertEquals("/api/v1/decisions/D-000040/memo" to """{"mode":"devil"}""", server.takeRequest().let { it.url.encodedPath to it.body!!.utf8() })
+        // A memo or a review that does not exist yet is null, not an error.
+        server.enqueue(json(404, """{"code":"not_found","message_fa":"x","status":404}"""))
+        assertNull(api.memo("D-000040", "standard"))
+        assertEquals("mode=standard", server.takeRequest().url.encodedQuery)
+        val r = Api.json.decodeFromString(com.coinepro.hq.core.net.WeeklyReview.serializer(), """{"ref":"WR-0006","week":"2026-10-17","state":"in_progress","version":7}""")
+        server.enqueue(json(200, """{"ref":"WR-0006","week":"2026-10-17","state":"in_progress","version":8}"""))
+        api.reviewItem(r, 3, "deferred", "هفته‌ی بعد")
+        val item = server.takeRequest()
+        assertEquals(Triple("/api/v1/reviews/weekly/WR-0006/items/3", "\"7\"", """{"status":"deferred","owner_note":"هفته‌ی بعد"}"""), Triple(item.url.encodedPath, item.headers["If-Match"], item.body!!.utf8()))
+        val p = Api.json.decodeFromString(com.coinepro.hq.core.net.Principle.serializer(), """{"ref":"DP-001","text_fa":"x","status":"active","version":3}""")
+        server.enqueue(json(200, """{"ref":"DP-001","text_fa":"x","status":"retired","version":4}"""))
+        api.editPrinciple(p, "x", "retired")
+        assertEquals("\"3\"" to """{"text_fa":"x","status":"retired"}""", server.takeRequest().let { it.headers["If-Match"] to it.body!!.utf8() })
+        // A creative: the overlay as written, the press's key.
+        server.enqueue(json(201, """{"ref":"CR-0008","company":"FX","state":"queued","requested_by":{"code":"owner","kind":"owner"}}"""))
+        api.createCreative("FX", "image", "brief", "telegram_post", com.coinepro.hq.core.net.Overlay("عنوان", null, "ثبت‌نام", true), null, "gpt", "k-cr")
+        val cr = server.takeRequest()
+        assertEquals("k-cr" to """{"company":"FX","kind":"image","brief_md":"brief","placement":"telegram_post","overlay":{"title_fa":"عنوان","body_fa":null,"cta_fa":"ثبت‌نام","mark":true},"player":"gpt"}""", cr.headers["Idempotency-Key"] to cr.body!!.utf8())
+        // The devil's advocate is a mode of a message in thread A.
+        server.enqueue(json(201, """{"message":{},"reply":{"state":"queued"}}"""))
+        api.send("A", "قانعم کن", mode = "devil")
+        assertEquals("""{"body":"قانعم کن","mode":"devil"}""", server.takeRequest().body!!.utf8())
+    }
+
+    @Test
+    fun section21ReadsAndCodes() = runTest {
+        server.enqueue(json(200, "[]"))
+        api.wasteRange("2026-10-03", "2026-10-16", "PC")
+        assertEquals("from=2026-10-03&to=2026-10-16&company=PC", server.takeRequest().url.encodedQuery)
+        server.enqueue(json(200, """{"items":[{"by":"company","key":"TY","company":"TY","period":"month","cost_usd":"36.30","accepted":34}],"next_cursor":null}"""))
+        assertEquals("TY", api.roi("company", "month").single().key)
+        assertEquals("by=company&period=month", server.takeRequest().url.encodedQuery)
+        server.enqueue(json(200, """{"path":"src/chart/cache.ts","patch":"@@","truncated":false}"""))
+        api.diffFile("D-000017", "src/chart/cache.ts")
+        assertEquals("/api/v1/decisions/D-000017/diff?file=src%2Fchart%2Fcache.ts", server.takeRequest().url.let { "${it.encodedPath}?${it.encodedQuery}" })
+        // The §21.12 codes in the app's words; a rate limit says how long to wait.
+        fun err(code: Int, body: String, wait: String? = null): ApiException {
+            server.enqueue(MockResponse.Builder().code(code).addHeader("Content-Type", "application/json").apply { if (wait != null) addHeader("Retry-After", wait) }.body(body).build())
+            return try { kotlinx.coroutines.runBlocking { api.substitutes() }; fail("expected ApiException"); throw IllegalStateException() } catch (e: ApiException) { server.takeRequest(); e }
+        }
+        assertEquals("این کارت دیگر منتظر تصمیم نیست؛ یادداشت فقط برای کارت منتظر نوشته میشود.", com.coinepro.hq.core.net.mgmtError(err(409, """{"code":"decision_not_pending","message_fa":"server","status":409}""")))
+        assertEquals("تغییر مدل در پاکت ماهانه‌ی شرکت جا نمیشود؛ هیچ چیز عوض نشد.", com.coinepro.hq.core.net.mgmtError(err(409, """{"code":"envelope_exceeded","message_fa":"server","status":409}""")))
+        assertEquals("سقف پر شده؛ ۲ دقیقه‌ی دیگر.".replace("۲", "2"), com.coinepro.hq.core.net.mgmtError(err(429, """{"code":"rate_limited","message_fa":"سقف پر شده","status":429}""", "120")))
+        assertEquals("server", com.coinepro.hq.core.net.mgmtError(err(422, """{"code":"validation_failed","message_fa":"server","status":422}""")))
+    }
 }

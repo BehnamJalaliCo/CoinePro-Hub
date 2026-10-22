@@ -149,6 +149,13 @@ data class Decision(
     val expected: Expected? = null,
     /** ⟨1.5⟩ §20.6: `expected_missing` for the first days after prompt 11 (a warning, not a refusal). */
     val warnings: List<String> = emptyList(),
+    /** ⟨1.5⟩ §21.1: the advisor's memos on this card. */
+    val memos: List<MemoBrief> = emptyList(),
+    /** ⟨1.5⟩ §21.8: hours a card the owner decides has waited, and which reminders went out. */
+    val waitingH: Int? = null,
+    val reminders: List<Reminder> = emptyList(),
+    /** ⟨1.5⟩ §21.10: the digital CEO's sealed prediction, null while the card is pending (reveal "after"). */
+    val digitalCeoPrediction: DceoBrief? = null,
 )
 
 @Serializable
@@ -190,8 +197,9 @@ data class Deliverable(
     val summary: String = "",
     val body: String? = null,
     val producer: EmployeeRef,
-    val workId: String,
-    val workRef: String,
+    /** ⟨1.5⟩ null for what no work made: a CEO's weekly letter (§21.4), the weekly review's minutes (§21.3). */
+    val workId: String? = null,
+    val workRef: String? = null,
     val createdAt: String,
     val rating: Rating? = null,
     val attachments: List<FileRef> = emptyList(),
@@ -403,6 +411,8 @@ data class Message(
     val citations: List<Citation> = emptyList(),
     /** Refs this message points at: decision, work, resolution, corrects (contract §5). */
     val links: JsonObject = JsonObject(emptyMap()),
+    /** ⟨1.5⟩ §21.1, §21.3: thread A's devil's-advocate exchange, a proactive note, the weekly review's brief. */
+    val meta: AdvisorMeta? = null,
 )
 
 // --------------------------------------------------------- notifications --
@@ -536,6 +546,14 @@ data class OwnerSettings(
     val learningDailyCap: Int = 3,
     val calendars: List<String> = listOf("jalali"),
     val version: Int = 1,
+    // ⟨1.5⟩ §21.12: the management tools' blocks (absent before prompt 12).
+    val advisor: AdvisorSettings? = null,
+    val weeklyReview: WeeklyAt? = null,
+    val audioBriefings: AudioBriefings? = null,
+    val ceoWeeklyLetter: WeeklyAt? = null,
+    val reminders: ReminderSettings? = null,
+    val digitalCeo: DceoSettings? = null,
+    val substitutes: SubstituteSettings? = null,
 )
 
 /** The Problem body of every error (contract §1): a stable [code] and a Persian [messageFa]. */

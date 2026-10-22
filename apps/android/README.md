@@ -98,6 +98,21 @@ Every library is free and open source and pinned to an exact version (`gradle/li
     **change calendar** with its conflicts, the **authority matrix** (sealed on the body; locked invariants shown).
   - In the cartable: the **batch seal** (several low-risk A1 cards, one passkey on the sorted `[{ref, version}]`, all or
     nothing) and the six new kinds with their payloads, a proposal's measurable promise and its reviews.
+- **Management tools** ⟨1.5⟩ (contract §21), the «ابزار مدیریت» group of the tools sheet and inside the screens the owner
+  already uses, the same data and words as the web:
+  - **Advisor** — the devil's-advocate switch (thread A only), the weekly review (agenda items done, deferred or noted;
+    If-Match; the minutes as a deliverable), memos and proactive notes. **Ask the hub** on the home: a question of ≤ 500
+    characters, optionally limited to companies, answered with its sources (code with path, lines and commit).
+  - In the cartable: a pending card says how long it has waited and its reminders; the **deploy card** shows its diff file
+    by file (a cut file opens whole), CI, tests, the window and the second review; the **evaluation** card of the HR round
+    (passkey); each card's **memo** in standard and devil mode with the substitutes' second and third opinions; and the
+    digital CEO's prediction once the owner has decided.
+  - **Notes** (no delete: archive; promote to work, an order or an errand), the **morning briefing and the CEOs' weekly
+    letters** with their voice, **department rank and the HR round** on the company and employee pages, **waste and ROI**
+    in the treasury, the **connection wizard** in the tools (sealed on the exact body with the wizard's key), **run
+    health and claims**, the **digital CEO** (accuracy, calibration, principles), the **substitute players** (seats and
+    daily caps, the $20-equivalent usage, CLI sign-in and sign-out with the passkey, the browser profile, creatives with
+    placement and overlay, accepted or rejected) and the **management settings**.
 - **Live** — one SSE connection to `/api/v1/stream` while the app is in the foreground; events refresh the
   screens that show the touched data (the same invalidation map as the web).
 
@@ -105,7 +120,7 @@ Every library is free and open source and pinned to an exact version (`gradle/li
 
 ```
 app/src/main/java/com/coinepro/hq/
-  core/net/        Api (contract v1.5; every 🔏 write names its step-up action and target), Models, Models14 … Models17
+  core/net/        Api (contract v1.5; every 🔏 write names its step-up action and target), Models, Models14 … Models18
   core/auth/       Auth (sign-in, enrolment, step-up), Passkeys, TokenVault
   core/data/       QueryCache (shared cached queries), HoldingStream (SSE)
   core/format/     Jalali dates, figures, Persian labels

@@ -31,6 +31,7 @@ import com.coinepro.hq.core.net.Teaching
 import com.coinepro.hq.core.net.ToolInfo
 import com.coinepro.hq.core.net.hireableRoles
 import com.coinepro.hq.core.net.effective
+import com.coinepro.hq.core.net.management
 import java.io.File
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -483,5 +484,148 @@ class FixturesDecodeTest {
         assertEquals("D-000035", ((p.fields!!["items"] as kotlinx.serialization.json.JsonArray)[0] as kotlinx.serialization.json.JsonObject)["ref"].toString().trim('"'))
         val v = Api.json.decodeFromString(com.coinepro.hq.core.net.Problem.serializer(), """{"code":"validation_failed","message_fa":"…","status":422,"fields":{"title":"لازم است"}}""")
         assertEquals("validation_failed", v.code)
+    }
+    // ------------------------------------------------------------ ⟨1.5⟩ §21 --
+    @Test
+    fun memosAskAndReviewDecode() {
+        // §21.1: a ready memo always has the case against; a standard one may carry the substitutes' opinions, with `agrees` by code.
+        val memos = page("/advisor/memos", com.coinepro.hq.core.net.DecisionMemo.serializer())
+        assertTrue(memos.isNotEmpty() && memos.all { it.state != "ready" || it.againstMd.isNotBlank() })
+        assertTrue(memos.any { it.mode == "devil" } && memos.any { it.secondOpinion != null })
+        for (m in memos) {
+            m.secondOpinion?.let { assertEquals(it.recommendation == m.recommendation, it.agrees) }
+            m.thirdOpinion?.let { assertEquals(it.recommendation == m.recommendation, it.agrees) }
+        }
+        val all = page("/decisions?status=all", com.coinepro.hq.core.net.Decision.serializer())
+        // Each card lists exactly its memos.
+        for (d in all) assertEquals(memos.filter { it.decision == d.ref }.map { it.ref }.toSet(), d.memos.map { it.ref }.toSet())
+        val triggers = list("/advisor/triggers", com.coinepro.hq.core.net.AdvisorTrigger.serializer())
+        assertTrue(triggers.any { it.state == "capped" && it.messageRef == null } && triggers.filter { it.state == "sent" }.all { it.messageRef != null })
+        // Thread A carries the proactive notes and the devil mode in `meta`.
+        val a = page("/threads/A/messages", com.coinepro.hq.core.net.Message.serializer())
+        assertTrue(a.any { it.meta?.proactive != null } && a.any { it.meta?.mode == "devil" })
+        assertTrue(triggers.filter { it.messageRef != null }.all { t -> a.any { it.ref == t.messageRef } })
+        // §21.2: an answer cites its sources; nothing found is an answer too, with no citations and no cost.
+        val asks = page("/ask", com.coinepro.hq.core.net.Ask.serializer())
+        assertTrue(asks.all { it.q.length <= com.coinepro.hq.core.net.ASK_MAX && it.state == "done" })
+        assertTrue(asks.any { it.found > 0 && it.citations.isNotEmpty() } && asks.any { it.found == 0 && it.citations.isEmpty() && it.usage.tokens == 0L })
+        assertTrue(asks.flatMap { it.citations }.any { it.kind == "code" && it.lines?.size == 2 } && asks.any { it.notIndexed.isNotEmpty() })
+        // §21.3: one review ready with its agenda; a done one has its minutes and duration.
+        val reviews = list("/reviews/weekly", com.coinepro.hq.core.net.WeeklyReview.serializer())
+        assertEquals("ready", reviews.first().state)
+        assertTrue(reviews.first().agenda.isNotEmpty() && reviews.first().agenda.map { it.n } == (1..reviews.first().agenda.size).toList())
+        assertTrue(reviews.any { it.state == "done" && it.minutesRef != null && it.durationS != null } && reviews.any { it.state == "skipped" })
+    }
+
+    @Test
+    fun briefingsRanksAndHrDecode() {
+        // §21.4: the morning briefing and one letter per operating company, each with its voice or why there is none.
+        val bs = page("/briefings", com.coinepro.hq.core.net.Briefing.serializer())
+        assertTrue(bs.any { it.kind == "morning" })
+        assertEquals(operating.toSet(), bs.filter { it.kind == "ceo_letter" }.map { it.company }.toSet())
+        assertTrue(bs.all { (it.audioState == "ready") == (it.audio != null) })
+        val delivs = page("/deliverables", com.coinepro.hq.core.net.Deliverable.serializer()).map { it.ref }.toSet()
+        assertTrue(bs.filter { it.kind == "ceo_letter" }.all { it.deliverableRef in delivs })
+        // §21.5: 35/30/20/15, the owner's weight spread when there are no owner ratings; rank inside the company by score.
+        for (p in listOf("week", "month")) {
+            val rs = list("/rankings/departments?period=$p", com.coinepro.hq.core.net.DepartmentRank.serializer())
+            assertTrue(rs.isNotEmpty() && rs.all { it.trend.isNotEmpty() })
+            for (r in rs) {
+                val x = r.parts
+                val score = if (x.owner == null) (0.35 * x.people + 0.3 * x.delivery + 0.2 * x.efficiency) / 0.85 else 0.35 * x.people + 0.3 * x.delivery + 0.2 * x.efficiency + 0.15 * x.owner!!
+                assertEquals(score, r.score, 0.06)
+                assertEquals(rs.count { it.company == r.company && it.score > r.score } + 1, r.rankCompany)
+            }
+        }
+        val rounds = list("/hr/rounds", com.coinepro.hq.core.net.HrRound.serializer())
+        assertTrue(rounds.any { it.state == "proposed" && it.decisions.isNotEmpty() } && rounds.flatMap { it.employees }.any { "promote_candidate" in it.flags })
+        val all = page("/decisions?status=all", com.coinepro.hq.core.net.Decision.serializer())
+        // The round's evaluation card: payload v2, the employee flagged in its round.
+        val ev = all.single { it.kind == "evaluation" }
+        val p = Api.json.decodeFromJsonElement(com.coinepro.hq.core.net.EvaluationPayload.serializer(), kotlinx.serialization.json.JsonObject(ev.payload))
+        val round = rounds.single { it.ref == p.round }
+        assertTrue(ev.ref in round.decisions && round.employees.any { it.code == p.employee && "promote_candidate" in it.flags } && p.change?.model != null)
+        // §21.8 reminders: a pending card without expiry is reminded at 24 h, 72 h and 7 days, as far as it has waited.
+        assertEquals(listOf("age_24h", "age_72h", "age_7d"), ev.reminders.map { it.kind })
+        assertTrue((ev.waitingH ?: 0) >= 168 && ev.digitalCeoPrediction == null)
+    }
+
+    @Test
+    fun deployDiffAndPredictionsDecode() {
+        val d = decode("/decisions/D-000017", com.coinepro.hq.core.net.Decision.serializer())
+        val p = Api.json.decodeFromJsonElement(com.coinepro.hq.core.net.DeployPayload.serializer(), kotlinx.serialization.json.JsonObject(d.payload))
+        val diff = requireNotNull(p.diff)
+        assertEquals(diff.totalFiles, diff.files.size)
+        assertTrue(diff.files.any { it.truncated } && diff.files.any { it.binary && it.patch == null } && diff.files.any { it.secretMasked })
+        assertTrue(p.headSha == diff.headSha && p.secondReview != null && p.secondReview!!.findings.isNotEmpty())
+        // The whole patch of a cut file is longer and not cut.
+        val cut = diff.files.first { it.truncated }
+        val whole = decode("/decisions/D-000017/diff?file=${cut.path}", com.coinepro.hq.core.net.DiffFile.serializer())
+        assertTrue(!whole.truncated && whole.patch!!.length > cut.patch!!.length && whole.patch!!.startsWith(cut.patch!!))
+        // §21.10: a prediction is shown only after the owner decided; its hash is the SHA-256 of the sealed fields.
+        val all = page("/decisions?status=all", com.coinepro.hq.core.net.Decision.serializer())
+        assertTrue(all.filter { it.status == "pending" }.all { it.digitalCeoPrediction == null } && all.any { it.digitalCeoPrediction?.correct != null })
+        val preds = page("/digital-ceo/predictions", com.coinepro.hq.core.net.Prediction.serializer())
+        assertTrue(preds.isNotEmpty() && preds.all { it.sealedHash.length == 64 && it.actual != null && it.correct == (it.verdict == it.actual) })
+        for (x in preds) assertEquals(all.single { it.ref == x.decision }.digitalCeoPrediction?.verdict, x.verdict)
+        val v = decode("/digital-ceo", com.coinepro.hq.core.net.DceoView.serializer())
+        assertEquals(listOf("30d", "90d", "all"), v.stats.map { it.window })
+        assertEquals(preds.size, v.stats.last().n)
+        assertEquals(preds.count { it.correct == true }.toDouble() / preds.size, v.stats.last().accuracy!!, 0.0001)
+        assertEquals(preds.size, v.hidden)
+        val ps = list("/digital-ceo/principles", com.coinepro.hq.core.net.Principle.serializer())
+        assertTrue(ps.map { it.status }.containsAll(listOf("active", "proposed", "retired")) && ps.all { it.sources.isNotEmpty() })
+    }
+
+    @Test
+    fun treasuryNotesAndHealthDecode() {
+        // §21.7: a day's waste is the sum of its categories; the range is one row per day.
+        val range = list("/treasury/waste", com.coinepro.hq.core.net.WasteDay.serializer())
+        assertEquals(30, range.size)
+        for (w in range) assertEquals(w.items.sumOf { it.tokens }, w.wasteTokens)
+        for (co in list("/companies", com.coinepro.hq.core.net.Company.serializer()).map { it.code }) {
+            val xs = list("/treasury/waste?company=$co", com.coinepro.hq.core.net.WasteDay.serializer())
+            assertTrue(xs.all { it.company == co })
+        }
+        for (by in listOf("company", "department", "employee")) for (p in listOf("week", "month")) {
+            val rows = list("/treasury/roi?by=$by&period=$p", com.coinepro.hq.core.net.RoiRow.serializer())
+            assertTrue(rows.isNotEmpty() && rows.all { it.by == by && it.period == p })
+            // Revenue is never estimated: only a company with real revenue has an ROI.
+            assertTrue(rows.all { (it.roi == null) == (it.revenueUsd == null) })
+        }
+        // §21.8: no delete — an archived note stays; a promoted one names where it went.
+        val notes = page("/notes", com.coinepro.hq.core.net.OwnerNote.serializer())
+        assertTrue(notes.map { it.status }.containsAll(listOf("open", "promoted", "archived")) && notes.filter { it.status == "promoted" }.all { it.promotedTo != null })
+        assertTrue(notes.any { it.source == "voice" && it.fileId != null } && notes.all { it.tags.size <= 8 })
+        // §21.9: a refuted claim always carries its evidence; the flags are rules.
+        val claims = page("/claims", com.coinepro.hq.core.net.CheckedClaim.serializer())
+        assertTrue(claims.filter { it.verdict == "refuted" }.all { it.evidence.isNotEmpty() })
+        for (p in listOf("7d", "30d")) for (h in page("/runs/health?period=$p", com.coinepro.hq.core.net.AgentHealth.serializer())) {
+            assertEquals(h.refutedShare != null && h.claimsChecked >= 5 && h.refutedShare!! >= 0.2, "truth" in h.flags)
+            assertEquals(h.failedShare >= 0.25, "reliability" in h.flags)
+            assertEquals(h.retryLoops >= 2, "loops" in h.flags)
+        }
+    }
+
+    @Test
+    fun settingsSubstitutesAndCreativesDecode() {
+        // §21.12: every management block is there, so the settings card shows.
+        val s = decode("/owner/settings", com.coinepro.hq.core.net.OwnerSettings.serializer())
+        val base = requireNotNull(s.management())
+        val changed = base.copy(reminders = base.reminders.copy(enabled = !base.reminders.enabled)).changedFrom(base)
+        assertEquals(setOf("reminders"), changed.keys)
+        assertTrue(changed.getValue("reminders").toString().contains("\"ages_h\""))
+        // §21.13: players are data; a player without a CLI has web seats only; the value ratio is null when it costs nothing.
+        val subs = list("/substitutes", com.coinepro.hq.core.net.Substitute.serializer())
+        assertTrue(subs.size >= 2 && subs.filter { it.runner == null }.all { x -> x.seats.all { it.via == "web" } })
+        assertTrue(subs.all { x -> x.seats.all { it.model in x.models.map { mm -> mm.id } && it.usedToday <= maxOf(it.perDay, it.usedToday) } })
+        assertTrue(subs.any { it.month.valueRatio == null && it.month.priceUsd.toDouble() == 0.0 } && subs.any { it.status == "limited" && it.limitedUntil != null })
+        val conns = list("/connections", com.coinepro.hq.core.net.Connection.serializer())
+        assertTrue(subs.all { x -> conns.any { it.key == x.connection && it.kind == "subscription" } })
+        val cs = page("/creatives", com.coinepro.hq.core.net.Creative.serializer())
+        assertTrue(cs.map { it.state }.containsAll(listOf("generating", "review", "accepted", "failed", "rejected")))
+        assertTrue(cs.all { it.aspect == com.coinepro.hq.core.net.PLACEMENT_ASPECT[it.placement] && it.aiGenerated && it.promptMd.contains("No text") })
+        assertTrue(cs.filter { it.kind == "video" }.all { it.player == "gemini" && (it.durationS ?: 0) in 1..10 })
+        assertTrue(cs.filter { it.state == "failed" }.all { !it.reviewMd.isNullOrBlank() })
     }
 }

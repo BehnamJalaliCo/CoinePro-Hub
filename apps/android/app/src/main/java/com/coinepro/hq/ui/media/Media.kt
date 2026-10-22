@@ -150,7 +150,7 @@ private fun ImageViewer(images: List<FileRef>, start: Int, media: MediaKit, onCl
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun rememberPlayer(media: MediaKit): ExoPlayer {
+fun rememberPlayer(media: MediaKit): ExoPlayer {
     val context = LocalContext.current
     val player = remember { ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(media.dataSource)).build() }
     DisposableEffect(player) { onDispose { player.release() } }

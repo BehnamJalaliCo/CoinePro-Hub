@@ -69,7 +69,6 @@ import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.Nav
 import com.coinepro.hq.ui.academy.AcademyScreen
-import com.coinepro.hq.ui.advisor.InquiriesAction
 import com.coinepro.hq.ui.assistant.AssistantScreen
 import com.coinepro.hq.ui.audit.AuditScreen
 import com.coinepro.hq.ui.founding.FoundingScreen
@@ -144,6 +143,14 @@ private val GOVERNANCE = listOf(
     Tool("authority", "ماتریس اختیار", DivanIcon.LOCK),
 )
 
+/** ⟨1.5⟩ management tools (§21): quick notes, the spoken briefings and CEO letters, the substitute players, the digital CEO. */
+private val MANAGEMENT = listOf(
+    Tool("notes", "یادداشت‌ها", DivanIcon.EDIT),
+    Tool("letter", "گزارش صوتی و نامه‌ها", DivanIcon.MIC),
+    Tool("substitutes", "بازیکن‌های ذخیره", DivanIcon.AGENT),
+    Tool("digital-ceo", "مدیر کل دیجیتال", DivanIcon.HOLDING),
+)
+
 private val TOOLS = listOf(
     // ⟨1.5⟩ revenue and support (§19)
     Tool("revenue", "درآمد", DivanIcon.CHART),
@@ -163,7 +170,7 @@ private val TOOLS = listOf(
     Tool("settings", "تنظیمات", DivanIcon.SETTINGS),
 )
 
-private val TOP = TABS.map { it.route }.toSet() + ORG.map { it.route } + GOVERNANCE.map { it.route } + TOOLS.map { it.route }
+private val TOP = TABS.map { it.route }.toSet() + ORG.map { it.route } + MANAGEMENT.map { it.route } + GOVERNANCE.map { it.route } + TOOLS.map { it.route }
 
 private class NavImpl(private val nav: NavHostController) : Nav {
     override fun go(route: String) {
@@ -252,7 +259,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("cartable/{ref}") { DecisionScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("outputs") { OutputsScreen() }
                     composable("outputs/{ref}") { OutputScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("advisor") { ChatScreen("A", advisor = true, headerAction = { InquiriesAction() }) }
+                    composable("advisor") { com.coinepro.hq.ui.advisor.AdvisorScreen() }
                     composable("oversight") { OversightScreen() }
                     composable("oversight/chat") { ChatScreen("N", agent = "overseer") }
                     composable("assistant") { AssistantScreen() }
@@ -296,6 +303,14 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("risks/{ref}") { com.coinepro.hq.ui.risks.RisksScreen(hi = it.arguments?.getString("ref")) }
                     composable("calendar") { com.coinepro.hq.ui.calendar.CalendarScreen() }
                     composable("authority") { com.coinepro.hq.ui.authority.AuthorityScreen() }
+                    // ⟨1.5⟩ management tools (§21)
+                    composable("notes") { com.coinepro.hq.ui.notes.NotesScreen() }
+                    composable("notes/{ref}") { com.coinepro.hq.ui.notes.NotesScreen(highlight = it.arguments?.getString("ref")) }
+                    composable("letter") { com.coinepro.hq.ui.letter.LetterScreen() }
+                    composable("letter/{ref}") { com.coinepro.hq.ui.letter.LetterScreen(open0 = it.arguments?.getString("ref")) }
+                    composable("substitutes") { com.coinepro.hq.ui.substitutes.SubstitutesScreen() }
+                    composable("substitutes/{ref}") { com.coinepro.hq.ui.substitutes.SubstitutesScreen(creative0 = it.arguments?.getString("ref")) }
+                    composable("digital-ceo") { com.coinepro.hq.ui.dceo.DigitalCeoScreen() }
                 }
             }
             BottomBar(route, inbox.data?.decisionsPending ?: 0, inbox.data?.messagesUnread ?: 0) { navApi.go(it) }
@@ -390,6 +405,8 @@ private fun ToolsSheet(unrated: Int, go: (String) -> Unit) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("سازمان", style = Divan.type.h3, modifier = Modifier.padding(bottom = 8.dp))
         for (t in ORG) ToolRow(t, null, go)
+        Text("ابزار مدیریت", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+        for (t in MANAGEMENT) ToolRow(t, null, go)
         Text("حاکمیت", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
         for (t in GOVERNANCE) ToolRow(t, null, go)
         Text("ابزارها", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))

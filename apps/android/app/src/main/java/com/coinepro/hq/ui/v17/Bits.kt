@@ -230,6 +230,13 @@ fun refRoute(ref: String): String? = when {
     Regex("^CE-\\d+$").matches(ref) -> "calendar"
     Regex("^M-\\d+$").matches(ref) -> "resolutions"
     Regex("^(?:[A-Z]{2,5}|holding)@\\d+$").matches(ref) -> "charter"
+    // ⟨1.5⟩ §21
+    Regex("^NT-\\d+$").matches(ref) -> "notes/$ref"
+    Regex("^BR-\\d+$").matches(ref) -> "letter/$ref"
+    Regex("^CR-\\d+$").matches(ref) -> "substitutes/$ref"
+    Regex("^(?:DM|WR)-\\d+$").matches(ref) -> "advisor"
+    Regex("^DP-\\d+$").matches(ref) -> "digital-ceo"
+    Regex("^CL-\\d+$").matches(ref) -> "runs"
     else -> null
 }
 

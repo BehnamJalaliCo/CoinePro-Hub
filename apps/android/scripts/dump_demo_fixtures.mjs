@@ -44,6 +44,13 @@ const riskRefs = listOf(await getJson('/risks')).map((r) => r.ref);
 const kpiKeys = Object.fromEntries(await Promise.all(operating.map(async (c) => [c, (await getJson(`/kpis/${c}`)).kpis.map((k) => k.key)])));
 const GOVERNANCE = ['meeting_resolution', 'charter_amendment', 'okr', 'knowledge_entry', 'risk_acceptance', 'authority_change'];
 const cards17 = listOf(await getJson('/decisions?status=all')).filter((d) => GOVERNANCE.includes(d.kind) || d.expected).map((d) => d.ref);
+// ⟨1.5⟩ management tools (§21): the cards §21 adds to or changes (a memo, an evaluation, a deploy with its diff), every file of a
+// deploy diff the hub cut short (its whole patch), and thirty settled days of waste for the holding and for every company.
+const cards18 = listOf(await getJson('/decisions?status=all')).filter((d) => d.kind === 'evaluation' || d.kind === 'deploy' || d.memos?.length).map((d) => d.ref);
+const cutFiles = listOf(await getJson('/decisions?status=all')).filter((d) => d.kind === 'deploy').flatMap((d) => (d.payload?.diff?.files ?? []).filter((f) => f.truncated).map((f) => `/decisions/${d.ref}/diff?file=${f.path}`));
+const tehDay = (n) => new Date(FIXED + 3.5 * 3_600_000 - n * 86_400_000).toISOString().slice(0, 10);
+const wasteRange = `from=${tehDay(30)}&to=${tehDay(1)}`;
+const allCompanies = listOf(await getJson('/companies')).map((c) => c.code);
 
 const paths = [
   '/auth/session', '/meta', '/inbox/summary', '/owner/presence', '/owner/away-summary', '/owner/settings',
@@ -108,6 +115,16 @@ const paths = [
   '/okr', ...objectiveRefs.map((r) => `/okr/${r}`), '/outcomes', '/outcomes?due=true',
   '/authority', '/risks', ...riskRefs.map((r) => `/risks/${r}`), '/risks/matrix', '/calendar', '/decisions/batchable',
   ...cards17.map((r) => `/decisions/${r}`),
+  // ⟨1.5⟩ management tools (§21). Whole lists the demo filters and changes itself (memos, proactive triggers, asks, weekly reviews,
+  // briefings and letters, HR rounds, notes, checked claims, predictions, principles, substitutes, creatives), both periods of the
+  // department ranks and the health board, waste (keyed bare and by company, the demo cuts the range and the day), ROI by every
+  // axis and period (the demo filters by company), the deploy diff's full patches and the cards §21 touches.
+  '/advisor/memos', '/advisor/triggers', '/ask', '/reviews/weekly', '/briefings', '/hr/rounds', '/notes', '/claims',
+  '/rankings/departments?period=week', '/rankings/departments?period=month', '/runs/health?period=7d', '/runs/health?period=30d',
+  ['/treasury/waste', `/treasury/waste?${wasteRange}`], ...allCompanies.map((c) => [`/treasury/waste?company=${c}`, `/treasury/waste?company=${c}&${wasteRange}`]),
+  ...['company', 'department', 'employee'].flatMap((by) => ['week', 'month'].map((p) => `/treasury/roi?by=${by}&period=${p}`)),
+  '/digital-ceo', '/digital-ceo/predictions', '/digital-ceo/principles', '/substitutes', '/creatives',
+  ...cutFiles, ...cards18.map((r) => `/decisions/${r}`),
 ];
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;

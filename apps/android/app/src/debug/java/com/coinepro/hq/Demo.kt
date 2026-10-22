@@ -76,14 +76,19 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         val req = chain.request()
         val path = req.url.encodedPath.removePrefix("/api/v1").let { java.net.URLDecoder.decode(it, "UTF-8") }
         if (req.method == "POST" && (path == "/files" || path == "/transcribe")) return respond(req, binary(req, path))
-        val body = req.body?.let { b -> Buffer().also { b.writeTo(it) }.readUtf8() }?.takeIf { it.isNotBlank() }?.let { Api.json.parseToJsonElement(it).jsonObject }
+        // ⟨1.5⟩ a body may be a list (§21.13 seats), not only an object.
+        val raw = req.body?.let { b -> Buffer().also { b.writeTo(it) }.readUtf8() }?.takeIf { it.isNotBlank() }?.let { Api.json.parseToJsonElement(it) }
+        val body = raw as? JsonObject
         val query = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
         val version = req.header("If-Match")?.trim('"')?.toIntOrNull()
+        tick18()
         if (req.method == "GET") {
+            v18Read(path, query)?.let { return respond(req, it.status to it.body, it.headers) }
             v17Read(path, query)?.let { return respond(req, it) }
             v16Read(path, query)?.let { return respond(req, it) }
             ownerToolsRead(path, query)?.let { return respond(req, it) }
         } else {
+            v18Write(req.method, path, raw, version, req.header("Idempotency-Key"), req.header("X-Step-Up"))?.let { return respond(req, it.status to it.body, it.headers) }
             v17Write(req.method, path, body, version, req.header("Idempotency-Key"), req.header("X-Step-Up"))?.let { return respond(req, it.status to it.body, it.headers) }
             v16Write(req.method, path, body, version, req.header("Idempotency-Key"))?.let { return respond(req, it.status to it.body, it.headers) }
             ownerToolsWrite(req.method, path, body, version)?.let { return respond(req, it) }
@@ -144,7 +149,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             store["/decisions?status=pending"] = 200 to page(list("/decisions?status=all").filter { it.jsonObject.str("status") == "pending" })
             bumpInbox()
             if (verdict == "approve") { decided16(updated.jsonObject); decided17(updated.jsonObject) }
-            return 200 to updated
+            // ⟨1.5⟩ §21: the prediction revealed, memos, the evaluation's effect and the HR round, for every verdict.
+            return 200 to decided18(updated.jsonObject)
         }
         Regex("^/deliverables/(O-\\d+)/rating$").find(path)?.let { m ->
             val ref = m.groupValues[1]
@@ -167,6 +173,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
                 put("attachments", JsonArray(attachments))
                 put("author", buildJsonObject { put("kind", "owner"); put("code", "owner"); put("display_fa", "مدیر کل") })
                 put("body", body?.get("body") ?: JsonPrimitive("")); put("created_at", HqClock.now().toString())
+                // ⟨1.5⟩ §21.1: the advisor's devil mode (thread A; v18Write refuses it anywhere else).
+                body?.get("mode")?.let { put("meta", buildJsonObject { put("mode", it) }) }
             }
             store[key] = 200 to page(items + msg)
             return 201 to buildJsonObject { put("message", msg); put("reply", buildJsonObject { put("state", "queued") }) }
@@ -2129,11 +2137,747 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
                 store["/decisions/$ref"] = 200 to d
                 replaceIn("/decisions?status=all", ref, d)
                 decided17(d)
+                decided18(d)
                 buildJsonObject { put("ref", ref); put("resolution", resolution) }
             }
             store["/decisions?status=pending"] = 200 to page(list("/decisions?status=all").filter { it.jsonObject.str("status") == "pending" })
             bumpInbox()
             return Reply(200, buildJsonObject { put("batch", batch); put("items", JsonArray(out)) }).also { replies[idempotency] = it }
+        }
+        return null
+    }
+
+    // ------------------------------------------------------------ ⟨1.5⟩ §21 --
+    // Management tools (contract §21), as the web's mock-v18.ts: what the hub computes by rule (seat caps, reminders, the baseline
+    // prediction and its accuracy, the HR round's close) is code here too, reduced to what a demo needs; what a model would write is
+    // canned text. Timers run on the wall clock, so a memo still finishes writing while HqClock is fixed (the screenshots).
+    private val t0 = System.currentTimeMillis()
+    private val memoReady = mutableMapOf<String, Pair<Long, JsonObject>>()
+    private val askRule = mutableMapOf<String, Int>()
+    private val askAt = mutableMapOf<String, Long>()
+    private val verifying18 = mutableMapOf<String, Long>()
+    private val logins = mutableMapOf<String, JsonObject>()
+    private val loginAt = mutableMapOf<String, Long>()
+    private val creativeAt = mutableMapOf<String, Long>()
+    private val creativeReady = mutableMapOf("CR-0007" to t0 + 25_000)
+
+    private fun j(s: String): JsonElement = Api.json.parseToJsonElement(s)
+    private fun jo(vararg kv: Pair<String, Any?>): JsonObject = JsonObject(kv.associate { (k, v) ->
+        k to when (v) { null -> JsonNull; is JsonElement -> v; is String -> JsonPrimitive(v); is Number -> JsonPrimitive(v); is Boolean -> JsonPrimitive(v); else -> JsonPrimitive(v.toString()) }
+    })
+    private fun ja(xs: List<JsonElement>) = JsonArray(xs)
+    private fun JsonObject.with(vararg kv: Pair<String, Any?>): JsonObject = JsonObject(this + jo(*kv))
+    private fun JsonObject.dbl(k: String): Double = (this[k] as? JsonPrimitive)?.content?.toDoubleOrNull() ?: 0.0
+    private fun gone18(fa: String) = Reply(404, problem16(404, "not_found", fa))
+
+    // ---- the digital CEO's sealed predictions (§21.10), the same table as mock-v18
+    private class Pred(val verdict: String, val confidence: Double, val method: String, val rationale: String?, val principles: List<String>, val minutesBefore: Int)
+    private val PRED = mapOf(
+        "D-000011" to Pred("approve", 0.82, "baseline", null, emptyList(), 40),
+        "D-000004" to Pred("approve", 0.74, "baseline", null, emptyList(), 55),
+        "D-000003" to Pred("approve", 0.74, "baseline", null, emptyList(), 30),
+        "D-000005" to Pred("approve", 0.71, "baseline", null, emptyList(), 50),
+        "D-000008" to Pred("approve", 0.73, "baseline", null, emptyList(), 35),
+        "D-000006" to Pred("approve", 0.88, "baseline", null, emptyList(), 20),
+        "D-000007" to Pred("approve", 0.66, "model", "اصلاحیه خط قرمز تازه میافزاید و چیزی را برنمیدارد؛ مالک این را تأیید میکند (DP-005).", listOf("DP-005"), 70),
+        "D-000009" to Pred("reject", 0.55, "model", "پذیرش ۶۰ روزه طولانی است و مالک تا امروز ریسک بی‌راه کاهش را نپذیرفته.", listOf("DP-004"), 90),
+        "D-000017" to Pred("approve", 0.64, "model", "تست‌ها سبزند و canary کوچک است؛ اما پنجره‌ی انتشار در ساعت پربار است (DP-001).", listOf("DP-001"), 10),
+        "D-000031" to Pred("approve", 0.83, "baseline", null, emptyList(), 30),
+        "D-000032" to Pred("approve", 0.71, "model", "آزمون سایه با ۹۳٪ قبول شده و فقط جواب عین دانشنامه بی‌مالک میرود.", listOf("DP-003"), 45),
+        "D-000033" to Pred("approve", 0.8, "baseline", null, emptyList(), 25),
+        "D-000034" to Pred("approve", 0.86, "baseline", null, emptyList(), 15),
+        "D-000035" to Pred("return", 0.57, "baseline", null, listOf("DP-002"), 15),
+        "D-000040" to Pred("approve", 0.69, "model", "پرچم قاعده‌محور، دو ماه امتیاز بالا و پاکت جا دارد؛ مالک ارتقای با شاهد را تأیید میکند.", listOf("DP-003"), 60),
+    )
+    private val ACTUAL = mapOf("approved" to "approve", "rejected" to "reject", "returned" to "return")
+
+    private fun brief(d: JsonObject): JsonElement {
+        val p = PRED[d.str("ref")] ?: return JsonNull
+        val actual = ACTUAL[d.str("status")] ?: return JsonNull
+        if (d.obj("decided_by").str("kind") != "owner") return JsonNull
+        return jo("verdict" to p.verdict, "confidence" to p.confidence, "method" to p.method, "correct" to (p.verdict == actual))
+    }
+
+    private fun sha256(s: String): String = java.security.MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
+
+    /** A new clean prediction after a decision, and the three windows recounted (§21.10). */
+    private fun scored(d: JsonObject) {
+        val ref = d.str("ref") ?: return
+        val p = PRED[ref] ?: return
+        val actual = ACTUAL[d.str("status")] ?: return
+        val decided = ms(d.str("decided_at"))
+        val made = maxOf(decided - p.minutesBefore * 60_000L, ms(d.str("created_at")) + 60_000L)
+        val madeAt = Instant.ofEpochMilli(made).toString()
+        val row = jo(
+            "decision" to ref, "kind" to d.str("kind"), "title" to d.str("title"), "made_at" to madeAt, "method" to p.method, "verdict" to p.verdict,
+            "confidence" to p.confidence, "rationale_fa" to p.rationale, "principles" to ja(p.principles.map(::JsonPrimitive)),
+            "sealed_hash" to sha256("{\"confidence\":${p.confidence},\"decision\":\"$ref\",\"made_at\":\"$madeAt\",\"method\":\"${p.method}\",\"verdict\":\"${p.verdict}\"}"),
+            "seen_before" to (settings18().obj("digital_ceo").str("reveal") == "before"), "actual" to actual, "correct" to (p.verdict == actual),
+        )
+        val rows = listOf(row) + list("/digital-ceo/predictions").map { it.jsonObject }.filter { it.str("decision") != ref }
+        store["/digital-ceo/predictions"] = 200 to page(rows)
+        val decidedOf = { r: JsonObject -> ms(r.str("made_at")) + (PRED[r.str("decision")]?.minutesBefore ?: 0) * 60_000L }
+        val now0 = HqClock.millis()
+        fun stats(window: String): JsonObject {
+            val span = when (window) { "30d" -> 30L; "90d" -> 90L; else -> Long.MAX_VALUE / 86_400_000L / 2 }
+            val xs = rows.filter { (it["seen_before"] as? JsonPrimitive)?.booleanOrNull != true && now0 - decidedOf(it) <= span * 86_400_000L + 60_000L }
+            fun acc(ys: List<JsonObject>): JsonElement = if (ys.isEmpty()) JsonNull else JsonPrimitive(ys.count { it["correct"]?.jsonPrimitive?.booleanOrNull == true }.toDouble() / ys.size)
+            val byKind = xs.groupBy { it.str("kind").orEmpty() }.mapValues { (_, ys) -> jo("n" to ys.size, "accuracy" to ((acc(ys) as? JsonPrimitive)?.content?.toDoubleOrNull() ?: 0.0)) }
+            val calibration = listOf("0.5-0.6", "0.6-0.7", "0.7-0.8", "0.8-0.9", "0.9-1.0").mapNotNull { bucket ->
+                val (lo, hi) = bucket.split('-').map { it.toDouble() }
+                val ys = xs.filter { val c = it.dbl("confidence"); c >= lo && (c < hi || (hi == 1.0 && c <= 1.0)) }
+                if (ys.isEmpty()) null else jo("bucket" to bucket, "n" to ys.size, "hit_rate" to ((acc(ys) as? JsonPrimitive)?.content?.toDoubleOrNull() ?: 0.0))
+            }
+            val brier = if (xs.isEmpty()) null else xs.sumOf { val c = it.dbl("confidence"); if (it["correct"]?.jsonPrimitive?.booleanOrNull == true) (1 - c) * (1 - c) else c * c } / xs.size
+            return jo(
+                "window" to window, "n" to xs.size, "accuracy" to acc(xs), "baseline_accuracy" to acc(xs.filter { it.str("method") == "baseline" }),
+                "model_accuracy" to acc(xs.filter { it.str("method") == "model" }), "brier" to brier?.let { Math.round(it * 1000) / 1000.0 },
+                "by_kind" to JsonObject(byKind), "calibration" to ja(calibration),
+            )
+        }
+        edit("/digital-ceo") { it + mapOf("stats" to ja(listOf("30d", "90d", "all").map(::stats)), "hidden" to JsonPrimitive(rows.count { r -> (r["seen_before"] as? JsonPrimitive)?.booleanOrNull != true })) }
+    }
+
+    private fun settings18(): JsonObject = store["/owner/settings"]?.second as? JsonObject ?: JsonObject(emptyMap())
+
+    // ---- decisions
+    private fun decisionOf(ref: String): JsonObject? =
+        store["/decisions/$ref"]?.second as? JsonObject ?: list("/decisions?status=all").map { it.jsonObject }.firstOrNull { it.str("ref") == ref }
+
+    private fun saveDecision(d: JsonObject) {
+        val ref = d.str("ref") ?: return
+        store["/decisions/$ref"] = 200 to d
+        replaceIn("/decisions?status=all", ref, d)
+        store["/decisions?status=pending"] = 200 to page(list("/decisions?status=all").filter { it.jsonObject.str("status") == "pending" })
+    }
+
+    /** What deciding a card does for §21: the prediction revealed, no more waiting, a memo still writing goes stale, an approved
+     *  evaluation changes the employee, the HR round closes once its cards are decided, and the accuracy is recounted. */
+    private fun decided18(d0: JsonObject): JsonObject {
+        val ref = d0.str("ref") ?: return d0
+        saveMemos(memos().map { m -> if (m.str("decision") == ref && m.str("state") == "writing") m.with("state" to "stale").also { memoReady.remove(m.str("ref")) } else m })
+        var d = d0.with("digital_ceo_prediction" to brief(d0), "waiting_h" to null, "memos" to memoBriefs(ref))
+        if (d.str("kind") == "evaluation" && d.str("status") == "approved") {
+            val p = d.obj("payload")
+            val code = p.str("employee")
+            val change = p["change"] as? JsonObject
+            if (code != null) {
+                fun change(e: JsonObject): JsonObject {
+                    var x = e
+                    if (change != null) x = x.with("title_fa" to (change.str("title_fa") ?: e.str("title_fa")), "model" to JsonObject(e.obj("model") + listOfNotNull(change["model"]?.let { "model" to it }, change["effort"]?.let { "effort" to it })))
+                    if (p.str("recommendation") == "confirm") x = x.with("probation_until" to null)
+                    return x
+                }
+                (store["/employees/$code"]?.second as? JsonObject)?.let { store["/employees/$code"] = 200 to change(it) }
+                for (k in store.keys.filter { it == "/employees" || it.startsWith("/employees?") }) update(k, code, idKey = "code") { change(it) }
+            }
+        }
+        saveDecision(d)
+        val all = list("/decisions?status=all").map { it.jsonObject }
+        store["/hr/rounds"] = 200 to ja(list("/hr/rounds").map { r0 ->
+            val r = r0.jsonObject
+            val refs = r["decisions"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+            if (ref in refs && refs.all { x -> all.firstOrNull { it.str("ref") == x }?.str("status") != "pending" }) r.with("state" to "done") else r
+        })
+        scored(d)
+        d = decisionOf(ref) ?: d
+        return d
+    }
+
+    // ---- memos (§21.1)
+    private fun memos(): List<JsonObject> = list("/advisor/memos").map { it.jsonObject }
+    private fun saveMemos(xs: List<JsonObject>) { store["/advisor/memos"] = 200 to page(xs) }
+    private fun memoBriefs(ref: String) = ja(memos().filter { it.str("decision") == ref }.map { m -> jo("ref" to m["ref"], "mode" to m["mode"], "state" to m["state"]) })
+    private val REC_FA = mapOf("approve" to "تأیید", "reject" to "رد", "return" to "برگشت", "ask" to "اول بپرس")
+
+    private fun option(t: String, pros: String, cons: String) = jo("title_fa" to t, "pros_md" to pros, "cons_md" to cons)
+    private fun risk(t: String, l: String, i: String, m: String) = jo("title_fa" to t, "likelihood" to l, "impact" to i, "mitigation_fa" to m)
+    private fun strs(vararg xs: String) = ja(xs.map(::JsonPrimitive))
+
+    private fun cannedMemo(d: JsonObject, mode: String): JsonObject {
+        val deploy = d.str("kind") == "deploy"
+        val evaln = d.str("kind") == "evaluation"
+        val riskNote = d.str("risk_note")
+        if (mode == "devil") return jo(
+            "summary_fa" to "چرا نه: «${d.str("title")}» را ${if (deploy) "امروز" else "به همین شکل"} مُهر نکن، مگر جواب پرسش‌های زیر را بگیری.",
+            "recommendation" to "reject", "confidence" to 0.58,
+            "options" to ja(listOf(option("رد با دلیل", "هیچ اثر برگشت‌ناپذیری نمیماند.", "کار پیشنهاددهنده یک دور عقب میافتد."), option("برگشت با یادداشت", "همان کار با شرط روشن دوباره میاید.", "یک روز وقت."))),
+            "against_md" to when {
+                deploy -> "- **ساعت انتشار:** پنجره‌ی CE-0002 در ساعت پربار پرو-چارت است؛ بازگشت خودکار ۴ دقیقه طول میکشد.\n- **یافته‌ی باز:** FI-0009 (تغییر پیکربندی بی‌مُهر) هنوز بسته نشده و H-0002 روی همین انتشار است.\n- **تست بار:** هیچ تست باری روی ۳۰ روز داده‌ی ۱ دقیقه‌ای اجرا نشده؛ ۲۸۶ تست سبز همه واحدی‌اند."
+                evaln -> "- **یک خروجی درخشان:** نیمی از امتیاز این ماه از یک گزارش (O-000031) است.\n- **هزینه:** Sonnet تقریباً دو برابر Haiku است و کار سئوی فنی هنوز با Haiku خوب انجام شده.\n- **جایگزین:** میشود effort را بالا برد بی‌آنکه مدل عوض شود."
+                else -> "- شاهد این کارت به یک منبع تکیه دارد.\n- اثرش در ۳۰ روز اندازه‌پذیر نیست.\n- ${riskNote ?: "ریسکش در کارت نوشته نشده."}"
+            },
+            "risks" to ja(listOf(risk(if (deploy) "قطع ثبت‌نام در بازگشت خودکار" else "هزینه‌ی بیشتر بی‌نتیجه‌ی اندازه‌پذیر", "medium", if (deploy) "high" else "medium", if (deploy) "انتشار در ساعت کم‌بار" else "آزمون ۳۰ روزه پیش از تعهد ماهانه"))),
+            "questions" to if (deploy) strs("تست بار کی و روی چه داده‌ای اجرا شد؟", "چرا پنجره‌ی انتشار ساعت پربار است؟") else strs("اگر این تصمیم نتیجه نداد، از کجا میفهمیم و کی برمیگردیم؟"),
+        )
+        if (deploy) return jo(
+            "summary_fa" to "انتشار ترمینال پرو-چارت با ۲۸۶ تست سبز و canary ۱۰٪. بیشتر diff بازنویسی cache نمودار و انتقال decode به worker است؛ ریسک اصلی بازگشت ۴ دقیقه‌ای در ساعت پربار است.",
+            "recommendation" to "approve", "confidence" to 0.72,
+            "options" to ja(listOf(
+                option("مُهر الان، canary ۱۰٪", "کندی ۲٫۴ ثانیه‌ای نمودار از امروز برطرف میشود.", "پنجره‌ی CE-0002 در ساعت پربار است."),
+                option("مُهر با پنجره‌ی کم‌بار (۰۲:۰۰ تا ۰۴:۰۰)", "اگر canary شکست بخورد، کمتر از ۲۰ کاربر میبینند.", "یک شب دیرتر."),
+                option("برگشت برای تست بار", "ریسک cache روی داده‌ی واقعی سنجیده میشود.", "دست‌کم دو روز عقب میافتد."),
+            )),
+            "against_md" to "- `src/chart/cache.ts` ۹۶ خط حذف دارد و هیچ تست باری روی داده‌ی ۳۰ روزه ندارد.\n- یافته‌ی FI-0009 روی همین سرور هنوز باز است.\n- بازبینی دوم GPT یک یافته‌ی تأییدشده دارد: کلیدهای قدیمی cache پاک نمیشوند.",
+            "risks" to ja(listOf(
+                risk("بازگشت خودکار ۴ دقیقه در ساعت پربار", "low", "high", "پنجره‌ی کم‌بار"),
+                risk("ماندن cache قدیمی در مرورگر کاربران", "medium", "medium", "پاک‌سازی یک‌باره‌ی کلیدهای v2 در شروع"),
+            )),
+            "questions" to strs("تست بار روی داده‌ی ۳۰ روزه‌ی ۱ دقیقه‌ای اجرا شده؟", "اگر canary شکست بخورد، کاربران پرو در آن ۴ دقیقه چه میبینند؟"),
+        )
+        return jo(
+            "summary_fa" to "${d.str("title")}: ${if (evaln) "پرچم قاعده‌محور و شاهد کافی دارد؛ هزینه‌ی تازه در پاکت جا میشود." else "شاهد کارت با سوابق میخواند و برگشت‌پذیر است."}",
+            "recommendation" to if (d.str("risk") == "low" || evaln) "approve" else "ask", "confidence" to if (evaln) 0.68 else 0.63,
+            "options" to ja(listOf(
+                option("مُهر همین‌طور", "کار از امروز جلو میرود.", riskNote ?: "هزینه‌ی برآوردشده خرج میشود."),
+                option(if (evaln) "ارتقا با effort بالاتر، بی‌تغییر مدل" else "برگشت با شرط روشن", "هزینه کمتر.", "شاید همان نتیجه را ندهد."),
+            )),
+            "against_md" to if (evaln) "- نیمی از امتیاز این ماه از یک گزارش است.\n- Sonnet تقریباً دو برابر Haiku خرج دارد." else "- اثرش هنوز سنجیده نشده؛ تا بازبینی ۳۰ روزه معلوم نیست.",
+            "risks" to ja(listOf(risk(if (evaln) "هزینه‌ی بیشتر بی‌بهبود کیفیت" else "نتیجه‌ی کمتر از انتظار", "medium", "low", "بازبینی در دور ارزیابی ماه بعد"))),
+            "questions" to strs(if (evaln) "کدام کار این ماه با Haiku انجام نشد یا ضعیف شد؟" else "سنجه‌ی موفقیت و تاریخش چیست؟"),
+        )
+    }
+
+    private fun opinion(player: String, model: String, rec: String, confidence: Double, summary: String, differences: List<String>, base: String) =
+        jo("player" to player, "model" to model, "recommendation" to rec, "confidence" to confidence, "summary_fa" to summary, "differences" to ja(differences.map(::JsonPrimitive)), "agrees" to (rec == base))
+
+    /** One call on a player's seat under its daily cap (§21.13); over it, or the player not ready, the seat is skipped and counted. */
+    private fun takeSeat(player: String, seatKey: String): Boolean {
+        var ok = false
+        store["/substitutes"] = 200 to ja(list("/substitutes").map { e ->
+            val s = e.jsonObject
+            if (s.str("player") != player) return@map s
+            val seat = s.arr("seats").firstOrNull { it.str("seat") == seatKey }
+            val month = s.obj("month")
+            ok = seat != null && seat["enabled"]?.jsonPrimitive?.booleanOrNull == true && s.str("status") == "ready" &&
+                (seat.str("via") != "web" || s.obj("web").str("state") == "signed_in") && seat.int("used_today") < seat.int("per_day")
+            if (!ok) return@map s.with("month" to month.with("skipped" to month.int("skipped") + 1))
+            s.with(
+                "seats" to ja(s.arr("seats").map { x -> if (x.str("seat") == seatKey) x.with("used_today" to x.int("used_today") + 1) else x }),
+                "month" to month.with("calls" to month.int("calls") + 1),
+            )
+        })
+        return ok
+    }
+
+    private fun attachOpinions(m: JsonObject, d: JsonObject): JsonObject {
+        if (m.str("mode") != "standard") return m
+        val rec = m.str("recommendation").orEmpty()
+        fun generic(player: String, model: String) = opinion(player, model, rec, maxOf(0.5, m.dbl("confidence") - 0.05), "روی همان بسته‌ی شاهد ماسک‌شده، بی‌دیدن یادداشت مشاور: ${REC_FA[rec]}.", emptyList(), rec)
+        val deploy17 = d.str("ref") == "D-000017"
+        var out = m
+        if (takeSeat("gpt", "advisor_second_opinion")) out = out.with("second_opinion" to if (deploy17) opinion(
+            "gpt", "gpt-5.5", "return", 0.61, "تغییر خوب است ولی بدون تست بار روی داده‌ی واقعی نباید منتشر شود؛ canary ۱۰٪ ساعت پربار هم برای ترمینال زیاد است.",
+            listOf("GPT تست بار را پیش‌شرط میداند؛ مشاور آن را با پنجره‌ی کم‌بار جبران میکند.", "GPT به canary ۵٪ رأی میدهد، مشاور ۱۰٪."), rec,
+        ) else generic("gpt", "gpt-5.5"))
+        if (takeSeat("deepseek", "third_opinion")) out = out.with("third_opinion" to if (deploy17) opinion(
+            "deepseek", "deepseek-v3.2", "approve", 0.66, "با canary و بازگشت خودکار، ریسک پذیرفتنی است؛ فقط پنجره را به ساعت کم‌بار ببرید.", listOf("DeepSeek هم پنجره‌ی کم‌بار را شرط میکند."), rec,
+        ) else generic("deepseek", "deepseek-v3.2"))
+        return out
+    }
+
+    // ---- ask the hub (§21.2)
+    private class Rule(val re: Regex, val answer: String, val citations: String, val notIndexed: List<String> = emptyList())
+    private val CORPUS = listOf(
+        Rule(Regex("گزارش روزانه|خاموش|مدیرعامل‌ها"), "گزارش روزانه‌ی مدیرعامل‌ها با مصوبه‌ی **M-0006** خاموش ماند: «تا وقتی استخدام باز نشده، گزارش صبحگاهی هلدینگ کافی است.» این از گفت‌وگوی تو با مشاور در A-0003 آمد.",
+            """[{"kind":"resolution","ref":"M-0006","snippet":"تا وقتی استخدام باز نشده، گزارش روزانه‌ی مدیرعامل‌ها خاموش میماند."},{"kind":"message","ref":"A-0003","snippet":"استخدام SRE برای هر سه شرکت لازم است؟"}]"""),
+        Rule(Regex("حداقل موجودی|VIP|100 ?USDT", RegexOption.IGNORE_CASE), "حداقل موجودی VIP **100 USDT** است. در ربات FX در `src/bot/handlers/vip.py` (خط‌های 41 تا 58) از سیاست `vip.min_balance` خوانده میشود و مقاله‌ی KB-0003 همین عدد را میگوید. عدد ۵۰ قدیمی ربات با O-000029 اصلاح شد.",
+            """[{"kind":"code","repo":"behnamjalalico/CoineProFx","path":"src/bot/handlers/vip.py","lines":[41,58],"commit":"a91c3e2","snippet":"MIN_BALANCE = policy.get(\"vip.min_balance\")  # 100 USDT\nif balance < MIN_BALANCE:\n    return await reply(msg, kb(\"KB-0003\"))"},{"kind":"doc","path":"contracts/HQ_CORE_API_v1.md","lines":[1160,1164],"snippet":"policy keys, e.g. \"vip.min_balance\""}]""",
+            listOf("behnamjalalico/CoinePro-App")),
+        Rule(Regex("ثبت‌?نام|کندی|ایندکس|signup", RegexOption.IGNORE_CASE), "کندی ثبت‌نام FX از جستجوی بی‌ایندکس روی `users.email` بود (۲٫۸ ثانیه). اصلاح در جلسه‌ی کد S-0004 روی شاخه‌ی `hq/S-0004` آماده است: ایندکس یکتا و حذف دو کوئری تکراری؛ در تست بار از ۲٫۹ به ۰٫۳۱ ثانیه رسید (W-000104).",
+            """[{"kind":"work","ref":"W-000104","snippet":"رفع کندی ثبت‌نام"},{"kind":"code","repo":"behnamjalalico/CoineProFx","path":"alembic/versions/0042_users_email_index.py","lines":[8,24],"commit":"hq/S-0004","snippet":"op.create_index(\"ix_users_email\", \"users\", [\"email\"], unique=True)"}]"""),
+        Rule(Regex("SRE|پایداری"), "برای تریدیار و FX شاهد بود (دو حادثه‌ی کندی: I-0002 و I-0005)؛ هر دو کارت استخدام (D-000014، D-000015) با بسته شدن استخدام پس گرفته شدند. برای پرو-چارت هنوز پیشنهادی نیامده.",
+            """[{"kind":"decision","ref":"D-000014","snippet":"استخدام SRE تریدیار"},{"kind":"message","ref":"A-0004","snippet":"برای تریدیار و FX شاهد دارد…"}]"""),
+        Rule(Regex("canary|ترمینال|انتشار|deploy", RegexOption.IGNORE_CASE), "انتشار ترمینال پرو-چارت (D-000017) با canary ۱۰٪ و بازگشت خودکار پیشنهاد شده؛ ۲۸۶ تست سبز دارد و جلسه‌ی مدیریت پرو-چارت (MT-0009) آمادگی‌اش را تأیید کرد. ناظر کل آن را با H-0002 نگه داشته تا FI-0009 روشن شود.",
+            """[{"kind":"decision","ref":"D-000017","snippet":"انتشار نسخه‌ی تازه‌ی ترمینال پرو-چارت"},{"kind":"deliverable","ref":"O-000027","snippet":"ترمینال تازه با 286 تست سبز آماده‌ی انتشار است"}]"""),
+        Rule(Regex("بودجه|پاکت|توکن"), "پاکت ماهانه‌ی تریدیار 6M و FX 5M توکن است؛ پرو-چارت هنوز پاکت ندارد و سقف بودجه‌اش 6M است که ۹۲٪ آن مصرف شده. مصوبه‌ی بودجه‌ها از ویرایش خزانه آمده است.",
+            """[{"kind":"doc","path":"docs/OPERATING_MODEL.md","lines":[212,230],"snippet":"پاکت ماهانه‌ی هر شرکت همان سقف استخدام مدیرعامل است"}]"""),
+    )
+
+    /** An answer moves on with time: queued, searching, answering, done (or, with nothing found, done without a model). */
+    private fun askState(a: JsonObject): JsonObject {
+        val ref = a.str("ref") ?: return a
+        if (a.str("state") == "done" || a.str("state") == "failed") return a
+        val rule = askRule[ref] ?: return a
+        val age = System.currentTimeMillis() - (askAt[ref] ?: 0L)
+        val next = when {
+            rule < 0 -> if (age > 1_200) a.with("state" to "done", "finished_at" to stamp) else a.with("state" to "searching")
+            age > 4_000 -> CORPUS[rule].let { r ->
+                a.with("state" to "done", "answer_md" to r.answer, "citations" to j(r.citations), "not_indexed" to strs(*r.notIndexed.toTypedArray()),
+                    "usage" to jo("tokens" to 19_800, "usd" to "0.150000"), "finished_at" to stamp)
+            }
+            age > 1_500 -> a.with("state" to "answering")
+            age > 500 -> a.with("state" to "searching")
+            else -> a
+        }
+        if (next != a) update("/ask", ref) { next }
+        return next
+    }
+
+    // ---- the clock of §21: memos finish writing, keys verify, device codes complete, creatives render
+    private fun tick18() {
+        val now0 = System.currentTimeMillis()
+        for ((ref, v) in memoReady.toMap()) if (now0 > v.first) {
+            memoReady.remove(ref)
+            val m0 = memos().firstOrNull { it.str("ref") == ref } ?: continue
+            val dref = m0.str("decision").orEmpty()
+            val devil = m0.str("mode") == "devil"
+            var m = JsonObject(m0 + v.second).with(
+                "state" to "ready", "citations" to ja(listOf(jo("kind" to "decision", "ref" to dref))),
+                "usage" to jo("tokens" to if (devil) 27_900 else 39_600, "usd" to if (devil) "0.590000" else "0.840000"),
+            )
+            decisionOf(dref)?.let { d -> m = attachOpinions(m, d) }
+            saveMemos(memos().map { if (it.str("ref") == ref) m else it })
+            decisionOf(dref)?.let { saveDecision(it.with("memos" to memoBriefs(dref))) }
+        }
+        for ((id, at) in verifying18.toMap()) if (now0 > at) {
+            verifying18.remove(id)
+            update("/connections", id, idKey = "id") { it.with("status" to "ready", "status_reason" to null, "updated_at" to stamp, "version" to it.int("version") + 1) }
+        }
+        for ((id, l) in logins.toMap()) {
+            if (l.str("state") == "waiting" && l.str("method") == "device_code" && now0 - (loginAt[id] ?: now0) > 8_000) finishLogin(id)
+            else if (l.str("state") == "waiting" && ms(l.str("expires_at")) < HqClock.millis()) logins[id] = l.with("state" to "expired")
+        }
+        if (store.containsKey("/creatives")) {
+            var changed = false
+            val xs = list("/creatives").map { e ->
+                val x = e.jsonObject
+                val ref = x.str("ref").orEmpty()
+                when {
+                    x.str("state") == "queued" && now0 - (creativeAt[ref] ?: now0) > 1_500 -> { changed = true; x.with("state" to "generating") }
+                    x.str("state") == "generating" && creativeReady[ref]?.let { now0 > it } == true -> {
+                        changed = true
+                        creativeReady.remove(ref)
+                        x.with(
+                            "state" to "review", "source" to jo("player" to x["player"], "model" to x["model"], "at" to stamp), "updated_at" to stamp, "version" to x.int("version") + 1,
+                            "review_md" to "مدیر مارکتینگ ${nameOf(x.str("company"))}: با brief میخواند؛ تصویر بی‌متن است و متن فارسی در حاشیه‌ی امن ${x.str("placement")} نشسته.",
+                        )
+                    }
+                    else -> x
+                }
+            }
+            if (changed) store["/creatives"] = 200 to page(xs)
+        }
+    }
+
+    private fun finishLogin(id: String) {
+        val l = logins[id] ?: return
+        logins[id] = l.with("state" to "done")
+        store["/substitutes"] = 200 to ja(list("/substitutes").map { e ->
+            val s = e.jsonObject
+            if (s.str("connection") != l.str("connection")) return@map s
+            var x = s.with("login" to s.obj("login").with("state" to "signed_in", "since" to stamp, "last_ok_at" to stamp), "version" to s.int("version") + 1)
+            if (s.str("status") == "off") x = x.with("status" to "ready", "status_reason" to null)
+            x
+        })
+    }
+
+    // ---- creatives (§21.13)
+    private fun fileRef(f: File, name: String, size: Pair<Int, Int>) = jo(
+        "id" to Uri.fromFile(f).toString(), "name" to name, "mime" to "image/jpeg", "size" to f.length(), "sha256" to "demo", "kind" to "image", "status" to "ready",
+        "width" to size.first, "height" to size.second, "variants" to JsonObject(emptyMap()),
+    )
+
+    /** The finished picture and the one composed with its overlay, drawn once into the cache. */
+    private fun rendered(x: JsonObject): JsonObject {
+        if (x.str("state") in setOf("failed", "generating", "queued") || x.arr("files").isNotEmpty()) return x
+        val ref = x.str("ref") ?: return x
+        val company = x.str("company").orEmpty()
+        val placement = x.str("placement").orEmpty()
+        val seed = DemoArt.seedOf(ref)
+        val dir = File(context.cacheDir, "demo-creatives")
+        return runCatching {
+            val raw = File(dir, "$ref-${x.str("player")}.jpg")
+            val rawSize = DemoArt.render(context, company, placement, seed, null, raw)
+            val o = x["overlay"] as? JsonObject
+            var out = x.with("files" to ja(listOf(fileRef(raw, raw.name, rawSize))))
+            if (o != null) {
+                val comp = File(dir, "$ref-composed.jpg")
+                val size = DemoArt.render(context, company, placement, seed, DemoArt.Overlay(o.str("title_fa").orEmpty(), o.str("body_fa"), o.str("cta_fa"), o["mark"]?.jsonPrimitive?.booleanOrNull == true), comp)
+                out = out.with("composed" to fileRef(comp, comp.name, size))
+            }
+            update("/creatives", ref) { out }
+            out
+        }.getOrDefault(x)
+    }
+
+    private fun creativesAll(): List<JsonObject> = list("/creatives").map { rendered(it.jsonObject) }
+
+    // ---- reads
+    private fun v18Read(path: String, q: Map<String, String?>): Reply? {
+        fun has(o: JsonObject, k: String) = q[k] == null || o.str(k) == q[k]
+        when (path) {
+            "/advisor/memos" -> return Reply(200, page(memos().filter { q["decision"] == null || it.str("decision") == q["decision"] }))
+            "/advisor/triggers" -> return Reply(200, ja(list("/advisor/triggers").map { it.jsonObject }.filter { has(it, "kind") && (q["since"] == null || it.str("fired_at").orEmpty() >= q["since"]!!) }))
+            "/ask" -> return Reply(200, page(list("/ask").map { askState(it.jsonObject) }))
+            "/reviews/weekly" -> return Reply(200, ja(list("/reviews/weekly")))
+            "/reviews/weekly/current" -> return list("/reviews/weekly").firstOrNull()?.let { Reply(200, it) } ?: gone18("هنوز مروری نیست.")
+            "/briefings" -> return Reply(200, page(list("/briefings").map { it.jsonObject }.filter { has(it, "kind") && has(it, "company") }))
+            "/briefings/latest" -> return list("/briefings").map { it.jsonObject }.firstOrNull { it.str("kind") == (q["kind"] ?: "morning") && has(it, "company") }?.let { Reply(200, it) } ?: gone18("هنوز گزارشی نیست.")
+            "/rankings/departments" -> {
+                val p = if (q["period"] == "week") "week" else "month"
+                return Reply(200, ja(list("/rankings/departments?period=$p").map { it.jsonObject }.filter { has(it, "company") }.sortedByDescending { it.dbl("score") }))
+            }
+            "/hr/rounds" -> return Reply(200, ja(list("/hr/rounds").map { it.jsonObject }.filter { has(it, "company") && has(it, "month") }))
+            "/treasury/waste" -> {
+                val co = q["company"]
+                val all = list(if (co == null) "/treasury/waste" else "/treasury/waste?company=$co").map { it.jsonObject }
+                if (q["from"] != null && q["to"] != null) return Reply(200, ja(all.filter { it.str("day").orEmpty() in q["from"]!!..q["to"]!! }.sortedBy { it.str("day") }))
+                val day = q["day"] ?: all.maxOfOrNull { it.str("day").orEmpty() }
+                return all.firstOrNull { it.str("day") == day }?.let { Reply(200, it) } ?: gone18("هدررفت آن روز هنوز حساب نشده؛ هر روز ۰۷:۴۵ برای دیروز.")
+            }
+            "/treasury/roi" -> {
+                val by = q["by"] ?: "company"
+                val p = if (q["period"] == "week") "week" else "month"
+                return Reply(200, ja(list("/treasury/roi?by=$by&period=$p").map { it.jsonObject }.filter { r ->
+                    has(r, "company") && (q["key"] == null || r.str("key") == q["key"] || r.str("key").orEmpty().endsWith("-${q["key"]}"))
+                }))
+            }
+            "/notes" -> {
+                val text = q["q"]?.trim().orEmpty()
+                return Reply(200, page(list("/notes").map { it.jsonObject }.filter { n ->
+                    has(n, "status") && (text.isEmpty() || "${n.str("text_md")} ${n["tags"]?.jsonArray?.joinToString(" ") { it.jsonPrimitive.content }} ${n.str("ref")}".contains(text))
+                }.sortedByDescending { ms(it.str("created_at")) }))
+            }
+            "/claims" -> return Reply(200, page(list("/claims").map { it.jsonObject }.filter { has(it, "company") && has(it, "employee") && has(it, "verdict") }))
+            "/runs/health" -> {
+                val p = if (q["period"] == "30d") "30d" else "7d"
+                return Reply(200, page(list("/runs/health?period=$p").map { it.jsonObject }.filter { has(it, "company") }.map { it.with("period" to p) }))
+            }
+            "/digital-ceo" -> return Reply(200, (store["/digital-ceo"]!!.second.jsonObject).with("settings" to (settings18()["digital_ceo"] ?: JsonObject(emptyMap()))))
+            "/digital-ceo/predictions" -> return Reply(200, page(list("/digital-ceo/predictions").map { it.jsonObject }.filter { r ->
+                (q["correct"] == null || r["correct"]?.jsonPrimitive?.content == q["correct"]) && has(r, "kind")
+            }))
+            "/creatives" -> return Reply(200, page(creativesAll().filter { has(it, "company") && has(it, "state") && has(it, "kind") }.sortedByDescending { ms(it.str("created_at")) }))
+        }
+        Regex("^/decisions/(D-\\d+)/memo$").find(path)?.let { m ->
+            val mode = q["mode"] ?: "standard"
+            return memos().firstOrNull { it.str("decision") == m.groupValues[1] && it.str("mode") == mode }?.let { Reply(200, it) } ?: gone18("برای این کارت هنوز یادداشتی نوشته نشده.")
+        }
+        Regex("^/decisions/(D-\\d+)/diff$").find(path)?.let { m ->
+            val file = q["file"].orEmpty()
+            store["$path?file=$file"]?.let { return Reply(it.first, it.second) }
+            val f = decisionOf(m.groupValues[1])?.obj("payload")?.obj("diff")?.arr("files")?.firstOrNull { it.str("path") == file } ?: return gone18("این فایل در diff این کارت نیست.")
+            return Reply(200, f.with("truncated" to false))
+        }
+        Regex("^/ask/(AK-\\d+)$").find(path)?.let { m -> return list("/ask").map { it.jsonObject }.firstOrNull { it.str("ref") == m.groupValues[1] }?.let { Reply(200, askState(it)) } ?: gone18("این پرسش پیدا نشد.") }
+        Regex("^/briefings/(BR-\\d+)$").find(path)?.let { m -> return list("/briefings").map { it.jsonObject }.firstOrNull { it.str("ref") == m.groupValues[1] }?.let { Reply(200, it) } ?: gone18("این گزارش پیدا نشد.") }
+        Regex("^/hr/rounds/(HR-\\d+)$").find(path)?.let { m -> return list("/hr/rounds").map { it.jsonObject }.firstOrNull { it.str("ref") == m.groupValues[1] }?.let { Reply(200, it) } ?: gone18("این دور ارزیابی پیدا نشد.") }
+        Regex("^/connections/([\\w-]+)/login/([\\w-]+)$").find(path)?.let { m -> return logins[m.groupValues[2]]?.let { Reply(200, it) } ?: gone18("این ورود پیدا نشد.") }
+        Regex("^/creatives/(CR-\\d+)$").find(path)?.let { m -> return list("/creatives").map { it.jsonObject }.firstOrNull { it.str("ref") == m.groupValues[1] }?.let { Reply(200, rendered(it)) } ?: gone18("این درخواست پیدا نشد.") }
+        return null
+    }
+
+    // ---- writes
+    private fun v18Write(method: String, path: String, raw: JsonElement?, version: Int?, idempotency: String?, stepUp: String?): Reply? {
+        val b = raw as? JsonObject ?: JsonObject(emptyMap())
+        fun keyed(r: Reply): Reply = r.also { if (!idempotency.isNullOrEmpty()) replies[idempotency] = it }
+        // ---- the advisor's devil mode lives in thread A only (§21.1)
+        Regex("^/threads/([^/]+)/messages$").find(path)?.let { m ->
+            val mode = b.str("mode") ?: return null
+            if (m.groupValues[1] != "A" || mode != "devil") return Reply(422, problem16(422, "validation_failed", "حالت مخالف‌خوان فقط در رشته‌ی مشاور کل است.", jo("fields" to jo("mode" to "thread A only"))))
+            return null
+        }
+        if (path == "/owner/settings" && method == "PUT") {
+            val s = settings18()
+            unmatched(version, s.int("version"))?.let { return it }
+            val next = JsonObject(s + b.mapValues { (k, v) -> val cur = s[k]; if (v is JsonObject && cur is JsonObject) JsonObject(cur + v) else v } + ("version" to JsonPrimitive(s.int("version") + 1)))
+            store["/owner/settings"] = 200 to next
+            return Reply(200, next)
+        }
+        // ---- §21.1 a memo
+        Regex("^/decisions/(D-\\d+)/memo$").find(path)?.let { m ->
+            if (method != "POST") return null
+            val d = decisionOf(m.groupValues[1]) ?: return gone18("این کارت پیدا نشد.")
+            if (d.str("status") != "pending") return Reply(409, problem16(409, "decision_not_pending", "این کارت دیگر منتظر تصمیم نیست."))
+            val mode = b.str("mode") ?: "standard"
+            if (mode != "standard" && mode != "devil") return bad("حالت یادداشت standard یا devil است.")
+            val old = memos().firstOrNull { it.str("decision") == d.str("ref") && it.str("mode") == mode && it.int("decision_version") == d.int("version") && it.str("state") != "failed" }
+            val x = old ?: run {
+                val n = (memos().mapNotNull { it.str("ref")?.substringAfter('-')?.toIntOrNull() }.maxOrNull() ?: 0) + 1
+                val ref = pad("DM-", n, 4)
+                val made = jo(
+                    "id" to "dm$n", "ref" to ref, "decision" to d.str("ref"), "decision_version" to d.int("version"), "mode" to mode, "state" to "writing", "trigger" to "owner",
+                    "summary_fa" to "", "recommendation" to "ask", "confidence" to 0.0, "options" to ja(emptyList()), "against_md" to "", "risks" to ja(emptyList()), "questions" to ja(emptyList()),
+                    "citations" to ja(emptyList()), "usage" to jo("tokens" to 0, "usd" to "0.000000"), "second_opinion" to null, "third_opinion" to null, "created_at" to stamp,
+                )
+                memoReady[ref] = System.currentTimeMillis() + 5_000 to cannedMemo(d, mode)
+                saveMemos(listOf(made) + memos())
+                made
+            }
+            saveDecision(d.with("memos" to memoBriefs(d.str("ref")!!)))
+            return Reply(202, x)
+        }
+        // ---- §21.2 ask
+        if (path == "/ask" && method == "POST") {
+            replies[idempotency.orEmpty()]?.let { return it }
+            val text = b.str("q")?.trim().orEmpty()
+            if (text.isEmpty()) return Reply(422, problem16(422, "validation_failed", "پرسش خالی است.", jo("fields" to jo("q" to "required"))))
+            if (text.length > 500) return Reply(422, problem16(422, "validation_failed", "پرسش حداکثر ۵۰۰ نویسه است.", jo("fields" to jo("q" to "max 500"))))
+            val rule = CORPUS.indexOfFirst { it.re.containsMatchIn(text) }
+            val n = list("/ask").size + 1
+            val ref = pad("AK-", n, 4)
+            val a = jo(
+                "id" to "ak$n", "ref" to ref, "q" to text, "scope" to (b["scope"] ?: JsonNull), "state" to "queued", "found" to if (rule >= 0) 6 + DemoArt.seedOf(text) % 9 else 0,
+                "answer_md" to if (rule >= 0) null else "چیزی پیدا نشد. در مصوبه‌ها، تصمیم‌ها، خروجی‌ها، پیام‌ها، سندها و کد چیزی درباره‌ی «${text.take(40)}» نیست؛ مدلی هم اجرا نشد. کلیدواژه‌ی دیگری امتحان کن.",
+                "citations" to ja(emptyList()), "not_indexed" to ja(emptyList()), "usage" to jo("tokens" to 0, "usd" to "0.000000"), "created_at" to stamp, "finished_at" to null,
+            )
+            askRule[ref] = rule
+            askAt[ref] = System.currentTimeMillis()
+            prepend("/ask", a)
+            return keyed(Reply(202, a))
+        }
+        // ---- §21.3 the weekly review
+        Regex("^/reviews/weekly/(WR-\\d+)/(start|finish|items/(\\d+))$").find(path)?.let { m ->
+            val all = list("/reviews/weekly").map { it.jsonObject }
+            val r = all.firstOrNull { it.str("ref") == m.groupValues[1] } ?: return gone18("این مرور پیدا نشد.")
+            fun save(x: JsonObject): Reply { store["/reviews/weekly"] = 200 to ja(all.map { if (it.str("ref") == x.str("ref")) x else it }); return Reply(200, x) }
+            when (m.groupValues[2]) {
+                "start" -> {
+                    if (r.str("state") != "ready") return Reply(409, problem16(409, "validation_failed", "این مرور شروع‌شدنی نیست."))
+                    return save(r.with("state" to "in_progress", "started_at" to stamp, "version" to r.int("version") + 1))
+                }
+                "finish" -> {
+                    if (r.str("state") != "in_progress") return Reply(409, problem16(409, "validation_failed", "مرور شروع نشده."))
+                    val items = r.arr("agenda")
+                    val o = jo(
+                        "id" to "o-O-000048", "ref" to "O-000048", "company" to "HQ", "title" to "صورت‌جلسه‌ی مرور هفتگی ${r.str("ref")}",
+                        "summary" to "${items.count { it.str("status") == "done" }} مورد انجام شد، ${items.count { it.str("status") == "deferred" }} مورد عقب افتاد.",
+                        "body" to items.joinToString("\n") { i -> "- ${i.str("title_fa")}: ${i.str("status")}${i.str("owner_note")?.let { " ($it)" }.orEmpty()}" },
+                        "producer" to jo("code" to "HQ-ADV", "company" to "HQ", "kind" to "advisor", "department" to null, "title_fa" to "مشاور کل"),
+                        "rating" to null, "created_at" to stamp, "work_ref" to null, "attachments" to ja(emptyList()), "evidence" to ja(emptyList()),
+                        "produced_with" to jo("model" to "claude-opus-5-5", "effort" to "xhigh", "label_fa" to "Opus 5.5 · xhigh"), "usage" to jo("tokens" to 0, "usd" to "0.00"), "work_id" to null,
+                    )
+                    store["/deliverables/O-000048"] = 200 to o
+                    prepend("/deliverables", o)
+                    val started = ms(r.str("started_at"))
+                    return save(r.with("state" to "done", "finished_at" to stamp, "duration_s" to ((HqClock.millis() - started) / 1000).coerceAtLeast(0), "minutes_ref" to "O-000048", "version" to r.int("version") + 1))
+                }
+                else -> {
+                    if (method != "PATCH") return null
+                    unmatched(version, r.int("version"))?.let { return it }
+                    val n = m.groupValues[3].toInt()
+                    if (r.arr("agenda").none { it.int("n") == n }) return gone18("این مورد در دستور نیست.")
+                    val st = b.str("status")
+                    if (st != null && st !in setOf("open", "done", "deferred")) return bad("وضعیت نامعتبر.")
+                    val agenda = r.arr("agenda").map { i ->
+                        if (i.int("n") != n) i else {
+                            var x = i
+                            if (st != null) x = x.with("status" to st)
+                            if (b.containsKey("owner_note")) x = x.with("owner_note" to b.str("owner_note")?.ifBlank { null })
+                            x
+                        }
+                    }
+                    return save(r.with("agenda" to ja(agenda), "version" to r.int("version") + 1))
+                }
+            }
+        }
+        // ---- §21.7 a new connection
+        if (path == "/connections" && method == "POST") {
+            if (stepUp == null) return stepUpMissing()
+            if (idempotency.isNullOrEmpty()) return bad("Idempotency-Key لازم است.")
+            replies[idempotency]?.let { return it }
+            val all = list("/connections").map { it.jsonObject }
+            val key = b.str("key").orEmpty()
+            val provider = b.str("provider").orEmpty()
+            val base = b.str("base_url")
+            if (!Regex("^[a-z0-9][a-z0-9-]{2,39}$").matches(key)) return Reply(422, problem16(422, "validation_failed", "کلید فقط حروف کوچک لاتین، عدد و خط تیره است.", jo("fields" to jo("key" to "pattern"))))
+            if (all.any { it.str("key") == key }) return Reply(409, problem16(409, "version_conflict", "اتصالی با همین کلید هست."))
+            if (provider !in setOf("anthropic", "openai", "google", "deepseek", "mistral", "openai_compatible")) return Reply(422, problem16(422, "validation_failed", "مسیریاب این ارائه‌دهنده را نمیشناسد.", jo("fields" to jo("provider" to "unsupported"))))
+            if (base != null && (provider != "openai_compatible" || !base.startsWith("https://") || Regex("//(localhost|127\\.|10\\.|192\\.168\\.|172\\.(1[6-9]|2\\d|3[01])\\.)").containsMatchIn(base)))
+                return Reply(422, problem16(422, "validation_failed", "نشانی پایه فقط برای سازگار با OpenAI، با https و نه نشانی خصوصی.", jo("fields" to jo("base_url" to "egress guard"))))
+            val models = b["models"] as? JsonArray
+            if (models.isNullOrEmpty()) return Reply(422, problem16(422, "validation_failed", "دست‌کم یک مدل لازم است.", jo("fields" to jo("models" to "required"))))
+            val c = jo(
+                "id" to "c${all.size + 1}", "key" to key, "display_name" to b["display_name"], "kind" to b["kind"], "provider" to provider, "status" to "pending_secret", "status_reason" to "منتظر کلید",
+                "models" to models, "default_model" to (b["default_model"]?.takeIf { it !is JsonNull } ?: models[0]), "fallback_priority" to b["fallback_priority"], "has_secret_ref" to false,
+                "limits" to (b["limits"] ?: JsonObject(emptyMap())), "pricing" to (b["pricing"] ?: JsonObject(emptyMap())), "quota_reset_at" to null, "base_url" to base, "updated_at" to stamp, "version" to 1,
+            )
+            store["/connections"] = 200 to ja(all + c)
+            return keyed(Reply(201, c))
+        }
+        Regex("^/connections/([\\w-]+)/secret$").find(path)?.let { m ->
+            val c = list("/connections").map { it.jsonObject }.firstOrNull { it.str("id") == m.groupValues[1] } ?: return null
+            if (c.str("status") != "pending_secret") return null
+            if (stepUp == null) return stepUpMissing()
+            update("/connections", c.str("id")!!, idKey = "id") {
+                it.with("status" to "verifying", "status_reason" to "بررسی با فراخوانی بی‌هزینه (فهرست مدل‌ها)", "has_secret_ref" to true, "version" to it.int("version") + 1, "updated_at" to stamp)
+            }
+            verifying18[c.str("id")!!] = System.currentTimeMillis() + 3_500
+            return Reply(200, jo("connection" to c.str("key"), "stored" to true))
+        }
+        // ---- §21.13 a CLI's sign-in
+        Regex("^/connections/([\\w-]+)/(login|logout)$").find(path)?.let { m ->
+            if (method != "POST") return null
+            val c = list("/connections").map { it.jsonObject }.firstOrNull { it.str("id") == m.groupValues[1] }
+            val s = list("/substitutes").map { it.jsonObject }.firstOrNull { it.str("connection") == c?.str("key") }
+            if (c == null || s == null) return gone18("این اتصال پیدا نشد.")
+            if (stepUp == null) return stepUpMissing()
+            fun saveSub(x: JsonObject) { store["/substitutes"] = 200 to ja(list("/substitutes").map { if (it.jsonObject.str("player") == x.str("player")) x else it }) }
+            if (m.groupValues[2] == "logout") {
+                saveSub(s.with("login" to s.obj("login").with("state" to "signed_out", "since" to null), "status" to "off", "status_reason" to "ورود CLI پاک شد؛ جایگاه‌های CLI رد میشوند.", "version" to s.int("version") + 1))
+                return Reply(200, jo("connection" to c.str("key"), "signed_out" to true))
+            }
+            if (s["runner"] == null || s["runner"] is JsonNull) return Reply(409, problem16(409, "not_ready", "این بازیکن CLI ندارد؛ فقط از مرورگر لاگین‌شده‌ی هاب کار میکند."))
+            val gemini = s.str("player") == "gemini"
+            val id = "lg${logins.size + 1}"
+            val l = jo(
+                "id" to id, "connection" to c.str("key"), "method" to if (gemini) "auth_code" else "device_code",
+                "verification_url" to if (gemini) "https://accounts.google.com/o/oauth2/v2/auth?client_id=gemini-cli&response_type=code" else "https://auth.openai.com/codex/device",
+                "user_code" to if (gemini) null else "${'A' + logins.size % 20}K7M-4TZP", "expires_at" to ahead(10), "state" to "waiting", "status_reason" to null,
+            )
+            logins[id] = l
+            loginAt[id] = System.currentTimeMillis()
+            saveSub(s.with("login" to s.obj("login").with("state" to "signing_in")))
+            return Reply(201, l)
+        }
+        Regex("^/connections/([\\w-]+)/login/([\\w-]+)/code$").find(path)?.let { m ->
+            val l = logins[m.groupValues[2]]
+            if (l == null || l.str("state") != "waiting" || l.str("method") != "auth_code") return Reply(409, problem16(409, "validation_failed", "این ورود منتظر کد نیست."))
+            if (b.str("code")?.trim().orEmpty().length < 6) return bad("کد کوتاه است.")
+            finishLogin(m.groupValues[2])
+            return Reply(200, logins.getValue(m.groupValues[2]))
+        }
+        // ---- §21.8 notes
+        if (path == "/notes" && method == "POST") {
+            replies[idempotency.orEmpty()]?.let { return it }
+            val text = b.str("text_md")?.trim().orEmpty()
+            if (text.isEmpty()) return bad("یادداشت خالی است.")
+            val n = (list("/notes").mapNotNull { it.jsonObject.str("ref")?.substringAfter('-')?.toIntOrNull() }.maxOrNull() ?: 0) + 1
+            val x = jo(
+                "id" to "nt$n", "ref" to pad("NT-", n, 4), "text_md" to text, "source" to if (b.str("source") == "voice") "voice" else "text", "file_id" to b["file_id"],
+                "tags" to ja(b["tags"]?.jsonArray.orEmpty().take(8)), "status" to "open", "promoted_to" to null, "created_at" to stamp, "updated_at" to stamp, "version" to 1,
+            )
+            prepend("/notes", x)
+            return keyed(Reply(201, x))
+        }
+        Regex("^/notes/(NT-\\d+)(/promote)?$").find(path)?.let { m ->
+            val x = list("/notes").map { it.jsonObject }.firstOrNull { it.str("ref") == m.groupValues[1] } ?: return gone18("این یادداشت پیدا نشد.")
+            val count = list("/notes").size
+            if (m.groupValues[2].isNotEmpty()) {
+                if (x.str("status") != "open") return Reply(409, problem16(409, "validation_failed", "فقط یادداشت باز تبدیل میشود."))
+                val to = b.str("to")
+                if (to == "work" && b.str("company") == null) return Reply(422, problem16(422, "validation_failed", "برای کار، شرکت را انتخاب کن.", jo("fields" to jo("company" to "required"))))
+                val ref = when (to) { "work" -> "W-0001${40 + count}"; "order" -> "F-00${10 + count}"; "errand" -> "E-00${10 + count}"; else -> return bad("مقصد کار، فرمان یا کار دستیار است.") }
+                return Reply(200, update("/notes", x.str("ref")!!) { it.with("status" to "promoted", "promoted_to" to jo("kind" to to, "ref" to ref), "updated_at" to stamp, "version" to it.int("version") + 1) }!!)
+            }
+            if (method != "PATCH") return null
+            unmatched(version, x.int("version"))?.let { return it }
+            val st = b.str("status")
+            if (st != null && st != "archived") return bad("فقط بایگانی؛ یادداشت حذف نمیشود.")
+            if (b.containsKey("text_md") && b.str("text_md")?.trim().isNullOrEmpty()) return bad("یادداشت خالی نمیشود.")
+            return Reply(200, update("/notes", x.str("ref")!!) { n ->
+                var y = n.with("updated_at" to stamp, "version" to n.int("version") + 1)
+                b.str("text_md")?.let { y = y.with("text_md" to it.trim()) }
+                (b["tags"] as? JsonArray)?.let { y = y.with("tags" to ja(it.take(8))) }
+                if (st != null) y = y.with("status" to st)
+                y
+            }!!)
+        }
+        // ---- §21.10 principles
+        if (path == "/digital-ceo/principles" && method == "POST") {
+            val text = b.str("text_fa")?.trim().orEmpty()
+            if (text.isEmpty()) return bad("متن اصل خالی است.")
+            val all = list("/digital-ceo/principles")
+            val x = jo(
+                "id" to "dp${all.size + 1}", "ref" to pad("DP-", all.size + 1, 3), "text_fa" to text, "sources" to ja(listOf(jo("kind" to "owner", "ref" to "owner"))),
+                "status" to "active", "edited_by_owner" to true, "version" to 1, "updated_at" to stamp,
+            )
+            store["/digital-ceo/principles"] = 200 to ja(all + x)
+            return Reply(201, x)
+        }
+        Regex("^/digital-ceo/principles/(DP-\\d+)(/accept)?$").find(path)?.let { m ->
+            val x = list("/digital-ceo/principles").map { it.jsonObject }.firstOrNull { it.str("ref") == m.groupValues[1] } ?: return gone18("این اصل پیدا نشد.")
+            if (m.groupValues[2].isNotEmpty()) {
+                if (x.str("status") != "proposed") return Reply(409, problem16(409, "validation_failed", "فقط اصل پیشنهادی پذیرفته میشود."))
+                return Reply(200, update("/digital-ceo/principles", x.str("ref")!!) { it.with("status" to "active", "version" to it.int("version") + 1, "updated_at" to stamp) }!!)
+            }
+            if (method != "PUT") return null
+            unmatched(version, x.int("version"))?.let { return it }
+            val text = b.str("text_fa")?.trim().orEmpty()
+            if (text.isEmpty()) return bad("متن اصل خالی است.")
+            return Reply(200, update("/digital-ceo/principles", x.str("ref")!!) {
+                it.with(
+                    "text_fa" to text, "status" to if (b.str("status") == "retired") "retired" else "active",
+                    "edited_by_owner" to ((it["edited_by_owner"] as? JsonPrimitive)?.booleanOrNull == true || text != it.str("text_fa")), "version" to it.int("version") + 1, "updated_at" to stamp,
+                )
+            }!!)
+        }
+        // ---- §21.13 seats and the browser profile
+        Regex("^/substitutes/(gpt|gemini|deepseek)/(seats|web/logout)$").find(path)?.let { m ->
+            val s = list("/substitutes").map { it.jsonObject }.firstOrNull { it.str("player") == m.groupValues[1] } ?: return gone18("این بازیکن پیدا نشد.")
+            if (stepUp == null) return stepUpMissing()
+            fun saveSub(x: JsonObject): Reply { store["/substitutes"] = 200 to ja(list("/substitutes").map { if (it.jsonObject.str("player") == x.str("player")) x else it }); return Reply(200, x) }
+            if (m.groupValues[2] == "web/logout") return saveSub(s.with("web" to s.obj("web").with("state" to "signed_out", "last_failure" to null), "version" to s.int("version") + 1))
+            unmatched(version, s.int("version"))?.let { return it }
+            val rows = (raw as? JsonArray)?.map { it.jsonObject } ?: return bad("فهرست جایگاه‌ها لازم است.")
+            val ids = s.arr("models").mapNotNull { it.str("id") }.toSet()
+            for (x in rows) {
+                if (x.int("per_day") !in 0..500) return bad("سقف روزانه‌ی ${x.str("seat")} بین ۰ و ۵۰۰ است.")
+                if (x.str("model") !in ids) return bad("مدل ${x.str("model")} در اتصال این بازیکن نیست.")
+                if ((s["runner"] == null || s["runner"] is JsonNull) && x.str("via") == "cli") return bad("این بازیکن CLI ندارد؛ فقط وب.")
+            }
+            val seats = rows.map { x ->
+                val old = s.arr("seats").firstOrNull { it.str("seat") == x.str("seat") }
+                var y = x.with("used_today" to (old?.int("used_today") ?: 0))
+                if (x["per_day_video"] != null && x["per_day_video"] !is JsonNull) y = y.with("used_today_video" to (old?.int("used_today_video") ?: 0))
+                y
+            }
+            return saveSub(s.with("seats" to ja(seats), "version" to s.int("version") + 1))
+        }
+        // ---- §21.13 creatives
+        if (path == "/creatives" && method == "POST") {
+            replies[idempotency.orEmpty()]?.let { return it }
+            val company = b.str("company")
+            val brief = b.str("brief_md")?.trim().orEmpty()
+            val placement = b.str("placement").orEmpty()
+            val video = b.str("kind") == "video"
+            if (company == null || brief.isEmpty()) return bad("شرکت و brief لازم است.")
+            val aspect = DemoArt.ASPECT[placement] ?: return bad("جای انتشار نامعتبر است.")
+            val duration = b.int("duration_s")
+            if (video && (duration <= 0 || duration > 10)) return Reply(422, problem16(422, "validation_failed", "ویدیو حداکثر ۱۰ ثانیه است.", jo("fields" to jo("duration_s" to "≤ 10"))))
+            val player = if (video) "gemini" else b.str("player") ?: settings18().obj("substitutes").str("creative_default_image") ?: "gpt"
+            val s = list("/substitutes").map { it.jsonObject }.firstOrNull { it.str("player") == player }
+            val seat = s?.arr("seats")?.firstOrNull { it.str("seat") == "creative" }
+            val n = (list("/creatives").mapNotNull { it.jsonObject.str("ref")?.substringAfter('-')?.toIntOrNull() }.maxOrNull() ?: 0) + 1
+            val ref = pad("CR-", n, 4)
+            val mark = DemoArt.BRAND[company]?.mark ?: company
+            var x = jo(
+                "id" to "cr$n", "ref" to ref, "company" to company, "kind" to if (video) "video" else "image", "brief_md" to brief, "placement" to placement, "aspect" to aspect,
+                "duration_s" to if (video) duration else null, "overlay" to (b["overlay"] ?: JsonNull), "composed" to null, "player" to player,
+                "model" to (s?.arr("models")?.firstOrNull()?.str("id") ?: ""), "path" to "web", "state" to "queued", "requested_by" to owner, "work_ref" to null, "errand_ref" to null,
+                "files" to ja(emptyList()), "review_md" to null, "source" to null, "ai_generated" to true,
+                "prompt_md" to "Advertising ${if (video) "teaser video, $duration s" else "image"} for $mark, aspect $aspect, in the brand palette. Brief (masked): ${brief.take(160)} No text, no letters, no logos anywhere; keep the lower third calm for an overlay.",
+                "created_at" to stamp, "updated_at" to stamp, "version" to 1,
+            )
+            when {
+                s == null || s.obj("web").str("state") != "signed_in" || seat?.get("enabled")?.jsonPrimitive?.booleanOrNull != true -> x = x.with(
+                    "state" to "failed",
+                    "review_md" to "ساخته نشد: پروفایل وب ${if (player == "gemini") "gemini-web" else "chatgpt-web"} وارد نیست یا جایگاه creative خاموش است؛ هیچ جابه‌جایی پنهانی به بازیکن دیگر نیست.",
+                )
+                !video && seat.int("used_today") >= seat.int("per_day") -> return Reply(429, problem16(429, "rate_limited", "سقف روزانه‌ی عکس این بازیکن پر شده.", jo("retry_after" to 3600)), mapOf("Retry-After" to "3600"))
+                else -> {
+                    creativeAt[ref] = System.currentTimeMillis()
+                    creativeReady[ref] = System.currentTimeMillis() + 6_000
+                    if (!video) store["/substitutes"] = 200 to ja(list("/substitutes").map { e ->
+                        val y = e.jsonObject
+                        if (y.str("player") != player) y else y.with("seats" to ja(y.arr("seats").map { z -> if (z.str("seat") == "creative") z.with("used_today" to z.int("used_today") + 1) else z }))
+                    })
+                }
+            }
+            prepend("/creatives", x)
+            return keyed(Reply(201, x))
+        }
+        Regex("^/creatives/(CR-\\d+)/(accept|reject)$").find(path)?.let { m ->
+            val x = list("/creatives").map { it.jsonObject }.firstOrNull { it.str("ref") == m.groupValues[1] } ?: return gone18("این درخواست پیدا نشد.")
+            if (x.str("state") != "review") return Reply(409, problem16(409, "validation_failed", "فقط نتیجه‌ی در بازبینی پذیرفته یا رد میشود."))
+            val note = b.str("note")?.takeIf { it.isNotBlank() }
+            return Reply(200, update("/creatives", x.str("ref")!!) {
+                it.with(
+                    "state" to if (m.groupValues[2] == "accept") "accepted" else "rejected",
+                    "review_md" to if (note != null) "${it.str("review_md").orEmpty()}\n\nمالک: «$note»" else it["review_md"], "updated_at" to stamp, "version" to it.int("version") + 1,
+                )
+            }!!)
         }
         return null
     }

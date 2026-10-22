@@ -90,6 +90,8 @@ roborazzi {
 // heap runs out, so the unit tests get room for every screen, night and day.
 tasks.withType<Test>().configureEach {
     maxHeapSize = "2g"
+    // ⟨1.5⟩ with §21's screens a single JVM still ran out of heap near the end; a fresh JVM every 120 tests keeps it bounded.
+    forkEvery = 120
 }
 
 dependencies {

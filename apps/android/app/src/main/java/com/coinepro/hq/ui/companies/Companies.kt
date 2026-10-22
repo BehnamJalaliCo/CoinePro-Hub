@@ -173,6 +173,9 @@ fun CompanyScreen(code: String, tab0: String = "departments") {
         }
         when (tab) {
             "departments" -> {
+                // ⟨1.5⟩ §21.5: the departments' rank and the latest monthly HR round.
+                item { com.coinepro.hq.ui.people.DepartmentRanks(code) }
+                item { com.coinepro.hq.ui.people.HrRoundLine(code) }
                 val list = depts.data
                 if (list == null) item { Loadable(depts) { } }
                 else items(list.sortedBy { it.sort }, key = { it.code }) { d ->
@@ -295,6 +298,8 @@ fun EmployeeScreen(code: String) {
                         SectionTitle("وظیفه‌ها")
                         Md(duties.joinToString("\n") { "- $it" }, Modifier.padding(top = 6.dp))
                     }
+                    // ⟨1.5⟩ §21.5: this employee in the latest monthly HR round.
+                    com.coinepro.hq.ui.people.HrCard(e.code, e.company)
                     com.coinepro.hq.ui.academy.TrainingCard(e.code)
                     HqCard(Modifier.fillMaxWidth()) {
                         SectionTitle("اجراهای اخیر", note = "قدم‌ها، ابزارها و مصرف هر اجرا")
