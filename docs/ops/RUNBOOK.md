@@ -789,7 +789,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   فهرست ابزارهای ساخته‌شده‌ی Gateway در `hq_common.tool_status` است. تست Gateway آن را با جدول خودش یکی نگه میدارد.
 - **`files.read`** (`agents/tools.md` v2): `variant` اختیاری است: `original`، `thumb` یا `poster`.
   - عکس: نسخه‌ی `agent` آن (≤ ۱۵۶۸ پیکسل، بدون EXIF) به مدل میرسد.
-  - PDF: متنش هنگام آپلود با pypdf 6.19.0 (BSD-3) استخراج میشود؛ تا ۲۰۰ صفحه، ۲۰۰ هزار نویسه و ۳۰ ثانیه. متن در `files.processing.text` میماند و در meta ایجنت ماسک‌شده برمیگردد. PDF اسکن‌شده، رمزدار یا خراب متن ندارد و آپلودش هم شکست نمیخورد.
+  - PDF: متنش هنگام آپلود با pypdf 6.21.1 (BSD-3) استخراج میشود؛ تا ۲۰۰ صفحه، ۲۰۰ هزار نویسه و ۳۰ ثانیه. متن در `files.processing.text` میماند و در meta ایجنت ماسک‌شده برمیگردد. PDF اسکن‌شده، رمزدار یا خراب متن ندارد و آپلودش هم شکست نمیخورد.
 
 ## ۲۱. ناظر کل: پروتکل‌ها، یافته‌ها، hold و حالت نگهبان (پرامپت ۸ §۲، قرارداد §۱۸.۱)
 - **پروتکل‌ها:** ۵۲ پروتکل در ۱۱ حوزه از `agents/protocols/oversight.yaml` seed میشوند. seed فقط ref تازه را اضافه میکند و نسخه‌های بعدی را هرگز بازنویسی نمیکند؛ هم مرحله‌ی seed این کار را میکند و هم worker در `reconcile_schedules` (چون api-migrate پوشه‌ی agents را ندارد).
