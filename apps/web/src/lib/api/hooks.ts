@@ -43,7 +43,8 @@ export function useDecide() {
       if (v.verdict === 'reject') return ok(api.POST('/api/v1/decisions/{ref}/reject', { params: { path }, body: { reason: v.note ?? null, reason_code: (v.reasonCode ?? null) as never } }));
       return ok(api.POST('/api/v1/decisions/{ref}/return', { params: { path }, body: { note: v.note ?? '' } }));
     },
-    onSuccess: () => { for (const k of ['decisions', 'inbox', 'away', 'resolutions']) void qc.invalidateQueries({ queryKey: [k] }); },
+    // ⟨1.7⟩ 'archive': sealing an archive_schema or archive_disposal card changes the schema or the records (§23.11).
+    onSuccess: () => { for (const k of ['decisions', 'inbox', 'away', 'resolutions', 'archive']) void qc.invalidateQueries({ queryKey: [k] }); },
   });
 }
 export function useAskAboutDecision() {

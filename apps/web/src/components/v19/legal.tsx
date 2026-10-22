@@ -18,6 +18,7 @@ import { companyOf } from '@/lib/company';
 import { ACTOR_FA } from '@/lib/labels';
 import { useNow } from '@/lib/store';
 import { ago, cx, jDateTime, until } from '@/lib/format';
+import { CaseHolds } from '@/components/v20/holds';
 import { Block, CASE_KIND, CASE_STATUS, FileChip, TIMELINE } from './bits';
 
 const field = 'h-10 w-full rounded-[10px] border border-strong bg-card px-3 text-[14px] text-ink outline-none focus:border-gold-ink';
@@ -177,6 +178,8 @@ export function CaseDetail({ refId }: { refId: string }) {
         </ol>
       </Block>
       {thread.length ? <Block title="رشته‌ی ایمیل"><ul className="flex flex-col gap-2">{thread.map((e) => <EmailItem key={e.id} e={e} />)}</ul></Block> : null}
+      {/* ⟨1.7⟩ §23.5: the case's legal holds in the archive; a new one is placed tied to this case. */}
+      <CaseHolds caseRef={c.ref} />
       <div className="flex flex-wrap items-center gap-2 border-t border-div pt-3">
         <Link href="/messages?thread=L" className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-strong px-4 text-[13px] font-semibold text-ink hover:bg-hover"><Icon name="messages" size={18} />در رشته‌ی L بپرس</Link>
         <span className="flex-1" />

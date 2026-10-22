@@ -113,6 +113,14 @@ export function refHref(ref: string): string | null {
   if (/^MI-\d+$/.test(ref)) return `/media?item=${ref}`;
   if (/^LC-\d+$/.test(ref)) return `/legal?case=${ref}`;
   if (/^L-\d+$/.test(ref)) return '/messages?thread=L';
+  // ⟨1.7⟩ §23: a record, a hold, a party (its records), a folder (its records), and the open layer's rows (their editor).
+  if (/^AR-\d+$/.test(ref)) return `/archive/${ref}`;
+  if (/^LH-\d+$/.test(ref)) return `/archive/holds?ref=${ref}`;
+  if (/^PT-\d+$/.test(ref)) return `/archive?party=${ref}`;
+  if (/^FP-\d+$/.test(ref)) return `/archive?folder=${ref}`;
+  if (/^RR-\d+$/.test(ref)) return `/archive/settings?tab=retention&ref=${ref}`;
+  if (/^RM-\d+$/.test(ref)) return `/archive/settings?tab=reminders&ref=${ref}`;
+  if (/^AU-\d+$/.test(ref)) return `/archive/settings?tab=automations&ref=${ref}`;
   return null;
 }
 

@@ -2535,7 +2535,7 @@ Record       { …§23.1, doc_date|null,                     // what from/to fil
                tombstone: {decision, at, hashes}|null }    // after disposal
 Version      { …§23.1, state: "current"|"superseded" }
 Link         { kind, to_kind, to_ref, title_fa, at, by, sealed, inverse }          // a sealed link is never removed
-AccessRow    { at, actor, action: "view"|"download"|"metadata", file_id, version, step_up, watermarked }
+AccessRow    { at, actor, action: "view"|"download"|"metadata"|"level", file_id, version, step_up, watermarked, level_from?, level_to? }   // "level": a raise or declassification
 DueReminder  { id, record, title_fa, scope, class, field, at, lead_days, days_left, state, rule, to, channel }
 RetentionDue { ref, title_fa, scope, class, rule, trigger_at, due_at, then, holds, decision_ref|null }
 Fixity       { at, checked, failed: [ref], next_at }

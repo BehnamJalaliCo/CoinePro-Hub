@@ -109,6 +109,8 @@ export type ArchiveRecord = {
   // this reader; a draft's suggestion (rules, or the archivist while the kill switch is released), never filed by itself
   doc_date?: string | null; masked?: string[];
   suggestion?: { class: string | null; title_fa: string | null; metadata: Record<string, unknown>; parties: string[]; by: 'rules' | 'archivist'; note_fa: string | null } | null;
+  /** §23.12: after disposal. Assumed `hashes`: one {name, sha256} per destroyed file. */
+  tombstone?: { decision: string; at: string; hashes: Array<{ name: string; sha256: string }> } | null;
 };
 /** Metadata values by field type (assumed): money {amount: decimal string, currency}; date "YYYY-MM-DD"; date_range {from, to}; enum key;
  *  multi_enum [key]; party "PT-…"; company code; ref {kind, ref}; the rest strings, numbers or booleans. */
@@ -117,14 +119,19 @@ export type RecordIn = {
   scope: string; class: string; title_fa: string; metadata: Record<string, unknown>; level?: string; folder?: string | null; file_ids: string[];
   parties?: Array<{ party: string; role_fa: string }>; links?: Array<{ kind: string; to: LinkTarget }>; file: boolean;
 };
-export type RecordPatch = Partial<Pick<ArchiveRecord, 'title_fa' | 'metadata' | 'folder' | 'parties' | 'level'>>;
+/** Assumed: a draft also takes `class` (an imported draft has none until someone classifies it); a filed record's class never changes. */
+export type RecordPatch = Partial<Pick<ArchiveRecord, 'title_fa' | 'metadata' | 'folder' | 'parties' | 'level' | 'class'>>;
 export type RecordFilters = {
   scope?: string | null; class?: string | null; folder?: string | null; level?: string | null; state?: RecordState | null; party?: string | null;
   q?: string | null; from?: string | null; to?: string | null; expiring_within_days?: number | null; held?: boolean | null;
 };
 export type SearchHit = { ref: string; title_fa: string; class: string | null; snippet_fa: string; score: number };
-/** Assumed row of GET …/access (owner only). */
-export type AccessRow = { at: string; actor: Actor; action: 'view' | 'download' | 'metadata'; file_id: string | null; version: number | null; step_up: boolean; watermarked: boolean };
+/** Assumed row of GET …/access (owner only). A level change (§23.1: raise, or declassify with step-up, sealed records too) is a row
+ *  with action `level` and the two level keys. */
+export type AccessRow = {
+  at: string; actor: Actor; action: 'view' | 'download' | 'metadata' | 'level'; file_id: string | null; version: number | null; step_up: boolean; watermarked: boolean;
+  level_from?: string | null; level_to?: string | null;
+};
 /** Assumed answer of POST /archive/intake: the secret scan, hashes and text of files just uploaded (§17.1), and the rule-based suggestion. */
 export type Intake = { files: RecordFile[]; suggestion: ArchiveRecord['suggestion'] };
 
@@ -217,7 +224,8 @@ export function useRecordAction() {
     create: useMutation({ mutationFn: (v: { body: RecordIn; key: string }) => call<ArchiveRecord>('POST', '/archive/records', v.body, { 'Idempotency-Key': v.key }), onSuccess: done }),
     /** `If-Match`; a sealed record answers 409 sealed_record, a held one 423 held. The level only goes up here. */
     patch: useMutation({ mutationFn: (v: { r: ArchiveRecord; body: RecordPatch }) => call<ArchiveRecord>('PATCH', `/archive/records/${enc(v.r.ref)}`, v.body, { 'If-Match': `"${v.r.version}"` }), onSuccess: done }),
-    /** Lowering the level is the owner's alone: 🔏 `archive.declassify`, target `ref@version:level` (assumed on the same PATCH). */
+    /** Lowering the level is the owner's alone: 🔏 `archive.declassify`, target `ref@version:level`, on the same PATCH with `level` as its
+     *  only field. A sealed record takes it too (§23.1: the level is outside the sealed manifest). */
     declassify: useMutation({
       mutationFn: async (v: { r: ArchiveRecord; level: string }) =>
         call<ArchiveRecord>('PATCH', `/archive/records/${enc(v.r.ref)}`, { level: v.level }, { 'If-Match': `"${v.r.version}"`, 'X-Step-Up': await stepUp('archive.declassify', `${v.r.ref}@${v.r.version}:${v.level}`) }),

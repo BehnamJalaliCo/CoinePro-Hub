@@ -432,7 +432,8 @@ export async function handle(req: Request): Promise<Response> {
       // ⟨1.5⟩ §21.1: the devil's advocate lives in thread A only.
       if (body.mode && (t[1] !== 'A' || body.mode !== 'devil')) return json({ code: 'validation_failed', message_fa: 'حالت مخالف‌خوان فقط در رشته‌ی مشاور کل است.', status: 422, title: 'Unprocessable', type: 'about:blank', fields: { mode: 'thread A only' } }, 422);
       const list = (messages[t[1]!] ??= []);
-      const attachments = (body.attachments ?? []).map((id) => files.get(id) ?? ref(id, 'document', 'application/octet-stream', 'file', 0));
+      // The upload's bytes stay in the file map (the archive reads them); a message carries only the reference.
+      const attachments = (body.attachments ?? []).map((id) => { const { blob: _bytes, ...f } = files.get(id) ?? ref(id, 'document', 'application/octet-stream', 'file', 0); return f; });
       const kind = body.body && attachments.some((a) => a.kind === 'audio') ? 'voice_transcript' : 'text';
       const msg = { id: `m${Date.now()}`, ref: `${t[1]}-${String(list.length + 1).padStart(4, '0')}`, thread: t[1], author: owner, body: body.body, created_at: new Date().toISOString(), kind, attachments, links: {}, ...(body.mode ? { meta: { mode: body.mode } } : {}) };
       list.push(msg);

@@ -66,7 +66,7 @@ const levels: any[] = [
   { key: 'public', title_fa: 'عمومی', rank: 0, color_index: 0, watermark: false, encrypt: false, step_up_to_view: false, agents_max: false },
   { key: 'internal', title_fa: 'داخلی', rank: 10, color_index: 1, watermark: false, encrypt: false, step_up_to_view: false, agents_max: false },
   { key: 'confidential', title_fa: 'محرمانه', rank: 20, color_index: 2, watermark: true, encrypt: false, step_up_to_view: false, agents_max: true },
-  { key: 'secret', title_fa: 'سرّی', rank: 30, color_index: 3, watermark: true, encrypt: true, step_up_to_view: true, agents_max: false },
+  { key: 'secret', title_fa: 'سری', rank: 30, color_index: 3, watermark: true, encrypt: true, step_up_to_view: true, agents_max: false },
 ].map((l) => ({ ...l, version: 1, status: 'active' }));
 const rankOf = (key: string | null | undefined) => levels.find((l) => l.key === key)?.rank ?? 0;
 const agentsMax = () => Math.max(...levels.filter((l) => l.agents_max && l.status === 'active').map((l) => l.rank), 0);
@@ -200,7 +200,7 @@ const sources: any[] = [
 ].map(([key, title_fa, cls, enabled, filed, last_at]) => ({ key, title_fa, class: cls, enabled, filed, last_at, note_fa: key === 'server_plan_sealed' ? 'خاموش به خواست مالک؛ طرح سرور در صفحه‌ی تأسیس میماند.' : null }));
 
 // ============================================================ files (§23.1) ==
-type StoredFile = { file_id: string; name: string; mime: string; url: string; size_bytes: number; sha256: string; pages: number | null; text_state: string; ocr_confidence: number | null; text: string; destroyed?: boolean };
+type StoredFile = { file_id: string; name: string; mime: string; url: string; size_bytes: number; sha256: string; pages: number | null; text_state: string; ocr_confidence: number | null; text: string; destroyed?: boolean; blob?: Blob };
 const store = new Map<string, StoredFile>();
 const demo = (name: string, text: string, o: Partial<StoredFile> = {}) => {
   const f: StoredFile = { file_id: `arf-${name.replace(/\.[a-z]+$/, '')}`, name, mime: name.endsWith('.webp') ? 'image/webp' : 'application/pdf', url: `/demo/archive/${name}`, size_bytes: 0, sha256: '', pages: name.endsWith('.pdf') ? 1 : null, text_state: 'text_layer', ocr_confidence: null, text, ...o };
@@ -465,7 +465,8 @@ async function intake(id: string): Promise<StoredFile | { secret: string; name: 
   if (known) return known;
   const meta = ctx?.files.get(id) ?? {};
   let buf = new ArrayBuffer(0);
-  try { buf = await (await fetch(id)).arrayBuffer(); } catch { /* not readable: an empty demo file */ }
+  // The upload's own bytes (registered with it); a blob: URL cannot be fetched under the page's connect-src.
+  try { buf = meta.blob instanceof Blob ? await meta.blob.arrayBuffer() : await (await fetch(id)).arrayBuffer(); } catch { /* not readable: an empty demo file */ }
   const name = String(meta.name ?? 'file');
   const mime = String(meta.mime || 'application/octet-stream');
   const raw = new TextDecoder('utf-8', { fatal: false }).decode(buf.slice(0, 200_000));
@@ -475,7 +476,7 @@ async function intake(id: string): Promise<StoredFile | { secret: string; name: 
   const textLayer = pdf ? /\/Font\b/.test(raw) : mime.startsWith('text/');
   const text = mime.startsWith('text/') ? raw.slice(0, 4000) : pdf ? (raw.match(/\(([^)]{3,})\)\s*Tj/g) ?? []).map((m) => m.replace(/^\(|\)\s*Tj$/g, '')).join(' ') : '';
   const f: StoredFile = {
-    file_id: id, name, mime, url: id, size_bytes: buf.byteLength || Number(meta.size ?? 0), sha256: await sha256(buf), pages: pdf ? Math.max(1, (raw.match(/\/Type\s*\/Page\b/g) ?? []).length) : null,
+    file_id: id, name, mime, url: id, blob: meta.blob instanceof Blob ? meta.blob : undefined, size_bytes: buf.byteLength || Number(meta.size ?? 0), sha256: await sha256(buf), pages: pdf ? Math.max(1, (raw.match(/\/Type\s*\/Page\b/g) ?? []).length) : null,
     text_state: textLayer ? 'text_layer' : mime.startsWith('image/') || pdf ? 'ocr' : 'none', ocr_confidence: !textLayer && (mime.startsWith('image/') || pdf) ? 0.84 : null, text,
   };
   store.set(id, f);
@@ -847,7 +848,7 @@ export async function handle20(req: Request, p: string, u: URL): Promise<Respons
       const f = store.get(id)!;
       if (f.destroyed) return problem(404, 'not_found', 'این فایل با کارت امحا نابود شده؛ فقط سنگ‌نشانش مانده.');
       (r.access ??= []).unshift({ at: stamp(), actor: owner, action: 'view', file_id: id, version: r.versions.find((v: any) => v.files.includes(id))?.n ?? null, step_up: !!lvl?.step_up_to_view, watermarked: !!lvl?.watermark });
-      const blob = await (await fetch(f.url.startsWith('blob:') ? f.url : new URL(f.url, window.location.origin))).blob();
+      const blob = f.blob ?? await (await fetch(new URL(f.url, window.location.origin))).blob();
       return new Response(blob, { status: 200, headers: { 'content-type': f.mime } });
     }
     const ra = /^\/archive\/records\/(AR-\d+)\/access$/.exec(p);
@@ -964,8 +965,17 @@ export async function handle20(req: Request, p: string, u: URL): Promise<Respons
       const vc = versionCheck(req, r.version);
       if (vc) return vc;
       if (held.length) return problem(423, 'held', `توقیف ${held.join('، ')}: جز نسخه‌ی تازه هیچ تغییری پذیرفته نمیشود.`);
-      if (r.state === 'sealed') return problem(409, 'sealed_record', 'این سند مُهر خورده؛ اصلاح یعنی نسخه‌ی تازه.');
       const b = await body<any>();
+      // §23.1 (owner's decision, 2026-10-22): the level is access metadata outside the sealed manifest, so a sealed record takes a PATCH
+      // whose only field is `level` (raised as on any record, lowered with archive.declassify); any other field answers sealed_record.
+      if (r.state === 'sealed' && Object.keys(b).some((k) => k !== 'level')) return problem(409, 'sealed_record', 'این سند مُهر خورده؛ اصلاح یعنی نسخه‌ی تازه. فقط سطحش عوض میشود.');
+      // Assumed (§23.12): a draft takes `class` too, so an imported draft can be classified; a filed record's class never changes.
+      let cls = classOf(r.class);
+      if (b.class !== undefined && b.class !== r.class) {
+        if (r.state !== 'draft') return problem(409, 'validation_failed', 'نوع سند ثبت‌شده عوض نمیشود؛ سند تازه بساز و این را با «جایگزین میکند» پیوند بده.', { fields: { class: 'filed' } });
+        cls = classOf(b.class);
+        if (!cls || cls.status !== 'active' || (cls.scopes !== 'all' && !cls.scopes.includes(r.scope))) return problem(422, 'validation_failed', 'نوع سند پیدا نشد یا بازنشسته است.', { fields: { class: 'unknown' } });
+      }
       if (b.level && rankOf(b.level) < rankOf(r.level)) {
         // Declassification: the owner's alone, with a passkey bound to ref@version:level.
         const deny = needsStepUp(req);
@@ -974,9 +984,12 @@ export async function handle20(req: Request, p: string, u: URL): Promise<Respons
       if (b.level && !levels.some((l) => l.key === b.level)) return problem(422, 'validation_failed', 'سطح نامعتبر است.', { fields: { level: 'unknown' } });
       if (b.folder && !folders.some((f) => f.ref === b.folder && f.scope === r.scope)) return problem(422, 'validation_failed', 'پوشه باید در همین دامنه باشد.', { fields: { folder: 'scope' } });
       if (b.metadata) {
-        const c = classOf(r.class);
+        const c = cls;
         if (c) { const md = cleanMeta(b.metadata); const bad = metadataProblems(c, md, r.state !== 'draft', scopesNow()); if (Object.keys(bad).length) return problem(422, 'validation_failed', Object.values(bad)[0]!, { fields: bad }); b.metadata = md; }
       }
+      if (cls && cls.key !== r.class) Object.assign(r, { class: cls.key, class_version: cls.version });
+      // A level change is a row of the record's access log (assumed: action `level`, with `level_from` and `level_to`).
+      if (b.level && b.level !== r.level) (r.access ??= []).unshift({ at: stamp(), actor: owner, action: 'level', file_id: null, version: r.current_version, step_up: rankOf(b.level) < rankOf(r.level), watermarked: false, level_from: r.level, level_to: b.level });
       for (const k of ['title_fa', 'metadata', 'folder', 'parties', 'level']) if (b[k] !== undefined) r[k] = b[k];
       r.version += 1;
       return json(recordOut(r));

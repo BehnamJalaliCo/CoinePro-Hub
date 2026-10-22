@@ -16,6 +16,11 @@ const PAGES = [
   '/media', '/media?item=MI-0013', '/media?item=MI-0024', '/media/series', '/media/series?ref=SR-0002', '/media/voice', '/legal', '/legal?case=LC-0001',
   '/cartable?ref=D-000085', '/cartable?ref=D-000087', '/cartable?ref=D-000081', '/companies/FX?dept=MEDIA', '/companies/FX?role=RD-0001', '/companies/HQ?dept=LEGAL',
   '/messages?thread=L',
+  // ⟨1.7⟩ the archive (§23)
+  '/archive', '/archive?party=PT-0002', '/archive?q=%D9%87%D8%AA%D8%B2%D9%86%D8%B1', '/archive?folder=FP-0005&level=internal', '/archive/AR-000110', '/archive/AR-000170',
+  '/archive/AR-000180', '/archive/AR-000150', '/archive/holds', '/archive/holds?ref=LH-0002', '/archive/reminders', '/archive/retention', '/archive/settings',
+  '/archive/settings?tab=classes&ref=invoice', '/archive/settings?tab=clearance', '/archive/settings?tab=automations&ref=AU-0002', '/archive/settings?tab=levels',
+  '/archive/settings?tab=parties', '/archive/settings?tab=sources', '/cartable?ref=D-000092', '/cartable?ref=D-000093',
 ];
 
 /** Fails the test on any page error, console error or failed API call while [run] is going on. */
@@ -192,5 +197,86 @@ test('asks a department for a role written on demand', async ({ page }) => {
     await page.getByLabel('شرح نقش تازه').fill('یه زیرنویس‌نویس عربی برای ریلزها میخوام');
     await page.getByRole('button', { name: 'بفرست به مدیر دپارتمان' }).click();
     await expect(page.getByText(/خواسته رسید \(RD-\d+\)/)).toBeVisible();
+  });
+});
+
+/** A one-page PDF with a text layer, as a scanner or an accounting export would give it. */
+const pdf = (text: string) => Buffer.from(`%PDF-1.4\n1 0 obj << /Type /Page /Resources << /Font << /F1 2 0 R >> >> >> endobj\nBT /F1 11 Tf (${text}) Tj ET\n%%EOF\n`);
+
+test('takes in files, refuses the one with a secret, makes a draft and files it', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/archive');
+    await page.getByRole('button', { name: 'سند تازه' }).click();
+    const sheet = page.getByRole('dialog');
+    await sheet.getByRole('button', { name: 'هلدینگ کوینه‌پرو' }).click();
+    await sheet.getByLabel('انتخاب فایل برای بایگانی').setInputFiles([
+      { name: 'wallet-notes.txt', mimeType: 'text/plain', buffer: Buffer.from('backup seed phrase: twelve words') },
+      { name: 'hetzner-R2026-11.pdf', mimeType: 'application/pdf', buffer: pdf('INVOICE Hetzner Online GmbH invoice number R0026116001 invoice date 2026-11-01 total EUR 38.10') },
+    ]);
+    // Named, never quoted: the refusal says which file, not what it held.
+    await expect(sheet.getByRole('alert').filter({ hasText: 'رد شد: الگوی رمز' })).toBeVisible();
+    await expect(sheet.getByText('twelve words')).toHaveCount(0);
+    await expect(sheet.getByText('پیشنهاد قاعده‌ها')).toBeVisible();
+    await expect(sheet.getByLabel('نوع سند')).toHaveValue('invoice');
+    await sheet.getByRole('button', { name: 'پیش‌نویس بساز' }).click();
+    await expect(page.getByText(/پیش‌نویس AR-\d+ ساخته شد/)).toBeVisible();
+    await expect(page.getByText('پیش‌نویس، منتظر ثبت')).toBeVisible();
+    await page.getByLabel('شماره‌ی فاکتور').fill('R0026116001');
+    await page.getByLabel('مبلغ', { exact: true }).fill('38.10');
+    await page.getByRole('button', { name: 'ثبت کن' }).click();
+    await expect(page.getByText(/سند AR-\d+ ثبت شد/)).toBeVisible();
+    await expect(page.getByText('مُهر روی manifest نسخه‌ی 1 است', { exact: false })).toBeVisible();
+  });
+});
+
+test('seals a filed record on its manifest with the passkey', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/archive/AR-000121');
+    await holdSeal(page, page.locator('#seal'));
+    await expect(page.getByText(/سند AR-000121 مُهر شد/)).toBeVisible();
+    await expect(page.locator('#seal').getByText(/مُهر خورد،/)).toBeVisible();
+  });
+});
+
+test('declassifies a sealed record with the passkey; the seal stays and the access log shows it', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/archive/AR-000180');
+    await expect(page.getByText('مُهرشده؛ اصلاح یعنی نسخه‌ی تازه')).toBeVisible();
+    await page.locator('#seal').getByRole('button', { name: 'پایین به محرمانه' }).click();
+    await expect(page.getByRole('dialog').getByText('AR-000180@1:confidential')).toBeVisible();
+    await page.getByRole('dialog').getByRole('button', { name: 'با passkey پایین بیاور' }).click();
+    await expect(page.getByText('سطح سند «محرمانه» شد.')).toBeVisible();
+    await expect(page.locator('#seal').getByText(/مُهر خورد،/)).toBeVisible();
+    await expect(page.locator('#access').getByText('سطح را عوض کرد')).toBeVisible();
+    await expect(page.getByText('مُهرشده؛ اصلاح یعنی نسخه‌ی تازه')).toBeVisible();
+  });
+});
+
+test('shows a schema change\'s impact before the passkey, then saves it', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/archive/settings?tab=classes&ref=invoice');
+    const sheet = page.getByRole('dialog');
+    await sheet.getByRole('button', { name: 'فیلد تازه' }).click();
+    await sheet.getByLabel('فیلد 8: عنوان').fill('شناسه‌ی مالیاتی فروشنده');
+    await sheet.getByLabel('فیلد 8: کلید').fill('vendor_vat_id');
+    await sheet.getByLabel('فیلد 8: نوع').selectOption('id_code');
+    await sheet.getByRole('switch', { name: 'فیلد 8: لازم' }).click();
+    await expect(sheet.getByRole('button', { name: 'ذخیره با passkey' })).toHaveCount(0);
+    await sheet.getByRole('button', { name: 'بررسی اثر' }).click();
+    await expect(sheet.getByText(/6 سند از این استفاده میکند/)).toBeVisible();
+    await expect(sheet.getByText(/6 سند فیلد اجباری را ندارد/)).toBeVisible();
+    await sheet.getByRole('button', { name: 'ذخیره با passkey' }).click();
+    await expect(page.getByText(/ذخیره شد؛ نسخه‌ی 2/)).toBeVisible();
+  });
+});
+
+test('shows a refused schema change next to its input', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/archive/settings?tab=levels&ref=public');
+    const sheet = page.getByRole('dialog');
+    await sheet.getByLabel('رتبه').fill('10');
+    await sheet.getByRole('button', { name: 'بررسی اثر' }).click();
+    await expect(sheet.getByText(/رتبه‌ی تکراری/).first()).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'ذخیره با passkey' })).toHaveCount(0);
   });
 });

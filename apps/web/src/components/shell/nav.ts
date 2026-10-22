@@ -31,6 +31,15 @@ export const NAV_MEDIA: NavItem[] = [
   { href: '/legal', label: 'مشاور حقوقی', icon: 'decision' },
 ];
 
+// ⟨1.7⟩ the archive of record (§23): search and intake, legal holds, reminders, the end of retention, and the open layer.
+export const NAV_ARCHIVE: NavItem[] = [
+  { href: '/archive', label: 'بایگانی', icon: 'deliverable', exact: true },
+  { href: '/archive/holds', label: 'توقیف‌ها', icon: 'lock' },
+  { href: '/archive/reminders', label: 'یادآورها', icon: 'time' },
+  { href: '/archive/retention', label: 'پایان نگهداری', icon: 'memory' },
+  { href: '/archive/settings', label: 'طرح بایگانی', icon: 'settings' },
+];
+
 // ⟨1.5⟩ governance (§20): the meeting room, the charter, knowledge, the cards, OKRs, outcomes, risks, the change calendar and authority.
 export const NAV_GOVERNANCE: NavItem[] = [
   { href: '/meetings', label: 'اتاق جلسه', icon: 'meeting' },

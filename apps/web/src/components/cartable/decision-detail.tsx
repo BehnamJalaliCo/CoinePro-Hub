@@ -21,8 +21,10 @@ import { AUTO_SEND, CHANNEL_FA, PURPOSE_FA, triggerFa } from '@/components/v16/b
 import { DecisionOutcomes, ExpectedBlock, GovernancePayload } from '@/components/v17/cartable';
 import { DeployPayloadBlock, EvaluationBlock, MemoBlock, PredictionLine, WaitingLine } from '@/components/v18/decision';
 import { MediaDecisionPayload } from '@/components/v19/decision';
+import { ArchiveDecisionPayload, SchemaSealGate } from '@/components/v20/decision';
 import type { Decision18 } from '@/lib/api/v18';
 import { MEDIA_KINDS, sealTarget } from '@/lib/api/v19';
+import { ARCHIVE_KINDS } from '@/lib/api/v20';
 import { ACTOR_FA, DECISION_KIND, DECISION_STATUS, RISK } from '@/lib/labels';
 import { ago, cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
 
@@ -179,6 +181,8 @@ function Payload({ d }: { d: Decision }) {
   }
   // ⟨1.6⟩ the media studio and the legal counsel (§22.6)
   if ((MEDIA_KINDS as readonly string[]).includes(d.kind)) return <MediaDecisionPayload d={d} />;
+  // ⟨1.7⟩ the archive (§23.11): a schema change read against the current row, and the week's disposal batch
+  if ((ARCHIVE_KINDS as readonly string[]).includes(d.kind)) return <ArchiveDecisionPayload d={d} />;
   // ⟨1.5⟩ the governance kinds (§20.11)
   return <GovernancePayload d={d} />;
 }
@@ -266,6 +270,9 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
         <div className="flex flex-col items-center gap-4 rounded-[18px] bg-card p-5">
           {OWN_ROUTE[d.kind] ? (
             <Button variant="primary" icon="seal" onClick={() => router.push(OWN_ROUTE[d.kind]!.href(d))}>{OWN_ROUTE[d.kind]!.fa}</Button>
+          ) : d.kind === 'archive_schema' ? (
+            // ⟨1.7⟩ §23.12: a card written against a schema row that has changed since is void.
+            <SchemaSealGate d={d}><SealButton code={d.company} nameFa={co.nameFa} nameEn={co.nameEn} holding={co.holding} busy={busy} onSealed={seal} /></SchemaSealGate>
           ) : (
             <SealButton code={d.company} nameFa={co.nameFa} nameEn={co.nameEn} holding={co.holding} busy={busy} onSealed={seal} />
           )}
