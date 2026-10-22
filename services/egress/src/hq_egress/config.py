@@ -87,4 +87,13 @@ class Settings:
     call_deadline_s: float = field(
         default_factory=lambda: float(os.environ.get("EGRESS_CALL_DEADLINE_S", "20"))
     )
+    # Connectors of code (prompt 10 §2.3): LBank's keyless market API (the
+    # day's closing prices); the affiliate API's host is the account's site.
+    lbank_public_url: str = field(
+        default_factory=lambda: os.environ.get("EGRESS_LBANK_PUBLIC_URL", "https://api.lbkex.com")
+    )
+    # How long a connector call may wait for its exchange's rate limit.
+    connector_wait_s: float = field(
+        default_factory=lambda: float(os.environ.get("EGRESS_CONNECTOR_WAIT_S", "8"))
+    )
     log_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL", "info"))

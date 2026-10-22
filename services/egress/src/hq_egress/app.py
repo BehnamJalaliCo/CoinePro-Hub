@@ -6,6 +6,9 @@ hq-egress-api; a client from anywhere else is refused).
     POST /v1/http          http.request: one request to an external API
     POST /v1/browse        web.browse: steps in a fresh browser session
     POST /v1/proxy/drain   the entries of one tool call's proxied connections
+    POST /v1/connectors/call  one call of a connector of code (prompt 10 §2.3):
+                           a fixed endpoint of an exchange, signed by a
+                           reviewed signer, its answer reduced in egress
     GET  /v1/health
 
 Every answer is {outcome: ok | blocked | error, code, data, entries}: the
@@ -14,6 +17,8 @@ through the gateway. Web content is untrusted: `source: "web"`,
 `untrusted: true`, the final URL, the time, and `suspected_injection`. A
 service account's secret is scrubbed from a text before it is cut (7.1); a
 GET that commits (rules.get_commitment) is `needs_owner` like any other.
+An account with a signer (prompt 10 §2.2) is refused by every tool but a
+connector (`policy_denied`).
 """
 
 from __future__ import annotations
@@ -30,7 +35,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Literal
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 import httpx
 from fastapi import FastAPI, Request
@@ -40,6 +45,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from hq_common import untrusted
 from hq_egress import __version__
+from hq_egress import connectors as K
 from hq_egress import extract as X
 from hq_egress.accounts import Account, margin, scrub, scrub_cut
 from hq_egress.config import Settings
@@ -47,6 +53,7 @@ from hq_egress.guard import Blocked, Guard
 from hq_egress.net import CALL_ENTRIES, Entry, Fetcher, FetchError, track
 from hq_egress.proxy import Buckets, entries_json
 from hq_egress.rules import get_commitment
+from hq_egress.signers import SIGNERS, SignerError
 
 log = logging.getLogger("hq_egress")
 TEXT_TYPES = ("text/", "application/json", "application/xml", "application/javascript")
@@ -64,6 +71,7 @@ KEEP_HEADERS = (
     "x-ratelimit-reset",
 )
 CLASS = Literal["A0", "A1", "A2"]
+CONNECTOR_BYTES = 2 * 1024 * 1024  # one exchange answer (a page of 100 rows is ~20 KB)
 
 
 class Ctx(BaseModel):
@@ -124,6 +132,24 @@ class BrowseIn(BaseModel):
     time_s: float = Field(default=20, gt=0, le=120)
 
 
+Scalar = str | int
+
+
+class ConnectorIn(BaseModel):
+    """One call of a connector (prompt 10 §2.3): `params` go to the exchange
+    (each endpoint's list only), `local` stays here (the company's minimum
+    balance, for meets_minimum)."""
+
+    model_config = ConfigDict(extra="forbid")
+    ctx: Ctx
+    adapter: str = Field(pattern=r"^[a-z][a-z0-9-]{1,40}$")
+    tool: Literal["revenue.pull", "referral.check"]
+    endpoint: str = Field(pattern=r"^[a-z][a-z/._-]{1,60}$")
+    params: dict[str, Scalar] = Field(default_factory=dict, max_length=20)
+    local: dict[str, Scalar | float | None] = Field(default_factory=dict, max_length=10)
+    account: Account | None = None
+
+
 class DrainIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     call_id: str = Field(min_length=8, max_length=64)
@@ -143,6 +169,7 @@ class State:
         self.guard = guard
         self.buckets = buckets
         self.fetcher = fetcher or Fetcher(guard, settings.fetch_timeout_s)
+        self.rates = K.Buckets()  # the connectors' rate limits, per account
         # The hub's own upstreams (SearXNG, the browser): fixed addresses, not agent input.
         self.internal = internal or httpx.AsyncClient(
             timeout=settings.browse_call_s + 15, trust_env=False
@@ -280,6 +307,8 @@ def build_app(state: State) -> FastAPI:
     @app.post("/v1/read")
     @guarded
     async def read(a: ReadIn) -> JSONResponse:
+        if a.account is not None and a.account.is_signer:
+            return _signer_refused("web.read", "GET", a.url, a.ctx.cls, a.account)
         secrets = _secrets(a)
         try:
             got = await state.fetcher.fetch(
@@ -329,6 +358,8 @@ def build_app(state: State) -> FastAPI:
     @app.post("/v1/http")
     @guarded
     async def http_request(a: HttpIn) -> JSONResponse:
+        if a.account is not None and a.account.is_signer:
+            return _signer_refused("http.request", a.method, a.url, a.ctx.cls, a.account)
         secrets = _secrets(a)
         headers = dict(a.headers)
         content: bytes | None = None
@@ -374,6 +405,9 @@ def build_app(state: State) -> FastAPI:
     @app.post("/v1/browse")
     @guarded
     async def browse(a: BrowseIn) -> JSONResponse:
+        if a.account is not None and a.account.is_signer:
+            first = next((s.url for s in a.steps if s.url), None) or "about:blank"
+            return _signer_refused("web.browse", "BROWSE", first, a.ctx.cls, a.account)
         ports = a.account.ports_for if a.account else None
         for i, s in enumerate(a.steps):
             if s.url:
@@ -452,6 +486,11 @@ def build_app(state: State) -> FastAPI:
             return answer("blocked", data, entries, "needs_owner", secrets, files)
         return answer("ok", data, entries, None, secrets, files)
 
+    @app.post("/v1/connectors/call")
+    @guarded
+    async def connector(a: ConnectorIn) -> JSONResponse:
+        return await _connector(state, a)
+
     @app.post("/v1/proxy/drain")
     async def drain(a: DrainIn) -> JSONResponse:
         return answer("ok", {"call_id": a.call_id}, state.buckets.drain(a.call_id))
@@ -471,6 +510,84 @@ async def _browser_run(state: State, payload: dict[str, Any], timeout: float) ->
 def _secrets(a: Any) -> list[str]:
     account = getattr(a, "account", None)
     return account.secrets() if isinstance(account, Account) else []
+
+
+def _signer_refused(tool: str, method: str, url: str, cls: str, account: Account) -> JSONResponse:
+    """A signer's account outside a connector: refused, and logged as such."""
+    e = track(Entry(tool, method[:10], _host(url), cls=cls, blocked_reason="policy_denied"))
+    return answer("blocked", None, [e], "policy_denied", account.secrets())
+
+
+async def _connector(state: State, a: ConnectorIn) -> JSONResponse:
+    """One fixed endpoint of an adapter: checked, rate-limited, signed, sent,
+    and its answer reduced (connectors.py) and scrubbed of the secret."""
+    secrets = _secrets(a)
+    adapter = K.ADAPTERS.get(a.adapter)
+    ep = adapter.endpoints.get(a.endpoint) if adapter else None
+    if adapter is None or ep is None:
+        return answer("blocked", None, [], "unknown_endpoint", secrets)
+    bad = sorted(set(a.params) - ep.params) + sorted(set(a.local) - ep.local)
+    if bad:
+        return answer("error", {"fields": bad[:10]}, [], "invalid_args", secrets)
+    if ep.signed:
+        acct = a.account
+        if acct is None or not acct.is_signer or acct.inject.signer != adapter.signer:
+            return answer("blocked", None, [], "policy_denied", secrets)
+        port = f":{acct.ports[0]}" if acct.ports else ""
+        url = f"https://{acct.site.lower().rstrip('.')}{port}{ep.path}"
+        key = acct.key
+    else:
+        if a.account is not None:  # a keyless endpoint never carries a key
+            return answer("blocked", None, [], "policy_denied", secrets)
+        url = str(getattr(state.settings, adapter.public_url)).rstrip("/") + ep.path
+        key = "public"
+    wait = await state.rates.of(adapter, key).take(state.settings.connector_wait_s)
+    if wait > 0:
+        return answer("error", {"retry_after_s": max(1, int(wait + 0.999))}, [], "rate_limited")
+    headers: dict[str, str] = {"Accept": "application/json"}
+    content: bytes | None = None
+    params = {k: str(v) for k, v in a.params.items()}
+    if ep.signed:
+        assert a.account is not None and a.account.inject.signer is not None
+        try:
+            signed = SIGNERS[a.account.inject.signer](params, a.account.secret)
+        except SignerError:
+            return answer("error", None, [], "account_not_configured", secrets)
+        content = urlencode(signed.form).encode()
+        headers.update(signed.headers)
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        del signed
+    elif params:
+        url = f"{url}?{urlencode(params)}"
+    try:
+        got = await state.fetcher.fetch(
+            ep.method,
+            url,
+            tool=a.tool,
+            cls="A0",
+            headers=headers,
+            content=content,
+            max_bytes=min(a.ctx.max_bytes, CONNECTOR_BYTES, state.settings.max_call_bytes),
+            account=a.account,
+        )
+    except Blocked as b:
+        return _blocked(b, secrets)
+    except FetchError as e:
+        return answer("error", None, e.entries, "fetch_failed", secrets)
+    if got.status != 200:
+        return answer("error", {"status": got.status}, got.entries, "upstream_status", secrets)
+    try:
+        body = json.loads(bytes(got.body).decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return answer("error", None, got.entries, "upstream_malformed", secrets)
+    ok, code = K.succeeded(body)
+    if not ok:
+        return answer("error", {"error_code": code}, got.entries, "upstream_error", secrets)
+    try:
+        data = ep.reduce(body.get("data") if isinstance(body, dict) else None, dict(a.local))
+    except K.Malformed:
+        return answer("error", None, got.entries, "upstream_malformed", secrets)
+    return answer("ok", data, got.entries, None, secrets)
 
 
 def _get_check(method: str, url: str) -> str | None:
