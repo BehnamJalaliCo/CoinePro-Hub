@@ -605,6 +605,12 @@ services:
       # The provisioner (prompt 09, opt-in profile "provisioning"): hq.sh sets it
       # while HQ_PROVISIONING=on, else empty (pricing and builds wait).
       PROVISIONER_URL: ${PROVISIONER_URL:-}
+      # Prompt 12 §14: MCP servers in containers (opt-in profile "mcp",
+      # infra/compose/mcp.yaml): hq.sh sets MCP_CONTAINERS=on only while
+      # HQ_MCP=on and it fits the memory budget; the reviewed allow-list
+      # (infra/mcp/servers.yaml) is mounted read-only.
+      MCP_CONTAINERS: ${MCP_CONTAINERS:-off}
+      HQ_MCP_ALLOWLIST: /app/mcp/servers.yaml
       # Prompt 10 (contract §19): support, referral checks, the revenue radar, intake.
       SUPPORT_RETENTION_DAYS: ${SUPPORT_RETENTION_DAYS:-180}
       SUPPORT_DRAFT_DAILY_TOKENS: ${SUPPORT_DRAFT_DAILY_TOKENS:-60000}
@@ -634,6 +640,7 @@ services:
       - hq-files:/data/files
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors:ro
       - ../../agents:/app/agents:ro
+      - ../mcp/servers.yaml:/app/mcp/servers.yaml:ro
     healthcheck:
       test: ["CMD", "python", "-m", "hq_common.heartbeat"]
       interval: 15s
@@ -720,7 +727,9 @@ services:
     build:
       context: ../../services
       dockerfile: gateway/Dockerfile
-    networks: [hq-agent, hq-egress-api]
+    # hq-mcp (prompt 12 §14): the MCP servers in containers, straight to
+    # http://mcp-<key>:8080/mcp (no egress); nothing else of the hub is on it.
+    networks: [hq-agent, hq-egress-api, hq-mcp]
     depends_on:
       api:
         condition: service_healthy
@@ -1423,6 +1432,17 @@ networks:
       config:
         - subnet: 172.30.9.0/24
           gateway: 172.30.9.1
+  hq-mcp:
+    # The MCP servers in containers (prompt 12 §14, infra/compose/mcp.yaml)
+    # and the Tool Gateway only. Internal: no route out; egress, the api and
+    # the data services are not on it.
+    name: hq-mcp
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.12.0/24
+          gateway: 172.30.12.1
 
 volumes:
   hq-tools:

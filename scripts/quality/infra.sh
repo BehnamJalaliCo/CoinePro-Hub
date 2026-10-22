@@ -378,4 +378,30 @@ else
   pass "tracing: off by default; HQ_TRACING=on adds Tempo, the collector and their scrape jobs"
 fi
 
+# ------------------------------------------------- mcp (prompt 12 §14) ----
+# The MCP container servers are an opt-in profile: off by default (not
+# rendered, the api's MCP_CONTAINERS=off); on where it fits (full: the api
+# gets MCP_CONTAINERS=on); where it does not fit (lean) the memory gate fails
+# once it is switched on and hq.sh refuses to start it, and a command that
+# starts nothing renders without it.
+mcp_of() { # mcp_of PROFILE HQ_MCP -> "<has mcp-time>,<api MCP_CONTAINERS>"
+  HQ_PROFILE="$1" HQ_MCP="$2" "$HQ" config --format json 2>/dev/null |
+    jq -r '[(.services | has("mcp-time")), .services.api.environment.MCP_CONTAINERS] | map(tostring) | join(",")'
+}
+mcp_gate="$(HQ_MCP=on CI=1 "$REPO_DIR/scripts/quality/memory-budget.sh" 2>&1)" && mcp_gate_rc=0 || mcp_gate_rc=$?
+mcp_refusal="$(HQ_PROFILE=lean HQ_MCP=on "$HQ" --dry-run up --no-start 2>&1)" && mcp_up_rc=0 || mcp_up_rc=$?
+if [[ "$(mcp_of full off)" != "false,off" ]]; then
+  fail "mcp: on by default ($(mcp_of full off))"
+elif [[ "$(mcp_of full on)" != "true,on" ]]; then
+  fail "mcp: HQ_MCP=on within the budget (full) does not start it or tell the api ($(mcp_of full on))"
+elif ((mcp_gate_rc == 0)) || ! grep -q 'lean+mcp OVER (' <<<"$mcp_gate"; then
+  fail "mcp: the memory gate with HQ_MCP=on passed lean+mcp over the budget"
+elif ((mcp_up_rc != 3)) || ! grep -q 'HQ_MCP=on refused' <<<"$mcp_refusal"; then
+  fail "mcp: hq.sh 'up' accepted HQ_MCP=on over the memory budget (lean, exit $mcp_up_rc)"
+elif [[ "$(mcp_of lean on)" != "false,off" ]]; then
+  fail "mcp: over the budget, a command that starts nothing did not run without mcp"
+else
+  pass "mcp: off by default; on where it fits (MCP_CONTAINERS=on); without room the gate fails and 'up' is refused"
+fi
+
 exit "$failed"

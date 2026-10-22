@@ -17,6 +17,8 @@
 #   7.1 §2.19  egress and SearXNG probed by IP too (the neighbours, the
 #         metadata address, the host's own addresses): a GAP line, not a
 #         failure (closing it is the owner's DOCKER-USER rule).
+#   12 §14  each running MCP container server: the gateway reaches it; it
+#         reaches no internet, no 10.10.1.1 and no hub service; reviewed digest.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -154,6 +156,27 @@ if running "$PROVISIONER"; then
   [[ "$other" != 200 ]] || fail "the provisioner reaches another host through egress"
   ok "$before" "the provisioner reaches the api, OpenBao and api.hetzner.cloud (through egress) only"
 fi
+
+# ------------------------------------------------------------- 12 §14 ----
+# The MCP servers in containers (opt-in profile "mcp"), each while it runs:
+# the gateway reaches it on hq-mcp:8080 (positive control); from inside it
+# nothing else answers: no internet, no neighbour (10.10.1.1), no hub service
+# by name or address; and it runs the digest of the reviewed allow-list.
+for key in time codecortex; do
+  c="coinepro-hq-mcp-$key-1"
+  running "$c" || continue
+  before=$failures
+  probe_from "$GATEWAY" "mcp-$key" 8080 || fail "positive control: the gateway cannot reach mcp-$key:8080"
+  for target in 1.1.1.1:443 10.10.1.1:443 10.10.1.1:80; do
+    if probe_from "$c" "${target%:*}" "${target#*:}"; then fail "mcp-$key reaches $target"; fi
+  done
+  unreachable_from "$c" "mcp-$key" api:8000 postgres:5432 valkey:6379 nats:4222 openbao:8200 \
+    egress:8090 egress:3129 opa:8181 temporal:7233 llm-router:8000
+  want="$(sed -n "/^  - key: $key\$/,/^  - key:/s/^    image: .*@//p" "$REPO_DIR/infra/mcp/servers.yaml")"
+  have="$(docker inspect -f '{{.Image}}' "$c" 2>/dev/null || true)"
+  [[ -n "$want" && "$have" == "$want" ]] || fail "mcp-$key runs $have, not the reviewed $want"
+  ok "$before" "mcp-$key: the gateway reaches it; it reaches nothing (internet, 10.10.1.1, hub services); reviewed digest"
+done
 
 # ------------------------------------------------------------ 7.1 §2.19 ----
 # By address, beyond the hub's own services: the production neighbours

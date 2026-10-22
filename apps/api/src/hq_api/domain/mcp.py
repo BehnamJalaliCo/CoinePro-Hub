@@ -15,23 +15,36 @@ api hands it to the gateway for one call and it is in no listing, catalog or
 log. A registration that moves the server to another host makes the stored
 secret void until the owner writes it again (`secret_reset_at`).
 
-A `container` server (a compose service on hq-mcp, behind a stdio->HTTP
-bridge) can be registered but is not runnable yet: neither the network nor
-the bridge exists in this build, so its enable answers `409 not_ready` and the
-catalog says so (7.1 §2.15).
+A `container` server (prompt 12 §14, contract §21.11) is a compose service
+on the internal network hq-mcp (profile `mcp`, infra/compose/mcp.yaml): a
+stdio server behind mcp-proxy on :8080. Its registration is accepted only
+when its key, image (pinned digest) and URL are exactly an entry of the
+reviewed allow-list (infra/mcp/servers.yaml, mounted read-only:
+HQ_MCP_ALLOWLIST) and it enables no banned or unreviewed tool, else `422`; a
+server that needs the internet or a secret is `409 not_ready` (a later
+version). It runs only while the `mcp` profile is on (hq.sh exports
+MCP_CONTAINERS=on): until then its enable answers `409 not_ready`, mcp.call
+`503 channel_not_configured`, and the catalog says so. A registration whose
+image the allow-list no longer names is treated the same way (it is
+registered again with the reviewed digest).
 """
 
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import ipaddress
 import json
+import os
 import re
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hq_api.db import Tx
@@ -49,11 +62,23 @@ INTERNAL_HOSTS = ("hq.coinepro.com",)
 Class = Literal["A0", "A1", "A2", "A3"]
 # Status reasons the code itself writes (and reads back).
 TOOLS_CHANGED = "tools changed"
-NOT_RUNNABLE = (
-    "not runnable yet: a container server needs the hq-mcp network and the stdio->HTTP "
-    "bridge, which this build does not have"
+PROFILE_OFF = (
+    "the mcp profile is off on this server (HQ_MCP=off, or it does not fit the memory "
+    "budget): a container server cannot run"
 )
-NOT_RUNNABLE_FA = "هنوز اجراشدنی نیست"
+PROFILE_OFF_FA = "پروفایل mcp روی این سرور خاموش است"
+NOT_REVIEWED = (
+    "the reviewed allow-list (infra/mcp/servers.yaml) no longer names this image: "
+    "register the server again with the reviewed digest"
+)
+NOT_REVIEWED_FA = "تصویر این سرور دیگر همان بازبینی‌شده نیست"
+LATER_VERSION = (
+    "a container server that needs the internet or a secret is not runnable in this "
+    "version (contract §21.11)"
+)
+ALLOWLIST_ENV = "HQ_MCP_ALLOWLIST"
+DEFAULT_ALLOWLIST = "/app/mcp/servers.yaml"
+CLASS_RANK = {"A0": 0, "A1": 1, "A2": 2, "A3": 3}
 # An approved A3 card allows its one call for this long after the seal.
 A3_CARD_HOURS = 24
 
@@ -95,6 +120,8 @@ class McpServerIn(Model):
         if len(set(names)) != len(names):
             raise ValueError("each tool once")
         check_url(self.transport, self.url)
+        if self.transport == "container" and not self.image:
+            raise ValueError("a container server names its image (the reviewed digest)")
         return self
 
 
@@ -137,6 +164,120 @@ def check_url(transport: str, url: str) -> None:
     except ValueError:
         return
     raise ValueError("a host name, not an address")
+
+
+# ------------------------------------------------------- the allow-list --
+@dataclass(frozen=True)
+class AllowedServer:
+    """One entry of infra/mcp/servers.yaml: the only container servers the
+    hub runs (a reviewed change adds one)."""
+
+    key: str
+    image: str
+    url: str
+    tools: dict[str, str]  # name -> the lowest class a registration may seal
+    banned: tuple[str, ...]  # fnmatch patterns: never enabled
+    needs_internet: bool
+    needs_secret: bool
+
+    def is_banned(self, name: str) -> bool:
+        return any(fnmatch.fnmatchcase(name, pattern) for pattern in self.banned)
+
+
+_ALLOWED: dict[tuple[str, float], dict[str, AllowedServer]] = {}
+
+
+def allowlist_path() -> Path:
+    return Path(os.environ.get(ALLOWLIST_ENV, DEFAULT_ALLOWLIST))
+
+
+def allowlist(path: Path | None = None) -> dict[str, AllowedServer]:
+    """The reviewed allow-list by key; empty when the file is missing or
+    unreadable (fail closed: no container server is accepted then)."""
+    path = path or allowlist_path()
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return {}
+    cached = _ALLOWED.get((str(path), mtime))
+    if cached is not None:
+        return cached
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        out = {
+            str(e["key"]): AllowedServer(
+                key=str(e["key"]),
+                image=str(e["image"]),
+                url=str(e["url"]),
+                tools={str(t["name"]): str(t["class"]) for t in e.get("tools") or []},
+                banned=tuple(str(b) for b in e.get("banned_tools") or []),
+                # Unsaid is the safe side: not runnable in this version.
+                needs_internet=bool(e.get("needs_internet", True)),
+                needs_secret=bool(e.get("needs_secret", True)),
+            )
+            for e in data.get("servers") or []
+        }
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, yaml.YAMLError):
+        return {}
+    _ALLOWED.clear()
+    _ALLOWED[(str(path), mtime)] = out
+    return out
+
+
+def check_container(body: McpServerIn) -> None:
+    """A `container` registration is exactly a reviewed entry: its key, image
+    digest and URL, no secret, no banned or unreviewed tool enabled and no
+    class below the reviewed one. Checked before the seal is spent."""
+    entry = allowlist().get(body.key)
+    if entry is None:
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"key": "not a reviewed container server (infra/mcp/servers.yaml)"},
+        )
+    if entry.needs_internet or entry.needs_secret:
+        raise ApiError(409, "not_ready", LATER_VERSION)
+    if body.image != entry.image:
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"image": "not the reviewed image digest of this server"},
+        )
+    if body.url != entry.url:
+        raise ApiError(
+            422, "validation_failed", fields={"url": f"the reviewed address is {entry.url}"}
+        )
+    if body.auth_header is not None:
+        raise ApiError(
+            422, "validation_failed", fields={"auth_header": "a container server takes no secret"}
+        )
+    bad: list[str] = []
+    for t in body.tools:
+        if not t.enabled:
+            continue
+        reviewed = entry.tools.get(t.name)
+        if entry.is_banned(t.name):
+            bad.append(f"{t.name}: always off")
+        elif reviewed is None:
+            bad.append(f"{t.name}: not a reviewed tool of this server")
+        elif CLASS_RANK[t.cls] < CLASS_RANK.get(reviewed, 3):
+            bad.append(f"{t.name}: its class is at least {reviewed}")
+    if bad:
+        raise ApiError(422, "validation_failed", fields={"tools": "; ".join(bad)[:500]})
+
+
+def runnable(row: dict[str, Any], containers_on: bool) -> str | None:
+    """None when the server may run on this build, else why not: a
+    `container` server while the mcp profile is off, or whose sealed image or
+    address is no longer the reviewed one."""
+    if row["transport"] != "container":
+        return None
+    if not containers_on:
+        return PROFILE_OFF
+    entry = allowlist().get(str(row["key"]))
+    if entry is None or entry.image != row["image"] or entry.url != row["url"]:
+        return NOT_REVIEWED
+    return None
 
 
 def registration_sha256(body: McpServerIn) -> str:
@@ -278,7 +419,6 @@ async def put(
     if prev is not None and prev["registration_sha256"] == sha:
         return prev, False
     moved = prev is not None and host_of(prev["url"]) != host_of(body.url)
-    container = body.transport == "container"
     tools = json.dumps([t.model_dump(by_alias=True) for t in body.tools])
     values: dict[str, Any] = {
         "k": body.key,
@@ -291,8 +431,8 @@ async def put(
         "ah": body.auth_header,
         "sha": sha,
         "by": by,
-        "first": NOT_RUNNABLE if container else None,
-        "again": NOT_RUNNABLE if container else "registration changed",
+        "first": None,
+        "again": "registration changed",
         "moved": moved,
     }
     row: dict[str, Any] = await tx.one(
@@ -315,13 +455,19 @@ async def put(
 
 
 async def set_status(
-    tx: Tx, key: str, status: str, reason: str | None, *, enable: bool = False
+    tx: Tx,
+    key: str,
+    status: str,
+    reason: str | None,
+    *,
+    enable: bool = False,
+    containers_on: bool = False,
 ) -> dict[str, Any]:
     row = await load(tx, key, lock=True)
     if row is None:
         raise ApiError(404, "not_found")
-    if enable and row["transport"] == "container":
-        raise ApiError(409, "not_ready", NOT_RUNNABLE)
+    if enable and (why := runnable(row, containers_on)) is not None:
+        raise ApiError(409, "not_ready", why)
     updated: dict[str, Any] = await tx.one(
         """UPDATE tools.mcp_servers SET status = :st, status_reason = :r, updated_at = now(),
                enabled_at = CASE WHEN :en THEN now() ELSE enabled_at END,
@@ -432,14 +578,17 @@ class CatalogTool(BaseModel):
     server: str | None = None
 
 
-def catalog(lib: Any, servers: list[dict[str, Any]]) -> list[CatalogTool]:
+def catalog(
+    lib: Any, servers: list[dict[str, Any]], containers_on: bool = False
+) -> list[CatalogTool]:
     """Every tool of agents/tools.md (and each sealed MCP tool): its class, the
-    roles whose charters grant it, and whether this build carries it out."""
+    roles whose charters grant it, and whether this build carries it out (a
+    `container` server's tools only while it can run here)."""
     roles: dict[str, list[str]] = {}
     for role, charter in sorted(lib.roles.items()):
         for t in charter.tools:
             roles.setdefault(t, []).append(role)
-    live_mcp = any(s["status"] == "enabled" for s in servers)
+    live_mcp = any(s["status"] == "enabled" and runnable(s, containers_on) is None for s in servers)
     out: list[CatalogTool] = []
     for name, t in lib.tools.items():
         if name in NOT_CONFIGURED:
@@ -464,10 +613,12 @@ def catalog(lib: Any, servers: list[dict[str, Any]]) -> list[CatalogTool]:
     for s in sorted(servers, key=lambda r: r["key"]):
         state = {"enabled": "live", "pending": "pending"}.get(s["status"], "off")
         description = s["title_fa"]
-        if s["transport"] == "container":
-            # Registered, sealed or not, it cannot run in this build (7.1 §2.15).
+        why = runnable(s, containers_on)
+        if why is not None:
+            # Registered, sealed or not, it cannot run here (prompt 12 §14).
             state = "channel_not_configured"
-            description = f"{NOT_RUNNABLE_FA} (not runnable yet) · {description}"
+            label = PROFILE_OFF_FA if why == PROFILE_OFF else NOT_REVIEWED_FA
+            description = f"{label} ({why.split(':')[0]}) · {description}"
         for tool in s["tools"] or []:
             out.append(
                 CatalogTool(

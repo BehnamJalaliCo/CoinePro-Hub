@@ -1,0 +1,3 @@
+# The reference server "time" (prompt 12 §14.5): modelcontextprotocol/servers
+# src/time (MIT). Tools get_current_time and convert_time; no network at all.
+mcp-server-time

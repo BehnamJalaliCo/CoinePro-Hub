@@ -200,6 +200,10 @@ class Settings:
     # Prompt 09: the provisioner's small API (pricing, the project's servers,
     # wake); empty while its opt-in profile is off (hq.sh sets it).
     provisioner_url: str = field(default_factory=lambda: _env("PROVISIONER_URL", ""))
+    # Prompt 12 §14: the MCP servers in containers run only while the opt-in
+    # profile `mcp` is on and fits the memory budget (hq.sh exports
+    # MCP_CONTAINERS=on then); off, a container server is not runnable here.
+    mcp_containers: bool = field(default_factory=lambda: _env("MCP_CONTAINERS", "off") == "on")
     # Review 9.2 §2.3: a running build the provisioner said nothing about for
     # this long is failed (its callback wait of 60 minutes plus a margin).
     provision_quiet_s: float = field(

@@ -10,6 +10,7 @@
 #        HQ_ALL_PROFILES=1      act on the services of every profile (used by `down`)
 #        HQ_STT=on|off          speech to text (opt-in profile "stt"; else .env)
 #        HQ_PROVISIONING=on|off the provisioner (opt-in profile "provisioning"; else .env)
+#        HQ_MCP=on|off          MCP servers in containers (opt-in profile "mcp"; else .env)
 set -euo pipefail
 
 COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -106,6 +107,7 @@ compose() {
     --project-name coinepro-hq \
     --project-directory "$COMPOSE_DIR" \
     --file "$COMPOSE_DIR/compose.yaml" \
+    --file "$COMPOSE_DIR/mcp.yaml" \
     --env-file "$COMPOSE_DIR/profiles/$profile.env" \
     --env-file "$ENV_FILE" \
     "$@"
@@ -205,6 +207,35 @@ if [[ "$tracing" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
         exit 3
         ;;
       *) echo "warning: HQ_TRACING=on ignored ($over)" >&2 ;;
+    esac
+  fi
+fi
+# MCP servers in containers (prompt 12 §14): opt-in profile "mcp"
+# (infra/compose/mcp.yaml), off by default, switched on with HQ_MCP=on (.env)
+# and refused like stt while it does not fit the memory budget. The api gets
+# MCP_CONTAINERS=on only while it is on (else a container server's enable
+# answers 409 not_ready and mcp.call channel_not_configured).
+mcp="${HQ_MCP:-$(sed -n 's/^HQ_MCP=//p' "$ENV_FILE" | tail -n1)}"
+export MCP_CONTAINERS=off
+if [[ "$mcp" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  sum="$(compose "${profile_args[@]}" --profile mcp --profile backup-tools config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile mcp)
+    export MCP_CONTAINERS=on
+  else
+    over="the $profile profile plus mcp needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_MCP=on refused: $over." >&2
+        echo "       Turning mcp on is the owner's decision (docs/ops/RUNBOOK.md, MCP in containers)." >&2
+        echo "       Set HQ_MCP=off in $ENV_FILE to start the stack without it." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_MCP=on ignored ($over)" >&2 ;;
     esac
   fi
 fi

@@ -88,16 +88,20 @@ async def list_mcp(ctx: Ctx = Depends(owner_ctx)) -> list[M.McpServer]:
 async def add_mcp(body: M.McpServerIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """🔏 (`mcp.add`, target = SHA-256 of the exact body). Registers a server,
     or a new version of it: its transport (`http` through the egress proxy;
-    `container` on the internal network hq-mcp, not runnable yet), the tools
-    with their class and the companies that may call it. Pending until
-    `/enable`; the same body again changes nothing. Another host voids the
-    stored secret (`has_secret` false until it is written again). The secret
-    is written on the server (`make mcp-secret KEY=…`), never through the API.
-    Requires `Idempotency-Key`."""
+    `container` on the internal network hq-mcp, only exactly as the reviewed
+    allow-list infra/mcp/servers.yaml names it: else 422, and 409 not_ready
+    for one that needs the internet or a secret), the tools with their class
+    and the companies that may call it. Pending until `/enable`; the same body
+    again changes nothing. Another host voids the stored secret (`has_secret`
+    false until it is written again). The secret is written on the server
+    (`make mcp-secret KEY=…`), never through the API. Requires
+    `Idempotency-Key`."""
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
+        if body.transport == "container":  # before the seal is spent
+            M.check_container(body)
         await stepup.consume(tx, request, ctx.who, "mcp.add", await stepup.body_target(request))
         codes = {c.code for c in await ctx.hub.companies.all()}
         row, changed = await M.put(tx, body, ctx.who.code, codes)
@@ -133,9 +137,11 @@ async def add_mcp(body: M.McpServerIn, request: Request, ctx: Ctx = Depends(owne
 async def enable_mcp(key: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """🔏 (`mcp.enable`, target = the key). The gateway pins the server's tool
     listing on its next call; a later change switches it off again. A
-    `container` server is not runnable yet: 409 not_ready (its status_reason
-    says why). Requires `Idempotency-Key`."""
+    `container` server runs only while the `mcp` profile is on and its sealed
+    image is still the reviewed one: else 409 not_ready (the detail says
+    why). Requires `Idempotency-Key`."""
     _key(key)
+    on = ctx.hub.settings.mcp_containers
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
@@ -143,10 +149,10 @@ async def enable_mcp(key: str, request: Request, ctx: Ctx = Depends(owner_ctx)) 
         row = await M.load(tx, key)
         if row is None:
             raise ApiError(404, "not_found")
-        if row["transport"] == "container":  # before the seal is spent
-            raise ApiError(409, "not_ready", M.NOT_RUNNABLE)
+        if (why := M.runnable(row, on)) is not None:  # before the seal is spent
+            raise ApiError(409, "not_ready", why)
         await stepup.consume(tx, request, ctx.who, "mcp.enable", key)
-        row = await M.set_status(tx, key, "enabled", None, enable=True)
+        row = await M.set_status(tx, key, "enabled", None, enable=True, containers_on=on)
         await _withdrawn(ctx, tx, key, "the owner enabled the server again")
         await _audit_status(ctx, tx, key, "mcp.enable", "A2")
         out = M.render(row, await M.has_secret(ctx.hub, row))
@@ -191,10 +197,11 @@ async def tool_catalog(ctx: Ctx = Depends(owner_ctx)) -> list[M.CatalogTool]:
     MCP tool): class (`A0/A2` = decided per call; `per tool` = the server's
     registration), the roles whose charters grant it, and its status in this
     build (`live`, `off`, `channel_not_configured`, `pending`). A `container`
-    server's tools are `channel_not_configured`: not runnable yet."""
+    server's tools are `channel_not_configured` while the `mcp` profile is off
+    (or its sealed image is no longer the reviewed one)."""
     async with ctx.tx() as tx:
         rows = await tx.all("SELECT * FROM tools.mcp_servers ORDER BY key")
-    return M.catalog(ctx.hub.charters, rows)
+    return M.catalog(ctx.hub.charters, rows, ctx.hub.settings.mcp_containers)
 
 
 # ---------------------------------------------------------------- internal --
@@ -303,6 +310,8 @@ async def resolve_mcp(body: ResolveIn, ctx: Ctx = Depends(internal_ctx)) -> Reso
             raise ApiError(403, "policy_denied", "mcp_tool_not_sealed")
         if row["status"] != "enabled":
             raise ApiError(503, "channel_not_configured", f"mcp server {row['status']}")
+        if (why := M.runnable(row, ctx.hub.settings.mcp_containers)) is not None:
+            raise ApiError(503, "channel_not_configured", why)
         await _caps(ctx, tx)
         cls = str(tool["class"])
         approved: str | None = None

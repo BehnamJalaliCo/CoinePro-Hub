@@ -56,6 +56,9 @@ case "${1:-}" in
       -r provisioner/requirements.lock
     api_image -v "$API_DIR:/api:ro" -w /api "$API_IMAGE" pip-audit --progress-spinner off \
       --require-hashes --disable-pip -r requirements.lock
+    # Prompt 12 §14: the MCP container servers' own locks.
+    api_image -v "$REPO_DIR/infra/mcp:/mcp:ro" -w /mcp "$API_IMAGE" pip-audit --progress-spinner off \
+      --require-hashes --disable-pip -r time/proxy.lock -r time/server.lock -r codecortex/server.lock
     ;;
   openapi)
     api_image -v "$API_DIR:/api" -w /api "$API_IMAGE" python -m hq_api.openapi_export

@@ -96,6 +96,10 @@ run() {
   if [[ "$TARGET" == api ]]; then
     mounts+=(-v "$API_DIR:/api:ro" -v "$REPO_DIR/infra/opa:/opa:ro")
     extra+=(-e TEST_TEMPORAL_ADDRESS=temporal:7233 -e TEST_OPA_URL=http://opa:8181)
+    # Prompt 12 §14: the reviewed allow-list of MCP container servers and their
+    # compose services (the tests compare the two), read-only.
+    mounts+=(-v "$REPO_DIR/infra/mcp:/mcp:ro" -v "$REPO_DIR/infra/compose/mcp.yaml:/mcp-compose/mcp.yaml:ro")
+    extra+=(-e HQ_MCP_ALLOWLIST=/mcp/servers.yaml)
   fi
   docker run --rm --network "$NET" --env-file "$STATE" \
     -e TEST_DB_HOST=postgres -e TEST_NATS_URL=nats://nats:4222 "${extra[@]}" \
