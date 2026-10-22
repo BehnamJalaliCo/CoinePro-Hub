@@ -265,6 +265,15 @@ OP_CLASS: dict[str, str] = {
     "support.draft": "A2",
     "support.handoff": "A2",
     "support.mystery": "A2",
+    # prompt 11 §1-§3 (agents/tools.md v1.5): the meeting room and the knowledge base
+    "meeting.statement": "A1",
+    "meeting.challenge": "A1",
+    "meeting.whisper": "A1",
+    "meeting.item": "A1",
+    "meeting.minutes": "A1",
+    "knowledge.propose": "A1",
+    "knowledge.review": "A2",
+    "knowledge.approve": "A2",
 }
 
 
@@ -570,6 +579,10 @@ async def deliver_work(
             )
             if n != len(set(body.attachments)):
                 raise ApiError(422, "validation_failed", fields={"attachments": "unknown files"})
+        # ⟨1.5⟩ an expired knowledge entry or support article is no evidence (§20.3)
+        from hq_api.domain import knowledge as K
+
+        await K.require_citable(tx, [e.ref for e in body.evidence])
         pw = body.produced_with.model_dump(exclude_none=True)
         u = body.usage
         if ctx.who.run_id is not None:
@@ -639,6 +652,13 @@ async def deliver_work(
         )
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
+    # ⟨1.5⟩ prompt 11 §2.6: a `rule` red line in a deliverable is a finding (PR-115)
+    from hq_api.domain import charter as CH
+
+    await CH.scan_after(
+        ctx.hub, company_id=w["company_id"], company_code=w["company"], kind="deliverable", ref=dl["ref"],
+        text="\n".join(x for x in (body.title, body.summary, body.body or "") if x),
+    )  # fmt: skip
     return result
 
 
@@ -960,6 +980,13 @@ async def agent_message(
         )[0]
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
+    # ⟨1.5⟩ prompt 11 §2.6: a message to the owner that breaks a `rule` red line (PR-115)
+    from hq_api.domain import charter as CH
+
+    await CH.scan_after(
+        ctx.hub, company_id=t["company_id"], company_code=t["company"], kind="message", ref=result.ref,
+        text=body.body,
+    )  # fmt: skip
     return result
 
 
@@ -1093,6 +1120,12 @@ async def raise_notification(
             target_ref=str(n["id"]),
             summary=level if level == body.level else f"{body.level} -> {level}",
         )
+    if level == "urgent" and body.category == "service_down":
+        # ⟨1.5⟩ prompt 11 §1.8: the company's war room opens at once (P0), unless locked
+        from hq_api.domain import meeting_flow as MF
+
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as wtx:
+            await MF.war_room_for_alert(wtx, company.id, company.code)
     return NotificationOut(id=n["id"], level=n["level"], state=n["state"])
 
 

@@ -79,6 +79,15 @@ async def seed(tx: Tx) -> dict[str, Any]:
         lib = _charters()
         added["skills"] = await skills.seed(tx, holding["id"], holding["code"], lib)
         added.update(await academy.seed(tx, holding["id"], lib))
+        # Prompt 11 §1-§3: the meeting types (data), version 1 of the holding
+        # charter (proposed: only the owner seals it) and this half's three
+        # protocols switched on (once; an owner's pause later stays).
+        from hq_api.domain import charter, governance_checks, meetings
+
+        added["meeting_types"] = await meetings.seed(tx, holding["id"])
+        added["charter"] = int(await charter.seed(tx, holding["id"], str(root)))
+        if added["protocols"] or await tx.scalar("SELECT 1 FROM oversight.protocols LIMIT 1"):
+            added["protocols_on"] = len(await governance_checks.switch_on(tx, holding["id"]))
     # Prompt 9.1 §5: version 1 of the brand of every company with a folder in
     # design/brand/companies/ (HQ_BRANDS_DIR, read-only; folders, not codes).
     added["brands"] = await brands.seed(tx)

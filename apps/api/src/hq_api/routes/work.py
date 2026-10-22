@@ -99,7 +99,8 @@ class PlannerItem(BaseModel):
     recurring: bool
     # ⟨1.4⟩ "reminder": a dated item of the owner's own (the assistant's
     # planner.add, contract §18.3), PL-…; it never wakes or escalates anyone.
-    kind: Literal["work", "reminder"] = "work"
+    # ⟨1.5⟩ "meeting": a meeting MT-… (prompt 11 §1.10), its state as status.
+    kind: Literal["work", "reminder", "meeting"] = "work"
     note: str | None = None
 
 
@@ -466,6 +467,19 @@ async def planner(
             s=start,
             e=end,
         )
+        # ⟨1.5⟩ the meetings (prompt 11 §1.10): the planner stays a view over data
+        meetings = await tx.all(
+            """SELECT m.ref, m.title_fa, m.starts_at, m.state, m.type, m.department, c.code AS company
+               FROM meetings.meetings m JOIN core.companies c ON c.id = m.company_id
+               WHERE m.starts_at >= :s AND m.starts_at < :e AND m.state <> 'cancelled' AND m.type <> 'standup'
+                 AND (CAST(:co AS text) IS NULL OR c.code = :co)
+                 AND (CAST(:dept AS text) IS NULL OR m.department = :dept)
+               ORDER BY m.starts_at LIMIT 500""",
+            s=start,
+            e=end,
+            co=company_code,
+            dept=dept_code,
+        )
     items: list[PlannerItem] = [
         PlannerItem(
             ref=r["ref"],
@@ -512,6 +526,21 @@ async def planner(
                     note=r["note"],
                 )
             )
+    for m in meetings:
+        items.append(
+            PlannerItem(
+                ref=m["ref"],
+                title=m["title_fa"],
+                company=m["company"],
+                status=m["state"],
+                priority="P0" if m["type"] == "war_room" else "P2",
+                at=m["starts_at"],
+                assignee=None,
+                recurring=m["type"] in ("board", "company", "strategy"),
+                kind="meeting",
+                note=m["type"],
+            )
+        )
     days: dict[date, list[PlannerItem]] = {}
     for it in sorted(items, key=lambda i: i.at):
         days.setdefault(it.at.astimezone(z).date(), []).append(it)

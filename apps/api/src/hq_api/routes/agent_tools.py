@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
@@ -506,7 +506,7 @@ def _plain(row: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------- knowledge.search --
-KINDS = ("resolutions", "deliverables", "decisions", "work", "messages")
+KINDS = ("resolutions", "deliverables", "decisions", "work", "messages", "knowledge")
 
 
 class Hit(BaseModel):
@@ -516,6 +516,10 @@ class Hit(BaseModel):
     title: str
     snippet: str
     at: datetime
+    # ⟨1.5⟩ kind `knowledge` (prompt 11 §3.5): the layer, the expiry and the sources
+    layer: str | None = None
+    valid_until: date | None = None
+    sources: list[dict[str, Any]] | None = None
 
 
 @router.get("/knowledge/search", response_model=list[Hit], responses=E)
@@ -524,10 +528,14 @@ async def tool_knowledge_search(
     kinds: list[str] | None = Query(default=None),
     company: str | None = Query(default=None, pattern=CODE),
     limit: int = Query(default=20, ge=1, le=50),
+    layer: Literal["holding", "company", "department", "employee"] | None = None,
+    kind: Literal["principle", "policy", "fact", "faq", "playbook", "support"] | None = None,
     ctx: Ctx = Depends(internal_ctx),
 ) -> list[Hit]:
     """knowledge.search: resolutions, deliverables, decisions and work the role
-    may read (message bodies: the advisor only). Refs and short snippets."""
+    may read (message bodies: the advisor only). Refs and short snippets.
+    ⟨1.5⟩ kind `knowledge`: approved, unexpired entries of the four layers and
+    the support articles, with `layer` and `kind` filters (prompt 11 §3.5)."""
     _agent(ctx)
     wanted = [
         k for k in (kinds or ["resolutions", "deliverables", "decisions", "work"]) if k in KINDS
@@ -564,7 +572,24 @@ async def tool_knowledge_search(
     hits: list[dict[str, Any]] = []
     async with read_tx(ctx) as tx:
         pat = "%" + await tx.scalar("SELECT core.like_escape(core.fa_normalize(:q))", q=q) + "%"
-        for k in wanted:
+        if "knowledge" in wanted:
+            from hq_api.domain import knowledge as K
+
+            for r in await K.search(
+                tx,
+                ctx.who,
+                q,
+                layer=layer,
+                kind=kind,
+                company_id=co.id if co else None,
+                limit=limit,
+            ):
+                hits.append(
+                    {"kind": r["hit"], "ref": f"{r['ref']}@{r['version']}", "company": r["company"],
+                     "title": r["title_fa"], "body": r["body"], "at": r["at"], "layer": r["layer"],
+                     "valid_until": r["valid_until"], "sources": list(r["sources"] or [])}
+                )  # fmt: skip
+        for k in (k for k in wanted if k != "knowledge"):
             hits += await tx.all(
                 queries[k]
                 + " AND (CAST(:co AS uuid) IS NULL OR c.id = :co) ORDER BY at DESC LIMIT :lim",
@@ -581,6 +606,9 @@ async def tool_knowledge_search(
             title=h["title"],
             snippet=(h["body"] or "")[:SNIPPET],
             at=h["at"],
+            layer=h.get("layer"),
+            valid_until=h.get("valid_until"),
+            sources=h.get("sources"),
         )
         for h in hits[:limit]
     ]
@@ -712,6 +740,33 @@ async def tool_memory_write(
 
 
 # ------------------------------------------------------- the run's own gate --
+MEETING_ONLY = ("meeting.statement", "meeting.challenge", "meeting.whisper", "meeting.minutes")
+
+
+async def _meeting_turn_tools(ctx: Ctx, tx: Any, run: dict[str, Any], tool: str) -> None:
+    """⟨1.5⟩ prompt 11 §11: a meeting turn has its slot's meeting tool and the
+    role's read (A0) tools only; the meeting tools exist only inside a turn."""
+    if run["trigger"] != "meeting":
+        if tool in MEETING_ONLY:
+            raise ApiError(403, "policy_denied", f"{tool} is only for a meeting turn")
+        return
+    from hq_api.domain import meeting_flow as MF
+
+    async with ctx.hub.db.tx(
+        await ctx.hub.companies.ids()
+    ) as all_tx:  # the meeting may be another company's
+        pending = await MF.pending_of(all_tx, run["id"])
+    slot_tool = MF.SLOT_TOOL.get(str((pending["pending"] or {}).get("kind"))) if pending else None
+    lib = ctx.hub.charters
+    read = lib is not None and tool in lib.tools and lib.tools[tool].cls == "A0"
+    if tool != slot_tool and not read:
+        raise ApiError(
+            403,
+            "policy_denied",
+            f"a meeting turn has only {slot_tool or 'no tool'} and the read tools",
+        )
+
+
 class ReserveIn(Model):
     tool: str = Field(pattern=r"^[a-z][a-z_]*(\.[a-z_]+)?$", max_length=40)
     step: int = Field(ge=1, le=50)
@@ -760,7 +815,7 @@ async def run_reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> Gate
                   AND :step >= current_step AND tool_calls < tool_calls_cap
                   AND (current_step <> :step OR step_tool_calls < step_tool_calls_cap)
                 RETURNING id, work_id, model, effort, charter_version, tool_calls, tool_calls_cap,
-                          current_step, step_tool_calls, step_tool_calls_cap""",
+                          current_step, step_tool_calls, step_tool_calls_cap, trigger""",
             run=ctx.who.run_id,
             e=ctx.who.employee_id,
             step=body.step,
@@ -772,6 +827,7 @@ async def run_reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> Gate
                 "tool-call cap of this run or step reached",
                 headers={"Retry-After": str(CAP_RETRY_AFTER_S)},
             )
+        await _meeting_turn_tools(ctx, tx, row, body.tool)
         w = await W.load(tx, row["work_id"]) if row["work_id"] else None
         escrow = await escrow_of(tx, w) if w else []
         lock = await tx.scalar("SELECT control.lock_state(:co)", co=ctx.who.company_id)

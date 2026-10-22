@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import dataclasses
 import json
 import logging
 import time
@@ -45,8 +46,10 @@ from hq_api.agents import protocol as P
 from hq_api.agents.clients import Gateway, LivePush, ModelCall, Router
 from hq_api.db import Tx
 from hq_api.domain import academy as AC
+from hq_api.domain import charter as CH
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
+from hq_api.domain import meeting_flow as MF
 from hq_api.domain import oversight as O
 from hq_api.domain import skills as SK
 from hq_api.errors import sqlstate_of
@@ -104,6 +107,14 @@ def prompt_tokens(system: str, messages: list[dict[str, Any]]) -> int:
     return chars // 4 + images * IMAGE_TOKENS
 
 
+def meeting_tools(lib: Any, charter: Charter, tool: str | None) -> tuple[str, ...]:
+    """A meeting turn's tools: its slot's meeting tool and the role's A0 reads."""
+    reads = tuple(
+        t for t in charter.tools if lib is not None and t in lib.tools and lib.tools[t].cls == "A0"
+    )
+    return ((tool,) if tool and tool in charter.tools else ()) + reads
+
+
 FINAL = ("done", "failed", "refused")
 CONTEXT_CHARS = 24_000
 THREAD_MESSAGES = 12
@@ -142,6 +153,10 @@ class RunCtx:
     # An oversight protocol run's ref and severity (prompt 08 §2.3): llm-router
     # lets a `critical` one go on once the oversight share is spent.
     oversight: dict[str, str] = field(default_factory=dict)
+    # ⟨1.5⟩ prompt 11: the sealed charter documents in the system prompt
+    # ("holding@3", "TY@1") and a meeting turn's context, meta and tool
+    charter_docs: list[str] = field(default_factory=list)
+    meeting: dict[str, Any] = field(default_factory=dict)
 
     @property
     def token_cap(self) -> int:
@@ -188,9 +203,13 @@ class Runner:
             emp = await self._employee(tx, run["employee_id"])
             charter = lib.get(emp["role"]) if lib is not None else None
             refuse = None
+            # ⟨1.5⟩ the one system role that runs: the secretary's meeting summary
+            system_ok = (
+                charter is not None and charter.kind == "system" and run["trigger"] == "meeting"
+            )
             if charter is None:
                 refuse = "no_charter"
-            elif emp["status"] != "active" or emp["kind"] == "system":
+            elif emp["status"] != "active" or (emp["kind"] == "system" and not system_ok):
                 refuse = "employee_inactive"
             else:
                 lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])
@@ -213,13 +232,26 @@ class Runner:
             if refuse is None:
                 assert charter is not None
                 caps = await self._caps(tx, run, charter)
-                if caps["token_cap"] <= 0:
+                if run["trigger"] == "meeting":
+                    # A turn's cap is its meeting's turn cap (and what is left of
+                    # its reservation): a turn that does not fit is not run.
+                    turn = await MF.turn_context(tx, run, emp)
+                    if turn is None:
+                        refuse = "meeting_gone"
+                    else:
+                        caps["token_cap"] = min(caps["token_cap"], int(turn["token_cap"]))
+                if refuse is None and caps["token_cap"] <= 0:
                     refuse = "budget_used_up"
             if refuse is not None:
                 await self._finish(tx, run, emp, "refused", refuse, note=None, start=False)
                 return Claim("final", "refused", refuse)
             assert charter is not None
             model, effort = await self._model(tx, emp, charter)
+            steps_cap = charter.limits.steps_per_run
+            if run["trigger"] == "meeting":
+                # In a meeting the effort is at most medium (prompt 11 §1.4), a few steps.
+                effort = effort if effort in MF.EFFORTS else "medium"
+                steps_cap = min(steps_cap, 3)
             ttl = min(agent_tokens.MAX_TTL_S, self.s.agent_max_run_s + 120)
             await tx.exec(
                 """UPDATE agents.runs SET state = 'running', started_at = now(), priority = :prio,
@@ -234,7 +266,7 @@ class Runner:
                 ver=charter.version,
                 model=model,
                 effort=effort,
-                steps=charter.limits.steps_per_run,
+                steps=steps_cap,
                 tokens=caps["token_cap"],
                 calls=self.s.agent_tool_calls_per_run,
                 per_step=self.s.agent_actions_per_step,
@@ -392,14 +424,31 @@ class Runner:
 
     async def _steps(self, rc: RunCtx, deadline: float) -> tuple[str, str | None, str | None]:
         run, charter = rc.run, rc.charter
+        lib = self.hub.charters
+        async with await self._tx() as tx:
+            # ⟨1.5⟩ the sealed charter and the company's addendum (prompt 11 §2.5)
+            charter_text, rc.charter_docs = await CH.prompt_section(
+                tx, rc.emp["company"], str(lib.root) if lib is not None else ""
+            )
+            if run["trigger"] == "meeting":
+                rc.meeting = await MF.turn_context(tx, run, rc.emp) or {}
+        if run["trigger"] == "meeting":
+            # A meeting turn has only its turn's tool and the role's read tools.
+            if not rc.meeting:
+                return "refused", "meeting_gone", "the meeting moved on"
+            charter = dataclasses.replace(
+                charter, tools=meeting_tools(lib, charter, rc.meeting.get("tool"))
+            )
+            rc.charter = charter
         system = P.system_prompt(
-            self.hub.charters,
+            lib,
             charter,
             await self._values(rc.emp),
             max_actions=self.s.agent_actions_per_step,
             answer_phase=charter.kind == "advisor" and run["trigger"] == "message",
-            payloads=D.PAYLOADS,
+            payloads=None if run["trigger"] == "meeting" else D.PAYLOADS,
             after_charter=await self._skills(rc),
+            before_charter=charter_text,
         )
         # The owner's sealed standing orders (prompt 08 §2.7): the overseer's own
         # and those for every role, after the charter; a proposed one never.
@@ -558,7 +607,9 @@ class Runner:
                 "trigger": run["trigger"],
                 "skills": rc.skills,
                 "addenda": rc.addenda,
+                "charter_docs": rc.charter_docs,
                 **rc.oversight,
+                **(rc.meeting.get("meta") or {}),
             },
         }
         if max_output:
@@ -712,6 +763,8 @@ class Runner:
 
     async def _partial(self, rc: RunCtx, n: int) -> tuple[str, str | None, str | None]:
         """Out of steps or tokens before `done`: what was done so far, delivered."""
+        if rc.run["trigger"] == "meeting":  # a turn delivers nothing; the meeting moves on
+            return "done", "limit_reached", None
         work_ref = await self._scalar_work_ref(rc.run["work_id"])
         if rc.delivered or work_ref is None or "deliver" not in rc.charter.tools:
             return ("done" if rc.delivered else "failed"), "limit_reached", None
@@ -792,6 +845,9 @@ class Runner:
         every record a message points at is filtered by that scope too."""
         run, emp = rc.run, rc.emp
         images: list[UUID] = []
+        if run["trigger"] == "meeting" and rc.meeting:
+            # The turn's context is the code's (prompt 11 §1.4): nothing more.
+            return P.trim(await scrub_async(str(rc.meeting["text"])), CONTEXT_CHARS), []
         parts = [f"# Trigger\n{run['trigger']} ({run['reason']})"]
         scope = await self.read_scope(rc)
         async with self.hub.db.tx(scope) as tx:
@@ -1202,3 +1258,6 @@ class Runner:
             str(run["id"]),
             {"employee": emp["code"], "state": state, "code": code, "partial": partial},
         )
+        if run["trigger"] == "meeting":
+            # ⟨1.5⟩ the meeting books the turn's tokens and queues the next (prompt 11 §1.4)
+            await MF.turn_finished(tx, run)

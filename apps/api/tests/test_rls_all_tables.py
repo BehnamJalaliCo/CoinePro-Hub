@@ -48,6 +48,9 @@ SCHEMAS = (
     "growth",
     "feedback",
     "intake",
+    # prompt 11 §1-§2: the meeting room and the charter (knowledge.entries is in "knowledge")
+    "meetings",
+    "governance",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.
@@ -676,6 +679,81 @@ async def _fill_p10(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p11a(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 11 §1-§3 (migration 0026): a row of company `co` in every table of
+    the meeting room, its addendum and a knowledge entry."""
+    c = co["id"]
+    await su.execute(
+        """INSERT INTO meetings.types (company_id, key, title_fa, schedule, budget_tokens)
+           VALUES ($1, 'company', 'مدیریت شرکت', 'FREQ=WEEKLY;BYDAY=SA;BYHOUR=11', 40000)
+           ON CONFLICT DO NOTHING""",
+        c,
+    )
+    m = await su.fetchval(
+        """INSERT INTO meetings.meetings (company_id, type, title_fa, starts_at, budget_cap)
+           VALUES ($1, 'company', 'جلسه', now(), 40000) RETURNING id""",
+        c,
+    )
+    item = await su.fetchval(
+        "INSERT INTO meetings.items (company_id, meeting_id, n, title_fa) VALUES ($1, $2, 1, 'دستور') RETURNING id",
+        c,
+        m,
+    )
+    turn = await su.fetchval(
+        """INSERT INTO meetings.turns (company_id, meeting_id, item_id, n, round, speaker_kind, speaker_code, kind,
+               statement_md)
+           VALUES ($1, $2, $3, 1, 1, 'agent', $4, 'statement', 'بیانیه') RETURNING id""",
+        c,
+        m,
+        item,
+        f"{co['code']}-CEO",
+    )
+    await su.execute(
+        """INSERT INTO meetings.claims (company_id, meeting_id, item_id, turn_id, text_fa, status)
+           VALUES ($1, $2, $3, $4, 'ادعا', 'unsourced')""",
+        c,
+        m,
+        item,
+        turn,
+    )
+    await su.execute(
+        """INSERT INTO meetings.whispers (company_id, meeting_id, item_id, round, text_md)
+           VALUES ($1, $2, $3, 1, 'نجوا')""",
+        c,
+        m,
+        item,
+    )
+    await su.execute(
+        """INSERT INTO meetings.drafts (company_id, meeting_id, item_id, turn_id, text_md, proposer_code)
+           VALUES ($1, $2, $3, $4, 'پیش‌نویس', $5)""",
+        c,
+        m,
+        item,
+        turn,
+        f"{co['code']}-CEO",
+    )
+    await su.execute(
+        """INSERT INTO meetings.requests (company_id, type, for_company_id, title_fa, by_kind, by_code)
+           VALUES ($1, 'company', $1, 'دستور پیشنهادی', 'agent', $2)""",
+        c,
+        f"{co['code']}-CEO",
+    )
+    await su.execute(
+        """INSERT INTO governance.charters (company_id, scope, version, body_md, body_sha256, source,
+               created_by_kind, created_by_code)
+           VALUES ($1, $2, 1, 'الحاقیه', repeat('a', 64), 'owner', 'owner', 'owner')""",
+        c,
+        co["code"],
+    )
+    await su.execute(
+        """INSERT INTO knowledge.entries (company_id, layer, kind, title_fa, body_md, sources, valid_until,
+               created_by_kind, created_by_code)
+           VALUES ($1, 'company', 'fact', 'دانش', 'متن', '[{"kind": "work", "ref": "W-000001"}]',
+                   CURRENT_DATE + 30, 'owner', 'owner')""",
+        c,
+    )
+
+
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_no_table_leaks_between_companies(
     client: httpx.AsyncClient,
@@ -688,6 +766,7 @@ async def test_no_table_leaks_between_companies(
     await _fill(client, hub, owner_session, b["code"])
     await _fill_agents(su, b)
     await _fill_p10(su, b)
+    await _fill_p11a(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name

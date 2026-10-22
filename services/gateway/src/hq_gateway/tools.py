@@ -267,6 +267,8 @@ class ProposeIn(In):
         # ⟨1.5⟩ prompt 10 §7: a template or a lifecycle rule for the owner's seal
         "message_template",
         "lifecycle_rule",
+        # ⟨1.5⟩ prompt 11 §2: a charter amendment for the owner's seal (🔏)
+        "charter_amendment",
     ]  # every API kind but server_plan (only server.plan makes it), tool_enable (the api's)
     # and support_go_live (only a passed shadow run makes it)
     title_fa: str = Field(min_length=1, max_length=300)

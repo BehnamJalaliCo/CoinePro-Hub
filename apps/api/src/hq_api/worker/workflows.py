@@ -316,6 +316,28 @@ class SupportShadow:
         return result
 
 
+@workflow.defn(name="MeetingsTick")
+class MeetingsTick:
+    """Every minute: the meeting room by code (prompt 11 §1); gated by the lock."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act(
+            "meetings_tick", limit=timedelta(minutes=4), retry=RetryPolicy(maximum_attempts=1)
+        )
+        return result
+
+
+@workflow.defn(name="KnowledgeDaily")
+class KnowledgeDaily:
+    """Daily: knowledge expiry (rule-only) and the 14-day review work (gated)."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("knowledge_daily", limit=timedelta(minutes=10))
+        return result
+
+
 @workflow.defn(name="ScoreJob")
 class ScoreJob:
     @workflow.run
@@ -513,6 +535,8 @@ class OrderRouting:
 
 
 WORKFLOWS = [
+    MeetingsTick,
+    KnowledgeDaily,
     SupportInbound,
     SupportSend,
     SupportSweep,

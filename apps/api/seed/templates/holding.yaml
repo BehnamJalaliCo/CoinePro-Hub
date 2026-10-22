@@ -63,3 +63,12 @@ leadership:
       kind: system
       title_fa: سامانه‌ی گزارش
       title_en: Report system
+    # ⟨1.5⟩ prompt 11 §11: the meeting secretary (agents/roles/secretary.md), a
+    # system role: never hired, rated or starred; it runs only for a meeting's
+    # summary (its tokens are booked like any agent's).
+    - code_suffix: SEC
+      kind: system
+      role: secretary
+      department: AIOPS
+      title_fa: منشی جلسه
+      title_en: Meeting Secretary

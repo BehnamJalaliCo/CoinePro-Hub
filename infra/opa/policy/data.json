@@ -34,7 +34,8 @@
           "hire.decide",
           "finding.update",
           "oversight.finding_update",
-          "kill_switch.engage"
+          "kill_switch.engage",
+          "knowledge.approve"
         ],
         "manager": [
           "work.delegate",
@@ -88,7 +89,8 @@
           "rescue.update",
           "feedback.tag",
           "support.draft",
-          "support.handoff"
+          "support.handoff",
+          "knowledge.review"
         ],
         "assistant": [
           "errand.step",
@@ -124,7 +126,8 @@
           "kill_switch.set",
           "deploy.freeze",
           "deploy_freeze.set",
-          "support.mystery"
+          "support.mystery",
+          "knowledge.review"
         ]
       }
     }

@@ -21,6 +21,10 @@ Schedule ids:
     hq-support-sweep          every SUPPORT_HANDOFF_DIGEST_MIN (30) min  SupportSweep (prompt 10
                               §4-§7: expiry, reminders, the handoff line, lifecycle, NPS);
                               its activity does nothing while the holding is locked
+    hq-meetings               every minute  MeetingsTick (prompt 11 §1: plan, prepare, start,
+                              advance, war rooms, postmortems, standups); nothing while locked
+    hq-knowledge-daily        daily 06:30 (owner's zone)  KnowledgeDaily (prompt 11 §3.3: expiry,
+                              rule-only; the 14-day review work waits while locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -69,6 +73,8 @@ FEEDBACK_BATCH = "hq-feedback-batch"
 SUPPORT_WEEKLY = "hq-support-weekly"
 TEHRAN = "Asia/Tehran"  # the exchange's settlement times are real times, not the owner's view
 SUPPORT_SWEEP = "hq-support-sweep"
+MEETINGS = "hq-meetings"
+KNOWLEDGE_DAILY = "hq-knowledge-daily"
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -86,6 +92,8 @@ FIXED = (
     RESCUE,
     FEEDBACK_BATCH,
     SUPPORT_WEEKLY,
+    MEETINGS,
+    KNOWLEDGE_DAILY,
 )
 
 
@@ -242,6 +250,22 @@ def fixed(
             timedelta(minutes=30),
         ),
         *revenue_fixed(),
+        *governance_fixed(tz),
+    ]
+
+
+def governance_fixed(tz: str) -> list[Desired]:
+    """Prompt 11 §1-§3: they gate themselves (hq_api.domain.gate)."""
+    return [
+        Desired(MEETINGS, "MeetingsTick", (), every(1), timedelta(minutes=2), timedelta(minutes=5)),
+        Desired(
+            KNOWLEDGE_DAILY,
+            "KnowledgeDaily",
+            (),
+            daily_at(time(6, 30), tz),
+            timedelta(hours=12),
+            timedelta(minutes=15),
+        ),
     ]
 
 

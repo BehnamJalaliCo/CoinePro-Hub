@@ -28,6 +28,7 @@ from hq_api.routes import (
     auth,
     backups,
     brands,
+    charter,
     decisions,
     deliverables,
     egress,
@@ -41,7 +42,9 @@ from hq_api.routes import (
     inquiries,
     intake,
     internal,
+    knowledge,
     lifecycle,
+    meetings,
     messages,
     meta,
     notifications,
@@ -174,6 +177,10 @@ def create_app(
         feedback,
         intake,
         lifecycle,  # /growth/templates, /growth/rules, /growth/nps (prompt 10 §7)
+        # prompt 11 §1-§3 (contract §20.1-§20.3): meetings, the charter, knowledge
+        meetings,
+        charter,
+        knowledge,
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
@@ -190,6 +197,8 @@ def create_app(
     app.include_router(founding.internal_router, prefix="/internal/v1")
     for p10 in (revenue, support, growth, growth_funnel, feedback):
         app.include_router(p10.internal_router, prefix="/internal/v1")
+    for p11 in (meetings, charter, knowledge):  # prompt 11 §1-§3
+        app.include_router(p11.internal_router, prefix="/internal/v1")
     # The only public routes prompt 10 adds (webhooks; never /internal).
     app.include_router(intake.webhook_router, prefix="/intake/v1")
     app.state.version = __version__

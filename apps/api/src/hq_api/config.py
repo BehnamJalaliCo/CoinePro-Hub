@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
-from hq_common import oversight_share
+from hq_common import meetings_share, oversight_share
 
 
 def _int(name: str, default: int) -> int:
@@ -130,6 +130,13 @@ class Settings:
     # enforces it; once spent, only critical protocols run, the rest are deferred).
     oversight_daily_share: float = field(
         default_factory=lambda: oversight_share.parse_share(_env("OVERSIGHT_DAILY_SHARE"))
+    )
+    # The meetings' share (prompt 11 §1.2, contract §20.1): all meeting
+    # reservations of one UTC day together use at most this share of
+    # AGENT_DAILY_TOKEN_CAP (a meeting that does not fit runs `written`; the war
+    # room is outside it). llm-router enforces it on every meeting turn too.
+    meetings_daily_share: float = field(
+        default_factory=lambda: meetings_share.parse_share(_env("MEETINGS_DAILY_SHARE"))
     )
     # Off: the protocols' schedules exist but stay paused (tests).
     oversight_schedules: bool = field(

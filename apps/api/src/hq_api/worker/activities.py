@@ -32,6 +32,7 @@ from hq_api.worker.academy_activities import AcademyActivities
 from hq_api.worker.brand_activities import BrandActivities
 from hq_api.worker.desk_activities import DeskActivities
 from hq_api.worker.media_activities import MediaActivities
+from hq_api.worker.meeting_activities import MeetingActivities
 from hq_api.worker.oversight_activities import OversightActivities
 from hq_api.worker.people_activities import PeopleActivities
 from hq_api.worker.revenue_activities import RevenueActivities
@@ -77,9 +78,11 @@ class Activities:
         self.support = SupportActivities(hub, self._tx)
         self.revenue = RevenueActivities(hub, self._tx, router=self.router)
         self.desk = DeskActivities(hub, self.router, self._tx)  # prompt 10 §4-§7, §11
+        self.meetings = MeetingActivities(hub, self._tx)  # prompt 11 §1-§3
 
     def all(self) -> list[Any]:
         return [
+            *self.meetings.all(),
             *self.desk.all(),
             *self.media.all(),
             *self.brand.all(),

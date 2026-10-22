@@ -33,6 +33,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+import os
 import re
 import unicodedata
 from collections.abc import Iterable
@@ -44,7 +45,7 @@ from pydantic import BaseModel, Field
 
 from hq_api.db import Tx
 from hq_api.errors import ApiError
-from hq_common import customer_mask
+from hq_common import charters, customer_mask
 from hq_common import outbound_guard as G
 
 KINDS = ("faq", "policy", "procedure", "referral", "official_link", "safety")
@@ -543,11 +544,19 @@ async def guard_context(tx: Tx, company_id: UUID, *, extra_ids: Iterable[str] = 
     employees = await tx.all(
         "SELECT code FROM core.employees WHERE company_id = :co", co=company_id
     )
+    # ⟨1.5⟩ prompt 11 §2.6: the `rule` red lines in force (the sealed charter and
+    # the company's sealed addendum; until a seal, the four of §1.15) -> red_line
+    from hq_api.domain import charter as CH
+
+    code = await tx.scalar("SELECT code FROM core.companies WHERE id = :co", co=company_id)
+    root = os.environ.get("HQ_AGENTS_DIR", charters.DEFAULT_DIR)
+    red = CH.rule_patterns(await CH.red_lines_in_force(tx, code, root))
     return dataclasses.replace(
         approved,
         identifiers=approved.identifiers | frozenset(i for i in extra_ids if i),
         company_codes=frozenset(r["code"] for r in companies),
         employee_codes=frozenset(r["code"] for r in employees),
+        red_lines=tuple(red),
     )
 
 

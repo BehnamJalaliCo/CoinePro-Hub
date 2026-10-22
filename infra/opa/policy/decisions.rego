@@ -23,6 +23,8 @@ kinds := {
 	"tool_enable",
 	# ⟨1.5⟩ prompt 10 (contract §19.9): sealed by the owner only
 	"message_template", "lifecycle_rule", "support_go_live",
+	# ⟨1.5⟩ prompt 11 §1-§3 (contract §20.11): the owner's only
+	"meeting_resolution", "charter_amendment", "knowledge_entry",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

@@ -163,6 +163,13 @@ CODES: dict[str, tuple[int, str, str]] = {
     "send_blocked": (422, "Send blocked", "نگهبان خروجی این پیام را رد کرد؛ دلیل‌ها را ببین."),
     "opted_out": (409, "Opted out", "این مشتری پیام‌ها را لغو کرده است."),
     "send_limit": (429, "Send limit", "سقف ارسال امروز یا این ساعت پر شده است."),
+    # prompt 11 (contract §20.11)
+    "meeting_not_live": (409, "Meeting not live", "این جلسه الان زنده نیست."),
+    "knowledge_expired": (
+        422,
+        "Knowledge expired",
+        "این دانش منقضی شده است و به‌عنوان منبع پذیرفته نمیشود؛ نسخه‌ی تازه‌اش را بخواه.",
+    ),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 

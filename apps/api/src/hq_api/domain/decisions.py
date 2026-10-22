@@ -20,6 +20,7 @@ from hq_api import events
 from hq_api.db import Tx
 from hq_api.domain import errands, hiring, mcp, notify, org, oversight, recurring, stars
 from hq_api.domain import work as W
+from hq_api.domain.charter import CharterAmendmentPayload
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, Model, actor
@@ -45,6 +46,11 @@ KINDS = (
     "message_template",
     "lifecycle_rule",
     "support_go_live",
+    # ⟨1.5⟩ prompt 11 §1-§3 (contract §20.11): a meeting's draft, a charter
+    # amendment, a holding knowledge entry
+    "meeting_resolution",
+    "charter_amendment",
+    "knowledge_entry",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -70,6 +76,11 @@ ACTION_CLASS = {
     "message_template": "A2",
     "lifecycle_rule": "A3",
     "support_go_live": "A3",
+    # ⟨1.5⟩ prompt 11: a resolution only by the owner's seal; the charter is the
+    # owner's (🔏); a holding entry the owner approves by its card
+    "meeting_resolution": "A1",
+    "charter_amendment": "A2",
+    "knowledge_entry": "A1",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -89,9 +100,14 @@ STEP_UP_KINDS = (
     "message_template",
     "lifecycle_rule",
     "support_go_live",
+    # ⟨1.5⟩ prompt 11 §2: sealing an amendment seals the charter (🔏)
+    "charter_amendment",
 )
 # ⟨1.5⟩ applied in the deciding transaction, bound to their payload (§19.9)
 SEALED_CARD_KINDS = ("message_template", "lifecycle_rule", "support_go_live")
+# ⟨1.5⟩ prompt 11 §2-§3: applied in the deciding transaction too (a card on a
+# version that is no longer current is superseded: 409 decision_not_pending)
+GOVERNANCE_CARD_KINDS = ("charter_amendment", "knowledge_entry")
 EFFECT_KINDS = (
     "hire",
     "dismissal",
@@ -102,7 +118,7 @@ EFFECT_KINDS = (
     "protocol",
     "company_found",
 )
-FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action")
+FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action", "meeting_resolution")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
 
@@ -313,6 +329,24 @@ class ProtocolPayload(Model):
     status: Literal["active", "paused", "draft"] = "active"
 
 
+class MeetingResolutionPayload(Model):
+    """⟨1.5.1⟩ {meeting, item, text_md, votes, claims}: made by the meeting's
+    code from a draft (never by an agent's propose); the claims are the
+    item's SOURCED claims only."""
+
+    meeting: str = Field(pattern=r"^MT-[0-9]{4,}$")
+    item: int = Field(ge=1, le=50)
+    text_md: str = Field(min_length=1, max_length=8000)
+    votes: dict[str, int] = Field(default_factory=dict)
+    claims: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
+
+
+class KnowledgeEntryPayload(Model):
+    """⟨1.5.1⟩ {entry}: a holding knowledge entry after a passing review."""
+
+    entry: str = Field(pattern=r"^K-[0-9]{4,}@[0-9]+$")
+
+
 class MessageTemplatePayload(Model):
     """⟨1.5.1⟩ {template: Template, sha256}: an agent's proposal arrives as
     {template: {purpose, body_fa, variables?, ref?}} and the api writes the
@@ -362,6 +396,9 @@ PAYLOADS: dict[str, type[Model]] = {
     "message_template": MessageTemplatePayload,
     "lifecycle_rule": LifecycleRulePayload,
     "support_go_live": SupportGoLivePayload,
+    "meeting_resolution": MeetingResolutionPayload,
+    "charter_amendment": CharterAmendmentPayload,
+    "knowledge_entry": KnowledgeEntryPayload,
 }
 
 
@@ -385,6 +422,9 @@ class DecisionIn(Model):
         "message_template",
         "lifecycle_rule",
         "support_go_live",
+        "meeting_resolution",
+        "charter_amendment",
+        "knowledge_entry",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -671,6 +711,18 @@ async def propose(
         from hq_api.domain import founding
 
         await founding.check_proposal(tx, payload, company_id)
+    if body.kind in ("meeting_resolution", "knowledge_entry") and who.is_owner:
+        # ⟨1.5⟩ made by the system from a meeting draft or a passed review
+        raise ApiError(
+            422, "validation_failed", fields={"kind": f"{body.kind} is made by the system"}
+        )
+    if body.kind == "charter_amendment":
+        from hq_api.domain import charter
+
+        holding_code = await tx.scalar(
+            "SELECT code FROM core.companies WHERE kind = 'holding' LIMIT 1"
+        )
+        await charter.check_amendment(tx, who, payload, company_code, str(holding_code))
     # Still open: no card yet, or its card came back without an answer
     # (returned, expired, withdrawn), so the lesson may be proposed again.
     if body.kind == "lesson_adoption" and not await tx.scalar(
@@ -920,6 +972,20 @@ async def decide(
         from hq_api.domain import lifecycle
 
         await lifecycle.apply_card(tx, d, step_up_id)
+        effect = "applied"
+    if verdict == "approved" and d["kind"] in GOVERNANCE_CARD_KINDS:
+        if amendments:
+            raise ApiError(
+                422, "validation_failed", fields={"amendments": "this card is sealed as it is"}
+            )
+        if d["kind"] == "charter_amendment":
+            from hq_api.domain import charter
+
+            await charter.apply_amendment(tx, who, d, step_up_id)
+        else:
+            from hq_api.domain import knowledge
+
+            await knowledge.apply_card(tx, who, d)
         effect = "applied"
     await tx.exec(
         """UPDATE cartable.decisions SET status = :st, decided_at = now(), decided_by_kind = :k,

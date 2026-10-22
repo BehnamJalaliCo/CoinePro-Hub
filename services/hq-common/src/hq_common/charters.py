@@ -122,10 +122,13 @@ class Library:
         allowed = set(self.allowed(role))
         return [t for name, t in self.tools.items() if name in allowed]
 
-    def system_prompt(self, role: str, values: dict[str, str]) -> str:
-        """_common.md + <role>.md with the template variables filled in."""
+    def system_prompt(self, role: str, values: dict[str, str], between: str = "") -> str:
+        """_common.md + <role>.md with the template variables filled in;
+        `between` (the sealed charter and addendum, prompt 11 §2.5) sits after
+        _common and before the role's charter, inside the cached prefix."""
         c = self.roles[role]
-        return fill(self.common, values) + "\n\n" + fill(c.body, values)
+        mid = "\n\n" + between if between else ""
+        return fill(self.common, values) + mid + "\n\n" + fill(c.body, values)
 
 
 def fill(text: str, values: dict[str, str]) -> str:

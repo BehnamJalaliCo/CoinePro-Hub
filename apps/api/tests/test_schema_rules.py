@@ -43,6 +43,9 @@ SCHEMAS = (
     "growth",
     "feedback",
     "intake",
+    # prompt 11 §1-§2: the meeting room and the charter (knowledge.entries is in "knowledge")
+    "meetings",
+    "governance",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.

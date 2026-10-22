@@ -300,6 +300,7 @@ CREATE TABLE meetings.claims (
     meeting_id     uuid NOT NULL,
     item_id        uuid REFERENCES meetings.items (id),
     turn_id        uuid NOT NULL REFERENCES meetings.turns (id),
+    n              int NOT NULL DEFAULT 1 CHECK (n BETWEEN 1 AND 50),   -- its place in the turn
     text_fa        text NOT NULL CHECK (length(text_fa) BETWEEN 1 AND 1000),
     source_kind    text CHECK (source_kind ~ '^[a-z][a-z_]{1,20}$'),
     source_ref     text CHECK (length(source_ref) BETWEEN 1 AND 80),
@@ -313,7 +314,8 @@ CREATE TABLE meetings.claims (
 CREATE INDEX meetings_claims_item ON meetings.claims (item_id, at);
 CREATE TRIGGER meetings_claims_immutable BEFORE UPDATE ON meetings.claims
     FOR EACH ROW EXECUTE FUNCTION core.keep_immutable('id', 'company_id', 'meeting_id', 'item_id', 'turn_id',
-                                                      'text_fa', 'source_kind', 'source_ref', 'check_note', 'at');
+                                                      'n', 'text_fa', 'source_kind', 'source_ref', 'check_note',
+                                                      'at');
 -- A claim the code refused never becomes sourced later.
 CREATE FUNCTION meetings.claim_status() RETURNS trigger
     LANGUAGE plpgsql AS $$
@@ -405,6 +407,11 @@ CREATE FUNCTION meetings.queue_turn(p_employee uuid, p_reason text, p_priority t
            OR (e.kind = 'system' AND e.role <> 'secretary') THEN
             RETURN NULL;
         END IF;
+        -- A queued turn no meeting waits for any more (it moved on, it ended) is
+        -- finished first: it never runs and never blocks the next turn.
+        UPDATE agents.runs r SET state = 'failed', finished_at = now(), error_code = 'meeting_moved_on'
+         WHERE r.employee_id = e.id AND r.state = 'queued' AND r.trigger = 'meeting'
+           AND NOT EXISTS (SELECT 1 FROM meetings.meetings m WHERE m.pending_run_id = r.id);
         INSERT INTO agents.runs (company_id, employee_id, trigger, reason, priority)
         VALUES (e.company_id, e.id, 'meeting', left(COALESCE(p_reason, ''), 200), COALESCE(p_priority, 'P2'))
         ON CONFLICT (employee_id, COALESCE(work_id, '00000000-0000-0000-0000-000000000000'::uuid),

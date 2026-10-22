@@ -668,6 +668,13 @@ async def agent_story(body: StoryIn, request: Request, ctx: Ctx = Depends(intern
         result = (await _stories(tx, [row]))[0]
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
+    # ⟨1.5⟩ prompt 11 §2.6: a story that breaks a `rule` red line is a finding (PR-115)
+    from hq_api.domain import charter as CH
+
+    await CH.scan_after(
+        ctx.hub, company_id=row["company_id"], company_code=ctx.who.company or "", kind="story",
+        ref=row["ref"], text=f"{body.title_fa}\n{body.body_fa}",
+    )  # fmt: skip
     return result
 
 

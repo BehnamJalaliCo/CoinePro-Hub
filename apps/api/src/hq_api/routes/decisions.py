@@ -67,6 +67,13 @@ async def list_decisions(
         "tool_enable",
         "company_found",
         "server_plan",
+        # ⟨1.5⟩ prompt 10 and 11
+        "message_template",
+        "lifecycle_rule",
+        "support_go_live",
+        "meeting_resolution",
+        "charter_amendment",
+        "knowledge_entry",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,
