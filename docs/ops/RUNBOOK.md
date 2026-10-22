@@ -658,13 +658,13 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **نتیجه:** در `backup.restore_tests` ثبت میشود. شکست ← اعلان فوری.
 
 ### کارهای مالک (به ترتیب، در ترمینال SSH خودش)
-1. **`make gdrive-auth`:**
-   - توضیح فارسی چاپ میکند.
-   - مالک روی کامپیوتر خودش این را اجرا میکند (scope ‏`drive.file`: rclone فقط فایل‌های خودش را میبیند):
-     `rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"`
-   - JSON را بی‌نمایش میچسباند ← `kv/backup/gdrive`. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro-HQ/restic` را میسازد.
-   - **پیشنهاد (اختیاری):** یک OAuth client ID اختصاصی (نوع Desktop) در Google Cloud خود مالک، برای سهمیه‌ی جدا از client عمومی rclone. در این صورت مالک client ID و client secret را در پرسش اسکریپت میدهد، و اسکریپت فرمان را میسازد: `rclone authorize "drive" "<base64>"`. این رشته یک JSON با `client_id`، `client_secret` و `"scope":"drive.file"` است، base64 بدون padding (۷.۱ §۲.۸). شکل دو-آرگومانی (`"<client_id>" "<client_secret>"`) دسترسی **کل** Drive را میخواست و دیگر استفاده نمیشود.
-   - **کار مالک: consent screen آن پروژه در Google Cloud باید «In production» باشد.** در حالت «Testing»، گوگل refresh token را بعد از ۷ روز باطل میکند و backup بیرونی بی‌خبر میایستد (اسکریپت هم همین را میگوید). برای client عمومی rclone لازم نیست.
+1. **`make gdrive-auth`** (لینک و کد؛ درخواست مالک ۲۰۲۶-۱۰-۲۲، چیزی نصب نمیشود):
+   - اسکریپت یک لینک Google چاپ میکند. مالک آن را روی گوشی یا کامپیوتر خودش باز میکند، وارد میشود و «Allow» میزند.
+   - مرورگر به `127.0.0.1:53682/?state=…&code=…` میرود که باز نمیشود (درست است). مالک همه‌ی آن آدرس را کپی میکند و بی‌نمایش در پرسش اسکریپت میچسباند.
+   - پشت صحنه: `rclone authorize` با client عمومی rclone و scope ‏`drive.file` در یک کانتینر موقت backup-tools ‏(`hq-gdrive-auth`، بدون root، root filesystem فقط‌خواندنی) منتظر است. آدرس فقط به صفحه‌ی محلی همان کانتینر داده میشود و rclone کد یک‌بارمصرف را همان‌جا با توکن عوض میکند. توکن مستقیم به `kv/backup/gdrive` میرود و هیچ‌جا چاپ نمیشود. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro-HQ/restic` را میسازد.
+   - **دو مرحله‌ای:** `make gdrive-auth step=link` فقط لینک را میدهد و ورود ۳۰ دقیقه منتظر میماند (`HQ_GDRIVE_AUTH_WAIT_S`). بعد `make gdrive-auth step=code` آدرس را میگیرد: بی‌نمایش در ترمینال، یا از stdin وقتی مالک آدرس را به Claude سرور میدهد. کد درون آدرس فقط یک بار و فقط چند دقیقه معتبر است و بعد از مصرف بی‌ارزش است.
+   - **client اختصاصی مالک (اختیاری):** `make gdrive-auth own=1`. برای سهمیه‌ی جدا از client عمومی rclone، یک OAuth client ID (نوع Desktop) در Google Cloud خود مالک. مالک client ID و client secret را میدهد، اسکریپت فرمان را میسازد (`rclone authorize "drive" "<base64>"`) و مالک آن را روی کامپیوتر خودش اجرا میکند و JSON را بی‌نمایش میچسباند. رشته‌ی base64 یک JSON با `client_id`، `client_secret` و `"scope":"drive.file"` است، بدون padding (۷.۱ §۲.۸). شکل دو-آرگومانی (`"<client_id>" "<client_secret>"`) دسترسی **کل** Drive را میخواست و دیگر استفاده نمیشود.
+   - **کار مالک، فقط با `own=1`: consent screen آن پروژه در Google Cloud باید «In production» باشد.** در حالت «Testing»، گوگل refresh token را بعد از ۷ روز باطل میکند و backup بیرونی بی‌خبر میایستد. برای client عمومی rclone لازم نیست.
    - تا این کار نشده، backup ساعتی فقط محلی است و وضعیت Drive «پیکربندی نشده» است.
 2. **نسخه‌ی کاغذی رمز restic:** `make backup-password`.
    - فقط در ترمینال خود مالک، با تایپ `show`. بعد از Enter صفحه پاک میشود.

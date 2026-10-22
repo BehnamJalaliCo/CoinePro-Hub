@@ -40,6 +40,12 @@ class ApiException(
     val code: String,
     val messageFa: String,
     val requestId: String? = null,
+    /** ⟨1.4.6⟩ `409 not_ready`: what is still missing (§18.8, e.g. ["brand"]). */
+    val missing: List<String> = emptyList(),
+    /** ⟨1.5⟩ `422 send_blocked`: the outbound guard's refusal codes (§19.6). */
+    val blockedReasons: List<String> = emptyList(),
+    /** A `429` (`rate_limited`, `send_limit`, …): seconds from `Retry-After`, when the server sent one. */
+    val retryAfter: Int? = null,
 ) : Exception("HTTP $status $code") {
     val isAuth: Boolean get() = status == 401
     val isOffline: Boolean get() = status == 0
@@ -288,16 +294,20 @@ class Api(
     suspend fun skills(): List<Skill> = get("/skills")
     suspend fun newSkill(name: String, body: String, roles: List<String>, companies: List<String>?, fileIds: List<String>): Skill =
         post("/skills", buildJsonObject {
-            put("name_fa", name); put("body_md", body); put("roles", ids(roles)); put("companies", companies?.let(::ids) ?: JsonPrimitive("all")); put("file_ids", ids(fileIds))
+            // ⟨1.4.7⟩ scope is nested; the summary defaults to the start of the text on the server.
+            put("name_fa", name); put("body_md", body)
+            put("scope", buildJsonObject { put("roles", ids(roles)); put("companies", companies?.let(::ids) ?: JsonPrimitive("all")) })
+            put("file_ids", ids(fileIds))
         })
     /** Activation is bound to the exact version reviewed and tested: target "SK-005@1". */
     suspend fun activateSkill(s: Skill, stepUp: StepUp): Skill =
         post("/skills/${seg(s.ref)}/activate", buildJsonObject { put("version", s.version) }, stepUp("skill.activate", "${s.ref}@${s.version}"))
     suspend fun retireSkill(ref: String): Skill = post("/skills/${seg(ref)}/retire", JsonObject(emptyMap()))
     suspend fun curricula(): List<Curriculum> = get("/academy/curricula")
-    suspend fun evals(): List<EvalSuite> = get("/academy/evals")
+    suspend fun evals(): List<EvalSuite> = get<List<EvalSuite>>("/academy/evals").map { s -> s.copy(recent = s.recent.filter { it.done }) }
     /** Item 30: the newest run of each (suite, model) for a role. */
-    suspend fun modelComparison(role: String): Page<EvalRun> = get("/academy/runs?role=${seg(role)}&subject_kind=model&latest=true")
+    suspend fun modelComparison(role: String): Page<EvalRun> =
+        get<Page<EvalRun>>("/academy/runs?role=${seg(role)}&subject_kind=model&latest=true").let { p -> p.copy(items = p.items.filter { it.done }) }
     suspend fun trainingRecord(employee: String): TrainingRecord = get("/academy/records/${seg(employee)}")
     suspend fun teachings(): List<Teaching> = get("/academy/teach")
     suspend fun teach(targetKind: String, targetRef: String, text: String, source: String, fileId: String?): Teaching =
@@ -317,16 +327,20 @@ class Api(
     suspend fun disableMcp(key: String): McpServer = post("/tools/mcp/${seg(key)}/disable", JsonObject(emptyMap()))
 
     // --------------------------------------- founding, provisioning ⟨1.4⟩ --
-    suspend fun foundings(): Page<Founding> = get("/foundings")
+    suspend fun foundings(cursor: String? = null): Page<Founding> = get("/foundings", mapOf("cursor" to cursor))
     suspend fun founding(ref: String): Founding = get("/foundings/${seg(ref)}")
     suspend fun startFounding(kind: String, repo: String?, brief: String): Founding =
         post("/foundings", buildJsonObject { put("source", buildJsonObject { put("kind", kind); put("repo", repo); put("brief_md", brief) }) })
-    suspend fun activateFounding(ref: String, stepUp: StepUp): Founding = post("/foundings/${seg(ref)}/activate", JsonObject(emptyMap()), stepUp("founding.activate", ref))
+    /** ⟨1.4.6⟩ Without an active brand the hub answers `409 not_ready` (missing ["brand"]) unless [skipBrand]. */
+    suspend fun activateFounding(ref: String, stepUp: StepUp, skipBrand: Boolean = false): Founding =
+        post("/foundings/${seg(ref)}/activate", if (skipBrand) buildJsonObject { put("skip_brand", true) } else JsonObject(emptyMap()), stepUp("founding.activate", ref))
     suspend fun cancelFounding(ref: String): Founding = post("/foundings/${seg(ref)}/cancel", JsonObject(emptyMap()))
     suspend fun plan(ref: String): ServerPlan = get("/provisioning/plans/${seg(ref)}")
     suspend fun run(id: String): ProvisionRun = get("/provisioning/runs/${seg(id)}")
     /** The seal is bound to the plan the owner saw: its digest, which the server recomputes before anything is built. */
     suspend fun sealPlan(p: ServerPlan, stepUp: StepUp): ServerPlan = post("/provisioning/plans/${seg(p.ref)}/seal", JsonObject(emptyMap()), stepUp("provision.seal", p.digest))
+    /** ⟨1.4.8⟩ a failed run of a still-sealed plan continues from its failed step, on the same seal. */
+    suspend fun resumeRun(id: String): ProvisionRun = post("/provisioning/runs/${seg(id)}/resume", JsonObject(emptyMap()))
 
     // ------------------------------------------------- hiring ⟨1.4.2⟩ --
     suspend fun hiring(): Hiring = get("/owner/hiring")
@@ -409,6 +423,130 @@ class Api(
     suspend fun createCompany(body: CompanyIn, stepUp: StepUp): Company =
         post("/companies", json.encodeToJsonElement(CompanyIn.serializer(), body), stepUp("company.create", body.code))
 
+    // ------------------------------------------- brand and seal ⟨1.4.6⟩ --
+    /** Every active brand (§18.14); marks and seals draw from it. OkHttp has no cache here, so the app keeps it in its query cache. */
+    suspend fun brands(): Brands = get("/brands")
+    suspend fun companyBrand(code: String): CompanyBrandView = get("/companies/${seg(code)}/brand")
+    /** Every version, newest first; the screen follows the one being traced. A list or a page, as the hub serves it. */
+    suspend fun brandVersions(code: String): List<CompanyBrand> = when (val e = get<JsonElement>("/companies/${seg(code)}/brand/versions")) {
+        is JsonArray -> json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(CompanyBrand.serializer()), e)
+        else -> json.decodeFromJsonElement(Page.serializer(CompanyBrand.serializer()), e).items
+    }
+    /** A new version from the owner's logo ([fileId] from POST /files); the other part is carried over from the active one. */
+    suspend fun uploadBrand(code: String, fileId: String, part: String, options: BrandOptions): CompanyBrand =
+        post("/companies/${seg(code)}/brand", buildJsonObject { put("file_id", fileId); put("part", part); put("options", optionsOf(options)) })
+    suspend fun retraceBrand(code: String, version: Int, options: BrandOptions): CompanyBrand =
+        post("/companies/${seg(code)}/brand/$version/retrace", buildJsonObject { put("options", optionsOf(options)) })
+    /** The seal is bound to the version the owner saw: its digest, which the server recomputes. */
+    suspend fun activateBrand(b: CompanyBrand, stepUp: StepUp): CompanyBrand =
+        post("/companies/${seg(b.company)}/brand/${b.version}/activate", JsonObject(emptyMap()), stepUp("company.brand", b.digest))
+
+    private fun optionsOf(o: BrandOptions) = buildJsonObject { o.colors?.let { put("colors", it) }; put("detail", o.detail) }
+
+    // ----------------------------------------- revenue and support ⟨1.5⟩ --
+    // Contract §19. Every 🔏 write names its action and exact target here (§19.9); bodies sealed on their hash are serialised
+    // once. reply, teach and pull carry the caller's Idempotency-Key, so a retry of the same press never sends twice.
+    suspend fun revenueSummary(period: String, company: String? = null): RevenueSummary = get("/revenue/summary", mapOf("period" to period, "company" to company))
+    /** Unpaged, at most 400 rows. */
+    suspend fun revenueDays(from: String, to: String, company: String? = null, account: String? = null): List<RevenueDay> =
+        listOrPage("/revenue/days", mapOf("from" to from, "to" to to, "company" to company, "account" to account), RevenueDay.serializer())
+    suspend fun revenueAccounts(): List<RevenueAccount> = listOrPage("/revenue/accounts", emptyMap(), RevenueAccount.serializer())
+    /** Adds or changes the account of `exchange` + `company`, sealed on the exact body; the secret is set in the owner's terminal. */
+    suspend fun saveRevenueAccount(body: RevenueAccountIn, stepUp: StepUp): RevenueAccount =
+        sealedPost("/revenue/accounts", json.encodeToString(RevenueAccountIn.serializer(), body)) { stepUp("revenue.account", it) }
+    /** Pull now (≤ 31 days), rate-limited like the schedule. [key] is the press's: a retry after a lost answer sends the same one. */
+    suspend fun pullRevenue(id: String, key: String, from: String? = null, to: String? = null): JsonObject =
+        call(write("POST", "/revenue/accounts/${seg(id)}/pull", JsonObject(emptyMap()), null, key, mapOf("from" to from, "to" to to)), serializer())
+
+    suspend fun funnel(company: String, period: String): Funnel = get("/growth/funnel", mapOf("company" to company, "period" to period))
+    suspend fun rescueCases(company: String? = null, state: String? = null, cursor: String? = null, limit: Int = 50): Page<RescueCase> =
+        get("/growth/rescue", mapOf("company" to company, "state" to state, "limit" to limit, "cursor" to cursor))
+    suspend fun rescueCase(ref: String): RescueCase = get("/growth/rescue/${seg(ref)}")
+
+    suspend fun supportChannels(company: String? = null): List<SupportChannel> = listOrPage("/support/channels", mapOf("company" to company), SupportChannel.serializer())
+    /** Stopping is always safe: no step-up. */
+    suspend fun pauseChannel(c: SupportChannel): SupportChannel = post("/support/channels/${seg(c.company)}/${seg(c.kind)}/pause", JsonObject(emptyMap()))
+    /** `If-Match` the channel's version. Widening ([widens]) is 🔏 `support.channel` on `company/kind@auto_send`; narrowing needs none. */
+    suspend fun patchChannel(c: SupportChannel, autoSend: String? = null, live: Boolean = false, stepUp: StepUp): SupportChannel {
+        val text = json.encodeToString(JsonElement.serializer(), buildJsonObject { autoSend?.let { put("auto_send", it) }; if (live) put("state", "live") })
+        val token = if (widens(c, autoSend, live)) stepUp("support.channel", "${c.company}/${c.kind}@${autoSend ?: c.autoSend}") else null
+        return send("PATCH", "/support/channels/${seg(c.company)}/${seg(c.kind)}", text, ifMatch = c.version, stepUp = token)
+    }
+    suspend fun conversations(company: String? = null, state: String? = null, channel: String? = null, q: String? = null, cursor: String? = null, limit: Int = 30): Page<Conversation> =
+        get("/support/conversations", mapOf("company" to company, "state" to state, "channel" to channel, "q" to q?.trim()?.ifEmpty { null }, "limit" to limit, "cursor" to cursor))
+    /** With its messages, oldest first. */
+    suspend fun conversation(ref: String): Conversation = get("/support/conversations/${seg(ref)}")
+    suspend fun supportQueue(): List<QueueItem> = listOrPage("/support/queue", emptyMap(), QueueItem.serializer())
+    /** Sent as the owner through the outbound guard: `422 send_blocked` with its reasons. [key]: one per text. */
+    suspend fun reply(ref: String, body: String, key: String): SupportMessage =
+        call(write("POST", "/support/conversations/${seg(ref)}/reply", buildJsonObject { put("body", body) }, null, key), serializer())
+    /** Sends the answer (when the conversation waits) and opens a KB proposal from it. */
+    suspend fun teach(ref: String, messageId: String?, answerMd: String, generalise: Boolean, key: String): TeachOut =
+        call(write("POST", "/support/conversations/${seg(ref)}/teach", buildJsonObject {
+            if (messageId != null) put("message_id", messageId)
+            put("answer_md", answerMd); put("generalise", generalise)
+        }, null, key), serializer())
+    suspend fun closeConversation(ref: String): Conversation = post("/support/conversations/${seg(ref)}/close", JsonObject(emptyMap()))
+
+    suspend fun kb(company: String? = null, kind: String? = null, status: String? = null, q: String? = null): List<KbArticle> =
+        listOrPage("/support/kb", mapOf("company" to company, "kind" to kind, "status" to status, "q" to q?.trim()?.ifEmpty { null }), KbArticle.serializer())
+    suspend fun proposeKb(body: KbArticleIn): KbArticle = post("/support/kb", json.encodeToJsonElement(KbArticleIn.serializer(), body))
+    /** An approved article changes what may leave without the owner: sealed on `ref@version`. */
+    suspend fun approveKb(a: KbArticle, stepUp: StepUp): KbArticle = post("/support/kb/${seg(a.ref)}/approve", JsonObject(emptyMap()), stepUp("support.kb", "${a.ref}@${a.version}"))
+    suspend fun retireKb(ref: String): KbArticle = post("/support/kb/${seg(ref)}/retire", JsonObject(emptyMap()))
+    /** The latest report of each company. */
+    suspend fun shadowReports(): List<ShadowReport> = listOrPage("/support/shadow", emptyMap(), ShadowReport.serializer())
+    /** A chat export (Telegram Desktop JSON or a CSV of question and answer), already uploaded through /files. */
+    suspend fun supportHistory(company: String, fileId: String): HistoryOut = post("/support/history", buildJsonObject { put("company", company); put("file_id", fileId) })
+    /** An academy eval run of the support charter on the company's suite (§18.6). */
+    suspend fun runShadow(company: String): ShadowRunOut = post("/support/shadow/${seg(company)}/run", JsonObject(emptyMap()))
+
+    suspend fun templates(company: String? = null): List<Template> = listOrPage("/growth/templates", mapOf("company" to company), Template.serializer())
+    suspend fun rules(company: String? = null): List<LifecycleRule> = listOrPage("/growth/rules", mapOf("company" to company), LifecycleRule.serializer())
+    suspend fun nps(company: String? = null): List<NpsWave> = listOrPage("/growth/nps", mapOf("company" to company), NpsWave.serializer())
+    suspend fun proposeTemplate(body: TemplateIn): Template = post("/growth/templates", json.encodeToJsonElement(TemplateIn.serializer(), body))
+    /** Bound to the exact body: `ref@version:sha256`. */
+    suspend fun sealTemplate(t: Template, stepUp: StepUp): Template =
+        post("/growth/templates/${seg(t.ref)}/seal", JsonObject(emptyMap()), stepUp("growth.template", "${t.ref}@${t.version}:${t.sha256}"))
+    suspend fun createRule(body: LifecycleRuleIn): LifecycleRule = post("/growth/rules", json.encodeToJsonElement(LifecycleRuleIn.serializer(), body))
+    /** The owner's A3 approval in advance; the rule's template version must be sealed (`409 template_not_sealed`). */
+    suspend fun sealRule(r: LifecycleRule, stepUp: StepUp): LifecycleRule = post("/growth/rules/${seg(r.ref)}/seal", JsonObject(emptyMap()), stepUp("growth.rule", "${r.ref}@${r.version}"))
+    suspend fun pauseRule(ref: String): LifecycleRule = post("/growth/rules/${seg(ref)}/pause", JsonObject(emptyMap()))
+    suspend fun resumeRule(r: LifecycleRule, stepUp: StepUp): LifecycleRule = post("/growth/rules/${seg(r.ref)}/resume", JsonObject(emptyMap()), stepUp("growth.rule", "${r.ref}@${r.version}"))
+
+    /** Most frequent first. */
+    suspend fun feedback(company: String? = null, kind: String? = null, state: String? = null, cursor: String? = null, limit: Int = 50): Page<FeedbackItem> =
+        get("/feedback", mapOf("company" to company, "kind" to kind, "state" to state, "limit" to limit, "cursor" to cursor))
+    /** `If-Match` the item's version; [setWork] sends `work_ref` (null detaches it). */
+    suspend fun patchFeedback(x: FeedbackItem, state: String? = null, workRef: String? = null, setWork: Boolean = false): FeedbackItem =
+        send("PATCH", "/feedback/${seg(x.ref)}", json.encodeToString(JsonElement.serializer(), buildJsonObject {
+            if (state != null) put("state", state)
+            if (setWork) put("work_ref", workRef)
+        }), ifMatch = x.version)
+
+    suspend fun intakeSources(): List<IntakeSource> = listOrPage("/intake/sources", emptyMap(), IntakeSource.serializer())
+    /** Sealed on the exact body (allowed IPs and kinds); the source's secret is set in the owner's terminal, never here. */
+    suspend fun registerIntake(body: IntakeSourceIn, stepUp: StepUp): IntakeSource =
+        sealedPost("/intake/sources", json.encodeToString(IntakeSourceIn.serializer(), body)) { stepUp("intake.source", it) }
+
+    /** A POST whose step-up is bound to the SHA-256 of [text], the exact body sent. */
+    private suspend inline fun <reified T> sealedPost(path: String, text: String, sign: (String) -> String): T {
+        val token = sign(sha256(text))
+        val req = Request.Builder().url(url(path)).post(text.toRequestBody(JSON))
+            .header("Idempotency-Key", UUID.randomUUID().toString()).header("X-Step-Up", token).build()
+        return call(req, serializer())
+    }
+
+    /** §19 names a cursor only on conversations, rescue cases and feedback; the other lists are read bare or paged. */
+    private suspend fun <T> listOrPage(path: String, query: Map<String, Any?>, s: KSerializer<T>): List<T> {
+        val e = get<JsonElement>(path, query)
+        return try {
+            if (e is JsonArray) json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(s), e) else json.decodeFromJsonElement(Page.serializer(s), e).items
+        } catch (x: IllegalArgumentException) {
+            throw ApiException(200, "contract_mismatch", "پاسخ سرور با قرارداد نمیخواند؛ نسخه‌ی اپ را به‌روز کن.")
+        }
+    }
+
     // --------------------------------------------------- backups ⟨1.4⟩ --
     suspend fun backups(): BackupStatus = get("/backups/status")
 
@@ -440,11 +578,12 @@ class Api(
         execute(write("POST", path, body, stepUp)).use { check(it) }
     }
 
-    private fun write(method: String, path: String, body: JsonElement, stepUp: String?): Request =
-        Request.Builder().url(url(path))
+    /** [key]: the caller's Idempotency-Key, kept across retries of one press; otherwise every POST gets a fresh one. */
+    private fun write(method: String, path: String, body: JsonElement, stepUp: String?, key: String? = null, query: Map<String, Any?> = emptyMap()): Request =
+        Request.Builder().url(url(path, query))
             .method(method, json.encodeToString(JsonElement.serializer(), body).toRequestBody(JSON))
             .apply {
-                if (method == "POST") header("Idempotency-Key", UUID.randomUUID().toString())
+                if (method == "POST") header("Idempotency-Key", key ?: UUID.randomUUID().toString())
                 if (stepUp != null) header("X-Step-Up", stepUp)
             }
             .build()
@@ -464,7 +603,8 @@ class Api(
         if (r.code == 401) tokens.clear()
         val p = runCatching { json.decodeFromString(Problem.serializer(), r.body.string()) }.getOrNull()
         if (p?.messageFa == null) throw ApiException.unexpected(r.code)
-        throw ApiException(r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"))
+        val wait = r.header("Retry-After")?.trim()?.toIntOrNull()?.takeIf { it > 0 }
+        throw ApiException(r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"), p.missing, p.blockedReasons, wait)
     }
 
     private suspend fun execute(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->

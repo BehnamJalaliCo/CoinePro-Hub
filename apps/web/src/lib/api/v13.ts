@@ -53,7 +53,9 @@ const mockHandle = isMock ? async (r: Request) => (await import('@/lib/api/mock'
 async function problem(res: Response): Promise<never> {
   let p: Partial<Problem> | undefined;
   try { p = (await res.json()) as Partial<Problem>; } catch { /* not JSON */ }
-  throw new ApiError(res.status, p);
+  // A 429 says when to try again in a header, not in the body.
+  const wait = Number(res.headers.get('Retry-After'));
+  throw new ApiError(res.status, wait > 0 ? ({ ...p, retry_after: wait } as Partial<Problem>) : p);
 }
 
 /** One JSON call against /api/v1 with the contract's headers. */

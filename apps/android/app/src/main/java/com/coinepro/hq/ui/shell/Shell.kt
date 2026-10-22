@@ -61,6 +61,7 @@ import com.coinepro.hq.designsystem.DIcon
 import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.IconBtn
 import com.coinepro.hq.designsystem.LiveDot
+import com.coinepro.hq.designsystem.LocalBrands
 import com.coinepro.hq.designsystem.Monogram
 import com.coinepro.hq.designsystem.Orb
 import com.coinepro.hq.designsystem.generated.DivanIcon
@@ -131,6 +132,11 @@ private val ORG = listOf(
 )
 
 private val TOOLS = listOf(
+    // ⟨1.5⟩ revenue and support (§19)
+    Tool("revenue", "درآمد", DivanIcon.CHART),
+    Tool("support", "پشتیبانی", DivanIcon.MESSAGES),
+    Tool("growth", "رشد و پیام‌ها", DivanIcon.SEND),
+    Tool("feedback", "بازخورد", DivanIcon.RATE),
     Tool("workshop", "کارگاه کد", DivanIcon.CODE),
     Tool("outputs", "خروجی‌ها", DivanIcon.DELIVERABLE),
     Tool("treasury", "خزانه‌ی توکن", DivanIcon.TREASURY),
@@ -203,7 +209,10 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
         if (!env.demo) com.coinepro.hq.device.CartableWidget.update(ctx, i.decisionsPending, i.notifications["urgent"] ?: 0)
     }
 
-    CompositionLocalProvider(LocalNav provides navApi, LocalLive provides Live(streamState, last, feed.toList())) {
+    // ⟨1.4.6⟩ marks and seals draw from GET /brands first (§18.14).
+    val brands = com.coinepro.hq.ui.companies.rememberBrands()
+
+    CompositionLocalProvider(LocalNav provides navApi, LocalLive provides Live(streamState, last, feed.toList()), LocalBrands provides brands) {
         Column(Modifier.fillMaxSize()) {
             TopBar(
                 back = !top,
@@ -255,6 +264,12 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("runs") { com.coinepro.hq.ui.owner.RunsScreen() }
                     composable("sites") { com.coinepro.hq.ui.owner.SitesScreen() }
                     composable("settings") { SettingsScreen(graph) }
+                    // ⟨1.5⟩ §19
+                    composable("revenue") { com.coinepro.hq.ui.revenue.RevenueScreen() }
+                    composable("support") { com.coinepro.hq.ui.support.SupportScreen() }
+                    composable("support/{ref}") { com.coinepro.hq.ui.support.ConversationScreen(it.arguments?.getString("ref").orEmpty()) }
+                    composable("growth") { com.coinepro.hq.ui.growth.GrowthScreen() }
+                    composable("feedback") { com.coinepro.hq.ui.feedback.FeedbackScreen() }
                 }
             }
             BottomBar(route, inbox.data?.decisionsPending ?: 0, inbox.data?.messagesUnread ?: 0) { navApi.go(it) }

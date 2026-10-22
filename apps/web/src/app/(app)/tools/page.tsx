@@ -5,6 +5,7 @@ import { CompanyMark } from '@/components/brand/marks';
 import { Button } from '@/components/ui/button';
 import { Card, PageHeader, Pill, SectionTitle, Skeleton, StatTile } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
+import { IntakeCard } from '@/components/v16/intake';
 import { ApiError } from '@/lib/api/client';
 import { useAccounts, useCatalog, useEgress, useEgressSummary, useMcp, useMcpAction } from '@/lib/api/v14';
 import { ago, cx, jTime } from '@/lib/format';
@@ -84,6 +85,7 @@ export default function ToolsPage() {
               </div>
             ))}
           </Card>
+          <IntakeCard />
         </div>
       </div>
       <Card className="flex flex-col gap-2 p-4">

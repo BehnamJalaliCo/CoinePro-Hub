@@ -17,19 +17,23 @@
   font-display: swap;
 }
 
-/* Two metals of the brand marks: silver + gold by night, graphite + ink gold by day. */
+/* Two metals of the brand marks: silver + gold by night, graphite + ink gold by day. --hq-day (0 or 1, inherited from the
+   nearest themed element) lets a company's mark pick accent_day over accent_night (§18.14), previews in either theme too. */
 :root, [data-theme="night"] {
+  --hq-day: 0;
   --hq-mark-silver: #DBDBDB; --hq-mark-gold: #D8A848; --hq-gold-pressed: #C4953C;
   --hq-silver-soft: rgba(174,184,199,.12); --hq-silver-soft-hover: rgba(174,184,199,.18); --hq-silver-soft-pressed: rgba(174,184,199,.26);
   --hq-neg-line: rgba(246,70,93,.45); --hq-switch-off: rgba(242,238,228,.38); --hq-gold-hover-soft: rgba(216,168,72,.30);
 }
 [data-theme="day"] {
+  --hq-day: 1;
   --hq-mark-silver: #5A5F66; --hq-mark-gold: #896217; --hq-gold-pressed: #C4953C;
   --hq-silver-soft: rgba(90,95,102,.10); --hq-silver-soft-hover: rgba(90,95,102,.16); --hq-silver-soft-pressed: rgba(90,95,102,.24);
   --hq-neg-line: rgba(197,47,60,.45); --hq-switch-off: rgba(28,26,23,.20); --hq-gold-hover-soft: rgba(216,168,72,.34);
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
+    --hq-day: 1;
     --hq-mark-silver: #5A5F66; --hq-mark-gold: #896217;
     --hq-silver-soft: rgba(90,95,102,.10); --hq-silver-soft-hover: rgba(90,95,102,.16); --hq-silver-soft-pressed: rgba(90,95,102,.24);
     --hq-neg-line: rgba(197,47,60,.45); --hq-switch-off: rgba(28,26,23,.20); --hq-gold-hover-soft: rgba(216,168,72,.34);

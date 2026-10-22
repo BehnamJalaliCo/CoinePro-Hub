@@ -106,3 +106,80 @@ export function CumulativeChart({ days, budget, forecastTo, fmt, height = 240 }:
     </div>
   );
 }
+
+export type Line = { key: string; label: ReactNode; color: string; values: Array<number | null> };
+const nice = (v: number) => { const e = 10 ** Math.floor(Math.log10(v)); const m = v / e; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * e; };
+
+/** Several series over the same days on one axis: a legend above (identity never by colour alone), each line's last value as a direct
+ *  label in the end gutter (a leader joins a label that had to move, or a line that ended early), a crosshair and a tooltip on hover.
+ *  Time runs left→right; a missing day is a gap in the line, never a zero. */
+export function LinesChart({ days, lines, fmt, tick, height = 240, label }: { days: Array<{ key: string; label: string }>; lines: Line[]; fmt: (v: number) => string; tick?: (v: number) => string; height?: number; label: string }) {
+  const [hi, setHi] = useState<number | null>(null);
+  const [focus, setFocus] = useState<string | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(720);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => { if (e) setW(Math.round(e.contentRect.width)); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const W = Math.max(w, 280), H = height, P = { l: 44, r: 64, t: 12, b: 26 };
+  const n = days.length;
+  const yMax = nice(Math.max(1, ...lines.flatMap((l) => l.values.filter((v): v is number => v != null))) * 1.06);
+  const x = (i: number) => P.l + (n <= 1 ? 0 : (i / (n - 1)) * (W - P.l - P.r));
+  const y = (v: number) => H - P.b - (v / yMax) * (H - P.t - P.b);
+  const path = (vs: Array<number | null>) => vs.reduce<{ d: string; pen: boolean }>((a, v, i) => (v == null ? { d: a.d, pen: false } : { d: `${a.d}${a.pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`, pen: true }), { d: '', pen: false }).d;
+  const ends = lines.flatMap((l) => {
+    const i = l.values.findLastIndex((v) => v != null);
+    return i < 0 ? [] : [{ key: l.key, color: l.color, i, v: l.values[i]!, at: y(l.values[i]!), ly: y(l.values[i]!) }];
+  }).sort((a, b) => a.at - b.at);
+  ends.forEach((e, k) => { if (k && e.ly - ends[k - 1]!.ly < 14) e.ly = ends[k - 1]!.ly + 14; });
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => yMax * t);
+  const every = Math.ceil(n / (W < 480 ? 4 : 7));
+  const gx = x(n - 1) + 10;
+  return (
+    <div className="flex flex-col gap-3">
+      <ul className="flex flex-wrap gap-x-4 gap-y-1.5" aria-label="راهنما">
+        {lines.map((l) => (
+          <li key={l.key}>
+            <button type="button" onMouseEnter={() => setFocus(l.key)} onMouseLeave={() => setFocus(null)} onFocus={() => setFocus(l.key)} onBlur={() => setFocus(null)}
+              className={cx('flex items-center gap-2 text-[12px] text-sec transition-opacity', focus && focus !== l.key && 'opacity-50')}>
+              <span className="h-[2px] w-3.5 rounded-full" style={{ background: l.color }} />{l.label}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div ref={box} className="relative" style={{ direction: 'ltr' }}>
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="block w-full touch-pan-y" role="img" aria-label={label} onPointerLeave={() => setHi(null)}
+          onPointerMove={(e) => { const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect(); const px = ((e.clientX - r.left) / r.width) * W; const i = Math.round(((px - P.l) / (W - P.l - P.r)) * (n - 1)); setHi(i >= 0 && i < n ? i : null); }}>
+          {ticks.map((t) => <g key={t}><line x1={P.l} x2={x(n - 1)} y1={y(t)} y2={y(t)} stroke="var(--hq-line-divider)" /><text x={P.l - 8} y={y(t) + 4} textAnchor="end" fontSize="11" fill="var(--hq-text-muted)" fontFamily="IRANYekanX">{(tick ?? fmt)(t)}</text></g>)}
+          {days.map((d, i) => (i % every === 0 || i === n - 1) && (i === n - 1 || n - 1 - i >= every / 2) ? <text key={d.key} x={x(i)} y={H - 8} textAnchor="middle" fontSize="11" fill="var(--hq-text-muted)" fontFamily="IRANYekanX">{d.label}</text> : null)}
+          {lines.map((l) => <path key={l.key} d={path(l.values)} fill="none" stroke={l.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" opacity={focus && focus !== l.key ? 0.25 : 1} />)}
+          {hi != null ? <line x1={x(hi)} x2={x(hi)} y1={P.t} y2={H - P.b} stroke="var(--hq-line-strong)" /> : null}
+          {ends.map((e) => (
+            <g key={e.key} opacity={focus && focus !== e.key ? 0.3 : 1}>
+              {e.i < n - 1 || Math.abs(e.ly - e.at) > 1 ? <polyline points={`${x(e.i) + 5},${e.at} ${gx - 3},${e.ly}`} fill="none" stroke="var(--hq-line-strong)" /> : null}
+              <circle cx={x(e.i)} cy={e.at} r={4} fill={e.color} stroke="var(--hq-surface-card)" strokeWidth={2} />
+              <text x={gx} y={e.ly + 4} fontSize="11" fontWeight={600} fill="var(--hq-text-secondary)" fontFamily="IRANYekanX">{fmt(e.v)}</text>
+            </g>
+          ))}
+          {hi != null ? lines.map((l) => (l.values[hi] != null ? <circle key={l.key} cx={x(hi)} cy={y(l.values[hi]!)} r={4} fill={l.color} stroke="var(--hq-surface-card)" strokeWidth={2} /> : null)) : null}
+        </svg>
+        {hi != null ? (
+          <div className="pointer-events-none absolute top-2 min-w-[150px] rounded-[10px] bg-raised px-3 py-2 text-[12px] shadow-[0_8px_24px_rgba(0,0,0,.35)]" style={{ left: `clamp(8px, ${(x(hi) / W) * 100}% - 75px, calc(100% - 170px))`, direction: 'rtl' }}>
+            <div className="pb-1 text-muted">{days[hi]!.label}</div>
+            {[...lines].sort((a, b) => (b.values[hi] ?? -1) - (a.values[hi] ?? -1)).map((l) => (
+              <div key={l.key} className="flex items-center gap-2">
+                <span className="h-[2px] w-3 rounded-full" style={{ background: l.color }} />
+                <span className="flex-1 text-sec">{l.label}</span>
+                <span className="fig font-semibold text-ink">{l.values[hi] != null ? fmt(l.values[hi]!) : '—'}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}

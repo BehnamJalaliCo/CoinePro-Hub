@@ -25,6 +25,10 @@ val DECISION_KIND = mapOf(
     "company_found" to Kind("تأسیس شرکت", DivanIcon.FOUND),
     "server_plan" to Kind("طرح سرور", DivanIcon.SERVER),
     "lesson_adoption" to Kind("پذیرش درس", DivanIcon.LEARNING),
+    // ⟨1.5⟩ §19.9
+    "message_template" to Kind("قالب پیام", DivanIcon.SEND),
+    "lifecycle_rule" to Kind("قاعده‌ی پیام", DivanIcon.TIME),
+    "support_go_live" to Kind("شروع پشتیبانی", DivanIcon.MESSAGES),
 )
 
 fun decisionKind(k: String) = DECISION_KIND[k] ?: Kind(k, DivanIcon.DECISION)
@@ -124,6 +128,7 @@ val ROLE_FA = mapOf(
     "ceo" to "مدیرعامل", "manager" to "مدیر", "cto" to "مدیر فنی", "sre" to "مهندس پایداری", "growth" to "مدیر رشد", "sales" to "فروش", "support" to "پشتیبانی",
     "quant" to "کوانت", "advisor" to "مشاور کل", "overseer" to "ناظر کل", "assistant" to "دستیار", "inspector" to "بازرس کیفیت", "fact_checker" to "راستی‌آزما",
     "security_analyst" to "تحلیلگر امنیت", "aiops_head" to "مدیر عملیات AI", "ai_safety" to "ایمنی AI", "hub_platform_sre" to "پایداری پلتفرم هاب",
+    "support_lead" to "سرپرست پشتیبانی", "support_agent" to "کارشناس پشتیبانی", "referral_rescue" to "متخصص نجات رفرال", "revenue_analyst" to "تحلیلگر درآمد",
 )
 
 fun roleFa(r: String): String = if (r == "all") "همه" else ROLE_FA[r] ?: r

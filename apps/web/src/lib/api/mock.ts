@@ -1,9 +1,11 @@
 // Development-only fixtures (npm run dev:mock). Never bundled in production:
 // the client imports this module only when NEXT_PUBLIC_HQ_MOCK=1.
 
+import { activeVersion, handleBrand } from './mock-brand';
 import { DEMO_CHART, DEMO_SKETCH, DEMO_VOICE } from './mock-media';
 import { handleOps } from './mock-ops';
 import { handle14 } from './mock-v14';
+import { DECISIONS_16, decided16, handle16 } from './mock-v16';
 import { roles } from './mock-roles';
 
 const now = Date.now();
@@ -69,6 +71,8 @@ const decisions: any[] = [
     what: 'بررسی هفتگی ۴۰ صفحه‌ی اصلی.', why: 'ورودی ارگانیک ۱۲٪ افت کرده.', quota_estimate: { tokens: 200000, usd: '3.20' }, risk_note: null,
     payload: {}, seal: { method: 'passkey_uv', sealed_at: iso(60 * 19), step_up_id: null }, decided_at: iso(60 * 19), decided_by: owner, note: null, resolution: 'M-0003', thread: null, expires_at: null, version: 2, effect_status: 'applied', work_id: null, id: 'd11', reason_code: null,
   },
+  // ⟨1.5⟩ the revenue-and-support cards (§19.9): a go-live after a passed shadow test, a template and a rule.
+  ...DECISIONS_16,
 ];
 
 const employees: any[] = [
@@ -335,8 +339,12 @@ export async function handle(req: Request): Promise<Response> {
   const p = u.pathname.replace(/^\/api\/v1/, '');
   const m = req.method;
   await new Promise((r) => setTimeout(r, 120 + Math.random() * 180));
+  const brand = await handleBrand(req, p, files);
+  if (brand) return brand;
   const v14 = await handle14(req, p, u);
   if (v14) return v14;
+  const v16 = await handle16(req, p, u);
+  if (v16) return v16;
   const ops = await handleOps(req, p, u, { work, employees, control, companies, messages, threads, envelope, summary, connections });
   if (ops) return ops;
   if (m !== 'GET') {
@@ -383,6 +391,7 @@ export async function handle(req: Request): Promise<Response> {
     if (d) {
       const x = decisions.find((y) => y.ref === d[1]);
       if (x) Object.assign(x, { status: d[2] === 'approve' ? 'approved' : d[2] === 'reject' ? 'rejected' : 'returned', decided_at: new Date().toISOString(), decided_by: owner, seal: d[2] === 'approve' ? { method: 'passkey_uv', sealed_at: new Date().toISOString(), step_up_id: 'mock' } : null, resolution: d[2] === 'approve' ? 'M-0007' : null });
+      if (x && d[2] === 'approve') decided16(x);
       return json(x);
     }
     const r = /^\/deliverables\/(O-\d+)\/rating$/.exec(p);
@@ -505,8 +514,9 @@ export async function handle(req: Request): Promise<Response> {
   const dd = /^\/decisions\/(D-\d+)$/.exec(p); if (dd) return json(decisions.find((d) => d.ref === dd[1]) ?? {}, decisions.some((d) => d.ref === dd[1]) ? 200 : 404);
   if (p === '/deliverables') return json(page(u.searchParams.get('unrated') === 'true' ? deliverables.filter((d) => !d.rating) : deliverables));
   const od = /^\/deliverables\/(O-\d+)$/.exec(p); if (od) return json(deliverables.find((d) => d.ref === od[1]) ?? {});
-  if (p === '/companies') return json(companies);
-  const cd = /^\/companies\/([A-Z0-9]+)$/.exec(p); if (cd) return json(companies.find((c) => c.code === cd[1]) ?? {});
+  // ⟨1.4.6⟩ brand_version: the company's active brand (§3.1), which changes when the owner seals a new one.
+  if (p === '/companies') return json(companies.map((c) => ({ ...c, brand_version: activeVersion(c.code) })));
+  const cd = /^\/companies\/([A-Z0-9]+)$/.exec(p); if (cd) { const c = companies.find((x) => x.code === cd[1]); return json(c ? { ...c, brand_version: activeVersion(c.code) } : {}); }
   const dep = /^\/companies\/([A-Z0-9]+)\/departments$/.exec(p);
   if (dep && dep[1] === 'HQ') return json([['OVS', 'نظارت و کنترل کیفیت', 'بازرس کل', 'Oversight'], ['AIOPS', 'عملیات هوش مصنوعی', 'مدیر عملیات AI', 'AI Operations']].map(([k, fa, mgr, en], i) => ({ id: `HQ-${k}`, code: k, company: 'HQ', name_fa: fa, name_en: en, manager_title_fa: mgr, manager_title_en: en, manager: { code: `HQ-${k}-MGR`, company: 'HQ', department: k, kind: 'manager', title_fa: mgr }, sort: i, status: 'active', version: 1 })));
   if (dep) return json(['TECH', 'GROWTH', 'SALES', 'PRODUCT', 'FIN', 'QUANT', 'AIOPS', 'HR'].map((k, i) => ({ id: `${dep[1]}-${k}`, code: k, company: dep[1], name_fa: ['فنی', 'رشد و مارکتینگ', 'فروش و پشتیبانی', 'محصول', 'مالی', 'کوانت', 'عملیات هوش مصنوعی', 'منابع انسانی'][i], name_en: k, manager_title_fa: ['مدیر فنی', 'مدیر مارکتینگ', 'مدیر فروش', 'مدیر محصول', 'مدیر مالی', 'مدیر کوانت', 'مدیر عملیات AI', 'مدیر منابع انسانی'][i], manager_title_en: k, manager: { code: `${dep[1]}-${k}-MGR`, company: dep[1], department: k, kind: 'manager', title_fa: 'مدیر' }, sort: i, status: 'active', version: 1 })));

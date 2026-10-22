@@ -60,6 +60,14 @@ import com.coinepro.hq.core.format.until
 import com.coinepro.hq.core.format.usd
 import com.coinepro.hq.core.net.Company
 import com.coinepro.hq.core.net.Decision
+import com.coinepro.hq.core.net.LifecycleRule
+import com.coinepro.hq.core.net.RuleLimits
+import com.coinepro.hq.core.net.ShadowReport
+import com.coinepro.hq.core.net.Template
+import com.coinepro.hq.ui.v16.AUTO_SEND
+import com.coinepro.hq.ui.v16.CHANNEL_FA
+import com.coinepro.hq.ui.v16.PURPOSE_FA
+import com.coinepro.hq.ui.v16.triggerFa
 import com.coinepro.hq.designsystem.Avatar
 import com.coinepro.hq.designsystem.BtnVariant
 import com.coinepro.hq.designsystem.CompanyMark
@@ -102,10 +110,16 @@ import kotlinx.serialization.json.contentOrNull
 
 // code_session: its seal creates a Code Workshop grant (contract §5.1 ⟨1.4.3⟩). The round-two kinds are sealed the same way, each card
 // bound to what it proposes (§18.13 ⟨1.4.5⟩); a server plan is sealed only on its own route, against its digest (§18.8).
+// ⟨1.5⟩ the revenue-and-support cards (§19.9) are sealed the same way, each bound to its template, rule or shadow report.
 private val STEP_UP_KINDS = setOf(
     "hire", "dismissal", "budget_change", "code_session", "protocol", "tool_enable", "errand_action", "company_found", "lesson_adoption",
+    "message_template", "lifecycle_rule", "support_go_live",
 )
-private val OWN_ROUTE = mapOf("server_plan" to ("founding" to "مُهر طرح سرور در تأسیس شرکت"))
+/** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8).
+ *  The card carries {plan, company}; the plan page sends a founding's plan on to its founding (§18.16). */
+private val OWN_ROUTE: Map<String, Pair<(Decision) -> String, String>> = mapOf(
+    "server_plan" to ({ d: Decision -> (d.payload["plan"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content?.let { "founding/$it" } ?: "founding" } to "مُهر طرح سرور"),
+)
 
 /** A3 actions and hire, dismissal and budget changes are approved with a fresh passkey (contract §4). */
 fun needsStepUp(d: Decision) = d.actionClass == "A3" || d.kind in STEP_UP_KINDS
@@ -226,6 +240,9 @@ private fun FactGrid(vararg facts: Triple<String, String, Boolean>) {
 
 private fun JsonObject.s(k: String): String? = (this[k] as? JsonPrimitive)?.contentOrNull
 private fun JsonObject.list(k: String): List<String> = (this[k] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
+/** A §19.9 payload part as the app's model (⟨1.5.1⟩ shapes); null when it is missing or does not fit. */
+private fun <T> JsonObject.model(k: String, s: kotlinx.serialization.KSerializer<T>): T? =
+    (this[k] as? JsonObject)?.let { runCatching { com.coinepro.hq.core.net.Api.json.decodeFromJsonElement(s, it) }.getOrNull() }
 
 @Composable
 private fun Payload(d: Decision) {
@@ -277,6 +294,58 @@ private fun Payload(d: Decision) {
             }
             Text("با مُهر، همین فراخوانی با همین ورودی فقط یک بار اجرا میشود.", style = Divan.type.caption, color = c.textMuted)
         }
+        // ⟨1.5⟩ §19.9: what each card seals, read from its payload.
+        "support_go_live" -> Section("شروع پشتیبانی") {
+            FactGrid(
+                Triple("کانال", CHANNEL_FA[p.s("channel")] ?: p.s("channel") ?: "—", false),
+                Triple("ارسال بی‌تو", AUTO_SEND[p.s("auto_send")]?.first ?: p.s("auto_send") ?: "—", false),
+                Triple("آستانه‌ی عین دانشنامه", p.s("verbatim_threshold") ?: "—", true),
+                Triple("آستانه‌ی پیش‌نویس مستند", p.s("grounded_threshold") ?: "—", true),
+            )
+            p.model("shadow_report", ShadowReport.serializer())?.let { r ->
+                Text(buildAnnotatedString {
+                    append("آزمون سایه‌ی "); fig(r.suite, c.textPrimary); append(": ")
+                    fig(if (r.total > 0) "${Math.round(r.correct * 100.0 / r.total)}%" else "0%", c.textPrimary); append(" درست از "); fig(r.total.toString())
+                    append("، خطای ایمنی "); fig(r.safetyFailures.toString(), if (r.safetyFailures > 0) c.negative else c.textPrimary)
+                    append("، کد یا لینک اشتباه "); fig(r.wrongCodes.toString(), if (r.wrongCodes > 0) c.negative else c.textPrimary)
+                    append(" · " + (if (r.pass) "قبول" else "رد") + ".")
+                }, style = Divan.type.small, color = c.textSecondary)
+            }
+            Text("آستانه‌ها مسیر ویرایش ندارند؛ عوض کردنشان یعنی آزمون سایه‌ی تازه و کارت تازه. با مُهر، کانال روشن و آستانه‌ها همین اعداد میشوند.", style = Divan.type.caption, color = c.textMuted)
+        }
+        "message_template" -> {
+            val t = p.model("template", Template.serializer())
+            Section("قالب ${PURPOSE_FA[t?.purpose] ?: ""}".trim()) {
+                if (t != null) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Fig("${t.ref}@${t.version}", style = Divan.type.figureSmall, color = c.textMuted)
+                        t.variables.forEach { Fig("{{$it}}", Modifier.clip(RoundedCornerShape(6.dp)).background(c.tile).padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.figureSmall, color = c.textSecondary) }
+                    }
+                    Text(com.coinepro.hq.ui.v16.prose(t.bodyFa), style = Divan.type.body, color = c.textPrimary, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp))
+                }
+                val sha = p.s("sha256")?.takeIf { it.isNotBlank() } ?: t?.sha256.orEmpty()
+                if (sha.isNotBlank()) Text(buildAnnotatedString { append("مُهر به همین متن بسته است: "); fig("sha256 ${sha.take(16)}…") }, style = Divan.type.micro, color = c.textMuted)
+            }
+        }
+        "lifecycle_rule" -> Section("قاعده‌ی پیام") {
+            val r = p.model("rule", LifecycleRule.serializer())
+            val l = p.model("limits", RuleLimits.serializer()) ?: r?.limits
+            FactGrid(
+                Triple("قاعده", r?.let { "${it.ref}@${it.version}" } ?: "—", true),
+                Triple("کی", r?.let { triggerFa(it.trigger) } ?: "—", false),
+                Triple("قالب", p.s("template") ?: r?.template ?: "—", true),
+                Triple("کانال", r?.let { CHANNEL_FA[it.channel] ?: it.channel } ?: "—", false),
+            )
+            l?.let {
+                Text(buildAnnotatedString {
+                    append("هر مشتری حداکثر یک بار در ${it.perCustomerDays} روز، سقف روزانه "); fig(it.dailyCap.toString())
+                    append("، ساعت سکوت "); fig(it.quietHours.joinToString("–"))
+                    if (it.maxFollowUps > 0) append("، حداکثر ${it.maxFollowUps} پیگیری")
+                    append(".")
+                }, style = Divan.type.small, color = c.textSecondary)
+            }
+            Text("مُهر این کارت تأیید پیشاپیش توست؛ قاعده فقط تا وقتی قالبِ همین نسخه مُهرشده است اجرا میشود.", style = Divan.type.caption, color = c.textMuted)
+        }
         "budget_change" -> Section("تغییر بودجه") {
             FactGrid(
                 Triple("دامنه", p["scope"]?.toString()?.replace(Regex("[\"{}]"), "") ?: "—", true),
@@ -320,6 +389,11 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
     fun decided(x: Decision) {
         onChanged(x)
         env.cache.invalidate("decisions", "inbox", "away", "resolutions")
+        // ⟨1.5⟩ a sealed §19.9 card changes what its screen shows: the template or rule, or the channel going live.
+        when (d.kind) {
+            "message_template", "lifecycle_rule" -> env.cache.invalidate("growth")
+            "support_go_live" -> env.cache.invalidate("support")
+        }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -363,7 +437,7 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     val own = OWN_ROUTE[d.kind]
                     if (own != null) {
-                        HqButton(own.second, { nav.go(own.first) }, icon = DivanIcon.SEAL)
+                        HqButton(own.second, { nav.go(own.first(d)) }, icon = DivanIcon.SEAL)
                     } else SealButton(d.company, co.nameFa, co.nameEn, co.holding, busy = seal.busy) {
                         seal.run {
                             val token = if (needsStepUp(d)) env.auth.stepUp(act, "decision.approve", d.ref) else null

@@ -10,7 +10,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.core.app.ApplicationProvider
 import com.coinepro.hq.core.AppGraph
 import com.coinepro.hq.designsystem.Divan
@@ -108,6 +110,7 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "foundings" to { _ -> FoundingsScreen() },
             "founding-proposed" to { _ -> FoundingScreen("C-0002") },
             "founding-ready" to { _ -> FoundingScreen("C-0001") },
+            "founding-plan" to { _ -> FoundingScreen("PV-0003") },
             "tools" to { _ -> ToolsScreen() },
             // ⟨1.4.2⟩ the owner's own hire, filled in (the sheet's content)
             // ⟨1.4.3⟩ a hire story (welcome / dismiss) and a CEO's milestone
@@ -119,7 +122,43 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "runs" to { _ -> com.coinepro.hq.ui.owner.RunsScreen() },
             "sites" to { _ -> com.coinepro.hq.ui.owner.SitesScreen() },
             "employee-manager" to { _ -> EmployeeScreen("FX-TECH-MGR") },
+            // ⟨1.4.6⟩ a company's brand and seal: the active version in every size, both themes, the seal ready and sealed
+            "company-brand" to { _ -> CompanyScreen("FX", tab0 = "brand") },
+            // ⟨1.5⟩ revenue and support (§19): the radar and its lower sections, the desk's five tabs, a conversation whose draft the
+            // guard refused, growth's three tabs, the feedback inbox, the three cards and the intake on the tools screen
+            "revenue" to { _ -> com.coinepro.hq.ui.revenue.RevenueScreen() },
+            "revenue-funnel" to { _ -> com.coinepro.hq.ui.revenue.RevenueScreen() },
+            "revenue-accounts" to { _ -> com.coinepro.hq.ui.revenue.RevenueScreen() },
+            "revenue-rescue" to { _ -> com.coinepro.hq.ui.revenue.RevenueScreen() },
+            "support" to { _ -> com.coinepro.hq.ui.support.SupportScreen() },
+            "support-conversations" to { _ -> com.coinepro.hq.ui.support.SupportScreen("conversations") },
+            "support-channels" to { _ -> com.coinepro.hq.ui.support.SupportScreen("channels") },
+            "support-knowledge" to { _ -> com.coinepro.hq.ui.support.SupportScreen("kb") },
+            "support-shadow" to { _ -> com.coinepro.hq.ui.support.SupportScreen("shadow") },
+            "conversation-blocked" to { _ -> com.coinepro.hq.ui.support.ConversationScreen("SC-000411") },
+            "growth" to { _ -> com.coinepro.hq.ui.growth.GrowthScreen() },
+            "growth-rules" to { _ -> com.coinepro.hq.ui.growth.GrowthScreen("rules") },
+            "growth-nps" to { _ -> com.coinepro.hq.ui.growth.GrowthScreen("nps") },
+            "feedback" to { _ -> com.coinepro.hq.ui.feedback.FeedbackScreen() },
+            "decision-golive" to { _ -> DecisionScreen("D-000032") },
+            "decision-template" to { _ -> DecisionScreen("D-000031") },
+            "decision-rule" to { _ -> DecisionScreen("D-000033") },
+            "tools-intake" to { _ -> ToolsScreen() },
         )
+
+        /** Screens shown from further down their page: the item (of the page's list) to bring to the top. */
+        private val SCROLL: Map<String, Int> = mapOf(
+            "revenue-funnel" to 6, "revenue-accounts" to 7, "revenue-rescue" to 9,
+            "support-conversations" to 3, "support-channels" to 3, "support-knowledge" to 3, "support-shadow" to 3,
+            "growth-rules" to 3, "growth-nps" to 3,
+            // The tools page: header, intro, totals, the egress log and its title, the MCP title, one item per server, the accounts
+            // and their title, then the intake card.
+            "tools-intake" to 8 + mcpServers(),
+        )
+
+        private fun mcpServers(): Int =
+            com.coinepro.hq.core.net.Api.json.parseToJsonElement(java.io.File("src/debug/assets/demo-fixtures.json").readText())
+                .let { (it as kotlinx.serialization.json.JsonObject)["/tools/mcp"]!!.let { e -> (e as kotlinx.serialization.json.JsonObject)["body"] as kotlinx.serialization.json.JsonArray }.size }
     }
 
     @get:Rule
@@ -155,6 +194,17 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             Thread.sleep(200)
             shadowOf(Looper.getMainLooper()).idle()
             compose.mainClock.advanceTimeBy(250)
+        }
+        // Sections further down load when they are first composed, so the page is scrolled again once they have.
+        SCROLL[name]?.let { index ->
+            repeat(2) {
+                compose.onAllNodes(hasScrollToIndexAction())[0].performScrollToIndex(index)
+                repeat(6) {
+                    Thread.sleep(200)
+                    shadowOf(Looper.getMainLooper()).idle()
+                    compose.mainClock.advanceTimeBy(250)
+                }
+            }
         }
         compose.onRoot().captureRoboImage(
             "src/test/screenshots/$name-${if (night) "night" else "day"}.png",

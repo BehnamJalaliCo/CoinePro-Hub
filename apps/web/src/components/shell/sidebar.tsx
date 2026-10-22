@@ -82,10 +82,12 @@ export function Sidebar() {
         </div>
       </Link>
       <ScopeSwitcher />
-      <nav aria-label="ناوبری اصلی" className="flex flex-col gap-0.5">{NAV_MAIN.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
-      <div aria-hidden className="mx-1.5 h-px bg-div" />
-      <nav aria-label="ابزارها" className="flex flex-col gap-0.5">{NAV_TOOLS.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
-      <div className="flex-1" />
+      {/* The lists scroll on their own when they are taller than the window; the logo, scope and owner card stay put. */}
+      <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-1">
+        <nav aria-label="ناوبری اصلی" className="flex flex-col gap-0.5">{NAV_MAIN.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
+        <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
+        <nav aria-label="ابزارها" className="flex flex-col gap-0.5">{NAV_TOOLS.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
+      </div>
       <div className="flex items-center gap-2.5 rounded-[12px] bg-tile p-2.5">
         <Avatar kind="owner" size={32} />
         <div className="flex flex-1 flex-col">

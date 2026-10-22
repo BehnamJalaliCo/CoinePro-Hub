@@ -170,6 +170,8 @@ fun ToolsScreen() {
                 }
             }
         }
+        // ⟨1.5⟩ §19.8: the signed webhooks from outside (Telegram, Chatwoot, product events) beside the service accounts.
+        item { IntakeCard() }
         item { SectionTitle("فهرست ابزارها", note = "کلاس هر ابزار و نقش‌هایی که آن را دارند") }
         item {
             val list = catalog.data

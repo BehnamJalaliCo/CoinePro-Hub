@@ -18,7 +18,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -76,15 +78,22 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         if (req.method == "POST" && (path == "/files" || path == "/transcribe")) return respond(req, binary(req, path))
         val body = req.body?.let { b -> Buffer().also { b.writeTo(it) }.readUtf8() }?.takeIf { it.isNotBlank() }?.let { Api.json.parseToJsonElement(it).jsonObject }
         val query = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
-        if (req.method == "GET") ownerToolsRead(path, query)?.let { return respond(req, it) }
-        else ownerToolsWrite(req.method, path, body, req.header("If-Match")?.trim('"')?.toIntOrNull())?.let { return respond(req, it) }
+        val version = req.header("If-Match")?.trim('"')?.toIntOrNull()
+        if (req.method == "GET") {
+            v16Read(path, query)?.let { return respond(req, it) }
+            ownerToolsRead(path, query)?.let { return respond(req, it) }
+        } else {
+            v16Write(req.method, path, body, version, req.header("Idempotency-Key"))?.let { return respond(req, it.status to it.body, it.headers) }
+            ownerToolsWrite(req.method, path, body, version)?.let { return respond(req, it) }
+        }
         return respond(req, if (req.method == "GET") read(path, query) else write(path, body))
     }
 
-    private fun respond(req: okhttp3.Request, result: Pair<Int, JsonElement>): Response {
+    private fun respond(req: okhttp3.Request, result: Pair<Int, JsonElement>, headers: Map<String, String> = emptyMap()): Response {
         val (status, out) = result
         return Response.Builder()
             .request(req).protocol(Protocol.HTTP_1_1).code(status).message("demo")
+            .apply { for ((k, v) in headers) header(k, v) }
             .body(out.toString().toResponseBody("application/json".toMediaType()))
             .build()
     }
@@ -95,6 +104,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             return if (q.isEmpty()) path else path + "?" + q.entries.joinToString("&") { "${it.key}=${it.value}" }
         }
         Regex("^/provisioning/runs/([^/]+)$").find(path)?.let { m -> return advanceRun(m.groupValues[1]) }
+        Regex("^/companies/([A-Z0-9]+)/brand(/versions)?$").find(path)?.let { m -> return brandRead(m.groupValues[1], m.groupValues[2].isNotEmpty()) }
         // A parameter that selects (⟨1.4⟩ period=month, from=HQ-ADV) matches first; ranges and paging never do.
         store[key(setOf("limit", "cursor"))]?.let { return it }
         val q = query.filterKeys { it !in setOf("limit", "cursor", "from", "to", "period") }.filterValues { it != null }.toSortedMap()
@@ -131,6 +141,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             replaceIn("/decisions?status=all", ref, updated)
             store["/decisions?status=pending"] = 200 to page(list("/decisions?status=all").filter { it.jsonObject.str("status") == "pending" })
             bumpInbox()
+            if (verdict == "approve") decided16(updated.jsonObject)
             return 200 to updated
         }
         Regex("^/deliverables/(O-\\d+)/rating$").find(path)?.let { m ->
@@ -184,6 +195,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             return 200 to (list("/threads").firstOrNull { it.jsonObject.str("code") == m.groupValues[1] } ?: JsonObject(emptyMap()))
         }
         workshop(path, body)?.let { return it }
+        brand(path, body)?.let { return it }
         v14(path, body)?.let { return it }
         hiring(path, body)?.let { return it }
         if (path == "/orders") return order(body)
@@ -441,7 +453,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val src = body?.get("source")?.jsonObject
             val ref = "C-%04d".format(list("/foundings").size + 1)
             val f = buildJsonObject {
-                put("id", "fo${System.nanoTime()}"); put("ref", ref); put("name_fa", src?.str("repo")?.substringAfter('/') ?: "شرکت تازه"); put("name_en", ""); put("code", "")
+                put("id", "fo${System.nanoTime()}"); put("ref", ref); put("name_fa", JsonNull); put("name_en", JsonNull); put("code", JsonNull)
                 put("source", src ?: JsonNull); put("state", "auditing"); put("audit", JsonNull); put("proposal", JsonNull); put("decision_ref", JsonNull); put("plan", JsonNull); put("company", JsonNull)
                 put("created_at", stamp); put("updated_at", stamp)
             }
@@ -451,25 +463,200 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         }
         Regex("^/foundings/(C-\\d+)/(activate|cancel)$").find(path)?.let { m ->
             val (ref, verb) = m.destructured
+            // ⟨1.4.6⟩ §18.8: no active brand → 409 not_ready, unless the owner activates without it.
+            val brand = store["/foundings/$ref"]?.second?.jsonObject?.get("brand") as? JsonObject
+            if (verb == "activate" && brand?.str("state") != "active" && (body?.get("skip_brand") as? JsonPrimitive)?.booleanOrNull != true) {
+                return 409 to buildJsonObject {
+                    put("code", "not_ready"); put("message_fa", "شرکت هنوز مُهر ندارد؛ نشانش را از لوگوی PNG بساز یا بدون مُهر فعال کن.")
+                    putJsonArray("missing") { add(JsonPrimitive("brand")) }; put("status", 409); put("title", "Not ready"); put("type", "about:blank")
+                }
+            }
+            // §18.16: cancelling returns a sealed but unrun plan to `proposed`.
+            val planRef = store["/foundings/$ref"]?.second?.jsonObject?.str("plan")
+            val plan = planRef?.let { store["/provisioning/plans/$it"]?.second?.jsonObject }
+            if (verb == "cancel" && plan?.str("state") == "sealed") store["/provisioning/plans/$planRef"] = 200 to JsonObject(plan + mapOf("state" to JsonPrimitive("proposed"), "sealed_at" to JsonNull))
             val f = saveFounding(ref) { it + mapOf("state" to JsonPrimitive(if (verb == "activate") "active" else "cancelled"), "updated_at" to stamp) } ?: return 404 to problem("not_found", "پیدا نشد.")
             return 200 to f
         }
         Regex("^/provisioning/plans/(PV-\\d+)/seal$").find(path)?.let { m ->
             val ref = m.groupValues[1]
             val pl = store["/provisioning/plans/$ref"]?.second?.jsonObject ?: return 404 to problem("not_found", "پیدا نشد.")
+            // No price, no seal (§18.16).
+            if (pl["monthly_eur"] !is JsonPrimitive || (pl["problems"] as? JsonArray)?.isNotEmpty() == true) return 409 to problem("price_unknown", "قیمت این طرح هنوز معلوم نیست؛ بدون قیمت مُهر نمیشود.")
             val id = "r${System.nanoTime()}"
             // The steps a build goes through are the hub's; the finished demo build lends its list.
             val template = store["/provisioning/runs/r1"]!!.second.jsonObject["steps"]!!.jsonArray
             store["/provisioning/runs/$id"] = 200 to buildJsonObject {
-                put("id", id); put("plan", ref); put("state", "running"); put("server", JsonNull); put("login", JsonNull)
-                put("steps", JsonArray(template.mapIndexed { i, s ->
-                    JsonObject(s.jsonObject + mapOf("state" to JsonPrimitive(if (i == 0) "running" else "pending"), "started_at" to if (i == 0) stamp else JsonNull, "finished_at" to JsonNull, "log_tail" to JsonPrimitive("")))
+                put("id", id); put("plan", ref); put("state", "queued"); put("server", JsonNull); put("login", JsonNull); put("error", JsonNull)
+                put("steps", JsonArray(template.map { s ->
+                    JsonObject(s.jsonObject + mapOf("state" to JsonPrimitive("pending"), "started_at" to JsonNull, "finished_at" to JsonNull, "log_tail" to JsonArray(emptyList())))
                 }))
             }
-            val sealed = JsonObject(pl + mapOf("state" to JsonPrimitive("running"), "run" to JsonPrimitive(id), "decision_ref" to JsonPrimitive("D-000025")))
+            val sealed = JsonObject(pl + mapOf("state" to JsonPrimitive("running"), "run" to JsonPrimitive(id), "decision_ref" to JsonPrimitive("D-000025"), "sealed_at" to stamp))
             store["/provisioning/plans/$ref"] = 200 to sealed
             pl.str("founding")?.let { saveFounding(it) { f -> f + mapOf("state" to JsonPrimitive("provisioning"), "updated_at" to stamp) } }
             return 200 to sealed
+        }
+        Regex("^/provisioning/runs/([^/]+)/resume$").find(path)?.let { m ->
+            val id = m.groupValues[1]
+            val r = store["/provisioning/runs/$id"]?.second?.jsonObject ?: return 404 to problem("not_found", "پیدا نشد.")
+            if (r.str("state") != "failed") return 409 to problem("conflict", "فقط ساخت شکست‌خورده ادامه پیدا میکند.")
+            val steps = r["steps"]!!.jsonArray.map { it.jsonObject }.toMutableList()
+            val i = steps.indexOfFirst { it.str("state") == "failed" }
+            if (i >= 0) steps[i] = JsonObject(steps[i] + mapOf("state" to JsonPrimitive("running"), "started_at" to stamp, "finished_at" to JsonNull))
+            val next = JsonObject(r + mapOf("state" to JsonPrimitive("running"), "error" to JsonNull, "steps" to JsonArray(steps)))
+            store["/provisioning/runs/$id"] = 200 to next
+            return 200 to next
+        }
+        return null
+    }
+
+    // ---------------------------------------------------------------- ⟨1.4.6⟩ --
+    // The companies' brands (§18.14), as the web's mock-brand.ts: an upload is traced about three seconds later with another
+    // company's two-colour mark; a file named like a photo fails `no_background`, one named "complex" `too_complex` above detail 1.
+    private val tracing = mutableMapOf<String, Long>()
+    private val traced = mutableMapOf<String, Pair<String, String>>()
+
+    private fun versions(code: String): List<JsonObject> = list("/companies/$code/brand/versions").map { it.jsonObject }
+
+    private fun brandRead(code: String, all: Boolean): Pair<Int, JsonElement> {
+        val now = System.currentTimeMillis()
+        val due = tracing.filter { (k, at) -> k.startsWith("$code/") && now - at >= 3_000 }.keys
+        if (due.isNotEmpty()) saveBrand(code, versions(code).map { v -> if ("$code/${v.int("version")}" in due) trace(v) else v })
+        due.forEach(tracing::remove)
+        return store[if (all) "/companies/$code/brand/versions" else "/companies/$code/brand"]
+            ?: (200 to if (all) JsonArray(emptyList()) else buildJsonObject { put("active", JsonNull); put("proposed", JsonNull) })
+    }
+
+    /** The versions, and everything that shows them: the company's view, /brands, `brand_version` and `Founding.brand`. */
+    private fun saveBrand(code: String, all: List<JsonObject>) {
+        val sorted = all.sortedByDescending { it.int("version") }
+        store["/companies/$code/brand/versions"] = 200 to JsonArray(sorted)
+        val active = sorted.firstOrNull { it.str("state") == "active" }
+        val proposed = sorted.firstOrNull { it.str("state") == "proposed" && it.int("version") > (active?.int("version") ?: 0) }
+        store["/companies/$code/brand"] = 200 to buildJsonObject { put("active", active ?: JsonNull); put("proposed", proposed ?: JsonNull) }
+        if (active != null) edit("/brands") { b ->
+            val one = buildJsonObject { put("version", active["version"]!!); for (k in listOf("mark", "wordmark", "ink", "accent", "accent_night", "accent_day")) put(k, active[k] ?: JsonNull) }
+            b + ("companies" to JsonObject((b["companies"] as? JsonObject).orEmpty() + (code to one)))
+        }
+        val version = active?.get("version") ?: JsonNull
+        store["/companies/$code"]?.let { (st, co) -> store["/companies/$code"] = st to JsonObject(co.jsonObject + ("brand_version" to version)) }
+        update("/companies", code, idKey = "code") { it + ("brand_version" to version) }
+        val fb = buildJsonObject {
+            put("state", if (active != null) "active" else if (proposed != null) "proposed" else "missing"); put("version", (active ?: proposed)?.get("version") ?: JsonNull)
+        }
+        for (ref in list("/foundings").map { it.jsonObject }.filter { it.str("company") == code }.mapNotNull { it.str("ref") }) saveFounding(ref) { it + ("brand" to fb) }
+    }
+
+    private fun startBrand(code: String, source: JsonObject, part: String, options: JsonObject?, name: String): JsonObject {
+        val all = versions(code)
+        val version = (all.maxOfOrNull { it.int("version") } ?: 0) + 1
+        val v = buildJsonObject {
+            put("company", code); put("version", version); put("state", "processing"); put("source", source)
+            put("mark", JsonNull); put("wordmark", JsonNull); put("ink", "#111216"); put("accent", JsonNull); put("accent_night", JsonNull); put("accent_day", JsonNull)
+            putJsonArray("palette") {}
+            putJsonObject("options") { options?.get("colors")?.let { put("colors", it) }; put("detail", options?.get("detail") ?: JsonPrimitive(3)) }
+            put("checks", JsonNull); put("digest", ""); put("status_reason", JsonNull); put("created_at", stamp); put("activated_at", JsonNull)
+        }
+        tracing["$code/$version"] = System.currentTimeMillis()
+        traced["$code/$version"] = part to name
+        saveBrand(code, all + v)
+        return v
+    }
+
+    private fun trace(v: JsonObject): JsonObject {
+        val code = v.str("company")!!
+        val (part, name) = traced["$code/${v.int("version")}"] ?: ("mark" to "logo.png")
+        val opts = v["options"]!!.jsonObject
+        val detail = opts.int("detail").coerceIn(1, 5)
+        if (Regex("photo|عکس|img_", RegexOption.IGNORE_CASE).containsMatchIn(name)) return JsonObject(v + mapOf("state" to JsonPrimitive("failed"), "status_reason" to JsonPrimitive("no_background")))
+        if (Regex("complex|پیچیده", RegexOption.IGNORE_CASE).containsMatchIn(name) && detail > 1) return JsonObject(v + mapOf("state" to JsonPrimitive("failed"), "status_reason" to JsonPrimitive("too_complex")))
+        val donor = (store["/brands"]!!.second.jsonObject["companies"] as JsonObject).entries.first { (c, b) -> c != code && b.jsonObject.str("accent") != null }.value.jsonObject
+        val prev = versions(code).firstOrNull { it.str("state") == "active" }
+        // One colour asked for: every layer is the body.
+        fun mono(m: JsonElement): JsonElement = if (opts.int("colors") != 1 || m !is JsonObject) m else {
+            val ink = m["layers"]!!.jsonArray.map { it.jsonObject }.firstOrNull { it.str("role") == "ink" }?.str("color") ?: "#111216"
+            JsonObject(m + ("layers" to JsonArray(m["layers"]!!.jsonArray.map { JsonObject(it.jsonObject + mapOf("role" to JsonPrimitive("ink"), "color" to JsonPrimitive(ink))) })))
+        }
+        val mark = mono(if (part == "mark") donor["mark"]!! else prev?.get("mark") ?: donor["mark"]!!)
+        val wordmark = mono(if (part == "wordmark") donor["wordmark"] ?: JsonNull else prev?.get("wordmark") ?: JsonNull)
+        val layers = mark.jsonObject["layers"]!!.jsonArray.map { it.jsonObject }
+        val ink = layers.firstOrNull { it.str("role") == "ink" }?.str("color") ?: "#111216"
+        val accent = layers.firstOrNull { it.str("role") == "accent" }?.str("color")
+        val night = accent?.let { passing(it, night = true) }
+        val day = accent?.let { passing(it, night = false) }
+        val min = listOf(1.6, 1.3, 1.1, 0.9, 0.7)[detail - 1]
+        val warnings = buildList {
+            if (Regex("\\.(jpe?g|webp)$", RegexOption.IGNORE_CASE).containsMatchIn(name)) add("بدون شفافیت")
+            if (min < 1) add("در اندازه‌ی کوچک جزئیات گم میشود")
+            if (night != null) add("رنگ امضا روی زمینه‌ی شب کم‌کنتراست بود؛ برای شب روشن‌تر شد")
+            if (day != null) add("رنگ امضا روی زمینه‌ی روز کم‌کنتراست بود؛ برای روز تیره‌تر شد")
+        }
+        val bytes = listOf(mark, wordmark).sumOf { m -> (m as? JsonObject)?.get("layers")?.jsonArray?.sumOf { it.jsonObject.str("d")?.length ?: 0 } ?: 0 }
+        return JsonObject(v + mapOf(
+            "state" to JsonPrimitive("proposed"), "mark" to mark, "wordmark" to wordmark, "ink" to JsonPrimitive(ink), "accent" to JsonPrimitive(accent),
+            "accent_night" to JsonPrimitive(night), "accent_day" to JsonPrimitive(day),
+            "options" to buildJsonObject { put("colors", opts["colors"] ?: JsonPrimitive(layers.map { it.str("color") }.distinct().size)); put("detail", detail) },
+            "palette" to JsonArray(listOfNotNull(
+                buildJsonObject { put("hex", ink); put("share", if (accent != null) 0.64 else 1.0) },
+                accent?.let { buildJsonObject { put("hex", it); put("share", 0.36) } },
+            )),
+            "checks" to buildJsonObject {
+                put("paths_bytes", bytes); put("min_feature_px_16", min); put("iou", 0.9 + detail * 0.015)
+                put("contrast_night", accent?.let { contrast(it, PAGE_NIGHT) }); put("contrast_day", accent?.let { contrast(it, PAGE_DAY) })
+                putJsonArray("warnings") { warnings.forEach { add(JsonPrimitive(it)) } }
+            },
+            "digest" to JsonPrimitive(Api.sha256("$code/${v.int("version")}/$mark/$wordmark/$ink/$accent/$night/$day")),
+        ))
+    }
+
+    private fun brand(path: String, body: JsonObject?): Pair<Int, JsonElement>? {
+        Regex("^/companies/([A-Z0-9]+)/brand$").find(path)?.let { m ->
+            val id = body?.str("file_id") ?: return 422 to problem("validation_failed", "فایل لوگو لازم است.")
+            val f = files[id]
+            val name = f?.str("name") ?: "logo.png"
+            val source = buildJsonObject {
+                put("kind", "upload"); put("file_id", id); put("path", JsonNull); put("sha256", f?.str("sha256") ?: "demo")
+                put("width", f?.get("width") ?: JsonPrimitive(1024)); put("height", f?.get("height") ?: JsonPrimitive(1024)); put("has_alpha", !Regex("\\.jpe?g$", RegexOption.IGNORE_CASE).containsMatchIn(name))
+            }
+            return 202 to startBrand(m.groupValues[1], source, body.str("part") ?: "mark", body["options"] as? JsonObject, name)
+        }
+        Regex("^/companies/([A-Z0-9]+)/brand/(\\d+)/(retrace|activate)$").find(path)?.let { m ->
+            val (code, ver, verb) = m.destructured
+            val v = versions(code).firstOrNull { it.int("version") == ver.toInt() } ?: return 404 to problem("not_found", "این نسخه پیدا نشد.")
+            if (verb == "retrace") {
+                val (part, name) = traced["$code/$ver"] ?: ("mark" to "logo.png")
+                return 202 to startBrand(code, v["source"]!!.jsonObject, part, body?.get("options") as? JsonObject ?: v["options"] as? JsonObject, name)
+            }
+            if (v.str("state") != "proposed") return 409 to problem("brand_not_proposed", "این نسخه هنوز آماده‌ی مُهر نیست.")
+            val next = versions(code).map { x ->
+                when {
+                    x.int("version") == ver.toInt() -> JsonObject(x + mapOf("state" to JsonPrimitive("active"), "activated_at" to stamp))
+                    x.str("state") == "active" -> JsonObject(x + ("state" to JsonPrimitive("retired")))
+                    else -> x
+                }
+            }
+            saveBrand(code, next)
+            return 200 to next.first { it.int("version") == ver.toInt() }
+        }
+        return null
+    }
+
+    private fun lum(hex: String): Double {
+        val ch = (0..2).map { hex.removePrefix("#").substring(it * 2, it * 2 + 2).toInt(16) / 255.0 }.map { if (it <= 0.04045) it / 12.92 else Math.pow((it + 0.055) / 1.055, 2.4) }
+        return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
+    }
+
+    private fun contrast(a: String, b: String): Double = (maxOf(lum(a), lum(b)) + 0.05) / (minOf(lum(a), lum(b)) + 0.05)
+
+    /** The accent made lighter (night) or darker (day) until it passes 3:1 on that page; null when it already does. */
+    private fun passing(accent: String, night: Boolean): String? {
+        val page = if (night) PAGE_NIGHT else PAGE_DAY
+        if (contrast(accent, page) >= 3) return null
+        val rgb = (0..2).map { accent.removePrefix("#").substring(it * 2, it * 2 + 2).toInt(16) }
+        for (i in 1..50) {
+            val c = "#" + rgb.joinToString("") { v -> "%02X".format(Math.round(v + ((if (night) 255 else 0) - v) * i * 0.02).toInt()) }
+            if (contrast(c, page) >= 3) return c
         }
         return null
     }
@@ -485,15 +672,26 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private fun advanceRun(id: String): Pair<Int, JsonElement> {
         val (_, cur) = store["/provisioning/runs/$id"] ?: return 404 to problem("not_found", "پیدا نشد.")
         var r = cur.jsonObject
+        // The first poll starts a queued run.
+        if (r.str("state") == "queued") {
+            val steps = r["steps"]!!.jsonArray.map { it.jsonObject }.toMutableList()
+            steps[0] = JsonObject(steps[0] + mapOf("state" to JsonPrimitive("running"), "started_at" to stamp))
+            r = JsonObject(r + mapOf("state" to JsonPrimitive("running"), "steps" to JsonArray(steps)))
+            store["/provisioning/runs/$id"] = 200 to r
+            return 200 to r
+        }
         if (r.str("state") != "running") return 200 to r
         val plan = store["/provisioning/plans/${r.str("plan")}"]!!.second.jsonObject
         val steps = r["steps"]!!.jsonArray.map { it.jsonObject }.toMutableList()
         val i = steps.indexOfFirst { it.str("state") != "done" }
         if (i >= 0) {
-            steps[i] = JsonObject(steps[i] + mapOf("state" to JsonPrimitive("done"), "finished_at" to stamp, "log_tail" to JsonPrimitive(logFor(steps[i].str("key")!!, plan))))
+            steps[i] = JsonObject(steps[i] + mapOf("state" to JsonPrimitive("done"), "finished_at" to stamp, "log_tail" to JsonArray(logFor(steps[i].str("key")!!, plan).map { JsonPrimitive(it) })))
             if (i + 1 < steps.size) steps[i + 1] = JsonObject(steps[i + 1] + mapOf("state" to JsonPrimitive("running"), "started_at" to stamp))
             r = JsonObject(r + ("steps" to JsonArray(steps)))
-            if (steps[i].str("key") == "server") r = JsonObject(r + ("server" to buildJsonObject { put("name", plan.str("name")); put("ipv4", "203.0.113.31"); put("ipv6", "2001:db8::31"); put("private_ip", "10.10.1.6") }))
+            if (steps[i].str("key") == "server") r = JsonObject(r + ("server" to buildJsonObject { put("name", plan.str("name")); put("ipv4", "203.0.113.31"); put("ipv6", "2001:db8::31"); put("private_ip", "10.10.1.6")
+                // The demo build lends the finished one's host keys.
+                put("host_keys", store["/provisioning/runs/r1"]?.second?.jsonObject?.get("server")?.jsonObject?.get("host_keys") ?: JsonArray(emptyList()))
+            }))
         }
         if (steps.all { it.str("state") == "done" }) {
             r = JsonObject(r + mapOf("state" to JsonPrimitive("done"), "login" to buildJsonObject { put("ssh", "ssh ${plan.str("work_user")}@203.0.113.31"); putJsonArray("then") { add(JsonPrimitive("claude")) } }))
@@ -504,16 +702,18 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         return 200 to r
     }
 
-    private fun logFor(key: String, plan: JsonObject): String = when (key) {
-        "ssh-key" -> "owner key registered (label managed-by=coinepro-hq)"
-        "firewall" -> "firewall fw-${plan.str("name")!!.replace(Regex("-\\d+$"), "")}: " + plan["firewall"]!!.jsonArray.joinToString(", ") { w ->
-            "in ${w.jsonObject.str("port")}/tcp from ${if (w.jsonObject["sources"]!!.jsonArray.any { it.jsonPrimitive.content == "owner" }) "owner IPs" else "any"}"
+    /** The last lines a step leaves (§18.16), as the web's mock writes them from the plan being built. */
+    private fun logFor(key: String, plan: JsonObject): List<String> = when (key) {
+        "ssh-key" -> listOf("owner key registered (label managed-by=coinepro-hq)")
+        "firewall" -> listOf("firewall fw-${plan.str("name")!!.replace(Regex("-\\d+$"), "")}") + plan["firewall"]!!.jsonArray.map { w ->
+            val port = w.jsonObject.str("port")
+            "in ${w.jsonObject.str("protocol")}${port?.let { " $it" } ?: ""} from ${if (w.jsonObject["sources"]!!.jsonArray.any { it.jsonPrimitive.content == "owner" }) "owner IPs" else "any"}"
         }
-        "server" -> "${plan.str("type")} · ${plan.str("location")} · ${plan.str("image")} · no root password"
-        "boot" -> "running · ssh answers"
-        "cloud-init" -> "apt full-upgrade ✓ · unattended-upgrades ✓ · docker 28.x ✓ · node 22 LTS ✓ · claude-code ✓ · repo cloned ✓"
-        "verify" -> "ssh: keys only, root login off · auto security updates on"
-        else -> "ready"
+        "server" -> listOf("${plan.str("type")} · ${plan.str("location")} · ${plan.str("image")}", "no root password")
+        "boot" -> listOf("running", "ssh answers")
+        "cloud-init" -> listOf("apt full-upgrade ✓ · unattended-upgrades ✓", "docker 28.x ✓ · node 22 LTS ✓", "claude-code ✓ · repo cloned ✓")
+        "verify" -> listOf("ssh: keys only, root login off", "auto security updates on")
+        else -> listOf("ready")
     }
 
     /** Rules first, like the hub (§17.4): a named company, then the kind of work from known words. */
@@ -545,6 +745,10 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     }
 
     private companion object {
+        /** The page surfaces a brand's accent is checked against (design/tokens, night and day). */
+        const val PAGE_NIGHT = "#0B0D14"
+        const val PAGE_DAY = "#F3EEE3"
+
         val TRANSCRIPTS = mapOf(
             "message" to listOf(
                 "سلام. گزارش امروز دقت سیگنال‌های طلا را تا ساعت پنج بفرست و اگر افت ادامه داشت، دو پیشنهاد اصلاح هم کنارش بگذار.",
@@ -881,4 +1085,342 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private fun problem(code: String, fa: String) = buildJsonObject { put("code", code); put("message_fa", fa); put("status", 404); put("title", code); put("type", "about:blank") }
 
     private fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+    private fun JsonObject.int(k: String): Int = (this[k] as? JsonPrimitive)?.intOrNull ?: 0
+
+    // ------------------------------------------------------------------ ⟨1.5⟩ --
+    // Revenue and support (contract §19), as the web's mock-v16.ts: the fixtures hold whole lists and every conversation with
+    // its messages; the demo filters them, and every outbound text it "sends" goes through the same guard the hub runs (§19.6),
+    // reduced to what a demo needs. Companies, channels and exchanges are data here too.
+    private class Reply(val status: Int, val body: JsonElement, val headers: Map<String, String> = emptyMap())
+
+    private val replies = mutableMapOf<String, Reply>()
+    private val pulledAt = mutableMapOf<String, Long>()
+    private var msgSeq = 100
+
+    private fun problem16(status: Int, code: String, fa: String, extra: JsonObject = JsonObject(emptyMap())) =
+        JsonObject(buildJsonObject { put("type", "about:blank"); put("title", code); put("status", status); put("code", code); put("message_fa", fa) } + extra)
+
+    private fun JsonObject.at(k: String): Instant = runCatching { Instant.parse(str(k)) }.getOrDefault(Instant.EPOCH)
+
+    private val conversationKey = Regex("^/support/conversations/SC-\\d+$")
+
+    /** Every conversation with its messages (the fixtures hold each one whole). */
+    private fun conversations(): List<JsonObject> = store.keys.filter { conversationKey.matches(it) }.map { store[it]!!.second.jsonObject }
+
+    private fun convOut(c: JsonObject): JsonObject =
+        JsonObject(c - "messages" + ("last_message_at" to (c["messages"]?.jsonArray?.lastOrNull()?.jsonObject?.get("at") ?: c["opened_at"] ?: JsonNull)))
+
+    /** The teaching queue (§19.3): what waits for the owner, oldest first, with the agent's draft or refused message. */
+    private fun queue(): List<JsonObject> = conversations().filter { it.str("state") == "waiting_owner" }.map { c ->
+        val reason = (c["handoff"] as? JsonObject)?.str("reason")
+        buildJsonObject {
+            put("conversation", c["ref"]!!); put("company", c["company"]!!)
+            put("kind", when (reason) { "blocked" -> "blocked"; "low_confidence" -> "low_confidence"; else -> "handoff" })
+            put("since", (c["handoff"] as? JsonObject)?.get("at") ?: c["opened_at"]!!)
+            put("draft", c["messages"]!!.jsonArray.map { it.jsonObject }.lastOrNull { it.str("author") == "agent" && it.str("status") in setOf("draft", "blocked") } ?: JsonNull)
+        }
+    }.sortedBy { it.at("since") }
+
+    private fun channelOf(company: String?, kind: String?): JsonObject? = list("/support/channels").map { it.jsonObject }.firstOrNull { it.str("company") == company && it.str("kind") == kind }
+
+    private fun saveChannel(next: JsonObject) {
+        store["/support/channels"] = 200 to JsonArray(list("/support/channels").map { val o = it.jsonObject; if (o.str("company") == next.str("company") && o.str("kind") == next.str("kind")) next else o })
+    }
+
+    /** Replaces the [index]th item of a stored list (versions of one ref share it, so the position is the identity). */
+    private fun replaceAt(key: String, index: Int, item: JsonObject) {
+        val items = list(key).toMutableList()
+        items[index] = item
+        store[key] = 200 to JsonArray(items)
+    }
+
+    /** The next ref of a kind ("KB-0013"): one past the highest the list holds. */
+    private fun nextRef(key: String, prefix: String, width: Int): String =
+        prefix + "%0${width}d".format((list(key).mapNotNull { it.jsonObject.str("ref")?.substringAfter('-')?.toIntOrNull() }.maxOrNull() ?: 0) + 1)
+
+    private fun tmplSealed(ref: String?): Boolean {
+        val (r, v) = (ref ?: return false).split('@').let { it[0] to it.getOrNull(1) }
+        return list("/growth/templates").map { it.jsonObject }.any { it.str("ref") == r && it["version"]?.jsonPrimitive?.content == v && it.str("status") == "sealed" }
+    }
+
+    private fun norm(u: String) = u.trim().replace(Regex("[.,،؛)»]+$"), "").replace(Regex("/+$"), "").lowercase()
+
+    /** The outbound guard (§19.6), as far as the demo needs it: links must be exactly approved; no profit promise; never ask for a seed. */
+    private fun guard(company: String, text: String): List<String> {
+        val out = linkedSetOf<String>()
+        val approved = list("/support/kb").map { it.jsonObject }
+            .filter { it.str("company") == company && it.str("status") == "approved" && it.str("kind") in setOf("official_link", "referral") }
+            .flatMap { a -> a["links"]?.jsonArray.orEmpty().mapNotNull { (it as? JsonObject)?.str("url")?.let(::norm) } }.toSet()
+        for (m in Regex("https?://[^\\s«»\"']+", RegexOption.IGNORE_CASE).findAll(text)) if (norm(m.value) !in approved) out += "unknown_link"
+        if (Regex("سود\\s*‌?تضمینی|guaranteed\\s+profit", RegexOption.IGNORE_CASE).containsMatchIn(text)) out += "profit_promise"
+        if (Regex("\\bseed\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) out += "asks_secret"
+        if (text.length > 2000) out += "too_long"
+        return out.toList()
+    }
+
+    private fun v16Read(path: String, q: Map<String, String?>): Pair<Int, JsonElement>? {
+        fun has(o: JsonObject, k: String) = q[k] == null || o.str(k) == q[k]
+        val notFound = 404 to problem16(404, "not_found", "پیدا نشد.")
+        return when (path) {
+            "/revenue/summary" -> store["/revenue/summary?" + listOfNotNull(q["company"]?.let { "company=$it" }, "period=${q["period"] ?: "month"}").joinToString("&")] ?: notFound
+            "/revenue/days" -> 200 to JsonArray(list("/revenue/days").map { it.jsonObject }.filter { d ->
+                has(d, "company") && has(d, "account") && (q["from"] == null || d.str("day")!! >= q["from"]!!) && (q["to"] == null || d.str("day")!! <= q["to"]!!)
+            }.takeLast(400))
+            "/growth/funnel" -> store["/growth/funnel?company=${q["company"]}&period=${if (q["period"] == "week") "week" else "month"}"] ?: notFound
+            "/growth/rescue" -> 200 to page(list("/growth/rescue").map { it.jsonObject }.filter { has(it, "company") && has(it, "state") }.sortedByDescending { it.at("opened_at") })
+            "/growth/templates", "/growth/rules", "/growth/nps", "/support/channels" -> 200 to JsonArray(list(path).filter { has(it.jsonObject, "company") })
+            "/support/conversations" -> {
+                val text = q["q"]?.trim().orEmpty()
+                200 to page(conversations().filter { c ->
+                    has(c, "company") && has(c, "state") && has(c, "channel") && (text.isEmpty() || listOf(
+                        c.str("ref"), (c["customer"] as? JsonObject)?.str("display_name"), (c["customer"] as? JsonObject)?.str("handle_masked"),
+                        c["tags"]?.jsonArray?.joinToString(" ") { it.jsonPrimitive.content }, c["messages"]?.jsonArray?.joinToString(" ") { it.jsonObject.str("body").orEmpty() },
+                    ).joinToString(" ").contains(text))
+                }.map(::convOut).sortedByDescending { it.at("last_message_at") })
+            }
+            "/support/queue" -> 200 to JsonArray(queue())
+            "/support/kb" -> {
+                val text = q["q"]?.trim().orEmpty()
+                200 to JsonArray(list("/support/kb").map { it.jsonObject }.filter { a ->
+                    has(a, "company") && has(a, "kind") && has(a, "status") && (text.isEmpty() || listOf(
+                        a.str("ref"), a.str("question_fa"), a.str("answer_md"), a["variants"]?.jsonArray?.joinToString(" ") { it.jsonPrimitive.content }, a.str("key"),
+                    ).joinToString(" ").contains(text))
+                })
+            }
+            "/feedback" -> 200 to page(list("/feedback").map { it.jsonObject }.filter { has(it, "company") && has(it, "kind") && has(it, "state") }.sortedByDescending { it.int("count") })
+            else -> null
+        }
+    }
+
+    private fun v16Write(method: String, path: String, body: JsonObject?, version: Int?, idempotency: String?): Reply? {
+        fun gone(fa: String = "پیدا نشد.") = Reply(404, problem16(404, "not_found", fa))
+        fun conflict(fa: String) = Reply(409, problem16(409, "version_conflict", fa))
+        // ---- revenue (§19.1)
+        if (method == "POST" && path == "/revenue/accounts") {
+            val b = body ?: return Reply(422, problem16(422, "validation_failed", "بدنه خالی است."))
+            val all = list("/revenue/accounts").map { it.jsonObject }
+            val i = all.indexOfFirst { it.str("company") == b.str("company") && it.str("exchange") == b.str("exchange") }
+            if (i >= 0) {
+                val next = JsonObject(all[i] + b + ("version" to JsonPrimitive(all[i].int("version") + 1)))
+                replaceAt("/revenue/accounts", i, next)
+                return Reply(200, next)
+            }
+            val n = JsonObject(buildJsonObject {
+                put("id", "ra-${b.str("company").orEmpty().lowercase()}-${b.str("exchange")}"); put("status", "not_configured"); put("last_pull_at", JsonNull); put("last_error", JsonNull); put("version", 1)
+            } + b)
+            store["/revenue/accounts"] = 200 to JsonArray(list("/revenue/accounts") + n)
+            return Reply(201, n)
+        }
+        Regex("^/revenue/accounts/([^/]+)/pull$").find(path)?.let { m ->
+            val id = m.groupValues[1]
+            val all = list("/revenue/accounts").map { it.jsonObject }
+            val i = all.indexOfFirst { it.str("id") == id }.takeIf { it >= 0 } ?: return gone("این حساب پیدا نشد.")
+            val a = all[i]
+            if (a.str("status") == "not_configured") return Reply(409, problem16(409, "account_not_configured", "این حساب هنوز کلید ندارد؛ در ترمینال خودت make account-secret را بزن."))
+            val last = pulledAt[id]
+            val nowMs = System.currentTimeMillis()
+            if (last != null && nowMs - last < 60_000) {
+                val wait = ((60_000 - (nowMs - last)) / 1000 + 1).toString()
+                return Reply(429, problem16(429, "rate_limited", "همین الان pull شد."), mapOf("Retry-After" to wait))
+            }
+            pulledAt[id] = nowMs
+            if (a.str("status") == "ok") replaceAt("/revenue/accounts", i, JsonObject(a + ("last_pull_at" to stamp)))
+            return Reply(202, buildJsonObject { put("account", id); put("state", "queued") })
+        }
+        // ---- support desk (§19.3)
+        Regex("^/support/channels/([A-Z0-9]+)/([a-z_]+)(/pause)?$").find(path)?.let { m ->
+            val (co, kind, pause) = m.destructured
+            val ch = channelOf(co, kind) ?: return gone("این کانال پیدا نشد.")
+            if (pause.isNotEmpty()) {
+                val next = JsonObject(ch + mapOf("state" to JsonPrimitive("paused"), "paused_reason" to JsonPrimitive("مالک متوقف کرد."), "version" to JsonPrimitive(ch.int("version") + 1)))
+                saveChannel(next)
+                return Reply(200, next)
+            }
+            if (version == null) return Reply(428, problem16(428, "precondition_required", "نسخه‌ی کانال همراه درخواست نیامد."))
+            if (version != ch.int("version")) return conflict("کانال همین حالا عوض شده؛ دوباره نگاه کن.")
+            var next = ch
+            if (body?.str("state") == "live" && ch.str("state") != "live") {
+                if (ch["live_since"] == null || ch["live_since"] is JsonNull) return Reply(409, problem16(409, "shadow_not_passed", "این کانال هرگز go-live نگرفته است."))
+                next = JsonObject(next + mapOf("state" to JsonPrimitive("live"), "paused_reason" to JsonNull))
+            }
+            body?.str("auto_send")?.let { next = JsonObject(next + ("auto_send" to JsonPrimitive(it))) }
+            next = JsonObject(next + ("version" to JsonPrimitive(ch.int("version") + 1)))
+            saveChannel(next)
+            return Reply(200, next)
+        }
+        Regex("^/support/conversations/(SC-\\d+)/(reply|teach|close)$").find(path)?.let { m ->
+            val (ref, verb) = m.destructured
+            val key = "/support/conversations/$ref"
+            val c = store[key]?.second?.jsonObject ?: return gone("این گفت‌وگو پیدا نشد.")
+            if (verb == "close") {
+                val next = JsonObject(c + ("state" to JsonPrimitive("closed")))
+                store[key] = 200 to next
+                return Reply(200, convOut(next))
+            }
+            val idem = idempotency.orEmpty()
+            replies[idem]?.let { return it }
+            val text = (if (verb == "reply") body?.str("body") else body?.str("answer_md"))?.trim().orEmpty()
+            if (text.isEmpty()) return Reply(422, problem16(422, "validation_failed", "متن خالی است."))
+            val company = c.str("company").orEmpty()
+            val reasons = guard(company, text)
+            if (reasons.isNotEmpty()) return Reply(422, problem16(422, "send_blocked", "نگهبان خروجی این پیام را رد کرد.", buildJsonObject { putJsonArray("blocked_reasons") { reasons.forEach { add(JsonPrimitive(it)) } } }))
+            val live = channelOf(company, c.str("channel"))?.str("state") == "live"
+            if (verb == "reply" && !live) return Reply(409, problem16(409, "channel_not_live", "این کانال روشن نیست."))
+            val send = verb == "reply" || (c.str("state") == "waiting_owner" && live)
+            val messages = c["messages"]?.jsonArray.orEmpty()
+            val out = if (send) buildJsonObject {
+                put("id", "$ref-m${++msgSeq}"); put("conversation", ref); put("at", stamp); put("direction", "out"); put("author", "owner"); put("body", text); put("status", "sent")
+                putJsonArray("kb_refs") {}; put("confidence", JsonNull); putJsonObject("checks") { put("guard", "pass"); put("grounded", JsonNull) }; putJsonArray("blocked_reasons") {}
+            } else null
+            val conv = if (out != null) JsonObject(c + mapOf("messages" to JsonArray(messages + out), "state" to JsonPrimitive("answered"), "last_message_at" to stamp)).also { store[key] = 200 to it } else c
+            var result: JsonElement = out ?: JsonNull
+            if (verb == "teach") {
+                val asked = conv["messages"]!!.jsonArray.map { it.jsonObject }.lastOrNull { it.str("direction") == "in" }?.str("body").orEmpty()
+                val generalise = (body?.get("generalise") as? JsonPrimitive)?.booleanOrNull == true
+                val article = buildJsonObject {
+                    val r = nextRef("/support/kb", "KB-", 4)
+                    put("id", "kb-$r"); put("ref", r); put("company", company); put("version", 1); put("kind", "faq"); put("key", JsonNull)
+                    put("question_fa", (if (generalise) asked.replace(Regex("[@#]\\S+|\\d{4,}"), "…") else asked).take(140))
+                    putJsonArray("variants") {}; put("answer_md", text); putJsonArray("variables") {}; putJsonArray("links") {}; putJsonArray("codes") {}
+                    put("status", "proposed"); putJsonObject("source") { put("kind", "owner_answer"); put("ref", ref) }; put("approved_at", JsonNull)
+                    put("expires_at", HqClock.now().plus(180, ChronoUnit.DAYS).toString()); put("uses_30d", 0); put("sha256", Api.sha256(text))
+                }
+                prepend("/support/kb", article)
+                result = buildJsonObject { put("message", out ?: JsonNull); put("article", article) }
+            }
+            return Reply(201, result).also { if (idem.isNotEmpty()) replies[idem] = it }
+        }
+        // ---- knowledge and the shadow test (§19.4)
+        if (method == "POST" && path == "/support/kb") {
+            val b = body ?: return Reply(422, problem16(422, "validation_failed", "بدنه خالی است."))
+            val prev = b.str("ref")?.let { r -> list("/support/kb").map { it.jsonObject }.firstOrNull { it.str("ref") == r } }
+            val ref = prev?.str("ref") ?: nextRef("/support/kb", "KB-", 4)
+            val a = JsonObject(buildJsonObject {
+                put("id", "kb-$ref-${(prev?.int("version") ?: 0) + 1}"); put("ref", ref); put("version", (prev?.int("version") ?: 0) + 1); put("key", JsonNull)
+                putJsonArray("variants") {}; putJsonArray("variables") {}; putJsonArray("links") {}; putJsonArray("codes") {}
+            } + b + buildJsonObject {
+                put("ref", ref); put("status", "proposed"); putJsonObject("source") { put("kind", "owner"); put("ref", JsonNull) }; put("approved_at", JsonNull)
+                put("expires_at", HqClock.now().plus(180, ChronoUnit.DAYS).toString()); put("uses_30d", 0); put("sha256", Api.sha256(b.str("answer_md").orEmpty()))
+            })
+            prepend("/support/kb", a)
+            return Reply(201, a)
+        }
+        Regex("^/support/kb/(KB-\\d+)/(approve|retire)$").find(path)?.let { m ->
+            val (ref, verb) = m.destructured
+            val all = list("/support/kb").map { it.jsonObject }
+            val i = all.indexOfFirst { it.str("ref") == ref && (if (verb == "approve") it.str("status") == "proposed" else it.str("status") != "retired") }
+            if (i < 0) return Reply(409, problem16(409, "validation_failed", if (verb == "approve") "این مقاله منتظر تأیید نیست." else "این مقاله قبلاً بازنشسته شده."))
+            val next = if (verb == "approve") JsonObject(all[i] + mapOf("status" to JsonPrimitive("approved"), "approved_at" to stamp, "expires_at" to JsonPrimitive(HqClock.now().plus(180, ChronoUnit.DAYS).toString())))
+            else JsonObject(all[i] + ("status" to JsonPrimitive("retired")))
+            // An approved version retires the version it replaces.
+            store["/support/kb"] = 200 to JsonArray(all.mapIndexed { j, a ->
+                when {
+                    j == i -> next
+                    verb == "approve" && a.str("ref") == ref && a.str("status") == "approved" -> JsonObject(a + ("status" to JsonPrimitive("retired")))
+                    else -> a
+                }
+            })
+            return Reply(200, next)
+        }
+        if (method == "POST" && path == "/support/history") {
+            val co = body?.str("company") ?: return Reply(422, problem16(422, "validation_failed", "شرکت لازم است."))
+            val r = list("/support/shadow").map { it.jsonObject }.firstOrNull { it.str("company") == co }
+            val v = (r?.str("suite")?.substringAfter('@')?.toIntOrNull() ?: 0) + 1
+            return Reply(201, buildJsonObject { put("suite", "support-shadow-$co@$v"); put("cases", 100) })
+        }
+        Regex("^/support/shadow/([A-Z0-9]+)/run$").find(path)?.let { m ->
+            val co = m.groupValues[1]
+            val all = list("/support/shadow").map { it.jsonObject }
+            val i = all.indexOfFirst { it.str("company") == co }
+            if (i < 0) return Reply(409, problem16(409, "validation_failed", "برای این شرکت هنوز تاریخچه‌ای داده نشده؛ اول خروجی گفت‌وگوها را بده."))
+            val runId = "er-sh-${co.lowercase()}-${System.currentTimeMillis()}"
+            replaceAt("/support/shadow", i, JsonObject(all[i] + mapOf("run_id" to JsonPrimitive(runId), "at" to stamp)))
+            return Reply(202, buildJsonObject { put("run_id", runId) })
+        }
+        // ---- templates and lifecycle rules (§19.5)
+        if (method == "POST" && path == "/growth/templates") {
+            val b = body ?: return Reply(422, problem16(422, "validation_failed", "بدنه خالی است."))
+            val prev = b.str("ref")?.let { r -> list("/growth/templates").map { it.jsonObject }.firstOrNull { it.str("ref") == r } }
+            val ref = prev?.str("ref") ?: nextRef("/growth/templates", "TM-", 4)
+            val version = (prev?.int("version") ?: 0) + 1
+            val t = JsonObject(b + buildJsonObject {
+                put("id", "tm-$ref-$version"); put("ref", ref); put("version", version); put("status", "proposed"); put("sealed_at", JsonNull); put("sha256", Api.sha256(b.str("body_fa").orEmpty()))
+            })
+            // A new template version rests the rules that send its older one until both are sealed (§19.5).
+            if (prev != null) store["/growth/rules"] = 200 to JsonArray(list("/growth/rules").map { val r = it.jsonObject; if (r.str("template")?.startsWith("$ref@") == true && r.str("status") == "active") JsonObject(r + ("status" to JsonPrimitive("paused"))) else r })
+            prepend("/growth/templates", t)
+            return Reply(201, t)
+        }
+        Regex("^/growth/templates/(TM-\\d+)/seal$").find(path)?.let { m ->
+            val all = list("/growth/templates").map { it.jsonObject }
+            val i = all.indexOfFirst { it.str("ref") == m.groupValues[1] && it.str("status") == "proposed" }
+            if (i < 0) return Reply(409, problem16(409, "validation_failed", "این قالب منتظر مُهر نیست."))
+            val next = JsonObject(all[i] + mapOf("status" to JsonPrimitive("sealed"), "sealed_at" to stamp))
+            replaceAt("/growth/templates", i, next)
+            return Reply(200, next)
+        }
+        if (method == "POST" && path == "/growth/rules") {
+            val b = body ?: return Reply(422, problem16(422, "validation_failed", "بدنه خالی است."))
+            val prev = b.str("ref")?.let { r -> list("/growth/rules").map { it.jsonObject }.firstOrNull { it.str("ref") == r } }
+            val ref = prev?.str("ref") ?: nextRef("/growth/rules", "LR-", 4)
+            val version = (prev?.int("version") ?: 0) + 1
+            val r = JsonObject(b + buildJsonObject {
+                put("id", "lr-$ref-$version"); put("ref", ref); put("version", version); put("status", "proposed"); put("decision_ref", JsonNull); put("sent_30d", 0); put("opt_outs_30d", 0)
+            })
+            prepend("/growth/rules", r)
+            return Reply(201, r)
+        }
+        Regex("^/growth/rules/(LR-\\d+)/(seal|pause|resume)$").find(path)?.let { m ->
+            val (ref, verb) = m.destructured
+            val all = list("/growth/rules").map { it.jsonObject }
+            val i = all.indexOfFirst { it.str("ref") == ref }.takeIf { it >= 0 } ?: return gone("این قاعده پیدا نشد.")
+            if (verb != "pause" && !tmplSealed(all[i].str("template"))) return Reply(409, problem16(409, "template_not_sealed", "قالب ${all[i].str("template")} هنوز مُهر نشده است."))
+            val next = JsonObject(all[i] + ("status" to JsonPrimitive(if (verb == "pause") "paused" else "active")))
+            replaceAt("/growth/rules", i, next)
+            return Reply(200, next)
+        }
+        // ---- feedback (§19.7) and intake (§19.8)
+        Regex("^/feedback/(FB-\\d+)$").find(path)?.let { m ->
+            if (method != "PATCH") return null
+            val all = list("/feedback").map { it.jsonObject }
+            val i = all.indexOfFirst { it.str("ref") == m.groupValues[1] }.takeIf { it >= 0 } ?: return gone()
+            if (version == null) return Reply(428, problem16(428, "precondition_required", "نسخه همراه درخواست نیامد."))
+            if (version != all[i].int("version")) return conflict("این مورد همین حالا عوض شده؛ دوباره نگاه کن.")
+            val next = JsonObject(all[i] + (body ?: JsonObject(emptyMap())) + ("version" to JsonPrimitive(all[i].int("version") + 1)))
+            store["/feedback"] = 200 to page(all.mapIndexed { j, x -> if (j == i) next else x })
+            return Reply(200, next)
+        }
+        if (method == "POST" && path == "/intake/sources") {
+            val b = body ?: return Reply(422, problem16(422, "validation_failed", "بدنه خالی است."))
+            val hit = list("/intake/sources").map { it.jsonObject }.firstOrNull { it.str("company") == b.str("company") && it.str("kind") == b.str("kind") }
+            if (hit != null) return Reply(201, hit)
+            val s = buildJsonObject {
+                put("company", b["company"]!!); put("kind", b["kind"]!!); put("configured", false); put("last_event_at", JsonNull); put("events_24h", 0); put("rejected_24h", 0)
+            }
+            store["/intake/sources"] = 200 to JsonArray(list("/intake/sources") + s)
+            return Reply(201, s)
+        }
+        return null
+    }
+
+    /** What sealing a §19.9 card does in the demo: the channel goes live, the template is sealed, the rule runs if its template is. */
+    private fun decided16(d: JsonObject) {
+        val p = d["payload"] as? JsonObject ?: return
+        when (d.str("kind")) {
+            "support_go_live" -> channelOf(p.str("company"), p.str("channel"))?.let { c ->
+                saveChannel(JsonObject(c + mapOf("state" to JsonPrimitive("live"), "live_since" to stamp, "auto_send" to (p["auto_send"] ?: JsonPrimitive("kb_verbatim")), "version" to JsonPrimitive(c.int("version") + 1))))
+            }
+            "message_template" -> (p["template"] as? JsonObject)?.let { t ->
+                val all = list("/growth/templates").map { it.jsonObject }
+                val i = all.indexOfFirst { it.str("ref") == t.str("ref") && it.int("version") == t.int("version") }
+                if (i >= 0) replaceAt("/growth/templates", i, JsonObject(all[i] + mapOf("status" to JsonPrimitive("sealed"), "sealed_at" to stamp)))
+            }
+            "lifecycle_rule" -> (p["rule"] as? JsonObject)?.let { r ->
+                val all = list("/growth/rules").map { it.jsonObject }
+                val i = all.indexOfFirst { it.str("ref") == r.str("ref") }
+                if (i >= 0 && tmplSealed(all[i].str("template"))) replaceAt("/growth/rules", i, JsonObject(all[i] + ("status" to JsonPrimitive("active"))))
+            }
+        }
+    }
 }

@@ -27,6 +27,12 @@ const t0 = Date.now();
 const getJson = async (p) => (await handle(new Request(`http://demo/api/v1${p}`))).json();
 const employeeCodes = ((await getJson('/employees')).items ?? []).map((e) => e.code);
 const academyRoles = (await getJson('/academy/curricula')).map((c) => c.role);
+// ⟨1.5⟩ Companies, conversations and rescue cases are data: the lists below follow what the mock holds.
+const listOf = (x) => (Array.isArray(x) ? x : x.items ?? []);
+const operating = listOf(await getJson('/companies')).filter((c) => c.kind !== 'holding').map((c) => c.code);
+const conversationRefs = listOf(await getJson('/support/conversations')).map((c) => c.ref);
+const rescueRefs = listOf(await getJson('/growth/rescue')).map((r) => r.ref);
+const cards16 = listOf(await getJson('/decisions?status=all')).filter((d) => ['message_template', 'lifecycle_rule', 'support_go_live'].includes(d.kind)).map((d) => d.ref);
 
 const paths = [
   '/auth/session', '/meta', '/inbox/summary', '/owner/presence', '/owner/away-summary', '/owner/settings',
@@ -50,7 +56,7 @@ const paths = [
   '/inquiries?from=HQ-ADV', '/errands', '/stars/rollup?period=week', '/stars/rollup?period=month', '/stars/rubrics', '/lessons',
   '/skills', '/academy/curricula', '/academy/evals', '/academy/teach',
   '/egress/summary?period=day', '/egress', '/tools/mcp', '/tools/accounts', '/tools/catalog',
-  '/foundings', '/foundings/C-0001', '/foundings/C-0002', '/provisioning/plans/PV-0001', '/provisioning/plans/PV-0002', '/provisioning/runs/r1',
+  '/foundings', '/foundings/C-0001', '/foundings/C-0002', '/foundings/C-0003', '/provisioning/plans/PV-0001', '/provisioning/plans/PV-0002', '/provisioning/plans/PV-0003', '/provisioning/runs/r1',
   '/backups/status', '/threads/N/messages', '/threads/P/messages',
   // ⟨1.4.2⟩ hiring starts with the owner: the state and the charters the owner hires from.
   '/owner/hiring', '/roles',
@@ -64,8 +70,19 @@ const paths = [
   // ⟨1.4.5⟩ every employee's training record (item 16) and each role's model comparison (item 30).
   ...employeeCodes.map((c) => `/academy/records/${c}`),
   ...academyRoles.map((r) => `/academy/runs?latest=true&role=${r}&subject_kind=model`),
+  // ⟨1.4.6⟩ the companies' brands and seals: every active brand, and each company's versions (the founding's company too).
+  '/brands', ...['TY', 'FX', 'PC', 'AC'].flatMap((c) => [`/companies/${c}/brand`, `/companies/${c}/brand/versions`]),
   // A wide planner (eight weeks either side) the demo cuts to the asked range and scope.
   ['/planner', `/planner?from=${new Date(Date.now() - 56 * 86_400_000).toISOString().slice(0, 10)}&to=${new Date(Date.now() + 56 * 86_400_000).toISOString().slice(0, 10)}`],
+  // ⟨1.5⟩ revenue and support (§19). Whole lists the demo filters and changes itself (channels, conversations with their
+  // messages, knowledge, templates, rules, NPS, rescue, feedback, intake), the 30 settled days of every account, and the
+  // summaries and funnels it serves as they are, for every period and company.
+  '/revenue/accounts', '/revenue/days',
+  ...['day', 'week', 'month'].flatMap((p) => [`/revenue/summary?period=${p}`, ...operating.map((c) => `/revenue/summary?company=${c}&period=${p}`)]),
+  ...operating.flatMap((c) => ['week', 'month'].map((p) => `/growth/funnel?company=${c}&period=${p}`)),
+  '/growth/rescue', ...rescueRefs.map((r) => `/growth/rescue/${r}`), '/growth/templates', '/growth/rules', '/growth/nps',
+  '/support/channels', '/support/conversations', ...conversationRefs.map((r) => `/support/conversations/${r}`), '/support/queue', '/support/kb', '/support/shadow',
+  '/feedback', '/intake/sources', ...cards16.map((r) => `/decisions/${r}`),
 ];
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;

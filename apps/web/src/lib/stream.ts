@@ -18,11 +18,15 @@ const EVENT_TYPES = [
   // ⟨1.4⟩ §18.10, ⟨1.4.2⟩ §18.11
   'oversight.finding', 'oversight.hold', 'oversight.watch', 'inquiry.answered', 'errand.updated', 'stars.rollup', 'skill.updated',
   'academy.eval', 'founding.updated', 'provision.step', 'backup.done', 'backup.failed', 'hiring.changed', 'story.created',
+  // ⟨1.4.6⟩ §18.14
+  'brand.updated',
+  // ⟨1.5⟩ §19.9
+  'revenue.day', 'revenue.alert', 'support.message', 'support.queue', 'support.channel', 'rescue.updated', 'lifecycle.sent', 'nps.closed', 'feedback.item',
 ] as const;
 
 const CORE_TOPICS = 'work,decisions,deliverables,messages,notifications,activity,llm,control';
 // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories`;
+const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback`;
 
 // Event type prefix -> query keys to refresh (contract §7, §16).
 const INVALIDATE: Array<[string, string[]]> = [
@@ -51,6 +55,16 @@ const INVALIDATE: Array<[string, string[]]> = [
   ['founding.', ['founding']],
   ['provision.', ['founding']],
   ['backup.', ['backups']],
+  // A traced or sealed brand: the company's versions, every mark and seal (GET /brands), and the founding's step.
+  ['brand.', ['brand', 'brands', 'companies', 'founding']],
+  // ⟨1.5⟩ §19.9: the radar, the desk (queue, conversations, channels), rescue and lifecycle sends, a closed NPS wave (its comments
+  // reach the feedback inbox), and feedback items.
+  ['revenue.', ['revenue']],
+  ['support.', ['support']],
+  ['rescue.', ['growth']],
+  ['lifecycle.', ['growth']],
+  ['nps.', ['growth', 'feedback']],
+  ['feedback.', ['feedback']],
 ];
 
 export type StreamState = 'connecting' | 'live' | 'offline';

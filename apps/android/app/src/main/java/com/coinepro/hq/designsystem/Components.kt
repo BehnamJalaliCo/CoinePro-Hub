@@ -469,7 +469,8 @@ fun HqTextField(
                     .border(1.dp, if (focused) c.goldInk else c.lineStrong, RoundedCornerShape(10.dp))
                     .padding(horizontal = 12.dp, vertical = 12.dp),
             ) {
-                if (value.isEmpty()) Text(placeholder, style = Divan.type.body, color = c.textMuted)
+                // A figure field's example keeps Latin digits too ("W-000123", "2026-10-20 14:00").
+                if (value.isEmpty()) Text(placeholder, style = if (figure) Divan.type.body.copy(fontFamily = FigureFace) else Divan.type.body, color = c.textMuted)
                 inner()
             }
         },
