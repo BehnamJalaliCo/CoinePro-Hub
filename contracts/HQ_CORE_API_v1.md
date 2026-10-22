@@ -1867,6 +1867,8 @@ DceoStats  { window: "30d"|"90d"|"all", n, accuracy|null, baseline_accuracy|null
 > - **ChatGPT's own chat and image generation, and Gemini's images and videos**, on the owner's unlimited plans, for the companies' ad
 >   creatives (a Telegram channel post, an Instagram story) that an agent asks for with a precise brief — **through a signed-in browser on
 >   the hub (Playwright), the way the owner already ran it on their own server** (owner's decision: this path, no other).
+> - **DeepSeek's free chat** (owner, 2026-10-22), a third player on the same signed-in browser path, with its web search: quick searches
+>   that would otherwise spend Claude tokens, and a third opinion when models consult each other.
 
 **The rules of the bench**
 - **Claude holds the project.** Code, decisions, verdicts, findings, customer-facing text, every A2+ act and every final deliverable stay with
@@ -1881,16 +1883,17 @@ DceoStats  { window: "30d"|"90d"|"all", n, accuracy|null, baseline_accuracy|null
   with the answer.
 
 ```
-Substitute { player: "gpt"|"gemini", connection: "chatgpt-plus"|"gemini-pro", runner: "codex_cli"|"gemini_cli",
+Substitute { player: "gpt"|"gemini"|"deepseek", connection: "chatgpt-plus"|"gemini-pro"|"deepseek-free",
+             runner: "codex_cli"|"gemini_cli"|null,                               // DeepSeek has no CLI: web only
              login: {state: "signed_out"|"signing_in"|"signed_in"|"expired", plan_fa, since|null, last_ok_at|null},
              status: "ready"|"limited"|"off"|"error", limited_until|null, status_reason|null,
              models: [{id, label, tier: "strong"|"light", available: bool}],      // checked against what the CLI offers under the subscription
              capabilities: {text: Cap, image: Cap, video: Cap},                   // Cap = "cli"|"web"|"api"|"off"
-             web: {account: "chatgpt-web"|"gemini-web", state: "signed_in"|"expired"|"signed_out", last_ok_at|null,
+             web: {account: "chatgpt-web"|"gemini-web"|"deepseek-web", state: "signed_in"|"expired"|"signed_out", last_ok_at|null,
                    recipe_version, last_failure|null},                             // the signed-in browser profile (below)
              seats: [{seat, via: "cli"|"web", model, enabled, per_day, used_today}],
              month: {key (Jalali, "1405-08"), calls, skipped, input_tokens, output_tokens, estimated: bool,
-                     equiv_usd, price_usd, value_ratio}, version }               // value_ratio = equiv_usd ÷ price_usd
+                     equiv_usd, price_usd, value_ratio|null}, version }          // value_ratio = equiv_usd ÷ price_usd; null for a free account
 SubstituteLogin { id, connection, method: "device_code"|"auth_code", verification_url, user_code|null, expires_at,
              state: "waiting"|"done"|"expired"|"failed", status_reason|null }
 Creative   { id, ref: "CR-0001", company, kind: "image"|"video", brief_md, prompt_md,
@@ -1930,6 +1933,8 @@ report says so.
 | `assistant_errand` | gpt · light | The assistant's drafting steps: summary, translation, rewrite, a draft email or post. The assistant checks and finishes the errand. | 30 |
 | `content_draft` | gemini | First drafts of company content (captions, titles, meta descriptions, variations) for the agent in charge to edit. | 30 |
 | `long_read` | gemini | A summary of a long masked document or log, with page or line anchors the caller verifies. | 10 |
+| `quick_search` | deepseek · `via: "web"`, search on | A fast answer, with its sources, to a quick public question an agent would otherwise spend Claude tokens searching for. The query passes the same data guard as `web.search` (nothing internal). The caller reads each cited source itself (`web.read`) before a fact or a figure is used; the answer alone is never evidence. | 60 |
+| `third_opinion` | deepseek · `via: "web"` | A third independent opinion beside the advisor's memo and GPT's second opinion (the same masked facts pack, no other opinion shown), and an extra voice whenever a seat or an agent consults several models. `DecisionMemo` gains `third_opinion`, the shape of `second_opinion`. | 5 |
 | `creative` | gpt or gemini · `via: "web"` | Images (ChatGPT, Gemini), and videos of at most 10 s (Gemini), for ads and teasers (below). | 20 images · 3 videos |
 - **Task classes:** `sub_code_review`, `sub_second_opinion`, `sub_cross_check`, `sub_errand`, `sub_draft`, `sub_long_read`, `sub_creative` (in `/assignments`, on
   the two subscription connections only).
@@ -1956,14 +1961,16 @@ report says so.
 
 **The web path: a signed-in browser on the hub** (the owner's own method, from their server)
 - **Where:** the egress service's real browser (Playwright, Chromium; §18.7), with a **persistent profile per player**: two holding service
-  accounts, `chatgpt-web` (chatgpt.com) and `gemini-web` (gemini.google.com). `ServiceAccount.policy.browse.kind` gains `"profile"`. The
+  accounts, `chatgpt-web` (chatgpt.com), `gemini-web` (gemini.google.com) and `deepseek-web` (chat.deepseek.com).
+  `ServiceAccount.policy.browse.kind` gains `"profile"`. The
   profile lives in a volume only the egress browser mounts for that account (files `600`, not in backups); browsing with it is limited to
   that site's own hosts; no model ever sees its cookies.
-- **Sign-in, once, by the owner:** `make chatgpt-web-login` or `make gemini-web-login` in their own terminal opens that profile in a visible
+- **Sign-in, once, by the owner:** `make chatgpt-web-login`, `make gemini-web-login` or `make deepseek-web-login` in their own terminal opens that profile in a visible
   browser for at most 15 minutes, shown through noVNC (MPL-2.0) bound to `127.0.0.1` only, which the owner reaches through their own SSH tunnel
   (`ssh -L`). The owner signs in and closes it; the hub never sees the password. A signed-out or expired profile → `web.state: "expired"`,
   the seats that use it are `skipped`, and one `report` notification asks the owner to sign in again.
-- **Rules first, AI last:** each job runs a reviewed **recipe** (`infra/egress/recipes/chatgpt-web.yaml`, `gemini-web.yaml`): open a new chat
+- **Rules first, AI last:** each job runs a reviewed **recipe** (`infra/egress/recipes/chatgpt-web.yaml`, `gemini-web.yaml`, `deepseek-web.yaml`;
+  DeepSeek's web search on for `quick_search`, its deep-thinking mode only when the seat asks): open a new chat
   (a temporary one when the site offers it), paste the prompt, wait for the result (image ≤ 3 min, video ≤ 10 min), download the original,
   close. When a recipe fails because the site changed, **one Claude run** finishes the same job with `web.browse` on that account
   (screenshots; never a secret) and writes the recipe fix as a reviewed change; until it is merged, jobs use that fallback.
