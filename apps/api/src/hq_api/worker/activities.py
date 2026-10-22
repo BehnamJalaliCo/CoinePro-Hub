@@ -29,6 +29,7 @@ from hq_api.errors import ApiError
 from hq_api.hub import Hub
 from hq_api.worker import report, schedules
 from hq_api.worker.academy_activities import AcademyActivities
+from hq_api.worker.brand_activities import BrandActivities
 from hq_api.worker.media_activities import MediaActivities
 from hq_api.worker.oversight_activities import OversightActivities
 from hq_api.worker.people_activities import PeopleActivities
@@ -66,6 +67,7 @@ class Activities:
         self.live = live or LivePush(s.api_internal_url)
         self.checker = checker or checks.Checker()
         self.media = MediaActivities(hub, self.router, self._tx)
+        self.brand = BrandActivities(hub, self._tx)
         self.people = PeopleActivities(hub, self._tx)
         self.academy = AcademyActivities(hub, self.router, self._tx)
         self.oversight = OversightActivities(hub, self._tx)
@@ -73,6 +75,7 @@ class Activities:
     def all(self) -> list[Any]:
         return [
             *self.media.all(),
+            *self.brand.all(),
             *self.people.all(),
             *self.academy.all(),
             *self.oversight.all(),
@@ -436,12 +439,27 @@ class Activities:
             await workflows_client.decision_decided(hub, r["ref"])
         ended = await self._end_stale_decision_workflows(hub)
         files = await self._resume_files(hub)
+        brands = await self._resume_brands(hub)
         return {
             "pending": len(pending),
             "effects_resumed": len(stuck),
             "ended": ended,
             "files_resumed": files,
+            "brands_resumed": brands,
         }
+
+    async def _resume_brands(self, hub: Any) -> int:
+        """Brand versions still processing whose trace never started (prompt
+        9.1): started again. Rule-only (code, no model, nothing outside)."""
+        async with self._tx() as tx:
+            rows = await tx.all(
+                """SELECT id FROM org.company_brands
+                   WHERE state = 'processing' AND updated_at < now() - interval '10 minutes'
+                   ORDER BY updated_at LIMIT 20"""
+            )
+        for r in rows:
+            await workflows_client.brand_trace(hub, str(r["id"]))
+        return len(rows)
 
     async def _resume_files(self, hub: Any) -> int:
         """Uploads still processing whose workflow never started (Temporal was
