@@ -81,6 +81,15 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "support.draft",
         "support.handoff",
         "support.mystery",
+        # prompt 11 §1-§3 (contract §20.1-§20.3): the meeting room and the knowledge base
+        "meeting.statement",
+        "meeting.challenge",
+        "meeting.whisper",
+        "meeting.item",
+        "meeting.minutes",
+        "knowledge.propose",
+        "knowledge.review",
+        "knowledge.approve",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

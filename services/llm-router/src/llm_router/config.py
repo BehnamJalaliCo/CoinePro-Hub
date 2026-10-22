@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-from hq_common import oversight_share
+from hq_common import meetings_share, oversight_share
 
 
 def _int(name: str, default: int) -> int:
@@ -85,6 +85,12 @@ class Settings:
     )
     oversight_daily_share: float = field(
         default_factory=lambda: oversight_share.parse_share(os.environ.get("OVERSIGHT_DAILY_SHARE"))
+    )
+    # The meetings' share (prompt 11 §1.2, contract §20.1): every meeting turn of
+    # one UTC day together stops at this share of the agents' daily token cap
+    # (a war room is outside it); each meeting's own cap comes in meta.meeting_cap.
+    meetings_daily_share: float = field(
+        default_factory=lambda: meetings_share.parse_share(os.environ.get("MEETINGS_DAILY_SHARE"))
     )
     # Prompt 10 §4.3 (contract §19.3): one company's support drafts per UTC day,
     # the scope support_draft:<company> = its support agent's role counter; 0 = none.

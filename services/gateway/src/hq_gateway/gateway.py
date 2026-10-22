@@ -43,6 +43,8 @@ from hq_common.redact import fit_async, mask_secrets
 from hq_gateway import (
     founding,  # noqa: F401 - registers server.plan (prompt 09)
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
+    knowledge,  # noqa: F401 - prompt 11: knowledge.propose/review/approve
+    meetings,  # noqa: F401 - prompt 11: meeting.statement/challenge/whisper/item/minutes
     oversight,  # noqa: F401 - registers the overseer's tools (prompt 08)
     people,  # noqa: F401 - registers stars, lessons, stories, hire.decide
     revenue,  # noqa: F401 - prompt 10: revenue.read, funnel.read, rescue, feedback, referral

@@ -201,9 +201,13 @@ class UsageIn(In):
 
 class SearchIn(In):
     q: str = Field(min_length=2, max_length=200)
-    kinds: list[Literal["resolutions", "deliverables", "decisions", "work", "messages"]] | None = (
-        None
-    )
+    kinds: (
+        list[Literal["resolutions", "deliverables", "decisions", "work", "messages", "knowledge"]]
+        | None
+    ) = None
+    # Filters of kind `knowledge` (prompt 11 §3.5, contract §20.3): approved, unexpired entries.
+    layer: Literal["holding", "company", "department", "employee"] | None = None
+    kind: Literal["principle", "policy", "fact", "faq", "playbook", "support"] | None = None
 
 
 class AuditIn(CompanyIn):
@@ -506,7 +510,7 @@ async def treasury_usage(api: Api, call: Call, a: UsageIn) -> Result:
 
 
 async def knowledge_search(api: Api, call: Call, a: SearchIn) -> Result:
-    params: dict[str, Any] = {"q": a.q, "kinds": a.kinds}
+    params: dict[str, Any] = {"q": a.q, "kinds": a.kinds, "layer": a.layer, "kind": a.kind}
     return from_response(
         await api.request("GET", "/internal/v1/knowledge/search", call.token, params=params), None
     )
