@@ -148,8 +148,8 @@ def test_chatwoot_is_community_pinned_and_starts_only_with_the_owners_domain() -
     Community (MIT) compose with images pinned by digest and memory limits for
     a 4 GB server, makes its secrets on the server, publishes 443 only, and
     starts nothing: the owner's `chatwoot-start <domain>` does, later."""
-    ud = render(plan=make_plan(software=["system-upgrade", "work-user", "ssh-hardening",
-                                         "docker", "chatwoot"]))  # fmt: skip
+    ud = render(plan=make_plan(software=["system-upgrade", "unattended-upgrades", "work-user",
+                                         "ssh-hardening", "docker", "chatwoot"]))  # fmt: skip
     assert len(ud.encode()) <= cloudinit.MAX_BYTES
     step = ud.split("step_chatwoot() {", 1)[1].split("\n}\n", 1)[0]
     images = re.findall(r'^CW_[A-Z_]*IMAGE="([^"]+)"$', ud, re.M)
