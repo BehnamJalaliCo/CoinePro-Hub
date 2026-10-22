@@ -442,6 +442,10 @@ async def activate(
             message_fa="اول نشان (mark) شرکت را بساز؛ مُهر بدون نشان ممکن نیست.",
             missing=["mark"],
         )
+    # One seal at a time per company (the same lock as a new version's number).
+    await tx.exec(
+        "SELECT pg_advisory_xact_lock(hashtext('org.company_brands:' || :co))", co=str(co["id"])
+    )
     prev = await active(tx, co["id"])
     if prev is not None:
         await tx.exec(

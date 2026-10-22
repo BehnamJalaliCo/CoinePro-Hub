@@ -22,7 +22,7 @@ from pydantic import Field
 from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import brands as BR
-from hq_api.errors import responses
+from hq_api.errors import ApiError, responses
 from hq_api.schemas import Model, Page
 from hq_api.security import stepup
 
@@ -132,6 +132,8 @@ async def brand_versions(
 ) -> Page[BR.CompanyBrand]:
     """Every version, newest first."""
     after = pagination.decode(cursor, 1)
+    if after and not isinstance(after[0], int):
+        raise ApiError(422, "validation_failed", fields={"cursor": "invalid"})
     async with ctx.tx() as tx:
         co = await BR.company_row(tx, code)
         rows = await tx.all(
