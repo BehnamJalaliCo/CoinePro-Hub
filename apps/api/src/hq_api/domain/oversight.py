@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
@@ -32,13 +33,14 @@ from zoneinfo import ZoneInfo
 import yaml
 from pydantic import BaseModel, Field
 
-from hq_api import events, interactions
+from hq_api import audit, events, interactions
 from hq_api.db import Tx
 from hq_api.domain import notify
 from hq_api.domain import recurrence as R
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, Model
+from hq_api.worker.jalali import to_jalali
 from hq_common import oversight_share
 
 AREAS = (
@@ -59,6 +61,14 @@ HOLD_KINDS = ("decision", "session", "work", "employee", "tool", "story")
 WATCH_HOLD_CLASSES = ("A3",)
 WATCH_HOLD_KINDS = ("hire", "dismissal", "budget_change", "code_session", "deploy", "protocol")
 PROTOCOL_FILE = "protocols/oversight.yaml"
+log = logging.getLogger("hq_api.oversight")
+# ⟨1.5⟩ the keys a protocol of the file may carry; any other is ignored with a
+# warning, never an error (contract §21.12: a later key must not break a seed)
+PROTOCOL_KEYS = frozenset(
+    {"ref", "area", "method", "schedule", "scope", "severity", "answerable", "status",
+     "title_fa", "check", "evidence", "calendar"}
+)  # fmt: skip
+CALENDARS = ("gregorian", "jalali")
 OVERSEER = "OVR"
 QC = "OVS-MGR"
 
@@ -88,6 +98,8 @@ class Protocol(BaseModel):
     version: int
     sealed_at: datetime | None
     last_run: LastRun | None = None
+    # ⟨1.5⟩ jalali: BYMONTHDAY is a day of the Jalali month (contract §21.12)
+    calendar: Literal["gregorian", "jalali"] = "gregorian"
 
 
 class ProtocolIn(Model):
@@ -104,6 +116,7 @@ class ProtocolIn(Model):
     severity: Literal["info", "low", "medium", "high", "critical"]
     answerable: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
     status: Literal["active", "paused", "draft"] = "active"
+    calendar: Literal["gregorian", "jalali"] = "gregorian"
 
 
 class Evidence(Model):
@@ -249,6 +262,7 @@ def render_protocol(r: dict[str, Any]) -> Protocol:
         version=r["version"],
         sealed_at=r["sealed_at"],
         last_run=last,
+        calendar=r.get("calendar") or "gregorian",
     )
 
 
@@ -260,6 +274,13 @@ def protocol_file(root: str | Path) -> list[dict[str, Any]]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     out = []
     for p in data.get("protocols") or []:
+        unknown = sorted(set(p) - PROTOCOL_KEYS)
+        if unknown:
+            log.warning("protocol %s: unknown keys ignored: %s", p.get("ref"), ", ".join(unknown))
+        calendar = str(p.get("calendar") or "gregorian")
+        if calendar not in CALENDARS:
+            log.warning("protocol %s: unknown calendar %r, gregorian used", p.get("ref"), calendar)
+            calendar = "gregorian"
         out.append(
             {
                 "ref": str(p["ref"]),
@@ -273,6 +294,7 @@ def protocol_file(root: str | Path) -> list[dict[str, Any]]:
                 "severity": str(p["severity"]),
                 "answerable": str(p["answerable"]),
                 "status": str(p.get("status") or "active"),
+                "calendar": calendar,
             }
         )
     return out
@@ -301,14 +323,74 @@ async def seed_protocols(tx: Tx, holding_id: UUID, root: str | Path) -> int:
         await tx.exec(
             """INSERT INTO oversight.protocols (company_id, ref, version, title_fa, area, check_md,
                    method, schedule, scope, evidence_md, severity, answerable, status, source,
-                   created_by_kind, created_by_code)
+                   created_by_kind, created_by_code, calendar)
                VALUES (:co, :ref, 1, :title_fa, :area, :check_md, :method, :schedule, :scope,
-                       :evidence_md, :severity, :answerable, :status, 'seed', 'service', 'seed')""",
+                       :evidence_md, :severity, :answerable, :status, 'seed', 'service', 'seed',
+                       :calendar)""",
             co=holding_id,
             **p,
         )
         added += 1
+    await activate_pr082(tx)
     return added
+
+
+# ⟨1.5⟩ prompt 12 §6.7: PR-082 (the monthly HR round) becomes active on the 3rd
+# of the Jalali month, a new version over the seeded, paused one. Migration
+# 0027_1 does the same on a database seeded before it; this covers a fresh one.
+# It never runs on its own while the holding is locked (protocol_run skips).
+PR082 = "PR-082"
+PR082_SCHEDULE = "FREQ=MONTHLY;BYMONTHDAY=3;BYHOUR=10;BYMINUTE=0"
+PR082_CHECK = (
+    "Each month's HR round ran for every active operating company and the holding, with its "
+    "monthly HR report, and an `evaluation` card for every flagged employee (and only with "
+    "evidence and `override_reason` for an unflagged one)."
+)
+
+
+async def activate_pr082(tx: Tx) -> bool:
+    await tx.exec("SELECT pg_advisory_xact_lock(hashtextextended('hq:protocol:PR-082', 0))")
+    cur = await tx.first("SELECT * FROM oversight.current_protocols WHERE ref = :r", r=PR082)
+    if cur is None or cur["version"] != 1 or cur["source"] != "seed" or cur["status"] != "paused":
+        return False
+    await tx.exec(
+        """INSERT INTO oversight.protocols (company_id, ref, version, title_fa, area, check_md, method,
+               schedule, scope, evidence_md, severity, answerable, status, source, created_by_kind,
+               created_by_code, calendar)
+           VALUES (:co, :ref, 2, :title, :area, :check, :method, :schedule, :scope, :evidence,
+                   :severity, :answerable, 'active', 'seed', 'service', 'prompt-12', 'jalali')""",
+        co=cur["company_id"],
+        ref=PR082,
+        title=cur["title_fa"],
+        area=cur["area"],
+        check=PR082_CHECK,
+        method=cur["method"],
+        schedule=PR082_SCHEDULE,
+        scope=cur["scope"],
+        evidence=cur["evidence_md"],
+        severity=cur["severity"],
+        answerable=cur["answerable"],
+    )
+    await audit.record(
+        tx,
+        audit.SYSTEM,
+        company_id=cur["company_id"],
+        action="oversight.protocol_activate",
+        action_class="A1",
+        target_kind="protocol",
+        target_ref=f"{PR082}@2",
+        summary="prompt 12: active on the 3rd of the Jalali month",
+    )
+    return True
+
+
+def jalali_due(p: dict[str, Any], today: date) -> bool:
+    """A `jalali` protocol runs only on its BYMONTHDAY of the Jalali month
+    (its Temporal schedule fires daily at the hour); a gregorian one always."""
+    if (p.get("calendar") or "gregorian") != "jalali":
+        return True
+    days = R.parse(p["schedule"]).by_month_day
+    return not days or to_jalali(today)[2] in days
 
 
 async def protocols(
@@ -376,9 +458,9 @@ async def new_version(
     await tx.exec(
         """INSERT INTO oversight.protocols (company_id, ref, version, title_fa, area, check_md, method,
                schedule, scope, evidence_md, severity, answerable, status, source, sealed_at,
-               sealed_step_up_id, decision_id, created_by_kind, created_by_code)
+               sealed_step_up_id, decision_id, created_by_kind, created_by_code, calendar)
            VALUES (:co, :ref, :v, :title_fa, :area, :check_md, :method, :schedule, :scope, :evidence_md,
-                   :severity, :answerable, :status, :src, now(), :su, :dec, :bk, :bc)""",
+                   :severity, :answerable, :status, :src, now(), :su, :dec, :bk, :bc, :calendar)""",
         co=holding_id,
         ref=ref,
         v=version,
