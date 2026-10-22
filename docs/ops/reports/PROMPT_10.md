@@ -78,6 +78,9 @@ PROMPT_10 REPORT (revenue radar, funnel and referral rescue, support desk, lifec
 - `make account-secret KEY=<key>` for each exchange's affiliate account (one line `api_key:secret_key`), the hub's public IP in that exchange's affiliate API whitelist, then `POST /revenue/accounts` (step-up).
 - Seal the `policy` article `vip.min_balance` per company (the one minimum), a `rescue` template and rule (§7) before any follow-up can go, and add feedback keywords per company if wanted.
 
+### Checks (revenue and growth; HQ_TEST_IMAGE_TAG=e1, fresh database)
+- api: the whole suite passed (rc 0; schemathesis 8 examples). services: hq-common, gateway and egress tests passed. Lint (ruff, format, mypy strict) clean; OPA 111/111 at 100% coverage; openapi rewritten (additive: 17 new paths; /tools/accounts gains the signer kind); shellcheck and infra.sh green. gitleaks reports one finding in apps/web/src/lib/api/mock-v17.ts of main's commit 36b5ec6 (not on this branch). The full make check is the parent's.
+
 ### Gating (revenue and growth)
 - Behind gate.automation_lock, doing nothing (no model, no outside call, no new run) while the holding is locked: the three pull schedules and every pull (asked again before each day), the connector route (423), referral.check (423), the rescue follow-ups, the feedback batch (its one model call: Haiku 5.5, P4), the weekly support task, the feedback threshold task, the leak task.
 - Rule-only and allowed while locked: only the Saturday support lines inside the existing rule-based morning report (database figures, no model).
