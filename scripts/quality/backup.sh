@@ -438,11 +438,11 @@ fi
 plain="$(docker run --rm -v "$T/dest:/d:ro" -v "$B/restic:/r:ro" "$TOOLS" \
   sh -c "grep -rl -e '$marker_db' -e '$marker_file' /d /r 2>/dev/null | wc -l")"
 nopass="$(docker run --rm --network none -v "$T/dest:/d:ro" "$BK_IMAGE_T" \
-  restic -r /d/CoinePro-HQ/restic --insecure-no-password cat config >/dev/null 2>&1 && echo opened || echo refused)"
+  restic -r "/d/CoinePro HQ Backup" --insecure-no-password cat config >/dev/null 2>&1 && echo opened || echo refused)"
 wrong="$(docker run --rm --network none -v "$T/dest:/d:ro" -e RESTIC_PASSWORD=wrong-password "$BK_IMAGE_T" \
-  restic -r /d/CoinePro-HQ/restic cat config >/dev/null 2>&1 && echo opened || echo refused)"
+  restic -r "/d/CoinePro HQ Backup" cat config >/dev/null 2>&1 && echo opened || echo refused)"
 if [[ "$plain" == 0 && "$nopass" == refused && "$wrong" == refused &&
-  -d "$T/dest/CoinePro-HQ/restic" ]]; then
+  -d "$T/dest/CoinePro HQ Backup" ]]; then
   pass "encrypted: no plaintext in either repository; no password and a wrong one are refused"
 else
   fail "encrypted: plaintext files=$plain, no password=$nopass, wrong password=$wrong"
@@ -603,16 +603,16 @@ want "$(put_gdrive)" gdrive-again
 (umask 077 && mkdir -p "$T/locker" && printf '%s' "$password" >"$T/locker/restic.pass")
 docker run -d --name "$N-locker" --network none -v "$T/dest:/d" -v "$T/locker:/p:ro" \
   -e RESTIC_PASSWORD_FILE=/p/restic.pass "$BK_IMAGE_T" \
-  sh -c 'sleep 600 | restic -r /d/CoinePro-HQ/restic backup --stdin --stdin-filename lock --host gate-locker --quiet' >/dev/null
+  sh -c 'sleep 600 | restic -r "/d/CoinePro HQ Backup" backup --stdin --stdin-filename lock --host gate-locker --quiet' >/dev/null
 for _ in $(seq 30); do
-  [[ -n "$(ls -A "$T/dest/CoinePro-HQ/restic/locks" 2>/dev/null)" ]] && break
+  [[ -n "$(ls -A "$T/dest/CoinePro HQ Backup/locks" 2>/dev/null)" ]] && break
   sleep 1
 done
 want "$(jq -n --arg a "$snap_accessor" '{accessor: $a}' | api POST "$bao/v1/auth/token/revoke-accessor")" revoke
 run hourly.sh >/dev/null && frc=0 || frc=$?
 docker rm -f "$N-locker" >/dev/null 2>&1 || true
 docker run --rm --network none -v "$T/dest:/d" -v "$T/locker:/p:ro" -e RESTIC_PASSWORD_FILE=/p/restic.pass \
-  "$BK_IMAGE_T" restic -r /d/CoinePro-HQ/restic unlock --remove-all >/dev/null 2>&1 || true
+  "$BK_IMAGE_T" restic -r "/d/CoinePro HQ Backup" unlock --remove-all >/dev/null 2>&1 || true
 if ((frc == 0)) && [[ "$(dest gdrive .ok)" == true && "$(dest gdrive .retention_ok)" == false &&
   "$(dest gdrive .retention_error)" == "forget failed"* && "$(dest local .retention_ok)" == true &&
   "$(jq -r .openbao_snapshot.ok "$st")" == false ]] && grep -qx 'hq_backup_openbao_snapshot_ok 0' "$T/textfile/hq_backup.prom"; then
