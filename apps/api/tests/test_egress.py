@@ -401,3 +401,35 @@ async def test_every_refusal_is_audited_and_no_run_keeps_its_caps(
     assert none["run_requests"] == 3 and other["run_requests"] == 0
     assert 0 < none["day_reset_s"] <= 86_400
     assert G.limits_left(replace(real, egress_run_requests=3), none)["requests"] <= 0
+
+
+async def test_a_signed_in_profile_account_needs_no_secret_and_browses_only(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+) -> None:
+    """Prompt 12 §9.1 (contract §21.13): a `profile` account (the substitute
+    players' signed-in browser profiles) has no secret in OpenBao; it serves
+    web.browse only (in the profile browser, on its site's own hosts)."""
+    co = await new_company()
+    body = {"key": f"profile-{co['code'].lower()}", "site": "chat.example", "title_fa": "پروفایل",
+            "policy": {"browse": {"kind": "profile"}}}  # fmt: skip
+    r = await put_account(client, hub, owner_session, body)
+    assert r.status_code == 201, r.text
+    for bad in (
+        {"browse": {"kind": "profile", "login_url": "https://chat.example/login"}},
+        {"browse": {"kind": "profile"}, "ports": [8443]},
+        {"browse": {"kind": "profile"}, "inject": {"kind": "signer", "signer": "lbank-v2"}},
+    ):
+        bad_body = {**body, "key": "profile-bad", "policy": bad}
+        assert (await put_account(client, hub, owner_session, bad_body)).status_code == 422, bad
+    h = await agent_headers(f"{co['code']}-TECH-MGR")
+    r = await _reserve(client, h, tool="web.browse", account=body["key"], **{"class": "A2"})
+    assert r.status_code == 200, r.text
+    acct = r.json()["account"]
+    assert acct["secret"] is None and acct["browse"] == {"kind": "profile"}
+    for tool in ("http.request", "web.read"):
+        r = await _reserve(client, h, tool=tool, account=body["key"], url="https://chat.example/",
+                           **{"class": "A2"})  # fmt: skip
+        assert (r.status_code, r.json()["code"]) == (403, "policy_denied"), tool
