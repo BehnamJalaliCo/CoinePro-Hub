@@ -165,8 +165,8 @@ save_token() {
   [[ "$code" == 200 || "$code" == 204 ]] || die "OpenBao refused the write (HTTP $code); nothing was saved"
   printf 'Saved in OpenBao (kv/backup/gdrive). Checking the connection...\n'
   load_secrets || die "saved, but the backup's own OpenBao login failed (run make up): $LOAD_ERROR"
-  if brclone bridge mkdir gdrive:CoinePro-HQ/restic >/dev/null 2>&1; then
-    printf 'Google Drive: ok (folder CoinePro-HQ/restic). The next hourly backup copies there.\n'
+  if brclone bridge mkdir "gdrive:$GDRIVE_FOLDER" >/dev/null 2>&1; then
+    printf 'Google Drive: ok (folder "%s"). The next hourly backup copies there.\n' "$GDRIVE_FOLDER"
     printf 'Done - tell Claude on the server that Google Drive is connected.\n'
   else
     die "saved, but Google Drive did not answer (with your own client: is the Google Drive API enabled?); run make gdrive-auth again"
@@ -192,7 +192,7 @@ if [[ "$step" != code ]]; then
    (دسترسی فقط drive.file است: rclone فقط فایل‌هایی را میبیند که خودش ساخته.)
 ۲. بعد از Allow، مرورگر به صفحه‌ای میرود که باز نمیشود (127.0.0.1:53682). این درست است.
    همه‌ی آدرس نوار بالای همان صفحه را کپی کنید.
-مقصد: پوشه‌ی CoinePro-HQ/restic در Drive شما. همه‌چیز پیش از ارسال با restic رمزنگاری میشود.
+مقصد: پوشه‌ی «CoinePro HQ Backup» در Drive شما. همه‌چیز پیش از ارسال با restic رمزنگاری میشود.
 
 TXT
   printf '%s\n\n' "$url"

@@ -32,7 +32,10 @@ ENV_FILE="${HQ_ENV_FILE:-$REPO_DIR/infra/compose/.env}"
 TEXTFILE_DIR="${HQ_TEXTFILE_DIR:-/var/lib/coinepro-hq/textfile}"
 # The restic repositories. Local: root-owned, made by `make bootstrap`.
 LOCAL_REPO_DIR="$BACKUP_ROOT/restic"
-GDRIVE_REPO="rclone:gdrive:CoinePro-HQ/restic"
+# The owner's folder in Drive; the restic repository is the folder itself
+# (owner decision 2026-10-22: one folder, "CoinePro HQ Backup").
+GDRIVE_FOLDER="${HQ_GDRIVE_FOLDER:-CoinePro HQ Backup}"
+GDRIVE_REPO="rclone:gdrive:$GDRIVE_FOLDER"
 STATUS_DIR="$BACKUP_ROOT/status"
 # hourly.sh's memory (what was done when); restore-weekly.sh reads it too.
 HOURLY_STATE="$BACKUP_ROOT/hourly/state.json"
