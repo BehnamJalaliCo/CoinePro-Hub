@@ -195,7 +195,14 @@ def test_propose_section_is_generated_from_the_api_models(hub: Any) -> None:
         lib, lib.roles["cto"], D.PAYLOADS, {"company_code": "TY", "holding_code": "HQ"}
     )
     assert "kind `hire`: payload {company: string, department: string, role?: string" in co
-    assert "`role` must be one of: sre (department TECH)" in co and "`company` is TY" in co
+    assert "`role` must be one of: referral_rescue (department SALES)" in co
+    assert "`company` is TY" in co
+    # Every company-scope employee charter, prompt 10's four included (sorted by role).
+    for hireable in (
+        "revenue_analyst (department FIN)", "sre (department TECH)",
+        "support_agent (department SALES)", "support_lead (department SALES)",
+    ):  # fmt: skip
+        assert hireable in co, hireable
     assert "work_id: uuid" in co and "effort: low|medium|high|xhigh|max" in co
     holding = P.propose_section(
         lib, lib.roles["aiops_head"], D.PAYLOADS, {"company_code": "HQ", "holding_code": "HQ"}

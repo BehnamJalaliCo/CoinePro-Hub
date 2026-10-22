@@ -22,6 +22,10 @@ PROMPT_10 REPORT (revenue radar, funnel and referral rescue, support desk, lifec
 - **The draft budget (§4.3)** needs no llm-router migration: SUPPORT_DRAFT_DAILY_TOKENS already reaches llm-router's environment (not read yet); a check beside `_check_oversight_share` (service.py) over the day's role counters of `<CO>:support_agent` does it.
 - **Left for §12:** the gateway tools (kb.search … support.mystery) and their OPA write ops; test_the_advisor_v2_has_its_read_tools exempts revenue.read and funnel.read from the live-gateway-tools check until they exist — drop that exception then.
 
+## Checks of the foundation (HQ_TEST_IMAGE_TAG=p9b, fresh database)
+- api: the whole suite on a fresh database (the 0009 round trip of test_hiring included): all passed but test_propose_section_is_generated_from_the_api_models, whose list of hireable roles now starts with prompt 10's charters (merged from main); the test names them now and passes.
+- services: hq-common and gateway tests passed; lint (ruff, format, mypy strict) clean; OPA 107/107 at 100% coverage; openapi unchanged (the route modules are empty); shellcheck, compose-config, compose-rules, yamllint, memory-budget (full 10896 MiB of 12486), gitleaks (history and tree) and infra.sh (kv-once included) green. The full make check is the parent's.
+
 ## Contract notes
 - An inbound SupportMessage has status `sent` (the §19.3 enum has no "received"); a refused send records `failed` with a `failure` field (no_channel, send_error, send_limit, channel_not_live, opted_out) beside blocked_reasons.
 - The pseudonym's "company" is the company id and the three parts are joined with U+001F; "channel" is a support channel kind or `uid:<exchange>`.
