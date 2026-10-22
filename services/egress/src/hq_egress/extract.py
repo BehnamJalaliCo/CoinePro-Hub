@@ -16,7 +16,7 @@ import io
 import logging
 import os
 import re
-from typing import Any
+from typing import Any, cast
 
 from hq_common import untrusted
 
@@ -184,10 +184,15 @@ PARSE_LIMITS = untrusted.DEFAULT
 # can reach its 192 MiB limit, inside egress's own memory limit (the
 # profiles' MEM_EGRESS holds the service and this many children at peak).
 SLOTS = max(1, int(os.environ.get("EGRESS_PARSE_SLOTS", "2")))
+# The part of an HTML page a child parses (7.1 §2.20, measured): lxml's tree
+# of a 20 MB page does not fit a child's 192 MiB (its text came back empty);
+# the first 4 MiB hold far more than a result's 200,000 characters and cost a
+# child ~80 MiB. The rest of a bigger page is cut, and the result says so.
+HTML_PARSE_BYTES = int(os.environ.get("EGRESS_HTML_PARSE_BYTES", str(4 * 1024 * 1024)))
 
 
 async def read_text(
-    kind: str, data: bytes, max_chars: int, secrets: list[str] | None = None
+    kind: str, data: bytes | bytearray, max_chars: int, secrets: list[str] | None = None
 ) -> tuple[str, str, bool]:
     """(title, text, truncated) of a PDF (`kind` "pdf") or an HTML page. With
     a service account's `secrets`, the child reads past the cut by the
@@ -200,7 +205,7 @@ async def read_text(
     target = "hq_egress.extract:pdf_text" if kind == "pdf" else "hq_egress.extract:html_text"
     got = await untrusted.run(
         target,
-        data=data,
+        data=cast(bytes, data),  # a bytearray goes to the child's pipe as it is, uncopied
         kwargs={"max_chars": max_chars + extra, "title_chars": TITLE_CHARS + extra},
         limits=PARSE_LIMITS,
     )

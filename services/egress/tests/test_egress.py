@@ -943,11 +943,18 @@ async def test_a_get_that_commits_is_needs_owner(app: Any, site: Site) -> None:
         assert get_commitment(url) is None, url
 
 
-async def test_web_results_are_untrusted_and_sign_in_has_its_own_code(app: Any, site: Site) -> None:
+async def test_web_results_are_untrusted_and_sign_in_has_its_own_code(
+    app: Any, site: Site, monkeypatch: pytest.MonkeyPatch
+) -> None:
     c, calls = app
     base = f"http://site.test:{site.port}"
     r = (await c.post("/v1/search", json={"ctx": _ctx(), "q": "x"})).json()
     assert r["data"]["untrusted"] is True
+    # §2.20: a child parses the first HTML_PARSE_BYTES of a page; the rest is cut, and said so.
+    monkeypatch.setattr(X, "HTML_PARSE_BYTES", 200)
+    r = (await c.post("/v1/read", json={"ctx": _ctx(), "url": base + "/"})).json()
+    assert r["data"]["truncated"] is True and "Headline" in r["data"]["text"], r
+    monkeypatch.undo()
     r = (await c.post("/v1/read", json={"ctx": _ctx(), "url": base + "/hidden"})).json()
     text = r["data"]["text"]
     assert r["data"]["untrusted"] is True and "Visible text." in text and "Half visible." in text

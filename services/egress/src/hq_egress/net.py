@@ -108,7 +108,7 @@ class Fetched:
     status: int
     final_url: str
     headers: dict[str, str]
-    body: bytes
+    body: bytes | bytearray  # as read: one buffer, never copied (7.1 §2.20)
     truncated: bool
     entries: list[Entry] = field(default_factory=list)
 
@@ -277,20 +277,20 @@ def _with(b: Blocked, entries: list[Entry]) -> Blocked:
 
 async def _read(
     resp: httpx.Response, max_bytes: int, entry: Entry | None = None
-) -> tuple[bytes, bool]:
-    chunks: list[bytes] = []
-    size = 0
+) -> tuple[bytearray, bool]:
+    """The body up to `max_bytes`, in one buffer that grows in place (a 20 MB
+    body is held once, not as its chunks and their join: 7.1 §2.20)."""
+    body = bytearray()
     async for chunk in resp.aiter_bytes():
-        if size + len(chunk) > max_bytes:
-            chunks.append(chunk[: max_bytes - size])
+        if len(body) + len(chunk) > max_bytes:
+            body += chunk[: max_bytes - len(body)]
             if entry is not None:
                 entry.bytes_in = max_bytes
-            return b"".join(chunks), True
-        chunks.append(chunk)
-        size += len(chunk)
+            return body, True
+        body += chunk
         if entry is not None:  # a dripping server cut at the deadline: what came counts
-            entry.bytes_in = size
-    return b"".join(chunks), False
+            entry.bytes_in = len(body)
+    return body, False
 
 
 def _host(url: str) -> str:

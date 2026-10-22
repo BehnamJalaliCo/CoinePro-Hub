@@ -303,8 +303,9 @@ def build_app(state: State) -> FastAPI:
             text, cut = _text_of(got.body, got.headers, a.max_chars, secrets)
             title, kind = "", "html"
         elif ctype.startswith("text/html") or ctype in ("application/xhtml+xml", ""):
-            title, text, cut = await X.read_text("html", got.body, a.max_chars, secrets)
-            kind = "text"
+            head = got.body[: X.HTML_PARSE_BYTES]
+            title, text, cut = await X.read_text("html", head, a.max_chars, secrets)
+            cut, kind = cut or len(got.body) > len(head), "text"
         elif ctype.startswith(TEXT_TYPES):
             text, cut = _text_of(got.body, got.headers, a.max_chars, secrets)
             title, kind = "", "text"
@@ -417,12 +418,7 @@ def build_app(state: State) -> FastAPI:
         session = track(Entry("web.browse", "BROWSE", _host(first), kind="browse", cls=a.ctx.cls))
         start = time.monotonic()
         try:
-            resp = await state.internal.post(
-                state.settings.browser_url.rstrip("/") + "/v1/run",
-                json=payload,
-                timeout=time_s + 10,
-            )
-            got = resp.json() if resp.status_code in (200, 503) else None
+            got = await _browser_run(state, payload, time_s + 10)
         except (httpx.HTTPError, ValueError):
             got = None
         finally:
@@ -463,6 +459,15 @@ def build_app(state: State) -> FastAPI:
     return app
 
 
+async def _browser_run(state: State, payload: dict[str, Any], timeout: float) -> Any:  # noqa: ASYNC109
+    """The browser's answer, parsed; its raw body (files in base64) is let go
+    on return, not held beside the parsed copy (7.1 §2.20, measured)."""
+    resp = await state.internal.post(
+        state.settings.browser_url.rstrip("/") + "/v1/run", json=payload, timeout=timeout
+    )
+    return resp.json() if resp.status_code in (200, 503) else None
+
+
 def _secrets(a: Any) -> list[str]:
     account = getattr(a, "account", None)
     return account.secrets() if isinstance(account, Account) else []
@@ -485,7 +490,7 @@ def _blocked(b: Blocked, secrets: list[str]) -> JSONResponse:
 
 
 def _text_of(
-    body: bytes, headers: dict[str, str], limit: int, secrets: list[str]
+    body: bytes | bytearray, headers: dict[str, str], limit: int, secrets: list[str]
 ) -> tuple[str, bool]:
     """(text, cut): the body as text, scrubbed of the secrets, THEN cut to
     `limit` characters (7.1). Only what can reach the cut is decoded (no
