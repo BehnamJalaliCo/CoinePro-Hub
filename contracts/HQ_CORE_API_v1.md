@@ -7,7 +7,7 @@
 >
 > **v1.1 (۲۰۲۶-۱۰-۱۷):** «Contract notes» گزارش پرامپت ۴ و نتیجه‌ی بازبینی وارد شد. تغییرها با ⟨1.1⟩ علامت خورده‌اند؛ آن‌هایی که هنوز پیاده نشده‌اند در `docs/server-prompts/PROMPT_04_1_HARDENING.md` هستند.
 >
-> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.4.7 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۸ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۵)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_08_1_FIXES.md`. **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
+> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.4.7 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۸ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۵)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_08_1_FIXES.md`. **v1.6 (۲۰۲۶-۱۰-۲۲):** دپارتمان رسانه و طراحی در هر شرکت با برنامه‌ی انتشار مُهرشده، صدای متن‌باز روی هاب، و مشاور حقوقی هلدینگ با مکاتبه‌ی ایمیلی (§۲۲، پرامپت ۱۳). **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
 
 ---
 
@@ -368,7 +368,7 @@ Behaviour (§1.7):
 ## 7. Live stream
 
 `GET /stream` — Server-Sent Events. `?topics=work,decisions,deliverables,messages,notifications,activity,llm,control,runs,stories&company=TY` (repeatable; ⟨1.4.1⟩ `runs` carries `run.*`).
-- ⟨1.5⟩ Topics added by §19–§21: `revenue`, `support`, `growth`, `feedback` · `meetings`, `governance`, `knowledge` · `advisor`, `ask`, `reviews`, `briefings`, `people`, `notes`, `quality`, `dceo`, `treasury`, `creatives`. ⟨1.4.6⟩ `companies` (§18.14).
+- ⟨1.5⟩ Topics added by §19–§21: `revenue`, `support`, `growth`, `feedback` · `meetings`, `governance`, `knowledge` · `advisor`, `ask`, `reviews`, `briefings`, `people`, `notes`, `quality`, `dceo`, `treasury`, `creatives`. ⟨1.4.6⟩ `companies` (§18.14). ⟨1.6⟩ `media`, `legal` (§22).
 - ⟨1.4.2⟩ **Unknown topics are ignored**, not refused: a client may name topics a newer server adds (`files`, `workshop`, `orders`, the §18 topics). The first SSE comment lists the topics actually served (`: topics work,decisions,…`). Only a malformed `topics` (pattern, length) is `422`.
 - Envelope: `event: <type>` and `data: {id, type, at, company, ref, data}`; `id:` is the JetStream sequence so `Last-Event-ID` resumes without loss.
 - Types: `work.created|updated|delegated|completed`, `decision.created|decided`, `deliverable.created|rated`, `message.created`, `notification.created`, `presence.changed`, `control.changed`, `employee.updated`, `activity.changed` (runtime), `llm.call.started|finished` (from llm-router, metadata only), `budget.alert`.
@@ -469,6 +469,7 @@ Used by the agent runtime in prompt 5 and by tests now (with a fake agent princi
 ⟨1.4.3⟩ `envelope_required` (422, delegated hiring needs a monthly envelope for every operating company), `envelope_exceeded` (409, the hire's monthly estimate does not fit the company's envelope), `story_limit` (429, a company's three stories a day). `not_ready` (409, a feature the contract names that this server build does not serve yet, e.g. `delegated` before prompt 8).
 ⟨1.4.5⟩ `needs_owner` (403, a web step or call that would commit the holding outside: the agent proposes it instead), `internal_data` (403, an outgoing query or call carries internal data), `egress_limit` (429 with `Retry-After`, a run's or a company-day's internet limit), `account_not_configured` (409, a service account has no secret yet). The MCP outcomes are not Problem codes: they are step outcomes (§18.13).
 ⟨1.4.7⟩ `held` (423, the target is held by the overseer, §18.15), `academy_budget` (409, the academy's monthly cap).
+⟨1.6⟩ `series_not_sealed` (409), `platform_limit` (429 with `Retry-After`) — §22.
 ⟨1.5⟩ `channel_not_live` (409), `shadow_not_passed` (409), `template_not_sealed` (409), `send_blocked` (422, with `blocked_reasons`), `opted_out` (409), `send_limit` (429 with `Retry-After`) — §19; `meeting_not_live` (409), `knowledge_expired` (422), `batch_not_eligible` (422, `fields.items`) — §20.
 
 ---
@@ -1997,3 +1998,145 @@ Its memory limit is measured and passes the memory gate, or it stays off.
   `rate_limited` (the seat's daily cap, or the player is `limited`), `policy_denied` (a seat the role may not use, or input the data guard refuses).
 - **Step-up targets:** `connection.login` (id), `substitute.seats` (body hash), `substitute.web_logout` (player). **Stream:** `substitute.updated` on topic `treasury`,
   `creative.updated` on topic `creatives`. **Settings:** `owner_settings.substitutes: {behind_ratio, creative_default_image: "gpt"|"gemini"}`.
+
+## 22. v1.6 — the media studio and the legal counsel (prompt 13)
+
+> **v1.6 (2026-10-22).** The owner's decisions of 2026-10-22: every company gets a **media department** that makes its posts, stories and
+> reels every day by itself (scriptwriter, director, motion graphics written by Opus 5.5, a voice made on the hub, images from the
+> substitute players), redesigns its sites' UI, and publishes **through series the owner seals once**; and the holding gets **one legal
+> counsel** for all companies, who handles platform restrictions, appeals and correspondence by email. The owner no longer has to do this
+> work by hand in Claude. Everything above still holds: A3 needs the owner's seal (here, once per series or per email), A4 never happens.
+
+### 22.0 Principles ⟨1.6⟩
+- **A department knows its own team.** A department in a template carries a **team blueprint**; its manager hires from it as the work needs
+  (§18.11), and the owner never has to define the roles again.
+- **Media is made by code where code can, and by models only where it must.** The schedule, the checks, the rendering, the captions, the
+  Persian text on images and the publishing are code. Models write the script, the direction and the motion-graphics composition.
+- **Publishing only through official APIs** (Telegram Bot API, Instagram Graph API for business accounts), never through a browser session
+  or cookies. What an official API cannot publish (a Telegram channel story) becomes a card with the file for the owner to post.
+- **The seal is on the series, not on every post.** A sealed series publishes an item automatically only when every check passed; anything
+  outside the series, or any failed check, is a card.
+- **Every outgoing email of the counsel is the owner's seal**, on the exact message.
+- New **task classes**: `media_script`, `media_direction`, `media_motion`, `media_review`, `ui_design`, `legal_case`, `legal_email`.
+
+### 22.1 Department blueprints ⟨1.6⟩
+```
+Department { …§3.2, team: [{role, title_fa, why_fa, first: bool}] }    // from the template; `first` = the first hires a new company makes
+```
+- `GET /templates` and `company.state` return each department's `team`. A manager proposes hires from it when the work needs them; the CEO
+  decides inside the envelope (§18.11). A role in `team` is always an existing `employee` charter.
+- **The standard template gains `MEDIA`** («رسانه و طراحی», head role `media_director`, sort 25) with the team `scriptwriter`,
+  `video_director`, `motion_designer`, `voice_producer`, `visual_designer`, `ui_designer`. Existing companies get the department (and its
+  asleep manager) by migration; no employee is created.
+- **The holding template gains `LEGAL`** («حقوقی») with the seeded holding employee **`HQ-LGL`** («مشاور حقوقی», charter `legal_counsel`),
+  asleep until work arrives, like `HQ-PA`.
+
+### 22.2 The media studio ⟨1.6⟩
+```
+Series    { id, ref: "SR-0001", company, title_fa, kind: "reel"|"story"|"post"|"carousel",
+            targets: [{channel: "telegram"|"instagram", account: <service account key>,
+                       placement: "telegram_post"|"telegram_story"|"instagram_reel"|"instagram_story"|"instagram_post"}],
+            schedule: RRULE (owner TZ), topics: {pool: [string], rule_fa}|null,
+            format: {aspect: "9:16"|"4:5"|"1:1"|"16:9", duration_s|null, voice: {voice_id}|null, captions: bool, music: "none"|"library",
+                     overlay: {cta_fa|null, mark: bool}},
+            checks: ["brand", "red_lines", "risk_warning", "facts", "rights", "platform", "qc"],
+            auto_publish: bool, max_per_day, status: "draft"|"proposed"|"sealed"|"paused"|"retired",
+            digest, version, sealed_at|null }
+MediaItem { id, ref: "MI-0001", company, series: "SR-…"|null, kind, title_fa,
+            state: "scripting"|"directing"|"composing"|"voicing"|"rendering"|"checking"|"review"|"scheduled"|"published"|"waiting_owner"|"held"|"failed"|"rejected",
+            script: {text_fa, sources: [{kind, ref|url, note}], by: Actor}|null,
+            direction: {shots: [{n, duration_s, visual_fa, text_on_screen_fa|null, voice_fa|null}], by: Actor}|null,
+            composition: {format: "html"|"lottie", sha256, by: Actor}|null,
+            assets: [FileRef], voice: FileRef|null, render: FileRef|null, captions: FileRef|null,
+            checks: [{key, result: "pass"|"fail"|"n/a", note_fa|null}], qc: {by: Actor, verdict: "pass"|"changes"|"reject", note_md}|null,
+            publish: [{channel, placement, at|null, external_id|null, url|null, error|null}],
+            decision_ref: "D-…"|null, ai_generated: true, cost: {tokens, usd}, created_at, updated_at, version }
+Voice     { id, engine, name_fa, licence, licence_commercial: bool, rtf, mem_mb, owner_score|null, status: "candidate"|"active"|"retired" }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET · POST | `/media/series` | `?company&status` · POST (owner or the media director's proposal) creates a `draft` |
+| PUT | `/media/series/{ref}` | `If-Match`; a sealed series edited goes back to `proposed` (its seal no longer covers it) |
+| POST | `/media/series/{ref}/seal` 🔏 | `media.series`, target = the series `digest`; `/pause` and `/retire` need none |
+| GET | `/media/items` · `/media/items/{ref}` | `?company&series&state&cursor` |
+| POST | `/media/items` | owner · `{company, kind, brief_md, series?}` — a one-off item; one-offs always end as a card |
+| POST | `/media/items/{ref}/publish` | owner · publishes a `waiting_owner` item now (its card's approval does the same) |
+| POST | `/media/items/{ref}/unpublish` 🔏 | `media.unpublish`, target = ref · deletes the post through the same API where the platform allows it |
+| GET | `/media/voices` · POST `/media/voices/{id}/score` | the voice registry; the owner's blind listening score 1–10 |
+- **The pipeline** (each step a work item to the role, woken in order; code moves the item on):
+  1. A sealed series' schedule creates the item (code) with the next topic from its pool (or the rule).
+  2. **Script** (`scriptwriter`): Persian, with a source for every claim and figure; trading content carries the risk warning.
+  3. **Direction** (`video_director`): shot list, timing, what is on screen and what is said.
+  4. **Composition** (`motion_designer`, Opus 5.5 by default): the motion graphics **as code**: one HTML document (CSS animations, SVG, the
+     Web Animations API, `anime.js` MIT) or a Lottie JSON (`lottie-web` MIT), from a constrained schema: no network, no script outside the
+     allowed libraries, IRANYekanX the only font, the company's palette and mark (§18.14). Images come from the company's files or
+     `substitute.call` `creative` (§21.13).
+  5. **Voice** (`voice_producer`): the narration with the hub's TTS (§22.3); timing aligned to the shots.
+  6. **Render** (code, sandboxed render worker): headless Chromium renders the composition frame by frame; `ffmpeg` muxes voice, music from
+     the owner's licensed library (if any) and burned-in Persian captions; output per `placement` (size, codec, length).
+  7. **Checks** (code): `brand` (font, palette, mark), `red_lines` (the charter's patterns, §20.2, on script and captions), `risk_warning`
+     (present on trading content), `facts` (every figure in the script has a source), `rights` (only own, generated or licensed assets),
+     `platform` (aspect, length, size, the platform's own limits), `qc` (the media director's review, `media.review`).
+  8. **Publish** (code): a sealed series with `auto_publish` and every check `pass` → at the scheduled time through the official API with the
+     company's service account. Otherwise `waiting_owner` and a `media_publish` card (A3). Instagram media are created with
+     `is_ai_generated: true`; Instagram fetches the file from a **signed URL valid for that one file for ≤ 15 minutes**. A Telegram channel
+     story has no Bot API: it is always a card with the file.
+- **Limits:** `max_per_day` per series and the platform's own limits (Instagram: 50 API posts a day per account); the company's kill switch,
+  deploy freeze, holds and watch mode stop publishing like any other act; the company's monthly token envelope pays for the models.
+- **UI redesign** (`ui_designer`): a design deliverable — the redesigned pages as HTML mockups rendered to screenshots by the same render
+  worker, images from the substitutes, the brand of §18.14 — handed to the CTO; building it is Code Workshop work and its deploy a card.
+- Agent tools: `media.item` (A1, the item's current step for its role), `media.render` (A2, queue the item's render), `media.voice` (A2,
+  TTS for the item), `media.review` (A2, the media director only), `series.propose` (A1, a series card for the owner).
+- Stream: `media.item` on topic `media`. Decision kinds: `media_series` (🔏 on the series digest), `media_publish` (A3).
+
+### 22.3 Voice: open source, on the hub, chosen by ear ⟨1.6⟩
+- **No paid voice service** (owner, 2026-10-22: «پولی به ElevenLabs ندیم»). Speech is made on the hub by an open-source model, shared with
+  the spoken briefings of §21.4.
+- **Chosen by a measured bake-off:** each candidate speaks the same Persian test scripts (numbers, Latin terms, crypto words, a long
+  sentence); the server records RTF and peak RAM on the hub's CPU; the owner listens blind in the app and scores (`owner_score`). The best
+  commercially usable voice becomes `active`.
+- **Candidates** (licences as their cards state them; the owner decides on any non-commercial one):
+  - Piper `fa_IR` voices (MIT; fast, plain);
+  - a voice the server trains on the **ManaTTS** corpus (CC0, 86 h, one female speaker) with a permissive architecture (Piper/VITS or
+    Matcha-TTS, MIT); training needs a GPU for some hours — a rented one is a cost and the owner's decision;
+  - permissive multilingual models (Apache-2.0 or MIT) if their own card lists Persian;
+  - ParsVoice-XTTS (Coqui Public Model License) and the Persian Chatterbox fine-tune (CC BY-NC) are labelled non-commercial on their cards:
+    measured, never activated without the owner's explicit choice.
+- Every `Voice` records its licence; `licence_commercial: false` is shown on every use.
+
+### 22.4 The legal counsel ⟨1.6⟩
+```
+LegalCase { id, ref: "LC-0001", company, title_fa,
+            kind: "platform_restriction"|"account_appeal"|"takedown"|"partner_dispute"|"policy_review"|"contract_review"|"compliance"|"other",
+            counterpart: {name, channel: "email"|"form"|"portal"|"other", address|null},
+            status: "open"|"waiting_reply"|"waiting_owner"|"resolved"|"closed",
+            timeline: [{at, kind: "note"|"email_out"|"email_in"|"form"|"decision", ref|null, summary_fa}],
+            deadlines: [{at, what_fa}], opened_by: Actor, created_at, updated_at, version }
+EmailDraft { case: "LC-…", from, to: [addr], cc: [addr], subject, body_md, attachments: [FileRef], lang: "fa"|"en", digest }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET · POST | `/legal/cases` | `?company&status&cursor` · POST (owner, or a CEO through work) `{company, title_fa, kind, brief_md, file_ids?}` |
+| GET | `/legal/cases/{ref}` | with the full timeline and the emails |
+| POST | `/legal/cases/{ref}/close` | owner |
+- **Thread `L`** («حقوقی», messages `L-0001`) is the owner's conversation with `HQ-LGL`; a CEO asks through a work item to the holding.
+- **Email:** one holding mailbox (service account `mail`, IMAP and SMTP or the provider's official API; the owner enters it with
+  `make account-secret`). `email.draft` (A1) makes a card of kind `email_send` with the **exact** message (from, to, cc, subject, body,
+  attachment hashes); approving it (🔏, the card bound to the message `digest`) sends exactly that once. Incoming replies to a case's
+  messages (by `Message-ID`/`References`) are read by code, masked, added to the timeline, and wake the counsel; **nothing is ever sent
+  automatically**. Attachments go through §17.1.
+- **Forms and portals** (an appeal form, a help-centre ticket): the counsel prepares the exact field values in a card; the owner submits it
+  (it usually needs the account's own sign-in) and the counsel records the outcome.
+- The counsel works only through official channels and published policies (each cited with its date), never pretends to be the owner or
+  anyone else, never threatens, and says plainly when a matter needs a human lawyer.
+- Agent tools: `case.open`, `case.note` (A1), `email.draft` (A1 → card), `mail.read` (A0, the counsel's own cases only).
+- Stream: `legal.case` on topic `legal`. Decision kind: `email_send` (A3, 🔏 on the message digest).
+
+### 22.5 Kinds, stream, step-up, codes ⟨1.6⟩
+- **Decision kinds:** `media_series`, `media_publish`, `email_send` (all sealed with step-up, §5.1).
+- **Step-up targets:** `media.series` (series digest), `media.unpublish` (ref), and `decision.approve` on `email_send` bound to the message
+  digest.
+- **Stream topics:** `media` (`media.item`), `legal` (`legal.case`).
+- **`Thread.kind`** gains `legal` (code `L`).
+- **Error codes:** `series_not_sealed` (409, an item asked to auto-publish outside a sealed series), `platform_limit` (429 with
+  `Retry-After`, the platform's own publishing limit).
