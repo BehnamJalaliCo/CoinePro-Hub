@@ -2,7 +2,9 @@
 
 import { useId } from 'react';
 import { BRAND } from '@/generated/brand';
-import { CompanyMark, Monogram } from './marks';
+import type { BrandMark } from '@/lib/api/brand';
+import { CompanyMark, MarkSvg } from './company-mark';
+import { Monogram } from './marks';
 
 export type SealState = 'ready' | 'holding' | 'sealed';
 type Props = {
@@ -16,6 +18,8 @@ type Props = {
   /** Hold progress 0..100 while `state === 'holding'`. */
   progress?: number;
   dateLabel?: string;
+  /** A brand version to draw in place of the company's own mark: the owner looks at a proposal before sealing it (§18.14). */
+  mark?: BrandMark | null;
 };
 
 const star = (cx: number, cy: number, ro: number, ri: number, n: number, rot = -90) => {
@@ -43,7 +47,7 @@ function Arc({ id, cx, r, text, fs, fill, top, latin }: { id: string; cx: number
 
 /** The seal ("مُهر"), D2 owner decision 2026-10-17: a company seal carries the company's own mark with its
  *  name around it; the holding seal is the distinct one (24-ray sunburst, lapis jewel when sealed, two-metal CP). */
-export function Seal({ code, nameFa, nameEn, holding = false, state = 'ready', size = 88, progress = 0, dateLabel }: Props) {
+export function Seal({ code, nameFa, nameEn, holding = false, state = 'ready', size = 88, progress = 0, dateLabel, mark: proposal }: Props) {
   const uid = useId().replace(/:/g, '');
   const s = size;
   const cx = s / 2;
@@ -103,7 +107,11 @@ export function Seal({ code, nameFa, nameEn, holding = false, state = 'ready', s
         )}
       </>
     );
-    mark = BRAND.companies[code] ? <CompanyMark code={code} height={Math.round(s * (showText ? 0.36 : 0.5))} mono ink={ink} /> : <Monogram size={Math.round(s * 0.3)} ink={ink} />;
+    // The company's mark as CompanyMark resolves it (GET /brands, then the built-in marks), engraved in one ink; none → the CP monogram.
+    const h = Math.round(s * (showText ? 0.36 : 0.5));
+    mark = proposal
+      ? <MarkSvg mark={proposal} height={h} mono ink={ink} />
+      : <CompanyMark code={code} height={h} mono ink={ink} fallback={<Monogram size={Math.round(s * 0.3)} ink={ink} />} />;
   }
 
   const R = s / 2 + 5;

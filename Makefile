@@ -69,8 +69,8 @@ pitr-test: ## Point-in-time recovery into a THROWAWAY Postgres: at="2026-10-18 0
 	@[[ -n "$(at)" ]] || { echo 'usage: make pitr-test at="YYYY-MM-DD HH:MM[:SS] [zone]"' >&2; exit 2; }
 	@infra/backup/pitr.sh "$(at)"
 
-gdrive-auth: ## OWNER: connect the hourly backup to your Google Drive (hidden input -> OpenBao)
-	@infra/backup/gdrive-auth.sh
+gdrive-auth: ## OWNER: connect the hourly backup to Google Drive: a link, then the address (step=link|code; own=1 = your own OAuth client)
+	@GDRIVE_OWN_CLIENT=$(own) infra/backup/gdrive-auth.sh $(step)
 
 backup-password: ## OWNER: show the restic password once, in your own terminal, for the paper copy
 	@infra/backup/show-password.sh

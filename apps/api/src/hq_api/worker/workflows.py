@@ -88,9 +88,14 @@ class DecisionLifecycle:
                 result = await _act(
                     "decision_apply_effect", ref, limit=timedelta(minutes=2), retry=EFFECT_RETRY
                 )
+                if result.get("effect") == "cancelled":  # the owner cancelled its hold
+                    return {"ref": ref, **result, "result": "cancelled"}
                 return {"ref": ref, "result": "applied", **result}
             except ActivityError as err:
                 if _cause_type(err) == "HoldingLocked":
+                    # A company switch or a hold: wait like the holding lock,
+                    # never spin (prompt 08.1 §2.4).
+                    await workflow.sleep(timedelta(seconds=lock["retry_in_s"]))
                     continue
                 cause = err.cause
                 message = str(cause.message if isinstance(cause, ApplicationError) else err)
@@ -300,13 +305,19 @@ class EvalRun:
 
     @workflow.run
     async def run(self, run_id: str) -> dict[str, Any]:
-        result: dict[str, Any] = await workflow.execute_activity(
-            "academy_eval_run",
-            args=[run_id],
-            start_to_close_timeout=EVAL_LIMIT,
-            heartbeat_timeout=timedelta(minutes=3),
-            retry_policy=RetryPolicy(maximum_attempts=1),
-        )
+        try:
+            result: dict[str, Any] = await workflow.execute_activity(
+                "academy_eval_run",
+                args=[run_id],
+                start_to_close_timeout=EVAL_LIMIT,
+                heartbeat_timeout=timedelta(minutes=3),
+                retry_policy=RetryPolicy(maximum_attempts=1),
+            )
+        except ActivityError as err:
+            # A crash or a timeout (8.1 §2.11): the run is failed, never left
+            # `running` holding the academy's monthly cap.
+            await _act("academy_eval_failed", run_id, str(err.cause or err)[:200])
+            return {"run": run_id, "failed": True}
         return result
 
 

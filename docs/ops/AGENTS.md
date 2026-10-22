@@ -32,7 +32,7 @@
 | خروجی هر قدم | `min(limits.tokens_per_step, باقیمانده منهای prompt)` به router میرود (`max_output_tokens`، حداکثر `LLM_MAX_OUTPUT_TOKENS` = ۳۲٬۰۰۰). CLI با `CLAUDE_CODE_MAX_OUTPUT_TOKENS` همان‌جا میایستد |
 | اقدام در هر قدم / ابزار در هر اجرا | `AGENT_ACTIONS_PER_STEP` (۸) و `AGENT_TOOL_CALLS_PER_RUN` (۴۸)، در SQL اعمال میشوند؛ بیشتر ← `429 rate_limited` با `Retry-After` |
 | زمان | `AGENT_MAX_RUN_S` (۳۰۰۰)، هر قدم `AGENT_STEP_TIMEOUT_S` (۳۰۰) |
-| مصرف روزانه‌ی همه‌ی اجراها | `AGENT_DAILY_TOKEN_CAP` (روی هاب `600000`، تصمیم مالک؛ پیش‌فرض کد ۲٬۰۰۰٬۰۰۰ در روز UTC؛ `0` یعنی بی‌سقف). ورودی + خروجی + cache. در `claim` و **پیش از هر فراخوانی مدل** بررسی میشود ← `refused` / `failed` با `daily_cap` |
+| مصرف روزانه‌ی همه‌ی اجراها | `AGENT_DAILY_TOKEN_CAP` (روی هاب `600000`، تصمیم مالک؛ پیش‌فرض کد ۲٬۰۰۰٬۰۰۰ در روز UTC؛ `0` یعنی «هیچ»: هر اجرا `refused` با `daily_cap`، نه «بی‌سقف»، پرامپت ۸.۱). ورودی + خروجی + cache. در `claim` و **پیش از هر فراخوانی مدل** بررسی میشود ← `refused` / `failed` با `daily_cap` |
 | سهم نظارت (پرامپت ۸ §۲.۳) | `OVERSIGHT_DAILY_SHARE` (پیش‌فرض `0.2`) از همان سقف روزانه برای ناظر و QC روی هم. LLM Router بعد از پر شدن، هر فراخوانی آن‌ها را رد میکند (`429 budget_exhausted`، دفتر: `oversight_share`)، جز اجرای پروتکل `critical`. اجرای پروتکل‌های دیگر `deferred` میشود و فردا اول صف است |
 | کار حادثه | `AGENT_INCIDENT_BUDGET_TOKENS` (۶۰٬۰۰۰)، بودجه‌ی کاری که پایش سایت میسازد |
 | درخواست ایجنت به ایجنت (`work.request`) | کار ریشه‌ی تازه به کار درخواست‌کننده بسته است (پیش‌فرض: کار همان اجرا). بودجه‌اش باقیمانده‌ی آن کار است، حداکثر `AGENT_REQUEST_BUDGET_TOKENS` (۶۰٬۰۰۰)، و هرگز بیشتر از آنچه خواسته شده. زنجیره‌ی درخواست‌ها حداکثر `AGENT_REQUEST_CHAIN_MAX` (۲) حلقه است؛ بیشتر ← `409 delegation_depth_exceeded` |

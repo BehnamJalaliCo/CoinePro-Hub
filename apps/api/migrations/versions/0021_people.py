@@ -208,6 +208,9 @@ def upgrade() -> None:
 
         -- A delegated hire starts on probation (+7 days, contract §18.11).
         GRANT UPDATE (probation_until) ON core.employees TO {APP_ROLES};
+        -- Hiring switched to `proposals` gives pending cards back to the owner
+        -- (approver cleared, contract §18.15): the owner's API only.
+        GRANT UPDATE (approver_kind, approver_code) ON cartable.decisions TO hq_api;
 
         ALTER TABLE cartable.decisions DROP CONSTRAINT decisions_kind_check;
         ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check
@@ -224,6 +227,7 @@ def downgrade() -> None:
         ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check
             CHECK (kind IN ({KINDS})) NOT VALID;
         REVOKE UPDATE (probation_until) ON core.employees FROM {APP_ROLES};
+        REVOKE UPDATE (approver_kind, approver_code) ON cartable.decisions FROM hq_api;
         DROP FUNCTION core.hiring_mode();
         DROP TABLE owner.stories;
         DROP SEQUENCE owner.story_ref_seq;

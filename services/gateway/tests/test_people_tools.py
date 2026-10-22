@@ -91,6 +91,11 @@ async def test_a_ceo_decides_a_hire_and_gives_stars(mock: respx.MockRouter, gw: 
         gw, "star.give", {"employee": "TY-TECH-MGR", "week": "2026-10-10", "stars": 6}
     )
     assert over["code"] == "invalid_args"
+    # 8.1 §4: whole or half stars only, the stars and every criterion.
+    for bad in ({"stars": 3.7}, {"stars": 4, "criteria": {"results": 4.3}}):
+        out = await call(gw, "star.give", {"employee": "TY-TECH-MGR", "week": "2026-10-10", **bad})
+        assert out["code"] == "invalid_args", bad
+    assert len(stars) == 1  # nothing refused reached the api
 
 
 async def test_stories_and_the_overseers_tools(mock: respx.MockRouter, gw: Gateway) -> None:
@@ -100,6 +105,21 @@ async def test_stories_and_the_overseers_tools(mock: respx.MockRouter, gw: Gatew
     assert out["outcome"] == "ok" and out["ref"] == "ST-000009" and out["class"] == "A1"
     long = await call(gw, "story.post", {"kind": "post", "title_fa": "ب" * 61})
     assert long["code"] == "invalid_args"  # 60 characters at most
+    # 8.1 §2.17: a period is week:… or month:…; a metric is a name, never a host.
+    for links in ({"period": "t.me/x"}, {"metric": "evil.com"}):
+        bad = await call(gw, "story.post", {"kind": "milestone", "title_fa": "هدف", "links": links})
+        assert bad["code"] == "invalid_args", links
+    ok = await call(
+        gw,
+        "story.post",
+        {
+            "kind": "milestone",
+            "title_fa": "هدف",
+            "figures": [{"label_fa": "کاربر", "value": "1000"}],
+            "links": {"metric": "users_active", "period": "month:2026-10"},
+        },
+    )
+    assert ok["outcome"] == "ok"
     denied = await call(
         gw,
         "star.audit",

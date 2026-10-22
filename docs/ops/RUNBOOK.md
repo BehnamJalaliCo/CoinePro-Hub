@@ -603,7 +603,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - `manifest.json` و `SHA256SUMS`
 - **snapshot ‏restic:** از مجموعه، آرشیو WAL و خود فایل‌های `hq-files`:
   1. اول در مخزن محلی
-  2. بعد با `restic copy` به **Google Drive** (`rclone:gdrive:CoinePro-HQ/restic`)
+  2. بعد با `restic copy` به **Google Drive** (`rclone:gdrive:CoinePro HQ Backup`؛ خود پوشه مخزن restic است)
   3. و اگر روشن باشد، به Hetzner
 - **نگهداری:**
   - Drive و Hetzner: `--keep-hourly 168 --keep-daily 90 --keep-weekly 52 --keep-monthly 36 --keep-yearly 10`
@@ -658,13 +658,15 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **نتیجه:** در `backup.restore_tests` ثبت میشود. شکست ← اعلان فوری.
 
 ### کارهای مالک (به ترتیب، در ترمینال SSH خودش)
-1. **`make gdrive-auth`:**
-   - توضیح فارسی چاپ میکند.
-   - مالک روی کامپیوتر خودش این را اجرا میکند (scope ‏`drive.file`: rclone فقط فایل‌های خودش را میبیند):
-     `rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"`
-   - JSON را بی‌نمایش میچسباند ← `kv/backup/gdrive`. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro-HQ/restic` را میسازد.
-   - **پیشنهاد (اختیاری):** یک OAuth client ID اختصاصی (نوع Desktop) در Google Cloud خود مالک، برای سهمیه‌ی جدا از client عمومی rclone. در این صورت مالک client ID و client secret را در پرسش اسکریپت میدهد، و اسکریپت فرمان را میسازد: `rclone authorize "drive" "<base64>"`. این رشته یک JSON با `client_id`، `client_secret` و `"scope":"drive.file"` است، base64 بدون padding (۷.۱ §۲.۸). شکل دو-آرگومانی (`"<client_id>" "<client_secret>"`) دسترسی **کل** Drive را میخواست و دیگر استفاده نمیشود.
-   - **کار مالک: consent screen آن پروژه در Google Cloud باید «In production» باشد.** در حالت «Testing»، گوگل refresh token را بعد از ۷ روز باطل میکند و backup بیرونی بی‌خبر میایستد (اسکریپت هم همین را میگوید). برای client عمومی rclone لازم نیست.
+1. **`make gdrive-auth`** (لینک و کد؛ درخواست مالک ۲۰۲۶-۱۰-۲۲، چیزی نصب نمیشود):
+   - اسکریپت یک لینک Google چاپ میکند. مالک آن را روی گوشی یا کامپیوتر خودش باز میکند، وارد میشود و «Allow» میزند.
+   - مرورگر به `127.0.0.1:53682/?state=…&code=…` میرود که باز نمیشود (درست است). مالک همه‌ی آن آدرس را کپی میکند و بی‌نمایش در پرسش اسکریپت میچسباند.
+   - پشت صحنه: `rclone authorize` با client عمومی rclone و scope ‏`drive.file` در یک کانتینر موقت backup-tools ‏(`hq-gdrive-auth`، بدون root، root filesystem فقط‌خواندنی) منتظر است. آدرس فقط به صفحه‌ی محلی همان کانتینر داده میشود و rclone کد یک‌بارمصرف را همان‌جا با توکن عوض میکند. توکن مستقیم به `kv/backup/gdrive` میرود و هیچ‌جا چاپ نمیشود. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro HQ Backup` را میسازد.
+   - **دو مرحله‌ای:** `make gdrive-auth step=link` فقط لینک را میدهد و ورود ۳۰ دقیقه منتظر میماند (`HQ_GDRIVE_AUTH_WAIT_S`). بعد `make gdrive-auth step=code` آدرس را میگیرد: بی‌نمایش در ترمینال، یا از stdin وقتی مالک آدرس را به Claude سرور میدهد. کد درون آدرس فقط یک بار و فقط چند دقیقه معتبر است و بعد از مصرف بی‌ارزش است.
+   - **client اختصاصی مالک (`own=1`، راه ماندگار):** client عمومی rclone سهمیه‌ی مشترک همه‌ی کاربران rclone را دارد و خود rclone میگوید در ۲۰۲۶ کنار میرود. اولین copy به Drive (۲۰۲۶-۱۰-۲۲) با `403 rateLimitExceeded` همان سهمیه شکست خورد.
+     - **کار مالک در Google Cloud:** یک پروژه بسازد، Google Drive API را Enable کند، consent screen را بسازد و در Audience، «Publish app» بزند تا **«In production»** شود (در حالت «Testing»، refresh token بعد از ۷ روز باطل میشود). بعد در Clients یک OAuth client از نوع **Desktop app** بسازد.
+     - با `make gdrive-auth own=1` (همراه `step=link` هم میشود) اسکریپت client ID و client secret را میپرسد (secret بی‌نمایش؛ با `step=link` دو خط از stdin) و همان لینک و آدرس بالا را با client مالک میگیرد. ID و secret از stdin به tmpfs کانتینر میرسند، نه argv و نه env کانتینر، و کنار توکن در `kv/backup/gdrive` ذخیره میشوند. scope همچنان `drive.file` است.
+     - **عوض کردن client:** با `drive.file` هر client فقط فایل‌های خودش را میبیند. client تازه پوشه و مخزن restic خودش را میسازد (اولین copy کامل است). پوشه‌ی client قبلی در Drive میماند تا مالک خودش پاکش کند. ۲۰۲۶-۱۰-۲۲: از client عمومی به client خود مالک (پروژه‌ی `coinepro-hq-backup`، In production) رفتیم؛ ۵۱ snapshot در ۲۶۶ ثانیه کپی شد.
    - تا این کار نشده، backup ساعتی فقط محلی است و وضعیت Drive «پیکربندی نشده» است.
 2. **نسخه‌ی کاغذی رمز restic:** `make backup-password`.
    - فقط در ترمینال خود مالک، با تایپ `show`. بعد از Enter صفحه پاک میشود.
@@ -856,7 +858,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - بقیه‌ی پروتکل‌ها (`sample`، `llm`، `blind_test`، `mystery`، و `rule`/`reconcile` بی‌checker) کار ناظر یا QC میشوند. سقف: `HQ_OVERSIGHT_MODEL_RUNS_PER_DAY` (پیش‌فرض ۳ در روز مالک) و بودجه‌ی هر اجرا `HQ_OVERSIGHT_RUN_TOKENS` (پیش‌فرض ۶۰ هزار، **هرگز بیشتر از `tokens_per_run` منشور مجری**: ناظر v2 و مشاور v3 هر کدام ۲۰۰ هزار). بیرون از سقف، اجرا `skipped` ثبت میشود. هر پروتکل حداکثر یک بار در روز به مدل میرود (پروتکل ساعتی هم)، و PR-098 فقط وقتی که مدیرعاملی در ۲۴ ساعت گذشته استخدامی تأیید کرده باشد.
   - **سهم توکن نظارت، `OVERSIGHT_DAILY_SHARE`** (در `.env`، پیش‌فرض `0.2`؛ قرارداد §۱۸.۱ v1.4.4): ناظر و QC روی هم حداکثر این سهم از `AGENT_DAILY_TOKEN_CAP` را در روز UTC مصرف میکنند (با ۶۰۰ هزار: ۱۲۰ هزار). LLM Router آن را مثل بودجه اجرا میکند: وقتی مصرف امروز نقش‌های `overseer` و `inspector` هلدینگ به سهم رسید، هر فراخوانی بعدی آن‌ها با `429 budget_exhausted` (در دفتر: `rejected_budget` / `oversight_share`) رد میشود، در هر اولویتی. فقط اجرای پروتکل `critical` ادامه میدهد (runner شماره و شدت پروتکل را در meta فراخوانی میفرستد).
     - وقتی سهم پر است، اجرای پروتکل غیر `critical` نتیجه‌ی **`deferred`** میگیرد (کاری ساخته نمیشود). deferred رد نیست و در نمره‌ی انطباق حساب نمیشود. روز بعد (UTC)، اولین `oversight_tick` پروتکل‌های deferred را **اول صف** دوباره اجرا میکند: اول شدیدترها، بعد قدیمی‌ترها.
-    - `AGENT_DAILY_TOKEN_CAP=0` یعنی بی‌سقف، پس سهمی هم نیست. `OVERSIGHT_DAILY_SHARE=0` یعنی فقط پروتکل‌های `critical`. مقدار باید بین ۰ و ۱ باشد، وگرنه سرویس بالا نمیاید.
+    - `AGENT_DAILY_TOKEN_CAP=0` یعنی «هیچ» (پرامپت ۸.۱): هیچ اجرای ایجنتی نیست و سهم نظارت هم صفر است. `OVERSIGHT_DAILY_SHARE=0` یعنی فقط پروتکل‌های `critical`. مقدار باید بین ۰ و ۱ باشد، وگرنه سرویس بالا نمیاید.
   - **برآورد مصرف:** حداکثر ۳ × ۶۰ هزار = ۱۸۰ هزار توکن در روز، به‌علاوه‌ی صدور چالش‌های هفتگی (۶۰ هزار در هفته) و پیام‌های مالک در رشته‌ی `N`؛ سهم نظارت (۱۲۰ هزار با سقف فعلی) زودتر جلوی آن را میگیرد. منشور ناظر v2 سقف هر اجرا را ۲۰۰ هزار گذاشته و هیچ اجرایی از آن نمیگذرد، حتی اگر `HQ_OVERSIGHT_RUN_TOKENS` بیشتر باشد.
 - **یافته:** پاسخ‌گو (نقش پروتکل در همان شرکت، وگرنه مدیرعامل، وگرنه مالک) وضعیت را `acknowledged`، `fixing`، `fixed` یا `disputed` میکند؛ `fixed` شاهد میخواهد. `verified` فقط با شاهد رفع است و فقط با ناظر یا مالک؛ `closed` هم همین‌طور. مالک: `POST /oversight/findings/{ref}/status`.
 - **hold:** هر hold یک ردیف `H-` روی یک هدف است و هر هدف فقط یک hold باز دارد. هدف‌ها و آنچه متوقف میشود:

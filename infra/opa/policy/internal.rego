@@ -372,13 +372,20 @@ grant if {
 	holding_reader
 }
 
-# The skill library and the academy (prompt 08 §6-§7): holding-scope roles
-# only (the overseer and AI Safety review, the AI Ops head runs evals and
-# drafts teachings; their charters decide which tool each one has).
+# The skill library and the academy (prompt 08 §6-§7; 8.1 §4: not every
+# holding agent): the oversight roles review (the overseer, QC, AI Safety of
+# the OVS department); the holding's AI Ops department runs evals and drafts
+# teachings. Their charters still decide which tool each one has.
 grant if {
-	op in {"skill.review", "academy.eval", "academy.teach"}
+	op == "skill.review"
+	oversight_role
+}
+
+grant if {
+	op in {"academy.eval", "academy.teach"}
 	agent
 	holding_reader
+	p.department == "AIOPS"
 }
 
 # A file of the agent's own company only (prompt 06 §2: files.read), never

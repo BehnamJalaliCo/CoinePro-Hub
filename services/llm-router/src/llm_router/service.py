@@ -380,7 +380,7 @@ class RouterService:
         AGENT_DAILY_TOKEN_CAP per UTC day, like a budget at 100% but for every
         priority; only a `critical` protocol's run still goes."""
         cap = oversight_share.limit(self.s.agent_daily_token_cap, self.s.oversight_daily_share)
-        if cap is None or req.role not in oversight_share.ROLES or company.id != holding.id:
+        if req.role not in oversight_share.ROLES or company.id != holding.id:
             return
         if (req.meta or {}).get("severity") == oversight_share.CRITICAL:
             return

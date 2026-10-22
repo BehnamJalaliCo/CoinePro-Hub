@@ -44,12 +44,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.format.DEPT_FA
+import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.format.jTime
 import com.coinepro.hq.core.format.modelLabel
 import com.coinepro.hq.core.format.roleFa
 import com.coinepro.hq.core.format.usd
 import com.coinepro.hq.core.net.Founding
+import com.coinepro.hq.core.net.HostKey
+import com.coinepro.hq.core.net.ProvisionRun
+import com.coinepro.hq.core.net.ServerPlan
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
 import com.coinepro.hq.designsystem.DIcon
@@ -73,6 +77,7 @@ import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
 import com.coinepro.hq.ui.Page
 import com.coinepro.hq.ui.activity
+import com.coinepro.hq.ui.companies.BrandBlock
 import com.coinepro.hq.ui.refresher
 import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberQuery
@@ -87,6 +92,11 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 
 private val STAGES = listOf("auditing" to "ممیزی", "proposed" to "پیشنهاد", "sealed" to "مُهر", "provisioning" to "ساخت سرور", "ready_for_login" to "ورود تو", "active" to "فعال")
+/** ⟨1.4.6⟩ the step «مُهر شرکت» (§18.8, §18.14): open once the company exists, i.e. from the seal of `company_found` on. */
+private val BRAND_OPEN = setOf("sealed", "provisioning", "ready_for_login", "active")
+private val BRAND_STATE = mapOf(
+    "missing" to ("هنوز نشان ندارد" to Tone.WARN), "proposed" to ("نشان آماده، منتظر مُهر تو" to Tone.GOLD), "active" to ("مُهر شد" to Tone.POS),
+)
 private val AUDIT_FA = mapOf("architecture" to "معماری", "quality" to "کیفیت", "security" to "امنیت", "tests" to "تست‌ها", "debt" to "بدهی فنی")
 private val SOFTWARE_FA = mapOf(
     "system-upgrade" to "به‌روزرسانی و ارتقای کامل سیستم", "unattended-upgrades" to "به‌روزرسانی خودکار امنیتی", "work-user" to "کاربر کاری",
@@ -110,9 +120,14 @@ private val PATH = listOf(
 fun FoundingsScreen() {
     val nav = LocalNav.current
     val c = Divan.colors
-    val q = rememberQuery("founding:list", "founding", maxAgeMs = 15_000) { foundings().items }
+    val env = LocalEnv.current
+    val q = rememberQuery("founding:list", "founding", maxAgeMs = 15_000) { foundings() }
     val r = refresher(q)
     var start by rememberSaveable { mutableStateOf(false) }
+    // §18.16: a Page, newest first; later pages are appended on «بیشتر».
+    var more by remember(q.data) { mutableStateOf(emptyList<Founding>()) }
+    var cursor by remember(q.data) { mutableStateOf(q.data?.nextCursor) }
+    val loadMore = rememberAction()
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
             PageHeader("تأسیس شرکت", eyebrow = "از ریپو یا ایده تا شرکت فعال و سرور آماده") {
@@ -120,7 +135,7 @@ fun FoundingsScreen() {
             }
         }
         item { Text("ممیزی، پیشنهاد ساختار و تیم و نقشه‌ی راه، مُهر تو، و ساخت کامل سرور با API هتزنر (به‌روزرسانی، نصب و Claude Code آماده). بعد خودت وارد میشوی و ادامه میدهیم. رمز سرور هیچ‌وقت به ایجنت نمیرسد.", style = Divan.type.small, color = c.textSecondary) }
-        val list = q.data
+        val list = q.data?.let { it.items + more }
         when {
             list == null && q.error != null -> item { ErrorBlock(q.error, { q.refresh() }) }
             list == null -> items(2) { Skeleton(Modifier.fillMaxWidth().height(76.dp), radius = 16.dp) }
@@ -134,7 +149,7 @@ fun FoundingsScreen() {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         DIcon(DivanIcon.FOUND, size = 18.dp, tint = c.goldInk)
-                        Text(f.nameFa, style = Divan.type.bodyStrong, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(f.title, style = Divan.type.bodyStrong, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         LabelPill(FOUNDING_STATE[f.state], f.state)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -144,6 +159,17 @@ fun FoundingsScreen() {
                         Text(ago(f.updatedAt), style = Divan.type.micro, color = c.textMuted)
                     }
                 }
+            }
+        }
+        cursor?.let { at ->
+            item {
+                HqButton("بیشتر", {
+                    loadMore.run {
+                        val pg = env.api.foundings(at)
+                        more = more + pg.items
+                        cursor = pg.nextCursor
+                    }
+                }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, loading = loadMore.busy)
             }
         }
         item { SectionTitle("مسیر تأسیس", note = "سه نقطه با توست؛ بقیه را ایجنت‌ها انجام میدهند و همه در دفتر Audit ثبت میشود") }
@@ -201,21 +227,38 @@ private fun StartSheet(onClose: () -> Unit) {
  *  runs live; the owner logs in personally before the company is activated. */
 @Composable
 fun FoundingScreen(ref: String) {
+    // A server plan with no founding (a company's CTO wrote it, §18.16): the cartable's server_plan card lands here.
+    if (ref.startsWith("PV-")) PlanScreen(ref) else FoundingDetail(ref)
+}
+
+@Composable
+private fun FoundingDetail(ref: String) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val act = activity()
     val c = Divan.colors
     val q = rememberQuery("founding:$ref", "founding", maxAgeMs = 5_000) { founding(ref) }
     val f = q.data
-    val plan = f?.plan?.let { p -> rememberQuery("founding:plan:$p", "founding") { plan(p) } }
+    val plan = f?.plan?.let { p -> rememberQuery("founding:plan:$p", "founding") { f.planDetail?.takeIf { it.ref == p } ?: plan(p) } }
     val runId = plan?.data?.run
     val run = runId?.let { id -> rememberQuery("founding:run:$id", "founding", maxAgeMs = 2_000) { run(id) } }
     val action = rememberAction()
     var cancel by remember { mutableStateOf(false) }
+    var noBrand by remember { mutableStateOf(false) }
+    // §18.8: without an active brand the hub asks first; the owner may still go on and seal the brand later.
+    fun activate(skipBrand: Boolean) = action.run(onError = { e ->
+        if (e.status == 409 && e.code == "not_ready" && "brand" in e.missing) noBrand = true else toasts.error(e.messageFa)
+    }) {
+        env.api.activateFounding(ref, { a, t -> env.auth.stepUp(act, a, t) }, skipBrand)
+        noBrand = false
+        env.cache.invalidate("founding", "companies")
+        toasts.ok("شرکت فعال شد؛ مدیرعامل شروع به کار کرد.")
+    }
     // Live while something moves: the audit, the build (every 2 s), until the server is ready.
+    val building = run?.data?.state in setOf("queued", "running")
     LaunchedEffect(f?.state, run?.data?.state) {
-        while (f?.state in setOf("auditing", "sealed", "provisioning") || run?.data?.state == "running") {
-            delay(if (run?.data?.state == "running") 2_000 else 5_000)
+        while (f?.state in setOf("auditing", "sealed", "provisioning") || building) {
+            delay(if (building) 2_000 else 5_000)
             run?.refresh()
             q.refresh()
         }
@@ -226,7 +269,9 @@ fun FoundingScreen(ref: String) {
             f == null && q.error != null -> item { ErrorBlock(q.error, { q.refresh() }) }
             f == null -> item { Skeleton(Modifier.fillMaxWidth().height(240.dp), radius = 16.dp) }
             else -> {
-                item { Header(f) { cancel = true } }
+                // §18.16: cancel closes everything, so it is offered until a build runs; a failed build returns the founding to `sealed`.
+                val cancellable = f.state == "auditing" || f.state == "proposed" || (f.state == "sealed" && !building)
+                item { Header(f, if (cancellable) ({ cancel = true }) else null) }
                 item { Stepper(f.state) }
                 val login = run?.data?.login
                 if (f.state == "ready_for_login" && login != null) item {
@@ -238,25 +283,28 @@ fun FoundingScreen(ref: String) {
                             Text("۲. Claude Code را باز کن و با حساب خودت وارد شو", style = Divan.type.small, color = c.textSecondary)
                             for (cmd in login.then) CopyLine(cmd)
                             Text("۳. وقتی وارد شدی، شرکت را فعال کن تا مدیرعامل شروع کند.", style = Divan.type.small, color = c.textSecondary)
-                            HqButton("وارد شدم؛ شرکت را فعال کن", {
-                                action.run {
-                                    env.api.activateFounding(f.ref) { a, t -> env.auth.stepUp(act, a, t) }
-                                    env.cache.invalidate("founding", "companies")
-                                    toasts.ok("شرکت فعال شد؛ مدیرعامل شروع به کار کرد.")
-                                }
-                            }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, loading = action.busy)
+                            run.data?.server?.hostKeys?.takeIf { it.isNotEmpty() }?.let { HostKeys(it) }
+                            HqButton("وارد شدم؛ شرکت را فعال کن", { activate(skipBrand = false) }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, loading = action.busy)
                         }
+                    }
+                }
+                val co = f.company
+                if (co != null && f.state in BRAND_OPEN) item {
+                    HqCard(Modifier.fillMaxWidth()) {
+                        BrandBlock(co, f.title, f.nameEn?.ifBlank { null } ?: co, title = "مُهر شرکت", badge = {
+                            BRAND_STATE[f.brand.state]?.let { (fa, tone) -> Pill(fa, tone, dot = true) }
+                        })
                     }
                 }
                 f.audit?.let { a ->
                     item {
                         HqCard(Modifier.fillMaxWidth()) {
-                            SectionTitle("ممیزی", note = "جلسه‌ی فقط‌خواندنی کارگاه") { Fig(a.sessionRef, style = Divan.type.figureSmall, color = c.goldInk) }
+                            SectionTitle("ممیزی", note = if (a.sessionRef != null) "جلسه‌ی فقط‌خواندنی کارگاه" else "امتیاز هر محور از ۱۰") { a.sessionRef?.let { Fig(it, style = Divan.type.figureSmall, color = c.goldInk) } }
                             Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 for (pair in a.scores.entries.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                     for ((k, v) in pair) Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(AUDIT_FA[k] ?: k, style = Divan.type.micro, color = c.textMuted)
-                                        ScoreBar(v)
+                                        ScoreBar(v, max = 10.0)
                                     }
                                     if (pair.size == 1) Box(Modifier.weight(1f))
                                 }
@@ -277,84 +325,32 @@ fun FoundingScreen(ref: String) {
                 plan?.let { pq ->
                     item {
                         val pl = pq.data
-                        if (pl == null) Skeleton(Modifier.fillMaxWidth().height(200.dp), radius = 16.dp)
-                        else HqCard(Modifier.fillMaxWidth()) {
-                            SectionTitle("سرور") {
-                                Fig("€" + String.format(Locale.US, "%.2f", pl.monthlyEur) + " / ماه", style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Fig(pl.ref, style = Divan.type.figureSmall, color = c.textMuted)
-                                Fig(pl.name, style = Divan.type.figureSmall, color = c.textMuted)
-                            }
-                            Row(Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                for ((k, v) in listOf("نوع" to pl.type, "محل" to pl.location, "سیستم" to pl.image)) {
-                                    Column(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(c.tile).padding(horizontal = 10.dp, vertical = 8.dp)) {
-                                        Text(k, style = Divan.type.micro, color = c.textMuted)
-                                        Fig(v, style = Divan.type.figureSmall, color = c.textPrimary)
-                                    }
-                                }
-                            }
-                            Text("فایروال هتزنر (ورودی)", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-                            for (w in pl.firewall) Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Fig("${w.protocol} ${w.port}", Modifier.width(76.dp), style = Divan.type.figureSmall, color = c.textPrimary)
-                                Text(w.noteFa, style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f))
-                                Fig(w.sources.joinToString(", "), style = Divan.type.figureSmall, color = c.textMuted)
-                            }
-                            Text("نصب کامل", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary, modifier = Modifier.padding(top = 10.dp))
-                            Column(Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                for (k in pl.software) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    DIcon(DivanIcon.SEAL, size = 12.dp, tint = c.positive)
-                                    Text(SOFTWARE_FA[k] ?: k, style = Divan.type.caption, color = c.textPrimary)
-                                }
-                            }
-                            Text("کاربر کاری ${pl.workUser}" + (pl.repo?.let { " · ریپو $it" } ?: "") + " · رمز root ساخته نمیشود؛ فقط کلید عمومی تو.", style = Divan.type.micro, color = c.textMuted)
-                            if (pl.state == "proposed") HqButton("با گذرکلید مُهر کن و بساز (€${String.format(Locale.US, "%.2f", pl.monthlyEur)} در ماه)", {
-                                action.run {
-                                    env.api.sealPlan(pl) { a, t -> env.auth.stepUp(act, a, t) }
-                                    env.cache.invalidate("founding")
-                                    toasts.ok("مُهر شد؛ ساخت سرور شروع شد.")
-                                }
-                            }, Modifier.fillMaxWidth().padding(top = 12.dp), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, loading = action.busy)
-                            run?.data?.let { rn ->
-                                HorizontalDivider(Modifier.padding(vertical = 12.dp), color = c.lineDivider)
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("ساخت", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-                                    when (rn.state) {
-                                        "running" -> Pill("در جریان", com.coinepro.hq.core.format.Tone.LAPIS, live = true)
-                                        "done" -> Pill("تمام شد", com.coinepro.hq.core.format.Tone.POS, dot = true)
-                                        else -> Pill("خطا", com.coinepro.hq.core.format.Tone.NEG, dot = true)
-                                    }
-                                }
-                                Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    for (s in rn.steps) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        val (bg, fg) = when (s.state) { "done" -> c.softPositive to c.positive; "running" -> c.softLapis to c.lapis; "failed" -> c.softNegative to c.negative; else -> c.tile to c.textMuted }
-                                        Box(Modifier.padding(top = 2.dp).size(20.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
-                                            when (s.state) {
-                                                "running" -> CircularProgressIndicator(Modifier.size(11.dp), color = fg, strokeWidth = 1.5.dp)
-                                                "done" -> DIcon(DivanIcon.SEAL, size = 11.dp, tint = fg, active = true)
-                                                "failed" -> DIcon(DivanIcon.URGENT, size = 11.dp, tint = fg)
-                                            }
-                                        }
-                                        Column(Modifier.weight(1f)) {
-                                            Text(s.titleFa, style = Divan.type.small, color = if (s.state == "pending") c.textMuted else c.textPrimary)
-                                            if (s.logTail.isNotBlank()) Text(s.logTail, style = Divan.type.figureSmall.copy(textDirection = TextDirection.Ltr), color = c.textMuted)
-                                        }
-                                        s.finishedAt?.let { Text(jTime(it), style = Divan.type.micro, color = c.textMuted) }
-                                    }
-                                }
-                                rn.server?.let { sv -> Fig(listOfNotNull(sv.name, sv.ipv4, sv.privateIp).joinToString(" · "), Modifier.padding(top = 10.dp), style = Divan.type.figureSmall, color = c.textSecondary) }
-                            }
-                        }
+                        if (pl == null) Skeleton(Modifier.fillMaxWidth().height(200.dp), radius = 16.dp) else PlanCard(pl, run?.data)
                     }
                 }
             }
         }
     }
+    if (noBrand) AlertDialog(
+        onDismissRequest = { noBrand = false },
+        containerColor = c.overlay,
+        title = { Text("شرکت هنوز مُهر ندارد", style = Divan.type.h3) },
+        text = { Text("نشان و مُهر شرکت از لوگوی PNG آن ساخته میشود. اگر بدون مُهر فعال کنی، شرکت تا وقتی نشانش را مُهر کنی با کدش دیده میشود؛ این کار از صفحه‌ی شرکت هم شدنی است.", style = Divan.type.small, color = c.textSecondary) },
+        confirmButton = { HqButton("بدون مُهر فعال کن", { activate(skipBrand = true) }, variant = BtnVariant.GHOST, loading = action.busy) },
+        dismissButton = { HqButton("اول مُهر را بساز", { noBrand = false }) },
+    )
     if (cancel && f != null) AlertDialog(
         onDismissRequest = { cancel = false },
         containerColor = c.overlay,
         title = { Text("این تأسیس لغو شود؟", style = Divan.type.h3) },
-        text = { Text("ممیزی و پیشنهاد در سوابق میماند. هنوز سروری ساخته نشده و هزینه‌ای نیست.", style = Divan.type.small, color = c.textSecondary) },
+        text = {
+            val tail = when {
+                run?.data?.server != null -> "سروری که ساخته شده خاموش یا پاک نمیشود؛ پاک کردنش فقط با خودت در کنسول هتزنر است."
+                f.state == "sealed" -> "طرح سرور مُهرشده به پیشنهاد برمیگردد و هیچ سروری ساخته نمیشود."
+                else -> "هنوز سروری ساخته نشده و هزینه‌ای نیست."
+            }
+            Text("ممیزی و پیشنهاد در سوابق میماند و کارت‌های باز این تأسیس از کارتابل برداشته میشوند. $tail", style = Divan.type.small, color = c.textSecondary)
+        },
         confirmButton = {
             HqButton("لغو کن", {
                 action.run {
@@ -370,7 +366,7 @@ fun FoundingScreen(ref: String) {
 }
 
 @Composable
-private fun Header(f: Founding, onCancel: () -> Unit) {
+private fun Header(f: Founding, onCancel: (() -> Unit)?) {
     val c = Divan.colors
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -380,15 +376,15 @@ private fun Header(f: Founding, onCancel: () -> Unit) {
                     Fig(f.ref, style = Divan.type.figureSmall, color = c.textMuted)
                     if (f.source.repo != null) Fig(f.source.repo, style = Divan.type.figureSmall, color = c.textMuted) else Text("ایده", style = Divan.type.micro, color = c.textMuted)
                 }
-                Text(f.nameFa, style = Divan.type.h1)
-                if (f.nameEn.isNotBlank()) Fig(f.nameEn, style = Divan.type.figureSmall, color = c.textMuted)
+                Text(f.title, style = Divan.type.h1)
+                f.nameEn?.takeIf { it.isNotBlank() }?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             LabelPill(FOUNDING_STATE[f.state], f.state)
             Box(Modifier.weight(1f))
-            // Before a server exists nothing is spent, so cancelling is safe; afterwards only the owner removes servers, in Hetzner.
-            if (f.state == "auditing" || f.state == "proposed") HqButton("لغو تأسیس", onCancel, variant = BtnVariant.GHOST, size = BtnSize.SM)
+            // Cancelling withdraws the cards, returns an unrun sealed plan and stops the audit (§18.16); only the owner removes servers, in Hetzner.
+            if (onCancel != null) HqButton("لغو تأسیس", onCancel, variant = BtnVariant.GHOST, size = BtnSize.SM)
         }
     }
 }
@@ -405,6 +401,171 @@ private fun Stepper(state: String) {
                 Text(fa, style = Divan.type.caption.copy(fontWeight = if (i == at) FontWeight.SemiBold else FontWeight.Normal), color = fg)
             }
             if (i < STAGES.lastIndex) Box(Modifier.width(8.dp).height(1.dp).background(c.lineDivider))
+        }
+    }
+}
+
+/** A server plan, its seal and its build (§18.8, §18.16): no price or an open problem, no seal. */
+@Composable
+private fun PlanCard(pl: ServerPlan, rn: ProvisionRun?) {
+    val env = LocalEnv.current
+    val toasts = LocalToasts.current
+    val act = activity()
+    val c = Divan.colors
+    val action = rememberAction()
+    val price = pl.monthlyEur?.let { "€" + String.format(Locale.US, "%.2f", it.toDouble()) }
+    HqCard(Modifier.fillMaxWidth()) {
+        SectionTitle("سرور") {
+            if (price != null) Fig("$price / ماه", style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+            else Pill("قیمت هنوز معلوم نیست", Tone.WARN, dot = true)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Fig(pl.ref, style = Divan.type.figureSmall, color = c.textMuted)
+            Fig(pl.name, style = Divan.type.figureSmall, color = c.textMuted)
+        }
+        Row(Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((k, v) in listOf("نوع" to pl.type, "محل" to pl.location, "سیستم" to pl.image)) {
+                Column(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(c.tile).padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    Text(k, style = Divan.type.micro, color = c.textMuted)
+                    Fig(v, style = Divan.type.figureSmall, color = c.textPrimary)
+                }
+            }
+        }
+        Text("فایروال هتزنر (ورودی)", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
+        for (w in pl.firewall) Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Fig(listOfNotNull(w.protocol, w.port).joinToString(" "), Modifier.width(76.dp), style = Divan.type.figureSmall, color = c.textPrimary)
+            Text(w.noteFa, style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f))
+            Fig(w.sources.joinToString(", "), style = Divan.type.figureSmall, color = c.textMuted)
+        }
+        Text("نصب کامل", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary, modifier = Modifier.padding(top = 10.dp))
+        Column(Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            for (k in pl.software) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DIcon(DivanIcon.SEAL, size = 12.dp, tint = c.positive)
+                Text(SOFTWARE_FA[k] ?: k, style = Divan.type.caption, color = c.textPrimary)
+            }
+        }
+        Text("کاربر کاری ${pl.workUser}" + (pl.repo?.let { " · ریپو $it" } ?: "") + " · رمز root ساخته نمیشود؛ فقط کلید عمومی تو.", style = Divan.type.micro, color = c.textMuted)
+        if (pl.state == "proposed" && pl.problems.isNotEmpty()) Column(
+            Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp)).background(c.softWarning).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text("تا این‌ها رفع نشود، طرح مُهر نمیشود", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.warning)
+            for (x in pl.problems) Fig(x, style = Divan.type.figureSmall, color = c.textSecondary, maxLines = 4)
+        }
+        if (pl.state == "proposed") HqButton("با گذرکلید مُهر کن و بساز" + (price?.let { " ($it در ماه)" } ?: ""), {
+            action.run {
+                env.api.sealPlan(pl) { a, t -> env.auth.stepUp(act, a, t) }
+                env.cache.invalidate("founding")
+                toasts.ok("مُهر شد؛ ساخت سرور شروع شد.")
+            }
+        }, Modifier.fillMaxWidth().padding(top = 12.dp), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, enabled = pl.sealable, loading = action.busy)
+        rn?.let { RunBlock(it) }
+    }
+}
+
+private val RUN_STATE = mapOf("queued" to ("در صف" to Tone.WARN), "running" to ("در جریان" to Tone.LAPIS), "done" to ("تمام شد" to Tone.POS), "failed" to ("خطا" to Tone.NEG))
+
+/** The build of a sealed plan, step by step; a failed one resumes from its failed step on the same seal (§18.16). */
+@Composable
+private fun RunBlock(rn: ProvisionRun) {
+    val env = LocalEnv.current
+    val toasts = LocalToasts.current
+    val c = Divan.colors
+    val action = rememberAction()
+    HorizontalDivider(Modifier.padding(vertical = 12.dp), color = c.lineDivider)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("ساخت", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
+        val (fa, tone) = RUN_STATE[rn.state] ?: ("خطا" to Tone.NEG)
+        Pill(fa, tone, live = rn.state == "running", dot = rn.state != "running")
+    }
+    Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        for (s in rn.steps) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val (bg, fg) = when (s.state) { "done" -> c.softPositive to c.positive; "running" -> c.softLapis to c.lapis; "failed" -> c.softNegative to c.negative; else -> c.tile to c.textMuted }
+            Box(Modifier.padding(top = 2.dp).size(20.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
+                when (s.state) {
+                    "running" -> CircularProgressIndicator(Modifier.size(11.dp), color = fg, strokeWidth = 1.5.dp)
+                    "done" -> DIcon(DivanIcon.SEAL, size = 11.dp, tint = fg, active = true)
+                    "failed" -> DIcon(DivanIcon.URGENT, size = 11.dp, tint = fg)
+                }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(s.titleFa, style = Divan.type.small, color = if (s.state == "pending") c.textMuted else c.textPrimary)
+                if (s.logTail.isNotEmpty()) Text(s.logTail.takeLast(3).joinToString("\n"), style = Divan.type.figureSmall.copy(textDirection = TextDirection.Ltr), color = c.textMuted)
+            }
+            s.finishedAt?.let { Text(jTime(it), style = Divan.type.micro, color = c.textMuted) }
+        }
+    }
+    if (rn.state == "failed") Column(
+        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp)).background(c.softNegative).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("ساخت در گام شکست‌خورده متوقف شد" + (rn.error?.code?.let { " ($it)" } ?: "") + ". با همان مُهر از همان گام ادامه میدهد؛ یا تأسیس را لغو کن.", style = Divan.type.caption, color = c.textSecondary)
+        HqButton("از همان گام ادامه بده", {
+            action.run {
+                env.api.resumeRun(rn.id)
+                env.cache.invalidate("founding")
+                toasts.ok("ساخت از همان گام ادامه پیدا کرد.")
+            }
+        }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.REFRESH, loading = action.busy)
+    }
+    rn.server?.let { sv -> Fig(listOfNotNull(sv.name, sv.ipv4, sv.ipv6, sv.privateIp).joinToString(" · "), Modifier.padding(top = 10.dp), style = Divan.type.figureSmall, color = c.textSecondary) }
+    if (rn.state == "done") rn.server?.hostKeys?.takeIf { it.isNotEmpty() }?.let { Box(Modifier.padding(top = 8.dp)) { HostKeys(it) } }
+}
+
+/** The new server's host-key fingerprints, which the owner checks on the first login (§18.16). */
+@Composable
+private fun HostKeys(keys: List<HostKey>) {
+    val c = Divan.colors
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("پیش از اولین ورود، اثر انگشت کلید سرور را با همین‌ها بسنج:", style = Divan.type.caption, color = c.textSecondary)
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            for (k in keys) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(c.page).padding(horizontal = 12.dp, vertical = 6.dp)) {
+                Fig(k.type, style = Divan.type.figureSmall, color = c.textMuted)
+                // The whole fingerprint, wrapped: the owner compares every character.
+                Fig(k.fingerprintSha256, style = Divan.type.figureSmall, color = c.textPrimary, maxLines = 3)
+            }
+        }
+    }
+}
+
+/** A plan with no founding: its card, its build, and a way back to the cartable; a founding's plan goes on to its founding. */
+@Composable
+private fun PlanScreen(ref: String) {
+    val nav = LocalNav.current
+    val c = Divan.colors
+    val q = rememberQuery("founding:plan:$ref", "founding") { plan(ref) }
+    val pl = q.data
+    val runId = pl?.run
+    val run = runId?.let { id -> rememberQuery("founding:run:$id", "founding", maxAgeMs = 2_000) { run(id) } }
+    LaunchedEffect(pl?.founding) { pl?.founding?.let { nav.go("founding/$it") } }
+    val building = run?.data?.state in setOf("queued", "running")
+    LaunchedEffect(run?.data?.state) {
+        while (building) {
+            delay(2_000)
+            run?.refresh()
+            q.refresh()
+        }
+    }
+    val r = refresher(q)
+    Page(onRefresh = r::refresh, refreshing = r.refreshing) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(48.dp).clip(CircleShape).background(c.softGold), contentAlignment = Alignment.Center) { DIcon(DivanIcon.SERVER, size = 24.dp, tint = c.goldInk) }
+                Column(Modifier.weight(1f)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("طرح سرور", style = Divan.type.micro, color = c.textMuted)
+                        pl?.company?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
+                    }
+                    Fig(ref, style = Divan.type.figureL, color = c.textPrimary)
+                }
+            }
+        }
+        item {
+            when {
+                pl == null && q.error != null -> ErrorBlock(q.error, { q.refresh() })
+                pl == null -> Skeleton(Modifier.fillMaxWidth().height(200.dp), radius = 16.dp)
+                else -> PlanCard(pl, run?.data)
+            }
         }
     }
 }

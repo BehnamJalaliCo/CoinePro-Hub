@@ -197,8 +197,9 @@ class Runner:
                 if lock is not None:  # kill switch (holding or company) or a deploy freeze
                     refuse = "locked"
                 elif (
-                    self.s.agent_daily_token_cap
-                    and await self._spent_today(tx) >= self.s.agent_daily_token_cap
+                    # 0 (or less) means nothing at all, not "no cap" (prompt 08.1)
+                    self.s.agent_daily_token_cap <= 0
+                    or await self._spent_today(tx) >= self.s.agent_daily_token_cap
                 ):
                     refuse = "daily_cap"
                 elif run["work_id"] is not None:
@@ -528,8 +529,8 @@ class Runner:
     async def _daily_cap_reached(self) -> bool:
         """The hub's daily agent token cap, checked before EVERY model call
         (prompt 5.1 §2.6), not only when a run is claimed."""
-        if not self.s.agent_daily_token_cap:
-            return False
+        if self.s.agent_daily_token_cap <= 0:  # 0 = nothing at all (prompt 08.1)
+            return True
         async with await self._tx() as tx:  # every company's runs (RLS)
             return await self._spent_today(tx) >= self.s.agent_daily_token_cap
 
@@ -734,19 +735,25 @@ class Runner:
 
     # ------------------------------------------------------------- context --
     async def _skills(self, rc: RunCtx) -> str:
-        """The role's active skills and the owner's sealed rules for it, after
-        the charter (prompt 08 §6-§7); the versions are kept on the run."""
+        """The role's active skills and the owner's sealed rules for the role
+        and for this employee, after the charter (prompt 08 §6-§7). Only what
+        really went into the prompt is kept on the run and named on each model
+        call (8.1 §2.12-§2.13: the section is bounded, at most 30 of each)."""
         async with await self._tx() as tx:
             active = await SK.active_for(
                 tx, rc.charter.role, rc.emp["company"], rc.emp["department"]
             )
-            addenda = await AC.addenda_for(tx, rc.charter.role)
-            rc.skills = [f"{s['ref']}@{s['version']}" for s in active]
-            rc.addenda = [str(a["ref"]) for a in addenda]
+            addenda = await AC.addenda_for(tx, rc.charter.role, rc.emp["code"])
+            sec = SK.prompt_section(active, addenda)
+            rc.skills = sec.skills
+            rc.addenda = [str(a["ref"]) for a in sec.addenda]  # teaching refs (llm meta)
             await tx.exec(
-                "UPDATE agents.runs SET skills = :s WHERE id = :id", s=rc.skills, id=rc.run["id"]
+                "UPDATE agents.runs SET skills = :s, addenda = :a WHERE id = :id",
+                s=rc.skills,
+                a=[a["id"] for a in sec.addenda],
+                id=rc.run["id"],
             )
-        return SK.prompt_section(active, addenda)
+        return sec.text
 
     async def _values(self, emp: dict[str, Any]) -> dict[str, str]:
         holding = await self.hub.companies.holding()

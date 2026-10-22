@@ -63,7 +63,7 @@ export function TrainingCard({ code }: { code: string }) {
 export function ModelComparison({ role }: { role: string }) {
   const q = useModelComparison(role);
   const evals = useEvals();
-  const runs = q.data?.items ?? [];
+  const runs = (q.data?.items ?? []).filter((r) => r.score != null && (r.state ?? 'done') === 'done');
   const models = [...new Set(runs.map((r) => r.subject.ref))].sort(byOrder);
   const suites = (evals.data ?? []).filter((e) => runs.some((r) => r.suite === e.ref));
   const cell = (suite: string, model: string) => runs.find((r) => r.suite === suite && r.subject.ref === model);

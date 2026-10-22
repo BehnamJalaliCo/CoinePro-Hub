@@ -18,11 +18,12 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from hq_gateway import tools as T
 
 DECISION_REF = r"^D-[0-9]{6,}$"
+PERIOD = r"^(week|month):[0-9]{4}-[0-9]{2}(-[0-9]{2})?$"
 
 
 class CriterionIn(T.In):
@@ -43,6 +44,13 @@ class StarEvidenceIn(T.In):
     note: str = Field(default="", max_length=500)
 
 
+def _half_step(v: Decimal) -> Decimal:
+    # Whole or half stars, 0 to 5 (contract §18.15): 3.7 is refused here, by field.
+    if not (0 <= v <= 5) or (v * 2) != (v * 2).to_integral_value():
+        raise ValueError("whole or half stars: 0, 0.5, … 5")
+    return v
+
+
 class StarGiveIn(T.In):
     employee: str = Field(pattern=T.EMP)
     week: date
@@ -50,6 +58,18 @@ class StarGiveIn(T.In):
     criteria: dict[str, Decimal] = Field(default_factory=dict, max_length=12)
     reason_md: str = Field(default="", max_length=4000)
     evidence: list[StarEvidenceIn] = Field(default_factory=list, max_length=20)
+
+    @field_validator("stars")
+    @classmethod
+    def _stars(cls, v: Decimal) -> Decimal:
+        return _half_step(v)
+
+    @field_validator("criteria")
+    @classmethod
+    def _criteria(cls, v: dict[str, Decimal]) -> dict[str, Decimal]:
+        for value in v.values():
+            _half_step(value)
+        return v
 
 
 class StarAuditIn(T.In):
@@ -60,7 +80,7 @@ class StarAuditIn(T.In):
 
 class LessonIn(T.In):
     source_company: str = Field(pattern=T.CODE)
-    period: str = Field(pattern=r"^(week|month):[0-9]{4}-[0-9]{2}(-[0-9]{2})?$")
+    period: str = Field(pattern=PERIOD)
     title_fa: str = Field(min_length=1, max_length=300)
     body_md: str = Field(min_length=1, max_length=20000)
     evidence: list[StarEvidenceIn] = Field(default_factory=list, max_length=20)
@@ -76,7 +96,8 @@ class StoryLinksIn(T.In):
     deliverable: str | None = Field(default=None, pattern=r"^O-[0-9]{6,}$")
     decision: str | None = Field(default=None, pattern=DECISION_REF)
     work: str | None = Field(default=None, pattern=T.WORK_REF)
-    period: str | None = Field(default=None, max_length=30)
+    period: str | None = Field(default=None, pattern=PERIOD)
+    metric: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{1,40}$")  # a KPI by name
 
 
 class StoryIn(T.In):

@@ -4,7 +4,7 @@
 // provisioning, backups. Prompts 7–9 implement them; until the OpenAPI file is regenerated, the types live here, written from the
 // contract. Same conventions as v13: X-HQ-Client and Idempotency-Key on writes, Problem errors as ApiError.
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { bodyTarget, stepUp } from '@/lib/auth';
 import { call, type Actor, type MediaRef } from './v13';
 
@@ -108,14 +108,16 @@ export type Skill = {
   scope: { roles: string[]; companies: 'all' | string[]; departments: string[] }; version: number;
   status: 'draft' | 'in_review' | 'approved' | 'active' | 'retired';
   review: { by: Actor; at: string; verdict: 'pass' | 'changes' | 'reject'; notes_md: string; checks: Record<'injection' | 'secrets' | 'conflicts' | 'policy', boolean> } | null;
-  eval: { suite: string; score: number; baseline: number } | null; created_by: Actor; created_at: string; activated_at: string | null;
+  eval: { suite: string; score: number; baseline: number | null } | null; created_by: Actor; created_at: string; activated_at: string | null;
 };
+// ⟨1.4.7⟩ name, summary and scope belong to a version; the summary defaults to the start of the text.
+export type SkillIn = { name_fa: string; summary_fa?: string; body_md: string; scope: { roles: string[]; companies: 'all' | string[]; departments?: string[] }; file_ids?: string[] };
 export const useSkills = () => useQuery({ queryKey: ['skills'], queryFn: () => call<Skill[]>('GET', '/skills') });
 export function useSkillAction() {
   const qc = useQueryClient();
   const done = () => qc.invalidateQueries({ queryKey: ['skills'] });
   return {
-    create: useMutation({ mutationFn: (v: { name_fa: string; body_md: string; roles: string[]; companies: 'all' | string[]; file_ids: string[] }) => call<Skill>('POST', '/skills', v), onSuccess: done }),
+    create: useMutation({ mutationFn: (v: SkillIn) => call<Skill>('POST', '/skills', v), onSuccess: done }),
     activate: useMutation({ mutationFn: async (s: Skill) => call<Skill>('POST', `/skills/${s.ref}/activate`, { version: s.version }, { 'X-Step-Up': await stepUp('skill.activate', `${s.ref}@${s.version}`) }), onSuccess: done }),
     retire: useMutation({ mutationFn: (ref: string) => call<Skill>('POST', `/skills/${ref}/retire`, {}), onSuccess: done }),
   };
@@ -124,14 +126,16 @@ export function useSkillAction() {
 // ------------------------------------------------------------- academy --
 export type Curriculum = { role: string; version: number; modules: Array<{ key: string; title_fa: string; skills: string[]; evals: string[] }> };
 // ⟨1.4.5⟩ runs carry their cost; the suites list carries each suite's last 10 runs (`recent`, oldest first).
+// ⟨1.4.7⟩ a run has a state; its score and verdict are null until it is done, and a run with a failed model call is `failed`.
+export type EvalSubject = { kind: 'charter' | 'skill' | 'model'; ref: string; version: string | number | null };
 export type EvalRun = {
-  id: string; suite: string; subject: { kind: 'charter' | 'skill' | 'model'; ref: string; version: string | number | null };
-  score: number; passed: boolean; cases?: Array<{ id: string; score: number; notes: string }>; at: string;
+  id: string; suite: string; subject: EvalSubject; state?: 'queued' | 'running' | 'done' | 'failed';
+  score: number | null; passed: boolean | null; cases?: Array<{ id: string; score: number; notes: string }>; at: string;
   tokens?: { input: number; output: number } | null; equiv_cost_usd?: string | null;
 };
 export type EvalSuite = {
   ref: string; role: string; title_fa: string; cases: Array<{ id: string; input_md: string; rubric_md: string; weight: number }>;
-  baseline: { subject?: string; version: string | number; score: number } | null; recent: EvalRun[];
+  baseline: { subject: EvalSubject; score: number } | null; recent: EvalRun[];
 };
 /** The employee card's training history (item 16): charter and curriculum versions, active skills, evals newest first, the score trend. */
 export type TrainingRecord = {
@@ -140,7 +144,7 @@ export type TrainingRecord = {
 };
 export type Teaching = {
   id: string; ref: string; target: { kind: 'role' | 'employee'; ref: string }; source: 'voice' | 'text'; text_md: string;
-  proposal: { kind: string; diff_md: string } | null; eval_run: { score: number; baseline: number; passed: boolean } | null;
+  proposal: { kind: string; diff_md: string } | null; eval_run: { id?: string; score: number; baseline: number | null; passed: boolean } | null;
   status: 'drafting' | 'proposed' | 'approved' | 'rejected'; created_at: string;
 };
 export const useCurricula = () => useQuery({ queryKey: ['academy', 'curricula'], queryFn: () => call<Curriculum[]>('GET', '/academy/curricula'), staleTime: 300_000 });
@@ -187,27 +191,43 @@ export function useMcpAction() {
 
 // --------------------------------------------- founding and provisioning --
 export type FoundingState = 'auditing' | 'proposed' | 'sealed' | 'provisioning' | 'ready_for_login' | 'active' | 'cancelled';
+export type AuditAxis = 'architecture' | 'quality' | 'security' | 'tests' | 'debt';
+// ⟨1.4.8⟩ as built (§18.16): names and code are null until the proposal; money is a decimal string (§1); audit scores are 0..10.
 export type Founding = {
-  id: string; ref: string; name_fa: string; name_en: string; code: string; source: { kind: 'repo' | 'idea'; repo: string | null; brief_md: string };
+  id: string; ref: string; name_fa: string | null; name_en: string | null; code: string | null; source: { kind: 'repo' | 'idea'; repo: string | null; brief_md: string };
   state: FoundingState;
-  audit: { session_ref: string; report_md: string; scores: Record<'architecture' | 'quality' | 'security' | 'tests' | 'debt', number> } | null;
-  proposal: { departments: string[]; kpis: Array<{ name_fa: string; target: string }>; team: Array<{ role: string; model: string; monthly_usd: number }>; roadmap_md: string; monthly_usd: number } | null;
-  decision_ref: string | null; plan: string | null; company: string | null; created_at: string; updated_at: string;
+  audit: { session_ref: string | null; report_md: string; scores: Record<AuditAxis, number | null> } | null;
+  proposal: { departments: string[]; kpis: Array<{ name_fa: string; target: string }>; team: Array<{ role: string; model: string; monthly_usd: string }>; roadmap_md: string; monthly_usd: string } | null;
+  decision_ref: string | null; plan: string | null; plan_detail?: ServerPlan | null; company: string | null; created_at: string; updated_at: string;
+  // ⟨1.4.6⟩ the step «مُهر شرکت» (§18.14), open once the company exists; `missing` until prompt 9.1.
+  brand?: { state: 'missing' | 'proposed' | 'active'; version: number | null };
 };
 export type ServerPlan = {
   id: string; ref: string; founding: string | null; company: string; name: string; type: string; location: string; image: string; private_network: boolean;
-  firewall: Array<{ direction: 'in'; protocol: string; port: string; sources: string[]; note_fa: string }>; software: string[]; work_user: string;
-  repo: string | null; monthly_eur: number; digest: string; state: 'proposed' | 'sealed' | 'running' | 'done' | 'failed'; decision_ref: string | null; run: string | null;
+  // port is null for icmp
+  firewall: Array<{ direction: 'in'; protocol: string; port: string | null; sources: string[]; note_fa: string }>; software: string[]; work_user: string;
+  // no price, no seal; `problems` lists what stops the seal (empty once it may be sealed)
+  repo: string | null; monthly_eur: string | null; price?: { server: string; ipv4: string; network: string; source: string; at: string } | null; problems?: string[];
+  digest: string; state: 'proposed' | 'sealed' | 'running' | 'done' | 'failed'; decision_ref: string | null; run: string | null; sealed_at?: string | null; version?: number;
 };
 export type ProvisionRun = {
-  id: string; plan: string; state: 'running' | 'done' | 'failed';
-  steps: Array<{ key: string; title_fa: string; state: 'pending' | 'running' | 'done' | 'failed'; started_at: string | null; finished_at: string | null; log_tail: string }>;
-  server: { name: string; ipv4: string; ipv6: string; private_ip: string | null } | null; login: { ssh: string; then: string[] } | null;
+  id: string; plan: string; state: 'queued' | 'running' | 'done' | 'failed';
+  steps: Array<{ key: string; title_fa: string; state: 'pending' | 'running' | 'done' | 'failed'; started_at: string | null; finished_at: string | null; log_tail: string[] }>;
+  // the owner checks the host-key fingerprints before the first login
+  server: { name: string; ipv4: string | null; ipv6: string | null; private_ip: string | null; host_keys?: Array<{ type: string; fingerprint_sha256: string }> } | null;
+  login: { ssh: string; then: string[] } | null; error?: { code?: string; message?: string; step?: string } | null;
 };
-export const useFoundings = () => useQuery({ queryKey: ['founding'], queryFn: () => call<{ items: Founding[] }>('GET', '/foundings') });
+/** The founding's name as far as it is known: the proposal names it; before that, its repository or «ایده‌ی تازه». */
+export const foundingName = (f: Pick<Founding, 'name_fa' | 'source'>) => f.name_fa ?? f.source.repo?.split('/')[1] ?? 'ایده‌ی تازه';
+export const useFoundings = () => useInfiniteQuery({
+  queryKey: ['founding', 'list'],
+  queryFn: ({ pageParam }) => call<{ items: Founding[]; next_cursor: string | null }>('GET', `/foundings${pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : ''}`),
+  initialPageParam: null as string | null,
+  getNextPageParam: (last) => last.next_cursor,
+});
 export const useFounding = (ref: string) => useQuery({ queryKey: ['founding', ref], queryFn: () => call<Founding>('GET', `/foundings/${ref}`), refetchInterval: 5_000 });
-export const usePlan = (ref: string | null) => useQuery({ queryKey: ['founding', 'plan', ref], enabled: !!ref, queryFn: () => call<ServerPlan>('GET', `/provisioning/plans/${ref}`) });
-export const useRun = (id: string | null) => useQuery({ queryKey: ['founding', 'run', id], enabled: !!id, queryFn: () => call<ProvisionRun>('GET', `/provisioning/runs/${id}`), refetchInterval: (q) => (q.state.data?.state === 'running' ? 2_000 : false) });
+export const usePlan = (ref: string | null, seed?: ServerPlan | null) => useQuery({ queryKey: ['founding', 'plan', ref], enabled: !!ref, queryFn: () => call<ServerPlan>('GET', `/provisioning/plans/${ref}`), initialData: seed ?? undefined });
+export const useRun = (id: string | null) => useQuery({ queryKey: ['founding', 'run', id], enabled: !!id, queryFn: () => call<ProvisionRun>('GET', `/provisioning/runs/${id}`), refetchInterval: (q) => (q.state.data?.state === 'running' || q.state.data?.state === 'queued' ? 2_000 : false) });
 export function useFoundingAction() {
   const qc = useQueryClient();
   const done = () => qc.invalidateQueries({ queryKey: ['founding'] });
@@ -215,8 +235,15 @@ export function useFoundingAction() {
     start: useMutation({ mutationFn: (source: Founding['source']) => call<Founding>('POST', '/foundings', { source }), onSuccess: done }),
     // The seal is bound to the exact plan the owner saw: its digest, which the server recomputes.
     sealPlan: useMutation({ mutationFn: async (plan: ServerPlan) => call<ServerPlan>('POST', `/provisioning/plans/${plan.ref}/seal`, {}, { 'X-Step-Up': await stepUp('provision.seal', plan.digest) }), onSuccess: done }),
-    activate: useMutation({ mutationFn: async (ref: string) => call<Founding>('POST', `/foundings/${ref}/activate`, {}, { 'X-Step-Up': await stepUp('founding.activate', ref) }), onSuccess: done }),
+    // ⟨1.4.6⟩ without an active brand the hub answers 409 not_ready (missing ["brand"]) unless the owner skips it.
+    activate: useMutation({
+      mutationFn: async (v: { ref: string; skipBrand?: boolean }) =>
+        call<Founding>('POST', `/foundings/${v.ref}/activate`, v.skipBrand ? { skip_brand: true } : {}, { 'X-Step-Up': await stepUp('founding.activate', v.ref) }),
+      onSuccess: () => Promise.all([done(), qc.invalidateQueries({ queryKey: ['companies'] })]),
+    }),
     cancel: useMutation({ mutationFn: (ref: string) => call<Founding>('POST', `/foundings/${ref}/cancel`, {}), onSuccess: done }),
+    // ⟨1.4.8⟩ a failed run of a still-sealed plan continues from its failed step, on the same seal.
+    resume: useMutation({ mutationFn: (run: string) => call<ProvisionRun>('POST', `/provisioning/runs/${run}/resume`, {}), onSuccess: done }),
   };
 }
 
