@@ -46,6 +46,9 @@ ops := {
 	"egress.connector", "referral.check", "rescue.update", "feedback.tag",
 	# prompt 10 §12: the support desk's writes (support_desk.rego)
 	"kb.propose", "support.draft", "support.handoff", "support.mystery",
+	# prompt 12 part A: the advisor's memo, the substitute players and the
+	# runner's job queue (advisor_substitutes.rego)
+	"memo.write", "substitute.call", "substitutes.jobs",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and

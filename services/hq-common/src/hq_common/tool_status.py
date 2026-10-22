@@ -81,6 +81,10 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "support.draft",
         "support.handoff",
         "support.mystery",
+        # prompt 12 part A (contract §21.1, §21.13): the advisor's memo; the
+        # substitute players (refused channel_not_configured while signed out)
+        "memo.write",
+        "substitute.call",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).
