@@ -1863,6 +1863,27 @@
         "title": "Call",
         "type": "object"
       },
+      "CallbackToken": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "token_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Token Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token_sha256",
+          "expires_at"
+        ],
+        "title": "CallbackToken",
+        "type": "object"
+      },
       "CaseResult": {
         "properties": {
           "id": {
@@ -3727,6 +3748,8 @@
               "errand_action",
               "lesson_adoption",
               "protocol",
+              "company_found",
+              "server_plan",
               "tool_enable"
             ],
             "title": "Kind",
@@ -6570,29 +6593,372 @@
         "title": "FindingUpdateIn",
         "type": "object"
       },
-      "FinishIn": {
-        "additionalProperties": false,
+      "FirewallRule": {
         "properties": {
-          "file_ids": {
+          "direction": {
+            "const": "in",
+            "default": "in",
+            "title": "Direction",
+            "type": "string"
+          },
+          "note_fa": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Note Fa",
+            "type": "string"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "maxLength": 11,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port"
+          },
+          "protocol": {
+            "enum": [
+              "tcp",
+              "udp",
+              "icmp"
+            ],
+            "title": "Protocol",
+            "type": "string"
+          },
+          "sources": {
             "items": {
-              "format": "uuid",
               "type": "string"
             },
-            "maxItems": 20,
-            "title": "File Ids",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Sources",
             "type": "array"
-          },
-          "result_md": {
-            "maxLength": 50000,
-            "minLength": 1,
-            "title": "Result Md",
-            "type": "string"
           }
         },
         "required": [
-          "result_md"
+          "protocol",
+          "sources"
         ],
-        "title": "FinishIn",
+        "title": "FirewallRule",
+        "type": "object"
+      },
+      "Founding": {
+        "properties": {
+          "audit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FoundingAudit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audit_work": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Work"
+          },
+          "brand": {
+            "$ref": "#/components/schemas/FoundingBrand"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Actor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Ref"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name En"
+          },
+          "name_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Fa"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "plan_detail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServerPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal"
+          },
+          "proposal_work": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Work"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FoundingSource"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "name_fa",
+          "name_en",
+          "code",
+          "source",
+          "state",
+          "audit",
+          "proposal",
+          "decision_ref",
+          "plan",
+          "company",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Founding",
+        "type": "object"
+      },
+      "FoundingAudit": {
+        "properties": {
+          "deliverable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverable"
+          },
+          "report_md": {
+            "title": "Report Md",
+            "type": "string"
+          },
+          "scores": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Scores",
+            "type": "object"
+          },
+          "session_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Ref"
+          }
+        },
+        "required": [
+          "report_md",
+          "scores"
+        ],
+        "title": "FoundingAudit",
+        "type": "object"
+      },
+      "FoundingBrand": {
+        "description": "The step «مُهر شرکت» (§18.14): `missing` until prompt 9.1 builds it.",
+        "properties": {
+          "state": {
+            "default": "missing",
+            "enum": [
+              "missing",
+              "proposed",
+              "active"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "title": "FoundingBrand",
+        "type": "object"
+      },
+      "FoundingIn": {
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "FoundingIn",
+        "type": "object"
+      },
+      "FoundingSource": {
+        "properties": {
+          "brief_md": {
+            "default": "",
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "repo",
+              "idea"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "FoundingSource",
         "type": "object"
       },
       "Frame": {
@@ -7505,6 +7871,25 @@
         "title": "HoldingState",
         "type": "object"
       },
+      "HostKey": {
+        "description": "One of the new server's SSH host keys, as `ssh` shows it on the first\nlogin (`SHA256:` + base64 of the key blob's sha256).",
+        "properties": {
+          "fingerprint_sha256": {
+            "title": "Fingerprint Sha256",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "fingerprint_sha256"
+        ],
+        "title": "HostKey",
+        "type": "object"
+      },
       "Hourly": {
         "properties": {
           "error": {
@@ -7832,6 +8217,106 @@
         "title": "IncidentBrief",
         "type": "object"
       },
+      "InfraServer": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "hetzner_id": {
+            "title": "Hetzner Id",
+            "type": "integer"
+          },
+          "ipv4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv4"
+          },
+          "ipv6": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv6"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plan": {
+            "title": "Plan",
+            "type": "string"
+          },
+          "private_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Private Ip"
+          }
+        },
+        "required": [
+          "hetzner_id",
+          "company",
+          "plan",
+          "name",
+          "ipv4",
+          "ipv6",
+          "private_ip",
+          "labels",
+          "created_at"
+        ],
+        "title": "InfraServer",
+        "type": "object"
+      },
+      "InfraServers": {
+        "additionalProperties": false,
+        "properties": {
+          "inventory": {
+            "$ref": "#/components/schemas/Inventory"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InfraServer"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "inventory"
+        ],
+        "title": "InfraServers",
+        "type": "object"
+      },
       "InjectPolicy": {
         "additionalProperties": false,
         "properties": {
@@ -8098,6 +8583,59 @@
           "next_cursor"
         ],
         "title": "InteractionPage",
+        "type": "object"
+      },
+      "Inventory": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          },
+          "servers": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Servers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fetched_at",
+          "ok"
+        ],
+        "title": "Inventory",
         "type": "object"
       },
       "KillSwitch": {
@@ -10036,6 +10574,13 @@
             "title": "Morning Report At",
             "type": "string"
           },
+          "provision_ssh_sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Provision Ssh Sources",
+            "type": "array"
+          },
           "timezone": {
             "title": "Timezone",
             "type": "string"
@@ -10134,6 +10679,21 @@
               }
             ],
             "title": "Morning Report At"
+          },
+          "provision_ssh_sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provision Ssh Sources"
           },
           "timezone": {
             "anyOf": [
@@ -10461,6 +11021,33 @@
         "title": "Page[Finding]",
         "type": "object"
       },
+      "Page_Founding_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Founding"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Founding]",
+        "type": "object"
+      },
       "Page_Inquiry_": {
         "properties": {
           "items": {
@@ -10783,6 +11370,165 @@
           "items"
         ],
         "title": "Page[Work]",
+        "type": "object"
+      },
+      "PlanIn": {
+        "additionalProperties": false,
+        "description": "server.plan: a new plan, or a new version of one (`ref`).",
+        "properties": {
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "firewall": {
+            "items": {
+              "$ref": "#/components/schemas/FirewallRule"
+            },
+            "maxItems": 50,
+            "title": "Firewall",
+            "type": "array"
+          },
+          "founding": {
+            "anyOf": [
+              {
+                "pattern": "^C-[0-9]{4,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Founding"
+          },
+          "location": {
+            "maxLength": 10,
+            "minLength": 2,
+            "title": "Location",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 63,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "private_network": {
+            "default": false,
+            "title": "Private Network",
+            "type": "boolean"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "pattern": "^PV-[0-9]{4,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
+          },
+          "software": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Software",
+            "type": "array"
+          },
+          "type": {
+            "maxLength": 10,
+            "minLength": 2,
+            "title": "Type",
+            "type": "string"
+          },
+          "work_user": {
+            "maxLength": 32,
+            "minLength": 2,
+            "title": "Work User",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "name",
+          "type",
+          "location",
+          "software",
+          "work_user"
+        ],
+        "title": "PlanIn",
+        "type": "object"
+      },
+      "PlanPrice": {
+        "description": "Where `monthly_eur` came from (§18.16): Hetzner's monthly net prices, EUR.",
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "ipv4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv4"
+          },
+          "network": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server"
+          },
+          "source": {
+            "default": "",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "title": "PlanPrice",
         "type": "object"
       },
       "Planner": {
@@ -11788,6 +12534,98 @@
           "notes"
         ],
         "title": "ProtocolRun",
+        "type": "object"
+      },
+      "ProvisionRun": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "login": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login"
+          },
+          "plan": {
+            "title": "Plan",
+            "type": "string"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunServer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/hq_api__domain__founding__Step"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "plan",
+          "state",
+          "steps",
+          "server",
+          "login",
+          "created_at"
+        ],
+        "title": "ProvisionRun",
         "type": "object"
       },
       "PublicKeyCredential": {
@@ -13235,6 +14073,59 @@
         "title": "RunDetail",
         "type": "object"
       },
+      "RunServer": {
+        "properties": {
+          "host_keys": {
+            "items": {
+              "$ref": "#/components/schemas/HostKey"
+            },
+            "title": "Host Keys",
+            "type": "array"
+          },
+          "ipv4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv4"
+          },
+          "ipv6": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv6"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "private_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Private Ip"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "RunServer",
+        "type": "object"
+      },
       "Schedule": {
         "properties": {
           "next_at": {
@@ -13674,6 +14565,246 @@
           "reply"
         ],
         "title": "Sent",
+        "type": "object"
+      },
+      "ServerIn": {
+        "additionalProperties": false,
+        "properties": {
+          "hetzner_id": {
+            "minimum": 1.0,
+            "title": "Hetzner Id",
+            "type": "integer"
+          },
+          "ipv4": {
+            "anyOf": [
+              {
+                "maxLength": 45,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv4"
+          },
+          "ipv6": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv6"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 63,
+            "title": "Name",
+            "type": "string"
+          },
+          "private_ip": {
+            "anyOf": [
+              {
+                "maxLength": 45,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Private Ip"
+          }
+        },
+        "required": [
+          "hetzner_id",
+          "name"
+        ],
+        "title": "ServerIn",
+        "type": "object"
+      },
+      "ServerPlan": {
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "decision_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Ref"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "firewall": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Firewall",
+            "type": "array"
+          },
+          "founding": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Founding"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image": {
+            "title": "Image",
+            "type": "string"
+          },
+          "location": {
+            "title": "Location",
+            "type": "string"
+          },
+          "monthly_eur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Eur"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanPrice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "private_network": {
+            "title": "Private Network",
+            "type": "boolean"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run"
+          },
+          "sealed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sealed At"
+          },
+          "software": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Software",
+            "type": "array"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "version": {
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "work_user": {
+            "title": "Work User",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "founding",
+          "company",
+          "name",
+          "type",
+          "location",
+          "image",
+          "private_network",
+          "firewall",
+          "software",
+          "work_user",
+          "repo",
+          "monthly_eur",
+          "digest",
+          "state",
+          "decision_ref",
+          "run"
+        ],
+        "title": "ServerPlan",
         "type": "object"
       },
       "ServiceAccount": {
@@ -14591,6 +15722,42 @@
         "title": "Snapshot",
         "type": "object"
       },
+      "Source": {
+        "additionalProperties": false,
+        "properties": {
+          "brief_md": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "repo",
+              "idea"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "Source",
+        "type": "object"
+      },
       "StandingOrder": {
         "properties": {
           "applies_to": {
@@ -14972,41 +16139,6 @@
           "outcome"
         ],
         "title": "StepAction",
-        "type": "object"
-      },
-      "StepIn": {
-        "additionalProperties": false,
-        "properties": {
-          "data": {
-            "additionalProperties": true,
-            "title": "Data",
-            "type": "object"
-          },
-          "kind": {
-            "enum": [
-              "search",
-              "read",
-              "browse",
-              "request",
-              "draft",
-              "note",
-              "proposal"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "summary_fa": {
-            "maxLength": 2000,
-            "minLength": 1,
-            "title": "Summary Fa",
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "summary_fa"
-        ],
-        "title": "StepIn",
         "type": "object"
       },
       "StepUpOptionsIn": {
@@ -17948,6 +19080,31 @@
         "title": "RunTokens",
         "type": "object"
       },
+      "hq_api__domain__errands__FinishIn": {
+        "additionalProperties": false,
+        "properties": {
+          "file_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "File Ids",
+            "type": "array"
+          },
+          "result_md": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Result Md",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result_md"
+        ],
+        "title": "FinishIn",
+        "type": "object"
+      },
       "hq_api__domain__errands__Step": {
         "properties": {
           "at": {
@@ -17978,6 +19135,41 @@
         "title": "Step",
         "type": "object"
       },
+      "hq_api__domain__errands__StepIn": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "kind": {
+            "enum": [
+              "search",
+              "read",
+              "browse",
+              "request",
+              "draft",
+              "note",
+              "proposal"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "summary_fa": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Summary Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "summary_fa"
+        ],
+        "title": "StepIn",
+        "type": "object"
+      },
       "hq_api__domain__errands__Usage": {
         "properties": {
           "input_tokens": {
@@ -18000,6 +19192,66 @@
           "output_tokens"
         ],
         "title": "Usage",
+        "type": "object"
+      },
+      "hq_api__domain__founding__Step": {
+        "properties": {
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "log_tail": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Log Tail",
+            "type": "array"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "state"
+        ],
+        "title": "Step",
         "type": "object"
       },
       "hq_api__domain__inquiries__AnswerIn": {
@@ -18299,6 +19551,105 @@
           "class"
         ],
         "title": "ReserveIn",
+        "type": "object"
+      },
+      "hq_api__routes__founding__FinishIn": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "login": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login"
+          },
+          "state": {
+            "enum": [
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "FinishIn",
+        "type": "object"
+      },
+      "hq_api__routes__founding__StepIn": {
+        "additionalProperties": false,
+        "properties": {
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "key": {
+            "maxLength": 40,
+            "title": "Key",
+            "type": "string"
+          },
+          "log_tail": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Log Tail",
+            "type": "array"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "state"
+        ],
+        "title": "StepIn",
         "type": "object"
       },
       "hq_api__routes__notifications__AnswerIn": {
@@ -23588,7 +24939,9 @@
                     "errand_action",
                     "lesson_adoption",
                     "protocol",
-                    "tool_enable"
+                    "tool_enable",
+                    "company_found",
+                    "server_plan"
                   ],
                   "type": "string"
                 },
@@ -27516,6 +28869,856 @@
         ]
       }
     },
+    "/api/v1/foundings": {
+      "get": {
+        "description": "A `Page`, newest first (§18.16).",
+        "operationId": "list_foundings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 20,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "audit": {
+                        "deliverable": "O-000456",
+                        "report_md": "x",
+                        "scores": {},
+                        "session_ref": "x"
+                      },
+                      "audit_work": "x",
+                      "brand": {
+                        "state": "missing",
+                        "version": 1
+                      },
+                      "code": "TY",
+                      "company": "TY",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "created_by": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
+                      "decision_ref": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "name_en": "TradeYar",
+                      "name_fa": "تریدیار",
+                      "plan": "x",
+                      "plan_detail": {
+                        "company": "TY",
+                        "decision_ref": "x",
+                        "digest": "x",
+                        "firewall": [
+                          {}
+                        ],
+                        "founding": "x",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "image": "x",
+                        "location": "x",
+                        "monthly_eur": "x",
+                        "name": "report.pdf",
+                        "price": {
+                          "at": null,
+                          "ipv4": null,
+                          "network": null,
+                          "server": null,
+                          "source": null
+                        },
+                        "private_network": false,
+                        "problems": [
+                          "x"
+                        ],
+                        "ref": "W-000789",
+                        "repo": "x",
+                        "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "sealed_at": "2026-10-17T05:42:00Z",
+                        "software": [
+                          "x"
+                        ],
+                        "state": "x",
+                        "type": "x",
+                        "version": 1,
+                        "work_user": "x"
+                      },
+                      "proposal": {},
+                      "proposal_work": "x",
+                      "ref": "W-000789",
+                      "source": {
+                        "brief_md": "x",
+                        "kind": "repo",
+                        "repo": "x"
+                      },
+                      "state": "x",
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "workspace": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Founding_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Foundings",
+        "tags": [
+          "founding"
+        ]
+      },
+      "post": {
+        "description": "Opens the read-only audit of the repository (a workshop session under an\nautomatic read-only grant once a runtime exists; else github.read and\nreading, no execution), or for an idea the proposal straight away.\nRequires `Idempotency-Key`.",
+        "operationId": "create_founding",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "source": {
+                  "brief_md": "x",
+                  "kind": "repo",
+                  "repo": "x"
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FoundingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "audit": {
+                    "deliverable": "O-000456",
+                    "report_md": "x",
+                    "scores": {},
+                    "session_ref": "x"
+                  },
+                  "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
+                  "code": "TY",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "created_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "decision_ref": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "name_en": "TradeYar",
+                  "name_fa": "تریدیار",
+                  "plan": "x",
+                  "plan_detail": {
+                    "company": "TY",
+                    "decision_ref": "x",
+                    "digest": "x",
+                    "firewall": [
+                      {}
+                    ],
+                    "founding": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "image": "x",
+                    "location": "x",
+                    "monthly_eur": "x",
+                    "name": "report.pdf",
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
+                    "private_network": false,
+                    "problems": [
+                      "x"
+                    ],
+                    "ref": "W-000789",
+                    "repo": "x",
+                    "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "sealed_at": "2026-10-17T05:42:00Z",
+                    "software": [
+                      "x"
+                    ],
+                    "state": "x",
+                    "type": "x",
+                    "version": 1,
+                    "work_user": "x"
+                  },
+                  "proposal": {},
+                  "proposal_work": "x",
+                  "ref": "W-000789",
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
+                  "state": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspace": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Founding"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Create Founding",
+        "tags": [
+          "founding"
+        ]
+      }
+    },
+    "/api/v1/foundings/{ref}": {
+      "get": {
+        "description": "One founding with its audit, proposal, card and server plan.",
+        "operationId": "get_founding",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "audit": {
+                    "deliverable": "O-000456",
+                    "report_md": "x",
+                    "scores": {},
+                    "session_ref": "x"
+                  },
+                  "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
+                  "code": "TY",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "created_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "decision_ref": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "name_en": "TradeYar",
+                  "name_fa": "تریدیار",
+                  "plan": "x",
+                  "plan_detail": {
+                    "company": "TY",
+                    "decision_ref": "x",
+                    "digest": "x",
+                    "firewall": [
+                      {}
+                    ],
+                    "founding": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "image": "x",
+                    "location": "x",
+                    "monthly_eur": "x",
+                    "name": "report.pdf",
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
+                    "private_network": false,
+                    "problems": [
+                      "x"
+                    ],
+                    "ref": "W-000789",
+                    "repo": "x",
+                    "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "sealed_at": "2026-10-17T05:42:00Z",
+                    "software": [
+                      "x"
+                    ],
+                    "state": "x",
+                    "type": "x",
+                    "version": 1,
+                    "work_user": "x"
+                  },
+                  "proposal": {},
+                  "proposal_work": "x",
+                  "ref": "W-000789",
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
+                  "state": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspace": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Founding"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Founding",
+        "tags": [
+          "founding"
+        ]
+      }
+    },
+    "/api/v1/foundings/{ref}/activate": {
+      "post": {
+        "description": "🔏 step-up `founding.activate`, target = the ref: after the owner logged\nin on the new server, the company goes live and its CEO starts.",
+        "operationId": "activate_founding",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "audit": {
+                    "deliverable": "O-000456",
+                    "report_md": "x",
+                    "scores": {},
+                    "session_ref": "x"
+                  },
+                  "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
+                  "code": "TY",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "created_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "decision_ref": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "name_en": "TradeYar",
+                  "name_fa": "تریدیار",
+                  "plan": "x",
+                  "plan_detail": {
+                    "company": "TY",
+                    "decision_ref": "x",
+                    "digest": "x",
+                    "firewall": [
+                      {}
+                    ],
+                    "founding": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "image": "x",
+                    "location": "x",
+                    "monthly_eur": "x",
+                    "name": "report.pdf",
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
+                    "private_network": false,
+                    "problems": [
+                      "x"
+                    ],
+                    "ref": "W-000789",
+                    "repo": "x",
+                    "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "sealed_at": "2026-10-17T05:42:00Z",
+                    "software": [
+                      "x"
+                    ],
+                    "state": "x",
+                    "type": "x",
+                    "version": 1,
+                    "work_user": "x"
+                  },
+                  "proposal": {},
+                  "proposal_work": "x",
+                  "ref": "W-000789",
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
+                  "state": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspace": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Founding"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Activate Founding",
+        "tags": [
+          "founding"
+        ]
+      }
+    },
+    "/api/v1/foundings/{ref}/cancel": {
+      "post": {
+        "description": "Before it is active, and not while a build runs; it closes everything\n(§18.16): its pending cards are withdrawn, a sealed but unrun plan is\nproposed again, its audit and proposal work is cancelled and its workshop\nsession stops. A company already made stays (paused), never deleted.\nRequires `Idempotency-Key`.",
+        "operationId": "cancel_founding",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "audit": {
+                    "deliverable": "O-000456",
+                    "report_md": "x",
+                    "scores": {},
+                    "session_ref": "x"
+                  },
+                  "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
+                  "code": "TY",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "created_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "decision_ref": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "name_en": "TradeYar",
+                  "name_fa": "تریدیار",
+                  "plan": "x",
+                  "plan_detail": {
+                    "company": "TY",
+                    "decision_ref": "x",
+                    "digest": "x",
+                    "firewall": [
+                      {}
+                    ],
+                    "founding": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "image": "x",
+                    "location": "x",
+                    "monthly_eur": "x",
+                    "name": "report.pdf",
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
+                    "private_network": false,
+                    "problems": [
+                      "x"
+                    ],
+                    "ref": "W-000789",
+                    "repo": "x",
+                    "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "sealed_at": "2026-10-17T05:42:00Z",
+                    "software": [
+                      "x"
+                    ],
+                    "state": "x",
+                    "type": "x",
+                    "version": 1,
+                    "work_user": "x"
+                  },
+                  "proposal": {},
+                  "proposal_work": "x",
+                  "ref": "W-000789",
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
+                  "state": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspace": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Founding"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Cancel Founding",
+        "tags": [
+          "founding"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "description": "Liveness without authentication: `{status}` only, nothing else.",
@@ -27589,6 +29792,106 @@
         "summary": "Get Inbox Summary",
         "tags": [
           "inbox"
+        ]
+      }
+    },
+    "/api/v1/infra/servers": {
+      "get": {
+        "description": "Read-only: the servers the provisioner made, and the latest listing of\nthe Hetzner project (refreshed here while the provisioner is on). There is\nno delete: the owner removes a server in the Hetzner console.",
+        "operationId": "infra_servers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "inventory": {
+                    "error": "x",
+                    "fetched_at": "2026-10-17T05:42:00Z",
+                    "ok": false,
+                    "servers": [
+                      {}
+                    ]
+                  },
+                  "items": [
+                    {
+                      "company": "TY",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "hetzner_id": 1,
+                      "ipv4": "x",
+                      "ipv6": "x",
+                      "labels": {},
+                      "name": "report.pdf",
+                      "plan": "x",
+                      "private_ip": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/InfraServers"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Infra Servers",
+        "tags": [
+          "founding"
         ]
       }
     },
@@ -32441,6 +34744,9 @@
                   "digest_minutes": 1,
                   "learning_daily_cap": 1,
                   "morning_report_at": "08:00:00",
+                  "provision_ssh_sources": [
+                    "x"
+                  ],
                   "timezone": "Asia/Tehran",
                   "version": 1,
                   "watch_after_hours": 1
@@ -32483,6 +34789,9 @@
                 "digest_minutes": 5,
                 "learning_daily_cap": 0,
                 "morning_report_at": "08:00:00",
+                "provision_ssh_sources": [
+                  "x"
+                ],
                 "timezone": "Asia/Tehran",
                 "watch_after_hours": 1
               },
@@ -32505,6 +34814,9 @@
                   "digest_minutes": 1,
                   "learning_daily_cap": 1,
                   "morning_report_at": "08:00:00",
+                  "provision_ssh_sources": [
+                    "x"
+                  ],
                   "timezone": "Asia/Tehran",
                   "version": 1,
                   "watch_after_hours": 1
@@ -32711,6 +35023,796 @@
         "summary": "Planner",
         "tags": [
           "work"
+        ]
+      }
+    },
+    "/api/v1/provisioning/callback": {
+      "post": {
+        "description": "Public, the new server's single report (cloud-init's last step), with\nits one-time token as `Authorization: Bearer` (never in the URL: it would\nbe in the access log). Valid 60 minutes, once; anything else is 401.",
+        "operationId": "provisioning_callback",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Provisioning Callback",
+        "tags": [
+          "founding"
+        ]
+      }
+    },
+    "/api/v1/provisioning/plans": {
+      "get": {
+        "description": "Server plans, newest first.",
+        "operationId": "list_plans",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 20,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 10,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "company": "TY",
+                    "decision_ref": "x",
+                    "digest": "x",
+                    "firewall": [
+                      {}
+                    ],
+                    "founding": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "image": "x",
+                    "location": "x",
+                    "monthly_eur": "x",
+                    "name": "report.pdf",
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
+                    "private_network": false,
+                    "problems": [
+                      "x"
+                    ],
+                    "ref": "W-000789",
+                    "repo": "x",
+                    "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "sealed_at": "2026-10-17T05:42:00Z",
+                    "software": [
+                      "x"
+                    ],
+                    "state": "x",
+                    "type": "x",
+                    "version": 1,
+                    "work_user": "x"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ServerPlan"
+                  },
+                  "title": "Response List Plans",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Plans",
+        "tags": [
+          "founding"
+        ]
+      }
+    },
+    "/api/v1/provisioning/plans/{ref}": {
+      "get": {
+        "description": "The plan with its digest (the step-up target of its seal) and what\nstops a seal. A proposed plan without a price gets one first, if the\nprovisioner is on (the digest then changes, before the owner sees it).",
+        "operationId": "get_plan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "decision_ref": "x",
+                  "digest": "x",
+                  "firewall": [
+                    {}
+                  ],
+                  "founding": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "image": "x",
+                  "location": "x",
+                  "monthly_eur": "x",
+                  "name": "report.pdf",
+                  "price": {
+                    "at": "x",
+                    "ipv4": "x",
+                    "network": "x",
+                    "server": "x",
+                    "source": "x"
+                  },
+                  "private_network": false,
+                  "problems": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "repo": "x",
+                  "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "software": [
+                    "x"
+                  ],
+                  "state": "x",
+                  "type": "x",
+                  "version": 1,
+                  "work_user": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ServerPlan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Plan",
+        "tags": [
+          "founding"
+        ]
+      }
+    },
+    "/api/v1/provisioning/plans/{ref}/seal": {
+      "post": {
+        "description": "🔏 step-up `provision.seal`, target = the plan's `digest` (recomputed\nhere: a plan changed after the owner saw it cannot be sealed with that\nstep-up). The A3 seal that spends money; the provisioner builds it.",
+        "operationId": "seal_plan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "decision_ref": "x",
+                  "digest": "x",
+                  "firewall": [
+                    {}
+                  ],
+                  "founding": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "image": "x",
+                  "location": "x",
+                  "monthly_eur": "x",
+                  "name": "report.pdf",
+                  "price": {
+                    "at": "x",
+                    "ipv4": "x",
+                    "network": "x",
+                    "server": "x",
+                    "source": "x"
+                  },
+                  "private_network": false,
+                  "problems": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "repo": "x",
+                  "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "software": [
+                    "x"
+                  ],
+                  "state": "x",
+                  "type": "x",
+                  "version": 1,
+                  "work_user": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ServerPlan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Seal Plan",
+        "tags": [
+          "founding"
+        ]
+      }
+    },
+    "/api/v1/provisioning/runs/{id}": {
+      "get": {
+        "description": "A build of a sealed plan: its steps (with a short log each), the server and the login.",
+        "operationId": "get_provision_run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "error": {},
+                  "finished_at": "2026-10-17T05:42:00Z",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "login": {},
+                  "plan": "x",
+                  "server": {
+                    "host_keys": [
+                      {
+                        "fingerprint_sha256": "x",
+                        "type": "x"
+                      }
+                    ],
+                    "ipv4": "x",
+                    "ipv6": "x",
+                    "name": "report.pdf",
+                    "private_ip": "x"
+                  },
+                  "state": "queued",
+                  "steps": [
+                    {
+                      "finished_at": "2026-10-17T05:42:00Z",
+                      "key": "x",
+                      "log_tail": [
+                        "x"
+                      ],
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "state": "pending",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisionRun"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Provision Run",
+        "tags": [
+          "founding"
+        ]
+      }
+    },
+    "/api/v1/provisioning/runs/{id}/live": {
+      "get": {
+        "description": "SSE of the run's step events (`id:` = seq); resumes after\n`Last-Event-ID`; ends when the run is done or failed.",
+        "operationId": "run_live",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": null,
+                "schema": {
+                  "title": "Response Run Live"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Run Live",
+        "tags": [
+          "founding"
+        ]
+      }
+    },
+    "/api/v1/provisioning/runs/{id}/resume": {
+      "post": {
+        "description": "⟨additive⟩ A failed run continues from its first step not done (the\nsame sealed plan; nothing is made twice). Requires `Idempotency-Key`.",
+        "operationId": "resume_provision_run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "error": {},
+                  "finished_at": "2026-10-17T05:42:00Z",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "login": {},
+                  "plan": "x",
+                  "server": {
+                    "host_keys": [
+                      {
+                        "fingerprint_sha256": "x",
+                        "type": "x"
+                      }
+                    ],
+                    "ipv4": "x",
+                    "ipv6": "x",
+                    "name": "report.pdf",
+                    "private_ip": "x"
+                  },
+                  "state": "queued",
+                  "steps": [
+                    {
+                      "finished_at": "2026-10-17T05:42:00Z",
+                      "key": "x",
+                      "log_tail": [
+                        "x"
+                      ],
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "state": "pending",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisionRun"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Resume Provision Run",
+        "tags": [
+          "founding"
         ]
       }
     },
@@ -44761,7 +47863,7 @@
                 "result_md": "x"
               },
               "schema": {
-                "$ref": "#/components/schemas/FinishIn"
+                "$ref": "#/components/schemas/hq_api__domain__errands__FinishIn"
               }
             }
           },
@@ -44924,7 +48026,7 @@
                 "summary_fa": "x"
               },
               "schema": {
-                "$ref": "#/components/schemas/StepIn"
+                "$ref": "#/components/schemas/hq_api__domain__errands__StepIn"
               }
             }
           },
@@ -48086,6 +51188,671 @@
           }
         },
         "summary": "Planner Add",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/provisioning/plans": {
+      "post": {
+        "description": "server.plan (A1; a CTO for its own company, a holding role for any and\nfor a founding): a plan with its cost; the owner seals it, the provisioner\n(code, not an agent) builds it. A founding's plan waits for the company to\nexist. Plans of a founding are written by holding roles only (§18.16):\nanyone else is refused before the founding is even looked at.",
+        "operationId": "agent_server_plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "firewall": [
+                  {
+                    "direction": "in",
+                    "note_fa": "x",
+                    "port": "x",
+                    "protocol": "tcp",
+                    "sources": [
+                      "x"
+                    ]
+                  }
+                ],
+                "founding": "x",
+                "location": "xx",
+                "name": "report.pdf",
+                "private_network": false,
+                "ref": "W-000789",
+                "repo": "x",
+                "software": [
+                  "x"
+                ],
+                "type": "xx",
+                "work_user": "xx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PlanIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "decision_ref": "x",
+                  "digest": "x",
+                  "firewall": [
+                    {}
+                  ],
+                  "founding": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "image": "x",
+                  "location": "x",
+                  "monthly_eur": "x",
+                  "name": "report.pdf",
+                  "price": {
+                    "at": "x",
+                    "ipv4": "x",
+                    "network": "x",
+                    "server": "x",
+                    "source": "x"
+                  },
+                  "private_network": false,
+                  "problems": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "repo": "x",
+                  "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "software": [
+                    "x"
+                  ],
+                  "state": "x",
+                  "type": "x",
+                  "version": 1,
+                  "work_user": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ServerPlan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Agent Server Plan",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/provisioning/runs/next": {
+      "get": {
+        "description": "The next run of a SEALED plan (204: none). A plan whose digest is not\nits seal any more is never handed out: its seal is voided instead.",
+        "operationId": "runs_next",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": null,
+                "schema": {
+                  "title": "Response Runs Next"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runs Next",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/provisioning/runs/{id}": {
+      "get": {
+        "description": "The run's state and the new server's report (`cloud_init`), once it came.",
+        "operationId": "runs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": null,
+                "schema": {
+                  "title": "Response Runs Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Runs Get",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/provisioning/runs/{id}/callback": {
+      "post": {
+        "description": "The one-time token's sha256 (the plaintext only goes into the new\nserver's user data); valid at most 60 minutes.",
+        "operationId": "runs_callback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "expires_at": "2026-10-17T05:42:00Z",
+                "token_sha256": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CallbackToken"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runs Callback",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/provisioning/runs/{id}/finish": {
+      "post": {
+        "description": "Done (the login) or failed (the step): the owner is told either way.",
+        "operationId": "runs_finish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "error": {},
+                "login": {},
+                "state": "done"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/hq_api__routes__founding__FinishIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runs Finish",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/provisioning/runs/{id}/server": {
+      "post": {
+        "description": "The server the run made (only a labelled one of ours is recorded).",
+        "operationId": "runs_server",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "hetzner_id": 1,
+                "ipv4": "x",
+                "ipv6": "x",
+                "labels": {},
+                "name": "report.pdf",
+                "private_ip": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ServerIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runs Server",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/provisioning/runs/{id}/steps": {
+      "post": {
+        "description": "One step's state and log tail (masked); the owner follows them live.",
+        "operationId": "runs_step",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "finished_at": "2026-10-17T05:42:00Z",
+                "key": "x",
+                "log_tail": [
+                  "x"
+                ],
+                "started_at": "2026-10-17T05:42:00Z",
+                "state": "running"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/hq_api__routes__founding__StepIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runs Step",
         "tags": [
           "internal"
         ]
