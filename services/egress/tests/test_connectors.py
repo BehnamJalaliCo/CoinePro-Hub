@@ -60,7 +60,11 @@ class FakeLbank:
             return {"result": "true", "data": [[int(q.get("time", 0)), "1", "2", "0.5", close, "9"]],
                     "error_code": 0}  # fmt: skip
         if form.get("sign") != lbank_v2_sign(form, SECRET_KEY) or form.get("api_key") != API_KEY:
-            return {"result": "false", "error_code": 10002, "msg": f"bad sign {form.get('api_key')}"}
+            return {
+                "result": "false",
+                "error_code": 10002,
+                "msg": f"bad sign {form.get('api_key')}",
+            }
         name = path.removeprefix("/affiliate-api/v2/")
         start = int(form.get("start", 0))
         if name == "commission/stats/symbol/list":
@@ -160,7 +164,12 @@ def test_the_lbank_v2_signature_is_the_documented_one() -> None:
     with pytest.raises(ValueError):
         split_pair("no-colon-here")
     acct = Account.model_validate(
-        {"key": "k1", "site": "acct.test", "secret": PAIR, "inject": {"kind": "signer", "signer": "lbank-v2"}}
+        {
+            "key": "k1",
+            "site": "acct.test",
+            "secret": PAIR,
+            "inject": {"kind": "signer", "signer": "lbank-v2"},
+        }
     )
     assert {PAIR, API_KEY, SECRET_KEY} <= set(acct.secrets())
     assert acct.headers_for("acct.test", {}) == {}  # a signer injects nothing anywhere
@@ -182,11 +191,19 @@ async def test_a_signed_pull_reduces_and_never_returns_the_secret(
     r = (await c.post("/v1/connectors/call", json=_call(
         "commission/stats/symbol/list", acct, params={**span, "tradeType": 10}))).json()  # fmt: skip
     assert r["outcome"] == "ok", r
-    assert r["data"]["rows"] == [{"coin": "eth", "amount": "0.01"}, {"coin": "usdt", "amount": "12"}]
+    assert r["data"]["rows"] == [
+        {"coin": "eth", "amount": "0.01"},
+        {"coin": "usdt", "amount": "12"},
+    ]
     sent = fake.seen[-1]
-    assert sent["method"] == "POST" and sent["path"] == "/affiliate-api/v2/commission/stats/symbol/list"
+    assert (
+        sent["method"] == "POST"
+        and sent["path"] == "/affiliate-api/v2/commission/stats/symbol/list"
+    )
     assert sent["form"]["tradeType"] == "10" and sent["headers"]["signature_method"] == "HmacSHA256"
-    assert [e["host"] for e in r["entries"]] == ["acct.test"] and r["entries"][0]["tool"] == "revenue.pull"
+    assert [e["host"] for e in r["entries"]] == ["acct.test"] and r["entries"][0][
+        "tool"
+    ] == "revenue.pull"
     # The team list: per invitee the UID, the day and meets_minimum only; the
     # balance, the e-mail and the name never leave egress.
     r = (await c.post("/v1/connectors/call", json=_call(
@@ -231,7 +248,10 @@ async def test_connector_refusals(lbank: Any) -> None:
         ({**_call("trade/user/team", acct), "adapter": "lbank-trading"}, "unknown_endpoint"),
         (_call("trade/user/team", None), "policy_denied"),  # a signed endpoint needs its signer
         (_call("trade/user/team", {**acct, "inject": {"kind": "bearer"}}), "policy_denied"),
-        (_call("kline", acct, params={"symbol": "eth_usdt"}), "policy_denied"),  # keyless stays keyless
+        (
+            _call("kline", acct, params={"symbol": "eth_usdt"}),
+            "policy_denied",
+        ),  # keyless stays keyless
         (_call("trade/user/team", acct, params={"withdraw": 1}), "invalid_args"),
         (_call("trade/user/team", acct, local={"min_balance": 1}), "invalid_args"),
     ]
@@ -242,7 +262,11 @@ async def test_connector_refusals(lbank: Any) -> None:
     # A bad signature (another secret): LBank's error code only, never its text.
     r = (await c.post("/v1/connectors/call", json=_call(
         "trade/user/team", {**acct, "secret": "ak-other:sk-other-secret"}))).json()  # fmt: skip
-    assert (r["outcome"], r["code"], r["data"]) == ("error", "upstream_error", {"error_code": 10002})
+    assert (r["outcome"], r["code"], r["data"]) == (
+        "error",
+        "upstream_error",
+        {"error_code": 10002},
+    )
     assert "bad sign" not in json.dumps(r) and "ak-other" not in json.dumps(r)
     r = (await c.post("/v1/connectors/call", json=_call(
         "trade/user/team", {**acct, "secret": "no-colon"}))).json()  # fmt: skip
@@ -288,7 +312,9 @@ async def test_a_busy_account_answers_rate_limited(lbank: Any) -> None:
     bucket = state.rates.of(K.LBANK, acct["key"])
     bucket.tokens = 0.0
     r = (await c.post("/v1/connectors/call", json=_call("trade/user/team", acct))).json()
-    assert (r["outcome"], r["code"]) == ("error", "rate_limited") and r["data"]["retry_after_s"] >= 1
+    assert (r["outcome"], r["code"]) == ("error", "rate_limited") and r["data"][
+        "retry_after_s"
+    ] >= 1
     assert not fake.seen
 
 

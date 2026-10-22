@@ -47,7 +47,7 @@ class Signed:
 
 
 def split_pair(secret: str) -> tuple[str, str]:
-    """"<api_key>:<secret_key>" -> (api_key, secret_key)."""
+    """ "<api_key>:<secret_key>" -> (api_key, secret_key)."""
     api_key, sep, secret_key = secret.strip().partition(":")
     if not sep or not api_key or not secret_key:
         raise SignerError("this signer needs the secret as 'api_key:secret_key'")
@@ -75,7 +75,9 @@ def lbank_v2(
     ts = str(now_ms if now_ms is not None else int(time.time() * 1000))
     echo = echostr or "".join(secrets.choice(ECHO_ALPHABET) for _ in range(35))
     form = {str(k): str(v) for k, v in params.items()}
-    form.update({"api_key": api_key, "timestamp": ts, "signature_method": "HmacSHA256", "echostr": echo})
+    form.update(
+        {"api_key": api_key, "timestamp": ts, "signature_method": "HmacSHA256", "echostr": echo}
+    )
     form["sign"] = lbank_v2_sign(form, secret_key)
     headers = {"timestamp": ts, "signature_method": "HmacSHA256", "echostr": echo}
     return Signed(form, headers)

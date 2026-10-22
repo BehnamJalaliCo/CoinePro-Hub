@@ -548,7 +548,8 @@ async def _connector(state: State, a: ConnectorIn) -> JSONResponse:
     content: bytes | None = None
     params = {k: str(v) for k, v in a.params.items()}
     if ep.signed:
-        assert a.account is not None and a.account.inject.signer is not None
+        assert a.account is not None
+        assert a.account.inject.signer is not None
         try:
             signed = SIGNERS[a.account.inject.signer](params, a.account.secret)
         except SignerError:

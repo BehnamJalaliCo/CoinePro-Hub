@@ -81,7 +81,9 @@ def _rows(data: Any) -> tuple[list[dict[str, Any]], int | None]:
     if isinstance(data, dict):
         t = data.get("total")
         total = int(t) if isinstance(t, int | str) and str(t).isdigit() else None
-        data = next((data[k] for k in ("list", "records", "rows") if isinstance(data.get(k), list)), None)
+        data = next(
+            (data[k] for k in ("list", "records", "rows") if isinstance(data.get(k), list)), None
+        )
     if not isinstance(data, list) or len(data) > MAX_ROWS:
         raise Malformed("rows")
     if not all(isinstance(r, dict) for r in data):
@@ -121,7 +123,9 @@ def commission(data: Any, local: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Decimal] = {}
     for r in rows:
         coin = _coin(_first(r, ("coin", "asset", "symbol", "currency")))
-        amount = _decimal(_first(r, ("amount", "commission", "commissionAmount", "totalCommission")))
+        amount = _decimal(
+            _first(r, ("amount", "commission", "commissionAmount", "totalCommission"))
+        )
         if amount is None:
             raise Malformed("amount")
         out[coin] = out.get(coin, Decimal(0)) + amount
@@ -142,7 +146,9 @@ def team(data: Any, local: dict[str, Any]) -> dict[str, Any]:
         kept.append(
             {
                 "uid": uid,
-                "invited_on": _day(_first(r, ("registerTime", "inviteTime", "createTime", "regTime"))),
+                "invited_on": _day(
+                    _first(r, ("registerTime", "inviteTime", "createTime", "regTime"))
+                ),
                 "meets_minimum": _meets(r, local),
             }
         )
@@ -189,8 +195,10 @@ def user_info(data: Any, local: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise Malformed("info")
     flag = _first(data, ("isInvite", "invited", "isInvitee", "inviteFlag", "isTeam"))
-    invitee = flag in (True, 1, "1", "true", "True") if flag is not None else bool(
-        _first(data, ("uid", "openId", "userId"))
+    invitee = (
+        flag in (True, 1, "1", "true", "True")
+        if flag is not None
+        else bool(_first(data, ("uid", "openId", "userId")))
     )
     return {"invitee": invitee, "meets_minimum": _meets(data, local) if invitee else None}
 
@@ -199,7 +207,10 @@ def kline(data: Any, local: dict[str, Any]) -> dict[str, Any]:
     """The day's candle: [time, open, high, low, close, volume] -> its close."""
     if not isinstance(data, list) or not data or not isinstance(data[0], list) or len(data[0]) < 5:
         raise Malformed("kline")
-    return {"close": _amount(data[0][4]), "at": int(data[0][0]) if str(data[0][0]).isdigit() else None}
+    return {
+        "close": _amount(data[0][4]),
+        "at": int(data[0][0]) if str(data[0][0]).isdigit() else None,
+    }
 
 
 # ------------------------------------------------------------- adapters --
@@ -241,12 +252,18 @@ LBANK = Adapter(
         "trade/user/team": Endpoint(AFF + "trade/user/team", SPAN | {"tradeType"}, trade),
         "money/detail/list": Endpoint(AFF + "money/detail/list", SPAN | PAGE | {"type"}, deposits),
         "invite/user/info": Endpoint(
-            AFF + "invite/user/info", frozenset({"uid"}), user_info, local=frozenset({"min_balance"})
+            AFF + "invite/user/info",
+            frozenset({"uid"}),
+            user_info,
+            local=frozenset({"min_balance"}),
         ),
         "kline": Endpoint(
-            "/v2/kline.do", frozenset({"symbol", "size", "type", "time"}), kline,
-            signed=False, method="GET",
-        ),  # fmt: skip
+            "/v2/kline.do",
+            frozenset({"symbol", "size", "type", "time"}),
+            kline,
+            signed=False,
+            method="GET",
+        ),
     },
     public_url="lbank_public_url",
 )
