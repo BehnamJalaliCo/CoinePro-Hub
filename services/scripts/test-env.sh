@@ -90,6 +90,9 @@ run() {
   # The companies' flat marks and the design tokens (prompt 9.1: the brand seed), read-only.
   mounts+=(-v "$REPO_DIR/design/brand/companies:/brands:ro" -v "$REPO_DIR/design/tokens:/design-tokens:ro")
   extra+=(-e HQ_BRANDS_DIR=/brands -e HQ_DESIGN_TOKENS=/design-tokens/divan.tokens.json)
+  # The substitute players' reviewed web recipes (prompt 12 §9.1), read-only.
+  mounts+=(-v "$REPO_DIR/infra/egress/recipes:/recipes:ro")
+  extra+=(-e HQ_EGRESS_RECIPES=/recipes)
   if [[ "$TARGET" == api ]]; then
     mounts+=(-v "$API_DIR:/api:ro" -v "$REPO_DIR/infra/opa:/opa:ro")
     extra+=(-e TEST_TEMPORAL_ADDRESS=temporal:7233 -e TEST_OPA_URL=http://opa:8181)

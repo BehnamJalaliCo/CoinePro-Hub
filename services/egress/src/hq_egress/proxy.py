@@ -12,6 +12,15 @@ Three listeners, each accepting only its own network's clients:
 - provisioner (port 3130, prompt 09): the provisioner's only way out, CONNECT
   to an allow-list of hosts and port 443 only (api.hetzner.cloud); not an
   agent's tool call, so its entries go to egress's own log.
+- substitutes (port 3131, prompt 12 §9.1): the substitute runner's only way
+  out, CONNECT to the hosts its two CLIs need and 443 only (a pinned list;
+  egress's own log), like the provisioner's.
+- profile (port 3132, prompt 12 §9.1): the profile browser's (browser-web)
+  way out: every connection carries the Basic credential of one web job or
+  one web.browse call with a signed-in profile, and reaches only that site's
+  own hosts (the bucket's `hosts`).
+- login (port 3133): the owner's sign-in window (`make <x>-web-login`):
+  CONNECT to the three sites' own and sign-in hosts and 443 only.
 A tunnel's TLS is not opened: its host, port, size and time are logged. The
 hub's own names are refused for tunnels altogether (their paths cannot be
 seen inside TLS, and /internal must stay unreachable). A browse session's
@@ -36,6 +45,8 @@ from hq_egress.guard import Blocked, Guard
 from hq_egress.net import Entry
 
 log = logging.getLogger("hq_egress.proxy")
+# Listeners with a fixed host allow-list, CONNECT only (their own log lines).
+ALLOW_LIST_MODES = ("provisioner", "substitutes", "login")
 HEAD_MAX = 16 * 1024
 IDLE_S = 60.0
 LIFETIME_S = 180.0
@@ -63,6 +74,12 @@ class Bucket:
     entries: list[Entry] = field(default_factory=list)
     site: str | None = None  # a browse session's service account: its site
     ports: tuple[int, ...] = ()  # and the extra ports its policy lists
+    # A signed-in profile's session (prompt 12 §9.1): only these hosts (and
+    # their subdomains), whatever a page or a redirect names.
+    hosts: frozenset[str] | None = None
+
+    def host_allowed(self, host: str) -> bool:
+        return self.hosts is None or covered(host, self.hosts)
 
     def ports_for(self, host: str) -> tuple[int, ...]:
         """The account's extra ports, for its own site only (7.1)."""
@@ -86,14 +103,15 @@ class Buckets:
         *,
         site: str | None = None,
         ports: tuple[int, ...] = (),
+        hosts: frozenset[str] | None = None,
+        ttl_s: float | None = None,
     ) -> tuple[str, str]:
         """(key, secret) of a new bucket (a browse session's proxy login)."""
         self._sweep()
         key = key or "s" + secrets.token_hex(12)
         secret = secrets.token_urlsafe(24)
-        bucket = Bucket(
-            tool, cls, bytes_left, time.monotonic() + self.ttl_s, site=site, ports=ports
-        )
+        expires = time.monotonic() + (ttl_s or self.ttl_s)
+        bucket = Bucket(tool, cls, bytes_left, expires, site=site, ports=ports, hosts=hosts)
         self._items[key] = (secret, bucket)
         return key, secret
 
@@ -128,7 +146,7 @@ class Proxy:
         allowed_hosts: frozenset[str] = frozenset(),
         allowed_ports: tuple[int, ...] = (443,),
     ) -> None:
-        assert mode in ("browser", "gateway", "provisioner")
+        assert mode in ("browser", "gateway", *ALLOW_LIST_MODES, "profile")
         self.allowed_hosts = allowed_hosts
         self.allowed_ports = allowed_ports
         self.guard = guard
@@ -189,7 +207,7 @@ class Proxy:
             await _answer(writer, 407, "Proxy Authentication Required", extra)
             return
         method = method.upper()
-        if self.mode == "provisioner" and method != "CONNECT":
+        if self.mode in ALLOW_LIST_MODES and method != "CONNECT":
             await _answer(writer, 403, "Forbidden", {"X-Egress-Blocked": "connect_only"})
             return
         if method == "CONNECT":
@@ -200,10 +218,11 @@ class Proxy:
             await _answer(writer, 400, "Bad Request")
 
     def _bucket(self, low: dict[str, str]) -> Bucket | None:
-        if self.mode == "provisioner":
+        if self.mode in ALLOW_LIST_MODES:
             # One connection's own bucket (its cap and its log line).
-            return Bucket("provision", "A2", self.gateway_bytes, time.monotonic() + LIFETIME_S)
-        if self.mode == "browser":
+            names = {"provisioner": "provision", "substitutes": "substitute", "login": "web_login"}
+            return Bucket(names[self.mode], "A2", self.gateway_bytes, time.monotonic() + LIFETIME_S)
+        if self.mode in ("browser", "profile"):
             auth = low.get("proxy-authorization", "")
             if not auth.lower().startswith("basic "):
                 return None
@@ -231,6 +250,8 @@ class Proxy:
         try:
             if self.guard.is_hub(host):
                 raise Blocked("hub_internal")
+            if not bucket.host_allowed(host):
+                raise Blocked("host_not_allowed")
             self.guard.check_name(host)
             if port not in self.guard.ports_for(host, bucket.ports_for(host)):
                 raise Blocked("port_not_allowed")
@@ -264,19 +285,19 @@ class Proxy:
             await _answer(writer, 400, "Bad Request")
             return
         start = time.monotonic()
-        if self.mode == "provisioner" and (
-            host not in self.allowed_hosts or int(port_s) not in self.allowed_ports
+        if self.mode in ALLOW_LIST_MODES and (
+            not self._listed(host) or int(port_s) not in self.allowed_ports
         ):
             entry.blocked_reason = "host_not_allowed"
             log.warning(
-                "provisioner proxy: refused", extra={"host": host[:100], "port": port_s[:6]}
+                "%s proxy: refused", self.mode, extra={"host": host[:100], "port": port_s[:6]}
             )
             await _answer(writer, 403, "Forbidden", {"X-Egress-Blocked": "host_not_allowed"})
             return
         up = await self._connect(host, int(port_s), entry, bucket, writer)
         if up is None:
-            if self.mode == "provisioner":
-                log.warning("provisioner proxy: blocked", extra={"host": host[:100]})
+            if self.mode in ALLOW_LIST_MODES:
+                log.warning("%s proxy: blocked", self.mode, extra={"host": host[:100]})
             return
         entry.status = 200
         bucket.entries.append(entry)
@@ -284,9 +305,10 @@ class Proxy:
         await writer.drain()
         await _pipe_both(reader, writer, up, entry, bucket)
         entry.ms = int((time.monotonic() - start) * 1000)
-        if self.mode == "provisioner":
+        if self.mode in ALLOW_LIST_MODES:
             log.info(
-                "provisioner proxy",
+                "%s proxy",
+                self.mode,
                 extra={
                     "host": host,
                     "bytes_in": entry.bytes_in,
@@ -294,6 +316,13 @@ class Proxy:
                     "ms": entry.ms,
                 },
             )
+
+    def _listed(self, host: str) -> bool:
+        """The provisioner's hosts exactly; the substitute runner's and the
+        sign-in window's with their subdomains (a CDN of the same site)."""
+        if self.mode == "provisioner":
+            return host in self.allowed_hosts
+        return covered(host, self.allowed_hosts)
 
     async def _forward(
         self,
@@ -381,6 +410,12 @@ async def _pipe_both(
             t.cancel()
         with contextlib.suppress(Exception):
             up_w.close()
+
+
+def covered(host: str, hosts: frozenset[str]) -> bool:
+    """`host` is one of `hosts` or a subdomain of one."""
+    host = host.lower().rstrip(".")
+    return any(host == h or host.endswith("." + h) for h in hosts)
 
 
 def _origin_form(url: str) -> str:

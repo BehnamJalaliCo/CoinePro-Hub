@@ -10,6 +10,9 @@ hq-egress-api; a client from anywhere else is refused).
                            a fixed endpoint of an exchange, signed by a
                            reviewed signer, its answer reduced in egress
     POST /v1/support/send  a support message on Telegram or Chatwoot (the worker; support_out.py)
+    POST /v1/substitutes/web          one web job of a substitute player in its signed-in
+                                      browser profile (prompt 12 §9.1; substitutes_web.py)
+    POST /v1/substitutes/web/logout   that profile wiped
     GET  /v1/health
 
 Every answer is {outcome: ok | blocked | error, code, data, entries}: the
@@ -19,7 +22,8 @@ through the gateway. Web content is untrusted: `source: "web"`,
 service account's secret is scrubbed from a text before it is cut (7.1); a
 GET that commits (rules.get_commitment) is `needs_owner` like any other.
 An account with a signer (prompt 10 §2.2) is refused by every tool but a
-connector (`policy_denied`).
+connector (`policy_denied`). A signed-in profile's account (prompt 12 §9.1)
+serves web.browse only, in the profile browser, on its recipe's own hosts.
 """
 
 from __future__ import annotations
@@ -45,9 +49,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from hq_common import untrusted
-from hq_egress import __version__, support_out
+from hq_egress import __version__, substitutes_web, support_out
 from hq_egress import connectors as K
 from hq_egress import extract as X
+from hq_egress import recipes as RC
 from hq_egress.accounts import Account, margin, scrub, scrub_cut
 from hq_egress.config import Settings
 from hq_egress.guard import Blocked, Guard
@@ -171,6 +176,10 @@ class State:
         self.buckets = buckets
         self.fetcher = fetcher or Fetcher(guard, settings.fetch_timeout_s)
         self.rates = K.Buckets()  # the connectors' rate limits, per account
+        # The substitute players' reviewed recipes (prompt 12 §9.1), by account,
+        # and one web job (or profile browse) per account at a time.
+        self.recipes: dict[str, RC.Recipe] = RC.load(settings.recipes_dir)
+        self.web_locks: dict[str, asyncio.Lock] = {k: asyncio.Lock() for k in RC.ACCOUNTS}
         # The hub's own upstreams (SearXNG, the browser): fixed addresses, not agent input.
         self.internal = internal or httpx.AsyncClient(
             timeout=settings.browse_call_s + 15, trust_env=False
@@ -409,6 +418,8 @@ def build_app(state: State) -> FastAPI:
         if a.account is not None and a.account.is_signer:
             first = next((s.url for s in a.steps if s.url), None) or "about:blank"
             return _signer_refused("web.browse", "BROWSE", first, a.ctx.cls, a.account)
+        if a.account is not None and a.account.is_profile:
+            return await substitutes_web.profile_browse(state, a)
         ports = a.account.ports_for if a.account else None
         for i, s in enumerate(a.steps):
             if s.url:
@@ -459,33 +470,7 @@ def build_app(state: State) -> FastAPI:
         finally:
             entries = [track(e) for e in state.buckets.drain(key)]
             session.ms = int((time.monotonic() - start) * 1000)
-        entries = [session, *entries]
-        if not isinstance(got, dict):
-            session.status = 502
-            return answer("error", None, entries, "browser_unavailable", secrets)
-        if got.get("code") == "busy":
-            session.status = 503
-            return answer("error", None, entries, "browser_busy", secrets)
-        session.status = 200
-        if got.get("code") == "sign_in_failed":  # the account's own login, not the browser
-            return answer("error", None, entries, "sign_in_failed", secrets)
-        texts = [str(st.get("text") or "") for st in got.get("steps") or [] if isinstance(st, dict)]
-        files = [f for f in got.get("files") or [] if isinstance(f, dict)]
-        data = {
-            "final_url": got.get("final_url"),
-            "title": got.get("title"),
-            "steps": got.get("steps") or [],
-            "blocked": got.get("blocked"),
-            "source": "web",
-            "untrusted": True,
-            "fetched_at": _now(),
-            "suspected_injection": X.injection_flags(*scrub(texts, secrets)),
-        }
-        blocked = got.get("blocked")
-        if isinstance(blocked, dict) and blocked.get("code") == "needs_owner":
-            session.blocked_reason = "needs_owner"
-            return answer("blocked", data, entries, "needs_owner", secrets, files)
-        return answer("ok", data, entries, None, secrets, files)
+        return browse_result(got, [session, *entries], session, secrets)
 
     @app.post("/v1/connectors/call")
     @guarded
@@ -497,7 +482,41 @@ def build_app(state: State) -> FastAPI:
         return answer("ok", {"call_id": a.call_id}, state.buckets.drain(a.call_id))
 
     app.include_router(support_out.router)  # POST /v1/support/send (prompt 10 §4.2, §10)
+    app.include_router(substitutes_web.router)  # POST /v1/substitutes/web (prompt 12 §9.1)
     return app
+
+
+def browse_result(
+    got: Any, entries: list[Entry], session: Entry, secrets: list[str]
+) -> JSONResponse:
+    """web.browse's answer from the browser's (the shared one, or the profile
+    browser for a signed-in profile, prompt 12 §9.1)."""
+    if not isinstance(got, dict):
+        session.status = 502
+        return answer("error", None, entries, "browser_unavailable", secrets)
+    if got.get("code") == "busy":
+        session.status = 503
+        return answer("error", None, entries, "browser_busy", secrets)
+    session.status = 200
+    if got.get("code") == "sign_in_failed":  # the account's own login, not the browser
+        return answer("error", None, entries, "sign_in_failed", secrets)
+    texts = [str(st.get("text") or "") for st in got.get("steps") or [] if isinstance(st, dict)]
+    files = [f for f in got.get("files") or [] if isinstance(f, dict)]
+    data = {
+        "final_url": got.get("final_url"),
+        "title": got.get("title"),
+        "steps": got.get("steps") or [],
+        "blocked": got.get("blocked"),
+        "source": "web",
+        "untrusted": True,
+        "fetched_at": _now(),
+        "suspected_injection": X.injection_flags(*scrub(texts, secrets)),
+    }
+    blocked = got.get("blocked")
+    if isinstance(blocked, dict) and blocked.get("code") == "needs_owner":
+        session.blocked_reason = "needs_owner"
+        return answer("blocked", data, entries, "needs_owner", secrets, files)
+    return answer("ok", data, entries, None, secrets, files)
 
 
 async def _browser_run(state: State, payload: dict[str, Any], timeout: float) -> Any:  # noqa: ASYNC109

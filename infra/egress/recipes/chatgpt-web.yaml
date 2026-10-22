@@ -1,0 +1,53 @@
+# ChatGPT in the hub's signed-in browser profile `chatgpt-web` (prompt 12
+# §9.1.5, contract §21.13): text, and images on the owner's plan. A reviewed
+# file: a change here is a reviewed change, never an agent's write.
+# The selectors are written against chatgpt.com as documented on 2026-10-22
+# and are NOT yet verified on the live site (no sign-in exists until the
+# owner's `make chatgpt-web-login`); the first failing step falls back to one
+# Claude run with web.browse on this profile, which proposes the fix here.
+key: chatgpt-web
+version: "2026-10-22.1"
+site: chatgpt.com
+# A temporary chat: nothing of the job stays in the account's history.
+start_url: "https://chatgpt.com/?temporary-chat=true"
+# The only hosts the profile may reach (and their subdomains): the site, its
+# static and file hosts, and the challenge page it puts in front of a chat.
+hosts:
+  - chatgpt.com
+  - openai.com
+  - oaistatic.com
+  - oaiusercontent.com
+  - challenges.cloudflare.com
+# Beyond those, what the owner's sign-in window may reach (the sign-in
+# providers ChatGPT offers).
+login_hosts:
+  - accounts.google.com
+  - appleid.apple.com
+  - login.live.com
+  - login.microsoftonline.com
+expired:
+  url_contains: ["/auth/login", "/log-in", "auth.openai.com"]
+  selectors:
+    - "[data-testid=login-button]"
+    - "button:has-text('Log in')"
+tasks:
+  text:
+    timeout_s: 240
+    steps:
+      - {do: goto, url: "{start_url}"}
+      - {do: wait, selector: "#prompt-textarea", timeout_s: 30}
+      - {do: fill, selector: "#prompt-textarea", text: "{prompt}"}
+      - {do: click, selector: "[data-testid=send-button]"}
+      - {do: wait, selector: "[data-testid=stop-button]", timeout_s: 20, optional: true}
+      - {do: wait_gone, selector: "[data-testid=stop-button]", timeout_s: 200}
+      - {do: read, selector: "[data-message-author-role=assistant]"}
+  image:
+    timeout_s: 180
+    steps:
+      - {do: goto, url: "{start_url}"}
+      - {do: wait, selector: "#prompt-textarea", timeout_s: 30}
+      - {do: fill, selector: "#prompt-textarea", text: "{prompt}"}
+      - {do: click, selector: "[data-testid=send-button]"}
+      - {do: wait, selector: "img[alt^='Generated image']", timeout_s: 170}
+      - {do: wait_gone, selector: "[data-testid=stop-button]", timeout_s: 60}
+      - {do: download_image, selector: "img[alt^='Generated image']", attr: src}
