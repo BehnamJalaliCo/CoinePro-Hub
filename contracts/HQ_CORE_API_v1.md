@@ -1933,7 +1933,7 @@ report says so.
 | `assistant_errand` | gpt · light | The assistant's drafting steps: summary, translation, rewrite, a draft email or post. The assistant checks and finishes the errand. | 30 |
 | `content_draft` | gemini | First drafts of company content (captions, titles, meta descriptions, variations) for the agent in charge to edit. | 30 |
 | `long_read` | gemini | A summary of a long masked document or log, with page or line anchors the caller verifies. | 10 |
-| `quick_search` | deepseek · `via: "web"`, search on | A fast answer, with its sources, to a quick public question an agent would otherwise spend Claude tokens searching for. The query passes the same data guard as `web.search` (nothing internal). The caller reads each cited source itself (`web.read`) before a fact or a figure is used; the answer alone is never evidence. | 60 |
+| `quick_search` | deepseek · `via: "web"`, thinking and search on | A fast answer, with its sources, to a quick public question an agent would otherwise spend Claude tokens searching for. The query passes the same data guard as `web.search` (nothing internal). The caller reads each cited source itself (`web.read`) before a fact or a figure is used; the answer alone is never evidence. | 60 |
 | `third_opinion` | deepseek · `via: "web"` | A third independent opinion beside the advisor's memo and GPT's second opinion (the same masked facts pack, no other opinion shown), and an extra voice whenever a seat or an agent consults several models. `DecisionMemo` gains `third_opinion`, the shape of `second_opinion`. | 5 |
 | `creative` | gpt or gemini · `via: "web"` | Images (ChatGPT, Gemini), and videos of at most 10 s (Gemini), for ads and teasers (below). | 20 images · 3 videos |
 - **Task classes:** `sub_code_review`, `sub_second_opinion`, `sub_cross_check`, `sub_errand`, `sub_draft`, `sub_long_read`, `sub_creative` (in `/assignments`, on
@@ -1970,7 +1970,7 @@ report says so.
   (`ssh -L`). The owner signs in and closes it; the hub never sees the password. A signed-out or expired profile → `web.state: "expired"`,
   the seats that use it are `skipped`, and one `report` notification asks the owner to sign in again.
 - **Rules first, AI last:** each job runs a reviewed **recipe** (`infra/egress/recipes/chatgpt-web.yaml`, `gemini-web.yaml`, `deepseek-web.yaml`;
-  DeepSeek's web search on for `quick_search`, its deep-thinking mode only when the seat asks): open a new chat
+  in DeepSeek **both its deep-thinking and its web search are always on** (owner, 2026-10-22) and nothing else of the site is used): open a new chat
   (a temporary one when the site offers it), paste the prompt, wait for the result (image ≤ 3 min, video ≤ 10 min), download the original,
   close. When a recipe fails because the site changed, **one Claude run** finishes the same job with `web.browse` on that account
   (screenshots; never a secret) and writes the recipe fix as a reviewed change; until it is merged, jobs use that fallback.
