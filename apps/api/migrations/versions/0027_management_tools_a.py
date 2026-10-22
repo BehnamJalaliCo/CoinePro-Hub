@@ -398,7 +398,7 @@ GRANT SELECT ON llm.quota_status TO @APP@;
 -- equivalent cost; they count against no daily cap or share).
 GRANT INSERT ON llm.calls TO @APP@;
 CREATE POLICY calls_substitutes_insert ON llm.calls FOR INSERT TO hq_api, hq_worker
-    WITH CHECK (company_id = ANY (llm.allowed_company_ids()) AND caller = 'substitutes');
+    WITH CHECK (company_id = ANY ((SELECT llm.allowed_company_ids())::uuid[]) AND caller = 'substitutes');
 """
 
 
