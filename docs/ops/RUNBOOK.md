@@ -692,7 +692,9 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - همزمانی: `BROWSER_MAX_SESSIONS` (full ‏۲، lean ‏۱).
   - سقف زمان هر فراخوانی ۱۵ ثانیه است (`EGRESS_BROWSE_S`؛ egress حداکثر ۲۰)، تا زیر مهلت ۳۰ ثانیه‌ی gateway بماند. کار بلندتر چند فراخوانی میشود.
   - اسکرین‌شات و دانلود فایل‌های شرکت خود ایجنت میشوند (`files.read`).
-  - `--no-sandbox` درون یک کانتینر بدون capability، فقط‌خواندنی و غیر root اجرا میشود. برای sandbox خود Chromium هیچ capability‌ای اضافه نشده است.
+  - **sandbox خود Chromium روشن است (۷.۱ §۲.۲۰):** کاربر غیر root، فقط‌خواندنی، `cap_drop: ALL`، `no-new-privileges` و پروفایل seccomp خود Playwright (`infra/browser/seccomp_profile.json`، نسخه‌ی v1.63.0، hash آن در `compose-rules` pin شده). فقط `SYS_CHROOT` به bounding set اضافه شده، تا آن پروفایل chroot را درون user namespace خود Chromium اجازه دهد. uid 10001 بیرون از آن هرگز این capability را ندارد. اگر روزی `BROWSER_SANDBOX=0` شود، هر فراخوانی process مرورگر خودش را دارد. **هیچ process ‏`--no-sandbox` بین فراخوانی‌ها، و پس بین شرکت‌ها، مشترک نیست.**
+  - heap جاوااسکریپت هر renderer سقف دارد (`BROWSER_JS_HEAP_MB`، ۱۹۲). WebRTC هیچ UDP بیرون از proxy نمیفرستد.
+  - فایل‌های یک فراخوانی (اسکرین‌شات و دانلود) روی هم سقف دارند (`EGRESS_BROWSE_FILES_BYTES`، ۱۶ MiB). دانلود بزرگ‌تر از سقف `download_too_large` میگیرد و بی‌صدا بریده نمیشود. ورود ناموفق حساب `sign_in_failed` میگیرد.
 - **SearXNG:** موتورهای عمومی پیش‌فرض، بدون لاگ query، بدون metrics، limiter خاموش (تنها مشتری egress است). `server.secret_key` از `SEARXNG_PASSWORD` در `.env` میاید (`make env` آن را میسازد).
 - **سقف‌ها** (env سرویس api):
 
@@ -709,7 +711,13 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - متادیتا و policy تزریق در اپ ثبت میشوند (`POST /api/v1/tools/accounts`). policy تزریق یکی از این‌هاست: `bearer`، `header`، `basic` یا `cookie`، به‌علاوه‌ی روش ورود مرورگر و فهرست `allow` مسیرهای بی‌تعهد.
   - **رمز را فقط مالک، در ترمینال خودش، میگذارد:** `make account-secret KEY=<key>`. ورودی بی‌نمایش است و مستقیم در `kv/tools/accounts/<key>` میرود.
   - رمز برای هر فراخوانی یک بار از OpenBao خوانده میشود و از api به gateway و egress میرسد. **در لحظه‌ی خروج** و **فقط برای host خود آن حساب** گذاشته میشود.
-  - رمز در هیچ نتیجه‌ای به مدل نمیرسد: همه‌ی نتیجه‌ها از هر شکل رمز (خام، percent-encoded و base64) پاک میشوند. در اسکرین‌شات هم فیلدهای رمز ماسک میشوند. در لاگ هم نیست.
+  - رمز در هیچ نتیجه‌ای به مدل نمیرسد: همه‌ی نتیجه‌ها از هر شکل رمز (خام، percent-encoded، base64 با و بی padding، و `base64("user:secret")` سربرگ Basic) پاک میشوند، **پیش از** بریدن متن (۷.۱). فایلی که رمز را دارد دور انداخته میشود. در اسکرین‌شات هم فیلدهای رمز ماسک میشوند، و صفحه‌ای که خود رمز را نشان میدهد اسکرین‌شات نمیگیرد (`secret_on_page`). در لاگ هم نیست.
+  - رمز **فقط روی https** گذاشته میشود. پورت‌های policy حساب فقط برای سایت خود حساب باز میشوند، نه برای جایی که redirect میفرستد.
+- **تعهد با GET (۷.۱ §۲.۲۱):** پاسخ Google Form ‏(`formResponse`)، trigger وب‌هوک و اتوماسیون (IFTTT، Zapier، Make، n8n، Pipedream، Slack، Discord) و فراخوانی ارسال bot ‏(`/bot<token>/send…`) هم `needs_owner` میگیرند: در `http.request` و `web.read` (هر hop) و در `goto`، دانلود و هر درخواست مرورگر. «Submit»، «Continue»، «Confirm»، «Share»، «Delete»، «Promote»، «ثبت» و «تایید» هم برچسب تعهدند؛ «ي» و «ك» عربی نرمال میشوند؛ `select`ی که `onchange` آن فرم را میفرستد مثل submit سنجیده میشود.
+- **متن پنهان** (`hidden`، `aria-hidden="true"`، style پنهان‌کننده) از صفحه‌ی خوانده‌شده حذف میشود. هر نتیجه‌ی وب `untrusted: true` دارد، مثل MCP.
+- **`429 egress_limit`** سربرگ `Retry-After` دارد: تا روز بعد مالک وقتی سقف روزانه‌ی شرکت پر است، و ۳۶۰۰ ثانیه برای سقف خود اجرا. هر رزرو ردشده یک ردیف audit ‏(`egress.refused`) هم مینویسد.
+- **هاب با IP خودش هم هاب است:** `hq.sh` آدرس‌های global میزبان و جواب DNS دامنه را در `HQ_HUB_ADDRESSES` میگذارد. `/internal` با آن‌ها هم رد میشود، و هر نامی که به آن‌ها resolve شود هم.
+- **شکاف شبکه (۷.۱ §۲.۱۹، فقط دیده میشود):** `make verify-live` از داخل egress و SearXNG، همسایه‌ها (`10.10.1.1-3`)، metadata و آدرس‌های خود میزبان را با IP روی 80 و 443 میآزماید. محافظ egress همه را برای درخواست ایجنت رد میکند، ولی خود شبکه نه. هر چه جواب دهد یک خط `live: GAP ...` است، نه شکست. بستنش با قانون `DOCKER-USER` مالک است (کار اختیاری مالک). از یک کانتینر موقت روی bridge پیش‌فرض (۲۰۲۶-۱۰-۲۲): هر سه همسایه روی 80 و 443 و metadata روی 80 جواب دادند.
 - **دیدن:**
   - `GET /api/v1/egress` با پارامترهای `company`، `since` و `blocked`.
   - `GET /api/v1/egress/summary` با `period=day`، `week` یا `month`.
@@ -727,12 +735,13 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   | پروفایل | egress | searxng | browser |
   |---|---|---|---|
   | full | 256m | 256m | 896m |
-  | lean | 128m | 160m | 480m، یک نشست |
+  | lean | 256m (۷.۱) | 160m | 480m، یک نشست |
 
   - برای جا شدنشان چند سقف دیگر، از روی مصرف زنده، پایین آمد (عددها در `profiles/*.env`):
     - full: postgres ‏1536←1024، prometheus ‏768←512، loki ‏512←384، tempo ‏384←256، nats ‏256←192. این همان جایی است که گزارش ۶ برای STT نام برده بود.
     - lean: postgres، valkey، nats، temporal، caddy، prometheus، loki، web، temporal-ui، node-exporter، llm-router، api، opa و gateway.
   - نتیجه: full ‏11536 از 11673، lean ‏5872 از 5886.
+  - **egress در lean (۷.۱ §۲.۲۰):** با یک بدنه‌ی ۲۰ مگی و درخت lxml دوباره اندازه گرفته شد (کانتینر موقت سرویس واقعی، `memory.peak` cgroup، یعنی سرویس و childهای parse با هم؛ در lean یک child در هر لحظه، `EGRESS_PARSE_SLOTS=1`): بیکار ۵۵، صفحه‌ی ۲۰ مگی ۱۴۹ (child فقط ۴ MiB اول را parse میکند، `EGRESS_HTML_PARSE_BYTES`)، PDF بمب ۲۰۹، بدنه‌ی ۲۰ مگی http ‏۶۰، browse با ۱۶ MiB فایل ۱۲۲، و بدترین جفت هم‌زمان ۲۳۵ MiB. پس 128m ← 256m. جایش از llm-router ‏(192←128)، worker ‏(256←224) و web ‏(192←160) آمد. بیش از دو فراخوانی سنگین هم‌زمان (۲۵۸) را kernel با کشتن child parse جواب میدهد، نه خود سرویس. در full ‏(256m، دو child): دو صفحه‌ی ۲۰ مگی هم‌زمان ۲۶۱ و دو PDF بمب ۳۸۲ MiB؛ همان‌جا هم child کشته میشود و سرویس میماند (برای نگه داشتن هر دو، 384m یا `EGRESS_PARSE_SLOTS=1` لازم است؛ تصمیم بودجه‌ی full با پرامپت ۷.۱ §۰.۲ است).
   - full+stt حالا 1424 MiB بیشتر از بودجه است.
 
 ## ۲۰. پل MCP و کاتالوگ ابزار (پرامپت ۷ §۳، قرارداد §۱۸.۷)
