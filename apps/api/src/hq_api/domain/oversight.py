@@ -34,6 +34,7 @@ from hq_api.domain import recurrence as R
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, Model
+from hq_common import oversight_share
 
 AREAS = (
     "truth", "authority", "money", "safety", "quality", "delivery", "security", "data",
@@ -401,6 +402,53 @@ async def finish_run(
         bk=by[0] if by else None,
         bc=by[1] if by else None,
     )
+
+
+async def oversight_tokens_today(tx: Tx) -> int:
+    """Tokens the overseer and QC moved today (UTC, the day of the agents'
+    daily cap): every model call of their runs, from the router's ledger."""
+    n = await tx.scalar(
+        """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                               + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+           FROM llm.calls
+           WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+             AND meta ? 'run_id' AND split_part(meta ->> 'charter', '@', 1) = ANY(:roles)""",
+        roles=list(oversight_share.ROLES),
+    )
+    return int(n or 0)
+
+
+async def share_spent(tx: Tx, daily_cap: int, share: float) -> bool:
+    """The oversight share of today's token cap is used up (prompt 08 §2.3)."""
+    if oversight_share.limit(daily_cap, share) is None:
+        return False
+    return oversight_share.spent(await oversight_tokens_today(tx), daily_cap, share)
+
+
+async def deferred_due(tx: Tx) -> list[str]:
+    """Protocols whose latest run was deferred before today (UTC): the next
+    day they go first, the most severe and the oldest first."""
+    rows = await tx.all(
+        """SELECT r.protocol_ref AS ref FROM (
+               SELECT DISTINCT ON (protocol_ref) protocol_ref, result, started_at
+               FROM oversight.protocol_runs ORDER BY protocol_ref, started_at DESC) r
+           JOIN oversight.current_protocols p ON p.ref = r.protocol_ref AND p.status = 'active'
+           WHERE r.result = 'deferred'
+             AND r.started_at < date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+           ORDER BY array_position(CAST(:sev AS text[]), p.severity), r.started_at""",
+        sev=list(reversed(SEVERITIES)),
+    )
+    return [str(r["ref"]) for r in rows]
+
+
+def run_tokens(charters: Any, role: str, configured: int) -> int:
+    """A protocol run's work budget: HQ_OVERSIGHT_RUN_TOKENS, never above the
+    assignee's charter (tokens_per_run; overseer v2 and advisor v3: 200K)."""
+    charter = charters.get(role) if charters is not None else None
+    if charter is None:
+        return configured
+    cap: int = charter.limits.tokens_per_run
+    return max(1, min(configured, cap))
 
 
 async def model_runs_today(tx: Tx, tz: str) -> int:
@@ -1000,9 +1048,11 @@ async def compute_compliance(tx: Tx, company_id: UUID, *, days: int = 7) -> dict
     of the last `days` days (a holding-wide run counts for every company it
     names); minus open findings by severity and late inquiries."""
     code = await tx.scalar("SELECT code FROM core.companies WHERE id = :id", id=company_id)
+    # A deferred or skipped run is no result; a protocol paused now does not count.
     rows = await tx.all(
         """SELECT p.area, r.per_company ->> CAST(:code AS text) AS mine, r.result
            FROM oversight.protocol_runs r JOIN oversight.protocols p ON p.id = r.protocol_id
+           JOIN oversight.current_protocols cp ON cp.ref = r.protocol_ref AND cp.status = 'active'
            WHERE r.result IN ('pass', 'fail', 'partial') AND r.started_at > now() - make_interval(days => :d)""",
         code=code,
         d=days,

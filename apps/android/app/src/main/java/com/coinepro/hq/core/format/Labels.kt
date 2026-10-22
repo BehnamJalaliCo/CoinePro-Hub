@@ -18,6 +18,13 @@ val DECISION_KIND = mapOf(
     "proposal" to Kind("پیشنهاد رشد", DivanIcon.CHART),
     "budget_change" to Kind("تغییر بودجه", DivanIcon.BUDGET),
     "evaluation" to Kind("ارزیابی", DivanIcon.RATE),
+    "code_session" to Kind("جلسه‌ی کارگاه کد", DivanIcon.CODE),
+    "protocol" to Kind("پروتکل نظارت", DivanIcon.OVERSEER),
+    "tool_enable" to Kind("روشن کردن ابزار", DivanIcon.GLOBE),
+    "errand_action" to Kind("تعهد دستیار", DivanIcon.ASSISTANT),
+    "company_found" to Kind("تأسیس شرکت", DivanIcon.FOUND),
+    "server_plan" to Kind("طرح سرور", DivanIcon.SERVER),
+    "lesson_adoption" to Kind("پذیرش درس", DivanIcon.LEARNING),
 )
 
 fun decisionKind(k: String) = DECISION_KIND[k] ?: Kind(k, DivanIcon.DECISION)

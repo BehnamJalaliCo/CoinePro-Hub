@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ستاد</string>
+    <string name="widget_title">کارتابل</string>
+    <string name="widget_description">مُهرهای منتظر تو و موارد فوری، از آخرین باری که اپ دید</string>
+    <string name="tile_voice">فرمان صوتی</string>
 </resources>

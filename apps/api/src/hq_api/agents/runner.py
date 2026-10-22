@@ -54,6 +54,7 @@ from hq_api.hub import Hub
 from hq_api.routes.messages import LINK_TABLES
 from hq_api.security import agent_tokens
 from hq_api.worker.jalali import jalali_long
+from hq_common import oversight_share
 from hq_common.charters import Charter
 from hq_common.redact import redact_async, scrub, scrub_async
 
@@ -138,6 +139,16 @@ class RunCtx:
     summaries: list[str] = field(default_factory=list)
     skills: list[str] = field(default_factory=list)  # "SK-001@3": in the system prompt
     addenda: list[str] = field(default_factory=list)  # sealed teachings ("TE-0001")
+    # An oversight protocol run's ref and severity (prompt 08 §2.3): llm-router
+    # lets a `critical` one go on once the oversight share is spent.
+    oversight: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def token_cap(self) -> int:
+        """The run's token cap, never above its charter's tokens_per_run
+        (overseer v2 and advisor v3: 200K), whatever the claim recorded."""
+        cap = self.charter.limits.tokens_per_run
+        return min(int(self.run["token_cap"] or cap), cap)
 
 
 class Runner:
@@ -393,6 +404,18 @@ class Runner:
         # and those for every role, after the charter; a proposed one never.
         async with await self._tx() as tx:
             orders = O.orders_section(await O.sealed_orders(tx, charter.kind))
+            if charter.role in oversight_share.ROLES and run["work_id"] is not None:
+                proto = await tx.first(
+                    """SELECT r.protocol_ref, p.severity FROM oversight.protocol_runs r
+                       JOIN oversight.protocols p ON p.id = r.protocol_id
+                       WHERE r.work_id = :w ORDER BY r.started_at DESC LIMIT 1""",
+                    w=run["work_id"],
+                )
+                if proto is not None:
+                    rc.oversight = {
+                        "protocol": proto["protocol_ref"],
+                        "severity": proto["severity"],
+                    }
         if orders:
             system += "\n\n" + orders
         text, image_ids = await self._context(rc)
@@ -400,7 +423,7 @@ class Runner:
         live_thread = await self._reply_thread(rc)
         advisor = charter.kind == "advisor"
         steps_cap = int(run["steps_cap"] or charter.limits.steps_per_run)
-        token_cap = int(run["token_cap"] or charter.limits.tokens_per_run)
+        token_cap = rc.token_cap
         per_step = charter.limits.tokens_per_step
         # The advisor's streamed answer is a step too: it counts inside the cap.
         research_steps = steps_cap - 1 if advisor and live_thread else steps_cap
@@ -534,6 +557,7 @@ class Runner:
                 "trigger": run["trigger"],
                 "skills": rc.skills,
                 "addenda": rc.addenda,
+                **rc.oversight,
             },
         }
         if max_output:
@@ -592,7 +616,7 @@ class Runner:
         checked before it, and its output is capped like a step's."""
         system = system + "\n\n" + P.ANSWER_PHASE
         messages = [*rc.messages, {"role": "user", "content": "Write the answer to the owner now."}]
-        left = int(rc.run["token_cap"] or rc.charter.limits.tokens_per_run) - rc.used_tokens
+        left = rc.token_cap - rc.used_tokens
         room = min(rc.charter.limits.tokens_per_step, left - prompt_tokens(system, messages))
         stop: tuple[str, str | None, str | None] | None = None
         if await self._locked(rc.run["company_id"]):
@@ -1044,7 +1068,7 @@ class Runner:
                 log.warning(
                     "work spending refused (budget used up)", extra={"run_id": str(rc.run["id"])}
                 )
-                rc.used_tokens = max(rc.used_tokens, int(rc.run["token_cap"] or 0))
+                rc.used_tokens = max(rc.used_tokens, rc.token_cap)
 
     async def _record_step(
         self, rc: RunCtx, n: int, summary: str, results: list[dict[str, Any]], call: ModelCall

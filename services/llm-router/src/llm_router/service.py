@@ -22,6 +22,7 @@ from typing import Any
 
 import asyncpg
 
+from hq_common import oversight_share
 from llm_router import anomaly, events, ledger
 from llm_router.assignment import AssignmentError, apply_request, resolve, scope_chain
 from llm_router.backends.base import (
@@ -36,7 +37,14 @@ from llm_router.backends.base import (
     Delta,
 )
 from llm_router.breaker import STATE_VALUE, CircuitBreaker, Permit, State
-from llm_router.budget import Check, Consumption, check, decide, period_start
+from llm_router.budget import (
+    Check,
+    Consumption,
+    check,
+    decide,
+    next_period_start,
+    period_start,
+)
 from llm_router.config import Settings
 from llm_router.cost_ratio import CostRatioWatch
 from llm_router.db import Database
@@ -276,6 +284,7 @@ class RouterService:
             ) from exc
 
         await self._check_budgets(snap, req, company, chain, row, rls, now)
+        await self._check_oversight_share(req, company, holding, row, rls, now)
 
         try:
             await self.scheduler.acquire(req.priority, timeout=req.timeout_s)
@@ -356,6 +365,47 @@ class RouterService:
             row.meta["budget_over"] = [
                 f"{c.budget.scope_type}:{c.budget.scope_ref}" for c in decision.exhausted
             ]
+
+    async def _check_oversight_share(
+        self,
+        req: RunRequest,
+        company: Company,
+        holding: Company,
+        row: ledger.CallRow,
+        rls: set[str],
+        now: datetime,
+    ) -> None:
+        """The oversight share (prompt 08 §2.3, contract §18.1 v1.4.4): the
+        holding's overseer and QC together stop at OVERSIGHT_DAILY_SHARE of
+        AGENT_DAILY_TOKEN_CAP per UTC day, like a budget at 100% but for every
+        priority; only a `critical` protocol's run still goes."""
+        cap = oversight_share.limit(self.s.agent_daily_token_cap, self.s.oversight_daily_share)
+        if cap is None or req.role not in oversight_share.ROLES or company.id != holding.id:
+            return
+        if (req.meta or {}).get("severity") == oversight_share.CRITICAL:
+            return
+        keys = [("role", f"{holding.code}:{role}", "day") for role in oversight_share.ROLES]
+        async with self.db.scoped({holding.id}) as conn:
+            usage = await ledger.load_usage(conn, keys, now)
+        used = sum(c.tokens for c in usage.values())
+        if not oversight_share.spent(
+            used, self.s.agent_daily_token_cap, self.s.oversight_daily_share
+        ):
+            return
+        self.metrics.budget_rejections.labels(company.code).inc()
+        self.metrics.calls.labels(
+            company.code, "-", row.model or "-", "rejected_budget", f"P{req.priority}"
+        ).inc()
+        async with self.db.scoped(rls) as conn:
+            await ledger.record_decision(conn, row, "rejected_budget", "oversight_share")
+        retry = max(1, int((next_period_start("day", now) - now).total_seconds()))
+        raise RouterError(
+            429,
+            "budget_exhausted",
+            f"the oversight share of today's token cap is used up ({used}/{cap})",
+            retry_after=retry,
+            call_id=row.id,
+        )
 
     async def _budget_alert(self, snap: Snapshot, c: Check, now: datetime) -> None:
         owner = snap.companies_by_id.get(c.budget.company_id)

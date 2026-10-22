@@ -19,6 +19,8 @@ kinds := {
 	"protocol",
 	# prompt 09: founding a company, and the server plan's seal (on its digest)
 	"company_found", "server_plan",
+	# 7.1 §18.13: an MCP server re-enabled with its new listing
+	"tool_enable",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

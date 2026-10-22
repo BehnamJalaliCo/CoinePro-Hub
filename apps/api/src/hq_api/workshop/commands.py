@@ -64,6 +64,68 @@ def _words(cmd: str) -> list[str]:
         return []
 
 
+# What a command needs of the grant's actions (06.1 §2: a read-only grant never
+# edits, pushes or opens a PR, whoever allows it). Reading is any grant's.
+RUN_PROGRAMS = frozenset(
+    {
+        "python", "python3", "pytest", "ruff", "mypy", "black", "isort", "coverage", "tox",
+        "node", "npm", "npx", "pnpm", "yarn", "tsc", "eslint", "prettier", "vitest", "jest",
+        "go", "cargo", "make", "gradle", "./gradlew", "mvn", "pip", "uv", "bash", "sh",
+    }
+)  # fmt: skip
+WRITE_PROGRAMS = frozenset(
+    {"mv", "cp", "rm", "mkdir", "rmdir", "touch", "tee", "patch", "ln", "chmod", "truncate",
+     "black", "isort"}
+)  # fmt: skip
+EDIT_GIT = frozenset(
+    {"add", "commit", "checkout", "switch", "restore", "stash", "pull", "merge", "rebase",
+     "reset", "clean", "cherry-pick", "revert", "am", "apply", "rm", "mv", "tag"}
+)  # fmt: skip
+# Flags that make a reading or checking program write its files.
+IN_PLACE: dict[str, tuple[str, ...]] = {
+    "sed": ("-i", "--in-place"),
+    "perl": ("-i",),
+    "prettier": ("--write", "-w"),
+    "eslint": ("--fix",),
+    "ruff": ("--fix",),
+}
+
+
+def needs(cmd: str) -> set[str]:
+    """The grant actions (edit, run, push_branch, open_pr) one shell command
+    needs; a chain needs what each part needs."""
+    text = cmd.strip()
+    parts = [p.strip() for p in re.split(r"&&|;|\|\||\|", text) if p.strip()]
+    if len(parts) > 1:
+        return set().union(*(needs(p) for p in parts))
+    out: set[str] = set()
+    if re.search(r"(^|[^>&0-9])>{1,2}(?!&)", text):  # an output redirection writes a file
+        out.add("edit")
+    words = _words(text)
+    if not words:
+        return out
+    program = words[0]
+    if program == "git":
+        sub = next((w for w in words[1:] if not w.startswith("-")), "")
+        if sub == "push":
+            out.add("push_branch")
+        elif sub in EDIT_GIT or (sub == "branch" and any(not w.startswith("-") for w in words[2:])):
+            out.add("edit")
+        return out
+    if program == "gh":
+        if words[1:3] == ["pr", "create"]:
+            out.add("open_pr")
+        return out
+    if program in RUN_PROGRAMS:
+        out.add("run")
+    flags = IN_PLACE.get(program, ())
+    if program in WRITE_PROGRAMS or any(w.startswith(f) for f in flags for w in words[1:]):
+        out.add("edit")
+    if program == "ruff" and "format" in words[1:]:
+        out.add("edit")
+    return out
+
+
 def classify(cmd: str, *, session_ref: str, branch_prefix: str = "hq/") -> Ruling:
     """The ruling on one shell command of a session (no execution here)."""
     text = cmd.strip()

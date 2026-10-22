@@ -4,8 +4,11 @@ import Link from 'next/link';
 import { use } from 'react';
 import { Avatar } from '@/components/brand/avatar';
 import { CompanyMark } from '@/components/brand/marks';
-import { Bar, Card, ErrorState, PageHeader, Pill, Skeleton, budgetTone } from '@/components/ui/primitives';
+import { Bar, Card, ErrorState, PageHeader, Pill, SectionTitle, Skeleton, budgetTone } from '@/components/ui/primitives';
+import { RunList } from '@/components/v15/runs';
+import { WorkActions } from '@/components/v15/work-actions';
 import { useWork } from '@/lib/api/hooks';
+import { useWorkRuns } from '@/lib/api/v15';
 import { ACTOR_FA, WORK_KIND, WORK_STATUS } from '@/lib/labels';
 import { ago, cx, jDateTime, tokens, usd } from '@/lib/format';
 
@@ -13,13 +16,14 @@ import { ago, cx, jDateTime, tokens, usd } from '@/lib/format';
 export default function WorkPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const q = useWork(id);
+  const runs = useWorkRuns(id);
   if (q.isLoading) return <div className="flex flex-col gap-4"><Skeleton className="h-20" /><Skeleton className="h-64" /></div>;
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const w = q.data!;
   const pct = w.budget.tokens ? (w.budget.tokens_used / w.budget.tokens) * 100 : null;
   return (
     <>
-      <PageHeader eyebrow={<span className="inline-flex items-center gap-2"><CompanyMark code={w.company} height={12} mono /><span className="fig">{w.ref}</span>، {WORK_KIND[w.kind] ?? w.kind}</span>} title={w.title} />
+      <PageHeader eyebrow={<span className="inline-flex items-center gap-2"><CompanyMark code={w.company} height={12} mono /><span className="fig">{w.ref}</span>، {WORK_KIND[w.kind] ?? w.kind}</span>} title={w.title} actions={<WorkActions key={w.version} w={w} />} />
       <div className="flex flex-wrap gap-2">
         <Pill tone={w.status === 'done' ? 'pos' : w.status === 'failed' ? 'neg' : 'neutral'} dot>{WORK_STATUS[w.status] ?? w.status}</Pill>
         <Pill tone={w.priority <= 'P1' ? 'neg' : 'neutral'}><span className="fig">{w.priority}</span></Pill>
@@ -27,6 +31,7 @@ export default function WorkPage({ params }: { params: Promise<{ id: string }> }
         {w.due_at ? <Pill tone="neutral" icon="time">موعد {jDateTime(w.due_at)}</Pill> : null}
       </div>
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-4">
         <Card className="flex flex-col gap-4 p-5">
           <h2 className="text-[14px] font-semibold">مسیر ارجاع</h2>
           <ol className="relative flex flex-col gap-4 pr-4">
@@ -45,6 +50,12 @@ export default function WorkPage({ params }: { params: Promise<{ id: string }> }
           </ol>
           <p className="text-[12px] text-muted">ارجاع رکورد دیتابیس است، نه صحبت ایجنت با ایجنت؛ عمق بیشتر از ۲ رد میشود.</p>
         </Card>
+        <Card className="flex flex-col gap-3 p-5">
+          <SectionTitle title="اجرای ایجنت‌ها روی این کار" note="هر اجرا با قدم‌ها و ابزارهایش؛ اجرای در جریان خودش تازه میشود" />
+          {runs.isLoading ? <Skeleton className="h-24" /> : runs.error ? <ErrorState error={runs.error} onRetry={() => runs.refetch()} />
+            : <RunList runs={runs.data ?? []} details={runs.data} empty="هنوز ایجنتی روی این کار اجرا نشده." />}
+        </Card>
+        </div>
         <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-2 p-5">
             <h2 className="text-[14px] font-semibold">بودجه</h2>

@@ -116,6 +116,20 @@ async def test_too_large_is_refused_while_reading() -> None:
         assert (r.status_code, r.json()["code"]) == (413, "too_large")
 
 
+def test_the_default_size_fits_the_longest_allowed_audio(monkeypatch: pytest.MonkeyPatch) -> None:
+    """06.1 §2: 25 MB refused legal 14-15 minute audio. The worker's WAV of
+    15 min plus the second it is cut at is 28.8 MB; the default is derived
+    from the duration limit and never under 29 MiB."""
+    monkeypatch.delenv("STT_MAX_BYTES", raising=False)
+    monkeypatch.delenv("STT_MAX_DURATION_S", raising=False)
+    longest = (15 * 60 + 1) * 16_000 * 2 + 44
+    assert Settings().max_bytes >= max(longest, 29 * 1024 * 1024)
+    monkeypatch.setenv("STT_MAX_DURATION_S", str(30 * 60))
+    assert Settings().max_bytes >= (30 * 60 + 1) * 32_000 + 44
+    monkeypatch.setenv("STT_MAX_BYTES", "1234")
+    assert Settings().max_bytes == 1234
+
+
 async def test_too_long_wrong_type_undecodable_and_busy() -> None:
     s = fake_settings(max_duration_s=2)
     state = M.State(s, E.build(s))

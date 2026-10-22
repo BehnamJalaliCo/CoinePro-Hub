@@ -298,7 +298,8 @@ async def test_book_treats_only_no_budget_left_as_the_end_of_the_budget() -> Non
         return R.RunCtx(
             run={"id": uuid.uuid4(), "work_id": uuid.uuid4(), "token_cap": 5000},
             emp={},
-            charter=None,  # type: ignore[arg-type]
+            # The run's cap never exceeds its charter's (prompt 08 §2.3).
+            charter=SimpleNamespace(limits=SimpleNamespace(tokens_per_run=200_000)),  # type: ignore[arg-type]
             token="",
         )
 

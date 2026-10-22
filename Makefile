@@ -9,7 +9,7 @@ ENV_FILE := infra/compose/.env
 
 .PHONY: help env bootstrap profile up down ps logs backup restore-test check openbao-init unseal \
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
-	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval \
+	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
 	hetzner-token owner-ssh-key
 
@@ -40,6 +40,9 @@ up: $(ENV_FILE) ## Start every service of the active profile and wait until heal
 	@infra/openbao/provision.sh
 	@infra/backup/anchor-dir.sh --check
 	$(HQ) up -d --build --remove-orphans --wait --wait-timeout 300
+	@# The hourly backup's image (own profile, nothing depends on it): built and checked here.
+	$(HQ) --profile backup-tools build backup-tools
+	$(HQ) --profile backup-tools run --rm --no-deps backup-tools >/dev/null
 
 down: ## Stop and remove the containers of every profile (volumes are kept)
 	HQ_ALL_PROFILES=1 $(HQ) down
@@ -82,6 +85,15 @@ prompt-check: ## One REAL call with a charter's prompt (role=advisor): schema an
 	@infra/compose/hq.sh exec -T worker python -m hq_api.agents.check_prompt "$(or $(role),advisor)" \
 	  <"$${HQ_SECRETS_DIR:-/home/Hub/.secrets}/llm-router-caller-hq-ops.token"
 
+tracing-on: ## Switch traces on: opt-in profile "tracing" (Tempo + otel-collector), refused over the memory budget
+	@infra/compose/set-env.sh HQ_TRACING on
+	$(HQ) up -d --wait tempo otel-collector prometheus
+
+tracing-off: ## Switch traces off again (the default): Tempo and the collector stop, Prometheus stops scraping them
+	@infra/compose/set-env.sh HQ_TRACING off
+	HQ_ALL_PROFILES=1 $(HQ) stop tempo otel-collector
+	$(HQ) up -d --wait prometheus
+
 stt-fetch: ## Download the pinned speech model into the stt-models volume (sha256-checked; model=large-v3-turbo)
 	HQ_STT=off $(HQ) --profile stt build stt-fetch
 	HQ_STT=off $(HQ) --profile stt run --rm -e STT_MODEL="$(or $(model),large-v3-turbo)" stt-fetch
@@ -119,8 +131,8 @@ llm-provision: ## OpenBao: KV, policies, AppRoles, service tokens (idempotent)
 claude-token: ## OWNER: store the token from `claude setup-token` in OpenBao (hidden input)
 	@infra/openbao/claude-token.sh
 
-mcp-secret: ## OWNER: the secret of one MCP server, KEY=<server key> (hidden input -> OpenBao)
-	@infra/openbao/mcp-secret.sh "$(KEY)"
+mcp-secret: ## OWNER: the secret of one MCP server, KEY=<server key> [FILE=<json key file>] (-> OpenBao)
+	@infra/openbao/mcp-secret.sh "$(KEY)" "$(FILE)"
 
 account-secret: ## OWNER: the secret of one holding service account (KEY=<key>; hidden input)
 	@infra/openbao/account-secret.sh "$(KEY)"

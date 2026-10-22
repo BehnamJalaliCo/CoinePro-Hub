@@ -5,9 +5,12 @@ may be, and the image work done at upload. No model is involved anywhere.
   declared Content-Type must be an allowed type AND agree with the content.
 - Limits per kind, enforced while the body streams in: images 20 MB, video
   200 MB / 10 min, audio 25 MB / 15 min, pdf 30 MB.
-- Images are decoded with a pixel cap, turned upright, re-encoded WITHOUT
-  EXIF/GPS/XMP (the stored original is the clean one), and get a 512 px WebP
-  `thumb` and the `agent` variant a model sees (long edge <= 1568 px).
+- Images get a pixel cap; the stored original is the clean one: its EXIF,
+  GPS, XMP and the rest are removed without decoding it (image_meta; only the
+  orientation stays), and it gets the `agent` variant a model sees (upright,
+  long edge <= 1568 px) and a 512 px WebP `thumb` made from that.
+- Images and PDFs are untrusted: every decode runs in a child process with
+  hard limits (hq_common.untrusted), never in the api's own process.
 - Videos and audio are probed with ffprobe (duration, size); posters, key
   frames and sound tracks are made later by the worker (media_worker).
 """
@@ -15,10 +18,18 @@ may be, and the image work done at upload. No model is involved anywhere.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import io
 import json
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+from hq_common import untrusted
+
+log = logging.getLogger("hq_api.media")
 
 MB = 1024 * 1024
 
@@ -59,7 +70,9 @@ ALLOWED: dict[str, Kind] = {
     "application/pdf": DOCUMENT,
 }
 HEAD_BYTES = 64  # enough for every signature below
-MAX_PIXELS = 40_000_000  # a 40 MP photo; larger is refused (decompression bombs)
+# A 40 MP photo; larger is refused, over 80 MP before a byte is decoded (Pillow's
+# DecompressionBombError). Measured: a 40 MP JPEG's job peaks at 67 MiB.
+MAX_PIXELS = 40_000_000
 THUMB_PX = 512
 AGENT_PX = 1568  # the long edge a model sees (contract §17.1)
 
@@ -121,19 +134,47 @@ def check_type(content_type: str | None, head: bytes) -> tuple[str, Kind] | str:
     return mime, kind
 
 
+# ffmpeg and ffprobe read untrusted bytes (06.1 §2): only a local file, given as
+# `file:<path>` (a name never selects a protocol), and only these demuxers,
+# whatever the bytes claim to be (an ID3 tag in front of an ffconcat script
+# would otherwise open the concat demuxer, which reads other files).
+FORMATS = "mov,mp4,matroska,webm,ogg,mp3,aac,wav"
+FF_THREADS = "2"  # each of the api's and the worker's ffmpeg runs: two threads at most
+PROBE_LIMIT_S = 30.0
+
+
+def ff_input(path: str | Path) -> list[str]:
+    """The input options every ffmpeg/ffprobe call here uses for one file."""
+    return ["-protocol_whitelist", "file", "-format_whitelist", FORMATS, "-i", f"file:{path}"]
+
+
+async def run_tool(*argv: str, limit_s: float) -> tuple[int, bytes, bytes]:
+    """A media tool with a time limit; killed on the timeout and when the
+    caller is cancelled (an activity stopped, a request gone), never left running."""
+    proc = await asyncio.create_subprocess_exec(
+        *argv,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        out, err = await asyncio.wait_for(proc.communicate(), limit_s)
+    except BaseException:
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+        with contextlib.suppress(BaseException):
+            await asyncio.wait_for(proc.wait(), 5)
+        raise
+    return proc.returncode or 0, out, err
+
+
 async def probe(path: str) -> dict[str, Any]:
     """ffprobe: duration (s), width, height and whether there is sound."""
-    proc = await asyncio.create_subprocess_exec(
-        "ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", path,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.DEVNULL,
+    code, out, _ = await run_tool(
+        "ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams",
+        *ff_input(path), limit_s=PROBE_LIMIT_S,
     )  # fmt: skip
-    try:
-        out, _ = await asyncio.wait_for(proc.communicate(), 30)
-    except TimeoutError:
-        proc.kill()
-        raise
-    if proc.returncode != 0:
+    if code != 0:
         raise ValueError("ffprobe could not read the file")
     data = json.loads(out or b"{}")
     streams = data.get("streams") or []
@@ -148,101 +189,189 @@ async def probe(path: str) -> dict[str, Any]:
     }
 
 
+# ----------------------------------------------------------------- images --
+# Untrusted (prompt 07.1 §1.2, 06.1 §1.4): decoded only in a child process
+# (hq_common.untrusted) with the limits below, outside any DB transaction.
+IMAGE_LIMITS = untrusted.Limits(write_mb=64)  # the child writes the three files
+
+
+class ImageRefused(ValueError):
+    """Not an image this hub keeps (unreadable, too many pixels, or too much
+    work for the limits): 415."""
+
+
 @dataclass
 class Image:
-    original: bytes
+    """A cleaned image: the three files (scratch paths) and the original's size."""
+
+    original: Path
+    agent: Path
+    thumb: Path
     mime: str
     width: int
     height: int
-    thumb: bytes  # WebP, long edge <= 512
-    agent: bytes  # JPEG, long edge <= 1568
 
 
-def _open(data: bytes) -> Any:
+def _open(src: Any) -> Any:
     from PIL import Image as PILImage
-    from pillow_heif import register_heif_opener
 
-    register_heif_opener()
-    PILImage.MAX_IMAGE_PIXELS = MAX_PIXELS
-    img = PILImage.open(io.BytesIO(data))
+    PILImage.MAX_IMAGE_PIXELS = MAX_PIXELS  # over twice that: DecompressionBombError
+    img = PILImage.open(src)
     if img.width * img.height > MAX_PIXELS:
         raise ValueError("the image has too many pixels")
     return img
 
 
-def clean_image(data: bytes, mime: str) -> Image:
-    """Upright, without EXIF/GPS/XMP, plus a WebP thumb and the agent variant.
-    CPU-bound: run it in a thread."""
+def clean_image_job(src: str, mime: str, original: str, agent: str, thumb: str) -> dict[str, Any]:
+    """In the child: the clean original (metadata removed without decoding,
+    image_meta), then the agent variant (JPEG, long edge <= 1568, upright)
+    decoded from that clean original, and the WebP thumb made from the agent
+    variant. A JPEG is decoded at a reduced scale; nothing is ever copied."""
     from PIL import ImageOps
 
-    img = _open(data)
-    img.load()
-    img = ImageOps.exif_transpose(img)
-    fmt = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}.get(mime, "HEIF")
-    clean = img.copy()  # no info dict: EXIF, GPS, XMP and comments stay behind
-    clean.info = {}
-    if fmt == "JPEG" and clean.mode not in ("RGB", "L"):
-        clean = clean.convert("RGB")
-    out = io.BytesIO()
-    params: dict[str, Any] = {"quality": 92} if fmt in ("JPEG", "WEBP", "HEIF") else {}
-    clean.save(out, format=fmt, **params)
-    return Image(
-        original=out.getvalue(),
-        mime=mime,
-        width=clean.width,
-        height=clean.height,
-        thumb=_scaled(clean, THUMB_PX, "WEBP", 80),
-        agent=_scaled(clean, AGENT_PX, "JPEG", 85),
-    )
+    from hq_api import image_meta
+
+    if mime in ("image/heic", "image/heif"):
+        import pillow_heif
+
+        pillow_heif.options.DECODE_THREADS = 1  # each thread costs address space
+        pillow_heif.register_heif_opener()
+    data = Path(src).read_bytes()
+    head = _open(io.BytesIO(data))  # the header only: type, size, pixel cap
+    # A HEIF image is turned by its own properties (irot/imir) as it decodes.
+    heif = mime in ("image/heic", "image/heif")
+    orientation = 1 if heif else int(head.getexif().get(image_meta.ORIENTATION, 1) or 1)
+    del head
+    clean = image_meta.strip(data, mime, orientation)
+    del data
+    Path(original).write_bytes(clean)
+    del clean
+    img = _open(original)
+    width, height = img.size
+    if orientation in (5, 6, 7, 8):
+        width, height = height, width
+    scale = min(1.0, AGENT_PX / max(img.size))
+    # A JPEG decodes at 1/2 to 1/8 of its size when that is still >= the variant.
+    img.draft(None, (max(1, int(img.width * scale)), max(1, int(img.height * scale))))
+    icc = img.info.get("icc_profile")
+    img.thumbnail((AGENT_PX, AGENT_PX), reducing_gap=None)  # decodes here
+    ImageOps.exif_transpose(img, in_place=True)
+    img.info = {}
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    # The colour profile (a P3 photo's) stays with the variants too (06.1 §3),
+    # when it describes the pixels saved: RGB for RGB, grey for L.
+    keep = icc_for(icc, img.mode)
+    img.save(agent, format="JPEG", quality=85, **keep)
+    img.thumbnail((THUMB_PX, THUMB_PX))
+    img.save(thumb, format="WEBP", quality=80, **keep)
+    return {"width": width, "height": height}
 
 
-def _scaled(img: Any, edge: int, fmt: str, quality: int) -> bytes:
-    small = img.copy()
-    small.thumbnail((edge, edge))
-    if fmt == "JPEG" and small.mode not in ("RGB", "L"):
-        small = small.convert("RGB")
-    out = io.BytesIO()
-    small.save(out, format=fmt, quality=quality)
-    return out.getvalue()
+MAX_ICC_BYTES = 1024 * 1024
+_ICC_SPACE = {"RGB": b"RGB ", "L": b"GRAY"}
+
+
+def icc_for(icc: Any, mode: str) -> dict[str, bytes]:
+    """{"icc_profile": ...} for Image.save when the profile fits the mode."""
+    if not isinstance(icc, bytes) or not 128 <= len(icc) <= MAX_ICC_BYTES:
+        return {}
+    return {"icc_profile": icc} if icc[16:20] == _ICC_SPACE.get(mode) else {}
+
+
+async def clean_image(src: Path, mime: str, scratch: Callable[[], Path]) -> Image:
+    """The image job in a child; ImageRefused (415) when it cannot be kept."""
+    outs = [scratch() for _ in range(3)]
+    got = await untrusted.run(
+        "hq_api.media:clean_image_job",
+        kwargs={"src": str(src), "mime": mime, "original": str(outs[0]),
+                "agent": str(outs[1]), "thumb": str(outs[2])},
+        limits=IMAGE_LIMITS,
+    )  # fmt: skip
+    if not got.ok:
+        for p in outs:
+            p.unlink(missing_ok=True)
+        log.info("image refused", extra={"reason": got.reason, "seconds": round(got.seconds, 2)})
+        if got.killed:
+            raise ImageRefused("too large to process")
+        raise ImageRefused(_short(got.error))
+    return Image(outs[0], outs[1], outs[2], mime, got.value["width"], got.value["height"])
+
+
+def _short(error: str | None) -> str:
+    """The job's refusal without the exception's class name."""
+    return (error or "unreadable").partition(": ")[2][:100] or "unreadable"
 
 
 def has_metadata(data: bytes) -> bool:
-    """For tests and checks: does an image still carry EXIF (or GPS) data?"""
-    img = _open(data)
-    return bool(img.info.get("exif")) or bool(img.getexif())
+    """For tests and checks: does an image carry EXIF beyond its orientation,
+    GPS, XMP, text chunks or a comment?"""
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+    img = _open(io.BytesIO(data))
+    exif = img.getexif()
+    xmp = img.info.get("xmp") or img.info.get("XML:com.adobe.xmp") or b""
+    return (
+        any(tag != 0x0112 for tag in exif)
+        or bool(exif.get_ifd(0x8825))
+        or b"rdf:" in (xmp.encode() if isinstance(xmp, str) else xmp)
+        or bool(img.info.get("comment"))
+        or bool(getattr(img, "text", None))
+    )
 
 
 # ------------------------------------------------------------------- PDF --
 MAX_PDF_PAGES = 200
 MAX_PDF_CHARS = 200_000  # files.processing.text's cap
-PDF_TEXT_S = 30.0
+PDF_LIMITS = untrusted.DEFAULT
 
 
-def _pdf_text(data: bytes) -> str | None:
+def pdf_text_job(path: str) -> str | None:
+    """In the child: the text of the first 200 pages (200k characters)."""
     from pypdf import PdfReader
+    from pypdf.errors import PyPdfError
 
-    reader = PdfReader(io.BytesIO(data))
-    if reader.is_encrypted and not reader.decrypt(""):
-        return None  # a password-protected PDF: no text
-    parts: list[str] = []
-    total = 0
-    for page in reader.pages[:MAX_PDF_PAGES]:
-        text = (page.extract_text() or "").strip()
-        if text:
-            parts.append(text)
-            total += len(text)
-        if total >= MAX_PDF_CHARS:
-            break
+    try:
+        reader = PdfReader(path)
+        if reader.is_encrypted and not reader.decrypt(""):
+            return None  # a password-protected PDF: no text
+        parts: list[str] = []
+        total = 0
+        for page in reader.pages[:MAX_PDF_PAGES]:
+            text = (page.extract_text() or "").strip()
+            if text:
+                parts.append(text)
+                total += len(text)
+            if total >= MAX_PDF_CHARS:
+                break
+    except (PyPdfError, ValueError, KeyError, TypeError, AttributeError, IndexError, OSError):
+        return None  # a broken PDF has no text; that never fails the upload
     out = "\n\n".join(parts).strip()[:MAX_PDF_CHARS]
     return out or None
 
 
-async def pdf_text(data: bytes) -> str | None:
-    """The text of a PDF for files.read (prompt 07 §3), or None: a scanned,
-    encrypted or broken PDF has none, and that never fails the upload."""
-    if not data.startswith(b"%PDF-"):
-        return None
-    try:
-        return await asyncio.wait_for(asyncio.to_thread(_pdf_text, data), PDF_TEXT_S)
-    except Exception:  # noqa: BLE001 - pypdf on a hostile or broken file: no text
-        return None
+@dataclass
+class PdfText:
+    status: str  # ready (text or none) | failed (the job was stopped)
+    text: str | None = None
+    error: str | None = None
+
+
+async def pdf_text(path: Path) -> PdfText:
+    """A PDF's text for files.read (prompt 07 §3), from a child process. A
+    scanned, encrypted or broken PDF is `ready` without text; one the limits
+    stopped is `failed`. Neither fails the upload."""
+    if not await asyncio.to_thread(_is_pdf, path):
+        return PdfText("ready")
+    got = await untrusted.run("hq_api.media:pdf_text_job", kwargs={"path": str(path)},
+                              limits=PDF_LIMITS)  # fmt: skip
+    if got.ok:
+        return PdfText("ready", got.value if isinstance(got.value, str) else None)
+    log.warning("pdf text stopped", extra={"reason": got.reason, "seconds": round(got.seconds, 2)})
+    return PdfText("failed", None, f"text extraction {got.reason}"[:300])
+
+
+def _is_pdf(path: Path) -> bool:
+    with open(path, "rb") as fh:
+        return fh.read(5) == b"%PDF-"

@@ -59,6 +59,9 @@ class Settings:
     browser_proxy_url: str = field(
         default_factory=lambda: os.environ.get("EGRESS_BROWSER_PROXY_URL", "http://egress:3128")
     )
+    # The hub's own names AND public addresses (hq.sh adds the host's global
+    # addresses and what its domain resolves to, 7.1): /internal is never
+    # reachable by any of them, nor by a name that resolves to one of them.
     hub_hosts: frozenset[str] = field(
         default_factory=lambda: _hosts("EGRESS_HUB_HOSTS", "hq.coinepro.com")
     )
@@ -71,5 +74,17 @@ class Settings:
     )
     browse_call_s: float = field(
         default_factory=lambda: float(os.environ.get("EGRESS_BROWSE_CALL_S", "20"))
+    )
+    # Every file of one web.browse together (screenshots and downloads, 7.1):
+    # they cross egress's memory as base64 (MEM_EGRESS is measured for it).
+    browse_files_bytes: int = field(
+        default_factory=lambda: int(
+            os.environ.get("EGRESS_BROWSE_FILES_BYTES", str(16 * 1024 * 1024))
+        )
+    )
+    # One call's whole time (every hop, a slow server, the parsing): below the
+    # gateway's 25 s for a tool, so the call's entries always come back to it.
+    call_deadline_s: float = field(
+        default_factory=lambda: float(os.environ.get("EGRESS_CALL_DEADLINE_S", "20"))
     )
     log_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL", "info"))

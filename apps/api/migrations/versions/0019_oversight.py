@@ -32,9 +32,10 @@ branch_labels = None
 depends_on = None
 
 APP_ROLES = "hq_api, hq_worker"
+# The kinds after 0017_6 (0017_4 adds tool_enable).
 KINDS = (
     "'hire', 'dismissal', 'recurring_approval', 'deploy', 'a3_action', 'proposal', "
-    "'budget_change', 'evaluation', 'code_session'"
+    "'budget_change', 'evaluation', 'code_session', 'tool_enable'"
 )
 AREAS = (
     "'truth', 'authority', 'money', 'safety', 'quality', 'delivery', 'security', 'data', "
@@ -124,7 +125,8 @@ def upgrade() -> None:
             started_at    timestamptz NOT NULL DEFAULT now(),
             finished_at   timestamptz,
             result        text NOT NULL DEFAULT 'pending'
-                               CHECK (result IN ('pending', 'pass', 'fail', 'partial', 'skipped')),
+                               -- deferred: the oversight share was spent (contract §18.1 v1.4.4)
+                               CHECK (result IN ('pending', 'pass', 'fail', 'partial', 'skipped', 'deferred')),
             by_kind       text NOT NULL CHECK (by_kind IN ('system', 'agent')),
             by_code       text NOT NULL,
             findings      int NOT NULL DEFAULT 0 CHECK (findings >= 0),

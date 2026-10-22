@@ -36,11 +36,20 @@ import com.coinepro.hq.ui.refresher
 @Composable
 fun AuditScreen() {
     val c = Divan.colors
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val v = rememberQuery("audit:verify", "audit", maxAgeMs = 300_000) { auditVerify() }
     val q = rememberQuery("audit:list", "audit") { audit(100) }
     val r = refresher(v, q)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
-        item { PageHeader("دفتر Audit", eyebrow = "هر اقدام، با زنجیره‌ی hash") }
+        item {
+            PageHeader("دفتر Audit", eyebrow = "هر اقدام، با زنجیره‌ی hash") {
+                val rows = q.data?.items.orEmpty()
+                if (rows.isNotEmpty()) com.coinepro.hq.ui.owner.ExportButton {
+                    com.coinepro.hq.ui.owner.shareCsv(ctx, "audit.csv", listOf("seq", "at", "actor", "action", "class", "target", "company", "step_up", "summary"),
+                        rows.map { e -> listOf(e.seq, e.at, e.actor.code, e.action, e.actionClass, e.target.values.filterNotNull().joinToString(" "), e.company, if (e.stepUp) "yes" else "", e.summary) })
+                }
+            }
+        }
         item {
             Loadable(v, skeleton = { Skeleton(Modifier.fillMaxWidth().height(72.dp), radius = 14.dp) }) { x ->
                 HqCard(Modifier.fillMaxWidth(), color = if (x.ok) c.softPositive else c.softNegative) {

@@ -9,7 +9,14 @@ turns them into backup.* rows, the stream events `backup.done` /
   notification per episode (category data_loss, contract §5.4);
 - an off-site destination failing (a run with ok: false) -> one `decision`
   notification per destination and episode (the urgent one follows at 2 h);
-- the weekly restore test failing -> urgent.
+- the weekly restore test failing -> urgent;
+- 7.1 §2.4: a failed `restic check` -> urgent (`backup:check:{at}`); no
+  hourly.json while backup.runs has rows (the status file vanished, or the
+  directory is no longer mounted) -> urgent; 7.1 §2.2: the OpenBao snapshot
+  configured but not ok (its token lapsed or cannot be renewed) -> decision;
+  7.1 §3: a destination's retention (forget/prune) failing -> decision.
+Prometheus alerts on the same conditions from the host's textfile metrics,
+independent of this worker (infra/observability/prometheus/rules).
 `status()` builds the contract's BackupStatus from the rows. No restore is
 possible through the API: the owner restores in their own terminal.
 
@@ -58,6 +65,12 @@ def _ts(value: Any) -> datetime | None:
     except ValueError:
         return None
     return t if t.tzinfo else t.replace(tzinfo=UTC)
+
+
+def wal_failing(wal: dict[str, Any]) -> bool:
+    """7.1 §1.1 (contract §18.13): failing archiving or a queue of more than 5."""
+    ready = wal.get("ready_count")
+    return bool(wal.get("failing")) or (isinstance(ready, int) and ready > 5)
 
 
 async def oversight_finding(tx: Tx, kind: str, data: dict[str, Any]) -> None:
@@ -109,6 +122,76 @@ async def _alert(
         source_kind="service",
         source_code="backup",
     )
+
+
+def _iso(t: datetime) -> str:
+    return t.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+async def _more_alerts(tx: Tx, holding: Any, hourly: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """7.1 §2.2, §2.4 and §3: the conditions that used to pass without a word.
+    Each is one notification per episode (its link_ref names the episode)."""
+    rows: list[dict[str, Any]] = []
+
+    async def told(
+        level: str, title: str, ref: str, body: str, finding: str | None = None, data: Any = None
+    ) -> None:
+        row = await _alert(tx, holding, level, title, ref, body)
+        if row:
+            rows.append(row)
+            if finding:
+                await oversight_finding(tx, finding, data or {})
+
+    if hourly is None:
+        # The runs exist but their status file does not: the host's script, its
+        # directory or the worker's mount broke, and every other alert is blind.
+        last_run = await tx.scalar(
+            "SELECT max(at) FROM backup.runs WHERE company_id = :co", co=holding.id
+        )
+        if last_run is not None:
+            since = _iso(last_run)
+            await told(
+                "urgent",
+                "خطر از دست رفتن داده: فایل وضعیت backup ساعتی (hourly.json) پیدا نمیشود",
+                f"backup:missing:{since}",
+                f"آخرین اجرای ثبت‌شده: {since}. وضعیت backup دیگر دیده نمیشود؛ "
+                "systemctl list-timers 'coinepro-hq-*' و /home/Hub/backups/status را ببینید.",
+                "missing",
+                {"last_run_at": since},
+            )
+        return rows
+    check = _obj(hourly.get("check"))
+    if check.get("ok") is False:
+        at = check.get("last_at") or hourly.get("at") or "unknown"
+        await told(
+            "urgent",
+            "خطر از دست رفتن داده: restic check یک مخزن backup را سالم نیافت",
+            f"backup:check:{at}",
+            f"بررسی روزانه‌ی مخزن‌ها ({at}) شکست خورد؛ شاید snapshotهای آن مخزن باز نشوند. "
+            "journalctl -u coinepro-hq-backup-hourly.service",
+            "check",
+            {"at": at},
+        )
+    bao = _obj(hourly.get("openbao_snapshot"))
+    if bao.get("configured") and bao.get("ok") is not True:
+        since = bao.get("last_at") or "never"
+        await told(
+            "decision",
+            "snapshot ‏OpenBao در backup ساعتی گرفته نشد",
+            f"backup:openbao:{since}",
+            f"{bao.get('error') or 'خطا'}. آخرین snapshot موفق: {since}. "
+            "توکن تازه: make openbao-snapshot-token (RUNBOOK §۱۸).",
+        )
+    for d in hourly.get("destinations") or []:
+        if isinstance(d, dict) and d.get("configured") and d.get("retention_ok") is False:
+            since = d.get("retention_last_ok_at") or "never"
+            await told(
+                "decision",
+                f"نگهداری backup در مقصد {d.get('key')} اجرا نشد ({d.get('retention_error') or 'خطا'})",
+                f"backup:forget:{d.get('key')}:{since}",
+                "snapshotهای قدیمی پاک نمیشوند و جای مقصد کم‌کم پر میشود؛ backupها سر جایشان است.",
+            )
+    return rows
 
 
 async def ingest(hub: Any, now: datetime | None = None) -> dict[str, Any]:
@@ -195,6 +278,27 @@ async def ingest(hub: Any, now: datetime | None = None) -> dict[str, Any]:
                 out["alerts"] += 1
                 push.append(row)
                 await oversight_finding(tx, "stale", {"last_ok_at": since})
+        wal = _obj((hourly or {}).get("wal"))
+        if wal and wal_failing(wal):
+            # At once, not after the 2 hours of a stale backup: pg_wal grows by
+            # ~16 MB a minute and PITR is already cut (7.1 §1.1).
+            since = wal.get("last_failed_at") or (hourly or {}).get("at") or "unknown"
+            row = await _alert(
+                tx,
+                holding,
+                "urgent",
+                "خطر از دست رفتن داده: آرشیو WAL شکست میخورد",
+                f"backup:wal:{since}",
+                f"بازگشت به هر دقیقه (PITR) قطع است و pg_wal بزرگ میشود. "
+                f"شکست‌ها: {wal.get('failed_count')}، در صف: {wal.get('ready_count')}.",
+            )
+            if row:
+                out["alerts"] += 1
+                push.append(row)
+                await oversight_finding(tx, "wal", {"last_failed_at": since})
+        for row in await _more_alerts(tx, holding, hourly):
+            out["alerts"] += 1
+            push.append(row)
         if snaps and isinstance(snaps.get("items"), list):
             listed: dict[str, list[dict[str, Any]]] = {}
             for s in snaps["items"]:
@@ -331,6 +435,8 @@ async def status(tx: Tx, holding_id: Any, now: datetime | None = None) -> dict[s
             "last_archived_at": wal.get("last_archived_at"),
             "lag_s": int(lag) if isinstance(lag, int | float) else None,
             "failed_count": wal.get("failed_count"),
+            "failing": wal_failing(wal) if wal else None,
+            "ready_count": wal.get("ready_count"),
         },
         "base_backup": h.get("base_backup") if isinstance(h.get("base_backup"), dict) else None,
         "destinations": destinations,

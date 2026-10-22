@@ -67,6 +67,20 @@ if [[ "$site" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)
 else
   export HQ_API_EDGE=off HQ_PUBLIC_ORIGIN="" HQ_WEBAUTHN_RP_ID=""
 fi
+# The hub's own addresses (prompt 7.1): egress refuses the hub's /internal by
+# them as by its name, and a name that resolves to one of them. The host's
+# global addresses and what its domain resolves to (a private one among them
+# is refused by egress anyway). Read only; nothing on the host changes.
+hub_addresses() {
+  {
+    ip -o addr show scope global 2>/dev/null | awk '{ split($4, a, "/"); print a[1] }'
+    if [[ "$HQ_WEBAUTHN_RP_ID" == *.* ]]; then
+      getent ahosts "$HQ_WEBAUTHN_RP_ID" 2>/dev/null | awk '{ print $1 }'
+    fi
+  } | sort -u | paste -sd, -
+}
+HQ_HUB_ADDRESSES="${HQ_HUB_ADDRESSES:-$(hub_addresses || true)}"
+export HQ_HUB_ADDRESSES
 # The web panel (prompt 05 §10) runs once apps/web/Dockerfile exists: profile
 # "web", and Caddy sends every path but /api to it (HQ_WEB).
 profile_args=(--profile "$profile")
@@ -119,7 +133,8 @@ stt="${HQ_STT:-$(sed -n 's/^HQ_STT=//p' "$ENV_FILE" | tail -n1)}"
 export STT_URL=""
 if [[ "$stt" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
-  sum="$(compose "${profile_args[@]}" --profile stt config --format json |
+  # backup-tools (its own profile, run hourly by infra/backup) counts too.
+  sum="$(compose "${profile_args[@]}" --profile stt --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   budget=$((ref * 80 / 100))
   if ((sum <= budget)); then
@@ -164,6 +179,32 @@ if [[ "$provisioning" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
         exit 3
         ;;
       *) echo "warning: HQ_PROVISIONING=on ignored ($over)" >&2 ;;
+    esac
+  fi
+fi
+# Tracing (review 7.1 §0.2): opt-in profile "tracing" (Tempo + otel-collector),
+# off by default, switched on with HQ_TRACING=on (.env; `make tracing-on`),
+# refused like stt while it does not fit the memory budget. Prometheus scrapes
+# the two only while it is on (HQ_TRACING_SCRAPE).
+tracing="${HQ_TRACING:-$(sed -n 's/^HQ_TRACING=//p' "$ENV_FILE" | tail -n1)}"
+export HQ_TRACING_SCRAPE=off
+if [[ "$tracing" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  sum="$(compose "${profile_args[@]}" --profile tracing config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile tracing)
+    export HQ_TRACING_SCRAPE=on
+  else
+    over="the $profile profile plus tracing needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_TRACING=on refused: $over (make tracing-off)." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_TRACING=on ignored ($over)" >&2 ;;
     esac
   fi
 fi

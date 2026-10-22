@@ -1,5 +1,11 @@
 package com.coinepro.hq.ui.planner
 
+import com.coinepro.hq.designsystem.Segmented
+import com.coinepro.hq.designsystem.SegOption
+import com.coinepro.hq.designsystem.FilterChip
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,31 +60,57 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 
-/** The planner (D2·2): the owner's week starts on Saturday. A phone shows the week as a day list; each day
- *  carries its scheduled and recurring work across every company. */
+/** The three-level planner (§1.9): the owner's, a company's or a department's; a view over work, by week or by Persian month.
+ *  The Persian week starts on Saturday. */
 @Composable
 fun PlannerScreen(onNewOrder: () -> Unit) {
     val nav = LocalNav.current
     val c = Divan.colors
+    val companies = com.coinepro.hq.ui.rememberCompanies().filter { it.kind != "holding" }
     var week by rememberSaveable { mutableIntStateOf(0) }
-    val today = LocalDate.now(ZoneId.of(OWNER_TZ))
-    val start = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY)).plusWeeks(week.toLong())
-    val end = start.plusDays(6)
-    val q = rememberQuery("planner:$start:$end", "planner", "work") { planner(start.toString(), end.toString()) }
+    var month by rememberSaveable { mutableStateOf(false) }
+    var company by rememberSaveable { mutableStateOf<String?>(null) }
+    var dept by rememberSaveable { mutableStateOf<String?>(null) }
+    val today = com.coinepro.hq.core.format.HqClock.today()
+    val (start, end) = if (month) jMonth(today, week) else today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY)).plusWeeks(week.toLong()).let { it to it.plusDays(6) }
+    val scope = company?.let { co -> dept?.let { "department:$co-$it" } ?: "company:$co" }
+    val q = rememberQuery("planner:$start:$end:${scope ?: "owner"}", "planner", "work") { planner(start.toString(), end.toString(), scope) }
+    val depts = company?.let { co -> rememberQuery("departments:$co", "companies") { departments(co) }.data.orEmpty() }.orEmpty()
     val r = refresher(q)
+    val unit = if (month) "ماه" else "هفته"
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
-            PageHeader("پلنر", eyebrow = "${jDate(start.toString() + "T12:00:00Z")} تا ${jDate(end.toString() + "T12:00:00Z", withYear = true)}") {
+            PageHeader("پلنر", eyebrow = if (month) monthTitle(start) else "${jDate(start.toString() + "T12:00:00Z")} تا ${jDate(end.toString() + "T12:00:00Z", withYear = true)}") {
                 HqButton("فرمان تازه", onNewOrder, variant = BtnVariant.PRIMARY, icon = DivanIcon.COMMAND, size = BtnSize.SM)
-                IconBtn(DivanIcon.NEXT, "هفته‌ی قبل", { week-- }, flip = true)
-                HqButton("این هفته", { week = 0 }, size = BtnSize.SM, enabled = week != 0)
-                IconBtn(DivanIcon.NEXT, "هفته‌ی بعد", { week++ })
+                IconBtn(DivanIcon.NEXT, "${unit}ی قبل", { week-- }, flip = true)
+                HqButton("این $unit", { week = 0 }, size = BtnSize.SM, enabled = week != 0)
+                IconBtn(DivanIcon.NEXT, "${unit}ی بعد", { week++ })
+            }
+        }
+        item { Segmented(listOf(SegOption(false, "هفته"), SegOption(true, "ماه")), month, { month = it; week = 0 }, Modifier.fillMaxWidth()) }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip("پلنر من", company == null, { company = null; dept = null })
+                    companies.forEach { co -> FilterChip(co.nameFa ?: co.code, company == co.code, { company = co.code; dept = null }) }
+                }
+                if (company != null && depts.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip("همه‌ی شرکت", dept == null, { dept = null })
+                    depts.filter { it.status == "active" }.forEach { d -> FilterChip(d.nameFa, dept == d.code, { dept = d.code }) }
+                }
             }
         }
         val days = q.data?.days
         when {
             days == null && q.error == null -> items(4) { Skeleton(Modifier.fillMaxWidth().height(96.dp), radius = 16.dp) }
             days == null -> item { ErrorBlock(q.error, { q.refresh() }) }
+            month -> item {
+                MonthGrid(start, end, days, today) { d ->
+                    month = false
+                    val sat = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY))
+                    week = Math.floorDiv(java.time.temporal.ChronoUnit.DAYS.between(sat, d), 7L).toInt()
+                }
+            }
             else -> items(days, key = { it.date }) { d ->
                 val isToday = d.date == today.toString()
                 HqCard(Modifier.fillMaxWidth(), tahrir = isToday) {
@@ -93,6 +125,49 @@ fun PlannerScreen(onNewOrder: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+private val PDAY = android.icu.text.SimpleDateFormat("d", android.icu.util.ULocale("fa_IR@calendar=persian;numbers=latn")).apply { timeZone = android.icu.util.TimeZone.getTimeZone(OWNER_TZ) }
+private val PMONTH = android.icu.text.SimpleDateFormat("MMMM y", android.icu.util.ULocale("fa_IR@calendar=persian;numbers=latn")).apply { timeZone = android.icu.util.TimeZone.getTimeZone(OWNER_TZ) }
+private fun noon(d: LocalDate) = java.util.Date.from(d.atTime(12, 0).atZone(ZoneId.of(OWNER_TZ)).toInstant())
+private fun jDay(d: LocalDate) = PDAY.format(noon(d)).toInt()
+private fun jStart(d: LocalDate) = d.minusDays(jDay(d) - 1L)
+private fun monthTitle(first: LocalDate) = PMONTH.format(noon(first.plusDays(10)))
+
+/** First and last day of the Persian month [offset] months from [today] (a month is at most 31 days, so +32 lands in the next). */
+private fun jMonth(today: LocalDate, offset: Int): Pair<LocalDate, LocalDate> {
+    var first = jStart(today)
+    repeat(kotlin.math.abs(offset)) { first = if (offset > 0) jStart(first.plusDays(32)) else jStart(first.minusDays(1)) }
+    return first to jStart(first.plusDays(32)).minusDays(1)
+}
+
+@Composable
+private fun MonthGrid(first: LocalDate, last: LocalDate, days: List<com.coinepro.hq.core.net.PlannerDay>, today: LocalDate, onDay: (LocalDate) -> Unit) {
+    val c = Divan.colors
+    val byDate = days.associateBy { it.date }
+    val lead = (first.dayOfWeek.value % 7 + 1) % 7 // Saturday = 0
+    val cells: List<LocalDate?> = List(lead) { null } + generateSequence(first) { it.plusDays(1) }.takeWhile { !it.isAfter(last) }.toList()
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row { listOf("ش", "ی", "د", "س", "چ", "پ", "ج").forEach { Text(it, style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center) } }
+        cells.chunked(7).forEach { week ->
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                (week + List(7 - week.size) { null }).forEach { d ->
+                    val n = d?.let { byDate[it.toString()]?.items?.size } ?: 0
+                    Column(
+                        Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(10.dp)).background(if (d == null) androidx.compose.ui.graphics.Color.Transparent else if (d == today) c.softGold else c.card)
+                            .clickable(enabled = d != null) { d?.let(onDay) }.padding(4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        if (d != null) {
+                            Fig("${jDay(d)}", style = Divan.type.figureSmall, color = if (d == today) c.goldInk else c.textSecondary)
+                            if (n > 0) Text("$n", style = Divan.type.micro, color = c.onGold, modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(c.goldFill).padding(horizontal = 6.dp))
+                        }
+                    }
+                }
+            }
+        }
+        Text("روی هر روز بزن تا هفته‌اش باز شود.", style = Divan.type.micro, color = c.textMuted)
     }
 }
 

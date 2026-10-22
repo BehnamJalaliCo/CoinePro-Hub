@@ -22,9 +22,10 @@ import com.coinepro.hq.ui.shell.Shell
 
 /** Signed out → sign-in (or enrolment when an enrolment link opened the app); signed in → the shell. */
 @Composable
-fun HqRoot(graph: AppGraph, night: Boolean, enrolToken: String?, onEnrolConsumed: () -> Unit) {
+fun HqRoot(graph: AppGraph, night: Boolean, enrolToken: String?, onEnrolConsumed: () -> Unit, launch: String? = null, onLaunchConsumed: () -> Unit = {}) {
     val env by graph.env.collectAsStateWithLifecycle()
     val signedIn by env.auth.signedIn.collectAsStateWithLifecycle()
+    val locked by graph.lock.locked.collectAsStateWithLifecycle()
     val toasts = remember { Toasts() }
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -40,6 +41,7 @@ fun HqRoot(graph: AppGraph, night: Boolean, enrolToken: String?, onEnrolConsumed
         if (signedIn) env.stream.start() else {
             env.stream.stop()
             env.cache.clear()
+            graph.offline.clear()
         }
     }
     CompositionLocalProvider(LocalEnv provides env, LocalToasts provides toasts) {
@@ -47,7 +49,8 @@ fun HqRoot(graph: AppGraph, night: Boolean, enrolToken: String?, onEnrolConsumed
             when {
                 enrolToken != null -> EnrolScreen(enrolToken, onDone = onEnrolConsumed)
                 !signedIn -> LoginScreen(graph)
-                else -> Shell(graph)
+                locked && !env.demo -> com.coinepro.hq.ui.owner.LockScreen(graph)
+                else -> Shell(graph, launch, onLaunchConsumed)
             }
             ToastHost(toasts)
         }

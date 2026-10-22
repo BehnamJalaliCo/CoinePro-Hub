@@ -141,3 +141,17 @@ test_the_assistants_a2 if {
 	}
 	reasons(f.hq_pa, named("A3", "web.browse", "HQ"), open) == {"a3_requires_decision"}
 }
+
+# 7.1 §2.10: the one call an approved A3 card allows (the api consumed the
+# card for it) runs; a locked company or another company still refuses it,
+# and anything that is not a decision ref is no approval.
+test_mcp_call_a3_with_an_approved_card if {
+	approved := {"escrow_classes": [], "company_locked": false, "approved_decision": "D-000042"}
+	allowed(f.ty_growth_01, named("A3", "mcp.call", "TY"), approved)
+	locked := {"escrow_classes": [], "company_locked": true, "approved_decision": "D-000042"}
+	reasons(f.ty_growth_01, named("A3", "mcp.call", "TY"), locked) == {"company_locked"}
+	reasons(f.ty_growth_01, named("A3", "mcp.call", "FX"), approved) == {"other_company"}
+	not_a_ref := {"escrow_classes": [], "company_locked": false, "approved_decision": "yes"}
+	reasons(f.ty_ceo, named("A3", "mcp.call", "TY"), not_a_ref) == {"a3_requires_decision"}
+	reasons(f.svc, named("A3", "mcp.call", "TY"), approved) == {"a3_not_for_services"}
+}

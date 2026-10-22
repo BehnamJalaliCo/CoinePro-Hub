@@ -67,4 +67,39 @@ The WER numbers are from robotic synthetic voices and say nothing about the >= 9
 3. Per-workspace GitHub tokens: fine-grained, one repo each, contents + pull requests, in kv/hq-api/workshop/github/<WORKSPACE-CODE> (the owner puts them there; nobody sees them)
 4. Left from measurement, for the owner to keep or delete: volume stt-measure-models (~3.6 GB) and image coinepro-hq/stt:measure
 
+## Review of 6 (PROMPT_06_1_FIXES.md; owner 2026-10-18: blockers §1.2-§1.4 only, on server/p07-platform)
+- 1.1 ⛔ set aside with 0.2 (the workshop runs no session until the owner picks a runtime)
+- 1.2 ok: the workshop's approval_result says `allow` (the contract's name), not `allowed`; test reads `data.allow`
+- 1.3 ok: treasury breakdown/what-if take a bare date as the owner's day (`to` counts its own day) and a time without a zone as the owner's time; default from = 1st of the owner's month; `from=2026-10-01` was a 500. Test: by=company/day/model/task_class, naive times, what-if, the default
+- 1.4 ok, with 7.1 §1.2 (one helper, hq_common.untrusted): images are parsed only in a limited child (192 MiB address space, 20 s CPU, killed at 30 s, oom_score_adj 1000), outside any transaction; metadata (EXIF/GPS/XMP/IPTC, comments, previews, trailing data) is stripped from the photo's own bytes without decoding it, so the original keeps its pixels and a one-tag orientation (browsers and Coil rotate it); the agent variant and thumb are decoded at reduced scale and upright; MAX_PIXELS 40 MP, > 80 MP and anything the limits stop → 415, not 500. Test: a 40 MP photo through both upload paths, 201 in ~1 s, api growth < 50 MB, GPS gone
+- Round 2 (2026-10-22, after the weekly limit renewed; on server/p07-platform):
+- 0.1 → done as 7.1 §0.2 (see Review of 7): STT still does not fit (784 MiB short at 2048m), stays off; the small model was not chosen
+- 0.2 ⛔ set aside (owner): no subscription runtime; the workshop control plane stays off (runtime null, 503)
+- 0.3 ok: volume stt-measure-models and image coinepro-hq/stt:measure deleted (nothing else)
+- 2 files.read ok (round 1): {file_id, variant?}, an image returns its agent variant
+- 2 attach race ok: the worker holds the file's current company (files.lock_company) before a variant or file.ready; attach locks the originals first. Test: an attach in progress, frames and file.ready land in the new company
+- 2 audio caps ok: ffmpeg decodes at most limit+1 s (-t), longer sound refused before stt, attempts counted at start (3 max, a retry keeps poster/frames), STT_MAX_BYTES from the duration (≥ 29 MiB). Tests: duration-less WebM, 413, attempts
+- 2 ffmpeg/ffprobe ok: file:<path>, -protocol_whitelist file, the allowed demuxers only. Test: ID3 + ffconcat no longer opens concat (415)
+- 2 SVG ok: only allowed types inline, Content-Security-Policy: sandbox + nosniff everywhere. Test: an agent's SVG is an attachment
+- 2 code_session seal ok: step-up was already required; the effect makes no grant without the seal. Test
+- 2 advisor ok: refused at the API, OPA/RLS and the domain to drive another company's session. Test
+- 2 grant actions ok: a read-only grant never edits, runs, pushes or opens a PR (refused, not asked; no work lock), fake runtime alike. Tests
+- 2 queued session ok: never starts under a kill switch or freeze (starts when the lock lifts); grant expired → stopped grant_expired. Test
+- 2 runtime permissions ok: tool policies checked when the runtime is built and at every start (anything not always_ask keeps it off; an unasked tool stops the session); web/MCP/unknown become approvals. Tests
+- 2 voice role ok: a role named by its title beats a question word («به مدیر فنی FX بگو چطور…» → FX-TECH-MGR). Test
+- 2 display_fa ok: agent drivers and openers carry the employee's title. Test
+- 2 order due date ok: 23:59 owner time; seed words (امروز، فردا، هفته بعد…) or 3 days; the work appears in /planner. Test
+- 3 ffmpeg ok: killed on cancel, -threads 2, the evenly spaced fallback stops after 120 s. Tests
+- 3 append-only guard ok: only the owner's uploads (and their media variants) move; holding agents cannot read an unattached owner upload. Tests
+- 3 Range ok: multi-range/other units/malformed → 200, > 18 digits capped (4400 digits → 416, no 500); Content-Disposition filename*=UTF-8''…, ZWNJ kept in Persian names. Test
+- 3 stt 503 busy ok: retried with growing waits; /transcribe 429 rate_limited after ~2 min (the 429 is our choice; not in the contract). Test
+- 3 normaliser ok: «میدانها» not split, vocative «ای» kept apart. Tests
+- 3 frames ok: [{id, at_s}] in code and report; the gateway passes frames_at_s. Test
+- 3 ICC ok: kept in the original and now in the agent variant and thumb. Test
+- 3 command duration_s ok (from the tool result's timestamps; assumes agent.tool_result carries tool_use_id and processed_at, else omitted); /live accepts ?after. Tests
+- 3 lost cursor ok: one approval per runtime ask (unique in the DB), no repeat confirmations, tokens never counted twice. Test
+- 3 automatic session ok: a model-found code route opens/steers a session only with a confirming rule word, else a code_session card. Test
+- 3 events company ok: FK (session, company) on workshop.events and workshop.approvals. Test
+- Open from round 1: HEIC above ~14 MP (24 MP iPhone photos), WebP above ~9 MP and PNG above ~30 MP do not fit the parse child's 192 MiB and answer 415; lean's api limit (224m) cannot hold a 192 MiB child next to it
+
 این گزارش را برای Claude سشن مشورت ببر.

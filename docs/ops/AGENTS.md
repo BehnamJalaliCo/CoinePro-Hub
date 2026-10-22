@@ -33,6 +33,7 @@
 | اقدام در هر قدم / ابزار در هر اجرا | `AGENT_ACTIONS_PER_STEP` (۸) و `AGENT_TOOL_CALLS_PER_RUN` (۴۸)، در SQL اعمال میشوند؛ بیشتر ← `429 rate_limited` با `Retry-After` |
 | زمان | `AGENT_MAX_RUN_S` (۳۰۰۰)، هر قدم `AGENT_STEP_TIMEOUT_S` (۳۰۰) |
 | مصرف روزانه‌ی همه‌ی اجراها | `AGENT_DAILY_TOKEN_CAP` (روی هاب `600000`، تصمیم مالک؛ پیش‌فرض کد ۲٬۰۰۰٬۰۰۰ در روز UTC؛ `0` یعنی بی‌سقف). ورودی + خروجی + cache. در `claim` و **پیش از هر فراخوانی مدل** بررسی میشود ← `refused` / `failed` با `daily_cap` |
+| سهم نظارت (پرامپت ۸ §۲.۳) | `OVERSIGHT_DAILY_SHARE` (پیش‌فرض `0.2`) از همان سقف روزانه برای ناظر و QC روی هم. LLM Router بعد از پر شدن، هر فراخوانی آن‌ها را رد میکند (`429 budget_exhausted`، دفتر: `oversight_share`)، جز اجرای پروتکل `critical`. اجرای پروتکل‌های دیگر `deferred` میشود و فردا اول صف است |
 | کار حادثه | `AGENT_INCIDENT_BUDGET_TOKENS` (۶۰٬۰۰۰)، بودجه‌ی کاری که پایش سایت میسازد |
 | درخواست ایجنت به ایجنت (`work.request`) | کار ریشه‌ی تازه به کار درخواست‌کننده بسته است (پیش‌فرض: کار همان اجرا). بودجه‌اش باقیمانده‌ی آن کار است، حداکثر `AGENT_REQUEST_BUDGET_TOKENS` (۶۰٬۰۰۰)، و هرگز بیشتر از آنچه خواسته شده. زنجیره‌ی درخواست‌ها حداکثر `AGENT_REQUEST_CHAIN_MAX` (۲) حلقه است؛ بیشتر ← `409 delegation_depth_exceeded` |
 
@@ -165,6 +166,7 @@ worker ──(توکن سرویس)──► gateway ──(توکن hqa1 هما�
 | اجرایی شروع نمیشود | `GET /api/v1/runs?state=queued`؛ لاگ `make logs s=worker` (Dispatcher)؛ Temporal UI، workflow ‏`agent-run-<id>` |
 | `refused` با `runtime_not_configured` | `kv/hq-agents/runtime` در OpenBao نیست: `make llm-provision` |
 | `refused` یا `failed` با `daily_cap` | مصرف امروز به `AGENT_DAILY_TOKEN_CAP` رسیده؛ فردا (UTC) خودکار باز میشود |
+| `failed` با `budget_exhausted` برای ناظر یا QC | سهم نظارت امروز پر شده (`OVERSIGHT_DAILY_SHARE`)؛ فردا (UTC) باز میشود و پروتکل‌های deferred اول اجرا میشوند |
 | `refused` با `work_closed` | کار پیش از شروع اجرا بسته یا لغو شد؛ کاری برای انجام نیست |
 | پیشنهاد استخدام `403 hiring_closed` | استخدام بسته است (`GET /api/v1/owner/hiring`)؛ فقط مالک باز میکند |
 | همه‌ی اقدام‌ها `policy_denied` | قفل یا کلید توقف (`GET /api/v1/control/state`) |

@@ -323,6 +323,7 @@ data class Work(
     val deliverableIds: List<String> = emptyList(),
     val chain: List<ChainStep> = emptyList(),
     val children: List<ChainStep> = emptyList(),
+    val version: Int = 1,
 )
 
 @Serializable
@@ -497,6 +498,8 @@ data class Connection(
     val models: List<String> = emptyList(),
     val defaultModel: String? = null,
     val quotaResetAt: String? = null,
+    val hasSecretRef: Boolean = false,
+    val version: Int = 1,
 )
 
 // ----------------------------------------------------------------- audit --

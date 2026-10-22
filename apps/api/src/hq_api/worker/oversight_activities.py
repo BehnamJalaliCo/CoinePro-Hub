@@ -2,13 +2,19 @@
 
 protocol_run      one scheduled run of a protocol: a checker in code when one
                   exists (rule, reconcile), else work for the overseer or QC,
-                  within the daily cap of model-backed runs
-oversight_tick    every 5 minutes (Maintenance): watch mode on/off and its
-                  report, missed challenges, today's compliance
+                  within the daily cap of model-backed runs and the oversight
+                  share of the token cap (prompt 08 §2.3: once it is spent only
+                  `critical` protocols go on, the rest are `deferred`); a code
+                  check wakes the overseer only for a failure or what it could
+                  not decide, with the evidence it collected
+oversight_tick    every 5 minutes (Maintenance): yesterday's deferred runs
+                  first, watch mode on/off and its report, missed challenges,
+                  today's compliance
 oversight_weekly  Saturday morning: one work item for the overseer to issue
                   this week's challenge to every company that has none
 reconcile()       the protocols seeded from agents/ and one Temporal schedule
-                  per active protocol (called from reconcile_schedules)
+                  per ACTIVE protocol (a paused one has none; called from
+                  reconcile_schedules)
 """
 
 from __future__ import annotations
@@ -30,6 +36,7 @@ from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.hub import Hub
 from hq_api.worker import schedules
+from hq_common import oversight_share
 
 log = logging.getLogger("hq_api.worker.oversight")
 SYSTEM = audit.SYSTEM
@@ -87,7 +94,9 @@ class OversightActivities:
         wanted = {WEEKLY}
         out["weekly"] = await schedules.upsert(client, weekly_desired(tz), task_queue)
         for r in rows:
-            paused = r["status"] != "active" or not self.hub.settings.oversight_schedules
+            if r["status"] != "active":
+                continue  # paused or draft (contract §18.1 v1.4.4): no schedule at all
+            paused = not self.hub.settings.oversight_schedules
             d = protocol_desired(r["ref"], r["schedule"], tz, paused)
             out["protocols"][d.id] = await schedules.upsert(client, d, task_queue)
             wanted.add(d.id)
@@ -132,6 +141,8 @@ class OversightActivities:
                 # An hourly judgement protocol goes to a model at most once a day.
                 await O.finish_run(tx, run["id"], "skipped", notes="handed to the overseer today")
                 return {"protocol": ref, "skipped": "once_a_day"}
+            if await self._defer(tx, p, run):
+                return {"protocol": ref, "deferred": "oversight_share"}
             if await O.model_runs_today(tx, tz) >= s.oversight_model_runs_per_day:
                 await O.finish_run(
                     tx,
@@ -140,36 +151,79 @@ class OversightActivities:
                     notes="daily cap of model-backed protocol runs reached",
                 )
                 return {"protocol": ref, "skipped": "daily_cap"}
-            assignee = f"{holding.code}-{O.QC if p['method'] in O.QC_METHODS else O.OVERSEER}"
-            active = await tx.scalar(
-                "SELECT 1 FROM core.employees WHERE code = :c AND status = 'active'", c=assignee
+            prefer = O.QC if p["method"] in O.QC_METHODS else O.OVERSEER
+            handed = await self._hand(tx, p, run, holding, prefer, self._brief(p))
+            if handed is None:
+                await O.finish_run(tx, run["id"], "skipped", notes="no overseer to run it")
+                return {"protocol": ref, "skipped": "no_overseer"}
+            return {"protocol": ref, "work": handed[0], "assignee": handed[1]}
+
+    async def _defer(self, tx: Any, p: dict[str, Any], run: dict[str, Any]) -> bool:
+        """The oversight share is spent and the protocol is not critical: the
+        run is `deferred` (no failure; the next day it goes first)."""
+        s = self.hub.settings
+        if p["severity"] == oversight_share.CRITICAL or not await O.share_spent(
+            tx, s.agent_daily_token_cap, s.oversight_daily_share
+        ):
+            return False
+        await O.finish_run(
+            tx, run["id"], "deferred", notes="the oversight share of today's token cap is spent"
+        )
+        return True
+
+    async def _hand(
+        self,
+        tx: Any,
+        p: dict[str, Any],
+        run: dict[str, Any],
+        holding: Any,
+        prefer: str,
+        brief: str,
+        *,
+        link: bool = True,
+    ) -> tuple[str, str] | None:
+        """Work for the overseer (or QC) on this run, its budget within the
+        assignee's charter (prompt 08 §2.3: never above tokens_per_run)."""
+        emp = None
+        for code in dict.fromkeys((prefer, O.OVERSEER)):
+            emp = await tx.first(
+                "SELECT code, role FROM core.employees WHERE code = :c AND status = 'active'",
+                c=f"{holding.code}-{code}",
             )
-            if not active:
-                assignee = f"{holding.code}-{O.OVERSEER}"
-                if not await tx.scalar(
-                    "SELECT 1 FROM core.employees WHERE code = :c AND status = 'active'", c=assignee
-                ):
-                    await O.finish_run(tx, run["id"], "skipped", notes="no overseer to run it")
-                    return {"protocol": ref, "skipped": "no_overseer"}
-            w = await W.create(
-                tx,
-                SYSTEM,
-                company_id=holding.id,
-                company_code=holding.code,
-                title=f"Protocol {ref}: {p['title_fa']}"[:300],
-                brief=self._brief(p),
-                kind="event",
-                priority="P2",
-                assignee_code=assignee,
-                budget=W.BudgetIn(tokens=s.oversight_run_tokens),
-            )
+            if emp is not None:
+                break
+        if emp is None:
+            return None
+        w = await W.create(
+            tx,
+            SYSTEM,
+            company_id=holding.id,
+            company_code=holding.code,
+            title=f"Protocol {p['ref']}: {p['title_fa']}"[:300],
+            brief=brief,
+            kind="event",
+            priority="P2",
+            assignee_code=emp["code"],
+            budget=W.BudgetIn(
+                tokens=O.run_tokens(
+                    self.hub.charters, emp["role"], self.hub.settings.oversight_run_tokens
+                )
+            ),
+        )
+        if link:
             await tx.exec(
                 "UPDATE oversight.protocol_runs SET work_id = :w, by_kind = 'agent', by_code = :a WHERE id = :id",
                 w=w["id"],
-                a=assignee,
+                a=emp["code"],
                 id=run["id"],
             )
-            return {"protocol": ref, "work": w["ref"], "assignee": assignee}
+        else:
+            await tx.exec(
+                "UPDATE oversight.protocol_runs SET work_id = :w WHERE id = :id",
+                w=w["id"],
+                id=run["id"],
+            )
+        return w["ref"], emp["code"]
 
     @staticmethod
     def _brief(p: dict[str, Any]) -> str:
@@ -182,6 +236,88 @@ class OversightActivities:
             f'{{"protocol": "{p["ref"]}", "result": "pass|fail|partial", "findings": [FI-...], "notes": "..."}}. '
             "Read only what you need; stop within this work's budget."
         )
+
+    @staticmethod
+    def _evidence_brief(
+        p: dict[str, Any], checked: C.Checked, new: list[C.Problem], *, pending: bool
+    ) -> str:
+        """The overseer's brief after a code check: only what the code found
+        (prompt 08 §2.3: pre-collected evidence, never the whole records)."""
+
+        def item(pr: C.Problem) -> str:
+            ev = "; ".join(f"{e.get('kind')}:{e.get('ref')}" for e in pr.evidence[:10])
+            return f"- {pr.company}: {pr.title_fa} [{pr.key}]" + (f" ({ev})" if ev else "")
+
+        parts = [
+            f"Oversight protocol {p['ref']} v{p['version']} ({p['area']}, {p['method']}, severity "
+            f"{p['severity']}) was checked by code.",
+        ]
+        if new:
+            parts += [
+                "It failed; these findings are raised already (FI- refs on the protocol). Word each "
+                "one for its answerable role with `finding.update` notes or add what the code "
+                "could not see; the run's result is recorded, so do not report it again:",
+                *(item(pr) for pr in new[:20]),
+            ]
+        if checked.unclear:
+            report = (
+                f' and report with `protocol.result` {{"protocol": "{p["ref"]}", '
+                '"result": "pass|fail|partial", "findings": [FI-...], "notes": "..."}'
+                if pending
+                else ""
+            )
+            parts += [
+                f"The code could not decide these; judge them, raise a finding per real problem{report}:",
+                *(item(pr) for pr in checked.unclear[:20]),
+            ]
+        parts.append(
+            "Evidence is above; read more only to confirm a point. Stop within this work's budget."
+        )
+        return "\n".join(parts)
+
+    async def _wake(
+        self,
+        tx: Any,
+        p: dict[str, Any],
+        run: dict[str, Any],
+        holding: Any,
+        checked: C.Checked,
+        new: list[C.Problem],
+        *,
+        pending: bool,
+    ) -> dict[str, Any]:
+        """A failure or an unclear result of a code check wakes the overseer
+        once a day per protocol, within the oversight share (critical: always);
+        a run still pending (undecided by code) becomes the overseer's to finish."""
+        if not new and not checked.unclear:
+            return {}  # passed (or nothing new): the overseer sleeps
+        s = self.hub.settings
+        tz = str(
+            await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
+        )
+        if await tx.scalar(
+            """SELECT 1 FROM oversight.protocol_runs WHERE protocol_ref = :r AND work_id IS NOT NULL
+                 AND started_at >= :s LIMIT 1""",
+            r=p["ref"],
+            s=O.day_start(datetime.now(UTC), tz),
+        ):
+            return {"woken": None, "why": "once_a_day"}
+        if p["severity"] != oversight_share.CRITICAL and await O.share_spent(
+            tx, s.agent_daily_token_cap, s.oversight_daily_share
+        ):
+            return {"woken": None, "why": "oversight_share"}
+        if await O.model_runs_today(tx, tz) >= s.oversight_model_runs_per_day:
+            return {"woken": None, "why": "daily_cap"}
+        handed = await self._hand(
+            tx,
+            p,
+            run,
+            holding,
+            O.OVERSEER,
+            self._evidence_brief(p, checked, new, pending=pending),
+            link=pending,
+        )
+        return {"woken": handed[0] if handed else None}
 
     async def _by_code(
         self, tx: Any, p: dict[str, Any], run: dict[str, Any], checker: C.Checker, holding: Any
@@ -201,6 +337,7 @@ class OversightActivities:
         checked = await checker(ctx)
         raised = 0
         failed: set[str] = set()
+        new: list[C.Problem] = []
         for pr in checked.problems:
             _, created = await O.raise_finding(
                 tx,
@@ -218,6 +355,8 @@ class OversightActivities:
             )
             raised += int(created)
             failed.add(pr.company)
+            if created:
+                new.append(pr)
         per_company = {c: ("fail" if c in failed else "pass") for c in checked.companies}
         per_company |= dict.fromkeys(failed, "fail")
         result = "fail" if checked.problems else "pass"
@@ -225,6 +364,27 @@ class OversightActivities:
         notes = json.dumps(
             {"summary": summary, "data": checked.data}, ensure_ascii=False, default=str
         )
+        if checked.unclear and not checked.problems:
+            # Undecided by code: the overseer's judgement finishes the run (or
+            # the run is deferred when the share is spent).
+            if await self._defer(tx, p, run):
+                return {"protocol": p["ref"], "deferred": "oversight_share"}
+            woke = await self._wake(tx, p, run, holding, checked, new, pending=True)
+            if woke.get("woken"):
+                return {
+                    "protocol": p["ref"],
+                    "result": "pending",
+                    "unclear": len(checked.unclear),
+                    **woke,
+                }
+            result = "partial"
+            summary += (
+                f"; {len(checked.unclear)} undecided, the overseer not woken "
+                f"({woke.get('why') or 'no overseer'})"
+            )
+            notes = json.dumps(
+                {"summary": summary, "data": checked.data}, ensure_ascii=False, default=str
+            )
         await O.finish_run(
             tx,
             run["id"],
@@ -233,17 +393,26 @@ class OversightActivities:
             per_company=per_company,
             notes=notes,
         )
+        woke = (
+            await self._wake(tx, p, run, holding, checked, new, pending=False)
+            if checked.problems
+            else {}
+        )
         return {
             "protocol": p["ref"],
             "result": result,
             "findings": len(checked.problems),
             "new": raised,
+            **woke,
         }
 
     # ------------------------------------------------------------- the tick --
     @activity.defn(name="oversight_tick")
     async def oversight_tick(self) -> dict[str, Any]:
         holding = await self.hub.companies.holding()
+        async with self._tx() as tx:
+            due = await O.deferred_due(tx)
+        resumed = [await self.protocol_run(ref) for ref in due]  # first in the new day's queue
         async with self._tx() as tx:
             watch = await O.evaluate_watch(tx, holding.id, holding.code)
             if watch.get("on"):
@@ -258,7 +427,7 @@ class OversightActivities:
                 if c.kind != "holding" and c.status == "active":
                     await O.store_compliance(tx, c.id, today)
                     stored += 1
-        return {"watch": watch, "missed": missed, "compliance": stored}
+        return {"watch": watch, "missed": missed, "compliance": stored, "resumed": resumed}
 
     # ----------------------------------------------------------- the week --
     @activity.defn(name="oversight_weekly")
@@ -307,6 +476,10 @@ class OversightActivities:
                 kind="event",
                 priority="P3",
                 assignee_code=overseer,
-                budget=W.BudgetIn(tokens=self.hub.settings.oversight_run_tokens),
+                budget=W.BudgetIn(
+                    tokens=O.run_tokens(
+                        self.hub.charters, "overseer", self.hub.settings.oversight_run_tokens
+                    )
+                ),
             )
         return {"week": key.isoformat(), "missing": missing, "work": w["ref"]}

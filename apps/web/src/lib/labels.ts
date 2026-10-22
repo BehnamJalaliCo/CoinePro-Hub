@@ -9,6 +9,13 @@ export const DECISION_KIND: Record<string, { fa: string; icon: IconName }> = {
   proposal: { fa: 'پیشنهاد رشد', icon: 'chart' },
   budget_change: { fa: 'تغییر بودجه', icon: 'budget' },
   evaluation: { fa: 'ارزیابی', icon: 'rate' },
+  code_session: { fa: 'جلسه‌ی کارگاه کد', icon: 'code' },
+  protocol: { fa: 'پروتکل نظارت', icon: 'overseer' },
+  tool_enable: { fa: 'روشن کردن ابزار', icon: 'globe' },
+  errand_action: { fa: 'تعهد دستیار', icon: 'assistant' },
+  company_found: { fa: 'تأسیس شرکت', icon: 'found' },
+  server_plan: { fa: 'طرح سرور', icon: 'server' },
+  lesson_adoption: { fa: 'پذیرش درس', icon: 'learning' },
 };
 
 export const DECISION_STATUS: Record<string, string> = {

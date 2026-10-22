@@ -35,7 +35,7 @@ export type Grant = {
 export type SessionState = 'starting' | 'working' | 'waiting_approval' | 'idle' | 'done' | 'failed' | 'stopped';
 export type CodeSession = {
   id: string; ref: string; workspace: string; grant: string; title: string; brief: string;
-  opened_by: Actor; driver: Actor; runtime: 'managed' | 'self_hosted'; model: string; effort: string;
+  opened_by: Actor; driver: Actor; runtime: 'subscription' | 'managed' | 'self_hosted'; model: string; effort: string;
   state: SessionState; branch: string | null; pr_url: string | null;
   usage: { usd: number; input_tokens: number; output_tokens: number }; created_at: string; updated_at: string;
 };
@@ -57,7 +57,7 @@ async function problem(res: Response): Promise<never> {
 }
 
 /** One JSON call against /api/v1 with the contract's headers. */
-export async function call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH', path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
   const h = new Headers(headers);
   h.set('Accept', 'application/json');
   if (method !== 'GET') {
@@ -155,7 +155,7 @@ export async function transcribe(audio: Blob, purpose: 'message' | 'order' | 'no
 }
 
 // ------------------------------------------------------------ workshop --
-export type WorkshopMeta = { runtime: 'managed' | 'self_hosted' | null };
+export type WorkshopMeta = { runtime: 'subscription' | 'managed' | 'self_hosted' | null };
 export const useWorkshopMeta = () => useQuery({ queryKey: ['workshop', 'meta'], queryFn: async () => (await call<{ workshop?: WorkshopMeta }>('GET', '/meta')).workshop ?? { runtime: null }, staleTime: 300_000 });
 export const useWorkspaces = () => useQuery({ queryKey: ['workshop', 'workspaces'], queryFn: () => call<Workspace[]>('GET', '/workshop/workspaces'), staleTime: 60_000 });
 export const useGrants = () => useQuery({ queryKey: ['workshop', 'grants'], queryFn: () => call<Grant[]>('GET', '/workshop/grants?active=true') });

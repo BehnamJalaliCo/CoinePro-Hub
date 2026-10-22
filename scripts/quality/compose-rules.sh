@@ -44,6 +44,28 @@ INTERNAL_NETS='["hq-agent","hq-edge","hq-stt","hq-egress-api","hq-browser","hq-p
 # The opt-in profiles' services (cadvisor, stt) follow the same rules.
 mapfile -t OPT_IN < <(opt_in_profiles)
 failed=0
+# Prompt 7.1 §2.20: Chromium's sandbox is on, with Playwright's own seccomp
+# profile (pinned by hash) and no capability but SYS_CHROOT in the bounding set.
+SECCOMP="$REPO_DIR/infra/browser/seccomp_profile.json"
+SECCOMP_SHA256="cc3e61cabda6bbc1e53e54d27ba4d55a9d3be829b6dd1a596f4a7b31b1cc7849"
+if [[ "$(sha256sum "$SECCOMP" 2>/dev/null | cut -d' ' -f1)" != "$SECCOMP_SHA256" ]]; then
+  echo "compose-rules: infra/browser/seccomp_profile.json is not Playwright's v1.63.0 profile" >&2
+  failed=1
+fi
+for profile in "${PROFILES[@]}"; do
+  problems="$(jq -r '.services.browser as $b
+    | (if (($b.security_opt // []) | index("seccomp=../browser/seccomp_profile.json")) == null
+       then "browser: not on the pinned seccomp profile" else empty end),
+      (if (($b.security_opt // []) | index("no-new-privileges:true")) == null
+       then "browser: no-new-privileges is off" else empty end),
+      (if ($b.cap_add // []) != ["SYS_CHROOT"] then "browser: cap_add must be exactly [SYS_CHROOT]" else empty end),
+      (if ($b.environment.BROWSER_SANDBOX // "") != "1" then "browser: BROWSER_SANDBOX is not 1" else empty end)
+    ' <<<"$(compose_json "$profile")")"
+  if [[ -n "$problems" ]]; then
+    printf 'compose-rules: %s: %s\n' "$profile" "$problems" >&2
+    failed=1
+  fi
+done
 for profile in "${PROFILES[@]}"; do
   problems="$(jq -r --argjson jobs "$JOBS" --argjson hardened "$HARDENED" \
     --argjson not_internal "$NOT_INTERNAL" --argjson only_on "$ONLY_ON" \

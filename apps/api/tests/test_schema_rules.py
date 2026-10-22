@@ -35,7 +35,11 @@ SCHEMAS = (
     "academy",
     "provisioning",
     "infra",
+    "tools",  # 7.1 §2.12: tools.mcp_calls is a tenant table
 )
+# The tools schema's tables without a company (holding configuration, read by
+# the api only): every other table there must carry company_id under RLS.
+COMPANYLESS_TOOLS = {"accounts", "mcp_servers"}
 
 
 async def _employee(tx: Tx, company_id: Any, code_suffix: str) -> Any:
@@ -78,6 +82,27 @@ async def test_every_tenant_table_has_forced_rls(su: Any) -> None:
     assert len(rows) >= 18
     for r in rows:
         assert r["relrowsecurity"] and r["relforcerowsecurity"], f"{r['nspname']}.{r['relname']}"
+    assert ("tools", "mcp_calls") in {(r["nspname"], r["relname"]) for r in rows}
+
+
+async def test_the_company_less_tables_of_tools_are_named(su: Any) -> None:
+    """7.1 §2.12: tools.accounts and tools.mcp_servers are the holding's
+    configuration (no company_id, no RLS, no grant to the worker beyond
+    reading); a new table there without a company fails here."""
+    rows = await su.fetch(
+        """SELECT c.relname, c.relrowsecurity,
+                  EXISTS (SELECT 1 FROM information_schema.columns col
+                          WHERE col.table_schema = 'tools' AND col.table_name = c.relname
+                            AND col.column_name = 'company_id') AS tenant
+           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname = 'tools' AND c.relkind IN ('r', 'p')"""
+    )
+    assert {r["relname"] for r in rows if not r["tenant"]} == COMPANYLESS_TOOLS
+    assert all(r["relrowsecurity"] for r in rows if r["tenant"])
+    for t in COMPANYLESS_TOOLS:
+        assert not await su.fetchval(
+            "SELECT has_table_privilege('hq_worker', $1, 'INSERT')", f"tools.{t}"
+        ), t
 
 
 async def test_cross_company_rows_are_invisible_and_unwritable(

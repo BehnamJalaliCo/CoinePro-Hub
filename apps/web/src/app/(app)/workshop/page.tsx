@@ -19,12 +19,14 @@ function Runtime() {
   const { data } = useWorkshopMeta();
   if (!data || data.runtime) return null;
   return (
-    <Card className="flex items-start gap-3 p-4">
-      <span className="flex size-9 flex-none items-center justify-center rounded-full bg-warn-soft text-warn"><Icon name="server" size={18} /></span>
-      <div className="flex flex-col gap-0.5">
-        <span className="text-[14px] font-semibold">اجرای کارگاه هنوز روشن نیست</span>
-        <span className="text-caption text-sec">محل اجرا با توست: Claude Managed Agents با یک API key جدا و سقف ماهانه، یا میزبانی روی هاست جدا. تا آن موقع مجوز و تاریخچه کار میکند و جلسه‌ی تازه باز نمیشود.</span>
+    <Card className="flex flex-wrap items-center gap-3 p-4">
+      <span className="flex size-9 flex-none items-center justify-center rounded-full bg-gold-soft text-gold-ink"><Icon name="code" size={18} /></span>
+      <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-0.5">
+        <span className="text-[14px] font-semibold">جلسه‌های Claude Code تو در اپ Claude هستند</span>
+        <span className="text-caption text-sec">همین گفت‌وگوها و نشست سرور، با همان اشتراک. اجرای کارگاه داخل هاب کنار گذاشته شد (تصمیم تو)؛ مجوزها و تاریخچه اینجا میمانند.</span>
       </div>
+      {/* The owner's own Claude Code sessions live in claude.ai/code and the Claude app; there is no official API to show them here. */}
+      <a href="https://claude.ai/code" target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-gold px-4 text-[13px] font-bold text-on-gold">باز کردن Claude Code<Icon name="share" size={16} /></a>
     </Card>
   );
 }
@@ -138,14 +140,17 @@ export default function WorkshopPage() {
   const { data: workspaces } = useWorkspaces();
   const [grantFor, setGrantFor] = useState<string | null | undefined>(undefined);
   const [start, setStart] = useState(false);
+  const runtime = useWorkshopMeta().data?.runtime ?? null;
   const items = q.data?.items ?? [];
   const open = items.filter((s) => isOpen(s.state)).sort((a, b) => Number(b.state === 'waiting_approval') - Number(a.state === 'waiting_approval'));
   const past = items.filter((s) => !isOpen(s.state));
   const grantOf = (ref: string) => grants?.find((g) => g.ref === ref);
   return (
     <>
-      <PageHeader eyebrow="کارگاه کد" title="Claude Code برای شرکت‌ها" actions={<Button variant="primary" icon="add" onClick={() => setStart(true)}>جلسه‌ی تازه</Button>}>
-        <p className="max-w-3xl text-[13px] leading-6 text-sec">مدیرها و مشاور کل با مجوز تو روی ریپوی هر شرکت کد میزنند. تو فقط مجوز میدهی، زنده تماشا میکنی و هر لحظه میتوانی متوقف کنی؛ هر push و PR اجازه‌ی تو را میخواهد و هیچ چیزی به production نمیرسد.</p>
+      <PageHeader eyebrow="کارگاه کد" title="Claude Code برای شرکت‌ها" actions={runtime ? <Button variant="primary" icon="add" onClick={() => setStart(true)}>جلسه‌ی تازه</Button>
+        // Without an in-hub runtime a new session opens in Claude Code itself (claude.ai/code), on the same subscription.
+        : <a href="https://claude.ai/code" target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-gold px-4 text-[13px] font-bold text-on-gold"><Icon name="add" size={18} />جلسه‌ی تازه</a>}>
+        <p className="max-w-3xl text-[13px] leading-6 text-sec">{runtime ? 'مدیرها و مشاور کل با مجوز تو روی ریپوی هر شرکت کد میزنند. تو فقط مجوز میدهی، زنده تماشا میکنی و هر لحظه میتوانی متوقف کنی؛ هر push و PR اجازه‌ی تو را میخواهد و هیچ چیزی به production نمیرسد.' : 'جلسه‌های Claude Code در اپ Claude اجرا میشوند. مجوزها و تاریخچه‌ی کارگاه اینجا میمانند.'}</p>
       </PageHeader>
       <Runtime />
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">

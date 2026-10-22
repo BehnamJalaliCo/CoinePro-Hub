@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import errands, hiring, notify, org, oversight, recurring, stars
+from hq_api.domain import errands, hiring, mcp, notify, org, oversight, recurring, stars
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -40,6 +40,7 @@ KINDS = (
     "protocol",
     "company_found",
     "server_plan",
+    "tool_enable",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -59,10 +60,12 @@ ACTION_CLASS = {
     # a server plan spends money (the A3 seal, on the plan's digest).
     "company_found": "A2",
     "server_plan": "A3",
+    "tool_enable": "A2",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
 # protocol (prompt 08 §2): a new or changed oversight protocol is the owner's seal.
+# tool_enable: the seal re-enables an MCP server with its new listing (§18.13).
 STEP_UP_KINDS = (
     "hire",
     "dismissal",
@@ -70,6 +73,7 @@ STEP_UP_KINDS = (
     "code_session",
     "protocol",
     "company_found",
+    "tool_enable",
 )
 EFFECT_KINDS = (
     "hire",
@@ -133,15 +137,37 @@ class DeployPayload(Model):
 
 
 class A3Payload(Model):
-    # mcp_call (prompt 07 §3): an MCP tool the owner registered as A3; made by
-    # the api itself when an agent calls it (target "<server>/<tool>", the
-    # masked arguments as the preview and their SHA-256), never run before.
+    # mcp_call (prompt 07 §3, 7.1 §2.10): an MCP tool the owner registered as
+    # A3; made by the api itself when an agent calls it (target
+    # "<server>/<tool>", the arguments with only their secrets masked, so the
+    # owner sees recipients and amounts, their SHA-256 and the registration's).
+    # Approving it runs that one call once, in the follow-up run.
     action: Literal[
         "publish", "customer_message", "group_message", "restart", "price_change", "mcp_call"
     ]
     target: str = Field(min_length=1, max_length=300)
     preview: str = Field(default="", max_length=20000)
     args_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    server: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]{1,39}$")
+    tool: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,127}$")
+    args: dict[str, Any] | None = None
+    registration_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
+class ListingDiff(Model):
+    added: list[str] = Field(default_factory=list, max_length=500)
+    removed: list[str] = Field(default_factory=list, max_length=500)
+    changed: list[str] = Field(default_factory=list, max_length=500)
+
+
+class ToolEnablePayload(Model):
+    """An MCP server switched off because its listing changed (contract
+    §18.13): the owner's seal re-enables it with exactly this listing."""
+
+    key: str = Field(pattern=r"^[a-z][a-z0-9-]{1,39}$")
+    listing_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    diff: ListingDiff
+    registration_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class ProposalPayload(Model):
@@ -285,6 +311,7 @@ PAYLOADS: dict[str, type[Model]] = {
     "protocol": ProtocolPayload,
     "company_found": CompanyFoundPayload,
     "server_plan": ServerPlanPayload,
+    "tool_enable": ToolEnablePayload,
 }
 
 
@@ -304,6 +331,7 @@ class DecisionIn(Model):
         "protocol",
         "company_found",
         "server_plan",
+        "tool_enable",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -796,12 +824,26 @@ async def decide(
             tx, d["payload"]["lesson"], d["company_id"], "rejected", d["ref"]
         )
     effect = "pending" if verdict == "approved" and d["kind"] in EFFECT_KINDS else "none"
+    server = None
+    sealed_as_is = d["kind"] == "tool_enable" or (
+        d["kind"] == "a3_action" and (d["payload"] or {}).get("action") == "mcp_call"
+    )
+    if verdict == "approved" and amendments and sealed_as_is:
+        # Bound to exactly what it shows (a listing; a call's arguments and their hash).
+        raise ApiError(
+            422, "validation_failed", fields={"amendments": "this card is sealed as it is"}
+        )
+    if verdict == "approved" and d["kind"] == "tool_enable":
+        # Bound to the listing it shows: superseded (409) when the server changed.
+        server = await mcp.sealed_listing(tx, d)
+        effect = "applied"
     await tx.exec(
         """UPDATE cartable.decisions SET status = :st, decided_at = now(), decided_by_kind = :k,
                decided_by_code = :c, note = :note, reason_code = :rc, amendments = CAST(:am AS jsonb),
                seal_at = CASE WHEN CAST(:su AS uuid) IS NULL THEN NULL ELSE now() END,
                seal_method = CASE WHEN CAST(:su AS uuid) IS NULL THEN NULL ELSE 'passkey_uv' END,
-               seal_step_up_id = :su, effect_status = :eff
+               seal_step_up_id = :su, effect_status = :eff,
+               effect_applied_at = CASE WHEN :eff = 'applied' THEN now() ELSE NULL END
            WHERE id = :id""",
         id=d["id"],
         st=verdict,
@@ -813,6 +855,8 @@ async def decide(
         su=step_up_id,
         eff=effect,
     )
+    if server is not None:
+        await mcp.enable_listing(tx, server)
     resolution = None
     if verdict == "approved":
         # Resolutions are append-only: the follow-up work (if any) exists first
@@ -1029,6 +1073,9 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
         # The seal is the grant; the decision's id is unique on the grant, so a
         # retried effect never makes a second one.
         g = await tx.first("SELECT ref FROM workshop.grants WHERE decision_id = :d", d=d["id"])
+        if g is None and d["seal_step_up_id"] is None:
+            # Its seal is the grant (contract §5.1 v1.4.3): never one without the step-up.
+            raise ApiError(409, "validation_failed", "a code_session is granted only when sealed")
         if g is None:
             g = await workshop.create_grant(
                 tx,

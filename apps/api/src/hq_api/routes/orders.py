@@ -5,7 +5,7 @@ in one transaction; GET /orders lists them with where each went."""
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
@@ -18,6 +18,7 @@ from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import decisions as Dec
 from hq_api.domain import orders as O
+from hq_api.domain import recurrence
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
 from hq_api.principal import Principal
@@ -114,11 +115,21 @@ async def _route(ctx: Ctx, text: str, hint: str | None) -> tuple[list[O.Route], 
     return [O.Route(adv["company"], adv["code"], "question")], "advisor"
 
 
+async def due_at(tx: Tx, text: str) -> datetime:
+    """The end of the owner's day O.due_days(text) days from today: an order's
+    work is in the planner (06.1 §2)."""
+    tz = await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
+    z = recurrence.zone(tz)
+    day = datetime.now(z).date() + timedelta(days=O.due_days(text))
+    return datetime.combine(day, time(23, 59), z).astimezone(UTC)
+
+
 async def _work(
     ctx: Ctx, tx: Tx, r: O.Route, ref: str, text: str, title: str, *, meeting: bool = False
 ) -> None:
     co = await ctx.hub.companies.by_code(r.company)
     brief = f"{text}\n\n(فرمان {ref} مدیر کل)"
+    due = await due_at(tx, text)
     try:
         w = await W.create(
             tx,
@@ -130,6 +141,7 @@ async def _work(
             kind="one_off",
             priority="P2",
             department_code=r.department,
+            due_at=due,
         )
     except ApiError:
         if r.department is None:
@@ -144,6 +156,7 @@ async def _work(
             brief=brief,
             kind="one_off",
             priority="P2",
+            due_at=due,
         )
     r.to = w["a_code"]
     r.refs["work_ref"] = w["ref"]
@@ -154,7 +167,7 @@ async def _work(
         action_class="A2",
         target_kind="work",
         target_ref=w["ref"],
-        summary=f"order {ref}: one_off P2 to {w['a_code']}",
+        summary=f"order {ref}: one_off P2 to {w['a_code']}, due {due:%Y-%m-%d}",
     )
 
 
@@ -174,17 +187,30 @@ async def _question(ctx: Ctx, tx: Tx, r: O.Route, ref: str, text: str, routed_by
 
 
 async def _code(
-    ctx: Ctx, tx: Tx, r: O.Route, ref: str, text: str, title: str, later: list[Any]
+    ctx: Ctx,
+    tx: Tx,
+    r: O.Route,
+    ref: str,
+    text: str,
+    title: str,
+    later: list[Any],
+    routed_by: str = "rules",
 ) -> None:
     ws = await WS.workspace(tx, r.workspace or r.to)
     rt = getattr(ctx.hub, "workshop", None)
+    # A route the model found acts on its own only when a rule agrees (06.1 §3).
+    auto = routed_by == "rules" or O.rule_confirms_code(text)
     running = await tx.first(
         WS.SESSION_SQL
         + """ WHERE s.workspace_id = :ws AND s.state = ANY(:active) AND s.held IS NULL
+              AND s.external_id IS NOT NULL
               ORDER BY s.updated_at DESC LIMIT 1""",
         ws=ws["id"],
         active=list(WS.ACTIVE),
     )
+    if not auto:
+        r.note_fa = "کار کد را مدل تشخیص داد و هیچ قاعده‌ای تأییدش نکرد؛ سشن خودکار باز نشد و منتظر مهر مدیر کل است"
+        running = grant = None
     if running is not None and rt is not None:
         await WS.append(
             tx,
@@ -197,12 +223,13 @@ async def _code(
         r.refs["session_ref"] = running["ref"]
         later.append((service.steer, running["id"], f"{text}\n\n(فرمان {ref})"))
         return
-    grant = await tx.first(
-        WS.GRANT_SQL
-        + """ WHERE g.workspace_id = :ws AND g.revoked_at IS NULL AND g.expires_at > now()
-              ORDER BY g.created_at DESC LIMIT 1""",
-        ws=ws["id"],
-    )
+    if auto:
+        grant = await tx.first(
+            WS.GRANT_SQL
+            + """ WHERE g.workspace_id = :ws AND g.revoked_at IS NULL AND g.expires_at > now()
+                  ORDER BY g.created_at DESC LIMIT 1""",
+            ws=ws["id"],
+        )
     if grant is not None and rt is not None:
         s = await WS.open_session(
             tx,
@@ -234,7 +261,9 @@ async def _code(
             kind="code_session",
             title=f"سشن کارگاه کد برای {ws['code']}: {title}"[:300],
             what=text,
-            why=f"فرمان {ref} مدیر کل؛ برای این workspace مجوز فعالی نیست.",
+            why=f"فرمان {ref} مدیر کل؛ برای این workspace مجوز فعالی نیست."
+            if auto
+            else f"فرمان {ref} مدیر کل؛ مسیر کد را مدل یافت و قاعده‌ای تأییدش نکرد.",
             risk="medium",
             payload={
                 "workspace": ws["code"],
@@ -288,7 +317,7 @@ async def create_order(
             elif r.kind == "question":
                 await _question(ctx, tx, r, ref, text, routed_by)
             else:
-                await _code(ctx, tx, r, ref, text, r.summary_fa or title, later)
+                await _code(ctx, tx, r, ref, text, r.summary_fa or title, later, routed_by)
         holding = await ctx.hub.companies.holding()
         out = [r.out() for r in routes]
         summary = O.summary_of(text, routes)

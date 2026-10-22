@@ -268,6 +268,50 @@ async def test_budget_alerts_at_70_and_90_then_p4_stops_at_100(
     assert (await su.fetchrow("SELECT alert_level FROM llm.budgets"))["alert_level"] == 100
 
 
+async def test_the_oversight_share_stops_overseer_and_qc_but_not_critical(
+    su: asyncpg.Connection, make_service: Any
+) -> None:
+    # Prompt 08 §2.3: 0.2 of a 1000-token day = 200 tokens for the holding's
+    # overseer and QC together; every priority stops, a critical protocol goes.
+    from dataclasses import replace
+
+    svc = make_service(
+        subscription=FakeBackend(
+            ok_result(input_tokens=130, output_tokens=20),
+            ok_result(input_tokens=80, output_tokens=20),
+        )
+    )
+    svc.s = replace(svc.s, agent_daily_token_cap=1000, oversight_daily_share=0.2)
+
+    def oversight(role: str, **kw: Any) -> RunRequest:
+        return req(
+            company_code="HQ", actor_ref=f"HQ-{role[:3].upper()}", department="OVS", role=role, **kw
+        )
+
+    await svc.run(oversight("overseer"), "t", 10_000)  # 150 used
+    await svc.run(oversight("inspector"), "t", 10_000)  # the pre-check saw 150 < 200; now 250
+    for role in ("overseer", "inspector"):
+        with pytest.raises(RouterError) as exc:
+            await svc.run(oversight(role, priority=1), "t", 10_000)
+        assert (exc.value.code, exc.value.status_code) == ("budget_exhausted", 429)
+        assert exc.value.retry_after and exc.value.retry_after <= 86_400
+        rejected = await su.fetchrow(
+            "SELECT status, error_class FROM llm.calls WHERE id = $1", exc.value.call_id
+        )
+        assert tuple(rejected) == ("rejected_budget", "oversight_share")
+    critical = oversight("overseer", meta={"protocol": "PR-033", "severity": "critical"})
+    assert (await svc.run(critical, "t", 10_000)).status == "ok"
+    high = oversight("overseer", meta={"protocol": "PR-001", "severity": "high"})
+    with pytest.raises(RouterError):
+        await svc.run(high, "t", 10_000)
+    # Not oversight: another role of the holding, or a company's own role of that name.
+    advisor = req(company_code="HQ", actor_ref="advisor", department=None, role="advisor")
+    assert (await svc.run(advisor, "t", 10_000)).status == "ok"
+    assert (await svc.run(req(role="inspector"), "t", 10_000)).status == "ok"
+    svc.s = replace(svc.s, agent_daily_token_cap=0)  # no daily cap: no share of it either
+    assert (await svc.run(oversight("overseer"), "t", 10_000)).status == "ok"
+
+
 # ----------------------------------------------------- quota and fallback --
 async def test_quota_guard_fallback_and_recovery(su: asyncpg.Connection, make_service: Any) -> None:
     reset = time.time() + 1.5

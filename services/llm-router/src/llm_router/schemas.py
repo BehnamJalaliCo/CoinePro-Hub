@@ -32,6 +32,10 @@ META_KEYS = frozenset(
         "eval_run",
         "suite",
         "case",
+        # prompt 08 §2.3: an oversight run's protocol and severity (a
+        # `critical` one still runs once the oversight share is spent)
+        "protocol",
+        "severity",
     }
 )
 # Keys whose value is a list of short refs ("SK-001@3", "TE-0001").

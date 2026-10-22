@@ -16,7 +16,7 @@ export type Area = 'truth' | 'authority' | 'money' | 'safety' | 'quality' | 'del
 export type Protocol = {
   id: string; ref: string; title_fa: string; area: Area; check_md: string; method: string; schedule: string; scope: string;
   evidence_md: string; severity: Severity; answerable: string; status: 'active' | 'paused' | 'draft'; version: number;
-  sealed_at: string | null; last_run: { at: string; result: 'pass' | 'fail' | 'partial'; findings: number } | null;
+  sealed_at: string | null; last_run: { at: string; result: 'pass' | 'fail' | 'partial' | 'deferred'; findings: number } | null;
 };
 export type FindingStatus = 'open' | 'acknowledged' | 'fixing' | 'fixed' | 'verified' | 'disputed' | 'closed';
 export type Finding = {
@@ -123,7 +123,21 @@ export function useSkillAction() {
 
 // ------------------------------------------------------------- academy --
 export type Curriculum = { role: string; version: number; modules: Array<{ key: string; title_fa: string; skills: string[]; evals: string[] }> };
-export type EvalSuite = { ref: string; role: string; title_fa: string; cases: number; baseline: { version: string; score: number } | null; runs: Array<{ at: string; subject: string; score: number; passed: boolean }> };
+// ⟨1.4.5⟩ runs carry their cost; the suites list carries each suite's last 10 runs (`recent`, oldest first).
+export type EvalRun = {
+  id: string; suite: string; subject: { kind: 'charter' | 'skill' | 'model'; ref: string; version: string | number | null };
+  score: number; passed: boolean; cases?: Array<{ id: string; score: number; notes: string }>; at: string;
+  tokens?: { input: number; output: number } | null; equiv_cost_usd?: string | null;
+};
+export type EvalSuite = {
+  ref: string; role: string; title_fa: string; cases: Array<{ id: string; input_md: string; rubric_md: string; weight: number }>;
+  baseline: { subject?: string; version: string | number; score: number } | null; recent: EvalRun[];
+};
+/** The employee card's training history (item 16): charter and curriculum versions, active skills, evals newest first, the score trend. */
+export type TrainingRecord = {
+  employee: string; charter_version: number; curriculum_version: number | null; skills: string[];
+  evals: Array<{ suite: string; score: number; at: string }>; lessons: string[]; trend: number[];
+};
 export type Teaching = {
   id: string; ref: string; target: { kind: 'role' | 'employee'; ref: string }; source: 'voice' | 'text'; text_md: string;
   proposal: { kind: string; diff_md: string } | null; eval_run: { score: number; baseline: number; passed: boolean } | null;
@@ -131,6 +145,15 @@ export type Teaching = {
 };
 export const useCurricula = () => useQuery({ queryKey: ['academy', 'curricula'], queryFn: () => call<Curriculum[]>('GET', '/academy/curricula'), staleTime: 300_000 });
 export const useEvals = () => useQuery({ queryKey: ['academy', 'evals'], queryFn: () => call<EvalSuite[]>('GET', '/academy/evals') });
+/** Item 30: the newest run of each (suite, model) — which model does the role's work best, and at what cost. */
+export const useModelComparison = (role: string) => useQuery({
+  queryKey: ['academy', 'models', role],
+  queryFn: () => call<{ items: EvalRun[]; next_cursor: string | null }>('GET', `/academy/runs?role=${encodeURIComponent(role)}&subject_kind=model&latest=true`),
+});
+export const useTrainingRecord = (employee: string) => useQuery({
+  queryKey: ['academy', 'records', employee],
+  queryFn: () => call<TrainingRecord>('GET', `/academy/records/${encodeURIComponent(employee)}`),
+});
 export const useTeachings = () => useQuery({ queryKey: ['academy', 'teach'], queryFn: () => call<Teaching[]>('GET', '/academy/teach') });
 export function useTeachAction() {
   const qc = useQueryClient();
@@ -198,13 +221,16 @@ export function useFoundingAction() {
 }
 
 // -------------------------------------------------------------- backups --
+// ⟨1.4.5⟩ as served (§18.13): a WAL archive that fails is a data-loss alarm (`wal.failing`), not a statistic.
 export type BackupStatus = {
-  hourly: { last_at: string | null; next_at: string | null; ok: boolean; snapshot: string | null; size_bytes: number };
-  wal: { last_archived_at: string | null; lag_s: number };
-  destinations: Array<{ key: 'gdrive' | 'hetzner' | 'local'; configured: boolean; last_ok_at: string | null; used_bytes: number; quota_bytes: number | null }>;
+  hourly: { last_at: string | null; last_ok_at?: string | null; next_at: string | null; ok: boolean | null; error?: string | null; stale?: boolean; snapshot: string | null; size_bytes: number | null };
+  wal: { last_archived_at: string | null; lag_s: number | null; failed_count?: number | null; failing?: boolean; ready_count?: number };
+  base_backup?: { last_at: string | null; count: number } | null;
+  check?: { last_at: string | null; ok: boolean | null } | null;
+  destinations: Array<{ key: 'gdrive' | 'hetzner' | 'local'; configured: boolean; ok?: boolean | null; error?: string | null; last_ok_at: string | null; used_bytes: number | null; quota_bytes: number | null }>;
   retention: { hourly: number; daily: number; weekly: number; monthly: number; yearly: number };
-  restore_test: { last_at: string | null; ok: boolean; duration_s: number; notes: string };
-  openbao_snapshot: { last_at: string | null; ok: boolean }; encryption: string;
+  restore_test: { last_at: string | null; ok: boolean | null; duration_s: number | null; notes: string | null; pitr_target?: string | null; source?: string | null };
+  openbao_snapshot: { configured?: boolean; last_at: string | null; ok: boolean | null }; encryption: string;
 };
 export const useBackups = () => useQuery({ queryKey: ['backups'], queryFn: () => call<BackupStatus>('GET', '/backups/status'), refetchInterval: 120_000 });
 

@@ -102,7 +102,7 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
     val day = rememberQuery("treasury:day", "treasury") { treasury("day") }
     val month = rememberQuery("treasury:month", "treasury") { treasury("month") }
     val pending = rememberQuery("decisions:pending", "decisions") { decisions("pending") }
-    val today = java.time.LocalDate.now(ZoneId.of("Asia/Tehran")).toString()
+    val today = com.coinepro.hq.core.format.HqClock.today().toString()
     val planner = rememberQuery("planner:$today", "planner", "work") { planner(today, today) }
     val companies = rememberCompanies()
     val sessions = rememberSessions()
@@ -116,7 +116,7 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
             val h = LocalTime.now(ZoneId.of("Asia/Tehran")).hour
             val hello = when { h < 12 -> "صبح بخیر"; h < 17 -> "روز بخیر"; else -> "عصر بخیر" }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(jWeekday(java.time.Instant.now().toString()), style = Divan.type.caption, color = c.textMuted)
+                Text(jWeekday(com.coinepro.hq.core.format.HqClock.now().toString()), style = Divan.type.caption, color = c.textMuted)
                 Text("$hello، مدیر کل", style = Divan.type.display.copy(fontSize = Divan.type.h1.fontSize, lineHeight = Divan.type.h1.lineHeight))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     HqButton("فرمان صوتی", onVoiceOrder, variant = BtnVariant.PRIMARY, icon = DivanIcon.MIC)
