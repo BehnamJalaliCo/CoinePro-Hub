@@ -1011,9 +1011,7 @@ async def ask_models(tx: Tx, hub: Any) -> int:
     return n
 
 
-async def apply_models(
-    tx: Tx, player: str, offered: list[str], probed: str | None = None
-) -> None:
+async def apply_models(tx: Tx, player: str, offered: list[str], probed: str | None = None) -> None:
     """What the CLI offers under the subscription: a model it does not offer
     is `available: false`, and a seat on it moves to the nearest available
     model of the same tier (the morning report says so). A probe of one
