@@ -28,11 +28,13 @@ const EVENT_TYPES = [
   // ⟨1.5⟩ §21.12
   'memo.ready', 'advisor.proactive', 'ask.answered', 'review.updated', 'briefing.ready', 'rankings.updated', 'hr.round', 'note.created',
   'decision.reminded', 'claim.verdict', 'dceo.scored', 'substitute.updated', 'creative.updated',
+  // ⟨1.6⟩ §22.6
+  'media.item', 'legal.case', 'role.updated',
 ] as const;
 
 const CORE_TOPICS = 'work,decisions,deliverables,messages,notifications,activity,llm,control';
 // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives`;
+const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives,media,legal`;
 
 // Event type prefix -> query keys to refresh (contract §7, §16).
 const INVALIDATE: Array<[string, string[]]> = [
@@ -96,6 +98,11 @@ const INVALIDATE: Array<[string, string[]]> = [
   ['dceo.', ['dceo', 'decisions']],
   ['substitute.', ['substitutes', 'treasury']],
   ['creative.', ['creatives']],
+  // ⟨1.6⟩ §22.6: an item moved in the pipeline (the board, its series, the cards it raised); a case changed (its thread L and its email
+  // cards); a role written on demand changed state (the department's roles, GET /roles for hiring, the story it makes).
+  ['media.', ['media', 'decisions']],
+  ['legal.', ['legal', 'threads', 'decisions']],
+  ['role.', ['roles', 'stories', 'decisions']],
 ];
 
 export type StreamState = 'connecting' | 'live' | 'offline';

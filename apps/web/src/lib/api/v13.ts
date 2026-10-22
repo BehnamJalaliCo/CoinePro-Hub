@@ -83,6 +83,8 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH', path: st
 /** Where a file (or one of its variants) is served. Demo ids are already URLs. */
 export function fileUrl(id: string, variant: 'original' | 'thumb' | 'poster' = 'original'): string {
   if (id.startsWith('blob:') || id.startsWith('data:')) return id;
+  // ⟨1.6⟩ mock mode: the studio's demo renders and voice clips live in public/demo/; a video's poster sits beside it as `-poster.webp`.
+  if (isMock && id.startsWith('/demo/')) return variant === 'original' ? id : id.replace(/\.[a-z0-9]+$/i, '-poster.webp');
   return `/api/v1/files/${encodeURIComponent(id)}${variant === 'original' ? '' : `?variant=${variant}`}`;
 }
 

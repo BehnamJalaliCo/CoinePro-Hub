@@ -231,6 +231,14 @@ const mcp = [
 const accounts = [
   { key: 'gsc', site: 'search.google.com', title_fa: 'Search Console هلدینگ', companies: 'all', has_secret: false, last_used_at: null },
   { key: 'tradingview', site: 'www.tradingview.com', title_fa: 'TradingView (FX)', companies: ['FX'], has_secret: true, last_used_at: iso(60 * 3) },
+  // ⟨1.6⟩ §22: the publishing accounts (official APIs only) and the legal counsel's mailbox; the owner enters each with make account-secret.
+  { key: 'telegram-fx', site: 'api.telegram.org', title_fa: 'ربات مدیر کانال تلگرام FX', companies: ['FX'], has_secret: true, last_used_at: iso(60 * 24 * 3) },
+  { key: 'instagram-fx', site: 'graph.instagram.com', title_fa: 'حساب تجاری اینستاگرام FX', companies: ['FX'], has_secret: true, last_used_at: iso(60 * 15) },
+  { key: 'telegram-ty', site: 'api.telegram.org', title_fa: 'ربات مدیر کانال تلگرام تریدیار', companies: ['TY'], has_secret: true, last_used_at: iso(60 * 30) },
+  { key: 'instagram-ty', site: 'graph.instagram.com', title_fa: 'حساب تجاری اینستاگرام تریدیار', companies: ['TY'], has_secret: false, last_used_at: null },
+  { key: 'telegram-pc', site: 'api.telegram.org', title_fa: 'ربات مدیر کانال تلگرام پرو-چارت', companies: ['PC'], has_secret: true, last_used_at: iso(60 * 24 * 5) },
+  { key: 'instagram-pc', site: 'graph.instagram.com', title_fa: 'حساب تجاری اینستاگرام پرو-چارت', companies: ['PC'], has_secret: false, last_used_at: null },
+  { key: 'mail', site: 'mail.coinepro.com', title_fa: 'صندوق ایمیل مشاور حقوقی', companies: 'all', has_secret: true, last_used_at: iso(60 * 50) },
 ].map((a, i) => ({ id: `ac${i}`, ...a }));
 const catalog = [
   ['web.search', 'A0', ['all'], 'gateway'], ['web.read', 'A0', ['all'], 'egress'], ['web.browse', 'A0/A2', ['overseer', 'advisor', 'assistant', 'ceo', 'cto', 'manager'], 'egress'],

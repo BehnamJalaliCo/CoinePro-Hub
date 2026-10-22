@@ -19,7 +19,8 @@ function MessagesInner() {
   const params = useSearchParams();
   const { company } = useScope();
   const q = useThreads();
-  const threads = (q.data ?? []).filter((t) => !company || t.company === company || ['advisor', 'overseer', 'assistant'].includes(t.kind));
+  // The holding's own threads (the advisor, the overseer, the assistant, ⟨1.6⟩ the legal counsel's L) stay in every scope.
+  const threads = (q.data ?? []).filter((t) => !company || t.company === company || ['advisor', 'overseer', 'assistant', 'legal'].includes(t.kind));
   const sel = params.get('thread');
   const current = threads.find((t) => t.code === sel);
   const agentKind = (k: string) => (['advisor', 'overseer', 'assistant', 'ceo', 'manager'].includes(k) ? k : 'employee');

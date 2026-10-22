@@ -7,7 +7,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
-RUN npm run typecheck && npm run build
+# public/demo holds the mock-mode media fixtures (§22 demo studio); development fixtures never ship.
+RUN npm run typecheck && npm run build && rm -rf public/demo
 
 FROM node:22.22.0-trixie-slim
 ENV NODE_ENV=production \

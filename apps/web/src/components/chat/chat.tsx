@@ -23,6 +23,8 @@ type Msg = Schemas['Message'];
 const LINKS: Record<string, (ref: string) => string> = {
   decision: (r) => `/cartable?ref=${r}`, work: (r) => `/work/${r}`, resolution: () => '/resolutions',
   errand: () => '/assistant', teaching: () => '/academy', inquiry: () => '/advisor', finding: () => '/oversight', session: (r) => `/workshop/${r}`,
+  // ⟨1.6⟩ §22: the counsel's cases (thread L), media items and series.
+  case: (r) => `/legal?case=${r}`, media_item: (r) => `/media?item=${r}`, series: (r) => `/media/series?ref=${r}`,
 };
 function linkHref(kind: string, ref: string) {
   return LINKS[kind]?.(ref) ?? '#';

@@ -20,7 +20,9 @@ import type { LifecycleRule, ShadowReport, Template } from '@/lib/api/v16';
 import { AUTO_SEND, CHANNEL_FA, PURPOSE_FA, triggerFa } from '@/components/v16/bits';
 import { DecisionOutcomes, ExpectedBlock, GovernancePayload } from '@/components/v17/cartable';
 import { DeployPayloadBlock, EvaluationBlock, MemoBlock, PredictionLine, WaitingLine } from '@/components/v18/decision';
+import { MediaDecisionPayload } from '@/components/v19/decision';
 import type { Decision18 } from '@/lib/api/v18';
+import { MEDIA_KINDS, sealTarget } from '@/lib/api/v19';
 import { ACTOR_FA, DECISION_KIND, DECISION_STATUS, RISK } from '@/lib/labels';
 import { ago, cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
 
@@ -29,13 +31,16 @@ type Decision = Schemas['Decision'];
 // bound to what it proposes (§18.13 ⟨1.4.5⟩); a server plan is sealed only on its own route, against its digest (§18.8).
 // ⟨1.5⟩ the revenue-and-support cards (§19.9) are sealed the same way, each bound to its template, rule or shadow report; so are the
 // governance kinds marked 🔏 in §20.11 (a charter amendment, a risk acceptance, an authority change), target = ref; and ⟨1.5⟩ §21.12 the
-// monthly HR round's `evaluation` (payload v2).
-const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption', 'message_template', 'lifecycle_rule', 'support_go_live', 'charter_amendment', 'risk_acceptance', 'authority_change', 'evaluation']);
+// monthly HR round's `evaluation` (payload v2). ⟨1.6⟩ §22.6: `media_publish`, `email_send` and `role_new` are sealed too; `email_send` on the
+// message digest rather than the ref (sealTarget).
+const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption', 'message_template', 'lifecycle_rule', 'support_go_live', 'charter_amendment', 'risk_acceptance', 'authority_change', 'evaluation', 'media_publish', 'email_send', 'role_new']);
 export const needsStepUp = (d: Decision) => d.action_class === 'A3' || STEP_UP_KINDS.has(d.kind);
 /** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8). */
 const OWN_ROUTE: Record<string, { href: (d: Decision) => string; fa: string }> = {
   // The card carries {plan, company}; the plan page sends a founding's plan on to its founding (§18.16).
   server_plan: { href: (d) => { const plan = (d.payload as { plan?: unknown } | null)?.plan; return typeof plan === 'string' ? `/founding/${plan}` : '/founding'; }, fa: 'مُهر طرح سرور' },
+  // ⟨1.6⟩ §22.2: a series is sealed on its own page, on the series digest (`media.series`); sealing it decides the card.
+  media_series: { href: (d) => { const s = (d.payload as { series?: unknown } | null)?.series; return typeof s === 'string' ? `/media/series?ref=${s}` : '/media/series'; }, fa: 'مُهر برنامه‌ی انتشار' },
 };
 
 function Fact({ label, children, mono }: { label: string; children: ReactNode; mono?: boolean }) {
@@ -172,6 +177,8 @@ function Payload({ d }: { d: Decision }) {
       </Section>
     );
   }
+  // ⟨1.6⟩ the media studio and the legal counsel (§22.6)
+  if ((MEDIA_KINDS as readonly string[]).includes(d.kind)) return <MediaDecisionPayload d={d} />;
   // ⟨1.5⟩ the governance kinds (§20.11)
   return <GovernancePayload d={d} />;
 }
@@ -199,7 +206,7 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
   const seal = async () => {
     setBusy(true);
     try {
-      const token = needsStepUp(d) ? await stepUp('decision.approve', d.ref) : undefined;
+      const token = needsStepUp(d) ? await stepUp('decision.approve', sealTarget(d)) : undefined;
       const out = await decide.mutateAsync({ ref: d.ref, verdict: 'approve', stepUpToken: token });
       toast({ tone: 'ok', text: <>مُهر خورد. {out.resolution ? <span className="fig">{out.resolution}</span> : null} به {ACTOR_FA(d.proposer)} خبر داده شد.</> });
       onDone?.();

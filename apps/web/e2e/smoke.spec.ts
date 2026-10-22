@@ -12,6 +12,10 @@ const PAGES = [
   // ⟨1.5⟩ management tools (§21)
   '/notes', '/letter', '/letter?ref=BR-0021', '/substitutes', '/substitutes?creative=CR-0006', '/digital-ceo', '/cartable?ref=D-000017', '/cartable?ref=D-000040',
   '/companies/TY', '/employees/TY-GROWTH-01',
+  // ⟨1.6⟩ the media studio and the legal counsel (§22)
+  '/media', '/media?item=MI-0013', '/media?item=MI-0024', '/media/series', '/media/series?ref=SR-0002', '/media/voice', '/legal', '/legal?case=LC-0001',
+  '/cartable?ref=D-000085', '/cartable?ref=D-000087', '/cartable?ref=D-000081', '/companies/FX?dept=MEDIA', '/companies/FX?role=RD-0001', '/companies/HQ?dept=LEGAL',
+  '/messages?thread=L',
 ];
 
 /** Fails the test on any page error, console error or failed API call while [run] is going on. */
@@ -133,5 +137,60 @@ test('asks the advisor for a devil memo on the deploy card', async ({ page }) =>
     await expect(page.getByText('diff واقعی').first()).toBeVisible();
     await page.getByRole('button', { name: 'مخالف‌خوان', exact: true }).click();
     await expect(page.getByText('چرا نه').first()).toBeVisible();
+  });
+});
+
+/** Holds the seal (press and hold, here with the keyboard) inside [scope]. */
+async function holdSeal(page: Page, scope: ReturnType<Page['locator']>) {
+  const seal = scope.getByRole('button', { name: 'برای مُهر، فشار بده و نگه دار' }).first();
+  await seal.focus();
+  await page.keyboard.down('Enter');
+  await page.waitForTimeout(900);
+  await page.keyboard.up('Enter');
+}
+
+test('seals the counsel\'s email on the exact message', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/legal?case=LC-0001');
+    const box = page.getByRole('region', { name: 'ایمیل منتظر مُهر' });
+    await expect(box.getByText('appeals@platform-support.example')).toBeVisible();
+    await holdSeal(page, box);
+    await expect(page.getByText('مُهر خورد؛ دقیقاً همین پیام یک بار فرستاده شد.')).toBeVisible();
+    await expect(page.getByText('منتظر جواب').first()).toBeVisible();
+  });
+});
+
+test('seals an edited publishing series again', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/media/series?ref=SR-0002');
+    await holdSeal(page, page.locator('#SR-0002'));
+    await expect(page.getByText(/برنامه‌ی SR-0002 مُهر شد/)).toBeVisible();
+  });
+});
+
+test('publishes a Telegram channel story through its card', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/media?item=MI-0013');
+    await expect(page.locator('video').first()).toBeVisible();
+    await holdSeal(page, page.getByRole('dialog'));
+    await expect(page.getByText('ثبت شد که استوری را خودت گذاشتی؛ بقیه از API رسمی رفت.')).toBeVisible();
+  });
+});
+
+test('scores a voice blind and sees its name', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/media/voice');
+    await page.getByRole('radiogroup', { name: 'نمره‌ی صدای الف' }).getByRole('radio', { name: '8 از ۱۰' }).click();
+    await expect(page.getByText(/صدای الف: نمره‌ی 8/)).toBeVisible();
+  });
+});
+
+test('asks a department for a role written on demand', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/companies/FX?dept=MEDIA');
+    await expect(page.getByText('مأموریت: مبدأ و مقصد')).toBeVisible();
+    await page.getByLabel('شرح نقش تازه').fill('یه زیرنویس‌نویس عربی برای ریلزها میخوام');
+    await page.getByRole('button', { name: 'بفرست به مدیر دپارتمان' }).click();
+    await expect(page.getByText(/خواسته رسید \(RD-\d+\)/)).toBeVisible();
   });
 });

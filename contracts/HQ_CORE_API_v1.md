@@ -2306,6 +2306,45 @@ RoleDraft { id, ref: "RD-0001", company, department, role (snake_case, unique in
 - **Error codes:** `series_not_sealed` (409, an item asked to auto-publish outside a sealed series), `platform_limit` (429 with
   `Retry-After`, the platform's own publishing limit).
 
+### 22.7 Shapes as the apps read them ⟨1.6.1⟩
+Written with the web and Android screens (2026-10-22). Where §22.0–§22.6 leave a shape open, this is the contract.
+- **Departments:**
+  - `PUT /companies/{code}/departments/{dept}/mandate` (🔏 body hash) uses `Department.version` for If-Match and returns the Department.
+- **Role drafts:**
+  - `RoleDraft` gains `brief_md`, `requested_by`, `written_by`, `compared[]`, `originality {ok, closest, note_fa}`, `hires`, `retired_at`
+    and `state_note_fa`.
+  - `GET /roles` rows gain `source`, `company` and `draft`.
+  - The `role_new` payload is `{draft, company, department, role, title_fa, model, effort, limits, tools_count, review, eval_score, sha256}`.
+  - The role story is `Story.kind: "role"` with `links.role_draft`; retiring from the story needs no step-up.
+- **Series:**
+  - `MediaSeries` gains `proposed_by`, `decision_ref`, `next_at[]` (computed by the server from the RRULE in the owner's time zone),
+    `today {made, published}`, `items_total`, `created_at`, `updated_at` and `status_note_fa`.
+  - `POST …/seal` takes `{digest}`; a changed series answers `409 version_conflict`.
+  - Sealing a paused series resumes it and decides any pending `media_series` card. A `media_series` card is sealed on the series page,
+    never by the cartable's approve (`409 validation_failed`, like `server_plan`).
+- **Media items:**
+  - `MediaItem` gains `brief_md`, `topic_fa`, `deliverable_ref`, `state_note_fa` and `pages[]`. `FileRef` carries `width`, `height` and
+    `duration_s`; a video's poster is `?variant=poster` (§17.1). A `design` item is never published.
+  - **Publishing outside a sealed series has one path:** its `media_publish` card (🔏 `decision.approve`). There is no publish route an
+    app calls.
+  - `media_publish` payload: `{item, series, kind, title_fa, why, placements: [{channel, placement, account, via: "api"|"manual", blocked}],
+    render, checks}`. `PublishRow.error` ∈ `no_api`, `account_not_configured`, `removed`, `remove_by_hand`, `platform_limit`.
+    `external_id: "manual"` means the owner posted it from the card. After an unpublish the item becomes `rejected` with a note.
+- **Platform limits:** `GET /media/limits` → `[{account, channel, company, per_24h|null, used_24h, resets_at, note_fa}]`. Publishing
+  accounts are `/tools/accounts` keys `telegram-<co>`, `instagram-<co>` and `mail`.
+- **Voice:**
+  - `Voice` gains `speaker` (`model`|`owner`), `clones`, `samples: [{script, title_fa, text_fa, file}]`, `note_fa` and `measured_at`; each
+    engine-and-speaker pair is its own row.
+  - `GET /media/voices/reference` → 404 when none, else `{file, duration_s, created_at, state, reason_fa}`.
+  - `POST /media/voices/{id}/activate` 🔏 `voice.activate` (target = id); a non-commercial voice needs `{accept_non_commercial: true}`
+    (422 without it); an unmeasured voice answers `409 not_ready`.
+- **Legal:**
+  - `LegalCase` gains `brief_md`; `GET` one adds `emails[]` (an `EmailDraft` plus `{id, direction, state:
+    "waiting_seal"|"sent"|"received"|"superseded"|"rejected", decision_ref, message_id, at}`).
+  - An email's `digest` is SHA-256 of the canonical `{from, to, cc, subject, body_md, attachment sha256s, lang}`.
+  - Rejecting or returning an email reopens the case; closing a case while an email waits for its seal answers 409.
+  - Messages may link `case`, `media_item` or `series`.
+
 ## 23. v1.7 — the archive (prompt 14)
 
 > **v1.7 (2026-10-22).** The owner's decision: the holding and every company get an **archive of record** («بایگانی»), "فوق تخصصی و لایه‌باز":

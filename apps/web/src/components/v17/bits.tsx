@@ -40,7 +40,7 @@ export const KNOWLEDGE_STATUS: Record<string, Label> = {
   draft: { fa: 'پیش‌نویس', tone: 'neutral' }, in_review: { fa: 'در بازبینی', tone: 'lapis' }, approved: { fa: 'تأییدشده', tone: 'pos' }, expired: { fa: 'منقضی', tone: 'warn' }, retired: { fa: 'بازنشسته', tone: 'neutral' },
 };
 export const REVIEW_VERDICT: Record<string, Label> = { pass: { fa: 'قبول', tone: 'pos' }, changes: { fa: 'اصلاح لازم', tone: 'warn' }, reject: { fa: 'رد', tone: 'neg' } };
-export const REVIEW_CHECK: Record<string, string> = { injection: 'تزریق دستور', secrets: 'رمز و کلید', conflicts: 'تناقض با اساسنامه', policy: 'اختیار و سیاست' };
+export const REVIEW_CHECK: Record<string, string> = { injection: 'تزریق دستور', secrets: 'رمز و کلید', conflicts: 'تناقض با اساسنامه', policy: 'اختیار و سیاست', ceiling: 'سقف دپارتمان' };
 export const CARD_FA: Record<string, { fa: string; icon: IconName; note: string }> = {
   stability: { fa: 'پایداری', icon: 'server', note: 'سلامت سرویس‌ها و حادثه‌ها' },
   growth: { fa: 'رشد', icon: 'chart', note: 'درآمد، کاربر و قیف' },
@@ -108,6 +108,11 @@ export function refHref(ref: string): string | null {
   if (/^(?:DM|WR)-\d+$/.test(ref)) return '/advisor';
   if (/^DP-\d+$/.test(ref)) return '/digital-ceo';
   if (/^CL-\d+$/.test(ref)) return '/runs';
+  // ⟨1.6⟩ §22
+  if (/^SR-\d+$/.test(ref)) return `/media/series?ref=${ref}`;
+  if (/^MI-\d+$/.test(ref)) return `/media?item=${ref}`;
+  if (/^LC-\d+$/.test(ref)) return `/legal?case=${ref}`;
+  if (/^L-\d+$/.test(ref)) return '/messages?thread=L';
   return null;
 }
 

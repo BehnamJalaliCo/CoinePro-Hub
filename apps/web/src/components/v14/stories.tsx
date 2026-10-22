@@ -12,6 +12,7 @@ import { ApiError } from '@/lib/api/client';
 import { useCompanies } from '@/lib/api/hooks';
 import { fileUrl } from '@/lib/api/v13';
 import { useStories, useStoryAction, type StoryKind, type StoryRing } from '@/lib/api/v14';
+import { faError, useRoleDraftAction } from '@/lib/api/v19';
 import { companyColor, companyOf } from '@/lib/company';
 import { ago, cx } from '@/lib/format';
 import { Figs } from './bits';
@@ -19,6 +20,8 @@ import { Figs } from './bits';
 const KIND: Record<StoryKind, { fa: string; icon: IconName }> = {
   hire: { fa: 'استخدام تازه', icon: 'hire' }, deliverable: { fa: 'خروجی برجسته', icon: 'deliverable' }, stars: { fa: 'ستاره‌ی هفته', icon: 'star' },
   milestone: { fa: 'هدف رسید', icon: 'chart' }, post: { fa: 'از مدیرعامل', icon: 'messages' },
+  // ⟨1.6⟩ §22.5: a role written on demand became active.
+  role: { fa: 'نقش تازه', icon: 'department' },
 };
 const SECONDS = 6;
 
@@ -65,6 +68,7 @@ function StoryViewer({ rings: live, start, onClose }: { rings: StoryRing[]; star
   const [welcomed, setWelcomed] = useState<Record<string, boolean>>({});
   const { data: companies } = useCompanies();
   const act = useStoryAction();
+  const roleAct = useRoleDraftAction();
   const toast = useToast();
   const down = useRef(0);
   const clock = useRef(0);
@@ -110,7 +114,8 @@ function StoryViewer({ rings: live, start, onClose }: { rings: StoryRing[]; star
   };
   const name = companyOf(companies, ring.company).nameFa;
   const color = companyColor(companies, ring.company);
-  const k = KIND[story.kind];
+  // Kinds a newer server adds are shown plainly rather than failing (§1: unknown enums are tolerated).
+  const k = KIND[story.kind] ?? { fa: 'تازه', icon: 'info' as IconName };
   const isWelcomed = story.welcomed || welcomed[story.ref];
 
   const welcome = async () => {
@@ -126,7 +131,17 @@ function StoryViewer({ rings: live, start, onClose }: { rings: StoryRing[]; star
       next();
     } catch (e) { toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : e instanceof Error ? e.message : 'انجام نشد.' }); }
   };
-  const link = story.links.employee ? { href: `/employees/${story.links.employee}`, fa: 'دیدن کارمند' }
+  const retire = async () => {
+    if (!story.links.role_draft) return;
+    try {
+      await roleAct.retire.mutateAsync(story.links.role_draft);
+      setConfirm(false);
+      toast({ tone: 'info', text: <>نقش <span className="fig">{story.links.role_draft}</span> بازنشسته شد؛ استخدام تازه روی آن نیست و کارمندهایش تا جابه‌جایی کار میکنند.</> });
+      next();
+    } catch (e) { toast({ tone: 'error', text: faError(e) }); }
+  };
+  const link = story.links.role_draft ? { href: `/companies/${ring.company}?role=${story.links.role_draft}`, fa: 'دیدن نقش' }
+    : story.links.employee ? { href: `/employees/${story.links.employee}`, fa: 'دیدن کارمند' }
     : story.links.deliverable ? { href: `/outputs?ref=${story.links.deliverable}`, fa: 'دیدن خروجی' }
       : story.links.decision ? { href: `/cartable?ref=${story.links.decision}`, fa: 'در کارتابل' }
         : story.kind === 'stars' ? { href: '/stars', fa: 'ستاره‌ها' } : null;
@@ -190,11 +205,22 @@ function StoryViewer({ rings: live, start, onClose }: { rings: StoryRing[]; star
                   <Button variant="primary" icon="rate" disabled={isWelcomed} loading={act.welcome.isPending} onClick={welcome}>{isWelcomed ? 'خوش‌آمد گفتی' : 'خوش‌آمد'}</Button>
                   <Button variant="danger" icon="dismiss" onClick={() => setConfirm(true)}>برکنار کن</Button>
                 </>
+              ) : story.kind === 'role' && story.links.role_draft ? (
+                <Button variant="danger" icon="pause" onClick={() => setConfirm(true)}>بازنشسته کن</Button>
               ) : null}
               {link ? <Link href={link.href} onClick={onClose} className="ms-auto inline-flex h-10 items-center gap-1.5 rounded-[10px] px-3 text-[13px] font-semibold text-gold-ink hover:bg-hover">{link.fa}<Icon name="next" size={16} /></Link> : null}
             </footer>
 
-            {confirm ? (
+            {confirm && story.kind === 'role' ? (
+              <div role="alertdialog" aria-label="بازنشستگی نقش" className="absolute inset-x-3 bottom-3 flex flex-col gap-3 rounded-[18px] bg-raised p-4 shadow-[0_18px_48px_rgba(0,0,0,.45)]">
+                <span className="text-[15px] font-semibold text-ink">نقش <span className="fig">{story.links.role_draft}</span> بازنشسته شود؟</span>
+                <span className="text-[13px] leading-6 text-sec">کسی دیگر روی این نقش استخدام نمیشود؛ کارمندهایی که دارد تا جابه‌جایی یا برکناری کار میکنند. منشورش در تاریخچه میماند.</span>
+                <div className="flex flex-row-reverse gap-2">
+                  <Button variant="danger" icon="pause" loading={roleAct.retire.isPending} onClick={retire}>بازنشسته کن</Button>
+                  <Button variant="ghost" onClick={() => setConfirm(false)}>نه</Button>
+                </div>
+              </div>
+            ) : confirm ? (
               <div role="alertdialog" aria-label="برکناری" className="absolute inset-x-3 bottom-3 flex flex-col gap-3 rounded-[18px] bg-raised p-4 shadow-[0_18px_48px_rgba(0,0,0,.45)]">
                 <span className="text-[15px] font-semibold text-ink"><span className="fig">{story.links.employee}</span> برکنار شود؟</span>
                 <span className="text-[13px] leading-6 text-sec">کارهای بازش به مدیرش برمیگردد و کدش دوباره استفاده نمیشود. با گذرکلید تأیید میشود.</span>

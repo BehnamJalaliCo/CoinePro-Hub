@@ -1,6 +1,7 @@
 import type { IconName } from '@/generated/icons';
 
-export type NavItem = { href: string; label: string; icon: IconName; badge?: 'decisions' | 'deliverables' | 'messages' };
+/** `exact`: active only on its own path, when a deeper page has an entry of its own (/media and /media/series). */
+export type NavItem = { href: string; label: string; icon: IconName; badge?: 'decisions' | 'deliverables' | 'messages'; exact?: boolean };
 
 export const NAV_MAIN: NavItem[] = [
   { href: '/', label: 'فرمان', icon: 'command' },
@@ -20,6 +21,14 @@ export const NAV_MANAGEMENT: NavItem[] = [
   { href: '/letter', label: 'گزارش صوتی و نامه‌ها', icon: 'mic' },
   { href: '/substitutes', label: 'بازیکن‌های ذخیره', icon: 'agent' },
   { href: '/digital-ceo', label: 'مدیر کل دیجیتال', icon: 'holding' },
+];
+
+// ⟨1.6⟩ the media studio and the legal counsel (§22): each company's pipeline, the sealed publishing series, the hub's own voice, the cases.
+export const NAV_MEDIA: NavItem[] = [
+  { href: '/media', label: 'استودیوی رسانه', icon: 'video', exact: true },
+  { href: '/media/series', label: 'برنامه‌های انتشار', icon: 'send' },
+  { href: '/media/voice', label: 'صدای هاب', icon: 'mic' },
+  { href: '/legal', label: 'مشاور حقوقی', icon: 'decision' },
 ];
 
 // ⟨1.5⟩ governance (§20): the meeting room, the charter, knowledge, the cards, OKRs, outcomes, risks, the change calendar and authority.
@@ -65,4 +74,4 @@ export const NAV_MOBILE: NavItem[] = [
   { href: '/messages', label: 'پیام‌ها', icon: 'messages', badge: 'messages' },
 ];
 
-export const isActive = (pathname: string, href: string) => (href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`));
+export const isActive = (pathname: string, href: string, exact = false) => (href === '/' || exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));

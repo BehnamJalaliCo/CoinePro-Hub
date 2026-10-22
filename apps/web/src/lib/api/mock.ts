@@ -8,6 +8,7 @@ import { handle14 } from './mock-v14';
 import { DECISIONS_16, decided16, handle16 } from './mock-v16';
 import { DECISIONS_17, decided17, handle17 } from './mock-v17';
 import { CONNECTIONS_18, DECISIONS_18, decided18, decorate18, handle18 } from './mock-v18';
+import { decided19, decorate19, departments19, handle19 } from './mock-v19';
 import { roles } from './mock-roles';
 
 const now = Date.now();
@@ -353,6 +354,9 @@ export async function handle(req: Request): Promise<Response> {
   await new Promise((r) => setTimeout(r, 120 + Math.random() * 180));
   const brand = await handleBrand(req, p, files);
   if (brand) return brand;
+  // ⟨1.6⟩ §22 first: it also answers GET /roles (file charters and active drafts) and refuses a media_series card on the cartable's approve.
+  const v19 = await handle19(req, p, u);
+  if (v19) return v19;
   const v18 = await handle18(req, p, u);
   if (v18) return v18;
   const v14 = await handle14(req, p, u);
@@ -408,7 +412,7 @@ export async function handle(req: Request): Promise<Response> {
       const x = decisions.find((y) => y.ref === d[1]);
       if (x) Object.assign(x, { status: d[2] === 'approve' ? 'approved' : d[2] === 'reject' ? 'rejected' : 'returned', decided_at: new Date().toISOString(), decided_by: owner, seal: d[2] === 'approve' ? { method: 'passkey_uv', sealed_at: new Date().toISOString(), step_up_id: 'mock' } : null, resolution: d[2] === 'approve' ? 'M-0007' : null });
       if (x && d[2] === 'approve') { decided16(x); decided17(x); }
-      if (x) decided18(x);
+      if (x) { decided18(x); decided19(x); }
       return json(x);
     }
     const r = /^\/deliverables\/(O-\d+)\/rating$/.exec(p);
@@ -537,8 +541,9 @@ export async function handle(req: Request): Promise<Response> {
   if (p === '/companies') return json(companies.map((c) => ({ ...c, brand_version: activeVersion(c.code) })));
   const cd = /^\/companies\/([A-Z0-9]+)$/.exec(p); if (cd) { const c = companies.find((x) => x.code === cd[1]); return json(c ? { ...c, brand_version: activeVersion(c.code) } : {}); }
   const dep = /^\/companies\/([A-Z0-9]+)\/departments$/.exec(p);
-  if (dep && dep[1] === 'HQ') return json([['OVS', 'نظارت و کنترل کیفیت', 'بازرس کل', 'Oversight'], ['AIOPS', 'عملیات هوش مصنوعی', 'مدیر عملیات AI', 'AI Operations']].map(([k, fa, mgr, en], i) => ({ id: `HQ-${k}`, code: k, company: 'HQ', name_fa: fa, name_en: en, manager_title_fa: mgr, manager_title_en: en, manager: { code: `HQ-${k}-MGR`, company: 'HQ', department: k, kind: 'manager', title_fa: mgr }, sort: i, status: 'active', version: 1 })));
-  if (dep) return json(['TECH', 'GROWTH', 'SALES', 'PRODUCT', 'FIN', 'QUANT', 'AIOPS', 'HR'].map((k, i) => ({ id: `${dep[1]}-${k}`, code: k, company: dep[1], name_fa: ['فنی', 'رشد و مارکتینگ', 'فروش و پشتیبانی', 'محصول', 'مالی', 'کوانت', 'عملیات هوش مصنوعی', 'منابع انسانی'][i], name_en: k, manager_title_fa: ['مدیر فنی', 'مدیر مارکتینگ', 'مدیر فروش', 'مدیر محصول', 'مدیر مالی', 'مدیر کوانت', 'مدیر عملیات AI', 'مدیر منابع انسانی'][i], manager_title_en: k, manager: { code: `${dep[1]}-${k}-MGR`, company: dep[1], department: k, kind: 'manager', title_fa: 'مدیر' }, sort: i, status: 'active', version: 1 })));
+  // ⟨1.6⟩ §22.1: each department with its mandate, identity and starting team; MEDIA in every company, LEGAL in the holding.
+  if (dep && dep[1] === 'HQ') return json(departments19('HQ', [['OVS', 'نظارت و کنترل کیفیت', 'بازرس کل', 'Oversight'], ['AIOPS', 'عملیات هوش مصنوعی', 'مدیر عملیات AI', 'AI Operations']].map(([k, fa, mgr, en], i) => ({ id: `HQ-${k}`, code: k, company: 'HQ', name_fa: fa, name_en: en, manager_title_fa: mgr, manager_title_en: en, manager: { code: `HQ-${k}-MGR`, company: 'HQ', department: k, kind: 'manager', title_fa: mgr }, sort: i, status: 'active', version: 1 }))));
+  if (dep) return json(departments19(dep[1]!, ['TECH', 'GROWTH', 'SALES', 'PRODUCT', 'FIN', 'QUANT', 'AIOPS', 'HR'].map((k, i) => ({ id: `${dep[1]}-${k}`, code: k, company: dep[1], name_fa: ['فنی', 'رشد و مارکتینگ', 'فروش و پشتیبانی', 'محصول', 'مالی', 'کوانت', 'عملیات هوش مصنوعی', 'منابع انسانی'][i], name_en: k, manager_title_fa: ['مدیر فنی', 'مدیر مارکتینگ', 'مدیر فروش', 'مدیر محصول', 'مدیر مالی', 'مدیر کوانت', 'مدیر عملیات AI', 'مدیر منابع انسانی'][i], manager_title_en: k, manager: { code: `${dep[1]}-${k}-MGR`, company: dep[1], department: k, kind: 'manager', title_fa: 'مدیر' }, sort: i, status: 'active', version: 1 }))));
   if (p === '/employees') { const c = u.searchParams.getAll('company'); return json(page(c.length ? employees.filter((e) => c.includes(e.company)) : employees)); }
   const ed = /^\/employees\/([A-Z0-9-]+)$/.exec(p); if (ed) { const e = employees.find((x) => x.code === ed[1]); return e ? json({ ...e, recent_ratings: [{ deliverable: 'O-000031', score: 8, rated_at: iso(60) }], recent_work: work.slice(0, 2).map((w) => ({ ref: w.ref, title: w.title, status: w.status })) }) : json({}, 404); }
   if (p === '/work') return json(page(work));
@@ -590,3 +595,6 @@ const rings = () => {
 
 
 const presence = { khalvat: false, since: iso(60 * 9), until: null as string | null };
+
+// ⟨1.6⟩ §22 adds the MEDIA teams, the legal counsel and thread L, its cards and the role story (after the stories exist).
+decorate19({ decisions, messages, employees, threads, stories });

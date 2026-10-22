@@ -9,7 +9,7 @@ import { CompanyMark, Monogram, Wordmark } from '@/components/brand/marks';
 import { useCompanies, useInbox, usePresence, useSetKhalvat } from '@/lib/api/hooks';
 import { useScope } from '@/lib/scope';
 import { cx } from '@/lib/format';
-import { NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_TOOLS, isActive, type NavItem } from './nav';
+import { NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_MEDIA, NAV_TOOLS, isActive, type NavItem } from './nav';
 
 function Badge({ n }: { n: number }) {
   if (!n) return null;
@@ -18,7 +18,7 @@ function Badge({ n }: { n: number }) {
 
 function Item({ item, counts }: { item: NavItem; counts: Record<string, number> }) {
   const pathname = usePathname();
-  const on = isActive(pathname, item.href);
+  const on = isActive(pathname, item.href, item.exact);
   return (
     <Link
       href={item.href}
@@ -89,6 +89,11 @@ export function Sidebar() {
         <nav aria-label="ابزار مدیریت" className="flex flex-col gap-0.5">
           <span className="px-3 pb-1 text-[11px] text-muted">ابزار مدیریت</span>
           {NAV_MANAGEMENT.map((i) => <Item key={i.href} item={i} counts={counts} />)}
+        </nav>
+        <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
+        <nav aria-label="رسانه و حقوقی" className="flex flex-col gap-0.5">
+          <span className="px-3 pb-1 text-[11px] text-muted">رسانه و حقوقی</span>
+          {NAV_MEDIA.map((i) => <Item key={i.href} item={i} counts={counts} />)}
         </nav>
         <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
         <nav aria-label="حاکمیت" className="flex flex-col gap-0.5">

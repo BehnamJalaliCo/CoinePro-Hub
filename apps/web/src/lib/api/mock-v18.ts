@@ -787,7 +787,7 @@ const BRAND: Record<string, { bg: [string, string]; accent: string; motif: 'cand
   HQ: { bg: ['#0B0D14', '#2A2418'], accent: '#D8A848', motif: 'rings', mark: 'CoinePro HQ' },
 };
 /** The demo's stand-in for the substitute's render and the hub's composition (resvg on the hub): a canvas, in the browser. */
-async function render(company: string, placement: string, seed: number, overlay: any | null): Promise<string> {
+export async function render(company: string, placement: string, seed: number, overlay: any | null): Promise<string> {
   if (typeof document === 'undefined') return '';
   const [w, h] = SIZE[ASPECT[placement] ?? '1:1'] ?? [640, 640];
   const b = BRAND[company] ?? BRAND.HQ!;
