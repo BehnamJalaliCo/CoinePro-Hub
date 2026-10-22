@@ -582,9 +582,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # The six kinds stay in decisions_kind_check: cards of those kinds outlive
+    # the tables, and 0025's re-upgrade validates the constraint (the 0009
+    # round trip of test_hiring). The activated protocols keep their versions.
     execute_script(
-        _kinds_sql((), NEW_KINDS)
-        + """
+        """
         ALTER TABLE work.work DROP CONSTRAINT work_key_result;
         ALTER TABLE work.work DROP COLUMN key_result_id;
         DROP TRIGGER decisions_expected_immutable ON cartable.decisions;

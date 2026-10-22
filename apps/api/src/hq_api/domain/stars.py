@@ -11,8 +11,9 @@ no stars; the owner's 1-10 rating stays its own part of the employee score
 
 Every part is 0..100; a part without data is left out and the weights are
 renormalised (the same rule as the employee score), so a company is never
-punished for a missing feed: no KPI store exists yet, and challenges and
-compliance come from the overseer's tables (prompt 08 §2) when they exist.
+punished for a missing feed. KPI attainment comes from the cards (prompt 11
+§4.6: domain/gov_kpis.attainment), challenges and compliance from the
+overseer's tables (prompt 08 §2) when they exist.
 
 Efficiency comes from the ledger only (agents.runs, llm.calls, the owner's
 ratings), never from what an agent reports:
@@ -38,7 +39,7 @@ from zoneinfo import ZoneInfo
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import hiring
+from hq_api.domain import gov_kpis, hiring
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -546,7 +547,9 @@ async def rollup(tx: Tx, period: str, key: str, start_day: date, end_day: date) 
         )
         challenges, compliance = await _oversight_parts(tx, c["id"], start, end)
         parts = {
-            "kpi": None,  # no KPI store yet: left out (contract note)
+            # ⟨1.5⟩ prompt 11 §4.6 (contract §20.4): the active OKR's key results,
+            # else the scorecard KPIs at target; None (left out) without either
+            "kpi": await gov_kpis.attainment(tx, c["id"]),
             "challenges": challenges,
             "compliance": compliance,
             "people": people,

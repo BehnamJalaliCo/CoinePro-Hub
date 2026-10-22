@@ -64,12 +64,12 @@ class AuthorityRule(BaseModel):
     version: int
 
 
-class Matrix(BaseModel):
+class AuthorityMatrix(BaseModel):
     rules: list[AuthorityRule]
     digest: str
 
 
-class RuleChange(BaseModel):
+class AuthorityRuleChange(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     key: str = Field(pattern=r"^[a-z][a-z0-9_.]{1,60}$")
@@ -78,10 +78,10 @@ class RuleChange(BaseModel):
     version: int = Field(ge=1)
 
 
-class MatrixIn(BaseModel):
+class AuthorityMatrixIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    rules: list[RuleChange] = Field(min_length=1, max_length=50)
+    rules: list[AuthorityRuleChange] = Field(min_length=1, max_length=50)
 
 
 # ------------------------------------------------------------------- seed --
@@ -139,11 +139,12 @@ async def seed(tx: Tx) -> int:
                    step_up = :step_up, class = :class, locked = :locked, note_fa = :note_fa, sort = :sort,
                    actor = CASE WHEN :locked THEN :actor ELSE actor END,
                    lim = CASE WHEN :locked THEN CAST(:lim AS jsonb) ELSE lim END
-               WHERE key = :key AND (title_fa, action, default_actor, scope, bounds::text, step_up, class,
-                                     locked, note_fa, sort)
-                     IS DISTINCT FROM (:title_fa, :action, :actor, :scope, CAST(:bounds AS jsonb)::text,
-                                       :step_up, :class, :locked, :note_fa, :sort)
-                 OR (:locked AND (actor, lim::text) IS DISTINCT FROM (:actor, CAST(:lim AS jsonb)::text))""",
+               WHERE key = :key
+                 AND ((title_fa, action, default_actor, scope, bounds::text, step_up, class, locked, note_fa,
+                       sort)
+                      IS DISTINCT FROM (:title_fa, :action, :actor, :scope, CAST(:bounds AS jsonb)::text,
+                                        :step_up, :class, :locked, :note_fa, :sort)
+                      OR (:locked AND (actor, lim::text) IS DISTINCT FROM (:actor, CAST(:lim AS jsonb)::text)))""",
             **params,
         )
     return changed
@@ -195,9 +196,9 @@ def opa_doc(rs: list[dict[str, Any]]) -> dict[str, Any]:
     return {"version": hashlib.sha256(canon.encode()).hexdigest(), "rules": rules}
 
 
-async def matrix(tx: Tx) -> Matrix:
+async def matrix(tx: Tx) -> AuthorityMatrix:
     rs = await rows(tx)
-    return Matrix(rules=[render(r) for r in rs], digest=opa_doc(rs)["version"])
+    return AuthorityMatrix(rules=[render(r) for r in rs], digest=opa_doc(rs)["version"])
 
 
 async def for_agent(tx: Tx, who: Principal) -> list[AuthorityRule]:
@@ -256,7 +257,9 @@ async def list_value(tx: Tx, key: str, default: list[str]) -> list[str]:
 
 
 # ----------------------------------------------------------------- change --
-def validate_change(r: dict[str, Any] | None, c: RuleChange) -> tuple[str, dict[str, Any] | None]:
+def validate_change(
+    r: dict[str, Any] | None, c: AuthorityRuleChange
+) -> tuple[str, dict[str, Any] | None]:
     """(actor, limit) of an allowed change; 422 for a locked row, a number
     outside its bounds, an actor other than the owner or the seeded one."""
     if r is None:
@@ -311,7 +314,7 @@ def validate_change(r: dict[str, Any] | None, c: RuleChange) -> tuple[str, dict[
 async def apply(
     tx: Tx,
     who: Principal,
-    changes: list[RuleChange],
+    changes: list[AuthorityRuleChange],
     *,
     decision_ref: str | None = None,
     check_versions: bool = True,

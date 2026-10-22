@@ -224,15 +224,17 @@ async def outcomes_accuracy(
 
 
 # ============================================================= authority ==
-@router.get("/authority", response_model=AU.Matrix, responses=E)
-async def get_authority(ctx: Ctx = Depends(owner_ctx)) -> AU.Matrix:
+@router.get("/authority", response_model=AU.AuthorityMatrix, responses=E)
+async def get_authority(ctx: Ctx = Depends(owner_ctx)) -> AU.AuthorityMatrix:
     """The whole authority matrix, locked rows included."""
     async with ctx.tx() as tx:
         return await AU.matrix(tx)
 
 
-@router.put("/authority", response_model=AU.Matrix, responses=E)
-async def put_authority(body: AU.MatrixIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+@router.put("/authority", response_model=AU.AuthorityMatrix, responses=E)
+async def put_authority(
+    body: AU.AuthorityMatrixIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """🔏 `authority.update` on the SHA-256 of the exact body. Unlocked rows
     only, inside their bounds (422 otherwise); each row's `version` must match
     (409). `actor: "owner"` takes a row back. OPA enforces it at once."""
@@ -367,7 +369,9 @@ async def get_calendar(
 
 
 @router.post("/calendar", response_model=CAL.CalendarEvent, status_code=201, responses=E)
-async def add_event(body: CAL.EventIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def add_event(
+    body: CAL.CalendarEventIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """The owner's event (any kind but `deploy`: a deploy comes from its card).
     Without `company` it is the holding's. Requires `Idempotency-Key`."""
     co = await _company(ctx, body.company)
@@ -388,7 +392,7 @@ async def add_event(body: CAL.EventIn, request: Request, ctx: Ctx = Depends(owne
 
 @router.patch("/calendar/{ref}", response_model=CAL.CalendarEvent, responses=E)
 async def patch_event(
-    ref: str, body: CAL.EventPatch, request: Request, ctx: Ctx = Depends(owner_ctx)
+    ref: str, body: CAL.CalendarEventPatch, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> CAL.CalendarEvent:
     """`If-Match: <version>`: title, times, status, risk."""
     expected = if_match(request)
@@ -418,7 +422,7 @@ async def batch_approve(body: B.BatchIn, request: Request, ctx: Ctx = Depends(ow
     and nothing is sealed. Each card gets its own resolution, audit row and
     interaction. Requires `Idempotency-Key`."""
     holding = await ctx.hub.companies.holding()
-    sealed: list[B.Sealed] = []
+    sealed: list[B.BatchSealed] = []
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
@@ -454,7 +458,7 @@ async def batch_approve(body: B.BatchIn, request: Request, ctx: Ctx = Depends(ow
                 data={"kind": d["kind"], "verdict": "approved", "batch": batch, "risk": d["risk"],
                       "proposer": d["proposer_code"], "note": body.note},
             )  # fmt: skip
-            sealed.append(B.Sealed(ref=d["ref"], resolution=out["resolution"]))
+            sealed.append(B.BatchSealed(ref=d["ref"], resolution=out["resolution"]))
         await ctx.audit(tx, company_id=holding.id, action="decision.batch", action_class="A1", target_kind="batch",
                         target_ref=batch, summary=f"{len(sealed)} card(s)", step_up=True)  # fmt: skip
         result = B.BatchOut(batch=batch, items=sealed)
@@ -501,7 +505,9 @@ async def _scoped(
 
 
 @internal_router.post("/governance/kpis/record", responses=IE)
-async def kpi_record(body: K.RecordIn, request: Request, ctx: Ctx = Depends(internal_ctx)) -> Any:
+async def kpi_record(
+    body: K.KpiRecordIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+) -> Any:
     """kpi.record (A2): a manual KPI's value, with its source (CEO or a manager)."""
     _agent(ctx)
     co = await _target(ctx, "kpi.record", body.company)
@@ -518,7 +524,9 @@ async def kpi_record(body: K.RecordIn, request: Request, ctx: Ctx = Depends(inte
 
 
 @internal_router.post("/governance/okr/draft", responses=IE)
-async def okr_draft(body: OKR.DraftIn, request: Request, ctx: Ctx = Depends(internal_ctx)) -> Any:
+async def okr_draft(
+    body: OKR.OkrDraftIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+) -> Any:
     """okr.draft (A1, the CEO): the next quarter's OKR as one `okr` card."""
     _agent(ctx)
     co = await _target(ctx, "okr.draft", body.company)
@@ -549,7 +557,7 @@ async def okr_draft(body: OKR.DraftIn, request: Request, ctx: Ctx = Depends(inte
 
 @internal_router.post("/governance/okr/checkin", responses=IE)
 async def okr_checkin(
-    body: OKR.CheckinIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+    body: OKR.OkrCheckinIn, request: Request, ctx: Ctx = Depends(internal_ctx)
 ) -> Any:
     """okr.checkin (A2): a key result of the agent's own company."""
     _agent(ctx)
@@ -567,7 +575,9 @@ async def okr_checkin(
 
 
 @internal_router.post("/governance/outcomes/note", responses=IE)
-async def outcome_note(body: OUT.NoteIn, request: Request, ctx: Ctx = Depends(internal_ctx)) -> Any:
+async def outcome_note(
+    body: OUT.OutcomeNoteIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+) -> Any:
     """outcome.note (A1): the proposer's note on a due outcome review."""
     _agent(ctx)
     async with ctx.tx() as tx:  # the agent's own company: another's review is never found
@@ -611,7 +621,9 @@ async def risk_raise(body: RK.RiskIn, request: Request, ctx: Ctx = Depends(inter
 
 
 @internal_router.post("/governance/risks/update", responses=IE)
-async def risk_update(body: RK.UpdateIn, request: Request, ctx: Ctx = Depends(internal_ctx)) -> Any:
+async def risk_update(
+    body: RK.RiskUpdateIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+) -> Any:
     """risk.update (A2): the risk's owner, or the keeper (QC); only the keeper closes it."""
     _agent(ctx)
     async with _scoped(ctx, read_only=True) as tx:
@@ -658,7 +670,7 @@ async def calendar_read(
 
 @internal_router.post("/governance/calendar", status_code=201, responses=IE)
 async def calendar_add(
-    body: CAL.EventIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+    body: CAL.CalendarEventIn, request: Request, ctx: Ctx = Depends(internal_ctx)
 ) -> Any:
     """calendar.add (A2): a campaign, event or maintenance (the calendar never decides)."""
     _agent(ctx)

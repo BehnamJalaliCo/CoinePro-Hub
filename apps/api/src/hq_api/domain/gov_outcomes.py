@@ -40,7 +40,7 @@ NOTE_WITHIN = timedelta(
 )  # an unmeasurable review without a note after this is PR-006's finding
 
 
-class ExpectedIn(BaseModel):
+class DecisionExpected(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     metric_fa: str = Field(min_length=1, max_length=300)
@@ -50,21 +50,21 @@ class ExpectedIn(BaseModel):
     by_days: Literal[30, 60, 90]
 
 
-class Measured(BaseModel):
+class OutcomeMeasured(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     value: float = Field(allow_inf_nan=False)
     at: datetime
-    source_ref: G.Source
+    source_ref: G.EvidenceSource
 
 
-class NoteIn(BaseModel):
+class OutcomeNoteIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ref: str = Field(pattern=r"^OR-[0-9]{4,}$")
     note_md: str = Field(min_length=1, max_length=5000)
-    measured: Measured | None = None
-    evidence: list[G.Source] = Field(default_factory=list, max_length=20)
+    measured: OutcomeMeasured | None = None
+    evidence: list[G.EvidenceSource] = Field(default_factory=list, max_length=20)
 
 
 class OverseerVerdict(BaseModel):
@@ -140,7 +140,7 @@ async def check_expected(
     """The card's warnings; 422 for a bad `expected` or for a proposal
     without one once the 7 days after the rollout are over."""
     if expected is not None:
-        e = ExpectedIn.model_validate(expected)
+        e = DecisionExpected.model_validate(expected)
         if e.kpi is not None and not await tx.scalar(
             "SELECT 1 FROM governance.kpis WHERE company_id = :co AND key = :k",
             co=company_id,
@@ -260,7 +260,7 @@ async def measure_due(tx: Tx, now: datetime | None = None) -> dict[str, Any]:
     return {"decided": decided, "waiting_for_note": waiting}
 
 
-async def note(tx: Tx, who: Principal, body: NoteIn) -> dict[str, Any]:
+async def note(tx: Tx, who: Principal, body: OutcomeNoteIn) -> dict[str, Any]:
     """The proposer's note on a review that is due (outcome.note)."""
     r = await tx.first(SQL + " WHERE r.ref = :ref FOR UPDATE OF r", ref=body.ref)
     if r is None:

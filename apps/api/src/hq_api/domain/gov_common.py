@@ -22,7 +22,7 @@ _NUMBER = re.compile(r"-?[0-9]+(?:[.,][0-9]+)?")
 QUARTER = r"^1[3-9][0-9]{2}-Q[1-4]$"
 
 
-class Source(BaseModel):
+class EvidenceSource(BaseModel):
     """{kind, ref, note} (contract §16.3 citations, §20.4 source_ref)."""
 
     model_config = ConfigDict(extra="forbid")

@@ -42,7 +42,7 @@ def max_review(score: int) -> timedelta:
     return timedelta(days=90)
 
 
-class Links(BaseModel):
+class RiskLinks(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     finding: str | None = Field(default=None, pattern=r"^FI-[0-9]{4,}$")
@@ -60,7 +60,7 @@ class RiskIn(BaseModel):
     category: Category
     likelihood: int = Field(ge=1, le=5)
     impact: int = Field(ge=1, le=5)
-    links: Links | None = None
+    links: RiskLinks | None = None
     owner: str | None = Field(
         default=None, pattern=r"^([A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?|owner)$"
     )
@@ -85,7 +85,7 @@ class RiskPatch(BaseModel):
     note: str = Field(default="", max_length=2000)
 
 
-class UpdateIn(BaseModel):
+class RiskUpdateIn(BaseModel):
     """risk.update (A2): its owner or the keeper."""
 
     model_config = ConfigDict(extra="forbid")
@@ -99,14 +99,14 @@ class UpdateIn(BaseModel):
     note: str = Field(min_length=1, max_length=2000)
 
 
-class HistoryItem(BaseModel):
+class RiskHistoryItem(BaseModel):
     at: datetime
     by: Actor
     change: dict[str, Any]
     note: str
 
 
-class Accepted(BaseModel):
+class RiskAccepted(BaseModel):
     decision: str
     until: datetime
 
@@ -125,11 +125,11 @@ class Risk(BaseModel):
     mitigation_md: str | None
     status: str
     review_at: datetime
-    accepted: Accepted | None
+    accepted: RiskAccepted | None
     links: dict[str, Any]
     draft: bool
     origin: str
-    history: list[HistoryItem]
+    history: list[RiskHistoryItem]
     version: int
 
 
@@ -146,14 +146,14 @@ SQL = """
 
 
 async def render(tx: Tx, r: dict[str, Any], *, history: bool = True) -> Risk:
-    items: list[HistoryItem] = []
+    items: list[RiskHistoryItem] = []
     if history:
         for h in await tx.all(
             "SELECT * FROM governance.risk_history WHERE risk_id = :id ORDER BY at", id=r["id"]
         ):
             by = actor(h["by_kind"] if h["by_kind"] != "rule" else "system", h["by_code"])
             assert by is not None
-            items.append(HistoryItem(at=h["at"], by=by, change=h["change"], note=h["note"]))
+            items.append(RiskHistoryItem(at=h["at"], by=by, change=h["change"], note=h["note"]))
     owner = actor(r["owner_kind"], r["owner_code"])
     assert owner is not None
     return Risk(
@@ -170,7 +170,7 @@ async def render(tx: Tx, r: dict[str, Any], *, history: bool = True) -> Risk:
         mitigation_md=r["mitigation_md"],
         status=r["status"],
         review_at=r["review_at"],
-        accepted=Accepted(decision=r["accepted_ref"], until=r["accepted_until"])
+        accepted=RiskAccepted(decision=r["accepted_ref"], until=r["accepted_until"])
         if r["status"] == "accepted" and r["accepted_ref"]
         else None,
         links=r["links"] or {},
@@ -434,7 +434,7 @@ async def draft_risk(
             category=category,
             likelihood=likelihood,
             impact=impact,
-            links=Links(**links),
+            links=RiskLinks(**links),
         ),
         origin=origin,
         draft=True,
@@ -490,7 +490,7 @@ async def sweep(tx: Tx, now: datetime | None = None) -> dict[str, Any]:
     for f in await tx.all(
         """SELECT f.ref, f.title_fa, f.company_id, c.code AS company FROM oversight.findings f
            JOIN core.companies c ON c.id = f.company_id
-           WHERE f.severity = 'critical' AND f.created_at > :since""",
+           WHERE f.severity = 'critical' AND f.opened_at > :since""",
         since=now - timedelta(days=7),
     ):
         ref = await draft_risk(

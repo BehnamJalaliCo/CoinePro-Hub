@@ -41,7 +41,7 @@ REASONS = ("changed", "not_pending", "kind", "action_class", "risk", "irreversib
            "over_max_usd", "over_max_items", "held")  # fmt: skip
 
 
-class Item(BaseModel):
+class BatchItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ref: str = Field(pattern=r"^D-[0-9]{4,}$")
@@ -51,11 +51,11 @@ class Item(BaseModel):
 class BatchIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    items: list[Item] = Field(min_length=1, max_length=200)
+    items: list[BatchItem] = Field(min_length=1, max_length=200)
     note: str | None = Field(default=None, max_length=5000)
 
 
-class Quota(BaseModel):
+class BatchQuota(BaseModel):
     tokens: int | None
     usd: Decimal | None
 
@@ -66,24 +66,24 @@ class Batchable(BaseModel):
     kind: str
     company: str
     title: str
-    quota_estimate: Quota
+    quota_estimate: BatchQuota
     proposer: Actor
     risk: str | None = None
     created_at: datetime | None = None
     expires_at: datetime | None = None
 
 
-class Sealed(BaseModel):
+class BatchSealed(BaseModel):
     ref: str
     resolution: str | None
 
 
 class BatchOut(BaseModel):
     batch: str
-    items: list[Sealed]
+    items: list[BatchSealed]
 
 
-def target(items: list[Item]) -> str:
+def target(items: list[BatchItem]) -> str:
     """The step-up target: sha256 of the canonical [{ref, version}] sorted by ref."""
     return G.canonical_sha256(
         sorted(({"ref": i.ref, "version": i.version} for i in items), key=lambda x: x["ref"])
@@ -150,7 +150,7 @@ async def batchable(tx: Tx, hub: Any, limit: int = 200) -> list[Batchable]:
                 kind=d["kind"],
                 company=d["company"],
                 title=d["title"],
-                quota_estimate=Quota(tokens=d["quota_tokens"], usd=d["quota_usd"]),
+                quota_estimate=BatchQuota(tokens=d["quota_tokens"], usd=d["quota_usd"]),
                 proposer=who,
                 risk=d["risk"],
                 created_at=d["created_at"],
@@ -160,7 +160,7 @@ async def batchable(tx: Tx, hub: Any, limit: int = 200) -> list[Batchable]:
     return out
 
 
-async def check(tx: Tx, hub: Any, items: list[Item]) -> list[dict[str, Any]]:
+async def check(tx: Tx, hub: Any, items: list[BatchItem]) -> list[dict[str, Any]]:
     """The cards, locked, in ref order; 422 batch_not_eligible with every
     refusal when one of them may not be sealed in this batch."""
     if len({i.ref for i in items}) != len(items):

@@ -430,7 +430,7 @@ class DecisionIn(Model):
     payload: dict[str, Any] = Field(default_factory=dict)
     expires_at: datetime | None = None
     # ⟨1.5⟩ prompt 11 §6 (contract §20.6): what the proposer expects, and by when
-    expected: gov_outcomes.ExpectedIn | None = None
+    expected: gov_outcomes.DecisionExpected | None = None
 
 
 # ------------------------------------------------------------------ output --

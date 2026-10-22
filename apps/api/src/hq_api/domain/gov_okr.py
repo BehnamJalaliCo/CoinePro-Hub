@@ -36,7 +36,7 @@ KPI_KEY = r"^[a-z][a-z0-9_.]{1,60}$"
 
 
 # ------------------------------------------------------------------ input --
-class KeyResultIn(BaseModel):
+class OkrKeyResultIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title_fa: str = Field(min_length=1, max_length=300)
@@ -47,34 +47,34 @@ class KeyResultIn(BaseModel):
     weight: float = Field(default=1, gt=0, le=100)
 
 
-class ObjectiveIn(BaseModel):
+class OkrObjectiveIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title_fa: str = Field(min_length=1, max_length=300)
     why_md: str = Field(default="", max_length=5000)
-    key_results: list[KeyResultIn] = Field(min_length=1, max_length=5)
+    key_results: list[OkrKeyResultIn] = Field(min_length=1, max_length=5)
 
 
-class DraftIn(BaseModel):
+class OkrDraftIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
     quarter: str = Field(pattern=G.QUARTER)
-    objectives: list[ObjectiveIn] = Field(min_length=1, max_length=5)
+    objectives: list[OkrObjectiveIn] = Field(min_length=1, max_length=5)
 
 
-class CheckinIn(BaseModel):
+class OkrCheckinIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     key_result: str = Field(pattern=r"^KR-[0-9]{4,}$")
     confidence: float = Field(ge=0, le=1)
     note_md: str = Field(min_length=1, max_length=5000)
-    evidence: list[G.Source] = Field(default_factory=list, max_length=20)
+    evidence: list[G.EvidenceSource] = Field(default_factory=list, max_length=20)
     current: float | None = Field(default=None, allow_inf_nan=False)
 
 
 # ----------------------------------------------------------------- output --
-class Checkin(BaseModel):
+class OkrCheckin(BaseModel):
     at: datetime
     by: Actor
     confidence: float
@@ -97,7 +97,7 @@ class KeyResult(BaseModel):
     weight: float
     last_checkin_at: datetime | None
     checkin_due_at: datetime | None
-    checkins: list[Checkin]
+    checkins: list[OkrCheckin]
 
 
 class Objective(BaseModel):
@@ -154,7 +154,7 @@ async def render(tx: Tx, o: dict[str, Any], *, with_checkins: bool = True) -> Ob
         w = float(kr["weight"])
         total += w
         weighted += w * p
-        checkins: list[Checkin] = []
+        checkins: list[OkrCheckin] = []
         if with_checkins:
             for c in await tx.all(
                 """SELECT * FROM governance.okr_checkins WHERE key_result_id = :k ORDER BY at DESC LIMIT 20""",
@@ -163,7 +163,7 @@ async def render(tx: Tx, o: dict[str, Any], *, with_checkins: bool = True) -> Ob
                 by = actor(c["by_kind"], c["by_code"])
                 assert by is not None
                 checkins.append(
-                    Checkin(at=c["at"], by=by, confidence=float(c["confidence"]), note_md=c["note_md"],
+                    OkrCheckin(at=c["at"], by=by, confidence=float(c["confidence"]), note_md=c["note_md"],
                             evidence=list(c["evidence"] or []))
                 )  # fmt: skip
         since = kr["last_checkin_at"] or o["activated_at"]
@@ -228,7 +228,7 @@ async def active_progress(tx: Tx, company_id: UUID, now: datetime | None = None)
 
 # ------------------------------------------------------------------ draft --
 async def draft(
-    tx: Tx, who: Principal, company_id: UUID, code: str, body: DraftIn, *, charters: Any = None
+    tx: Tx, who: Principal, company_id: UUID, code: str, body: OkrDraftIn, *, charters: Any = None
 ) -> dict[str, Any]:
     """Objectives and key results (`proposed`) and their one `okr` card."""
     from hq_api.domain import decisions as D
@@ -388,7 +388,7 @@ async def on_decided(
 
 
 # --------------------------------------------------------------- check-in --
-async def checkin(tx: Tx, who: Principal, company_id: UUID, body: CheckinIn) -> dict[str, Any]:
+async def checkin(tx: Tx, who: Principal, company_id: UUID, body: OkrCheckinIn) -> dict[str, Any]:
     kr = await tx.first(
         """SELECT k.*, o.status AS objective_status, o.ref AS objective_ref FROM governance.key_results k
            JOIN governance.objectives o ON o.id = k.objective_id

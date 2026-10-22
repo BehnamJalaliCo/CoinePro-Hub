@@ -48,7 +48,7 @@ RESTORE = (time(6, 0), timedelta(hours=1), "Asia/Tehran", "تست بازیابی
 FAR = timedelta(days=400)
 
 
-class SourceRef(BaseModel):
+class CalendarSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     decision: str | None = Field(default=None, pattern=r"^D-[0-9]{4,}$")
@@ -57,7 +57,7 @@ class SourceRef(BaseModel):
     order: str | None = Field(default=None, max_length=40)
 
 
-class EventIn(BaseModel):
+class CalendarEventIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     company: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,9}$")
@@ -65,11 +65,11 @@ class EventIn(BaseModel):
     title_fa: str = Field(min_length=1, max_length=300)
     starts_at: datetime
     ends_at: datetime
-    source: SourceRef = Field(default_factory=SourceRef)
+    source: CalendarSource = Field(default_factory=CalendarSource)
     risk: Literal["low", "medium", "high"] = "low"
 
     @model_validator(mode="after")
-    def _order(self) -> EventIn:
+    def _order(self) -> CalendarEventIn:
         if self.ends_at < self.starts_at:
             raise ValueError("ends_at is before starts_at")
         if self.ends_at - self.starts_at > FAR:
@@ -77,7 +77,7 @@ class EventIn(BaseModel):
         return self
 
 
-class EventPatch(BaseModel):
+class CalendarEventPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title_fa: str | None = Field(default=None, min_length=1, max_length=300)
@@ -102,7 +102,7 @@ class CalendarEvent(BaseModel):
     version: int
 
 
-class Conflict(BaseModel):
+class CalendarConflict(BaseModel):
     a: str
     b: str
     rule: str
@@ -112,7 +112,7 @@ class Conflict(BaseModel):
 
 class Calendar(BaseModel):
     events: list[CalendarEvent]
-    conflicts: list[Conflict]
+    conflicts: list[CalendarConflict]
 
 
 SQL = """
@@ -160,15 +160,15 @@ def _days(e: dict[str, Any], tz: str) -> set[str]:
 
 def conflicts_of(
     dep: dict[str, Any], others: list[dict[str, Any]], blackout: list[str], tz: str
-) -> list[Conflict]:
+) -> list[CalendarConflict]:
     """A deploy against the other events (rows with company_id, company_kind, kind, repo, ...)."""
-    out: list[Conflict] = []
+    out: list[CalendarConflict] = []
     if dep["status"] == "cancelled":
         return out
     hub = dep.get("company_kind") == "holding"
     days = _days(dep, tz) & set(blackout)
     if days:
-        out.append(Conflict(a=dep["ref"], b=dep["ref"], rule="blackout_day", severity="medium",
+        out.append(CalendarConflict(a=dep["ref"], b=dep["ref"], rule="blackout_day", severity="medium",
                             note_fa=f"انتشار در روز ممنوع ماتریس اختیار ({', '.join(sorted(days))})"))  # fmt: skip
     for e in others:
         if e["id"] == dep["id"] or e["status"] == "cancelled" or not _overlap(dep, e):
@@ -176,21 +176,21 @@ def conflicts_of(
         same = e["company_id"] == dep["company_id"]
         holding_wide = e.get("company_kind") == "holding"
         if e["kind"] == "freeze" and (same or holding_wide):
-            out.append(Conflict(a=dep["ref"], b=e["ref"], rule="deploy_in_freeze", severity="high",
+            out.append(CalendarConflict(a=dep["ref"], b=e["ref"], rule="deploy_in_freeze", severity="high",
                                 note_fa=f"انتشار داخل فریز {e['ref']}: {e['title_fa']}"))  # fmt: skip
         elif e["kind"] in ("campaign", "event") and same:
-            out.append(Conflict(a=dep["ref"], b=e["ref"], rule="deploy_during_campaign", severity="high",
+            out.append(CalendarConflict(a=dep["ref"], b=e["ref"], rule="deploy_during_campaign", severity="high",
                                 note_fa=f"انتشار هم‌زمان با {e['title_fa']} ({e['ref']})"))  # fmt: skip
         elif e["kind"] == "deploy" and (
             same or (e.get("repo") and e.get("repo") == dep.get("repo"))
         ):
-            out.append(Conflict(a=dep["ref"], b=e["ref"], rule="two_deploys", severity="medium",
+            out.append(CalendarConflict(a=dep["ref"], b=e["ref"], rule="two_deploys", severity="medium",
                                 note_fa=f"دو انتشار هم‌زمان ({e['ref']})"))  # fmt: skip
         elif e["kind"] == "holiday":
-            out.append(Conflict(a=dep["ref"], b=e["ref"], rule="holiday", severity="medium",
+            out.append(CalendarConflict(a=dep["ref"], b=e["ref"], rule="holiday", severity="medium",
                                 note_fa=f"انتشار در تعطیلی رسمی: {e['title_fa']}"))  # fmt: skip
         elif e["kind"] == "maintenance" and (same or holding_wide or hub):
-            out.append(Conflict(a=dep["ref"], b=e["ref"], rule="maintenance", severity="medium",
+            out.append(CalendarConflict(a=dep["ref"], b=e["ref"], rule="maintenance", severity="medium",
                                 note_fa=f"نگه‌داری هم‌زمان: {e['title_fa']} ({e['ref']})"))  # fmt: skip
     return out
 
@@ -216,13 +216,13 @@ async def blackout(tx: Tx) -> list[str]:
     return await AU.list_value(tx, "deploy.blackout_days", ["fri"])
 
 
-async def conflicts_for(tx: Tx, dep: dict[str, Any]) -> list[Conflict]:
+async def conflicts_for(tx: Tx, dep: dict[str, Any]) -> list[CalendarConflict]:
     if dep["kind"] != "deploy":
         return []
     return conflicts_of(dep, await _around(tx, dep), await blackout(tx), await G.owner_tz(tx))
 
 
-async def _emit(tx: Tx, company: str, cs: list[Conflict], **extra: Any) -> None:
+async def _emit(tx: Tx, company: str, cs: list[CalendarConflict], **extra: Any) -> None:
     for c in cs:
         await events.emit(tx, company, "calendar.conflict", c.a,
                           {"b": c.b, "rule": c.rule, "severity": c.severity, **extra})  # fmt: skip
@@ -266,7 +266,7 @@ async def insert(
 
 
 async def add(
-    tx: Tx, who: Principal, company_id: UUID, company: str, body: EventIn
+    tx: Tx, who: Principal, company_id: UUID, company: str, body: CalendarEventIn
 ) -> dict[str, Any]:
     """An event of the owner or of calendar.add; its new conflicts with the
     deploys around it are emitted (the calendar never decides)."""
@@ -290,11 +290,11 @@ async def add(
     return e
 
 
-async def clashes_with(tx: Tx, e: dict[str, Any]) -> list[Conflict]:
+async def clashes_with(tx: Tx, e: dict[str, Any]) -> list[CalendarConflict]:
     """The conflicts a new or moved event makes with the deploys it overlaps."""
     if e["kind"] == "deploy":
         return await conflicts_for(tx, e)
-    out: list[Conflict] = []
+    out: list[CalendarConflict] = []
     for dep in await tx.all(
         SQL
         + " WHERE e.kind = 'deploy' AND e.status = 'planned' AND e.starts_at < :b AND e.ends_at > :a",
@@ -306,7 +306,7 @@ async def clashes_with(tx: Tx, e: dict[str, Any]) -> list[Conflict]:
 
 
 async def patch(
-    tx: Tx, who: Principal, ref: str, body: EventPatch, expected: int
+    tx: Tx, who: Principal, ref: str, body: CalendarEventPatch, expected: int
 ) -> dict[str, Any]:
     e = await tx.first(SQL + " WHERE e.ref = :ref FOR UPDATE OF e", ref=ref)
     if e is None:
@@ -320,7 +320,7 @@ async def patch(
     if sets:
         assign = ", ".join(f"{k} = :{k}" for k in sets)
         await tx.exec(
-            f"UPDATE governance.calendar_events SET {assign} WHERE id = :id",  # noqa: S608 - EventPatch names
+            f"UPDATE governance.calendar_events SET {assign} WHERE id = :id",  # noqa: S608 - CalendarEventPatch names
             id=e["id"],
             **sets,
         )
@@ -333,7 +333,7 @@ async def patch(
 # ---------------------------------------------------------------- deploys --
 async def deploy_proposed(
     tx: Tx, company_id: UUID, title: str, payload: dict[str, Any], risk: str, by: tuple[str, str]
-) -> tuple[dict[str, Any] | None, list[Conflict]]:
+) -> tuple[dict[str, Any] | None, list[CalendarConflict]]:
     """A deploy card's window becomes an event before the card exists (its
     conflicts go into the card's payload); link() then names the card."""
     win = payload.get("window")
@@ -357,7 +357,9 @@ async def deploy_proposed(
     return e, await conflicts_for(tx, e)
 
 
-async def link(tx: Tx, e: dict[str, Any], decision_ref: str, conflicts: list[Conflict]) -> None:
+async def link(
+    tx: Tx, e: dict[str, Any], decision_ref: str, conflicts: list[CalendarConflict]
+) -> None:
     await tx.exec(
         "UPDATE governance.calendar_events SET source = CAST(:s AS jsonb) WHERE id = :id",
         s=json.dumps({"decision": decision_ref}),
@@ -398,7 +400,7 @@ async def listing(
     tz = await G.owner_tz(tx)
     off = await blackout(tx)
     seen: set[tuple[str, str, str]] = set()
-    conflicts: list[Conflict] = []
+    conflicts: list[CalendarConflict] = []
     for dep in (r for r in rows if r["kind"] == "deploy"):
         for c in conflicts_of(dep, await _around(tx, dep), off, tz):
             key = (min(c.a, c.b), max(c.a, c.b), c.rule)

@@ -65,7 +65,7 @@ class RiskAcceptancePayload(Model):
     score: int | None = Field(default=None, ge=1, le=25)
 
 
-class LimitTo(Model):
+class AuthorityLimitTo(Model):
     actor: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{1,40}$")
     limit: dict[str, Any] | None = None
 
@@ -76,7 +76,7 @@ class AuthorityChangeItem(Model):
     model_config = ConfigDict(extra="allow")
 
     key: str = Field(pattern=r"^[a-z][a-z0-9_.]{1,60}$")
-    to: LimitTo
+    to: AuthorityLimitTo
 
 
 class AuthorityChangePayload(Model):
@@ -111,7 +111,7 @@ async def check_proposal(
             to = c.get("to") or {}
             AU.validate_change(
                 r,
-                AU.RuleChange(
+                AU.AuthorityRuleChange(
                     key=c["key"], actor=to.get("actor"), limit=to.get("limit"), version=1
                 ),
             )
@@ -184,7 +184,7 @@ async def apply(tx: Tx, d: dict[str, Any], amendments: dict[str, Any] | None) ->
                 )
             to = c.get("to") or {}
             items.append(
-                AU.RuleChange(
+                AU.AuthorityRuleChange(
                     key=c["key"], actor=to.get("actor"), limit=to.get("limit"), version=r["version"]
                 )
             )

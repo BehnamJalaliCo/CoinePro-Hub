@@ -880,7 +880,7 @@ async def kpi_set(tx: Tx, company: Any) -> KpiSet:
     )
 
 
-class SourceIn(BaseModel):
+class KpiSourceIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     kind: str = Field(pattern=r"^(query|manual)$")
@@ -897,7 +897,7 @@ class KpiChange(BaseModel):
     status: str | None = Field(default=None, pattern=r"^(active|paused)$")
     freshness_hours: int | None = Field(default=None, ge=1, le=8760)
     # a KPI of the registry (or manual) the company does not have yet
-    source: SourceIn | None = None
+    source: KpiSourceIn | None = None
     card: str | None = Field(default=None, pattern=r"^(stability|growth|safety_cost)$")
     name_fa: str | None = Field(default=None, min_length=1, max_length=200)
     unit: str | None = Field(default=None, max_length=20)
@@ -1037,17 +1037,17 @@ async def values(
 
 
 # ------------------------------------------------------------ kpi.record --
-class RecordIn(BaseModel):
+class KpiRecordIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
     key: str = Field(pattern=KEY)
     value: float = Field(allow_inf_nan=False)
     at: datetime
-    source: G.Source
+    source: G.EvidenceSource
 
 
-async def record(tx: Tx, who: Principal, company_id: UUID, body: RecordIn) -> dict[str, Any]:
+async def record(tx: Tx, who: Principal, company_id: UUID, body: KpiRecordIn) -> dict[str, Any]:
     """A manual KPI's value, with its source (contract §20.4: kpi.record only)."""
     k = await tx.first(
         "SELECT * FROM governance.kpis WHERE company_id = :co AND key = :k",
