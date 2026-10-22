@@ -48,6 +48,9 @@ SCHEMAS = (
     "growth",
     "feedback",
     "intake",
+    # prompt 12 part A: the advisor's memos and triggers, the substitute players
+    "advisor",
+    "substitutes",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.
@@ -484,6 +487,50 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+# Prompt 12 part A: the holding's own configuration of the substitute players
+# (one row per player and seat, the holding's company_id under forced RLS):
+# no other company ever has a row there, so the check cannot fill them for B.
+HOLDING_ONLY = {"substitutes.players", "substitutes.seats"}
+
+
+async def _fill_p12a(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 12 part A (migration 0027): one row of company `co` in every
+    table of advisor and substitutes but the holding-only two."""
+    c = co["id"]
+    d = await su.fetchrow(
+        """INSERT INTO cartable.decisions (company_id, kind, action_class, title, proposer_kind, proposer_code)
+           VALUES ($1, 'proposal', 'A1', 'rls', 'owner', 'owner') RETURNING id, ref""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO advisor.memos (company_id, decision_id, decision_ref, decision_version, mode, trigger,
+               created_by_kind, created_by_code) VALUES ($1, $2, $3, 1, 'standard', 'owner', 'owner', 'owner')""",
+        c, d["id"], d["ref"],
+    )  # fmt: skip
+    await su.execute(
+        """INSERT INTO advisor.triggers (company_id, key, kind, day, state)
+           VALUES ($1, 'budget:' || $2 || ':rls-' || gen_random_uuid(), 'budget', current_date, 'deferred')""",
+        c, co["code"],
+    )  # fmt: skip
+    call = await su.fetchval(
+        """INSERT INTO substitutes.calls (company_id, player, seat, via, caller_kind, caller_code, day, month_key,
+               state) VALUES ($1, 'gpt', 'content_draft', 'cli', 'owner', 'owner', current_date, '1405-08',
+               'skipped') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO substitutes.logins (company_id, player, connection_key, expires_at, call_id)
+           VALUES ($1, 'gpt', 'chatgpt-plus', now(), $2)""",
+        c, call,
+    )  # fmt: skip
+    await su.execute(
+        """INSERT INTO substitutes.creatives (company_id, kind, brief_md, placement, aspect, player, model,
+               requested_by_kind, requested_by_code)
+           VALUES ($1, 'image', 'rls', 'banner', '16:9', 'gpt', 'gpt-5.5', 'owner', 'owner')""",
+        c,
+    )
+
+
 async def _fill_p10(su: Any, co: dict[str, Any]) -> None:
     """Prompt 10 §1.1: one row of company `co` in every table of revenue,
     support, growth, feedback and intake (migration 0025)."""
@@ -688,6 +735,7 @@ async def test_no_table_leaks_between_companies(
     await _fill(client, hub, owner_session, b["code"])
     await _fill_agents(su, b)
     await _fill_p10(su, b)
+    await _fill_p12a(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
@@ -732,9 +780,14 @@ async def test_no_table_leaks_between_companies(
                 == in_b
             ), name
     # Nearly every tenant table really held rows of B during the check.
-    assert len(populated) >= len(tables) - 2, sorted(
+    assert len(populated) >= len(tables) - 2 - len(HOLDING_ONLY), sorted(
         {f"{r['s']}.{r['t']}" for r in tables} - set(populated)
     )
+    # The holding-only tables hold the holding's rows and nobody else's.
+    holding = await su.fetchval("SELECT id FROM core.companies WHERE kind = 'holding'")
+    for name in sorted(HOLDING_ONLY):
+        others = await su.fetchval(f"SELECT count(*) FROM {name} WHERE company_id <> $1", holding)
+        assert others == 0, name
 
 
 async def test_every_tenant_policy_evaluates_the_scope_once_per_query(su: Any) -> None:

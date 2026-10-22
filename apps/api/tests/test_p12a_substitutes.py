@@ -114,8 +114,13 @@ async def test_the_players_are_seeded_signed_out_and_off_with_the_tables_seats(
     gem = {s["seat"]: s for s in players["gemini"]["seats"]}
     assert gem["code_review"]["enabled"] is False and gem["creative"]["per_day_video"] == 3
     ds = {s["seat"]: s for s in players["deepseek"]["seats"]}
-    assert set(ds) == {"quick_search", "third_opinion"} and all(s["via"] == "web" for s in ds.values())
-    assert players["deepseek"]["runner"] is None and players["deepseek"]["month"]["value_ratio"] is None
+    assert set(ds) == {"quick_search", "third_opinion"} and all(
+        s["via"] == "web" for s in ds.values()
+    )
+    assert (
+        players["deepseek"]["runner"] is None
+        and players["deepseek"]["month"]["value_ratio"] is None
+    )
     assert players["gpt"]["month"]["price_usd"] == "20.00"
     conns = {c["key"]: c for c in (await client.get("/api/v1/connections", headers=owner)).json()}
     for key in ("chatgpt-plus", "gemini-pro", "deepseek-free"):
@@ -145,9 +150,14 @@ async def test_a_fake_cli_answers_and_a_spent_quota_makes_the_player_limited_nev
         row = await su.fetchrow("SELECT * FROM substitutes.calls WHERE id = $1::uuid", call)
         assert row["input_md"] is None and json.loads(row["result"])["source"]["player"] == "gpt"
         ledger = await su.fetchrow(
-            "SELECT caller, task_class, input_tokens, meta FROM llm.calls WHERE meta->>'substitute_call' = $1", call
+            "SELECT caller, task_class, input_tokens, meta FROM llm.calls WHERE meta->>'substitute_call' = $1",
+            call,
         )
-        assert (ledger["caller"], ledger["task_class"], ledger["input_tokens"]) == ("substitutes", "sub_errand", 40)
+        assert (ledger["caller"], ledger["task_class"], ledger["input_tokens"]) == (
+            "substitutes",
+            "sub_errand",
+            40,
+        )
         # The answer that came after `queued` goes back to the assistant as work.
         reply = await su.fetchrow(
             """SELECT w.brief, e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id
@@ -165,16 +175,21 @@ async def test_a_fake_cli_answers_and_a_spent_quota_makes_the_player_limited_nev
         lim = await done(client, job2["id"], ok=False, error="limited",
                          limited_until=(datetime.now(UTC) + timedelta(hours=3)).isoformat())  # fmt: skip
         assert lim.json()["state"] == "skipped"
-        p = await su.fetchrow("SELECT status, limited_until FROM substitutes.players WHERE player = 'gpt'")
+        p = await su.fetchrow(
+            "SELECT status, limited_until FROM substitutes.players WHERE player = 'gpt'"
+        )
         assert p["status"] == "limited" and p["limited_until"] > datetime.now(UTC)
         r3 = await client.post(
             "/internal/v1/substitutes/call", headers=pa,
             json={"seat": "assistant_errand", "input_md": "یکی دیگر."},
         )  # fmt: skip
         assert r3.status_code == 429 and r3.json()["code"] == "rate_limited", r3.text
-        assert await su.fetchval(
-            "SELECT count(*) FROM llm.calls WHERE meta->>'substitute_call' = $1", job2["id"]
-        ) == 0
+        assert (
+            await su.fetchval(
+                "SELECT count(*) FROM llm.calls WHERE meta->>'substitute_call' = $1", job2["id"]
+            )
+            == 0
+        )
         # The only run woken is the assistant's own reply work (never a Claude seat).
         assert await su.fetchval("SELECT count(*) FROM agents.runs") - runs_before <= 1
         assert r2.status_code == 200
@@ -210,7 +225,11 @@ async def test_customer_data_or_an_internal_name_never_reaches_a_substitute(
 
 
 async def test_the_second_and_third_opinions_never_see_the_memo_and_agrees_is_code(
-    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], su: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     from .test_p12a_advisor import _card, _memo_body
 
@@ -223,35 +242,57 @@ async def test_the_second_and_third_opinions_never_see_the_memo_and_agrees_is_co
         calls = {
             r["seat"]: r
             for r in await su.fetch(
-                "SELECT * FROM substitutes.calls WHERE purpose_kind = 'memo' AND purpose_ref = $1", memo["ref"]
+                "SELECT * FROM substitutes.calls WHERE purpose_kind = 'memo' AND purpose_ref = $1",
+                memo["ref"],
             )
         }
         assert set(calls) == {"advisor_second_opinion", "third_opinion"}
         facts = await su.fetchval("SELECT facts FROM advisor.memos WHERE ref = $1", memo["ref"])
         for c in calls.values():
             assert c["state"] == "queued"
-            assert ref in c["input_md"] and "against" not in c["input_md"] and "summary_fa\": \"خلاصه" not in c["input_md"]
+            assert (
+                ref in c["input_md"]
+                and "against" not in c["input_md"]
+                and 'summary_fa": "خلاصه' not in c["input_md"]
+            )
             assert json.loads(facts)["card"]["ref"] in c["input_md"]
         # The advisor writes `approve`; GPT says approve (agrees), DeepSeek reject (differs).
         d = (await client.get(f"/api/v1/decisions/{ref}", headers=owner)).json()
         adv = await agent_headers("HQ-ADV")
-        w = await client.post("/internal/v1/advisor/memos", headers={**adv, **idem()}, json=_memo_body(ref, d["version"]))
+        w = await client.post(
+            "/internal/v1/advisor/memos",
+            headers={**adv, **idem()},
+            json=_memo_body(ref, d["version"]),
+        )
         assert w.status_code == 200, w.text
         job = (await claim(client))["job"]
         assert job["seat"] == "advisor_second_opinion"
         answer = json.dumps({"recommendation": "approve", "confidence": 0.6, "summary_fa": "موافقم",
                              "key_points": ["هزینه کم"]}, ensure_ascii=False)  # fmt: skip
-        await done(client, job["id"], ok=True, text_md=answer, usage={"input_tokens": 300, "output_tokens": 50})
+        await done(
+            client,
+            job["id"],
+            ok=True,
+            text_md=answer,
+            usage={"input_tokens": 300, "output_tokens": 50},
+        )
         async with hub.db.tx(await hub.companies.ids()) as tx:
-            third = await tx.one("SELECT * FROM substitutes.calls WHERE id = :id", id=calls["third_opinion"]["id"])
-            await tx.exec("UPDATE substitutes.calls SET state = 'running', claimed_at = now() WHERE id = :id", id=third["id"])
+            third = await tx.one(
+                "SELECT * FROM substitutes.calls WHERE id = :id", id=calls["third_opinion"]["id"]
+            )
+            await tx.exec(
+                "UPDATE substitutes.calls SET state = 'running', claimed_at = now() WHERE id = :id",
+                id=third["id"],
+            )
             await S.finish(tx, hub, third["id"], S.DoneIn(ok=True, text_md=json.dumps(
                 {"recommendation": "reject", "confidence": 0.8, "summary_fa": "مخالفم", "key_points": ["ریسک بالا"]},
                 ensure_ascii=False)), via="web")  # fmt: skip
         m = (await client.get(f"/api/v1/decisions/{ref}/memo", headers=owner)).json()
         assert m["second_opinion"]["agrees"] is True and m["second_opinion"]["player"] == "gpt"
         assert m["second_opinion"]["differences"] == []
-        assert m["third_opinion"]["agrees"] is False and m["third_opinion"]["differences"] == ["ریسک بالا"]
+        assert m["third_opinion"]["agrees"] is False and m["third_opinion"]["differences"] == [
+            "ریسک بالا"
+        ]
         # The seat's daily cap: the next memo's second opinion is skipped (null).
         ref2 = await _card(client, co, risk="low")
         memo2 = (await client.post(f"/api/v1/decisions/{ref2}/memo", headers=owner, json={})).json()
@@ -270,7 +311,9 @@ async def test_a_model_the_cli_does_not_offer_is_unavailable_and_its_seat_moves(
     models = [{"id": "gpt-5.5", "label": "GPT 5.5", "tier": "strong", "available": True},
               {"id": "gpt-5.5-pro", "label": "GPT 5.5 Pro", "tier": "strong", "available": True},
               {"id": "gpt-5.3", "label": "GPT 5.3", "tier": "light", "available": True}]  # fmt: skip
-    await su.execute("UPDATE substitutes.players SET models = $1::jsonb WHERE player = 'gpt'", json.dumps(models))
+    await su.execute(
+        "UPDATE substitutes.players SET models = $1::jsonb WHERE player = 'gpt'", json.dumps(models)
+    )
     try:
         async with bench(su, hub, cli=("gpt",)):
             async with hub.db.tx(await hub.companies.ids()) as tx:
@@ -278,11 +321,18 @@ async def test_a_model_the_cli_does_not_offer_is_unavailable_and_its_seat_moves(
             job = (await claim(client))["job"]
             assert job["kind"] == "models"
             await done(client, job["id"], ok=True, models=["gpt-5.5-pro", "gpt-5.3"])
-            gpt = next(p for p in (await client.get("/api/v1/substitutes", headers=owner)).json() if p["player"] == "gpt")
+            gpt = next(
+                p
+                for p in (await client.get("/api/v1/substitutes", headers=owner)).json()
+                if p["player"] == "gpt"
+            )
             avail = {m["id"]: m["available"] for m in gpt["models"]}
             assert avail == {"gpt-5.5": False, "gpt-5.5-pro": True, "gpt-5.3": True}
             seats = {s["seat"]: s["model"] for s in gpt["seats"]}
-            assert seats["advisor_second_opinion"] == "gpt-5.5-pro" and seats["assistant_errand"] == "gpt-5.3"
+            assert (
+                seats["advisor_second_opinion"] == "gpt-5.5-pro"
+                and seats["assistant_errand"] == "gpt-5.3"
+            )
             async with hub.db.tx(await hub.companies.ids()) as tx:
                 lines = await S.report_lines(tx)
             assert any("در دسترس نیست" in line and "GPT 5.5" in line for line in lines)
@@ -291,7 +341,9 @@ async def test_a_model_the_cli_does_not_offer_is_unavailable_and_its_seat_moves(
             "UPDATE substitutes.players SET models = $1::jsonb WHERE player = 'gpt'",
             json.dumps([dict(m, available=True) for m in models if m["id"] != "gpt-5.5-pro"]),
         )
-        await su.execute("UPDATE substitutes.seats SET model = 'gpt-5.5' WHERE player = 'gpt' AND model = 'gpt-5.5-pro'")
+        await su.execute(
+            "UPDATE substitutes.seats SET model = 'gpt-5.5' WHERE player = 'gpt' AND model = 'gpt-5.5-pro'"
+        )
 
 
 async def test_the_cli_sign_in_from_the_app_is_sealed_short_and_never_shows_the_code(
@@ -301,8 +353,12 @@ async def test_the_cli_sign_in_from_the_app_is_sealed_short_and_never_shows_the_
     conn = await su.fetchval("SELECT id FROM llm.connections WHERE key = 'gemini-pro'")
     url = f"/api/v1/connections/{conn}/login"
     assert (await client.post(url, headers=h)).status_code == 403  # no step-up
-    off = await client.post(url, headers={**h, **await step_up(hub, sid, "connection.login", str(conn))})
-    assert off.status_code == 409 and off.json()["code"] == "not_ready" and "gemini-login" in off.text
+    off = await client.post(
+        url, headers={**h, **await step_up(hub, sid, "connection.login", str(conn))}
+    )
+    assert (
+        off.status_code == 409 and off.json()["code"] == "not_ready" and "gemini-login" in off.text
+    )
     ds = await su.fetchval("SELECT id FROM llm.connections WHERE key = 'deepseek-free'")
     web_only = await client.post(f"/api/v1/connections/{ds}/login",
                                  headers={**h, **await step_up(hub, sid, "connection.login", str(ds))})  # fmt: skip
@@ -312,7 +368,9 @@ async def test_the_cli_sign_in_from_the_app_is_sealed_short_and_never_shows_the_
     try:
         async with bench(su, hub):
             hub.settings = replace(saved, substitutes_runner=True)
-            r = await client.post(url, headers={**h, **await step_up(hub, sid, "connection.login", str(conn))})
+            r = await client.post(
+                url, headers={**h, **await step_up(hub, sid, "connection.login", str(conn))}
+            )
             assert r.status_code == 201, r.text
             login = r.json()
             assert login["state"] == "waiting" and login["connection"] == "gemini-pro"
@@ -328,21 +386,39 @@ async def test_the_cli_sign_in_from_the_app_is_sealed_short_and_never_shows_the_
             code = "4/0Ab-" + "q" * 30
             put = await client.post(f"{url}/{login['id']}/code", headers=h, json={"code": code})
             assert put.status_code == 200 and code not in put.text
-            first = await client.post(f"/internal/v1/substitutes/logins/{login['id']}/code", headers=substitutes_headers())
-            again = await client.post(f"/internal/v1/substitutes/logins/{login['id']}/code", headers=substitutes_headers())
+            first = await client.post(
+                f"/internal/v1/substitutes/logins/{login['id']}/code", headers=substitutes_headers()
+            )
+            again = await client.post(
+                f"/internal/v1/substitutes/logins/{login['id']}/code", headers=substitutes_headers()
+            )
             assert first.json()["code"] == code and again.json()["code"] is None  # handed over once
             assert (await done(client, job["id"], ok=True)).json()["state"] == "done"
-            p = await su.fetchrow("SELECT login_state, status FROM substitutes.players WHERE player = 'gemini'")
+            p = await su.fetchrow(
+                "SELECT login_state, status FROM substitutes.players WHERE player = 'gemini'"
+            )
             assert tuple(p) == ("signed_in", "ready")
             # After its 10 minutes a code is refused.
-            r2 = await client.post(url, headers={**h, **await step_up(hub, sid, "connection.login", str(conn))})
+            r2 = await client.post(
+                url, headers={**h, **await step_up(hub, sid, "connection.login", str(conn))}
+            )
             late = r2.json()
-            await su.execute("UPDATE substitutes.logins SET method = 'auth_code', expires_at = now() - interval '1 second' WHERE id = $1::uuid", late["id"])
+            await su.execute(
+                "UPDATE substitutes.logins SET method = 'auth_code', expires_at = now() - interval '1 second' WHERE id = $1::uuid",
+                late["id"],
+            )
             refused = await client.post(f"{url}/{late['id']}/code", headers=h, json={"code": code})
             assert refused.status_code == 409, refused.text
-            audit = await su.fetch("SELECT summary FROM audit.entries WHERE target_ref = 'gemini-pro'")
+            audit = await su.fetch(
+                "SELECT summary FROM audit.entries WHERE target_ref = 'gemini-pro'"
+            )
             assert audit and all(code not in (a["summary"] or "") for a in audit)
-            assert await su.fetchval("SELECT count(*) FROM substitutes.logins WHERE code IS NOT NULL AND player = 'gemini'") == 0
+            assert (
+                await su.fetchval(
+                    "SELECT count(*) FROM substitutes.logins WHERE code IS NOT NULL AND player = 'gemini'"
+                )
+                == 0
+            )
             out = await client.post(f"/api/v1/connections/{conn}/logout",
                                     headers={**h, **await step_up(hub, sid, "connection.logout", str(conn))})  # fmt: skip
             assert out.status_code == 200 and out.json()["login"]["state"] == "signed_out"
@@ -354,8 +430,14 @@ async def test_seats_are_sealed_on_their_body_and_need_if_match(
     client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], su: Any
 ) -> None:
     h, sid = owner_session["headers"], owner_session["session_id"]
-    gpt = next(p for p in (await client.get("/api/v1/substitutes", headers=h)).json() if p["player"] == "gpt")
-    seats = [{k: s[k] for k in ("seat", "via", "model", "enabled", "per_day")} for s in gpt["seats"]]
+    gpt = next(
+        p
+        for p in (await client.get("/api/v1/substitutes", headers=h)).json()
+        if p["player"] == "gpt"
+    )
+    seats = [
+        {k: s[k] for k in ("seat", "via", "model", "enabled", "per_day")} for s in gpt["seats"]
+    ]
     for s in seats:
         if s["seat"] == "creative":
             s["per_day_video"] = 0
@@ -410,7 +492,11 @@ def png(w: int = 1024, h: int = 1024) -> str:
 
 
 async def test_the_web_path_makes_a_creative_with_the_hubs_overlay_and_never_publishes(
-    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], su: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
     async with bench(su, hub, web=("gpt",)):
@@ -427,7 +513,11 @@ async def test_the_web_path_makes_a_creative_with_the_hubs_overlay_and_never_pub
         fake = FakeEgress({"ok": True, "file": {"name": "image.png", "mime": "image/png", "b64": png()},
                            "recipe_version": "2"})  # fmt: skip
         out = await S.web_jobs(hub, fake)
-        assert out["ran"] == 1 and fake.calls[0]["account"] == "chatgpt-web" and fake.calls[0]["task"] == "image"
+        assert (
+            out["ran"] == 1
+            and fake.calls[0]["account"] == "chatgpt-web"
+            and fake.calls[0]["task"] == "image"
+        )
         assert "Do not put any text" in fake.calls[0]["prompt"]
         got = (await client.get(f"/api/v1/creatives/{cr['ref']}", headers=owner)).json()
         assert got["state"] == "review" and got["composed"]["mime"] == "image/png", got["review_md"]
@@ -435,25 +525,43 @@ async def test_the_web_path_makes_a_creative_with_the_hubs_overlay_and_never_pub
         assert got["files"] and got["source"]["player"] == "gpt"
         # Accepting is not publishing: no send of any kind was made.
         sends = await su.fetchval("SELECT count(*) FROM growth.sends")
-        acc = await client.post(f"/api/v1/creatives/{cr['ref']}/accept", headers=owner, json={"note": "خوب"})
+        acc = await client.post(
+            f"/api/v1/creatives/{cr['ref']}/accept", headers=owner, json={"note": "خوب"}
+        )
         assert acc.status_code == 200 and acc.json()["state"] == "accepted"
         assert await su.fetchval("SELECT count(*) FROM growth.sends") == sends
-        assert (await client.post(f"/api/v1/creatives/{cr['ref']}/reject", headers=owner, json={})).status_code == 409
+        assert (
+            await client.post(f"/api/v1/creatives/{cr['ref']}/reject", headers=owner, json={})
+        ).status_code == 409
         # An expired profile: the seat is skipped, ONE notification, no sign-in attempt.
-        await su.execute("UPDATE substitutes.players SET web_last_job_at = NULL WHERE player = 'gpt'")
+        await su.execute(
+            "UPDATE substitutes.players SET web_last_job_at = NULL WHERE player = 'gpt'"
+        )
         a = (await client.post("/api/v1/creatives", headers={**owner, **idem()},
                                json={"company": co, "kind": "image", "brief_md": "بنر", "placement": "banner"})).json()  # fmt: skip
         b = (await client.post("/api/v1/creatives", headers={**owner, **idem()},
                                json={"company": co, "kind": "image", "brief_md": "بنر دوم", "placement": "banner"})).json()  # fmt: skip
         since = await su.fetchval("SELECT clock_timestamp()")
-        expired = FakeEgress({"ok": False, "error": "expired", "detail": "a sign-in page", "step": "open"})
+        expired = FakeEgress(
+            {"ok": False, "error": "expired", "detail": "a sign-in page", "step": "open"}
+        )
         await S.web_jobs(hub, expired)
         p = await su.fetchrow("SELECT web_state FROM substitutes.players WHERE player = 'gpt'")
         assert p["web_state"] == "expired"
-        states = {x["ref"]: x["state"] for x in (await client.get(f"/api/v1/creatives?company={co}", headers=owner)).json()["items"]}
+        states = {
+            x["ref"]: x["state"]
+            for x in (await client.get(f"/api/v1/creatives?company={co}", headers=owner)).json()[
+                "items"
+            ]
+        }
         assert states[a["ref"]] == "failed"
         await S.web_jobs(hub, FakeEgress())  # the second one is skipped without egress
-        states = {x["ref"]: x["state"] for x in (await client.get(f"/api/v1/creatives?company={co}", headers=owner)).json()["items"]}
+        states = {
+            x["ref"]: x["state"]
+            for x in (await client.get(f"/api/v1/creatives?company={co}", headers=owner)).json()[
+                "items"
+            ]
+        }
         assert states[b["ref"]] == "failed"
         n = await su.fetchval(
             "SELECT count(*) FROM notify.notifications WHERE link_kind = 'substitute' AND link_ref = 'gpt' AND created_at >= $1",
@@ -461,14 +569,25 @@ async def test_the_web_path_makes_a_creative_with_the_hubs_overlay_and_never_pub
         )
         assert n == 1
         # A broken recipe: the call fails with its step; nothing carries a cookie.
-        await su.execute("UPDATE substitutes.players SET web_state = 'signed_in', web_last_job_at = NULL WHERE player = 'gpt'")
+        await su.execute(
+            "UPDATE substitutes.players SET web_state = 'signed_in', web_last_job_at = NULL WHERE player = 'gpt'"
+        )
         c = (await client.post("/api/v1/creatives", headers={**owner, **idem()},
                                json={"company": co, "kind": "image", "brief_md": "پست", "placement": "telegram_post"})).json()  # fmt: skip
-        broken = FakeEgress({"ok": False, "error": "recipe_failed", "detail": "no prompt box", "step": "paste_prompt"})
+        broken = FakeEgress(
+            {
+                "ok": False,
+                "error": "recipe_failed",
+                "detail": "no prompt box",
+                "step": "paste_prompt",
+            }
+        )
         await S.web_jobs(hub, broken)
         got = (await client.get(f"/api/v1/creatives/{c['ref']}", headers=owner)).json()
         assert got["state"] == "failed" and "recipe_failed" in got["review_md"]
-        fail = await su.fetchval("SELECT web_last_failure FROM substitutes.players WHERE player = 'gpt'")
+        fail = await su.fetchval(
+            "SELECT web_last_failure FROM substitutes.players WHERE player = 'gpt'"
+        )
         assert fail == "recipe_failed: paste_prompt" and "cookie" not in fail.lower()
         # The owner's sealed web sign-out wipes the profile through egress.
         async with hub.db.tx(await hub.companies.ids()) as tx:
@@ -482,7 +601,9 @@ async def test_the_web_path_does_nothing_while_the_holding_is_locked(hub: Hub, s
     async with bench(su, hub, web=("deepseek",)):
         async with hub.db.tx(await hub.companies.ids()) as tx:
             holding = await hub.companies.holding()
-            await su.execute("UPDATE substitutes.seats SET per_day = 1000 WHERE player = 'deepseek'")
+            await su.execute(
+                "UPDATE substitutes.seats SET per_day = 1000 WHERE player = 'deepseek'"
+            )
             call = await S.seat_call(tx, hub, A.SERVICE, seat="quick_search", input_md="سوال عمومی",
                                      company_id=holding.id)  # fmt: skip
         assert call["state"] == "queued"
@@ -490,8 +611,12 @@ async def test_the_web_path_does_nothing_while_the_holding_is_locked(hub: Hub, s
         async with holding_switch(su, "engaged"):
             out = await S.web_jobs(hub, fake)
         assert out["skipped"] is True and out["reason"] == "holding_locked" and fake.calls == []
-        await su.execute("UPDATE substitutes.seats SET per_day = 60 WHERE player = 'deepseek' AND seat = 'quick_search'")
-        await su.execute("UPDATE substitutes.seats SET per_day = 5 WHERE player = 'deepseek' AND seat = 'third_opinion'")
+        await su.execute(
+            "UPDATE substitutes.seats SET per_day = 60 WHERE player = 'deepseek' AND seat = 'quick_search'"
+        )
+        await su.execute(
+            "UPDATE substitutes.seats SET per_day = 5 WHERE player = 'deepseek' AND seat = 'third_opinion'"
+        )
 
 
 def test_the_overlay_is_set_in_iranyekanx_inside_the_safe_zone(tmp_path: Any) -> None:
@@ -514,15 +639,21 @@ def test_the_overlay_is_set_in_iranyekanx_inside_the_safe_zone(tmp_path: Any) ->
     assert img.size == (1080, 1920)
     # Text pixels (white) only inside the safe zone: none in the covered bands.
     px = img.convert("RGB").load()
-    white = [(x, y) for y in range(0, 1920, 4) for x in range(0, 1080, 4) if px[x, y] == (255, 255, 255)]
-    assert white and all(top <= y <= bottom for _, y in white)
+    white = [
+        (x, y) for y in range(0, 1920, 4) for x in range(0, 1080, 4) if px[x, y] == (255, 255, 255)
+    ]
+    assert white and all(top <= y <= bottom and left <= x <= right for x, y in white)
     # No text is ever asked of the image model.
     assert "Do not put any text" in S.template_prompt("بنر", "banner", "image", None)
     assert re.search(r"aspect 9:16", S.template_prompt("استوری", "instagram_story", "image", None))
 
 
 async def test_a_second_review_waits_for_the_cto_and_approval_is_the_same_without_it(
-    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], su: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    su: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     from .test_p12a_advisor import _card
 
@@ -530,21 +661,66 @@ async def test_a_second_review_waits_for_the_cto_and_approval_is_the_same_withou
     h = owner_session["headers"]
     async with bench(su, hub, cli=("gpt",)):
         await per_day(su, "gpt", "code_review", 5)
-        with_review, without = await _card(client, co, risk="low"), await _card(client, co, risk="low")
+        with_review, without = (
+            await _card(client, co, risk="low"),
+            await _card(client, co, risk="low"),
+        )
         async with hub.db.tx(await hub.companies.ids()) as tx:
             cid = await su.fetchval("SELECT id FROM core.companies WHERE code = $1", co)
             call = await S.queue_code_review(tx, hub, A.SERVICE, company_id=cid, repo="coinepro-hub",
                                              head_sha="a" * 40, diff_md="diff --git a/x b/x",
                                              purpose=("decision", with_review))  # fmt: skip
         job = (await claim(client))["job"]
-        assert job["checkout"] == {"repo": "coinepro-hub", "head_sha": "a" * 40} and job["seat"] == "code_review"
+        assert (
+            job["checkout"] == {"repo": "coinepro-hub", "head_sha": "a" * 40}
+            and job["seat"] == "code_review"
+        )
         await done(client, job["id"], ok=True, findings=[{"path": "x.py", "line": 3, "severity": "high",
                                                           "title_fa": "خطا", "detail_md": "..."}])  # fmt: skip
         async with hub.db.tx(await hub.companies.ids()) as tx:
             review = await S.second_review(tx, with_review)
-        assert review is not None and review["verified"] == 0 and review["findings"][0]["verified"] is None
+        assert (
+            review is not None
+            and review["verified"] == 0
+            and review["findings"][0]["verified"] is None
+        )
         assert call["state"] == "queued"
         for ref in (with_review, without):
-            r = await client.post(f"/api/v1/decisions/{ref}/approve", headers={**h, **idem()}, json={})
+            r = await client.post(
+                f"/api/v1/decisions/{ref}/approve", headers={**h, **idem()}, json={}
+            )
             assert r.status_code == 200 and r.json()["status"] == "approved", r.text
             assert r.json()["risk_note"] is None  # nothing unverified reaches the card
+
+
+async def test_a_paid_player_behind_on_the_15th_gets_one_report_and_nothing_widens(
+    hub: Hub, su: Any
+) -> None:
+    async with bench(su, hub, cli=("gpt",)):
+        seats_before = await su.fetch(
+            "SELECT player, seat, enabled, per_day FROM substitutes.seats ORDER BY 1, 2"
+        )
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            not_15th = await S.behind_check(tx, hub, datetime(2026, 11, 5, 9, tzinfo=UTC))
+            first = await S.behind_check(tx, hub, datetime(2026, 11, 6, 9, tzinfo=UTC))
+            second = await S.behind_check(tx, hub, datetime(2026, 11, 6, 10, tzinfo=UTC))
+        assert not_15th == 0 and first <= 1 and second == 0  # one per player and Jalali month
+        month = S.month_key(S.owner_day())
+        n = await su.fetchval(
+            "SELECT count(*) FROM notify.notifications WHERE link_kind = 'substitute' AND link_ref = $1",
+            f"substitute-behind:gpt:{month}",
+        )
+        assert n == 1
+        # A free account (DeepSeek) and a signed-out player are never "behind".
+        assert (
+            await su.fetchval(
+                "SELECT count(*) FROM notify.notifications WHERE link_ref LIKE 'substitute-behind:deepseek:%'"
+            )
+            == 0
+        )
+        assert (
+            await su.fetch(
+                "SELECT player, seat, enabled, per_day FROM substitutes.seats ORDER BY 1, 2"
+            )
+            == seats_before
+        )

@@ -168,7 +168,7 @@ def svg(
         parts.append(
             f'<text x="{x:.0f}" y="{b.y:.0f}" font-family="{FONT}" font-size="{b.size:.0f}" '
             f'font-weight="{weight}" fill="{colour}" direction="rtl" unicode-bidi="embed" '
-            f'text-anchor="start">{html.escape(b.text)}</text>'
+            f'text-anchor="end">{html.escape(b.text)}</text>'
         )
     if mark is not None and overlay.get("mark", True):
         vb = str(mark["vb"]).split()

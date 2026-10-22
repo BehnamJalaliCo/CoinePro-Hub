@@ -53,9 +53,17 @@ def _body(key: str, **over: Any) -> dict[str, Any]:
 async def _post(client: httpx.AsyncClient, hub: Hub, s: dict[str, Any], body: dict[str, Any],
                 key: str | None = None, seal: bool = True) -> httpx.Response:  # fmt: skip
     raw = body_bytes(body)
-    headers = {**s["headers"], "Content-Type": "application/json", "Idempotency-Key": key or str(uuid.uuid4())}
+    headers = {
+        **s["headers"],
+        "Content-Type": "application/json",
+        "Idempotency-Key": key or str(uuid.uuid4()),
+    }
     if seal:
-        headers.update(await step_up(hub, s["session_id"], "connection.create", hashlib.sha256(raw).hexdigest()))
+        headers.update(
+            await step_up(
+                hub, s["session_id"], "connection.create", hashlib.sha256(raw).hexdigest()
+            )
+        )
     return await client.post("/api/v1/connections", headers=headers, content=raw)
 
 
@@ -66,9 +74,16 @@ async def test_a_new_connection_is_sealed_waits_for_its_key_and_is_verified_at_n
     key = f"p12a-{random.randint(10**5, 10**6)}"
     body = _body(key)
     assert (await _post(client, hub, s, body, seal=False)).status_code == 403
-    private = await _post(client, hub, s, _body(key, provider="openai_compatible", base_url="https://10.10.1.2/v1"))
+    private = await _post(
+        client, hub, s, _body(key, provider="openai_compatible", base_url="https://10.10.1.2/v1")
+    )
     assert private.status_code == 422, private.text
-    plain = await _post(client, hub, s, _body(key, provider="openai_compatible", base_url="http://llm.example.org/v1"))
+    plain = await _post(
+        client,
+        hub,
+        s,
+        _body(key, provider="openai_compatible", base_url="http://llm.example.org/v1"),
+    )
     assert plain.status_code == 422
     base_wrong = await _post(client, hub, s, _body(key, base_url="https://llm.example.org/v1"))
     assert base_wrong.status_code == 422
@@ -78,7 +93,11 @@ async def test_a_new_connection_is_sealed_waits_for_its_key_and_is_verified_at_n
     r = await _post(client, hub, s, body, key=idem_key)
     assert r.status_code == 201, r.text
     conn = r.json()
-    assert conn["status"] == "pending_secret" and conn["kind"] == "api" and conn["has_secret_ref"] is True
+    assert (
+        conn["status"] == "pending_secret"
+        and conn["kind"] == "api"
+        and conn["has_secret_ref"] is True
+    )
     again = await _post(client, hub, s, body, key=idem_key)
     assert again.status_code == 201 and again.json()["id"] == conn["id"]
     assert await su.fetchval("SELECT count(*) FROM llm.connections WHERE key = $1", key) == 1
@@ -90,14 +109,23 @@ async def test_a_new_connection_is_sealed_waits_for_its_key_and_is_verified_at_n
     try:
         sec = await client.post(
             f"/api/v1/connections/{conn['id']}/secret",
-            headers={**s["headers"], **await step_up(hub, s["session_id"], "connection.secret", conn["id"])},
+            headers={
+                **s["headers"],
+                **await step_up(hub, s["session_id"], "connection.secret", conn["id"]),
+            },
             json={"secret": SECRET},
         )
         assert sec.status_code == 200 and SECRET not in sec.text, sec.text
         assert bao.data[f"llm-connections/{key}"] == {"api_key": SECRET}
-        assert await su.fetchval("SELECT status FROM llm.connections WHERE key = $1", key) == "verifying"
+        assert (
+            await su.fetchval("SELECT status FROM llm.connections WHERE key = $1", key)
+            == "verifying"
+        )
         # It is not routable or assignable by hand before its verification.
-        listed = {c["key"]: c for c in (await client.get("/api/v1/connections", headers=s["headers"])).json()}
+        listed = {
+            c["key"]: c
+            for c in (await client.get("/api/v1/connections", headers=s["headers"])).json()
+        }
         assert listed[key]["status"] == "verifying" and SECRET not in json.dumps(listed)
         # llm-router's verification (its own module, a fake provider): ready.
         sys.path.insert(0, "/w/llm-router/src")
@@ -122,15 +150,28 @@ async def test_a_new_connection_is_sealed_waits_for_its_key_and_is_verified_at_n
             return "holding"
 
         http = httpx.AsyncClient(transport=httpx.MockTransport(provider))
-        assert (await verify.scan(Db, bao.read_kv, locked, client=http, resolve=resolve))["checked"] == 0
-        assert await su.fetchval("SELECT status FROM llm.connections WHERE key = $1", key) == "verifying"
+        assert (await verify.scan(Db, bao.read_kv, locked, client=http, resolve=resolve))[
+            "checked"
+        ] == 0
+        assert (
+            await su.fetchval("SELECT status FROM llm.connections WHERE key = $1", key)
+            == "verifying"
+        )
         out = await verify.scan(Db, bao.read_kv, unlocked, client=http, resolve=resolve)
         assert out["ready"] >= 1
-        row = await su.fetchrow("SELECT status, status_reason, verified_at FROM llm.connections WHERE key = $1", key)
-        assert row["status"] == "ready" and row["verified_at"] is not None and SECRET not in row["status_reason"]
+        row = await su.fetchrow(
+            "SELECT status, status_reason, verified_at FROM llm.connections WHERE key = $1", key
+        )
+        assert (
+            row["status"] == "ready"
+            and row["verified_at"] is not None
+            and SECRET not in row["status_reason"]
+        )
         # No response, log or audit row carries the key.
         audit = await su.fetch("SELECT summary FROM audit.entries WHERE target_ref = $1", key)
-        assert {a["summary"] for a in audit} >= {"key replaced"} and all(SECRET not in (a["summary"] or "") for a in audit)
+        assert {a["summary"] for a in audit} >= {"key replaced"} and all(
+            SECRET not in (a["summary"] or "") for a in audit
+        )
         inter = await su.fetch("SELECT data FROM owner.interactions WHERE target_ref = $1", key)
         assert all(SECRET not in json.dumps(i["data"]) for i in inter)
     finally:
@@ -149,7 +190,10 @@ async def test_terminal_only_keeps_a_new_connections_key_off_the_api(
     try:
         r = await client.post(
             f"/api/v1/connections/{conn['id']}/secret",
-            headers={**s["headers"], **await step_up(hub, s["session_id"], "connection.secret", conn["id"])},
+            headers={
+                **s["headers"],
+                **await step_up(hub, s["session_id"], "connection.secret", conn["id"]),
+            },
             json={"secret": SECRET},
         )
         assert r.status_code == 409 and r.json()["code"] == "validation_failed"
@@ -163,7 +207,11 @@ async def test_a_substitute_subscription_is_never_assigned_or_enabled(
     client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], su: Any
 ) -> None:
     s = owner_session
-    body = {"assignments": [{"scope_type": "task_class", "scope_ref": "summarize", "connection": "chatgpt-plus"}]}
+    body = {
+        "assignments": [
+            {"scope_type": "task_class", "scope_ref": "summarize", "connection": "chatgpt-plus"}
+        ]
+    }
     raw = body_bytes(body)
     r = await client.put(
         "/api/v1/assignments",

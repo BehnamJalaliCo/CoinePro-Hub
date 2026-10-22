@@ -43,6 +43,9 @@ SCHEMAS = (
     "growth",
     "feedback",
     "intake",
+    # prompt 12 part A: the advisor's memos and triggers, the substitute players
+    "advisor",
+    "substitutes",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.

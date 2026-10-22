@@ -24,3 +24,7 @@ f86f63045b68a1737d15e998046cd2a088813603:services/provisioner/tests/test_app_vau
 11b6ee2838bc8d630914f63b46a74b8f2215b840:apps/android/app/src/debug/assets/demo-fixtures.json:generic-api-key:38429
 11b6ee2838bc8d630914f63b46a74b8f2215b840:apps/android/app/src/debug/assets/demo-fixtures.json:generic-api-key:43416
 36b5ec68385b652d8c7fdf1d142f6411caf61ba7:apps/web/src/lib/api/mock-v17.ts:generic-api-key:441
+# The working tree's copies of the same demo KPI key `signal_accuracy_7d` (an identifier, not a secret; main's apps at 890b4a2)
+/scan/apps/web/src/lib/api/mock-v17.ts:generic-api-key:441
+/scan/apps/android/app/src/debug/assets/demo-fixtures.json:generic-api-key:39647
+/scan/apps/android/app/src/debug/assets/demo-fixtures.json:generic-api-key:44634

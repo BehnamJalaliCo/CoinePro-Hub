@@ -21,7 +21,9 @@ from .conftest import agent_headers, idem
 from .p10_fakes import holding_switch
 
 
-async def _card(client: httpx.AsyncClient, co: str, *, risk: str = "high", kind: str = "proposal") -> str:
+async def _card(
+    client: httpx.AsyncClient, co: str, *, risk: str = "high", kind: str = "proposal"
+) -> str:
     r = await client.post(
         "/internal/v1/decisions",
         headers={**await agent_headers(f"{co}-CEO"), **idem()},
@@ -89,7 +91,9 @@ def _memo_body(ref: str, version: int, **over: Any) -> dict[str, Any]:
         "confidence": 0.7,
         "options": [{"title_fa": "تأیید", "pros_md": "سریع", "cons_md": "هزینه"}],
         "against_md": "قوی‌ترین استدلال مخالف: هزینه‌ی برگشت‌ناپذیر.",
-        "risks": [{"title_fa": "هزینه", "likelihood": "medium", "impact": "high", "mitigation_fa": "سقف"}],
+        "risks": [
+            {"title_fa": "هزینه", "likelihood": "medium", "impact": "high", "mitigation_fa": "سقف"}
+        ],
         "questions": ["هزینه‌ی دقیق چقدر است؟"],
         "citations": [{"kind": "decision", "ref": ref}],
     }
@@ -119,7 +123,12 @@ async def test_a_high_risk_card_gets_an_automatic_memo_and_the_fourth_of_the_day
     assert sorted(r["decision_ref"] for r in rows) == sorted(refs[:3])
     for r in rows:
         meta = json.loads(r["run_meta"]) if isinstance(r["run_meta"], str) else r["run_meta"]
-        assert (r["trigger"], r["state"], r["budget_tokens"], r["who"]) == ("auto", "writing", 80000, "HQ-ADV")
+        assert (r["trigger"], r["state"], r["budget_tokens"], r["who"]) == (
+            "auto",
+            "writing",
+            80000,
+            "HQ-ADV",
+        )
         assert meta["task_class"] == "advisor_memo" and meta["owner_zone"] == "auto"
     # The 4th card of the day and a low-risk card get none; the cap is not carried over.
     for ref in (refs[3], low):
@@ -131,11 +140,15 @@ async def test_a_high_risk_card_gets_an_automatic_memo_and_the_fourth_of_the_day
     first = refs[0]
     d = (await client.get(f"/api/v1/decisions/{first}", headers=owner)).json()
     bad = await client.post(
-        "/internal/v1/advisor/memos", headers={**adv, **idem()}, json=_memo_body(first, d["version"], against_md=" ")
+        "/internal/v1/advisor/memos",
+        headers={**adv, **idem()},
+        json=_memo_body(first, d["version"], against_md=" "),
     )
     assert bad.status_code == 422, bad.text
     ok = await client.post(
-        "/internal/v1/advisor/memos", headers={**adv, **idem()}, json=_memo_body(first, d["version"])
+        "/internal/v1/advisor/memos",
+        headers={**adv, **idem()},
+        json=_memo_body(first, d["version"]),
     )
     assert ok.status_code == 200, ok.text
     memo = (await client.get(f"/api/v1/decisions/{first}/memo", headers=owner)).json()
@@ -144,7 +157,10 @@ async def test_a_high_risk_card_gets_an_automatic_memo_and_the_fourth_of_the_day
     card = (await client.get(f"/api/v1/decisions/{first}", headers=owner)).json()
     assert [m["ref"] for m in card["memos"]] == [memo["ref"]]
     # Its work item is done, with the memo as evidence.
-    w = await su.fetchrow("SELECT status FROM work.work w JOIN advisor.memos m ON m.work_id = w.id WHERE m.ref = $1", memo["ref"])
+    w = await su.fetchrow(
+        "SELECT status FROM work.work w JOIN advisor.memos m ON m.work_id = w.id WHERE m.ref = $1",
+        memo["ref"],
+    )
     assert w["status"] == "done"
 
 
@@ -154,9 +170,15 @@ async def test_the_same_mode_and_version_is_the_same_memo(
     co = (await new_company())["code"]
     async with holding_switch(su, "released"):
         ref = await _card(client, co, risk="low")
-        a = await client.post(f"/api/v1/decisions/{ref}/memo", headers=owner, json={"mode": "standard"})
-        b = await client.post(f"/api/v1/decisions/{ref}/memo", headers=owner, json={"mode": "standard"})
-        devil = await client.post(f"/api/v1/decisions/{ref}/memo", headers=owner, json={"mode": "devil"})
+        a = await client.post(
+            f"/api/v1/decisions/{ref}/memo", headers=owner, json={"mode": "standard"}
+        )
+        b = await client.post(
+            f"/api/v1/decisions/{ref}/memo", headers=owner, json={"mode": "standard"}
+        )
+        devil = await client.post(
+            f"/api/v1/decisions/{ref}/memo", headers=owner, json={"mode": "devil"}
+        )
     assert a.status_code == b.status_code == devil.status_code == 202, a.text
     assert a.json()["ref"] == b.json()["ref"] != devil.json()["ref"]
     assert a.json()["trigger"] == "owner" and devil.json()["mode"] == "devil"
@@ -165,10 +187,17 @@ async def test_the_same_mode_and_version_is_the_same_memo(
         devil.json()["ref"],
     )
     meta = json.loads(meta) if isinstance(meta, str) else meta
-    assert meta == {"task_class": "advisor_memo", "owner_zone": "direct", "memo": devil.json()["ref"], "mode": "devil"}
+    assert meta == {
+        "task_class": "advisor_memo",
+        "owner_zone": "direct",
+        "memo": devil.json()["ref"],
+        "mode": "devil",
+    }
     listed = (await client.get(f"/api/v1/advisor/memos?decision={ref}", headers=owner)).json()
     assert {m["mode"] for m in listed["items"]} == {"standard", "devil"}
-    assert (await client.get(f"/api/v1/decisions/{ref}/memo?mode=devil", headers=owner)).json()["ref"] == devil.json()["ref"]
+    assert (await client.get(f"/api/v1/decisions/{ref}/memo?mode=devil", headers=owner)).json()[
+        "ref"
+    ] == devil.json()["ref"]
 
 
 async def test_a_changed_card_makes_its_memo_stale(
@@ -181,13 +210,20 @@ async def test_a_changed_card_makes_its_memo_stale(
     v1 = memo["decision_version"]
     # A reminder (bookkeeping) does not change the card; a new decider does.
     await su.execute("UPDATE cartable.decisions SET reminded_at = now() WHERE ref = $1", ref)
-    assert await su.fetchval("SELECT state FROM advisor.memos WHERE ref = $1", memo["ref"]) == "writing"
+    assert (
+        await su.fetchval("SELECT state FROM advisor.memos WHERE ref = $1", memo["ref"])
+        == "writing"
+    )
     await su.execute(
         "UPDATE cartable.decisions SET expires_at = now() + interval '3 days' WHERE ref = $1", ref
     )
-    assert await su.fetchval("SELECT state FROM advisor.memos WHERE ref = $1", memo["ref"]) == "stale"
+    assert (
+        await su.fetchval("SELECT state FROM advisor.memos WHERE ref = $1", memo["ref"]) == "stale"
+    )
     adv = await agent_headers("HQ-ADV")
-    r = await client.post("/internal/v1/advisor/memos", headers={**adv, **idem()}, json=_memo_body(ref, v1))
+    r = await client.post(
+        "/internal/v1/advisor/memos", headers={**adv, **idem()}, json=_memo_body(ref, v1)
+    )
     assert r.status_code == 409 and r.json()["code"] == "version_conflict", r.text
     # The new version gets a memo of its own.
     async with holding_switch(su, "released"):
@@ -209,15 +245,24 @@ async def test_memo_write_on_a_decided_card_is_409_and_an_invented_citation_is_d
     cites = [{"kind": "decision", "ref": ref}, {"kind": "decision", "ref": "D-999999999"},
              {"kind": "message", "ref": "A-99999999"}]  # fmt: skip
     r = await client.post(
-        "/internal/v1/advisor/memos", headers={**adv, **idem()}, json=_memo_body(ref, d["version"], citations=cites)
+        "/internal/v1/advisor/memos",
+        headers={**adv, **idem()},
+        json=_memo_body(ref, d["version"], citations=cites),
     )
     assert r.status_code == 200, r.text
-    assert r.json()["citations"] == [{"kind": "decision", "ref": ref}] and r.json()["citations_dropped"] == 2
+    assert (
+        r.json()["citations"] == [{"kind": "decision", "ref": ref}]
+        and r.json()["citations_dropped"] == 2
+    )
     o = (await client.get(f"/api/v1/decisions/{other}", headers=h)).json()
-    rej = await client.post(f"/api/v1/decisions/{other}/reject", headers={**h, **idem()}, json={"reason_code": "cost"})
+    rej = await client.post(
+        f"/api/v1/decisions/{other}/reject", headers={**h, **idem()}, json={"reason_code": "cost"}
+    )
     assert rej.status_code == 200, rej.text
     late = await client.post(
-        "/internal/v1/advisor/memos", headers={**adv, **idem()}, json=_memo_body(other, o["version"])
+        "/internal/v1/advisor/memos",
+        headers={**adv, **idem()},
+        json=_memo_body(other, o["version"]),
     )
     assert late.status_code == 409 and late.json()["code"] == "decision_not_pending", late.text
     owner_late = await client.post(f"/api/v1/decisions/{other}/memo", headers=h, json={})
@@ -231,15 +276,23 @@ async def test_memo_write_on_a_decided_card_is_409_and_an_invented_citation_is_d
 
 
 async def test_devil_mode_is_the_advisors_thread_only_and_its_reply_says_so(
-    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], su: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
     r = await client.post(
-        f"/api/v1/threads/{co}-CEO/messages", headers={**owner, **idem()}, json={"body": "نقد کن", "mode": "devil"}
+        f"/api/v1/threads/{co}-CEO/messages",
+        headers={**owner, **idem()},
+        json={"body": "نقد کن", "mode": "devil"},
     )
     assert r.status_code == 422, r.text
     r = await client.post(
-        "/api/v1/threads/A/messages", headers={**owner, **idem()}, json={"body": "مخالف‌خوانی کن", "mode": "devil"}
+        "/api/v1/threads/A/messages",
+        headers={**owner, **idem()},
+        json={"body": "مخالف‌خوانی کن", "mode": "devil"},
     )
     assert r.status_code == 201, r.text
     assert r.json()["message"]["meta"] == {"mode": "devil"}
@@ -264,7 +317,11 @@ async def test_devil_mode_is_the_advisors_thread_only_and_its_reply_says_so(
 
 
 async def test_a_trigger_fires_once_a_day_and_its_note_is_a_report_never_urgent(
-    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], su: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
     cid = await su.fetchval("SELECT id FROM core.companies WHERE code = $1", co)
@@ -281,7 +338,9 @@ async def test_a_trigger_fires_once_a_day_and_its_note_is_a_report_never_urgent(
         first = await A.fire_triggers_tx(hub, now)
         second = await A.fire_triggers_tx(hub, now)
     day = A.owner_day("Asia/Tehran", now).isoformat()
-    t = await su.fetchrow("SELECT * FROM advisor.triggers WHERE key = $1", f"waiting_decisions:{day}")
+    t = await su.fetchrow(
+        "SELECT * FROM advisor.triggers WHERE key = $1", f"waiting_decisions:{day}"
+    )
     assert t is not None and t["state"] == "sent" and first["sent"] >= 1
     assert second["sent"] == 0 and second["seen"] >= 1  # the same key never wakes the advisor again
     meta = await su.fetchval("SELECT run_meta FROM work.work WHERE id = $1", t["work_id"])
@@ -294,23 +353,38 @@ async def test_a_trigger_fires_once_a_day_and_its_note_is_a_report_never_urgent(
         json={"body": "سه کارت بیش از ۷۲ ساعت منتظرند."},
     )  # fmt: skip
     assert m.status_code == 201, m.text
-    assert m.json()["meta"]["proactive"] == {"kind": "waiting_decisions", "key": f"waiting_decisions:{day}"}
+    assert m.json()["meta"]["proactive"] == {
+        "kind": "waiting_decisions",
+        "key": f"waiting_decisions:{day}",
+    }
     t2 = await su.fetchrow("SELECT message_ref FROM advisor.triggers WHERE id = $1", t["id"])
     assert t2["message_ref"] == m.json()["ref"]
-    notes = await su.fetch("SELECT level FROM notify.notifications WHERE link_kind = 'message' AND link_ref = $1", m.json()["ref"])
+    notes = await su.fetch(
+        "SELECT level FROM notify.notifications WHERE link_kind = 'message' AND link_ref = $1",
+        m.json()["ref"],
+    )
     assert [n["level"] for n in notes] == ["report"]
     await advisor_run(su, "work")
-    listed = (await client.get("/api/v1/advisor/triggers?kind=waiting_decisions", headers=owner)).json()
-    assert any(x["key"] == f"waiting_decisions:{day}" and x["message_ref"] == m.json()["ref"] for x in listed)
+    listed = (
+        await client.get("/api/v1/advisor/triggers?kind=waiting_decisions", headers=owner)
+    ).json()
+    assert any(
+        x["key"] == f"waiting_decisions:{day}" and x["message_ref"] == m.json()["ref"]
+        for x in listed
+    )
     # Over proactive_per_day the rest are `capped`.
-    await su.execute("UPDATE owner.settings SET advisor = jsonb_set(advisor, '{proactive_per_day}', '0') WHERE id = 1")
+    await su.execute(
+        "UPDATE owner.settings SET advisor = jsonb_set(advisor, '{proactive_per_day}', '0') WHERE id = 1"
+    )
     try:
         later = now + timedelta(days=1)
         async with holding_switch(su, "released"):
             capped = await A.fire_triggers_tx(hub, later)
         assert capped["capped"] >= 1 and capped["sent"] == 0
     finally:
-        await su.execute("UPDATE owner.settings SET advisor = jsonb_set(advisor, '{proactive_per_day}', '3') WHERE id = 1")
+        await su.execute(
+            "UPDATE owner.settings SET advisor = jsonb_set(advisor, '{proactive_per_day}', '3') WHERE id = 1"
+        )
     await su.execute(
         "UPDATE cartable.decisions SET status = 'withdrawn', decided_at = now() WHERE company_id = $1 AND status = 'pending'",
         cid,
@@ -318,7 +392,11 @@ async def test_a_trigger_fires_once_a_day_and_its_note_is_a_report_never_urgent(
 
 
 async def test_nothing_wakes_the_advisor_or_a_substitute_while_the_holding_is_locked(
-    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], su: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
     await _clean_slate(su)
@@ -336,7 +414,9 @@ async def test_nothing_wakes_the_advisor_or_a_substitute_while_the_holding_is_lo
     async with holding_switch(su, "engaged"):
         when = datetime(2036, 3, 3, 9, tzinfo=UTC) + timedelta(days=random.randint(0, 3000))
         out = await A.sweep(hub, when)
-        assert out["auto_memos"]["skipped"] is True and out["auto_memos"]["reason"] == "holding_locked"
+        assert (
+            out["auto_memos"]["skipped"] is True and out["auto_memos"]["reason"] == "holding_locked"
+        )
         assert out["triggers"]["sent"] == 0
         r = await client.post(f"/api/v1/decisions/{ref}/memo", headers=owner, json={})
         assert r.status_code == 423, r.text
@@ -347,12 +427,51 @@ async def test_nothing_wakes_the_advisor_or_a_substitute_while_the_holding_is_lo
             claimed = await S.claim(tx)
         assert (call["state"], call["state_reason"]) == ("skipped", "holding_locked")
         assert claimed == {"job": None, "skipped": "holding_locked"}
-    assert await su.fetchval("SELECT count(*) FROM advisor.memos m JOIN cartable.decisions d ON d.id = m.decision_id WHERE d.ref = $1", ref) == 0
-    states = await su.fetch(
-        "SELECT state, state_reason FROM advisor.triggers WHERE day = $1", A.owner_day("Asia/Tehran", when)
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM advisor.memos m JOIN cartable.decisions d ON d.id = m.decision_id WHERE d.ref = $1",
+            ref,
+        )
+        == 0
     )
-    assert states and all(s["state"] == "deferred" and s["state_reason"] == "holding_locked" for s in states)
+    states = await su.fetch(
+        "SELECT state, state_reason FROM advisor.triggers WHERE day = $1",
+        A.owner_day("Asia/Tehran", when),
+    )
+    assert states and all(
+        s["state"] == "deferred" and s["state_reason"] == "holding_locked" for s in states
+    )
     states = [s for s in states if s["state"] == "sent"]
     assert states == []
     # No run was queued for the advisor by any of it.
     assert await su.fetchval("SELECT count(*) FROM agents.runs") == runs_before
+
+
+async def test_the_advisor_and_substitute_settings_are_blocks_merged_field_by_field(
+    client: httpx.AsyncClient, owner: dict[str, str]
+) -> None:
+    s = (await client.get("/api/v1/owner/settings", headers=owner)).json()
+    assert set(s["advisor"]) == {"auto_memo", "proactive_per_day"}
+    assert set(s["substitutes"]) == {"behind_ratio", "creative_default_image"}
+    r = await client.put(
+        "/api/v1/owner/settings",
+        headers={**owner, "If-Match": str(s["version"])},
+        json={"advisor": {"auto_memo": {"max_per_day": 5}}, "substitutes": {"creative_default_image": "gemini"}},
+    )
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["advisor"]["auto_memo"] == {"enabled": s["advisor"]["auto_memo"]["enabled"], "max_per_day": 5}
+    assert out["advisor"]["proactive_per_day"] == s["advisor"]["proactive_per_day"]
+    assert out["substitutes"] == {**s["substitutes"], "creative_default_image": "gemini"}
+    bad = await client.put(
+        "/api/v1/owner/settings",
+        headers={**owner, "If-Match": str(out["version"])},
+        json={"substitutes": {"behind_ratio": 1.5}},
+    )
+    assert bad.status_code == 422
+    back = await client.put(
+        "/api/v1/owner/settings",
+        headers={**owner, "If-Match": str(out["version"])},
+        json={"advisor": s["advisor"], "substitutes": s["substitutes"]},
+    )
+    assert back.status_code == 200 and back.json()["advisor"] == s["advisor"]
