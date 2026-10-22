@@ -40,6 +40,8 @@ class Company(BaseModel):
     name_en: str | None
     color_index: int | None
     status: str
+    # ⟨1.4.6⟩ the active brand version (§18.14); marks and seals come from GET /brands
+    brand_version: int | None = None
     template: str | None
     kill_switch: str
     deploy_freeze_until: datetime | None
@@ -167,7 +169,9 @@ COMPANY_SQL = """
            (SELECT count(*) FROM work.work w WHERE w.company_id = c.id
              AND w.status IN ('queued', 'in_progress', 'waiting', 'delivered')) AS work_open,
            (SELECT count(*) FROM cartable.decisions d WHERE d.company_id = c.id AND d.status = 'pending')
-               AS decisions_pending
+               AS decisions_pending,
+           (SELECT b.version FROM org.company_brands b WHERE b.company_id = c.id AND b.state = 'active')
+               AS brand_version
     FROM core.companies c
     LEFT JOIN control.kill_switches k ON k.company_id = c.id
 """
@@ -185,6 +189,7 @@ def _company(r: dict[str, Any]) -> Company:
                 "name_en",
                 "color_index",
                 "status",
+                "brand_version",
                 "template",
                 "kill_switch",
                 "deploy_freeze_until",

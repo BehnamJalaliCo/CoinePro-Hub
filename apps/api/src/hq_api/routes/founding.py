@@ -213,14 +213,25 @@ async def cancel_founding(ref: str, request: Request, ctx: Ctx = Depends(owner_c
     return out
 
 
+class ActivateIn(Model):
+    """⟨1.4.6⟩ `skip_brand`: activate a company whose brand is not sealed yet."""
+
+    skip_brand: bool = False
+
+
 @router.post("/foundings/{ref}/activate", response_model=F.Founding, responses=E)
-async def activate_founding(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def activate_founding(
+    ref: str, request: Request, body: ActivateIn | None = None, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """🔏 step-up `founding.activate`, target = the ref: after the owner logged
-    in on the new server, the company goes live and its CEO starts."""
+    in on the new server, the company goes live and its CEO starts. ⟨1.4.6⟩
+    Without an active brand: `409 not_ready` with `missing: ["brand"]`,
+    unless the body says `{skip_brand: true}`."""
+    skip = bool(body and body.skip_brand)
     async with ctx.tx() as tx:
         f = await F.load(tx, ref, lock=True)
         su = await stepup.consume(tx, request, ctx.who, "founding.activate", ref)
-        out = await F.render(tx, await F.activate(tx, ctx.who, f, step_up_id=su))
+        out = await F.render(tx, await F.activate(tx, ctx.who, f, step_up_id=su, skip_brand=skip))
     ctx.hub.companies.invalidate()
     return out
 
