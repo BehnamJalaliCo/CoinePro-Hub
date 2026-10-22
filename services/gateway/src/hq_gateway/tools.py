@@ -257,8 +257,10 @@ class ProposeIn(In):
         "evaluation",
         "code_session",
         "errand_action",
+        "lesson_adoption",
+        "protocol",
         "company_found",
-    ]
+    ]  # every API kind but server_plan (only server.plan makes that card)
     title_fa: str = Field(min_length=1, max_length=300)
     what_md: str = Field(default="", max_length=20000)
     why_md: str = Field(default="", max_length=20000)
