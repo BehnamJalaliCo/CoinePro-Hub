@@ -20,15 +20,15 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ensure_env
 
 JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch",
-  "backup-tools"]'
+  "backup-tools","tts"]'
 HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch",
-  "backup-tools","egress","searxng","browser","provisioner"]'
-NOT_INTERNAL='["temporal","opa","gateway","web","stt","egress","searxng","browser","provisioner"]'
+  "backup-tools","egress","searxng","browser","provisioner","tts"]'
+NOT_INTERNAL='["temporal","opa","gateway","web","stt","egress","searxng","browser","provisioner","tts"]'
 # Services whose networks are exactly these.
 ONLY_ON='{"gateway":["hq-agent","hq-egress-api"],"opa":["hq-agent"],"web":["hq-edge"],"claude-runtime":["hq-llm"],
   "stt":["hq-stt"],"stt-fetch":["hq-fetch"],
   "egress":["hq-browser","hq-egress","hq-egress-api","hq-prov-out"],"searxng":["hq-egress"],"browser":["hq-browser"],
-  "provisioner":["hq-prov","hq-prov-out"]}'
+  "provisioner":["hq-prov","hq-prov-out"],"tts":["hq-tts"]}'
 # Allow-list of every restricted network.
 MEMBERS='{
   "hq-core":["temporal","temporal-namespace","temporal-ui","api","worker","postgres","prometheus"],
@@ -40,8 +40,9 @@ MEMBERS='{
   "hq-egress-api":["gateway","egress","worker"],
   "hq-browser":["egress","browser"],
   "hq-prov":["provisioner","api","openbao"],
-  "hq-prov-out":["provisioner","egress"]}'
-INTERNAL_NETS='["hq-agent","hq-edge","hq-stt","hq-egress-api","hq-browser","hq-prov","hq-prov-out"]'
+  "hq-prov-out":["provisioner","egress"],
+  "hq-tts":["tts","api","openbao"]}'
+INTERNAL_NETS='["hq-agent","hq-edge","hq-stt","hq-egress-api","hq-browser","hq-prov","hq-prov-out","hq-tts"]'
 # The opt-in profiles' services (cadvisor, stt) follow the same rules.
 mapfile -t OPT_IN < <(opt_in_profiles)
 failed=0

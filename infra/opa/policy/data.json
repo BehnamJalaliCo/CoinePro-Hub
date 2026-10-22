@@ -70,7 +70,8 @@
           "challenge.score",
           "oversight.challenge_score",
           "protocol.result",
-          "oversight.protocol_result"
+          "oversight.protocol_result",
+          "claim.verdict"
         ],
         "employee": [
           "work.accept",
@@ -88,7 +89,8 @@
           "rescue.update",
           "feedback.tag",
           "support.draft",
-          "support.handoff"
+          "support.handoff",
+          "claim.verdict"
         ],
         "assistant": [
           "errand.step",
@@ -124,7 +126,8 @@
           "kill_switch.set",
           "deploy.freeze",
           "deploy_freeze.set",
-          "support.mystery"
+          "support.mystery",
+          "claim.verdict"
         ]
       }
     }

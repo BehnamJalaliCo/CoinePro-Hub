@@ -46,6 +46,8 @@ ops := {
 	"egress.connector", "referral.check", "rescue.update", "feedback.tag",
 	# prompt 10 §12: the support desk's writes (support_desk.rego)
 	"kb.propose", "support.draft", "support.handoff", "support.mystery",
+	# prompt 12 part B (mgmt.rego): the TTS one-shot, a checked claim
+	"tts.claim", "tts.done", "claim.verdict",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and
