@@ -11,6 +11,7 @@ replay returns too).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from collections.abc import AsyncIterator
 from datetime import datetime
@@ -351,16 +352,19 @@ def _sse(ev: D.SessionEvent) -> str:
 async def session_live(
     ref: str,
     request: Request,
+    after_q: int | None = Query(default=None, alias="after", ge=0, le=2**31 - 1),
     last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
     ctx: Ctx = Depends(owner_ctx),
 ) -> Any:
     """SSE of `SessionEvent` (`event:` = its type, `id:` = its seq); resumes after
-    `Last-Event-ID`. Ends after the session's last event once it is finished; a
-    comment line every 15 s keeps the connection open meanwhile."""
-    try:
-        after = max(0, int(last_event_id or 0))
-    except ValueError:
-        after = 0
+    `Last-Event-ID`, or after `?after` (a seq, like the events list) when the
+    client cannot set that header (06.1 §3); the header wins when both come.
+    Ends after the session's last event once it is finished; a comment line
+    every 15 s keeps the connection open meanwhile."""
+    after = after_q or 0
+    if last_event_id:
+        with contextlib.suppress(ValueError):
+            after = max(0, min(int(last_event_id[:12]), 2**31 - 1))
     async with ctx.tx() as tx:
         s = await D.by_ref(tx, ref)
     hub = ctx.hub
@@ -439,6 +443,8 @@ async def _steer(
                 "workshop.message",
                 {"company": s["company"], "driver": s["driver_code"], "session": ref},
             )
+            if s["company_id"] != ctx.who.company_id or s["driver_code"] != ctx.who.code:
+                raise ApiError(403, "policy_denied", "only the session's driver steers it")
             await ctx.ensure_unlocked(tx, s["company_id"])
         if s["state"] in D.FINAL:
             raise ApiError(409, "validation_failed", fields={"session": f"{ref} is {s['state']}"})
@@ -450,6 +456,8 @@ async def _steer(
             raise ApiError(
                 409, "validation_failed", fields={"session": f"{ref} waits ({s['held']})"}
             )
+        if not s["external_id"]:  # it starts by itself once its lock is lifted
+            raise ApiError(409, "validation_failed", fields={"session": f"{ref} has not started"})
         s = await D.unhold_if_free(tx, s)  # 423 while the company is still locked
         text = scrub(body.body)
         seq = await D.append(
@@ -595,14 +603,16 @@ async def agent_list_sessions(
     mine: bool = True,
     ctx: Ctx = Depends(internal_ctx),
 ) -> Page[D.CodeSession]:
-    """An agent's company's sessions (`mine`: the ones it drives), newest first, 50."""
+    """An agent's company's sessions (`mine`: the ones it drives), newest first, 50;
+    never another company's, whatever the agent's charter scope."""
     await allow(ctx, "workshop.read", {"company": ctx.who.company})
     async with ctx.tx() as tx:
         rows = await tx.all(
             D.SESSION_SQL
-            + """ WHERE (CAST(:st AS text) IS NULL OR s.state = :st)
+            + """ WHERE s.company_id = :co AND (CAST(:st AS text) IS NULL OR s.state = :st)
                   AND (NOT :mine OR s.driver_code = :me)
                 ORDER BY s.created_at DESC LIMIT 50""",
+            co=ctx.who.company_id,
             st=state,
             mine=mine,
             me=ctx.who.code,

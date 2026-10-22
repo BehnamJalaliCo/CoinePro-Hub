@@ -7,7 +7,12 @@
 # roles: words that name who should receive the order: `ceo`, `advisor`, or a
 #   department code (its manager receives it: the CEO-skipping shortcut, §4).
 # kinds: words that make an order one of code | meeting | question; anything
-#   else is `work`. A question mark also makes it a question.
+#   else is `work`. A question mark also makes it a question; a role named by
+#   its title (a word with «مدیر», or a Latin acronym such as CTO) for one
+#   company still receives it, as work.
+# due: in how many days the work item of an order is due (end of that day in
+#   the owner's time zone): the longest word found, else default_days. So
+#   every order is in the planner.
 companies:
   HQ: [هلدینگ, ستاد, هاب]
   TY: [تریدیار, ترید یار]
@@ -28,3 +33,19 @@ kinds:
   code: [باگ, ریپو, ریپوی, کامیت, پول ریکوئست, pr, ریفکتور, refactor, کارگاه کد, کدنویسی, کد برنامه, برنچ]
   meeting: [جلسه, میتینگ]
   question: [چرا, چطور, چگونه, آیا, چه خبر, سوال, سؤال, نظرت]
+due:
+  default_days: 3
+  words:
+    امروز: 0
+    امشب: 0
+    همین الان: 0
+    فوری: 0
+    فردا: 1
+    پس فردا: 2
+    پسفردا: 2
+    تا آخر هفته: 5
+    هفته بعد: 7
+    هفته ی بعد: 7
+    هفته آینده: 7
+    ماه بعد: 30
+    ماه آینده: 30

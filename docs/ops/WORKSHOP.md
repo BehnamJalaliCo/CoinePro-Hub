@@ -11,6 +11,7 @@
 1. **انتخاب محل اجرا** (`managed` یا `self_hosted`).
    - `managed` یعنی یک API key جدا با سقف ماهانه.
    - مالک این‌ها را خودش میسازد: agent (با ابزار bash و سیاست `always_ask`) و environment در Claude Managed Agents.
+   - **همه‌ی ابزارهای فعال agent باید `always_ask` باشند** (پیش‌فرض agent toolset `always_allow` است؛ `auto` هم پذیرفته نیست؛ ابزار custom نباشد). هاب این را موقع ساختن runtime و پیش از شروع هر سشن با `GET /v1/agents/{id}` میخواند؛ اگر یک ابزار بی‌پرسش اجرا شود، runtime خاموش میماند یا سشن متوقف میشود (بازبینی ۶.۱ §۲).
    - مالک خودش در OpenBao میگذارد: `kv/hq-api/workshop/managed` با کلیدهای `api_key`، `agent_id` و `environment_id`. هیچ‌کس مقدارشان را نمیبیند.
 2. **توکن GitHub هر workspace:** fine-grained، فقط برای همان یک ریپو، با دسترسی contents و pull requests، در `kv/hq-api/workshop/github/<WORKSPACE-CODE>` با کلید `token`.
 3. سپس `WORKSHOP_RUNTIME=managed` در env سرویس api و ری‌استارت api. ری‌استارت هم با اجازه‌ی مالک است.
@@ -27,11 +28,14 @@
 - ریپو به‌صورت منبع `github_repository` به سشن وصل میشود.
 - توکن GitHub هنگام ساخت سشن یک بار از OpenBao خوانده میشود و به git proxy خود Anthropic میرسد. proxy آن را هنگام خروج جایگزین میکند. **توکن هیچ‌وقت داخل sandbox، مدل، رویداد، لاگ یا دیتابیس نیست.** تست خودکار این را اسکن میکند.
 - سقف بودجه دو بار اعمال میشود: یک بار در خود سکو (`max_list_cost`) و یک بار در هاب.
-- هر دستور bash با `always_ask` میپرسد. هاب سه جور جواب میدهد (`workshop/commands.py`):
+- هر ابزار با `always_ask` میپرسد و هاب اول actionهای grant را اعمال میکند (`commands.needs`): grant فقط‌خواندنی هیچ ویرایش، اجرا، push یا PR نمیکند، و قفل کار هم نمیگیرد. بعد برای bash سه جور جواب میدهد (`workshop/commands.py`):
   - **خودکار اجازه میدهد:** خواندن، ویرایش، تست، lint، و commit روی شاخه‌ی خود سشن.
   - **رد میکند:** SSH، docker، cloud، دیتابیس، فایل‌های اعتبار و env، force push، push به هر شاخه‌ای جز `hq/<ref>`، و merge/release.
   - **از مالک میپرسد** (`approval_request`): push شاخه، باز کردن PR، و هر دستور بیرون از فهرست.
+- هر «ask» دیگر (web_fetch، web_search، MCP، ابزار ناشناخته) هم `approval_request` میشود تا سشن بی‌پایان منتظر نماند.
 - رویدادهای سشن هر ۵ ثانیه با poll خوانده میشوند (حلقه‌ی پس‌زمینه‌ی api).
+- اگر cursor سکو گم شود، رویدادها دوباره خوانده میشوند، ولی approval یا تأیید تکراری ساخته نمیشود و توکن دو بار شمرده نمیشود.
+- سشنِ در صف موقع کلید توقف یا توقف deploy شروع نمیشود (بعد از برداشتن قفل خودش شروع میشود) و بعد از انقضای grant با `grant_expired` متوقف میشود.
 
 ## قوانین ۱ تا ۷ در کد
 

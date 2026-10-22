@@ -818,6 +818,18 @@ async def test_no_credential_reaches_events_logs_or_responses(
 
 
 # ---------------------------------------------------------------- managed --
+ASK_EVERYTHING = {
+    "id": "agent_01",
+    "tools": [
+        {
+            "type": "agent_toolset_20260401",
+            "default_config": {"enabled": True, "permission_policy": {"type": "always_ask"}},
+            "configs": [],
+        }
+    ],
+}
+
+
 class FakeAnthropic:
     """The Managed Agents API as far as the adapter uses it."""
 
@@ -826,6 +838,7 @@ class FakeAnthropic:
         self.sent: list[dict[str, Any]] = []
         self.created: dict[str, Any] = {}
         self.stream: list[dict[str, Any]] = []
+        self.agent: dict[str, Any] = json.loads(json.dumps(ASK_EVERYTHING))
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -840,6 +853,8 @@ class FakeAnthropic:
             return httpx.Response(200, json={"data": []})
         if request.method == "GET" and request.url.path == "/v1/sessions/sesn_01/events":
             return httpx.Response(200, json={"data": self.stream, "next_page": None})
+        if request.method == "GET" and request.url.path == "/v1/agents/agent_01":
+            return httpx.Response(200, json=self.agent)
         return httpx.Response(404, json={"error": {"type": "not_found"}})
 
 
@@ -1017,7 +1032,8 @@ async def test_managed_runtime_errors_fail_the_session_not_the_request(
         assert r.status_code == 201
         s = await session(client, owner, r.json()["ref"])
         assert s["state"] == "failed"
-        assert not api.requests  # nothing reached the platform without a credential
+        # Nothing but the agent's permission check reached the platform.
+        assert [(q.method, q.url.path) for q in api.requests] == [("GET", "/v1/agents/agent_01")]
     finally:
         hub.workshop = None
 
@@ -1082,6 +1098,13 @@ async def test_managed_reads_the_owner_secrets_under_the_kv_mount() -> None:
             return {"token": "t"}
 
     hub = SimpleNamespace(settings=SimpleNamespace(workshop_runtime="managed"), bao=Bao())
-    rt = await service.build(hub)
+    api = FakeAnthropic()
+    api.agent["id"] = "a"
+
+    def agent(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/agents/a"
+        return httpx.Response(200, json=api.agent)
+
+    rt = await service.build(hub, transport=httpx.MockTransport(agent))
     assert rt is not None and asked == ["hq-api/workshop/managed"]
     assert all(not p.startswith("kv/") for p in asked)

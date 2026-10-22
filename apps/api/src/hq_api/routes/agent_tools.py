@@ -899,13 +899,20 @@ def _publish_line(live: Any, thread: str, run_id: str | None, line: bytes) -> No
 
 
 # -------------------------------------------------------------- files.read --
+class Frame(BaseModel):
+    """A key frame of a video (contract §17.8): its file and where it is (s)."""
+
+    id: UUID
+    at_s: float | None = None
+
+
 class AgentFileRef(FileRef):
     """files.read: an owner file attached in the agent's own company (§17.1),
     plus the key frames of a video; the model sees images as vision input.
-    `agent`: the image copy a model sees (long edge <= 1568, no EXIF);
-    `text`: a PDF's text (prompt 07 §3), masked."""
+    `frames`: [{id, at_s}] in time order; `agent`: the image copy a model sees
+    (long edge <= 1568, no EXIF); `text`: a PDF's text (prompt 07 §3), masked."""
 
-    frames: list[UUID] = Field(default_factory=list)
+    frames: list[Frame] = Field(default_factory=list)
     agent: UUID | None = None
     text: str | None = None
 
@@ -918,11 +925,16 @@ async def tool_file_meta(id: UUID, ctx: Ctx = Depends(internal_ctx)) -> AgentFil
     _agent(ctx)
     await allow(ctx, "file.read", {"company": ctx.who.company})
     async with ctx.tx() as tx:  # the agent's own company (RLS)
-        row = await tx.first(F.FILE_SQL + " WHERE f.id = :id AND f.variant = 'original'", id=id)
+        # An owner upload not attached anywhere yet is nobody's to read (06.1 §3).
+        row = await tx.first(
+            F.FILE_SQL
+            + f" WHERE f.id = :id AND f.variant = 'original' AND NOT {F.UNATTACHED_UPLOAD}",
+            id=id,
+        )
         if row is None:
             raise ApiError(403, "policy_denied", "file.read_not_permitted")
         frames = await tx.all(
-            """SELECT id FROM files.files WHERE parent_id = :id AND variant = 'frame'
+            """SELECT id, frame_at_s FROM files.files WHERE parent_id = :id AND variant = 'frame'
                ORDER BY frame_at_s NULLS LAST, created_at""",
             id=id,
         )
@@ -933,7 +945,10 @@ async def tool_file_meta(id: UUID, ctx: Ctx = Depends(internal_ctx)) -> AgentFil
     ref = F.render(row)
     return AgentFileRef(
         **ref.model_dump(),
-        frames=[r["id"] for r in frames],
+        frames=[
+            Frame(id=r["id"], at_s=float(r["frame_at_s"]) if r["frame_at_s"] is not None else None)
+            for r in frames
+        ],
         agent=agent,
         text=await scrub_async(text) if text else None,
     )

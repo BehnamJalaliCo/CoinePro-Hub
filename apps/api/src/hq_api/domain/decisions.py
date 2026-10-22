@@ -836,6 +836,9 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
         # The seal is the grant; the decision's id is unique on the grant, so a
         # retried effect never makes a second one.
         g = await tx.first("SELECT ref FROM workshop.grants WHERE decision_id = :d", d=d["id"])
+        if g is None and d["seal_step_up_id"] is None:
+            # Its seal is the grant (contract §5.1 v1.4.3): never one without the step-up.
+            raise ApiError(409, "validation_failed", "a code_session is granted only when sealed")
         if g is None:
             g = await workshop.create_grant(
                 tx,

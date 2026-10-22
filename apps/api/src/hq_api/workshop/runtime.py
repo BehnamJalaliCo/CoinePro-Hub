@@ -10,10 +10,15 @@ One interface, three implementations:
                from OpenBao at session start and handed to Anthropic's git
                proxy, which injects it at egress: it never enters the sandbox,
                never reaches a model, an event, a log or this database. The
-               agent's tools ask before running (`always_ask`); the hub then
-               answers commands on its allow-list itself, refuses what is
-               never allowed, and turns everything else (push, PR, the rest)
-               into an approval_request for the owner. Built, NOT enabled:
+               agent's tools ask before running (`always_ask`, checked when
+               the runtime is built and at every session start: a tool that
+               would run without asking keeps the runtime off); the hub then
+               answers what the grant's actions and its allow-list permit
+               itself, refuses what is never allowed or not granted (a
+               read-only grant never edits, pushes or opens a PR), and turns
+               every other ask (push, PR, the web, anything unknown) into an
+               approval_request for the owner, so no session waits for ever.
+               Built, NOT enabled:
                the owner chooses the runtime (WORKSHOP_RUNTIME) and creates
                the API key, the agent, the environment and the tokens.
   self_hosted  design only (docs/ops/WORKSHOP.md); not built.
@@ -28,6 +33,7 @@ import json
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Protocol
 
@@ -128,14 +134,24 @@ class FakeRuntime:
                 "state", "سشن روی یک کلون تازه شروع شد", {"state": "working"}, state="working"
             ),
             RuntimeEvent("progress", "خواندن CLAUDE.md و ساختار ریپو"),
-            RuntimeEvent(
-                "command", f"تست‌ها اجرا شد: {self.output}", {"cmd": "pytest -q", "exit_code": 0}
-            ),
-            RuntimeEvent(
-                "file_change", "README.md به‌روز شد", {"path": "README.md", "added": 3, "removed": 1}
-            ),
-            self._turn(s),
         ]
+        if "run" in s.actions:  # what the grant allows, like the managed adapter
+            events.append(
+                RuntimeEvent(
+                    "command",
+                    f"تست‌ها اجرا شد: {self.output}",
+                    {"cmd": "pytest -q", "exit_code": 0, "duration_s": 4.2},
+                )
+            )
+        if "edit" in s.actions:
+            events.append(
+                RuntimeEvent(
+                    "file_change",
+                    "README.md به‌روز شد",
+                    {"path": "README.md", "added": 3, "removed": 1},
+                )
+            )
+        events.append(self._turn(s))
         if self.ask_push and "push_branch" in s.actions:
             cmd = f"git push origin {s.branch}"
             events.append(
@@ -176,7 +192,10 @@ class FakeRuntime:
             url = f"https://github.com/{s.repo}/pull/1"
             return [
                 RuntimeEvent(
-                    "command", "PR باز شد", {"cmd": "gh pr create", "exit_code": 0}, pr_url=url
+                    "command",
+                    "PR باز شد",
+                    {"cmd": "gh pr create", "exit_code": 0, "duration_s": 1.1},
+                    pr_url=url,
                 ),
                 RuntimeEvent("state", "منتظر دستور بعدی", {"state": "idle"}, state="idle"),
             ]
@@ -184,7 +203,7 @@ class FakeRuntime:
             RuntimeEvent(
                 "command",
                 f"شاخه‌ی {s.branch} push شد",
-                {"cmd": f"git push origin {s.branch}", "exit_code": 0},
+                {"cmd": f"git push origin {s.branch}", "exit_code": 0, "duration_s": 2.3},
                 branch=s.branch,
             ),
             RuntimeEvent("state", "منتظر دستور بعدی", {"state": "idle"}, state="idle"),
@@ -208,8 +227,66 @@ BETA = "managed-agents-2026-04-01"
 RULES_FA = (
     "قواعد کارگاه (غیرقابل‌تغییر): فقط روی شاخه‌ی {branch} کار کن و فقط همان را push کن؛ "
     "به main یا شاخه‌ی دیگری push نکن؛ merge و deploy با مُهر مالک است؛ هیچ رمز، کلید، SSH یا "
-    "اتصال production وجود ندارد و نباید دنبالش بگردی؛ قوانین CLAUDE.md همین ریپو لازم‌الاجراست."
+    "اتصال production وجود ندارد و نباید دنبالش بگردی؛ قوانین CLAUDE.md همین ریپو لازم‌الاجراست. "
+    "این مجوز فقط اجازه‌ی این‌ها را میدهد: {actions}؛ هر کار دیگری رد میشود."
 )
+ACTIONS_FA = {
+    "read": "خواندن",
+    "edit": "ویرایش فایل‌ها",
+    "run": "اجرای دستورها و تست‌ها",
+    "push_branch": "push همان شاخه (با اجازه‌ی مالک)",
+    "open_pr": "باز کردن PR (با اجازه‌ی مالک)",
+}
+# The agent toolset's tools (agent_toolset_20260401) and how the hub answers
+# each one's ask; MCP and any other tool become an approval for the owner.
+TOOLSET_TOOLS = ("bash", "read", "write", "edit", "glob", "grep", "web_fetch", "web_search")
+READ_TOOLS = ("read", "glob", "grep")
+EDIT_TOOLS = ("write", "edit")
+
+
+def _policy(cfg: Any) -> str | None:
+    pp = cfg.get("permission_policy") if isinstance(cfg, dict) else None
+    return str(pp["type"]) if isinstance(pp, dict) and pp.get("type") else None
+
+
+def permission_problems_of(agent: dict[str, Any]) -> list[str]:
+    """The agent's tools that would run without asking the hub first: every
+    enabled tool must be `always_ask` (the agent toolset defaults to
+    always_allow, MCP to always_ask); a custom tool, which the hub would have
+    to carry out, is refused too. Empty: the agent may be used."""
+    problems: list[str] = []
+    for t in agent.get("tools") or []:
+        if not isinstance(t, dict):
+            problems.append("a tool the hub cannot read")
+            continue
+        kind = str(t.get("type") or "")
+        raw_default = t.get("default_config")
+        default: dict[str, Any] = raw_default if isinstance(raw_default, dict) else {}
+        configs = {str(c.get("name")): c for c in t.get("configs") or [] if isinstance(c, dict)}
+        if kind.startswith("agent_toolset"):
+            names, base = sorted(set(TOOLSET_TOOLS) | set(configs)), "always_allow"
+        elif kind == "mcp_toolset":
+            names, base = sorted(set(configs) | {"*"}), "always_ask"
+            kind = f"mcp {t.get('mcp_server_name') or ''}".strip()
+        else:
+            problems.append(f"{kind or 'tool'}: not carried out by the hub")
+            continue
+        on_default = default.get("enabled", True) is not False
+        policy_default = _policy(default) or base
+        for name in names:
+            c = configs.get(name, {})
+            on = c.get("enabled", on_default) is not False
+            policy = _policy(c) or policy_default
+            if on and policy != "always_ask":
+                problems.append(f"{kind}/{name}: {policy}")
+    return problems
+
+
+def _at(value: Any) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")) if value else None
+    except ValueError:
+        return None
 
 
 def _text_of(content: Any) -> str:
@@ -256,7 +333,19 @@ class ManagedRuntime:
     async def _events(self, sid: str, events: list[dict[str, Any]]) -> None:
         await self._post(f"/v1/sessions/{sid}/events", {"events": events})
 
+    async def permission_problems(self) -> list[str]:
+        """The agent's permission settings as Anthropic stores them now
+        (permission_problems_of); raises when they cannot be read."""
+        async with self._client() as c:
+            r = await c.get(f"/v1/agents/{self.agent_id}")
+        if r.status_code >= 300:
+            raise RuntimeError(f"managed agents: HTTP {r.status_code} on agents")
+        body = r.json()
+        return permission_problems_of(body if isinstance(body, dict) else {})
+
     async def start(self, s: SessionSpec) -> tuple[str, list[RuntimeEvent]]:
+        if await self.permission_problems():  # checked again: the agent may have changed
+            raise RuntimeError("the managed agent does not ask before every tool")
         token = await self.github_token(s.workspace)
         if not token:
             raise RuntimeError(f"no GitHub credential for workspace {s.workspace}")
@@ -283,7 +372,8 @@ class ManagedRuntime:
         session = await self._post("/v1/sessions", body)
         del token, body
         sid = str(session["id"])
-        text = f"{RULES_FA.format(branch=s.branch)}\n\n# {s.title}\n\n{s.brief}"
+        allowed = "، ".join(ACTIONS_FA.get(a, a) for a in s.actions)
+        text = f"{RULES_FA.format(branch=s.branch, actions=allowed)}\n\n# {s.title}\n\n{s.brief}"
         await self._events(
             sid, [{"type": "user.message", "content": [{"type": "text", "text": text}]}]
         )
@@ -342,65 +432,69 @@ class ManagedRuntime:
 
     async def poll(self, s: SessionSpec) -> tuple[list[RuntimeEvent], str | None]:
         """New events since the cursor, mapped; asks are answered here when the
-        allow-list or the deny-list decides, else they become approvals."""
+        grant, the allow-list or the deny-list decides, else they become
+        approvals. A cursor the runtime no longer lists (06.1 §3) replays the
+        events, but never a second approval or confirmation for an ask that
+        was already answered, and never the tokens twice."""
         assert s.external_id
         raw = await self._all_events(s.external_id)
-        start = 0
+        start, replay = 0, False
         if s.cursor:
             ids = [e.get("id") for e in raw]
-            start = ids.index(s.cursor) + 1 if s.cursor in ids else 0
+            if s.cursor in ids:
+                start = ids.index(s.cursor) + 1
+            else:
+                replay = True
+                log.warning("workshop: runtime cursor lost; replaying", extra={"session": s.ref})
+        answered = {
+            str(e.get("tool_use_id"))
+            for e in raw
+            if e.get("type") == "user.tool_confirmation" and e.get("tool_use_id")
+        }
+        uses = {str(e["id"]): e for e in raw if e.get("type") == "agent.tool_use" and e.get("id")}
         out: list[RuntimeEvent] = []
         confirmations: list[dict[str, Any]] = []
         cursor = s.cursor
         for e in raw[start:]:
             cursor = str(e.get("id") or cursor)
-            out += self._map(s, e, confirmations)
+            if replay and str(e.get("id")) in answered:
+                continue  # handled before the cursor was lost
+            mapped = self._map(s, e, confirmations, uses)
+            if replay:
+                for ev in mapped:
+                    ev.tokens = None
+            out += mapped
+        confirmations = [
+            c
+            for c in confirmations
+            if c.get("type") != "user.tool_confirmation" or c.get("tool_use_id") not in answered
+        ]
         if confirmations:
             await self._events(s.external_id, confirmations)
         return out, cursor
 
     def _map(
-        self, s: SessionSpec, e: dict[str, Any], confirm: list[dict[str, Any]]
+        self,
+        s: SessionSpec,
+        e: dict[str, Any],
+        confirm: list[dict[str, Any]],
+        uses: dict[str, dict[str, Any]] | None = None,
     ) -> list[RuntimeEvent]:
         t = str(e.get("type") or "")
         if t == "agent.message":
             return [RuntimeEvent("message", scrub(_text_of(e.get("content")))[:500])]
-        if t == "agent.tool_use":
-            name = str(e.get("name") or "")
-            raw_input = e.get("input")
-            inp: dict[str, Any] = raw_input if isinstance(raw_input, dict) else {}
-            if name in ("write", "edit"):
-                path = str(inp.get("file_path") or inp.get("path") or "")
-                return [RuntimeEvent("file_change", f"تغییر {path}"[:300], {"path": path})]
-            if name != "bash":
-                return [RuntimeEvent("progress", f"ابزار {name}")]
-            cmd = str(inp.get("command") or "")
-            if e.get("evaluated_permission") != "ask":
-                return [RuntimeEvent("command", scrub(cmd)[:300], {"cmd": scrub(cmd)[:500]})]
-            ruling = commands.classify(cmd, session_ref=s.ref, branch_prefix=s.branch_prefix)
-            if ruling.verdict == "allow":
-                confirm.append(
-                    {"type": "user.tool_confirmation", "tool_use_id": e["id"], "result": "allow"}
-                )
-                return [RuntimeEvent("command", scrub(cmd)[:300], {"cmd": scrub(cmd)[:500]})]
-            if ruling.verdict == "deny":
-                confirm.append(
-                    {"type": "user.tool_confirmation", "tool_use_id": e["id"], "result": "deny"}
-                )
-                return [
-                    RuntimeEvent(
-                        "error",
-                        f"دستور رد شد: {ruling.reason}"[:300],
-                        {"code": "command_refused", "cmd": scrub(cmd)[:500]},
-                    )
-                ]
+        if t in ("agent.tool_use", "agent.mcp_tool_use"):
+            return self._tool_use(s, e, confirm)
+        if t == "agent.tool_result":
+            return self._tool_result(e, uses or {})
+        if t == "agent.custom_tool_use":  # the hub carries out no custom tool
+            confirm.append({"type": "user.interrupt"})
             return [
                 RuntimeEvent(
-                    "approval_request",
-                    f"اجازه لازم است: {ruling.reason}"[:300],
-                    {"action": ruling.action, "detail": scrub(cmd)[:500]},
-                    state="waiting_approval",
-                    approval=ApprovalAsk(str(e["id"]), ruling.action, scrub(cmd)[:500]),
+                    "error",
+                    "ابزاری خارج از کارگاه خواسته شد؛ سشن متوقف شد",
+                    {"code": "runtime_permission"},
+                    state="failed",
                 )
             ]
         if t == "span.model_request_end":
@@ -433,6 +527,108 @@ class ManagedRuntime:
             msg = scrub(str((e.get("error") or {}).get("message") or e.get("message") or "error"))
             return [RuntimeEvent("error", msg[:300], {"code": "runtime_error"})]
         return []
+
+    def _tool_use(
+        self, s: SessionSpec, e: dict[str, Any], confirm: list[dict[str, Any]]
+    ) -> list[RuntimeEvent]:
+        """One tool call: answered by the grant and the rules, or asked of the owner."""
+        name = str(e.get("name") or "")
+        raw_input = e.get("input")
+        inp: dict[str, Any] = raw_input if isinstance(raw_input, dict) else {}
+        mcp = e.get("type") == "agent.mcp_tool_use"
+        granted = set(s.actions)
+        eid = str(e.get("id") or "")
+
+        def answer(result: str, why: str = "") -> None:
+            c: dict[str, Any] = {"type": "user.tool_confirmation", "tool_use_id": eid,
+                                 "result": result}  # fmt: skip
+            if result == "deny" and why:
+                c["deny_message"] = why[:300]
+            confirm.append(c)
+
+        if e.get("evaluated_permission") != "ask":
+            if e.get("evaluated_permission") == "deny" or (name in READ_TOOLS and not mcp):
+                return [RuntimeEvent("progress", f"ابزار {name}"[:300])]
+            # It ran without asking the hub: the agent's settings changed after
+            # the check. The session stops; nothing more runs unseen.
+            confirm.append({"type": "user.interrupt"})
+            return [
+                RuntimeEvent(
+                    "error",
+                    f"ابزار {name} بدون اجازه‌ی هاب اجرا شد؛ سشن متوقف شد"[:300],
+                    {"code": "runtime_permission"},
+                    state="failed",
+                )
+            ]
+        if mcp or name not in TOOLSET_TOOLS or name in ("web_fetch", "web_search"):
+            what = str(inp.get("url") or inp.get("query") or "")
+            label = (
+                f"mcp {e.get('server_name') or e.get('mcp_server_name') or ''}.{name}"
+                if mcp
+                else name
+            )
+            detail = scrub(f"{label} {what}".strip())[:500]
+            return [self._ask(eid, "command", f"اجازه لازم است: {label}", detail)]
+        if name in READ_TOOLS:
+            answer("allow")
+            return [RuntimeEvent("progress", f"ابزار {name}")]
+        if name in EDIT_TOOLS:
+            path = str(inp.get("file_path") or inp.get("path") or "")
+            if "edit" not in granted:
+                answer("deny", "this grant is read-only: no file is edited")
+                return [self._refused(f"ویرایش {path}: این مجوز فقط‌خواندنی است", "not_granted")]
+            answer("allow")
+            return [RuntimeEvent("file_change", f"تغییر {path}"[:300], {"path": path})]
+        cmd = str(inp.get("command") or "")
+        ruling = commands.classify(cmd, session_ref=s.ref, branch_prefix=s.branch_prefix)
+        missing = commands.needs(cmd) - granted
+        if ruling.verdict == "deny":
+            answer("deny", ruling.reason)
+            return [self._refused(f"دستور رد شد: {ruling.reason}", "command_refused", cmd)]
+        if missing:
+            names = "، ".join(ACTIONS_FA.get(a, a) for a in sorted(missing))
+            answer("deny", f"not in this grant: {', '.join(sorted(missing))}")
+            return [self._refused(f"این مجوز اجازه نمیدهد: {names}", "not_granted", cmd)]
+        if ruling.verdict == "allow":
+            answer("allow")
+            return [RuntimeEvent("progress", f"اجرا: {scrub(cmd)}"[:300])]
+        return [self._ask(eid, ruling.action, f"اجازه لازم است: {ruling.reason}", scrub(cmd)[:500])]
+
+    @staticmethod
+    def _ask(eid: str, action: str, summary: str, detail: str) -> RuntimeEvent:
+        return RuntimeEvent(
+            "approval_request",
+            summary[:300],
+            {"action": action, "detail": detail},
+            state="waiting_approval",
+            approval=ApprovalAsk(eid, action, detail),
+        )
+
+    @staticmethod
+    def _refused(summary: str, code: str, cmd: str | None = None) -> RuntimeEvent:
+        data: dict[str, Any] = {"code": code}
+        if cmd is not None:
+            data["cmd"] = scrub(cmd)[:500]
+        return RuntimeEvent("error", summary[:300], data)
+
+    @staticmethod
+    def _tool_result(e: dict[str, Any], uses: dict[str, dict[str, Any]]) -> list[RuntimeEvent]:
+        """A shell command that ran: its `command` event, with how long it took."""
+        use = uses.get(str(e.get("tool_use_id") or ""))
+        if use is None or str(use.get("name") or "") != "bash":
+            return []
+        raw_input = use.get("input")
+        cmd = scrub(str((raw_input if isinstance(raw_input, dict) else {}).get("command") or ""))
+        began, ended = _at(use.get("processed_at")), _at(e.get("processed_at"))
+        data: dict[str, Any] = {
+            "cmd": cmd[:500],
+            "exit_code": e["exit_code"]
+            if isinstance(e.get("exit_code"), int)
+            else (1 if e.get("is_error") else 0),
+        }
+        if began and ended and ended >= began:
+            data["duration_s"] = round((ended - began).total_seconds(), 3)
+        return [RuntimeEvent("command", cmd[:300], data)]
 
     async def transcript(self, s: SessionSpec) -> bytes:
         if not s.external_id:
