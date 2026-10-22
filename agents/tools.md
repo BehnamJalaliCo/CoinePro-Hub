@@ -11,7 +11,7 @@ Classes (OPERATING_MODEL §1.12): **A0** observe · **A1** propose/draft · **A2
 | `health.sites` | A0 | `{company?, since?}` | Latest results of the rule-based site checks (status, latency, TLS days left, consecutive failures) and open incidents. |
 | `health.hub` | A0 | `{}` | The hub's own state: services up/down and restarts, disk, memory, certificate days left, last backup age and restore-test result. |
 | `treasury.usage` | A0 | `{scope, period}` | Tokens and equivalent cost by company/department/role/model, budget use %, anomalies. |
-| `knowledge.search` | A0 | `{q, kinds?}` | Search what the role may read. `kinds`: `resolutions`, `deliverables`, `decisions`, `work`; `messages` for the advisor only. ⟨1.5⟩ `knowledge`: approved, unexpired entries of the four layers and the support articles (prompt 11). Returns refs + short snippets. |
+| `knowledge.search` | A0 | `{q, kinds?}` | Search what the role may read. `kinds`: `resolutions`, `deliverables`, `decisions`, `work`; `messages` for the advisor only. ⟨1.5⟩ `knowledge`: approved, unexpired entries of the four layers and the support articles (prompt 11); `docs` and `code`: the hub's documents and the workspaces' repositories (advisor, overseer, librarian; a CTO only its own company's repositories); `notes`: the owner's quick notes (advisor only) (prompt 12). Returns refs + short snippets. |
 | `audit.recent` | A0 | `{company?, action?, since?}` | Recent audit rows (metadata only). Oversight roles and the advisor. |
 | `memory.read` | A0 | `{}` | The employee's own memory notes (latest first). |
 | `github.read` | A0 | `{repo, what: "commits"/"issues"/"pulls"/"file", path?}` | Read-only GitHub through the hub's own git access (owner decision 2026-10-17: no separate token; prompt 12). Until then, and for a repository the hub cannot read, `channel_not_configured`. |
@@ -129,6 +129,14 @@ No tool sends free text to a customer. Templates and lifecycle rules are propose
 | `governance.read` | A0 | `{what: "cards"/"okr"/"risks"/"charter"/"outcomes", company?}` | The company's cards, OKRs, risks, sealed charter and outcome reviews. |
 
 There is no tool that writes the charter or the authority matrix: agents propose (`charter_amendment`, `authority_change`) and the owner seals.
+
+### Management tools (v1.5, prompt 12; contract §21)
+| Tool | Class | Input | What it does |
+|---|---|---|---|
+| `memo.write` | A1 | `{decision, decision_version, mode, summary_fa, recommendation, confidence, options, against_md, risks, questions, citations}` | The advisor's decision memo on a pending card; `against_md` (the strongest case against) is never empty. |
+| `ask.answer` | A1 | `{ask, answer_md, citations}` | The librarian's answer to "ask the hub", only from the passages the search returned; a citation outside them is dropped. |
+| `claim.verdict` | A2 | `{deliverable, claim_md, verdict, evidence}` | A fact check of one claim in a deliverable (fact checker, overseer, QC); `refuted` needs evidence. |
+| `substitute.call` | A0 | `{seat, player?, input_md, file_ids?, repo?, head_sha?, kind?: "text"/"image"/"video", placement?, overlay?, duration_s?}` | Call a substitute player (ChatGPT or Gemini on the owner's subscriptions, contract §21.13) for one bounded task: the advisor, the overseer, the assistant and CEOs; `code_review` also the CTO and QC. Masked input only (no customer data or secrets; repository code only for `code_review`, as a read-only checkout); the answer is labelled with its source and is never evidence. Image and video return a creative `CR-…` (with its `placement`, e.g. `telegram_post`, `instagram_story`; Persian text goes in `overlay` and is set by the hub) that waits for review. Refusals: `channel_not_configured` (signed out or off), `rate_limited` (the seat's daily cap or the player's quota), `policy_denied`. |
 
 ### Which role has what (v2)
 Role charters list their tools in frontmatter; the gateway enforces them. In short: the **overseer** has every read tool, the web,
