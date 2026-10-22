@@ -1,7 +1,7 @@
 """The overseer's support and revenue protocols (prompt 10 §11; contract
 §19.9; agents/protocols/oversight.yaml). All are seeded from the file as it
 is, PAUSED (each until its feature is live, ⟨1.4.4⟩): PR-043, PR-101,
-PR-102, PR-103. What runs when the owner switches one on:
+PR-102, PR-103, PR-104. What runs when the owner switches one on:
 
   PR-043  mystery customer (method mystery, weekly): before the overseer is
           woken, GATES decides: the holding locked -> `skipped` (no model, no
@@ -18,6 +18,10 @@ PR-102, PR-103. What runs when the owner switches one on:
   PR-103  revenue figures match the raw pages (reconcile, daily): r10a's
           domain/revenue_checks.py recomputes the last settled days from their
           stored per-page figures and hashes (imported here so it registers)
+  PR-104  no expired article in the answers (rule, daily): every automatic
+          message of the last day that cites an article version which, at the
+          time it was sent, was not approved, had expired or was retired (or
+          does not exist in the company) is a finding; by code, no model
 Registered on import (worker/oversight_activities.py imports this module).
 """
 
@@ -122,3 +126,42 @@ async def no_wrong_codes_or_links(ctx: C.CheckCtx) -> C.Checked:
                 )
             )
     return C.Checked(problems, C._ops(ctx), data={"checked": checked}, unclear=unclear)
+
+
+@C.check("PR-104")
+async def no_expired_article_in_answers(ctx: C.CheckCtx) -> C.Checked:
+    problems: list[C.Problem] = []
+    for code, company_id in C._ops(ctx).items():
+        rows = await ctx.tx.all(
+            """SELECT m.id, c.ref AS conversation, k.r AS kb_ref, a.status, a.expires_at
+               FROM support.messages m
+               JOIN support.conversations c ON c.id = m.conversation_id
+               CROSS JOIN LATERAL unnest(m.kb_refs) AS k(r)
+               LEFT JOIN support.kb_articles a
+                      ON a.company_id = m.company_id AND a.ref || '@' || a.version = k.r
+               WHERE m.company_id = :co AND m.direction = 'out' AND m.status = 'sent'
+                 AND m.author IN ('agent', 'rule') AND NOT c.mystery
+                 AND m.at > now() - interval '1 day'
+                 AND (a.id IS NULL OR a.approved_at IS NULL OR a.approved_at > m.at
+                      OR a.expires_at <= m.at OR (a.retired_at IS NOT NULL AND a.retired_at <= m.at))
+               ORDER BY m.at LIMIT 500""",
+            co=company_id,
+        )
+        for r in rows:
+            problems.append(
+                C.Problem(
+                    company_id=company_id,
+                    company=code,
+                    title_fa=f"پاسخ خودکار {r['conversation']} به مقاله‌ی نامعتبر {r['kb_ref']} استناد کرد",
+                    body_md=(
+                        f"Message {r['id']} cites {r['kb_ref']}, which was not an approved, "
+                        f"unexpired article when it was sent (now: {r['status'] or 'unknown'})."
+                    ),
+                    key=f"kb:{r['id']}:{r['kb_ref']}",
+                    evidence=[
+                        {"kind": "support_message", "ref": str(r["id"])},
+                        {"kind": "kb_article", "ref": r["kb_ref"]},
+                    ],
+                )
+            )
+    return C.Checked(problems, C._ops(ctx), data={"messages": len(problems)})

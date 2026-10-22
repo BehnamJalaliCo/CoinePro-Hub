@@ -1265,7 +1265,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - تنگ‌تر کردن بی‌step-up است. توقف (`/pause`) فوری و بی‌step-up است.
   - کانالی که هرگز go-live نگرفته `409 shadow_not_passed` میگیرد.
 - **سقف توکن پیش‌نویس** (`SUPPORT_DRAFT_DAILY_TOKENS`): llm-router در scope `support_draft:<CO>` اجرایش میکند. این همان شمارنده‌ی روزانه‌ی نقش `<CO>:support_agent` است و تمام که شد `429 budget_exhausted` میدهد. api پیش از بیدار کردن ایجنت همان شمارنده را میخواند و بی‌مدل handoff میکند (`support.settings.draft_daily_tokens` برای یک شرکت عدد دیگری میگذارد).
-- **ناظر:** `support.mystery` (فقط ناظر) گفت‌وگویی روی کانال `mystery` میسازد که کل مسیر را میرود، هرگز به تلگرام یا Chatwoot نمیرسد و در هیچ آماری نیست. PR-043 بی‌کانال `live` نتیجه‌ی `deferred` و با قفل هلدینگ `skipped` میدهد. PR-043، PR-101، PR-102 و PR-103 همه `paused` seed شده‌اند. روشن کردنشان با مالک است.
+- **ناظر:** `support.mystery` (فقط ناظر) گفت‌وگویی روی کانال `mystery` میسازد که کل مسیر را میرود، هرگز به تلگرام یا Chatwoot نمیرسد و در هیچ آماری نیست. PR-043 بی‌کانال `live` نتیجه‌ی `deferred` و با قفل هلدینگ `skipped` میدهد. PR-043 و PR-101 تا PR-104 همه `paused` seed شده‌اند. روشن کردنشان با مالک است. PR-101 (کد یا لینک تأییدنشده در پاسخ خودکار)، PR-103 (تطبیق رادار) و PR-104 (پاسخ خودکاری که به مقاله‌ی منقضی، بازنشسته یا تأییدنشده استناد کرده) با کد سنجیده میشوند، بی‌مدل.
 
 ### ۲۸.۳ چرخه‌ی عمر، NPS، CSAT (پرامپت ۱۰ §۷، قرارداد §۱۹.۵)
 - **قالب:** `POST /growth/templates` (پیشنهاد) و `POST /growth/templates/{ref}/seal` (step-up `growth.template`، هدف `ref@version:sha256` بدنه؛ توکن مُهر قالب یک شرکت برای قالب هم‌متن شرکت دیگر به کار نمیرود چون ref فرق دارد).

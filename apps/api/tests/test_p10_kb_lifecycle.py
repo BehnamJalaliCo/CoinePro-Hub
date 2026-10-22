@@ -686,10 +686,10 @@ async def test_the_support_protocols_are_seeded_paused_and_pr043_defers_without_
         r["ref"]: r["status"]
         for r in await su.fetch(
             "SELECT ref, status FROM oversight.current_protocols WHERE ref = ANY($1::text[])",
-            ["PR-043", "PR-101", "PR-102", "PR-103"],
+            ["PR-043", "PR-101", "PR-102", "PR-103", "PR-104"],
         )
     }
-    assert rows == {"PR-043": "paused", "PR-101": "paused", "PR-102": "paused", "PR-103": "paused"}
+    assert rows == dict.fromkeys(("PR-043", "PR-101", "PR-102", "PR-103", "PR-104"), "paused")
     live = await su.fetchval(
         "SELECT count(*) FROM support.channels WHERE state = 'live' AND kind <> 'mystery'"
     )
@@ -702,6 +702,36 @@ async def test_the_support_protocols_are_seeded_paused_and_pr043_defers_without_
     else:
         assert verdict is None
     assert "PR-101" in C.CHECKS and "PR-103" in C.CHECKS and "PR-102" in C.PRECHECKS
+    assert "PR-104" in C.CHECKS
+
+
+async def test_pr104_finds_an_answer_that_cites_an_expired_article(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """PR-104 by code: an automatic answer citing an article version that had
+    expired when it was sent is a finding; a current one is not."""
+    co = await new_company()
+    good = await article(hub, co["id"], "ساعت کاری پشتیبانی؟", "هر روز ۹ تا ۱۸.")
+    old = await article(hub, co["id"], "کارمزد برداشت؟", "طبق جدول کارمزد.")
+    await su.execute(
+        "UPDATE support.kb_articles SET expires_at = now() - interval '1 hour' WHERE id = $1",
+        old["id"],
+    )
+    msg = await inbound(hub, co["id"], "سلام")
+    for ref in (f"{good['ref']}@{good['version']}", f"{old['ref']}@{old['version']}"):
+        await su.execute(
+            """INSERT INTO support.messages (company_id, conversation_id, direction, author, body, status,
+                   sent_at, kb_refs)
+               VALUES ($1, $2, 'out', 'rule', 'پاسخ', 'sent', now(), ARRAY[$3])""",
+            co["id"], msg["conversation"]["id"], ref,
+        )  # fmt: skip
+    holding = await hub.companies.holding()
+    companies = {c.code: c.id for c in await hub.companies.all() if c.status == "active"}
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        ctx = C.CheckCtx(tx, holding.id, holding.code, companies, datetime.now(UTC), {})
+        checked = await C.CHECKS["PR-104"](ctx)
+    mine = [p for p in checked.problems if p.company == co["code"]]
+    assert len(mine) == 1 and mine[0].key.endswith(f"{old['ref']}@{old['version']}")
 
 
 async def test_pr101_finds_an_automatic_message_with_an_unapproved_link(
