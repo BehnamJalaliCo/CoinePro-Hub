@@ -19,6 +19,7 @@ switches its own on.
 | `p11` | + ai_safety, aiops_head, cto, inspector, security_analyst, sre | secretary | governance (§20.11); `knowledge.search` kind `knowledge`; `propose.expected` |
 | `p12` | advisor v6, assistant v2, ceo, cto v4, fact_checker, inspector, overseer | librarian | `memo.write`, `ask.answer`, `claim.verdict`, `substitute.call` (§21.13); `knowledge.search` kinds `docs`, `code`, `notes` |
 | `p13` | manager v6, ceo v7 (roles written on demand) | media_director (MEDIA head), scriptwriter, video_director, motion_designer, voice_producer, visual_designer, ui_designer, legal_counsel (holding, LEGAL) | media studio and legal (§22): `media.item`, `media.render`, `media.voice`, `media.review`, `series.propose`, `case.open`, `case.note`, `email.draft`, `mail.read`, `role.draft`, `role.decide` |
+| `p14` | legal_counsel v2 (archive search, filing, links, legal holds) | archivist (system, holding) | the archive (§23.11): `archive.search`, `archive.read`, `archive.file`, `archive.link`, `archive.hold`; `knowledge.search` kind `records` |
 
 `hiring/` holds 23 employee charters for the standard departments, written from the review of the owner's Agency-Agents repository
 (`docs/reviews/AGENCY_AGENTS_REVIEW.md`); they go live with a server prompt once reviewed, evaluated and sealed.

@@ -9,6 +9,8 @@
 >
 > **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.4.7 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۸ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۵)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_08_1_FIXES.md`. **v1.4.8 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۹ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_09_2_FIXES.md`. **v1.6 (۲۰۲۶-۱۰-۲۲):** دپارتمان رسانه و طراحی در هر شرکت با برنامه‌ی انتشار مُهرشده، صدای متن‌باز روی هاب، و مشاور حقوقی هلدینگ با مکاتبه‌ی ایمیلی (§۲۲، پرامپت ۱۳). **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
 
+> **v1.7 (۲۰۲۶-۱۰-۲۲):** بایگانی رسمی هلدینگ و هر شرکت (§۲۳، پرامپت ۱۴): سند، نسخه و مُهر، طرح بایگانی، سطح محرمانگی و مجوز دیدن، نگهداری و امحا با مُهر مالک، توقیف قانونی، یادآور سررسید، OCR فارسی روی هاب؛ «لایه‌ی باز»: نوع سند، فیلد، پوشه، سطح، قاعده، یادآور و اتوماسیون، همه داده و از اپ قابل گسترش.
+
 ---
 
 ## 0. Scope
@@ -2303,3 +2305,170 @@ RoleDraft { id, ref: "RD-0001", company, department, role (snake_case, unique in
 - **`Thread.kind`** gains `legal` (code `L`).
 - **Error codes:** `series_not_sealed` (409, an item asked to auto-publish outside a sealed series), `platform_limit` (429 with
   `Retry-After`, the platform's own publishing limit).
+
+## 23. v1.7 — the archive (prompt 14)
+
+> **v1.7 (2026-10-22).** The owner's decision: the holding and every company get an **archive of record** («بایگانی»), "فوق تخصصی و لایه‌باز":
+> what the hub needs today is built in properly, and **everything that describes the archive is data the owner can extend from the app**
+> (classes of record, their fields, the file plan, levels, retention, reminders, parties, link kinds, automations) without a deploy.
+> Everything above still holds. Rules first, models last: filing, OCR, search, retention, reminders and integrity are code; a model only
+> *suggests* a class and metadata, and a person confirms.
+
+### 23.0 Principles ⟨1.7⟩
+- **A record is evidence.** It is filed once, versioned, and, once sealed, never changed: a correction is a new version that supersedes.
+  Every file carries its SHA-256; a daily fixity job re-hashes what is stored.
+- **The schema is data (the open layer).** Classes, fields, folders, levels, retention and reminder rules, party kinds, link kinds,
+  automations and system sources are versioned rows. The owner changes them in the app with step-up; an agent may only propose a change
+  (`archive_schema` card). What needs code is only the **closed vocabulary** they are built from: field types (§23.2), automation events
+  and actions (§23.7), and system sources (§23.8). Adding to those lists is a prompt; using them is not.
+- **Clearance decides who sees what.** Every record has a level; every reader has a clearance per scope. Metadata of a record above a
+  reader's clearance is never returned, not even its title; search counts never leak it. Secret material is encrypted at rest and every
+  view is logged.
+- **No secret ever enters the archive.** Passwords, private keys, seed phrases, API keys and 2FA codes are refused at upload by the same
+  patterns as gitleaks and the outbound guard (§19.6). Customer personal data stays in the support desk (§19.3), never in the archive.
+- **Nothing is deleted except by the owner's seal at the end of retention** (rule 3 of §0 has this one exception): a `archive_disposal`
+  card lists the records; sealed by the owner, their files are destroyed and a tombstone stays (ref, class, title, dates, hashes, the
+  decision). A record under a legal hold can never be disposed.
+- **Scopes are data:** the holding (`HQ`) and every company; no fixed number of companies.
+
+### 23.1 Records, versions, files ⟨1.7⟩
+```
+Record   { id, ref: "AR-000123", scope: "HQ"|<company code>, class: "contract", class_version, title_fa,
+           folder: "FP-…"|null, level: <level key>, state: "draft"|"filed"|"sealed"|"superseded"|"disposed",
+           metadata: {<field key>: value},                       // validated against the class version's fields (§23.2)
+           parties: [{party: "PT-…", role_fa}], links: [{kind: <link kind>, to: {kind, ref}}],
+           holds: ["LH-…"], retention: {rule: "RR-…", trigger_at|null, review_at|null, disposable: bool},
+           reminders: [{field, at, lead_days, state: "pending"|"sent"|"done"}],
+           current_version, versions: [RecordVersion], source: {kind: "owner"|"agent"|"system", ref|null},
+           created_by: Actor, created_at, filed_at|null, sealed_at|null, version }      // `version` is the row version for If-Match
+RecordVersion { n, files: [{file_id, name, mime, size_bytes, sha256, pages|null, text_state: "none"|"text_layer"|"ocr"|"failed",
+                ocr_confidence|null}], manifest_sha256,                   // SHA-256 of the sorted "sha256  name" lines
+                note_fa|null, created_by, created_at, sealed: bool }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/archive/records` | `?scope&class&folder&level&state&party&q&from&to&expiring_within_days&held&cursor` — only what the reader's clearance allows |
+| GET | `/archive/records/{ref}` | the record with its versions, links, holds and reminders |
+| POST | `/archive/records` | `{scope, class, title_fa, metadata, level?, folder?, file_ids, parties?, links?, file: bool}` · `Idempotency-Key` (required). The owner may file at once (`file: true` → `filed`); an agent's call makes a `draft` |
+| PATCH | `/archive/records/{ref}` | `If-Match` · `title_fa`, `metadata`, `folder`, `parties`, `level` (raise only; lowering is §23.4). A sealed record answers `409 sealed_record` |
+| POST | `/archive/records/{ref}/versions` | `{file_ids, note_fa}` → a new version; on a sealed record the old one becomes `superseded`, the record goes back to `filed` |
+| POST | `/archive/records/{ref}/seal` 🔏 | target = the current version's `manifest_sha256` |
+| POST · DELETE | `/archive/records/{ref}/links` | add or remove one link (not on a sealed version's links) |
+| GET | `/archive/records/{ref}/files/{file_id}` | the file; levels with `watermark` are served watermarked (viewer, time, ref); levels with `step_up_to_view` need 🔏 `archive.view` (target = ref). Every call is an access-log row |
+| GET | `/archive/records/{ref}/access` | owner only · who viewed or downloaded what, when |
+| POST | `/archive/import` | owner · `{scope, file_ids, class?}` → one `draft` per file for the archivist to classify |
+
+### 23.2 Classes and fields (the open layer) ⟨1.7⟩
+```
+RecordClass { key, title_fa, parent: key|null, scopes: "all"|[scope], icon, default_level, default_folder: "FP-…"|null,
+              fields: [Field], required_files: int, allowed_mime: [mime], ocr: bool, retention: "RR-…"|null,
+              reminder_fields: [field key], auto_link: [{field, link_kind}], version, status: "active"|"retired" }
+Field       { key, title_fa, type, required: bool, searchable: bool, sensitive: bool,        // sensitive → masked below `confidential`
+              options?: [{key, title_fa}],                                                    // enum, multi_enum
+              ref_kinds?: [kind], currency?: "USD"|"USDT"|"EUR"|"IRR"|…, help_fa?, status: "active"|"retired" }
+```
+- **Field types (closed vocabulary, v1):** `text`, `long_text`, `number`, `money` (decimal string + currency), `percent`, `date`
+  (stored ISO, shown Jalali), `date_range`, `enum`, `multi_enum`, `boolean`, `party`, `company`, `ref` (`decision`, `resolution`, `case`,
+  `work`, `record`, `employee`, `revenue_account`), `url` (http/https), `email`, `phone`, `id_code` (masked to the last 4), `iban`
+  (masked to the last 4).
+- **Changing a class** makes a new class version. Records keep the version they were filed under; the app shows how many records would
+  miss a new required field before the seal, and the archivist gets one work item to fill them. **A field is never deleted**, only
+  `retired`: its values stay on old records and in search.
+- **Seed classes** (the owner edits or retires any of them): `company_registration` (ثبت شرکت), `contract` (قرارداد), `affiliate_agreement`
+  (توافق افیلیت), `license` (مجوز), `invoice` (فاکتور و رسید), `domain` (دامنه), `legal_correspondence` (مکاتبه‌ی حقوقی), `sealed_policy`
+  (اساسنامه و سیاست مُهرشده), `brand_asset` (نشان و مُهر), `resolution_bundle` (مصوبه‌های ماه), `other` (سایر). Their fields and defaults
+  are in `infra/seed/archive/*.yaml` on the server, not in code.
+
+### 23.3 File plan, parties, link kinds ⟨1.7⟩
+```
+FolderNode { ref: "FP-…", scope, parent: "FP-…"|null, title_fa, classes: [class key], default_level|null, order, status }
+Party      { ref: "PT-…", kind: <party kind>, name_fa, name_en|null, identifiers: {<key>: value}, scopes: [scope], status }
+PartyKind  { key, title_fa, identifier_fields: [Field] }               // seeds: exchange, provider, government, bank, person, other
+LinkKind   { key, title_fa, inverse_fa, to_kinds: [kind] }             // seeds: supersedes, amends, renews, evidence_for, attached_to, about
+```
+
+### 23.4 Levels and clearance ⟨1.7⟩
+```
+Level     { key, title_fa, rank: int, color_index, watermark: bool, encrypt: bool, step_up_to_view: bool, agents_max: bool }
+Clearance { subject: {kind: "role"|"employee", ref}, scope: <scope>|"all", level: <level key> }
+```
+- **Seeds:** `public` (عمومی, 0), `internal` (داخلی, 1, default), `confidential` (محرمانه, 2, watermark), `secret` (سرّی, 3, watermark,
+  encrypt, step-up to view, never above `agents_max`). The owner may add levels between them; a level's rank never changes once used.
+- **Clearance seeds:** every agent role `internal` in its own company's scope; the legal counsel `confidential` in `all`; the archivist
+  `confidential` for content and every level for **metadata it files**; the owner everything. The owner changes clearance with 🔏
+  `archive.clearance` (body hash).
+- **Lowering a record's level** (declassification) is the owner's alone: 🔏 `archive.declassify`, target `ref@version:level`.
+- `secret` files are encrypted with the OpenBao transit key `archive-secret` before they reach the file store; the key never leaves OpenBao.
+
+### 23.5 Retention, disposal, legal holds ⟨1.7⟩
+```
+RetentionRule { ref: "RR-…", title_fa, trigger: "filed"|"field:<key>"|"case_closed"|"superseded", keep: {years?, months?}|"permanent",
+                then: "review"|"dispose_card", version, status }
+LegalHold     { ref: "LH-…", title_fa, case: "LC-…"|null, reason_md, scope: {records?, folders?, classes?, parties?, from?, to?},
+                state: "active"|"released", placed_by: Actor, placed_at, released_at|null }
+```
+- When a record's retention ends, `then: review` makes one work item for the archivist; `dispose_card` makes (weekly, batched) one
+  `archive_disposal` card for the owner listing the records. Nothing is destroyed without that card's seal. A held record is skipped.
+- **Seed rules** (defaults the owner edits; not legal advice): contracts and agreements 7 years after `field:end`; invoices 7 years
+  after `field:date`; licenses and domains 2 years after `field:expires_at`; legal correspondence 10 years after `case_closed`; registration,
+  sealed policy, brand and resolutions `permanent`; other `review` after 3 years.
+- **Holds:** the legal counsel places one with `archive.hold` (A2, with its case); the owner too. Releasing is the owner's: 🔏
+  `archive.hold.release` (target = ref). A held record answers `423 held` to any change except a new version.
+
+### 23.6 Reminders ⟨1.7⟩
+```
+ReminderRule { ref: "RM-…", class, field, lead_days: [int], to: "owner"|{role}|{company_ceo: true}, channel: "cartable"|"digest",
+               version, status }
+```
+- Seeds: contract `end` 60/30/7 days, license and domain `expires_at` 90/30/7, affiliate agreement `review_at` 30/7. A due reminder is a
+  cartable reminder (§21.8) or a digest line; marking the underlying action done closes it.
+
+### 23.7 Automations (the open layer, closed vocabulary) ⟨1.7⟩
+```
+Automation { ref: "AU-…", title_fa, on: "filed"|"sealed"|"reminder_due"|"retention_due"|"hold_set"|"version_added",
+             when: {class?, scope?, level_min?, field?: {key, op: "eq"|"lt"|"gt"|"contains", value}},
+             do: [{action: "notify"|"work_item"|"link"|"move_to_folder"|"raise_level"|"add_reminder", args}], version, status }
+```
+- Rules only, never a model. A new automation is the owner's (🔏 `archive.schema`). `work_item` names a role, never a person outside the
+  hub; `notify` follows §6 (never `urgent` except the fixity alarm).
+
+### 23.8 System sources: what the hub files by itself ⟨1.7⟩
+`GET · PUT /archive/sources` (owner) switches each on or off: `charter_sealed` (§20.2, every sealed version), `resolution_month`
+(the month's sealed resolutions as one PDF), `brand_sealed` (§18.14), `founding_registration` (§18.8, the sealed proposal), `legal_email`
+(§22.4, every sent email and its case), `case_closed`, `server_plan_sealed` (§18.8), `backup_restore_test` (§18.9, the monthly result).
+Each lands as a `filed` record of its seed class with `source.kind: "system"`.
+
+### 23.9 Search, OCR, "ask the hub" ⟨1.7⟩
+- **Text:** a PDF's own text layer first; scanned PDFs and images go to **OCR on the hub** (Tesseract 5, `fas` + `eng`, Apache-2.0; pinned
+  traineddata with SHA-256; a sandboxed service with no network), then the deterministic Persian normaliser (`hq_common.persian`).
+- **Search:** Persian-normalised full text over title, searchable fields and file text, plus metadata filters; `GET /archive/search`
+  `?q&scope&class&level&from&to&cursor` → `{items: [{ref, title_fa, class, snippet_fa, score}], next_cursor}`, clearance-filtered before
+  ranking.
+- **Ask the hub** (§21.2) includes records within the asker's clearance; `knowledge.search` gains kind `records` for agents, within theirs.
+- **Suggestions:** rules first (dates, amounts, IBAN/ID patterns, known parties from the registry); while the kill switch is released, the
+  archivist may also suggest a class and metadata. A suggestion is never filed by itself.
+
+### 23.10 Schema API (the open layer) ⟨1.7⟩
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/archive/schema` | everything that describes the archive: classes, field types (closed list), folders, levels, clearance, retention, reminders, parties and kinds, link kinds, automations, sources |
+| PUT | `/archive/schema/{part}/{key}` 🔏 | owner · `part` ∈ `classes`, `folders`, `levels`, `clearance`, `retention`, `reminders`, `party_kinds`, `link_kinds`, `automations` · `If-Match` · target `archive.schema` (body hash). Validates against the closed vocabulary (`422 schema_invalid` with `fields`); answers the new version and `impact: {records, missing_required}` |
+| POST | `/archive/schema/{part}/{key}/retire` 🔏 | the same target; nothing that uses it is deleted |
+| GET · POST | `/archive/parties` | the parties registry; `PATCH /archive/parties/{ref}` with `If-Match` |
+| GET · POST | `/archive/holds` | `POST /archive/holds/{ref}/release` 🔏 |
+| GET | `/archive/reminders` · `/archive/retention/due` · `/archive/fixity` | due reminders; records whose retention ended; the last fixity run `{at, checked, failed: [ref]}` |
+
+### 23.11 Kinds, tools, stream, step-up, codes ⟨1.7⟩
+- **Decision kinds:** `archive_schema` (an agent's proposed schema change; payload = the exact `PUT` body), `archive_disposal` (payload
+  `{records: [{ref, class, title_fa, retention_rule, trigger_at}]}`), both sealed with step-up (§5.1).
+- **Step-up targets:** `archive.seal` (manifest sha256), `archive.view` (ref), `archive.declassify` (`ref@version:level`), `archive.schema`
+  (body hash), `archive.clearance` (body hash), `archive.hold.release` (ref).
+- **Agent tools:** `archive.search` (A0) and `archive.read` (A0; metadata and text within clearance), `archive.file` (A1; a `draft` from
+  file ids with a proposed class and metadata), `archive.link` (A1), `archive.hold` (A2; the legal counsel, with a case).
+- **Roles:** the **archivist** (`HQ-ARC`, «بایگان», a system role of the holding): classifies drafts, completes metadata, links, reports gaps
+  weekly; never seals, declassifies, releases a hold or disposes.
+- **Stream topic** `archive`: `record.filed`, `record.updated`, `record.sealed`, `reminder.due`, `hold.changed`, `fixity.failed`,
+  `schema.changed`.
+- **Codes (§14):** `clearance` (403, the record is above the reader's clearance; returned only where the reader already knows the ref),
+  `sealed_record` (409), `schema_invalid` (422 with `fields`), `secret_in_document` (422, a secret pattern was found; the file is not
+  stored), `held` (423, §18.15). A fixity failure is a data-loss alarm (`urgent`, category data loss), not a Problem code.
