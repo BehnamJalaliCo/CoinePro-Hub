@@ -83,7 +83,9 @@
           "finding.update",
           "oversight.finding_update",
           "hold",
-          "oversight.hold"
+          "oversight.hold",
+          "support.draft",
+          "support.handoff"
         ],
         "assistant": [
           "errand.step",
@@ -118,7 +120,8 @@
           "kill_switch.engage",
           "kill_switch.set",
           "deploy.freeze",
-          "deploy_freeze.set"
+          "deploy_freeze.set",
+          "support.mystery"
         ]
       }
     }

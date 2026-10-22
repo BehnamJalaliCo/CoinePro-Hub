@@ -45,6 +45,7 @@ from hq_gateway import (
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
     oversight,  # noqa: F401 - registers the overseer's tools (prompt 08)
     people,  # noqa: F401 - registers stars, lessons, stories, hire.decide
+    support,  # noqa: F401 - kb.*, support.draft/handoff/mystery (prompt 10)
     web,  # registers the internet tools (web.*, http.request)
 )
 from hq_gateway import mcp as M
