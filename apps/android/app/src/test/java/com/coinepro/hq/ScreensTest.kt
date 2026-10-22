@@ -71,7 +71,7 @@ import org.robolectric.Shadows.shadowOf
 abstract class ScreensTest(private val name: String, private val night: Boolean) {
 
     companion object {
-        const val SHARDS = 3
+        const val SHARDS = 4
 
         /** The screens of shard [i], night and day, in the order they are listed. */
         fun shard(i: Int): List<Array<Any>> =
@@ -116,7 +116,7 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "tools" to { _ -> ToolsScreen() },
             // ⟨1.4.2⟩ the owner's own hire, filled in (the sheet's content)
             // ⟨1.4.3⟩ a hire story (welcome / dismiss) and a CEO's milestone
-            "story-hire" to { _ -> StoryPreview("FX") },
+            "story-hire" to { _ -> StoryPreview("FX", "hire") },
             "story-stars" to { _ -> StoryPreview("TY") },
             "hire" to { _ -> HireForm(onDone = {}, modifier = Modifier.verticalScroll(rememberScrollState()), company0 = "TY", department0 = "TECH", role0 = "sre") },
             // ⟨1.4.4⟩ the owner's tools on existing APIs
@@ -211,7 +211,53 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "connection-wizard" to { _ -> Sheetlike { com.coinepro.hq.ui.tools.ConnectionWizard(onClose = {}) } },
             "runs-health" to { _ -> Cardlike { com.coinepro.hq.ui.owner.ClaimsCard(); com.coinepro.hq.ui.owner.HealthBoard() } },
             "settings-management" to { g -> SettingsScreen(g) },
+            // ⟨1.6⟩ media and legal (§22): the studio (its pipeline board further down), an item published, one waiting for the
+            // owner's seal, one held by the overseer and a design, a one-off item; the publishing series (the channels' week and
+            // limits further down) and one series in the editor; the hub's voice (the registry further down); legal counsel, a case
+            // with an email to seal, a closed case and a new case; the four cards in the cartable; a department's mandate and its
+            // editor, roles its manager wrote (active and rejected), the people tab with roles on demand, a role's story; thread L.
+            "studio" to { _ -> com.coinepro.hq.ui.studio.StudioScreen() },
+            "studio-board" to { _ -> com.coinepro.hq.ui.studio.StudioScreen() },
+            "studio-item" to { _ -> Sheetlike { com.coinepro.hq.ui.studio.ItemView("MI-0014") } },
+            "studio-item-waiting" to { _ -> Sheetlike { com.coinepro.hq.ui.studio.ItemView("MI-0013") } },
+            "studio-item-held" to { _ -> Sheetlike { com.coinepro.hq.ui.studio.ItemView("MI-0012") } },
+            "studio-item-design" to { _ -> Sheetlike { com.coinepro.hq.ui.studio.ItemView("MI-0024") } },
+            "studio-new" to { _ -> Sheetlike { com.coinepro.hq.ui.studio.NewItem {} } },
+            "series" to { _ -> com.coinepro.hq.ui.studio.SeriesScreen() },
+            "series-week" to { _ -> com.coinepro.hq.ui.studio.SeriesScreen() },
+            "series-editor" to { _ -> Sheetlike { WithSeries("SR-0001") { com.coinepro.hq.ui.studio.SeriesEditor(it) {} } } },
+            "voice" to { _ -> com.coinepro.hq.ui.studio.VoiceScreen() },
+            "voice-registry" to { _ -> com.coinepro.hq.ui.studio.VoiceScreen() },
+            "legal" to { _ -> com.coinepro.hq.ui.legal.LegalScreen() },
+            "legal-case" to { _ -> com.coinepro.hq.ui.legal.CaseScreen("LC-0001") },
+            "legal-case-resolved" to { _ -> com.coinepro.hq.ui.legal.CaseScreen("LC-0003") },
+            "legal-new" to { _ -> Sheetlike { com.coinepro.hq.ui.legal.NewCase {} } },
+            "decision-media-publish" to { _ -> DecisionScreen("D-000087") },
+            "decision-email" to { _ -> DecisionScreen("D-000085") },
+            "decision-series" to { _ -> DecisionScreen("D-000081") },
+            "decision-role" to { _ -> DecisionScreen("D-000084") },
+            "department" to { _ -> Sheetlike { com.coinepro.hq.ui.org.DepartmentView("FX", "MEDIA") {} } },
+            "mandate-editor" to { _ -> Sheetlike { WithDepartment("FX", "MEDIA") { com.coinepro.hq.ui.org.MandateEditor("FX", it) {} } } },
+            "role-draft" to { _ -> Sheetlike { com.coinepro.hq.ui.org.RoleDraftView("RD-0001") } },
+            "role-draft-rejected" to { _ -> Sheetlike { com.coinepro.hq.ui.org.RoleDraftView("RD-0003") } },
+            "company-roles" to { _ -> CompanyScreen("FX", tab0 = "people") },
+            "story-role" to { _ -> StoryPreview("FX", "role") },
+            "chat-legal" to { _ -> ChatScreen("L") },
         )
+
+        /** A publishing series as the demo serves it. */
+        @Composable
+        private fun WithSeries(ref: String, content: @Composable (com.coinepro.hq.core.net.Series) -> Unit) {
+            val q = com.coinepro.hq.ui.rememberQuery("media:series::", "media") { series() }
+            q.data?.firstOrNull { it.ref == ref }?.let { content(it) }
+        }
+
+        /** A company's department as the demo serves it. */
+        @Composable
+        private fun WithDepartment(company: String, code: String, content: @Composable (com.coinepro.hq.core.net.Department) -> Unit) {
+            val q = com.coinepro.hq.ui.rememberQuery("departments:$company", "companies") { departments(company) }
+            q.data?.firstOrNull { it.code == code }?.let { content(it) }
+        }
 
         /** Cards of a page on their own, on the page's surface (a card far down a long page). */
         @Composable
@@ -259,7 +305,17 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             // ⟨1.5⟩ the room's agenda, whisper and transcript (after the header, table, three cards and rules); the scorecard after the
             // three cards; the register under the matrix; the locked invariants.
             "meeting-live-transcript" to 6, "scorecard-table" to 6, "risks-list" to 4, "authority-locked" to 3,
+            // ⟨1.6⟩ §22: the studio's board (after the header, intro, overview, scopes, kinds, counts and what needs the owner); the
+            // channels' week (after the header, scopes, statuses and one card per series); the voice registry (after the header,
+            // intro, the active voice and the blind test).
+            "studio-board" to 7, "series-week" to 3 + fixtureSize("/media/series"), "voice-registry" to 4,
         )
+
+        /** The number of rows the demo serves at [path], bare or paged. */
+        private fun fixtureSize(path: String): Int =
+            com.coinepro.hq.core.net.Api.json.parseToJsonElement(java.io.File("src/debug/assets/demo-fixtures.json").readText())
+                .let { (it as kotlinx.serialization.json.JsonObject)[path]!!.let { e -> (e as kotlinx.serialization.json.JsonObject)["body"]!! } }
+                .let { b -> (if (b is kotlinx.serialization.json.JsonObject) b["items"] else b) as kotlinx.serialization.json.JsonArray }.size
 
         private fun players(): Int =
             com.coinepro.hq.core.net.Api.json.parseToJsonElement(java.io.File("src/debug/assets/demo-fixtures.json").readText())
@@ -355,5 +411,16 @@ class ScreensShard3Test(name: String, night: Boolean) : ScreensTest(name, night)
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
         fun params(): List<Array<Any>> = ScreensTest.shard(2)
+    }
+}
+
+@RunWith(ParameterizedRobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "w400dp-h880dp-xxhdpi")
+class ScreensShard4Test(name: String, night: Boolean) : ScreensTest(name, night) {
+    companion object {
+        @JvmStatic
+        @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
+        fun params(): List<Array<Any>> = ScreensTest.shard(3)
     }
 }

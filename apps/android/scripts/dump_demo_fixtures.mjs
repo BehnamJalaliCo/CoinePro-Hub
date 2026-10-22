@@ -51,6 +51,9 @@ const cutFiles = listOf(await getJson('/decisions?status=all')).filter((d) => d.
 const tehDay = (n) => new Date(FIXED + 3.5 * 3_600_000 - n * 86_400_000).toISOString().slice(0, 10);
 const wasteRange = `from=${tehDay(30)}&to=${tehDay(1)}`;
 const allCompanies = listOf(await getJson('/companies')).map((c) => c.code);
+// ⟨1.6⟩ the media studio and the legal counsel (§22): every case (each with its email thread) and the cards §22 makes.
+const caseRefs = listOf(await getJson('/legal/cases')).map((c) => c.ref);
+const cards19 = listOf(await getJson('/decisions?status=all')).filter((d) => ['media_series', 'media_publish', 'email_send', 'role_new'].includes(d.kind)).map((d) => d.ref);
 
 const paths = [
   '/auth/session', '/meta', '/inbox/summary', '/owner/presence', '/owner/away-summary', '/owner/settings',
@@ -125,6 +128,12 @@ const paths = [
   ...['company', 'department', 'employee'].flatMap((by) => ['week', 'month'].map((p) => `/treasury/roi?by=${by}&period=${p}`)),
   '/digital-ceo', '/digital-ceo/predictions', '/digital-ceo/principles', '/substitutes', '/creatives',
   ...cutFiles, ...cards18.map((r) => `/decisions/${r}`),
+  // ⟨1.6⟩ the media studio and the legal counsel (§22). Whole lists the demo filters and changes itself (series, items with every
+  // step, voices with their clips, the platforms' limits, role drafts), the owner's voice reference, every case with its emails,
+  // the counsel's thread L and the four §22 cards. Departments (with their mandate), roles, accounts, threads and stories above
+  // already carry what §22 adds to them.
+  '/media/series', '/media/items', '/media/voices', '/media/voices/reference', '/media/limits', '/roles/drafts',
+  '/legal/cases', ...caseRefs.map((r) => `/legal/cases/${r}`), '/threads/L/messages', ...cards19.map((r) => `/decisions/${r}`),
 ];
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;

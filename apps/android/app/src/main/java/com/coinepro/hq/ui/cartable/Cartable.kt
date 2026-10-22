@@ -117,11 +117,17 @@ private val STEP_UP_KINDS = setOf(
     "message_template", "lifecycle_rule", "support_go_live", "charter_amendment", "risk_acceptance", "authority_change",
     // ⟨1.5⟩ §21.12: the monthly HR round's `evaluation` (payload v2), target = ref.
     "evaluation",
+    // ⟨1.6⟩ §22.6: a media card, the counsel's email (sealed on the message digest, [sealTarget]) and a role written on demand.
+    "media_publish", "email_send", "role_new",
+    // ⟨1.7⟩ §23: the archive's two cards, target = ref.
+    "archive_schema", "archive_disposal",
 )
 /** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8).
  *  The card carries {plan, company}; the plan page sends a founding's plan on to its founding (§18.16). */
 private val OWN_ROUTE: Map<String, Pair<(Decision) -> String, String>> = mapOf(
     "server_plan" to ({ d: Decision -> (d.payload["plan"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content?.let { "founding/$it" } ?: "founding" } to "مُهر طرح سرور"),
+    // ⟨1.6⟩ §22.2: a series is sealed on its own page, on the series digest (`media.series`); sealing it decides the card.
+    "media_series" to ({ d: Decision -> (d.payload["series"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content?.let { "series/$it" } ?: "series" } to "مُهر برنامه‌ی انتشار"),
 )
 
 /** A3 actions and hire, dismissal and budget changes are approved with a fresh passkey (contract §4). */
@@ -356,6 +362,8 @@ private fun Payload(d: Decision) {
                 Triple("سقف دلار", p.s("usd_limit")?.let { usd(it) } ?: "—", true),
             )
         }
+        // ⟨1.6⟩ the media studio and the legal counsel (§22.6)
+        in com.coinepro.hq.core.net.MEDIA_KINDS -> MediaDecisionPayload(d)
         // ⟨1.5⟩ the governance kinds (§20.11)
         else -> GovernancePayload(d)
     }
@@ -406,6 +414,10 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
             "authority_change" -> env.cache.invalidate("authority")
             // ⟨1.5⟩ §21.5: an evaluation changes the employee and closes its HR round.
             "evaluation" -> env.cache.invalidate("hr", "employees", "employee")
+            // ⟨1.6⟩ §22: a published item, a sent email (its case and thread L), an active role (hiring, the department, its story).
+            "media_publish", "media_series" -> env.cache.invalidate("media")
+            "email_send" -> env.cache.invalidate("legal", "threads", "messages")
+            "role_new" -> env.cache.invalidate("roles", "stories", "companies")
         }
         // ⟨1.5⟩ §21.1, §21.10: a decided card's memos go stale and its sealed prediction is revealed.
         env.cache.invalidate("memos", "dceo", "reviews")
@@ -463,7 +475,8 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                         HqButton(own.second, { nav.go(own.first(d)) }, icon = DivanIcon.SEAL)
                     } else SealButton(d.company, co.nameFa, co.nameEn, co.holding, busy = seal.busy) {
                         seal.run {
-                            val token = if (needsStepUp(d)) env.auth.stepUp(act, "decision.approve", d.ref) else null
+                            // ⟨1.6⟩ §22.6: an `email_send` card is sealed on the message digest, every other on its ref.
+                            val token = if (needsStepUp(d)) env.auth.stepUp(act, "decision.approve", com.coinepro.hq.core.net.sealTarget(d)) else null
                             val out = env.api.approve(d.ref, null, token)
                             decided(out)
                             toasts.ok("مُهر خورد. ${out.resolution?.let { "$it " } ?: ""}به ${actorFa(d.proposer)} خبر داده شد.")
@@ -549,7 +562,7 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
 /** The seal ritual (D2): press and hold the seal; a gold ring fills; releasing early cancels. On completion
  *  [onSealed] runs (step-up, then approve). TalkBack users get a plain "seal" action instead of the hold. */
 @Composable
-fun SealButton(code: String, nameFa: String, nameEn: String, holding: Boolean, busy: Boolean, sealed: Boolean = false, onSealed: () -> Unit) {
+fun SealButton(code: String, nameFa: String, nameEn: String, holding: Boolean, busy: Boolean, sealed: Boolean = false, size: androidx.compose.ui.unit.Dp = 104.dp, onSealed: () -> Unit) {
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     val progress = remember { Animatable(0f) }
@@ -582,7 +595,7 @@ fun SealButton(code: String, nameFa: String, nameEn: String, holding: Boolean, b
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Seal(code, nameFa, nameEn, holding = holding, state = state, progress = p, size = 104.dp)
+        Seal(code, nameFa, nameEn, holding = holding, state = state, progress = p, size = size)
         Text(
             when { sealed -> "مُهر خورد"; busy -> "در حال تأیید با passkey…"; else -> "فشار بده و نگه دار" },
             style = Divan.type.caption, color = Divan.colors.textMuted,

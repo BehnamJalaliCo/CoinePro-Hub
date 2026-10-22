@@ -118,7 +118,7 @@ class HoldingStream(
         const val CORE_TOPICS = "work,decisions,deliverables,messages,notifications,activity,llm,control"
 
         // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives"
+        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives,media,legal"
 
         // Event type prefix -> query tags to refresh (mirrors apps/web/src/lib/stream.ts).
         val INVALIDATE: List<Pair<String, Array<String>>> = listOf(
@@ -183,6 +183,11 @@ class HoldingStream(
             "dceo." to arrayOf("dceo", "decisions"),
             "substitute." to arrayOf("substitutes", "treasury"),
             "creative." to arrayOf("creatives"),
+            // ⟨1.6⟩ §22.6: an item moved in the pipeline (the board, its series, the cards it raised); a case changed (its thread L and its
+            // email cards); a role written on demand changed state (the department's roles, GET /roles for hiring, the story it makes).
+            "media." to arrayOf("media", "decisions"),
+            "legal." to arrayOf("legal", "threads", "decisions"),
+            "role." to arrayOf("roles", "stories", "decisions"),
         )
     }
 }

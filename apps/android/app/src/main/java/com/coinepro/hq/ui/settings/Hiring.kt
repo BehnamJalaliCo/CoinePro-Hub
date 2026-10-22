@@ -317,7 +317,7 @@ fun HireForm(onDone: () -> Unit, modifier: Modifier = Modifier, company0: String
     var reason by rememberSaveable { mutableStateOf("") }
     val departments = rememberQuery("departments:${company.orEmpty()}", "companies") { company?.let { departments(it) }.orEmpty() }
     val co = companies.data.orEmpty().firstOrNull { it.code == company }
-    val fitting = if (co != null && department != null) hireableRoles(roles.data.orEmpty(), co.kind, department) else emptyList()
+    val fitting = if (co != null && department != null) hireableRoles(roles.data.orEmpty(), co.kind, department, co.code) else emptyList()
     val role = fitting.firstOrNull { it.role == roleKey }
     val offered = connections.data.orEmpty().filter { it.status == "enabled" }.flatMap { it.models }.toSet()
     val models = MODELS.filter { offered.isEmpty() || it in offered }
@@ -355,7 +355,8 @@ fun HireForm(onDone: () -> Unit, modifier: Modifier = Modifier, company0: String
             Text("کدام نقش", style = Divan.type.caption, color = c.textMuted)
             if (fitting.isEmpty()) {
                 Text(
-                    "برای این دپارتمان هنوز منشور کارمندی نیست. منشور تازه را Claude سشن مشورت مینویسد؛ بگو چه نقشی میخواهی.",
+                    // ⟨1.6⟩ §22.5: the department's manager writes any role the work needs.
+                    "برای این دپارتمان هنوز منشور کارمندی نیست. مدیر همین دپارتمان هر نقشی که کار لازم دارد مینویسد؛ از صفحه‌ی شرکت، روی دپارتمان بزن و «نقش تازه بخواه».",
                     style = Divan.type.small, color = c.textMuted,
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp),
                 )
@@ -403,6 +404,14 @@ private fun RoleRow(r: RoleInfo, selected: Boolean, onClick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(r.titleFa, style = Divan.type.small, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Fig("${r.titleEn}, ${modelLabel(r.model)}, ${r.effort}", style = Divan.type.figureSmall, color = c.textMuted, maxLines = 1)
+            // ⟨1.6⟩ §22.5: a role written on demand, scoped to its company and department.
+            if (r.source == "draft") Row(
+                Modifier.padding(top = 4.dp).clip(RoundedCornerShape(50)).background(c.softLapis).padding(horizontal = 8.dp, vertical = 1.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text("نوشته‌ی مدیر دپارتمان", style = Divan.type.micro.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.lapis)
+                r.draft?.let { Fig(it, style = Divan.type.figureSmall, color = c.lapis) }
+            }
         }
         Column(horizontalAlignment = Alignment.End) {
             Fig(tokens(r.limits.tokensPerRun), style = Divan.type.figureSmall, color = c.textMuted)

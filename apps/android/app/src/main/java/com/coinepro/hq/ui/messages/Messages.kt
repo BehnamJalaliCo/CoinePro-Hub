@@ -253,7 +253,9 @@ private fun Bubble(m: Message, agentKind: String, onResolve: (Message) -> Unit) 
                     val ref = (v as? JsonPrimitive)?.contentOrNull ?: continue
                     val route = when (k) {
                         "decision" -> "cartable/$ref"; "work" -> "work/$ref"; "resolution" -> "resolutions"; "errand" -> "assistant"; "teaching" -> "academy"
-                        "inquiry" -> "advisor"; "finding" -> "oversight"; "session" -> "workshop/$ref"; else -> null
+                        "inquiry" -> "advisor"; "finding" -> "oversight"; "session" -> "workshop/$ref"
+                        // ⟨1.6⟩ §22: the counsel's cases (thread L), media items and series.
+                        "case" -> "legal/$ref"; "media_item" -> "studio/$ref"; "series" -> "series/$ref"; else -> null
                     }
                     Fig(ref, Modifier.clip(CircleShape).background(c.tile).clickable(enabled = route != null) { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.figureSmall, color = c.goldInk)
                 }

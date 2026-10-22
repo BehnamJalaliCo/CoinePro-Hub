@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -47,6 +48,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,6 +65,7 @@ import com.coinepro.hq.designsystem.CompanyMark
 import com.coinepro.hq.designsystem.DIcon
 import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.Fig
+import com.coinepro.hq.designsystem.fig
 import com.coinepro.hq.designsystem.HqButton
 import com.coinepro.hq.designsystem.IconBtn
 import com.coinepro.hq.designsystem.generated.DivanIcon
@@ -81,6 +84,8 @@ import kotlinx.coroutines.launch
 private val KIND = mapOf(
     "hire" to (DivanIcon.HIRE to "استخدام تازه"), "deliverable" to (DivanIcon.DELIVERABLE to "خروجی برجسته"), "stars" to (DivanIcon.STAR to "ستاره‌ی هفته"),
     "milestone" to (DivanIcon.CHART to "هدف رسید"), "post" to (DivanIcon.MESSAGES to "از مدیرعامل"),
+    // ⟨1.6⟩ §22.5: a role written on demand became active; the owner can retire it from the story.
+    "role" to (DivanIcon.DEPARTMENT to "نقش تازه"),
 )
 private const val SECONDS = 6f
 
@@ -133,7 +138,7 @@ fun StoriesBar() {
 /** The player: one ring after another, six seconds a card, hold to pause; a tap on the left goes forward (RTL), on the right back.
  *  `autoplay = false` holds the first card still (screenshots). */
 @Composable
-fun StoryPlayer(live: List<StoryRing>, start: Int, onClose: () -> Unit, autoplay: Boolean = true) {
+fun StoryPlayer(live: List<StoryRing>, start: Int, onClose: () -> Unit, autoplay: Boolean = true, kind0: String? = null) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val nav = LocalNav.current
@@ -144,7 +149,7 @@ fun StoryPlayer(live: List<StoryRing>, start: Int, onClose: () -> Unit, autoplay
     val rings = remember { live }
     fun first(r: StoryRing?) = r?.items?.indexOfFirst { !it.seen }?.coerceAtLeast(0) ?: 0
     var ring by remember { mutableStateOf(start) }
-    var item by remember { mutableStateOf(first(rings.getOrNull(start))) }
+    var item by remember { mutableStateOf(rings.getOrNull(start)?.items?.indexOfFirst { it.kind == kind0 }?.takeIf { kind0 != null && it >= 0 } ?: first(rings.getOrNull(start))) }
     var elapsed by remember { mutableFloatStateOf(0f) }
     var held by remember { mutableStateOf(false) }
     var paused by remember { mutableStateOf(!autoplay) }
@@ -236,10 +241,11 @@ fun StoryPlayer(live: List<StoryRing>, start: Int, onClose: () -> Unit, autoplay
                     )
                 }
                 if (story.bodyFa.isNotBlank()) Text(figs(story.bodyFa), style = Divan.type.body.copy(fontSize = 16.sp, lineHeight = 30.sp), color = c.textSecondary)
-                if (story.figures.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // The tiles share one height: a value on two lines ("Sonnet 5.5") does not leave the others short.
+                if (story.figures.isNotEmpty()) Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     for (f in story.figures) {
                         Column(
-                            Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(c.card.copy(alpha = 0.78f)).padding(12.dp),
+                            Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(c.card.copy(alpha = 0.78f)).padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Fig(f.value, style = Divan.type.figureL.copy(fontSize = if (f.value.length > 6) 18.sp else 24.sp, fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 2)
@@ -258,9 +264,12 @@ fun StoryPlayer(live: List<StoryRing>, start: Int, onClose: () -> Unit, autoplay
                         action.run { env.api.welcomeStory(story.ref); welcomed[story.ref] = true; toasts.ok("خوش‌آمدت به مدیر و مدیرعاملش رسید.") }
                     }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.RATE, enabled = !done, loading = action.busy)
                     HqButton("برکنار کن", { confirm = true }, variant = BtnVariant.DANGER, size = BtnSize.SM, icon = DivanIcon.DISMISS)
+                } else if (story.kind == "role" && story.links.roleDraft != null) {
+                    HqButton("بازنشسته کن", { confirm = true }, variant = BtnVariant.DANGER, size = BtnSize.SM, icon = DivanIcon.PAUSE)
                 }
                 Spacer(Modifier.weight(1f))
                 val link = when {
+                    story.links.roleDraft != null -> "roles/${story.links.roleDraft}" to "دیدن نقش"
                     code != null -> "employees/$code" to "دیدن کارمند"
                     story.links.deliverable != null -> "outputs/${story.links.deliverable}" to "دیدن خروجی"
                     story.links.decision != null -> "cartable/${story.links.decision}" to "در کارتابل"
@@ -272,7 +281,26 @@ fun StoryPlayer(live: List<StoryRing>, start: Int, onClose: () -> Unit, autoplay
         }
     }
 
-    if (confirm) AlertDialog(
+    // ⟨1.6⟩ §22.7: retiring a role from its story needs no passkey; employees on it keep running until moved or dismissed.
+    val draft = story.links.roleDraft
+    if (confirm && story.kind == "role" && draft != null) AlertDialog(
+        onDismissRequest = { confirm = false },
+        containerColor = c.overlay,
+        title = { Text(buildAnnotatedString { append("نقش "); fig(draft); append(" بازنشسته شود؟") }, style = Divan.type.h3) },
+        text = { Text("کسی دیگر روی این نقش استخدام نمیشود؛ کارمندهایی که دارد تا جابه‌جایی یا برکناری کار میکنند. منشورش در تاریخچه میماند.", style = Divan.type.small, color = c.textSecondary) },
+        confirmButton = {
+            HqButton("بازنشسته کن", {
+                action.run(onError = { e -> toasts.error(com.coinepro.hq.core.net.mediaError(e)) }) {
+                    env.api.retireRoleDraft(draft)
+                    env.cache.invalidate("roles", "stories", "hiring")
+                    toasts.info("نقش $draft بازنشسته شد؛ استخدام تازه روی آن نیست و کارمندهایش تا جابه‌جایی کار میکنند.")
+                    confirm = false
+                    scope.launch { next() }
+                }
+            }, variant = BtnVariant.DANGER, icon = DivanIcon.PAUSE, loading = action.busy)
+        },
+        dismissButton = { HqButton("نه", { confirm = false }, variant = BtnVariant.GHOST) },
+    ) else if (confirm) AlertDialog(
         onDismissRequest = { confirm = false },
         containerColor = c.overlay,
         title = { Fig("${story.links.employee} برکنار شود؟", style = Divan.type.h3) },
@@ -293,11 +321,11 @@ fun StoryPlayer(live: List<StoryRing>, start: Int, onClose: () -> Unit, autoplay
     )
 }
 
-/** For screenshots: the stories of one company, still on the first card. */
+/** For screenshots: the stories of one company, still on the first card (or on the story of [kind]). */
 @Composable
-fun StoryPreview(company: String) {
+fun StoryPreview(company: String, kind: String? = null) {
     val stories = rememberQuery("stories", "stories") { stories() }
     val rings = stories.data ?: return
     val i = rings.indexOfFirst { it.company == company }.coerceAtLeast(0)
-    if (rings.isNotEmpty()) StoryPlayer(rings, i, onClose = {}, autoplay = false)
+    if (rings.isNotEmpty()) StoryPlayer(rings, i, onClose = {}, autoplay = false, kind0 = kind)
 }

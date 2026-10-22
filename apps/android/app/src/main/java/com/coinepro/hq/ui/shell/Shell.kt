@@ -151,6 +151,14 @@ private val MANAGEMENT = listOf(
     Tool("digital-ceo", "مدیر کل دیجیتال", DivanIcon.HOLDING),
 )
 
+/** ⟨1.6⟩ the media studio and the legal counsel (§22): each company's pipeline, the sealed publishing series, the hub's own voice, the cases. */
+private val MEDIA = listOf(
+    Tool("studio", "استودیوی رسانه", DivanIcon.VIDEO),
+    Tool("series", "برنامه‌های انتشار", DivanIcon.SEND),
+    Tool("voice", "صدای هاب", DivanIcon.MIC),
+    Tool("legal", "مشاور حقوقی", DivanIcon.DECISION),
+)
+
 private val TOOLS = listOf(
     // ⟨1.5⟩ revenue and support (§19)
     Tool("revenue", "درآمد", DivanIcon.CHART),
@@ -170,7 +178,7 @@ private val TOOLS = listOf(
     Tool("settings", "تنظیمات", DivanIcon.SETTINGS),
 )
 
-private val TOP = TABS.map { it.route }.toSet() + ORG.map { it.route } + MANAGEMENT.map { it.route } + GOVERNANCE.map { it.route } + TOOLS.map { it.route }
+private val TOP = TABS.map { it.route }.toSet() + ORG.map { it.route } + MANAGEMENT.map { it.route } + MEDIA.map { it.route } + GOVERNANCE.map { it.route } + TOOLS.map { it.route }
 
 private class NavImpl(private val nav: NavHostController) : Nav {
     override fun go(route: String) {
@@ -311,6 +319,15 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("substitutes") { com.coinepro.hq.ui.substitutes.SubstitutesScreen() }
                     composable("substitutes/{ref}") { com.coinepro.hq.ui.substitutes.SubstitutesScreen(creative0 = it.arguments?.getString("ref")) }
                     composable("digital-ceo") { com.coinepro.hq.ui.dceo.DigitalCeoScreen() }
+                    // ⟨1.6⟩ the media studio and the legal counsel (§22)
+                    composable("studio") { com.coinepro.hq.ui.studio.StudioScreen() }
+                    composable("studio/{ref}") { com.coinepro.hq.ui.studio.StudioScreen(open0 = it.arguments?.getString("ref")) }
+                    composable("series") { com.coinepro.hq.ui.studio.SeriesScreen() }
+                    composable("series/{ref}") { com.coinepro.hq.ui.studio.SeriesScreen(focus0 = it.arguments?.getString("ref")) }
+                    composable("voice") { com.coinepro.hq.ui.studio.VoiceScreen() }
+                    composable("legal") { com.coinepro.hq.ui.legal.LegalScreen() }
+                    composable("legal/{ref}") { com.coinepro.hq.ui.legal.CaseScreen(it.arguments?.getString("ref").orEmpty()) }
+                    composable("roles/{ref}") { com.coinepro.hq.ui.org.RoleDraftScreen(it.arguments?.getString("ref").orEmpty()) }
                 }
             }
             BottomBar(route, inbox.data?.decisionsPending ?: 0, inbox.data?.messagesUnread ?: 0) { navApi.go(it) }
@@ -407,6 +424,8 @@ private fun ToolsSheet(unrated: Int, go: (String) -> Unit) {
         for (t in ORG) ToolRow(t, null, go)
         Text("ابزار مدیریت", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
         for (t in MANAGEMENT) ToolRow(t, null, go)
+        Text("رسانه و حقوقی", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+        for (t in MEDIA) ToolRow(t, null, go)
         Text("حاکمیت", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
         for (t in GOVERNANCE) ToolRow(t, null, go)
         Text("ابزارها", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))

@@ -48,6 +48,8 @@ class ApiException(
     val retryAfter: Int? = null,
     /** ⟨1.5⟩ `422 batch_not_eligible`: each refused card and why (§20.12 `fields.items`); nothing was sealed. */
     val batchReasons: List<Pair<String, String>> = emptyList(),
+    /** ⟨1.6⟩ the fields a `422 validation_failed` names (`fields`), so the app can say which (§22.7). */
+    val fieldKeys: List<String> = emptyList(),
 ) : Exception("HTTP $status $code") {
     val isAuth: Boolean get() = status == 401
     val isOffline: Boolean get() = status == 0
@@ -67,7 +69,7 @@ interface TokenSource {
 /** Signs one 🔏 action: the API supplies the contract's action name and target, the caller returns a step-up token. */
 typealias StepUp = suspend (action: String, target: String) -> String
 
-/** The hub's public API (contract v1.4) as the Android client sees it: Bearer session, JSON, Problem errors. */
+/** The hub's public API (contract v1.6) as the Android client sees it: Bearer session, JSON, Problem errors. */
 class Api(
     origin: String,
     private val tokens: TokenSource,
@@ -815,6 +817,75 @@ class Api(
     suspend fun acceptCreative(ref: String, note: String? = null): Creative = post("/creatives/${seg(ref)}/accept", buildJsonObject { if (!note.isNullOrBlank()) put("note", note) })
     suspend fun rejectCreative(ref: String, note: String? = null): Creative = post("/creatives/${seg(ref)}/reject", buildJsonObject { if (!note.isNullOrBlank()) put("note", note) })
 
+    // ------------------------------------- the media studio and the legal counsel ⟨1.6⟩ --
+    // Contract §22, in the shapes §22.7 ⟨1.6.1⟩ fixes. Every 🔏 write names its action and exact target here (§22.6): a department's
+    // mandate on the SHA-256 of the exact body, a series on its digest, an unpublish on the item's ref, a voice on its id; an
+    // `email_send` card is approved on the message digest ([sealTarget]). PUT carries If-Match; a new series, item, case and role
+    // carry the caller's Idempotency-Key, kept across retries of one press. Publishing outside a sealed series has one path: the
+    // item's `media_publish` card. The owner's voice reference answers 404 while there is none: null here.
+    /** 🔏 `department.mandate`, sealed on the SHA-256 of exactly `{mandate, identity_md}`, If-Match the department's version. */
+    suspend fun putMandate(company: String, d: Department, body: MandateIn, stepUp: StepUp): Department {
+        val text = jsonBody.encodeToString(MandateIn.serializer(), body)
+        return send("PUT", "/companies/${seg(company)}/departments/${seg(d.code)}/mandate", text, ifMatch = d.version, stepUp = stepUp("department.mandate", sha256(text)))
+    }
+    suspend fun roleDrafts(company: String? = null, department: String? = null, state: String? = null): List<RoleDraft> =
+        listAny("/roles/drafts", mapOf("company" to company, "department" to department, "state" to state), RoleDraft.serializer())
+    suspend fun roleDraft(ref: String): RoleDraft = get("/roles/drafts/${seg(ref)}")
+    /** The owner asks («یه تدوینگر پادکست میخوام»); the department's manager is woken to write it. [key] is the press's. */
+    suspend fun askRole(company: String, department: String, briefMd: String, key: String): RoleDraft =
+        call(write("POST", "/roles/drafts", buildJsonObject { put("company", company); put("department", department); put("brief_md", briefMd) }, null, key), serializer())
+    /** Stops new hires on it; employees on it keep running until moved or dismissed. No step-up. */
+    suspend fun retireRoleDraft(ref: String): RoleDraft = post("/roles/drafts/${seg(ref)}/retire", JsonObject(emptyMap()))
+
+    suspend fun series(company: String? = null, status: String? = null): List<Series> =
+        listAny("/media/series", mapOf("company" to company, "status" to status), Series.serializer())
+    /** A `draft`: nothing runs until it is sealed. Written whole; [key] is the press's. */
+    suspend fun createSeries(body: SeriesIn, key: String): Series =
+        call(write("POST", "/media/series", jsonBody.encodeToJsonElement(SeriesIn.serializer(), body), null, key), serializer())
+    /** If-Match the series' version; a sealed series edited goes back to `proposed` (its seal no longer covers it). */
+    suspend fun updateSeries(s: Series, body: SeriesIn): Series =
+        send("PUT", "/media/series/${seg(s.ref)}", jsonBody.encodeToString(SeriesIn.serializer(), body), ifMatch = s.version)
+    /** 🔏 `media.series` on the series digest, which the body names too: a changed series answers `409 version_conflict`. */
+    suspend fun sealSeries(s: Series, stepUp: StepUp): Series =
+        post("/media/series/${seg(s.ref)}/seal", buildJsonObject { put("digest", s.digest) }, stepUp("media.series", s.digest))
+    suspend fun pauseSeries(ref: String): Series = post("/media/series/${seg(ref)}/pause", JsonObject(emptyMap()))
+    suspend fun retireSeries(ref: String): Series = post("/media/series/${seg(ref)}/retire", JsonObject(emptyMap()))
+
+    suspend fun mediaItems(company: String? = null, series: String? = null, state: String? = null, cursor: String? = null): Page<MediaItem> =
+        get("/media/items", mapOf("company" to company, "series" to series, "state" to state, "limit" to 100, "cursor" to cursor))
+    suspend fun mediaItem(ref: String): MediaItem = get("/media/items/${seg(ref)}")
+    /** A one-off (it always ends as a card) or a `design` (a UI mockup for the CTO, never published). [key] is the press's. */
+    suspend fun createMediaItem(company: String, kind: String, briefMd: String, series: String? = null, key: String): MediaItem =
+        call(write("POST", "/media/items", buildJsonObject {
+            put("company", company); put("kind", kind); put("brief_md", briefMd); if (series != null) put("series", series)
+        }, null, key), serializer())
+    /** 🔏 `media.unpublish` on the ref: deleted through the same official API where the platform allows it. */
+    suspend fun unpublish(ref: String, stepUp: StepUp): MediaItem = post("/media/items/${seg(ref)}/unpublish", JsonObject(emptyMap()), stepUp("media.unpublish", ref))
+    suspend fun mediaLimits(): List<PlatformLimit> = listAny("/media/limits", emptyMap(), PlatformLimit.serializer())
+
+    suspend fun voices(): List<Voice> = listAny("/media/voices", emptyMap(), Voice.serializer())
+    /** The owner's own reference recording, or null while none was recorded. */
+    suspend fun voiceReference(): VoiceReference? = orNull { get("/media/voices/reference") }
+    /** Owner only, 1–3 minutes of clean speech, already uploaded through /files; never sent anywhere. */
+    suspend fun setVoiceReference(fileId: String): VoiceReference = post("/media/voices/reference", buildJsonObject { put("file_id", fileId) })
+    /** The owner's blind listening score, 1..10. */
+    suspend fun scoreVoice(id: String, score: Int): Voice = post("/media/voices/${seg(id)}/score", buildJsonObject { put("score", score) })
+    /** 🔏 `voice.activate` on the id; a non-commercial voice is acknowledged in the body (`422` without it), an unmeasured one `409 not_ready`. */
+    suspend fun activateVoice(v: Voice, stepUp: StepUp): Voice =
+        post("/media/voices/${seg(v.id)}/activate", if (v.licenceCommercial) JsonObject(emptyMap()) else buildJsonObject { put("accept_non_commercial", true) }, stepUp("voice.activate", v.id))
+
+    suspend fun cases(company: String? = null, status: String? = null, cursor: String? = null): Page<LegalCase> =
+        get("/legal/cases", mapOf("company" to company, "status" to status, "limit" to 50, "cursor" to cursor))
+    /** With the whole timeline and the email thread. */
+    suspend fun legalCase(ref: String): LegalCase = get("/legal/cases/${seg(ref)}")
+    /** The owner opens a case for any company or the holding; the counsel is woken. [key] is the press's. */
+    suspend fun openCase(company: String, titleFa: String, kind: String, briefMd: String, fileIds: List<String>, key: String): LegalCase =
+        call(write("POST", "/legal/cases", buildJsonObject {
+            put("company", company); put("title_fa", titleFa); put("kind", kind); put("brief_md", briefMd); if (fileIds.isNotEmpty()) put("file_ids", ids(fileIds))
+        }, null, key), serializer())
+    /** Owner; `409` while an email waits for its seal. */
+    suspend fun closeCase(ref: String): LegalCase = post("/legal/cases/${seg(ref)}/close", JsonObject(emptyMap()))
+
     /** A GET that answers 404 when the thing does not exist yet: null, not an error. */
     private inline fun <T> orNull(block: () -> T): T? = try { block() } catch (e: ApiException) { if (e.status == 404) null else throw e }
 
@@ -875,7 +946,7 @@ class Api(
         val p = runCatching { json.decodeFromString(Problem.serializer(), r.body.string()) }.getOrNull()
         if (p?.messageFa == null) throw ApiException.unexpected(r.code)
         val wait = r.header("Retry-After")?.trim()?.toIntOrNull()?.takeIf { it > 0 }
-        throw ApiException(r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"), p.missing, p.blockedReasons, wait, batchReasons(p))
+        throw ApiException(r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"), p.missing, p.blockedReasons, wait, batchReasons(p), p.fields?.keys?.filter { it != "items" }.orEmpty())
     }
 
     private suspend fun execute(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->

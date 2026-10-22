@@ -237,6 +237,12 @@ fun refRoute(ref: String): String? = when {
     Regex("^(?:DM|WR)-\\d+$").matches(ref) -> "advisor"
     Regex("^DP-\\d+$").matches(ref) -> "digital-ceo"
     Regex("^CL-\\d+$").matches(ref) -> "runs"
+    // ⟨1.6⟩ §22
+    Regex("^SR-\\d+$").matches(ref) -> "series/$ref"
+    Regex("^MI-\\d+$").matches(ref) -> "studio/$ref"
+    Regex("^LC-\\d+$").matches(ref) -> "legal/$ref"
+    Regex("^RD-\\d+$").matches(ref) -> "roles/$ref"
+    Regex("^L-\\d+$").matches(ref) -> "messages/L"
     else -> null
 }
 

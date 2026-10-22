@@ -32,6 +32,8 @@ import com.coinepro.hq.core.net.ToolInfo
 import com.coinepro.hq.core.net.hireableRoles
 import com.coinepro.hq.core.net.effective
 import com.coinepro.hq.core.net.management
+import com.coinepro.hq.core.net.draft
+import com.coinepro.hq.core.net.payloadAs
 import java.io.File
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -627,5 +629,106 @@ class FixturesDecodeTest {
         assertTrue(cs.all { it.aspect == com.coinepro.hq.core.net.PLACEMENT_ASPECT[it.placement] && it.aiGenerated && it.promptMd.contains("No text") })
         assertTrue(cs.filter { it.kind == "video" }.all { it.player == "gemini" && (it.durationS ?: 0) in 1..10 })
         assertTrue(cs.filter { it.state == "failed" }.all { !it.reviewMd.isNullOrBlank() })
+    }
+    // ------------------------------------------------------------ ⟨1.6⟩ §22 --
+    @Test
+    fun departmentsCarryTheirMandateAndTeam() {
+        // §22.1: every operating company has MEDIA, defined by its mandate, identity and a starting team; the holding has LEGAL with HQ-LGL.
+        for (co in listOf("TY", "FX", "PC")) {
+            val ds = list("/companies/$co/departments", com.coinepro.hq.core.net.Department.serializer())
+            val media = ds.single { it.code == "MEDIA" }
+            val m = requireNotNull(media.mandate)
+            assertTrue(m.fromFa.isNotBlank() && m.toFa.isNotBlank() && m.outputsFa.isNotEmpty() && m.modelCeiling in com.coinepro.hq.core.net.MODEL_CEILINGS)
+            assertTrue("media.item" in m.toolCeiling && media.team.any { it.first } && !media.identityMd.isNullOrBlank() && media.version >= 1)
+        }
+        val legal = list("/companies/HQ/departments", com.coinepro.hq.core.net.Department.serializer()).single { it.code == "LEGAL" }
+        assertEquals("HQ-LGL", legal.manager?.code)
+        assertTrue("email.draft" in requireNotNull(legal.mandate).toolCeiling)
+    }
+
+    @Test
+    fun rolesWrittenOnDemandDecode() {
+        // §22.5: a draft past writing carries at least three eval cases and the overseer's five checks; an active one its approval.
+        val ds = page("/roles/drafts", com.coinepro.hq.core.net.RoleDraft.serializer())
+        assertTrue(ds.map { it.state }.containsAll(listOf("active", "eval", "in_review", "rejected")))
+        assertTrue(ds.filter { it.state != "drafting" }.all { it.eval.cases.size >= 3 && it.charterMd.isNotBlank() && it.originality != null })
+        assertTrue(ds.mapNotNull { it.review }.all { r -> r.checks.keys == setOf("injection", "secrets", "conflicts", "policy", "ceiling") && r.sha256.length == 64 })
+        val active = ds.single { it.state == "active" }
+        assertTrue(active.approver != null && active.decisionRef != null && active.evalRun?.passed == true)
+        assertTrue(ds.filter { it.state == "rejected" }.all { !it.stateNoteFa.isNullOrBlank() && it.review?.verdict == "reject" })
+        assertTrue(ds.single { it.state == "eval" }.evalRun!!.let { it.live && it.score == null && it.passed == null })
+        // GET /roles lists the active draft beside the file charters; it is hireable only in its own company and department.
+        val roles = list("/roles", RoleInfo.serializer())
+        val draft = roles.single { it.source == "draft" }
+        assertEquals(active.ref to active.company, draft.draft to draft.company)
+        assertTrue(draft in hireableRoles(roles, "company", active.department, active.company))
+        assertTrue(draft !in hireableRoles(roles, "company", active.department, "TY"))
+        // §22.7: the role's story names its draft.
+        val story = list("/stories", com.coinepro.hq.core.net.StoryRing.serializer()).flatMap { it.items }.single { it.kind == "role" }
+        assertEquals(active.ref, story.links.roleDraft)
+    }
+
+    @Test
+    fun studioDecodes() {
+        // §22.2: a sealed series has its next runs and a digest; every series carries all seven checks and only placements the platform takes.
+        val series = page("/media/series", com.coinepro.hq.core.net.Series.serializer())
+        assertTrue(series.map { it.status }.containsAll(listOf("draft", "proposed", "sealed", "paused")))
+        assertTrue(series.all { it.digest.length == 64 && it.checks == com.coinepro.hq.core.net.MEDIA_CHECKS && it.targets.isNotEmpty() })
+        assertTrue(series.filter { it.status == "sealed" }.all { it.nextAt.isNotEmpty() && it.today != null && it.sealedAt != null })
+        assertTrue(series.all { s -> s.targets.all { com.coinepro.hq.core.net.placementFits(s.kind, s.format.aspect, it.placement) == null && it.account == com.coinepro.hq.core.net.accountKey(it.channel, s.company) } })
+        // Items: every state of the board; a waiting item has its card; a design never goes out; a held one failed a check; all AI-made.
+        val items = page("/media/items", com.coinepro.hq.core.net.MediaItem.serializer())
+        assertTrue(items.map { it.state }.containsAll(listOf("scripting", "directing", "composing", "voicing", "rendering", "checking", "review", "scheduled", "published", "waiting_owner", "held", "failed")))
+        assertTrue(items.all { it.aiGenerated } && items.filter { it.state == "waiting_owner" }.all { it.decisionRef != null })
+        assertTrue(items.filter { it.kind == "design" }.all { it.publish.isEmpty() && it.series == null })
+        assertTrue(items.filter { it.state == "held" }.all { x -> x.checks.any { it.result == "fail" } && !x.stateNoteFa.isNullOrBlank() })
+        assertTrue(items.filter { it.state == "published" }.all { x -> x.publish.any { it.externalId != null } })
+        assertTrue(items.mapNotNull { it.script }.filter { it.sources.isNotEmpty() }.all { s -> s.sources.all { it.note.isNotBlank() } })
+        val reel = items.single { it.ref == "MI-0014" }
+        assertTrue(reel.render!!.mime == "video/mp4" && reel.render!!.width == 360 && reel.voice != null && reel.direction!!.shots.size >= 3 && reel.qc?.verdict == "pass")
+        // §22.3: one active voice; a non-commercial one says so; measured voices have their clips; the owner's reference is ready.
+        val voices = list("/media/voices", com.coinepro.hq.core.net.Voice.serializer())
+        assertEquals(1, voices.count { it.status == "active" })
+        assertTrue(voices.any { !it.licenceCommercial } && voices.filter { it.measuredAt != null }.all { it.samples.size == 3 && it.rtf != null })
+        assertTrue(voices.any { it.speaker == "owner" && it.clones } && voices.filter { it.samples.isEmpty() }.all { it.rtf == null })
+        assertEquals("ready", decode("/media/voices/reference", com.coinepro.hq.core.net.VoiceReference.serializer()).state)
+        // ⟨1.6.1⟩ the platforms' own limits: Instagram counts posts; the Bot API has no daily cap.
+        val limits = list("/media/limits", com.coinepro.hq.core.net.PlatformLimit.serializer())
+        assertTrue(limits.filter { it.channel == "instagram" }.all { it.per24h == 50 } && limits.filter { it.channel == "telegram" }.all { it.per24h == null })
+    }
+
+    @Test
+    fun legalCounselDecodes() {
+        // §22.4: the cases; one has its whole thread, an email waiting for the seal bound to its digest, and deadlines.
+        val cases = page("/legal/cases", com.coinepro.hq.core.net.LegalCase.serializer())
+        assertTrue(cases.size >= 3 && cases.all { it.timeline.isNotEmpty() && it.emails.isEmpty() })
+        val c = decode("/legal/cases/LC-0001", com.coinepro.hq.core.net.LegalCase.serializer())
+        assertTrue(c.deadlines.isNotEmpty() && c.emails.map { it.direction }.toSet() == setOf("out", "in"))
+        val waiting = c.emails.single { it.state == "waiting_seal" }
+        assertTrue(waiting.digest.length == 64 && waiting.decisionRef != null && waiting.messageId == null && waiting.attachments.isNotEmpty())
+        // The card is sealed on the message digest, not on its ref (§22.6).
+        val card = decode("/decisions/${waiting.decisionRef}", com.coinepro.hq.core.net.Decision.serializer())
+        assertEquals("email_send", card.kind)
+        assertEquals(waiting.digest, com.coinepro.hq.core.net.sealTarget(card))
+        assertEquals(waiting.draft(), card.payloadAs(com.coinepro.hq.core.net.EmailDraft.serializer()))
+        // Thread L: the counsel's conversation with the owner, its messages linking the case.
+        val l = page("/threads/L/messages", Message.serializer())
+        assertTrue(l.isNotEmpty() && l.any { it.links["case"]?.toString()?.contains("LC-0001") == true })
+    }
+
+    @Test
+    fun section22CardsDecode() {
+        val all = page("/decisions?status=all", com.coinepro.hq.core.net.Decision.serializer())
+        assertTrue(all.map { it.kind }.containsAll(com.coinepro.hq.core.net.MEDIA_KINDS))
+        // `media_publish`: a channel story goes by the owner's hand; a placement without a key is blocked this time.
+        val pub = decode("/decisions/D-000087", com.coinepro.hq.core.net.Decision.serializer()).payloadAs(com.coinepro.hq.core.net.PublishPayload.serializer())!!
+        assertTrue(pub.placements.any { it.via == "manual" && it.placement == "telegram_story" } && pub.placements.any { it.blocked == "account_not_configured" })
+        assertTrue(pub.render?.mime == "video/mp4" && pub.checks.size == 7)
+        // `media_series`: bound to the digest of the series it seals.
+        val sr = decode("/decisions/D-000081", com.coinepro.hq.core.net.Decision.serializer()).payloadAs(com.coinepro.hq.core.net.SeriesPayload.serializer())!!
+        assertEquals(page("/media/series", com.coinepro.hq.core.net.Series.serializer()).single { it.ref == sr.series }.digest, sr.digest)
+        // `role_new` ⟨1.6.1⟩
+        val rn = decode("/decisions/D-000084", com.coinepro.hq.core.net.Decision.serializer()).payloadAs(com.coinepro.hq.core.net.RoleNewPayload.serializer())!!
+        assertTrue(rn.draft == "RD-0001" && rn.review == "pass" && (rn.evalScore ?: 0.0) >= 80 && rn.limits!!.tokensPerRun > 0 && rn.sha256!!.length == 64)
     }
 }

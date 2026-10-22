@@ -76,6 +76,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         val req = chain.request()
         val path = req.url.encodedPath.removePrefix("/api/v1").let { java.net.URLDecoder.decode(it, "UTF-8") }
         if (req.method == "POST" && (path == "/files" || path == "/transcribe")) return respond(req, binary(req, path))
+        // ⟨1.6⟩ the studio's renders, posters and voice clips (assets/demo), as the web serves them from public/demo.
+        if (req.method == "GET" && path.startsWith("/files/")) demoFile(req, path.removePrefix("/files/"), req.url.queryParameter("variant"))?.let { return it }
         // ⟨1.5⟩ a body may be a list (§21.13 seats), not only an object.
         val raw = req.body?.let { b -> Buffer().also { b.writeTo(it) }.readUtf8() }?.takeIf { it.isNotBlank() }?.let { Api.json.parseToJsonElement(it) }
         val body = raw as? JsonObject
@@ -83,11 +85,13 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         val version = req.header("If-Match")?.trim('"')?.toIntOrNull()
         tick18()
         if (req.method == "GET") {
+            v19Read(path, query)?.let { return respond(req, it.status to it.body, it.headers) }
             v18Read(path, query)?.let { return respond(req, it.status to it.body, it.headers) }
             v17Read(path, query)?.let { return respond(req, it) }
             v16Read(path, query)?.let { return respond(req, it) }
             ownerToolsRead(path, query)?.let { return respond(req, it) }
         } else {
+            v19Write(req.method, path, body ?: JsonObject(emptyMap()), version, req.header("Idempotency-Key"), req.header("X-Step-Up"))?.let { return respond(req, it.status to it.body, it.headers) }
             v18Write(req.method, path, raw, version, req.header("Idempotency-Key"), req.header("X-Step-Up"))?.let { return respond(req, it.status to it.body, it.headers) }
             v17Write(req.method, path, body, version, req.header("Idempotency-Key"), req.header("X-Step-Up"))?.let { return respond(req, it.status to it.body, it.headers) }
             v16Write(req.method, path, body, version, req.header("Idempotency-Key"))?.let { return respond(req, it.status to it.body, it.headers) }
@@ -149,6 +153,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             store["/decisions?status=pending"] = 200 to page(list("/decisions?status=all").filter { it.jsonObject.str("status") == "pending" })
             bumpInbox()
             if (verdict == "approve") { decided16(updated.jsonObject); decided17(updated.jsonObject) }
+            // ⟨1.6⟩ §22: the item published or rejected, the email sent or its case reopened, the role active or rejected.
+            decided19(updated.jsonObject)
             // ⟨1.5⟩ §21: the prediction revealed, memos, the evaluation's effect and the HR round, for every verdict.
             return 200 to decided18(updated.jsonObject)
         }
@@ -2883,4 +2889,384 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     }
 
     private fun num(v: Double): String = if (v % 1.0 == 0.0) v.toLong().toString() else v.toString()
+
+    // ------------------------------------------------------------ ⟨1.6⟩ §22 --
+    // The media studio and the legal counsel (contract §22), as the web's mock-v19.ts: the fixtures hold whole lists (series, items with
+    // every step, voices with their clips, the platforms' limits, role drafts, every case with its emails); the demo filters them and
+    // answers every write the mock answers. What the hub does by code (the next runs of a series, its digest, the platform rules, the
+    // seal bindings) is code here too, reduced to what a demo needs. The renders and voice clips are the web's demo files (assets/demo);
+    // the stills are drawn once into the cache like the §21.13 creatives. Companies and accounts are data here too.
+    private val referenceAt = mutableMapOf<String, Long>()
+    private val counsel = buildJsonObject { put("kind", "agent"); put("code", "HQ-LGL"); put("display_fa", "مشاور حقوقی") }
+
+    /** A file of the demo's own store (`/demo/…`, as the web serves them from public/demo): a film's poster sits beside it as `-poster.webp`. */
+    private fun demoFile(req: okhttp3.Request, id: String, variant: String?): Response? {
+        if (!id.startsWith("/demo/")) return null
+        val name = id.removePrefix("/").let { if (variant == "poster") it.replace(Regex("\\.[a-z0-9]+$", RegexOption.IGNORE_CASE), "-poster.webp") else it }
+        val bytes = runCatching { context.assets.open(name).use { it.readBytes() } }.getOrNull() ?: return null
+        val mime = when (name.substringAfterLast('.').lowercase()) { "mp4" -> "video/mp4"; "m4a" -> "audio/mp4"; "webp" -> "image/webp"; else -> "application/octet-stream" }
+        return Response.Builder().request(req).protocol(Protocol.HTTP_1_1).code(200).message("demo")
+            .body(okio.ByteString.of(*bytes).toResponseBody(mime.toMediaType())).build()
+    }
+
+    private val BYDAY = mapOf("MO" to 1, "TU" to 2, "WE" to 3, "TH" to 4, "FR" to 5, "SA" to 6, "SU" to 7)
+
+    /** The next runs of a simple RRULE (DAILY or WEEKLY with BYDAY, BYHOUR, BYMINUTE) in the owner's zone. */
+    private fun nextRuns(rrule: String, n: Int = 3): List<String> {
+        val p = rrule.split(';').mapNotNull { kv -> kv.split('=').takeIf { it.size == 2 }?.let { it[0] to it[1] } }.toMap()
+        val hours = (p["BYHOUR"] ?: "9").split(',').mapNotNull { it.toIntOrNull() }
+        val mins = p["BYMINUTE"]?.toIntOrNull() ?: 0
+        val days = if (p["FREQ"] == "WEEKLY") (p["BYDAY"] ?: "SA").split(',').mapNotNull { BYDAY[it] } else null
+        val now0 = HqClock.now()
+        val today = LocalDate.ofInstant(now0, TEHRAN)
+        val out = mutableListOf<String>()
+        for (k in 0 until 21) {
+            val day = today.plusDays(k.toLong())
+            if (days != null && day.dayOfWeek.value !in days) continue
+            for (h in hours) { val t = day.atTime(h, mins).toInstant(TEHRAN); if (t.isAfter(now0) && out.size < n) out += t.toString() }
+            if (out.size >= n) break
+        }
+        return out
+    }
+
+    private fun accountOk(): Map<String, Boolean> = list("/tools/accounts").map { it.jsonObject }.associate { (it.str("key") ?: "") to (it["has_secret"]?.jsonPrimitive?.booleanOrNull == true) }
+
+    // ---- series
+    private fun seriesAll(): List<JsonObject> = list("/media/series").map { it.jsonObject }
+    private fun saveSeries(x: JsonObject) { store["/media/series"] = 200 to page(seriesAll().map { if (it.str("ref") == x.str("ref")) x else it }.let { if (it.any { s -> s.str("ref") == x.str("ref") }) it else it + x }) }
+    private fun seriesBody(b: JsonObject, company: String?) = jo(
+        "company" to (company ?: b.str("company")), "title_fa" to b["title_fa"], "kind" to b["kind"], "targets" to b["targets"], "schedule" to b["schedule"],
+        "topics" to b["topics"], "format" to b["format"], "checks" to b["checks"], "auto_publish" to b["auto_publish"], "max_per_day" to b["max_per_day"],
+    )
+    private fun withDigest(s: JsonObject): JsonObject = s.with("digest" to sha256(canonical(seriesBody(s, null))))
+    private fun seriesOut(s: JsonObject): JsonObject {
+        val live = s.str("status") == "sealed"
+        return s.with("next_at" to ja(if (live) nextRuns(s.str("schedule").orEmpty()).map(::JsonPrimitive) else emptyList()), "today" to if (live) (s["today"]?.takeIf { it !is JsonNull } ?: jo("made" to 0, "published" to 0)) else null)
+    }
+    private fun placementProblem(kind: String, aspect: String, t: JsonObject): String? {
+        val placement = t.str("placement").orEmpty()
+        return when {
+            t.str("account") !in accountOk().keys -> "حساب ${t.str("account")} در هاب تعریف نشده."
+            placement.startsWith("telegram") != (t.str("channel") == "telegram") -> "جای انتشار با کانال نمیخواند."
+            placement == "instagram_reel" && (kind != "reel" || aspect != "9:16") -> "ریلز اینستاگرام فقط برای ریلز ۹:۱۶ است."
+            placement.endsWith("_story") && (kind != "story" || aspect != "9:16") -> "استوری فقط ۹:۱۶ و از نوع استوری است."
+            placement == "instagram_post" && kind !in setOf("post", "carousel") -> "پست اینستاگرام برای پست یا کاروسل است."
+            placement == "instagram_post" && aspect !in setOf("4:5", "1:1") -> "پست اینستاگرام ۴:۵ یا ۱:۱ است."
+            else -> null
+        }
+    }
+    private fun fieldBad(fa: String, field: String, why: String) = Reply(422, problem16(422, "validation_failed", fa, jo("fields" to jo(field to why))))
+    private fun validateSeries(b: JsonObject): Reply? {
+        val kind = b.str("kind").orEmpty()
+        val format = b.obj("format")
+        val topics = b["topics"] as? JsonObject
+        return when {
+            b.str("title_fa")?.trim().isNullOrEmpty() -> fieldBad("عنوان لازم است.", "title_fa", "required")
+            kind !in setOf("reel", "story", "post", "carousel") -> fieldBad("نوع نامعتبر است.", "kind", "enum")
+            b.arr("targets").isEmpty() -> fieldBad("دست‌کم یک جای انتشار لازم است.", "targets", "required")
+            b.arr("targets").firstNotNullOfOrNull { placementProblem(kind, format.str("aspect").orEmpty(), it) } != null ->
+                fieldBad(b.arr("targets").firstNotNullOf { placementProblem(kind, format.str("aspect").orEmpty(), it) }, "placement", "platform")
+            !Regex("^FREQ=(DAILY|WEEKLY)(;BYDAY=(SA|SU|MO|TU|WE|TH|FR)(,(SA|SU|MO|TU|WE|TH|FR))*)?;BYHOUR=\\d{1,2};BYMINUTE=\\d{1,2}$").matches(b.str("schedule").orEmpty()) ->
+                fieldBad("زمان‌بندی (RRULE) نامعتبر است.", "schedule", "rrule")
+            b.int("max_per_day") !in 1..10 -> fieldBad("سقف روزانه بین ۱ و ۱۰ است.", "max_per_day", "1..10")
+            (format["duration_s"] as? JsonPrimitive)?.intOrNull?.let { if (kind == "reel") it > 90 else it > 60 } == true -> fieldBad("مدت بیشتر از سقف خود پلتفرم است.", "duration_s", "platform")
+            topics == null || (topics.arr("pool").isEmpty() && (topics["pool"] as? JsonArray).isNullOrEmpty() && topics.str("rule_fa")?.trim().isNullOrEmpty()) -> fieldBad("فهرست موضوع یا قاعده‌ی انتخاب موضوع لازم است.", "topics", "required")
+            else -> null
+        }
+    }
+
+    // ---- items
+    private class Still(val title: String, val body: String?, val cta: String?, val placement: String)
+    /** The stills the web paints in the browser (mock-v19 `_paint`): the hub's Persian text over the brand's art. */
+    private val STILLS = mapOf(
+        "MI-0018" to Still("اصطلاح روز: پیپ", "کوچک‌ترین واحد تغییر قیمت؛ در EUR/USD یعنی 0.0001", "ادامه در کانال", "instagram_story"),
+        "MI-0020" to Still("اصطلاح روز: اسپرد", "فاصله‌ی قیمت خرید و فروش؛ هزینه پیش از هر سود", "ادامه در کانال", "instagram_story"),
+        "MI-0012" to Still("کمپین رفرال این هفته", null, null, "other"),
+        "MI-0010" to Still("ترمینال تازه‌ی پرو-چارت", "نمودار در کمتر از یک ثانیه", "امتحانش کن", "other"),
+    )
+    private fun itemsAll(): List<JsonObject> = list("/media/items").map { painted(it.jsonObject) }
+    private fun saveItem(x: JsonObject) { store["/media/items"] = 200 to page(list("/media/items").map { e -> if (e.jsonObject.str("ref") == x.str("ref")) x else e }) }
+    private fun painted(x: JsonObject): JsonObject {
+        val ref = x.str("ref") ?: return x
+        val still = STILLS[ref] ?: return x
+        if (x["render"] != null && x["render"] !is JsonNull) return x
+        return runCatching {
+            val f = File(context.cacheDir, "demo-studio/$ref.jpg")
+            val size = DemoArt.render(context, x.str("company").orEmpty(), still.placement, DemoArt.seedOf(ref), DemoArt.Overlay(still.title, still.body, still.cta, true), f)
+            val out = x.with("render" to fileRef(f, "$ref.jpg", size))
+            saveItem(out)
+            out
+        }.getOrDefault(x)
+    }
+    private fun publishNow(x: JsonObject): JsonObject {
+        val rows = x.arr("publish").map { r ->
+            when {
+                r.str("placement") == "telegram_story" -> r.with("at" to stamp, "external_id" to "manual", "error" to null)
+                r.str("error") == "account_not_configured" -> r
+                else -> r.with("at" to stamp, "external_id" to (18_000 + DemoArt.seedOf(x.str("ref") + r.str("placement"))).toString(),
+                    "url" to if (r.str("channel") == "telegram") "https://t.me/demo_${x.str("company")?.lowercase()}/${DemoArt.seedOf(x.str("ref").orEmpty())}" else null, "error" to null)
+            }
+        }
+        return x.with("publish" to ja(rows), "state" to "published", "updated_at" to stamp, "version" to x.int("version") + 1,
+            "state_note_fa" to if (rows.any { it["error"] != null && it["error"] !is JsonNull }) "آنچه راه رسمی داشت منتشر شد؛ جای بی‌کلید منتشر نشد." else null)
+    }
+
+    // ---- cases
+    private val caseKey = Regex("^/legal/cases/LC-\\d+$")
+    private fun casesAll(): List<JsonObject> = store.keys.filter { caseKey.matches(it) }.map { store[it]!!.second.jsonObject }
+    private fun saveCase(c: JsonObject) { store["/legal/cases/${c.str("ref")}"] = 200 to c }
+    private fun caseOut(c: JsonObject) = JsonObject(c - "emails")
+    private fun lMessage(body: String, links: JsonObject) {
+        val l = list("/threads/L/messages")
+        val ref = pad("L-", l.size + 1, 4)
+        store["/threads/L/messages"] = 200 to page(l + jo("id" to "m19-$ref", "ref" to ref, "thread" to "L", "author" to counsel, "body" to body, "kind" to "text", "attachments" to ja(emptyList()), "links" to links, "created_at" to stamp))
+    }
+
+    // ---- reads
+    private fun v19Read(path: String, q: Map<String, String?>): Reply? {
+        fun has(o: JsonObject, k: String) = q[k] == null || o.str(k) == q[k]
+        when (path) {
+            "/roles/drafts" -> return Reply(200, page(list("/roles/drafts").map { it.jsonObject }.filter { has(it, "company") && has(it, "department") && has(it, "state") }.sortedByDescending { ms(it.str("created_at")) }))
+            "/media/series" -> return Reply(200, page(seriesAll().filter { has(it, "company") && has(it, "status") }.map(::seriesOut)))
+            "/media/items" -> return Reply(200, page(itemsAll().filter { has(it, "company") && has(it, "series") && has(it, "state") }.sortedByDescending { ms(it.str("updated_at")) }))
+            "/media/voices" -> return Reply(200, ja(list("/media/voices")))
+            "/media/voices/reference" -> {
+                val r = store["/media/voices/reference"]?.second as? JsonObject ?: return gone18("هنوز نمونه‌ی صدای تو ضبط نشده.")
+                if (r.str("state") == "processing" && System.currentTimeMillis() - (referenceAt["r"] ?: 0L) > 4_000) store["/media/voices/reference"] = 200 to r.with("state" to "ready")
+                return Reply(200, store["/media/voices/reference"]!!.second)
+            }
+            "/media/limits" -> return Reply(200, ja(list("/media/limits")))
+            "/legal/cases" -> return Reply(200, page(casesAll().filter { has(it, "company") && has(it, "status") }.sortedByDescending { ms(it.str("updated_at")) }.map(::caseOut)))
+        }
+        Regex("^/roles/drafts/(RD-\\d+)$").find(path)?.let { m -> return list("/roles/drafts").map { it.jsonObject }.firstOrNull { it.str("ref") == m.groupValues[1] }?.let { Reply(200, it) } ?: gone18("این نقش پیدا نشد.") }
+        Regex("^/media/items/(MI-\\d+)$").find(path)?.let { m -> return itemsAll().firstOrNull { it.str("ref") == m.groupValues[1] }?.let { Reply(200, it) } ?: gone18("این آیتم پیدا نشد.") }
+        Regex("^/legal/cases/(LC-\\d+)$").find(path)?.let { m ->
+            val c = store["/legal/cases/${m.groupValues[1]}"]?.second as? JsonObject ?: return gone18("این پرونده پیدا نشد.")
+            return Reply(200, c.with("emails" to ja(c.arr("emails").sortedBy { ms(it.str("at")) })))
+        }
+        return null
+    }
+
+    // ---- writes
+    private fun v19Write(method: String, path: String, b: JsonObject, version: Int?, idempotency: String?, stepUp: String?): Reply? {
+        fun keyed(r: Reply): Reply = r.also { if (!idempotency.isNullOrEmpty()) replies[idempotency] = it }
+        // A media_series card is sealed only on its own route, on the series digest (like a server plan, §18.8).
+        Regex("^/decisions/(D-\\d+)/approve$").find(path)?.let { m ->
+            if (decisionOf(m.groupValues[1])?.str("kind") == "media_series") return Reply(409, problem16(409, "validation_failed", "این کارت روی صفحه‌ی برنامه‌های انتشار، روی digest همان برنامه مُهر میشود."))
+            return null
+        }
+        // ---- §22.1 mandate
+        Regex("^/companies/([A-Z0-9]+)/departments/([A-Z]+)/mandate$").find(path)?.let { m ->
+            if (method != "PUT") return null
+            if (stepUp == null) return stepUpMissing()
+            val key = "/companies/${m.groupValues[1]}/departments"
+            val d = list(key).map { it.jsonObject }.firstOrNull { it.str("code") == m.groupValues[2] } ?: return gone18("این دپارتمان پیدا نشد.")
+            unmatched(version, d.int("version").coerceAtLeast(1))?.let { return it }
+            val x = b.obj("mandate")
+            if (x.str("from_fa")?.trim().isNullOrEmpty() || x.str("to_fa")?.trim().isNullOrEmpty()) return fieldBad("مبدأ و مقصد لازم است.", "mandate", "from_fa, to_fa")
+            val outs = (x["outputs_fa"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content?.trim()?.takeIf(String::isNotEmpty) }
+            if (outs.isEmpty()) return fieldBad("دست‌کم یک خروجی لازم است.", "outputs_fa", "required")
+            if (x.str("model_ceiling") !in setOf("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5")) return fieldBad("سقف مدل نامعتبر است.", "model_ceiling", "enum")
+            val next = d.with("mandate" to x.with("outputs_fa" to ja(outs.map(::JsonPrimitive))), "identity_md" to b.str("identity_md")?.trim().orEmpty(), "version" to d.int("version").coerceAtLeast(1) + 1)
+            update(key, d.str("code")!!, idKey = "code") { next }
+            return Reply(200, next)
+        }
+        // ---- §22.5 roles
+        if (path == "/roles/drafts" && method == "POST") {
+            replies[idempotency.orEmpty()]?.let { return it }
+            val company = b.str("company")
+            val department = b.str("department")
+            val brief = b.str("brief_md")?.trim().orEmpty()
+            if (company == null || department == null || brief.isEmpty()) return fieldBad("شرکت، دپارتمان و شرح نقش لازم است.", "brief_md", "required")
+            val n = list("/roles/drafts").size + 1
+            val ref = pad("RD-", n, 4)
+            val d = jo(
+                "id" to "rd$n", "ref" to ref, "company" to company, "department" to department, "role" to "", "title_fa" to brief.take(40), "title_en" to "", "why_md" to "", "charter_md" to "",
+                "tools" to ja(emptyList()), "model" to "", "effort" to "", "limits" to jo("steps_per_run" to 0, "tokens_per_step" to 0, "tokens_per_run" to 0),
+                "eval" to jo("suite" to "", "cases" to ja(emptyList())), "state" to "drafting", "review" to null, "eval_run" to null, "approver" to null, "decision_ref" to null, "version" to 1,
+                "created_at" to stamp, "activated_at" to null, "brief_md" to brief, "requested_by" to owner,
+                "written_by" to if (company == "HQ") owner else agent("$company-$department-MGR", "مدیر $department ${nameOf(company)}"),
+                "compared" to ja(emptyList()), "originality" to null, "hires" to 0, "retired_at" to null,
+            )
+            prepend("/roles/drafts", d)
+            return keyed(Reply(201, d))
+        }
+        Regex("^/roles/drafts/(RD-\\d+)/retire$").find(path)?.let { m ->
+            val d = list("/roles/drafts").map { it.jsonObject }.firstOrNull { it.str("ref") == m.groupValues[1] } ?: return gone18("این نقش پیدا نشد.")
+            if (d.str("state") != "active") return Reply(409, problem16(409, "validation_failed", "فقط نقش فعال بازنشسته میشود."))
+            val out = update("/roles/drafts", d.str("ref")!!) { it.with("state" to "retired", "retired_at" to stamp, "version" to it.int("version") + 1) }!!
+            store["/roles"] = 200 to ja(list("/roles").filter { it.jsonObject.str("draft") != d.str("ref") })
+            return Reply(200, out)
+        }
+        // ---- §22.2 series
+        if (path == "/media/series" && method == "POST") {
+            replies[idempotency.orEmpty()]?.let { return it }
+            validateSeries(b)?.let { return it }
+            val n = seriesAll().size + 1
+            val s = withDigest(JsonObject(seriesBody(b, null) + jo(
+                "id" to "sr$n", "ref" to pad("SR-", n, 4), "checks" to ja(MEDIA_CHECKS.map(::JsonPrimitive)), "status" to "draft", "sealed_at" to null, "version" to 1,
+                "proposed_by" to owner, "decision_ref" to null, "items_total" to 0, "created_at" to stamp, "updated_at" to stamp, "status_note_fa" to null,
+            )))
+            saveSeries(s)
+            return keyed(Reply(201, seriesOut(s)))
+        }
+        Regex("^/media/series/(SR-\\d+)(?:/(seal|pause|retire))?$").find(path)?.let { m ->
+            val s = seriesAll().firstOrNull { it.str("ref") == m.groupValues[1] } ?: return gone18("این برنامه پیدا نشد.")
+            val st = s.str("status")
+            when (m.groupValues[2]) {
+                "" -> {
+                    if (method != "PUT") return null
+                    unmatched(version, s.int("version"))?.let { return it }
+                    validateSeries(b.with("company" to s.str("company")))?.let { return it }
+                    if (st == "retired") return Reply(409, problem16(409, "validation_failed", "برنامه‌ی بازنشسته ویرایش نمیشود."))
+                    var x = JsonObject(s + seriesBody(b, s.str("company")) + jo("checks" to ja(MEDIA_CHECKS.map(::JsonPrimitive)), "version" to s.int("version") + 1, "updated_at" to stamp))
+                    if (st == "sealed" || st == "paused") x = x.with("status" to "proposed", "sealed_at" to null, "status_note_fa" to "ویرایش شد؛ مُهر قبلی این نسخه را نمیپوشاند و تا مُهر دوباره چیزی خودکار منتشر نمیشود.")
+                    x = withDigest(x)
+                    saveSeries(x)
+                    return Reply(200, seriesOut(x))
+                }
+                "seal" -> {
+                    if (stepUp == null) return stepUpMissing()
+                    if (b.str("digest") != null && b.str("digest") != s.str("digest")) return Reply(409, problem16(409, "version_conflict", "برنامه بعد از دیدن تو عوض شده؛ دوباره نگاه کن و مُهر کن."))
+                    if (st !in setOf("draft", "proposed", "paused")) return Reply(409, problem16(409, "validation_failed", if (st == "sealed") "همین نسخه مُهر شده است." else "برنامه‌ی بازنشسته مُهر نمیشود."))
+                    val ok = accountOk()
+                    val unconfigured = s.arr("targets").mapNotNull { it.str("account") }.filter { ok[it] != true }
+                    val x = s.with("status" to "sealed", "sealed_at" to stamp, "version" to s.int("version") + 1, "updated_at" to stamp,
+                        "status_note_fa" to if (unconfigured.isNotEmpty()) "مُهر شد؛ ${unconfigured.joinToString("، ")} هنوز کلید ندارد و تا ورودش روی آن منتشر نمیشود." else null)
+                    saveSeries(x)
+                    // Sealing a paused or proposed series decides its pending media_series card (§22.7).
+                    for (d in list("/decisions?status=all").map { it.jsonObject }) if (d.str("kind") == "media_series" && d.str("status") == "pending" && d.obj("payload").str("series") == s.str("ref")) {
+                        saveDecision(d.with("status" to "approved", "decided_at" to stamp, "decided_by" to owner, "seal" to jo("method" to "passkey_uv", "sealed_at" to stamp, "step_up_id" to "demo"), "resolution" to "M-0040", "effect_status" to "applied"))
+                        bumpInbox()
+                    }
+                    return Reply(200, seriesOut(x))
+                }
+                "pause" -> {
+                    if (st != "sealed") return Reply(409, problem16(409, "validation_failed", "فقط برنامه‌ی مُهرشده متوقف میشود."))
+                    val x = s.with("status" to "paused", "version" to s.int("version") + 1, "updated_at" to stamp, "status_note_fa" to "مالک متوقف کرد؛ با مُهر دوباره ادامه میدهد.")
+                    saveSeries(x)
+                    return Reply(200, seriesOut(x))
+                }
+                else -> {
+                    if (st == "retired") return Reply(409, problem16(409, "validation_failed", "همین حالا بازنشسته است."))
+                    val x = s.with("status" to "retired", "version" to s.int("version") + 1, "updated_at" to stamp, "status_note_fa" to null)
+                    saveSeries(x)
+                    return Reply(200, seriesOut(x))
+                }
+            }
+        }
+        // ---- §22.2 items
+        if (path == "/media/items" && method == "POST") {
+            replies[idempotency.orEmpty()]?.let { return it }
+            val company = b.str("company")
+            val kind = b.str("kind").orEmpty()
+            val brief = b.str("brief_md")?.trim().orEmpty()
+            if (company == null || company == "HQ" || kind !in setOf("reel", "story", "post", "carousel", "design") || brief.length < 8) return fieldBad("شرکت، نوع و brief (دست‌کم ۸ نویسه) لازم است.", "brief_md", "required")
+            val n = (list("/media/items").mapNotNull { it.jsonObject.str("ref")?.substringAfter('-')?.toIntOrNull() }.maxOrNull() ?: 0) + 1
+            val x = jo(
+                "id" to "mi$n", "ref" to pad("MI-", n, 4), "company" to company, "series" to b["series"], "kind" to kind, "title_fa" to brief.take(48), "state" to "scripting",
+                "script" to null, "direction" to null, "composition" to null, "assets" to ja(emptyList()), "voice" to null, "render" to null, "captions" to null, "checks" to ja(emptyList()), "qc" to null,
+                "publish" to ja(emptyList()), "decision_ref" to null, "ai_generated" to true, "cost" to jo("tokens" to 0, "usd" to "0.000000"), "brief_md" to brief, "topic_fa" to null,
+                "deliverable_ref" to null, "version" to 1, "created_at" to stamp, "updated_at" to stamp,
+                "state_note_fa" to if (kind == "design") "طراح رابط brief و ترکیب‌بندی را مینویسد؛ طراحی منتشر نمیشود و به مدیر فنی میرسد." else "یک‌باره است: آخرش همیشه کارت انتشار برای توست.",
+            )
+            prepend("/media/items", x)
+            return keyed(Reply(201, x))
+        }
+        Regex("^/media/items/(MI-\\d+)/unpublish$").find(path)?.let { m ->
+            val x = itemsAll().firstOrNull { it.str("ref") == m.groupValues[1] } ?: return gone18("این آیتم پیدا نشد.")
+            if (x.str("state") == "held") return Reply(423, problem16(423, "held", "ناظر کل این آیتم را نگه داشته."))
+            if (stepUp == null) return stepUpMissing()
+            if (x.str("state") != "published") return Reply(409, problem16(409, "validation_failed", "فقط آیتم منتشرشده پایین میآید."))
+            val rows = x.arr("publish").map { r -> if (r.str("channel") == "telegram" && r.str("placement") != "telegram_story") r.with("url" to null, "error" to "removed") else r.with("error" to "remove_by_hand") }
+            val out = x.with("publish" to ja(rows), "state" to "rejected", "updated_at" to stamp, "version" to x.int("version") + 1,
+                "state_note_fa" to if (rows.any { it.str("error") == "remove_by_hand" }) "مالک پایین آورد؛ جایی که API اجازه‌ی حذف نداد را از خود اپ پایین بیاور." else "مالک پایین آورد.")
+            saveItem(out)
+            return Reply(200, out)
+        }
+        // ---- §22.3 voices
+        Regex("^/media/voices/([\\w-]+)/(score|activate)$").find(path)?.let { m ->
+            val v = list("/media/voices").map { it.jsonObject }.firstOrNull { it.str("id") == m.groupValues[1] } ?: return gone18("این صدا پیدا نشد.")
+            fun save(x: JsonObject): Reply { store["/media/voices"] = 200 to ja(list("/media/voices").map { if (it.jsonObject.str("id") == x.str("id")) x else it }); return Reply(200, x) }
+            if (m.groupValues[2] == "score") {
+                val score = (b["score"] as? JsonPrimitive)?.intOrNull
+                if (score == null || score !in 1..10) return fieldBad("نمره از ۱ تا ۱۰ است.", "score", "1..10")
+                if (v.arr("samples").isEmpty()) return Reply(409, problem16(409, "not_ready", "این صدا هنوز نمونه ندارد."))
+                return save(v.with("owner_score" to score, "version" to v.int("version") + 1))
+            }
+            if (stepUp == null) return stepUpMissing()
+            if (v.arr("samples").isEmpty()) return Reply(409, problem16(409, "not_ready", "این صدا هنوز اندازه‌گیری نشده؛ فعال نمیشود."))
+            if (v["licence_commercial"]?.jsonPrimitive?.booleanOrNull != true && b["accept_non_commercial"]?.jsonPrimitive?.booleanOrNull != true)
+                return fieldBad("لایسنس این صدا غیرتجاری است؛ فعال شدنش انتخاب صریح تو را میخواهد.", "accept_non_commercial", "required")
+            store["/media/voices"] = 200 to ja(list("/media/voices").map { e -> val x = e.jsonObject; if (x.str("status") == "active") x.with("status" to "candidate") else x })
+            return save(v.with("status" to "active", "version" to v.int("version") + 1))
+        }
+        if (path == "/media/voices/reference" && method == "POST") {
+            val id = b.str("file_id") ?: return fieldBad("فایل نمونه لازم است.", "file_id", "required")
+            val r = jo("file" to (files[id] ?: jo("id" to id, "name" to "owner-reference.m4a", "mime" to "audio/mp4", "size" to 0, "sha256" to "demo")), "duration_s" to (files[id]?.get("duration_s") ?: JsonPrimitive(0)),
+                "created_at" to stamp, "state" to "processing", "reason_fa" to null)
+            store["/media/voices/reference"] = 200 to r
+            referenceAt["r"] = System.currentTimeMillis()
+            return Reply(201, r)
+        }
+        // ---- §22.4 legal
+        if (path == "/legal/cases" && method == "POST") {
+            replies[idempotency.orEmpty()]?.let { return it }
+            val company = b.str("company")
+            val title = b.str("title_fa")?.trim().orEmpty()
+            val kind = b.str("kind")
+            val brief = b.str("brief_md")?.trim().orEmpty()
+            if (company == null || title.isEmpty() || kind == null || brief.isEmpty()) return fieldBad("شرکت، عنوان، نوع و شرح لازم است.", "brief_md", "required")
+            val n = casesAll().size + 1
+            val ref = pad("LC-", n, 4)
+            val c = jo(
+                "id" to "lc$n", "ref" to ref, "company" to company, "title_fa" to title, "kind" to kind, "counterpart" to jo("name" to "—", "channel" to "other", "address" to null),
+                "status" to "open", "opened_by" to owner, "brief_md" to brief, "created_at" to stamp, "updated_at" to stamp, "version" to 1, "deadlines" to ja(emptyList()),
+                "timeline" to ja(listOf(jo("at" to stamp, "kind" to "note", "ref" to null, "summary_fa" to "پرونده باز شد؛ مشاور حقوقی بیدار شد و اول واقعیت‌ها را جمع میکند."))), "emails" to ja(emptyList()),
+            )
+            saveCase(c)
+            lMessage("پرونده‌ی **$ref** باز شد. اول واقعیت‌ها و قاعده‌ی خود طرف مقابل را پیدا میکنم؛ هر ایمیل یا فرم، کارت مُهر توست.", jo("case" to ref))
+            return keyed(Reply(201, caseOut(c)))
+        }
+        Regex("^/legal/cases/(LC-\\d+)/close$").find(path)?.let { m ->
+            val c = store["/legal/cases/${m.groupValues[1]}"]?.second as? JsonObject ?: return gone18("این پرونده پیدا نشد.")
+            if (c.str("status") == "closed") return Reply(409, problem16(409, "validation_failed", "همین حالا بسته است."))
+            if (c.arr("emails").any { it.str("state") == "waiting_seal" }) return Reply(409, problem16(409, "validation_failed", "ایمیلی منتظر مُهر توست؛ اول آن را مُهر یا رد کن."))
+            val x = c.with("timeline" to ja(c.arr("timeline") + jo("at" to stamp, "kind" to "decision", "ref" to null, "summary_fa" to "مالک پرونده را بست.")), "status" to "closed", "updated_at" to stamp, "version" to c.int("version") + 1)
+            saveCase(x)
+            return Reply(200, x)
+        }
+        return null
+    }
+
+    /** What deciding a §22 card does in the demo (the web's decided19): publish or reject the item, send or reopen the email's case,
+     *  activate or reject the role. */
+    private fun decided19(d: JsonObject) {
+        val status = d.str("status")
+        val p = d.obj("payload")
+        when (d.str("kind")) {
+            "media_publish" -> {
+                val x = itemsAll().firstOrNull { it.str("ref") == p.str("item") } ?: return
+                saveItem(if (status == "approved") publishNow(x) else x.with("state" to "rejected", "updated_at" to stamp, "version" to x.int("version") + 1,
+                    "state_note_fa" to if (status == "returned") "مالک برگرداند: «${d.str("note").orEmpty()}»" else "مالک رد کرد."))
+            }
+            "email_send" -> {
+                val c = casesAll().firstOrNull { cs -> cs.arr("emails").any { it.str("decision_ref") == d.str("ref") } } ?: return
+                val out = c.arr("emails").count { it.str("direction") == "out" }
+                val emails = c.arr("emails").map { e ->
+                    if (e.str("decision_ref") != d.str("ref")) e
+                    else if (status == "approved") e.with("state" to "sent", "at" to stamp, "message_id" to "<${c.str("ref")?.lowercase()}.$out@coinepro.com>")
+                    else e.with("state" to "rejected")
+                }
+                val entry = if (status == "approved") jo("at" to stamp, "kind" to "email_out", "ref" to d.str("ref"), "summary_fa" to "با مُهر مالک فرستاده شد؛ دقیقاً همان پیام، یک بار.")
+                else jo("at" to stamp, "kind" to "decision", "ref" to d.str("ref"), "summary_fa" to if (status == "returned") "مالک برگرداند: «${d.str("note").orEmpty()}»؛ مشاور پیش‌نویس تازه مینویسد." else "مالک ایمیل را رد کرد؛ فرستاده نشد.")
+                saveCase(c.with("emails" to ja(emails), "timeline" to ja(c.arr("timeline") + entry), "status" to if (status == "approved") "waiting_reply" else "open", "updated_at" to stamp, "version" to c.int("version") + 1))
+            }
+            "role_new" -> update("/roles/drafts", p.str("draft") ?: return) {
+                if (status == "approved") it.with("state" to "active", "activated_at" to stamp, "approver" to owner) else it.with("state" to "rejected")
+            }
+        }
+    }
+
+    private val MEDIA_CHECKS = listOf("brand", "red_lines", "risk_warning", "facts", "rights", "platform", "qc")
 }

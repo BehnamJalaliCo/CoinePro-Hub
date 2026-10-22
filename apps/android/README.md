@@ -113,6 +113,28 @@ Every library is free and open source and pinned to an exact version (`gradle/li
     health and claims**, the **digital CEO** (accuracy, calibration, principles), the **substitute players** (seats and
     daily caps, the $20-equivalent usage, CLI sign-in and sign-out with the passkey, the browser profile, creatives with
     placement and overlay, accepted or rejected) and the **management settings**.
+- **Media and legal** ⟨1.6⟩ (contract §22), the «رسانه و حقوقی» group of the tools sheet and inside the company pages,
+  the same data and words as the web:
+  - **Media studio** — every company's items by stage on a pipeline board (scripting to published, and what is held or
+    failed), what waits for the owner, the next automatic publication and the hub's voice; an item with its render (poster
+    and player), voice, captions and assets, its script with sources, shots, composition, the code checks and the media
+    manager's QC, each placement's publication and its cost; a one-off item (always a card; a UI design goes to the CTO);
+    the file shared to the phone's apps; unpublishing with the passkey on the item.
+  - **Publishing series** — kind, channels and placements (the platforms' own rules), a weekly schedule, topics, format,
+    checks and the daily cap; edits with If-Match return a sealed series to «منتظر مُهر»; the seal is the passkey on the
+    series' `digest`; pause and retire are free. The channels' week and each account's remaining platform limit.
+  - **The hub's voice** — the active voice, the blind listening test scored 1–10, the registry with licences and CPU
+    speed, activation with the passkey (a non-commercial licence acknowledged first in words), and the owner's own
+    reference voice recorded on the phone (60–180 s).
+  - **Legal counsel** — cases by company and status with their counterpart, deadlines and timeline, the mailbox, thread
+    `L`, a new case with files; an email the counsel drafted is sealed with the passkey on the message's digest, exactly
+    as it will leave (the same in the cartable's `email_send` card), returned with a note or rejected.
+  - **Departments and roles on demand** — a department's mandate (from, to, delivers, limits, ceilings, character and a
+    starting team) written and sealed on the exact body with If-Match; the roles its manager writes, their gates and
+    eval, asked for by the owner and retired; their `role_new` card and story.
+  - In the cartable: `media_publish` (render, placements, checks), `media_series` (sealed on the series page),
+    `email_send` and `role_new`; refs `SR-`, `MI-`, `LC-`, `RD-` and thread `L` open their pages; stream topics `media`
+    and `legal`; the §22.6 codes (a platform's limit says how long to wait) in Persian.
 - **Live** — one SSE connection to `/api/v1/stream` while the app is in the foreground; events refresh the
   screens that show the touched data (the same invalidation map as the web).
 
@@ -120,7 +142,7 @@ Every library is free and open source and pinned to an exact version (`gradle/li
 
 ```
 app/src/main/java/com/coinepro/hq/
-  core/net/        Api (contract v1.5; every 🔏 write names its step-up action and target), Models, Models14 … Models18
+  core/net/        Api (contract v1.6; every 🔏 write names its step-up action and target), Models, Models14 … Models19
   core/auth/       Auth (sign-in, enrolment, step-up), Passkeys, TokenVault
   core/data/       QueryCache (shared cached queries), HoldingStream (SSE)
   core/format/     Jalali dates, figures, Persian labels

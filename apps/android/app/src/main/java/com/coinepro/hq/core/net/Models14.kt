@@ -651,12 +651,20 @@ data class RoleInfo(
     val tools: List<String> = emptyList(),
     val limits: RoleLimits = RoleLimits(),
     val version: Int = 1,
+    /** ⟨1.6⟩ §22.5: `GET /roles` lists file charters and active drafts; a draft is scoped to its company and department. */
+    val source: String = "file",
+    val company: String? = null,
+    val draft: String? = null,
 )
 
 /** The roles the owner can hire into a department: `employee` charters whose scope fits the company and whose department (if any) is this one. */
-fun hireableRoles(roles: List<RoleInfo>, companyKind: String, department: String?): List<RoleInfo> {
+fun hireableRoles(roles: List<RoleInfo>, companyKind: String, department: String?, company: String? = null): List<RoleInfo> {
     val scope = if (companyKind == "holding") "holding" else "company"
-    return roles.filter { it.kind == "employee" && it.scope == scope && (it.department == null || it.department == department) }
+    // ⟨1.6⟩ A role written on demand (§22.5) is hireable only in its own company and department.
+    return roles.filter {
+        it.kind == "employee" && if (it.source == "draft") it.company == company && it.department == department
+        else it.scope == scope && (it.department == null || it.department == department)
+    }
 }
 
 @Serializable
@@ -686,7 +694,15 @@ data class HireOut(val employee: HiredEmployee, val decision: HireDecision)
 data class StoryFigure(val labelFa: String, val value: String)
 
 @Serializable
-data class StoryLinks(val employee: String? = null, val deliverable: String? = null, val decision: String? = null, val work: String? = null, val period: String? = null)
+data class StoryLinks(
+    val employee: String? = null,
+    val deliverable: String? = null,
+    val decision: String? = null,
+    val work: String? = null,
+    val period: String? = null,
+    /** ⟨1.6⟩ §22.7: a `role` story names the draft that became active; the owner can retire it from the story. */
+    val roleDraft: String? = null,
+)
 
 @Serializable
 data class Story(

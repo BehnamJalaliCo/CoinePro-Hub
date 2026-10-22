@@ -140,16 +140,19 @@ private fun Count(label: String, n: Int, modifier: Modifier, gold: Boolean = fal
     }
 }
 
-/** One company: departments, people (org chart), its open work and ⟨1.4.6⟩ its brand and seal (not the holding's: fixed). */
+/** One company: departments, people (org chart), its open work and ⟨1.4.6⟩ its brand and seal (not the holding's: fixed).
+ *  ⟨1.6⟩ §22.1: a department opens with its mandate, identity and the roles its manager wrote ([dept0]); [role0] opens a draft. */
 @Composable
-fun CompanyScreen(code: String, tab0: String = "departments") {
+fun CompanyScreen(code: String, tab0: String = "departments", dept0: String? = null, role0: String? = null) {
     val nav = LocalNav.current
     val c = Divan.colors
     val co = rememberQuery("company:$code", "companies") { company(code) }
     val depts = rememberQuery("departments:$code", "companies") { departments(code) }
     val chart = rememberQuery("chart:$code", "employees") { orgChart(code) }
     val work = rememberQuery("work:company:$code", "work") { work(company = code) }
-    var tab by rememberSaveable { mutableStateOf(tab0) }
+    var tab by rememberSaveable { mutableStateOf(if (role0 != null) "people" else tab0) }
+    var dept by rememberSaveable { mutableStateOf(dept0) }
+    var role by rememberSaveable { mutableStateOf(role0) }
     val r = refresher(co, depts, chart, work)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
@@ -179,14 +182,17 @@ fun CompanyScreen(code: String, tab0: String = "departments") {
                 val list = depts.data
                 if (list == null) item { Loadable(depts) { } }
                 else items(list.sortedBy { it.sort }, key = { it.code }) { d ->
-                    HqCard(Modifier.fillMaxWidth()) {
+                    HqCard(Modifier.fillMaxWidth(), onClick = { dept = d.code }) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(c.tile), contentAlignment = Alignment.Center) { DIcon(DEPT_ICON[d.code] ?: DivanIcon.DEPARTMENT, size = 20.dp, tint = c.silverInk) }
                             Column(Modifier.weight(1f)) {
                                 Text(d.nameFa, style = Divan.type.bodyStrong)
                                 val n = chart.data?.roots?.flatMap { listOf(it) + it.children }?.count { it.department == d.code } ?: 0
                                 Text("${d.managerTitleFa}، $n نفر", style = Divan.type.caption, color = c.textMuted)
+                                // ⟨1.6⟩ §22.1: where the department must arrive.
+                                d.mandate?.let { m -> Text("مقصد: ${m.toFa}", style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                             }
+                            DIcon(DivanIcon.NEXT, size = 16.dp, tint = c.textMuted)
                         }
                     }
                 }
@@ -194,7 +200,10 @@ fun CompanyScreen(code: String, tab0: String = "departments") {
             "brand" -> item {
                 Loadable(co) { x -> HqCard(Modifier.fillMaxWidth()) { BrandBlock(x.code, x.nameFa ?: x.code, x.nameEn ?: x.code) } }
             }
-            "people" -> item {
+            "people" -> {
+              // ⟨1.6⟩ §22.5: roles a department's manager wrote beyond the template.
+              item { com.coinepro.hq.ui.org.RolesOnDemand(code) { role = it } }
+              item {
                 Loadable(chart) { ch ->
                     if (ch.roots.isEmpty()) Empty("هنوز کسی استخدام نشده", icon = DivanIcon.HIRE, body = "پیشنهادهای استخدام در کارتابل منتظر مُهر تو هستند.")
                     else HqCard(Modifier.fillMaxWidth()) {
@@ -202,6 +211,7 @@ fun CompanyScreen(code: String, tab0: String = "departments") {
                         Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { ch.roots.forEach { Node(it, 0) { code -> nav.go("employees/$code") } } }
                     }
                 }
+              }
             }
             else -> {
                 val list = work.data?.items
@@ -220,6 +230,11 @@ fun CompanyScreen(code: String, tab0: String = "departments") {
             }
         }
     }
+    dept?.let { dc ->
+        val d = depts.data?.firstOrNull { it.code == dc }
+        com.coinepro.hq.ui.v14.HqSheet({ dept = null }, d?.nameFa ?: dc, ref = dc) { com.coinepro.hq.ui.org.DepartmentView(code, dc) { role = it } }
+    }
+    role?.let { r -> com.coinepro.hq.ui.v14.HqSheet({ role = null }, "نقش تازه", ref = r) { com.coinepro.hq.ui.org.RoleDraftView(r) } }
 }
 
 @Composable

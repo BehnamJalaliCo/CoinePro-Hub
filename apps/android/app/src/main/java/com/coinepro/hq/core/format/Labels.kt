@@ -36,6 +36,14 @@ val DECISION_KIND = mapOf(
     "knowledge_entry" to Kind("ورودی دانشنامه", DivanIcon.KNOWLEDGE),
     "risk_acceptance" to Kind("پذیرش ریسک", DivanIcon.URGENT),
     "authority_change" to Kind("تغییر ماتریس اختیار", DivanIcon.LOCK),
+    // ⟨1.6⟩ §22.6
+    "media_series" to Kind("برنامه‌ی انتشار", DivanIcon.SEND),
+    "media_publish" to Kind("انتشار رسانه", DivanIcon.VIDEO),
+    "email_send" to Kind("ارسال ایمیل حقوقی", DivanIcon.SEND),
+    "role_new" to Kind("نقش تازه", DivanIcon.DEPARTMENT),
+    // ⟨1.7⟩ §23: the archive's two cards, so the cartable names them (their pages are not in the app yet).
+    "archive_schema" to Kind("تغییر طرح بایگانی", DivanIcon.SETTINGS),
+    "archive_disposal" to Kind("امحای سندهای بایگانی", DivanIcon.REPORT),
 )
 
 fun decisionKind(k: String) = DECISION_KIND[k] ?: Kind(k, DivanIcon.DECISION)
@@ -99,6 +107,8 @@ val ACTIVITY = mapOf("working" to "در حال کار", "waiting" to "منتظر
 val DEPT_ICON = mapOf(
     "TECH" to DivanIcon.SERVER, "GROWTH" to DivanIcon.CHART, "SALES" to DivanIcon.MESSAGES, "PRODUCT" to DivanIcon.DELIVERABLE,
     "FIN" to DivanIcon.TREASURY, "QUANT" to DivanIcon.BUDGET, "AIOPS" to DivanIcon.MODEL, "HR" to DivanIcon.DEPARTMENT, "OVS" to DivanIcon.SEARCH,
+    // ⟨1.6⟩ §22.1
+    "MEDIA" to DivanIcon.VIDEO, "LEGAL" to DivanIcon.DECISION,
 )
 
 /** `llm.connections.status` (LLM layer): enabled, disabled or quota_exhausted. */
@@ -136,10 +146,14 @@ val ROLE_FA = mapOf(
     "quant" to "کوانت", "advisor" to "مشاور کل", "overseer" to "ناظر کل", "assistant" to "دستیار", "inspector" to "بازرس کیفیت", "fact_checker" to "راستی‌آزما",
     "security_analyst" to "تحلیلگر امنیت", "aiops_head" to "مدیر عملیات AI", "ai_safety" to "ایمنی AI", "hub_platform_sre" to "پایداری پلتفرم هاب",
     "support_lead" to "سرپرست پشتیبانی", "support_agent" to "کارشناس پشتیبانی", "referral_rescue" to "متخصص نجات رفرال", "revenue_analyst" to "تحلیلگر درآمد",
+    // ⟨1.6⟩ §22.1
+    "media_director" to "مدیر رسانه و طراحی", "scriptwriter" to "سناریست", "video_director" to "کارگردان ویدیو", "motion_designer" to "طراح موشن‌گرافیک",
+    "voice_producer" to "تهیه‌کننده‌ی صدا", "visual_designer" to "طراح گرافیک", "ui_designer" to "طراح رابط کاربری", "legal_counsel" to "مشاور حقوقی",
 )
 
 fun roleFa(r: String): String = if (r == "all") "همه" else ROLE_FA[r] ?: r
 
 val DEPT_FA = mapOf(
     "TECH" to "فنی", "GROWTH" to "رشد", "SALES" to "فروش", "PRODUCT" to "محصول", "FIN" to "مالی", "QUANT" to "کوانت", "AIOPS" to "عملیات AI", "HR" to "منابع انسانی", "OVS" to "نظارت",
+    "MEDIA" to "رسانه و طراحی", "LEGAL" to "حقوقی",
 )

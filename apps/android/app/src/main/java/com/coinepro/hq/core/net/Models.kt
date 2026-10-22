@@ -240,6 +240,12 @@ data class Department(
     val manager: EmployeeRef? = null,
     val status: String = "active",
     val sort: Int = 0,
+    /** ⟨1.6⟩ §22.1: what the department starts from and must reach, its character, and the team it may start with (a suggestion). */
+    val mandate: Mandate? = null,
+    val identityMd: String? = null,
+    val team: List<TeamRole> = emptyList(),
+    /** ⟨1.6.1⟩ §22.7: If-Match of the mandate's PUT. */
+    val version: Int = 1,
 )
 
 @Serializable

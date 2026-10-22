@@ -843,4 +843,154 @@ class ApiContractTest {
         assertEquals("سقف پر شده؛ ۲ دقیقه‌ی دیگر.".replace("۲", "2"), com.coinepro.hq.core.net.mgmtError(err(429, """{"code":"rate_limited","message_fa":"سقف پر شده","status":429}""", "120")))
         assertEquals("server", com.coinepro.hq.core.net.mgmtError(err(422, """{"code":"validation_failed","message_fa":"server","status":422}""")))
     }
+    // ------------------------------------------------------------ ⟨1.6⟩ §22 --
+    private val series22 = """{"ref":"SR-0002","company":"FX","title_fa":"استوری","kind":"story","status":"proposed","digest":"4fb6f1e1d","version":3,"targets":[]}"""
+
+    @Test
+    fun aMandateIsSealedOnItsExactBodyWithIfMatch() = runTest {
+        val d = Api.json.decodeFromString(com.coinepro.hq.core.net.Department.serializer(), """{"id":"FX-MEDIA","code":"MEDIA","company":"FX","name_fa":"رسانه و طراحی","version":3}""")
+        server.enqueue(json(200, """{"id":"FX-MEDIA","code":"MEDIA","company":"FX","name_fa":"رسانه و طراحی","version":4,"mandate":{"from_fa":"a","to_fa":"b","outputs_fa":["c"],"boundaries_fa":[],"tool_ceiling":["media.item"],"model_ceiling":"claude-opus-5-5"},"identity_md":"آرام"}"""))
+        var signedOn: Pair<String, String>? = null
+        val body = com.coinepro.hq.core.net.MandateIn(com.coinepro.hq.core.net.Mandate("a", "b", listOf("c"), emptyList(), listOf("media.item"), "claude-opus-5-5"), "آرام")
+        val out = api.putMandate("FX", d, body) { a, t -> signedOn = a to t; "su" }
+        val req = server.takeRequest()
+        val text = req.body!!.utf8()
+        assertEquals("""{"mandate":{"from_fa":"a","to_fa":"b","outputs_fa":["c"],"boundaries_fa":[],"tool_ceiling":["media.item"],"model_ceiling":"claude-opus-5-5"},"identity_md":"آرام"}""", text)
+        assertEquals("department.mandate" to Api.sha256(text), signedOn)
+        assertEquals(Triple("PUT", "\"3\"", "/api/v1/companies/FX/departments/MEDIA/mandate"), Triple(req.method, req.headers["If-Match"], req.url.encodedPath))
+        assertEquals("su", req.headers["X-Step-Up"])
+        assertEquals(4 to "claude-opus-5-5", out.version to out.mandate?.modelCeiling)
+    }
+
+    @Test
+    fun aSeriesAnUnpublishAndAVoiceAreSignedOnTheirTargets() = runTest {
+        val s = Api.json.decodeFromString(com.coinepro.hq.core.net.Series.serializer(), series22)
+        val (a1, t1, r1) = signed(series22.replace("proposed", "sealed")) { api.sealSeries(s, it) }
+        assertEquals(Triple("media.series", "4fb6f1e1d", "/api/v1/media/series/SR-0002/seal"), Triple(a1, t1, r1.url.encodedPath))
+        assertEquals("""{"digest":"4fb6f1e1d"}""", r1.body!!.utf8())
+        val (a2, t2, r2) = signed("""{"ref":"MI-0014","company":"FX","kind":"reel","state":"rejected"}""") { api.unpublish("MI-0014", it) }
+        assertEquals(Triple("media.unpublish", "MI-0014", "/api/v1/media/items/MI-0014/unpublish"), Triple(a2, t2, r2.url.encodedPath))
+        // A non-commercial voice is acknowledged in the body; a commercial one is not.
+        val xtts = Api.json.decodeFromString(com.coinepro.hq.core.net.Voice.serializer(), """{"id":"v-xtts-owner","licence":"Coqui Public Model License 1.0.0","licence_commercial":false}""")
+        val (a3, t3, r3) = signed("""{"id":"v-xtts-owner","status":"active"}""") { api.activateVoice(xtts, it) }
+        assertEquals(Triple("voice.activate", "v-xtts-owner", """{"accept_non_commercial":true}"""), Triple(a3, t3, r3.body!!.utf8()))
+        val (_, _, r4) = signed("""{"id":"v-piper-amir","status":"active"}""") { api.activateVoice(xtts.copy(id = "v-piper-amir", licenceCommercial = true), it) }
+        assertEquals("/api/v1/media/voices/v-piper-amir/activate" to "{}", r4.url.encodedPath to r4.body!!.utf8())
+    }
+
+    @Test
+    fun anEmailCardIsSealedOnTheMessageDigest() {
+        fun card(kind: String, payload: String) = Api.json.decodeFromString(com.coinepro.hq.core.net.Decision.serializer(),
+            """{"id":"d","ref":"D-000085","company":"FX","kind":"$kind","title":"t","status":"pending","proposer":{"code":"HQ-LGL","kind":"agent"},"created_at":"2026-10-17T08:00:00Z","payload":$payload}""")
+        assertEquals("80b3fe9c", com.coinepro.hq.core.net.sealTarget(card("email_send", """{"case":"LC-0001","subject":"s","digest":"80b3fe9c"}""")))
+        // Without a digest (an older card) it falls back to the ref; every other kind is sealed on its ref.
+        assertEquals("D-000085", com.coinepro.hq.core.net.sealTarget(card("email_send", "{}")))
+        assertEquals("D-000085", com.coinepro.hq.core.net.sealTarget(card("media_publish", """{"digest":"x"}""")))
+    }
+
+    @Test
+    fun section22WritesCarryIfMatchAndTheCallersKey() = runTest {
+        // A new series is written whole (a null means none), with the press's key; an edit carries If-Match.
+        val body = com.coinepro.hq.core.net.SeriesIn(
+            "PC", "نکته", "carousel", listOf(com.coinepro.hq.core.net.SeriesTarget("instagram", "instagram-pc", "instagram_post")), "FREQ=WEEKLY;BYDAY=MO,WE;BYHOUR=12;BYMINUTE=0",
+            com.coinepro.hq.core.net.Topics(listOf("میانبرها"), null), com.coinepro.hq.core.net.SeriesFormat("4:5", null, null, false, "none", com.coinepro.hq.core.net.SeriesOverlay(null, true)),
+            com.coinepro.hq.core.net.MEDIA_CHECKS, false, 2,
+        )
+        server.enqueue(json(201, series22))
+        api.createSeries(body, "k-series")
+        val create = server.takeRequest()
+        assertEquals("k-series", create.headers["Idempotency-Key"])
+        assertEquals(
+            """{"company":"PC","title_fa":"نکته","kind":"carousel","targets":[{"channel":"instagram","account":"instagram-pc","placement":"instagram_post"}],"schedule":"FREQ=WEEKLY;BYDAY=MO,WE;BYHOUR=12;BYMINUTE=0","topics":{"pool":["میانبرها"],"rule_fa":null},"format":{"aspect":"4:5","duration_s":null,"voice":null,"captions":false,"music":"none","overlay":{"cta_fa":null,"mark":true}},"checks":["brand","red_lines","risk_warning","facts","rights","platform","qc"],"auto_publish":false,"max_per_day":2}""",
+            create.body!!.utf8(),
+        )
+        val s = Api.json.decodeFromString(com.coinepro.hq.core.net.Series.serializer(), series22)
+        server.enqueue(json(200, series22))
+        api.updateSeries(s, body)
+        val put = server.takeRequest()
+        assertEquals(Triple("PUT", "\"3\"", "/api/v1/media/series/SR-0002"), Triple(put.method, put.headers["If-Match"], put.url.encodedPath))
+        assertNull(put.headers["X-Step-Up"])
+        // Pausing and retiring a series need no passkey.
+        for (path in listOf("pause", "retire")) {
+            server.enqueue(json(200, series22))
+            if (path == "pause") api.pauseSeries("SR-0001") else api.retireSeries("SR-0001")
+            val r = server.takeRequest()
+            assertEquals("/api/v1/media/series/SR-0001/$path", r.url.encodedPath)
+            assertNull(r.headers["X-Step-Up"])
+        }
+        // A one-off item, a role asked for and a case opened carry the press's key.
+        server.enqueue(json(201, """{"ref":"MI-0027","company":"TY","kind":"design","state":"scripting"}"""))
+        api.createMediaItem("TY", "design", "صفحه‌ی اول", key = "k-item")
+        val item = server.takeRequest()
+        assertEquals("k-item" to """{"company":"TY","kind":"design","brief_md":"صفحه‌ی اول"}""", item.headers["Idempotency-Key"] to item.body!!.utf8())
+        server.enqueue(json(201, """{"ref":"RD-0005","company":"FX","department":"MEDIA","state":"drafting"}"""))
+        api.askRole("FX", "MEDIA", "تدوینگر پادکست", "k-role")
+        val role = server.takeRequest()
+        assertEquals("k-role" to """{"company":"FX","department":"MEDIA","brief_md":"تدوینگر پادکست"}""", role.headers["Idempotency-Key"] to role.body!!.utf8())
+        server.enqueue(json(201, """{"ref":"LC-0004","company":"HQ","status":"open","opened_by":{"code":"owner","kind":"owner"}}"""))
+        api.openCase("HQ", "عنوان", "takedown", "شرح", emptyList(), "k-case")
+        val case = server.takeRequest()
+        assertEquals("k-case" to """{"company":"HQ","title_fa":"عنوان","kind":"takedown","brief_md":"شرح"}""", case.headers["Idempotency-Key"] to case.body!!.utf8())
+        // A score, the owner's reference, a retirement and a closed case are plain owner writes.
+        server.enqueue(json(200, """{"id":"v-piper-gyro","owner_score":7}"""))
+        api.scoreVoice("v-piper-gyro", 7)
+        assertEquals("/api/v1/media/voices/v-piper-gyro/score" to """{"score":7}""", server.takeRequest().let { it.url.encodedPath to it.body!!.utf8() })
+        server.enqueue(json(201, """{"state":"processing","duration_s":0,"created_at":"2026-10-17T08:30:00Z"}"""))
+        assertEquals("processing", api.setVoiceReference("f9").state)
+        assertEquals("""{"file_id":"f9"}""", server.takeRequest().body!!.utf8())
+        server.enqueue(json(200, """{"ref":"RD-0001","company":"FX","department":"MEDIA","state":"retired"}"""))
+        api.retireRoleDraft("RD-0001")
+        assertEquals("/api/v1/roles/drafts/RD-0001/retire", server.takeRequest().url.encodedPath)
+        server.enqueue(json(200, """{"ref":"LC-0003","company":"PC","status":"closed"}"""))
+        api.closeCase("LC-0003")
+        assertEquals("/api/v1/legal/cases/LC-0003/close", server.takeRequest().url.encodedPath)
+    }
+
+    @Test
+    fun section22ReadsAndCodes() = runTest {
+        server.enqueue(json(200, """{"items":[{"ref":"MI-0014","company":"FX","kind":"reel","state":"published","render":{"id":"f","name":"r.mp4","mime":"video/mp4","size":1,"width":360,"height":640,"duration_s":10}}],"next_cursor":null}"""))
+        val items = api.mediaItems("FX", state = "published")
+        assertEquals("company=FX&state=published&limit=100", server.takeRequest().url.encodedQuery)
+        assertEquals(640 to 10.0, items.items.single().render!!.height to items.items.single().render!!.durationS)
+        // Lists read bare or paged; a reference not recorded yet is null.
+        server.enqueue(json(200, "[$series22]"))
+        server.enqueue(json(200, """{"items":[$series22],"next_cursor":null}"""))
+        assertEquals(api.series("FX"), api.series(status = "sealed"))
+        assertEquals("company=FX" to "status=sealed", server.takeRequest().url.encodedQuery to server.takeRequest().url.encodedQuery)
+        server.enqueue(json(404, """{"code":"not_found","message_fa":"x","status":404}"""))
+        assertNull(api.voiceReference())
+        server.takeRequest()
+        server.enqueue(json(200, """[{"account":"instagram-fx","channel":"instagram","company":"FX","per_24h":50,"used_24h":3}]"""))
+        assertEquals(50 to 3, api.mediaLimits().single().let { it.per24h to it.used24h })
+        server.takeRequest()
+        server.enqueue(json(200, """{"items":[],"next_cursor":null}"""))
+        api.cases("TY", "open")
+        assertEquals("company=TY&status=open&limit=50", server.takeRequest().url.encodedQuery)
+        server.enqueue(json(200, """{"items":[],"next_cursor":null}"""))
+        api.roleDrafts("FX", "MEDIA")
+        assertEquals("company=FX&department=MEDIA", server.takeRequest().url.encodedQuery)
+        // The §22.6 codes in the app's words; the platform's limit says how long to wait; a refused body names its fields.
+        fun err(code: Int, body: String, wait: String? = null): ApiException {
+            server.enqueue(MockResponse.Builder().code(code).addHeader("Content-Type", "application/json").apply { if (wait != null) addHeader("Retry-After", wait) }.body(body).build())
+            return try { kotlinx.coroutines.runBlocking { api.voices() }; fail("expected ApiException"); throw IllegalStateException() } catch (e: ApiException) { server.takeRequest(); e }
+        }
+        assertEquals("این برنامه‌ی انتشار مُهر نشده؛ چیزی خودکار منتشر نمیشود و آیتم کارت میشود.", com.coinepro.hq.core.net.mediaError(err(409, """{"code":"series_not_sealed","message_fa":"server","status":409}""")))
+        assertEquals("سقف انتشار خود پلتفرم برای این حساب پر شده؛ 10 دقیقه‌ی دیگر.", com.coinepro.hq.core.net.mediaError(err(429, """{"code":"platform_limit","message_fa":"server","status":429}""", "600")))
+        assertEquals("سقف انتشار خود پلتفرم برای این حساب پر شده؛ 3 ساعت دیگر.", com.coinepro.hq.core.net.mediaError(err(429, """{"code":"platform_limit","message_fa":"server","status":429}""", "10800")))
+        assertEquals("نمره از ۱ تا ۱۰ است. (score)", com.coinepro.hq.core.net.mediaError(err(422, """{"code":"validation_failed","message_fa":"نمره از ۱ تا ۱۰ است.","status":422,"fields":{"score":"1..10"}}""")))
+        assertEquals("ناظر کل این را نگه داشته؛ تا تصمیم تو کاری روی آن انجام نمیشود.", com.coinepro.hq.core.net.mediaError(err(423, """{"code":"held","message_fa":"server","status":423}""")))
+        assertEquals("server", com.coinepro.hq.core.net.mediaError(err(409, """{"code":"other","message_fa":"server","status":409}""")))
+    }
+
+    @Test
+    fun theRulesOfAPlacementAreTheWebs() {
+        fun fits(kind: String, aspect: String, placement: String) = com.coinepro.hq.core.net.placementFits(kind, aspect, placement)
+        assertNull(fits("reel", "9:16", "instagram_reel"))
+        assertEquals("فقط ریلز ۹:۱۶", fits("story", "9:16", "instagram_reel"))
+        assertNull(fits("story", "9:16", "telegram_story"))
+        assertEquals("فقط استوری ۹:۱۶", fits("post", "1:1", "telegram_story"))
+        assertNull(fits("carousel", "4:5", "instagram_post"))
+        assertEquals("پست یا کاروسل ۴:۵ یا ۱:۱", fits("post", "16:9", "instagram_post"))
+        assertNull(fits("post", "16:9", "telegram_post"))
+    }
 }
