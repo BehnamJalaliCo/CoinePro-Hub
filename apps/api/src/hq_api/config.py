@@ -136,7 +136,8 @@ class Settings:
         default_factory=lambda: _env("HQ_OVERSIGHT_SCHEDULES", "on") == "on"
     )
     # Real-model spend of all agent runs per UTC day (input + output + cache
-    # tokens); a run is refused once the day's total reaches it (0 = no cap).
+    # tokens); a run is refused once the day's total reaches it. 0 means nothing:
+    # every run is refused (prompt 08.1; never "no cap").
     agent_daily_token_cap: int = field(
         default_factory=lambda: _int("AGENT_DAILY_TOKEN_CAP", 2_000_000)
     )

@@ -308,8 +308,9 @@ async def test_the_oversight_share_stops_overseer_and_qc_but_not_critical(
     advisor = req(company_code="HQ", actor_ref="advisor", department=None, role="advisor")
     assert (await svc.run(advisor, "t", 10_000)).status == "ok"
     assert (await svc.run(req(role="inspector"), "t", 10_000)).status == "ok"
-    svc.s = replace(svc.s, agent_daily_token_cap=0)  # no daily cap: no share of it either
-    assert (await svc.run(oversight("overseer"), "t", 10_000)).status == "ok"
+    svc.s = replace(svc.s, agent_daily_token_cap=0)  # a cap of 0 is nothing: no share either
+    with pytest.raises(RouterError):
+        await svc.run(oversight("overseer"), "t", 10_000)
 
 
 # ----------------------------------------------------- quota and fallback --

@@ -197,8 +197,9 @@ class Runner:
                 if lock is not None:  # kill switch (holding or company) or a deploy freeze
                     refuse = "locked"
                 elif (
-                    self.s.agent_daily_token_cap
-                    and await self._spent_today(tx) >= self.s.agent_daily_token_cap
+                    # 0 (or less) means nothing at all, not "no cap" (prompt 08.1)
+                    self.s.agent_daily_token_cap <= 0
+                    or await self._spent_today(tx) >= self.s.agent_daily_token_cap
                 ):
                     refuse = "daily_cap"
                 elif run["work_id"] is not None:
@@ -528,8 +529,8 @@ class Runner:
     async def _daily_cap_reached(self) -> bool:
         """The hub's daily agent token cap, checked before EVERY model call
         (prompt 5.1 §2.6), not only when a run is claimed."""
-        if not self.s.agent_daily_token_cap:
-            return False
+        if self.s.agent_daily_token_cap <= 0:  # 0 = nothing at all (prompt 08.1)
+            return True
         async with await self._tx() as tx:  # every company's runs (RLS)
             return await self._spent_today(tx) >= self.s.agent_daily_token_cap
 
