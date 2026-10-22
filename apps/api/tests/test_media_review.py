@@ -355,6 +355,11 @@ async def test_only_the_owners_uploads_move_and_holding_agents_wait(
     assert r.status_code == 201, r.text
     r = await client.get(f"/internal/v1/files/{ref['id']}/meta", headers=adv)
     assert r.status_code == 200 and r.json()["kind"] == "image"
+    await su.execute(  # the test's own run of the advisor ends, so later tests can run it
+        """UPDATE agents.runs r SET state = 'done', finished_at = now() FROM core.employees e
+           WHERE e.id = r.employee_id AND e.code = 'HQ-ADV' AND r.state = 'running'
+             AND r.reason = 'test'"""
+    )
 
 
 # -------------------------------------------------------------- serving --

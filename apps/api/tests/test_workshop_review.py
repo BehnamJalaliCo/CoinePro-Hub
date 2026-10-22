@@ -374,6 +374,11 @@ async def test_the_advisor_drives_no_other_companys_session(
         json={"grant": g["ref"], "title": "t"},
     )
     assert r.status_code in (403, 404), r.text  # its own company's rows only (RLS, OPA)
+    await su.execute(  # the test's own run of the advisor ends, so later tests can run it
+        """UPDATE agents.runs r SET state = 'done', finished_at = now() FROM core.employees e
+           WHERE e.id = r.employee_id AND e.code = 'HQ-ADV' AND r.state = 'running'
+             AND r.reason = 'test'"""
+    )
     holding = await hub.companies.holding()
     adv = Principal(kind="agent", code="HQ-ADV", role="advisor", company=holding.code,
                     company_id=holding.id, scope="holding")  # fmt: skip
