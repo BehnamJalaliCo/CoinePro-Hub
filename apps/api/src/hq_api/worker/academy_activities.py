@@ -8,6 +8,13 @@ academy_eval_run  each case of one golden suite: the role under test answers
                   meets the gate (>= baseline - 1); a version under review is
                   approved or rejected by it. Every call goes through
                   llm-router and is booked in the treasury.
+                  8.1: a run in which any call fails stops and is `failed`
+                  (never a pass, never a baseline); a suite's first good run
+                  sets its baseline without passing; the tokens are written
+                  after each case; nothing runs while the holding's kill
+                  switch is engaged (the run fails, no model is called).
+academy_eval_failed  the workflow's failure handler: a run that crashed or
+                  timed out is `failed` (it no longer holds the cap).
 """
 
 from __future__ import annotations
@@ -19,6 +26,7 @@ import logging
 import re
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from temporalio import activity
@@ -66,15 +74,42 @@ def _tokens(call: Any) -> int:
     )
 
 
-def _judged(call: Any) -> tuple[float, str]:
+def _judged(call: Any) -> tuple[float, str] | None:
+    """The judge's score 0-10 and notes; None when it gave no score (a
+    failed call: never a zero that would pass for a result)."""
     data = call.structured
     if not isinstance(data, dict) and call.text:
         m = re.search(r"\{.*\}", call.text, re.S)
         with contextlib.suppress(ValueError):
             data = json.loads(m.group(0)) if m else None
     if not isinstance(data, dict) or not isinstance(data.get("score"), int | float):
-        return 0.0, "the judge gave no score"
+        return None
     return float(max(0, min(10, data["score"]))), str(data.get("notes") or "")[:500]
+
+
+class Usage:
+    """What a run's calls used so far (written after each case)."""
+
+    def __init__(self) -> None:
+        self.input = 0
+        self.output = 0
+        self.total = 0
+        self.usd = Decimal(0)
+
+    def add(self, call: Any) -> None:
+        self.input += int(
+            (call.input_tokens or 0)
+            + (call.cache_read_tokens or 0)
+            + (call.cache_write_tokens or 0)
+        )
+        self.output += int(call.output_tokens or 0)
+        self.total += _tokens(call)
+        with contextlib.suppress(InvalidOperation, TypeError, ValueError):
+            self.usd += Decimal(str(call.equiv_cost_usd or 0))
+
+
+class CaseFailed(Exception):
+    """A model call of the run failed: the run is `failed`."""
 
 
 class AcademyActivities:
@@ -84,7 +119,51 @@ class AcademyActivities:
         self._tx = tx  # a callable opening a transaction over every company
 
     def all(self) -> list[Any]:
-        return [self.eval_run]
+        return [self.eval_run, self.eval_failed]
+
+    async def _write_usage(self, run_id: str, u: Usage) -> None:
+        async with self._tx() as tx:
+            await tx.exec(
+                """UPDATE academy.eval_runs SET tokens = :t, input_tokens = :i, output_tokens = :o,
+                       equiv_cost_usd = :usd WHERE id = CAST(:id AS uuid)""",
+                id=run_id,
+                t=u.total,
+                i=u.input,
+                o=u.output,
+                usd=u.usd,
+            )
+
+    async def _fail(self, run_id: str, error: str, u: Usage | None = None) -> bool:
+        """The run is `failed` (no score, never a pass); a version under review
+        stays in review (a new review's pass runs the eval again)."""
+        holding = await self.hub.companies.holding()
+        async with self._tx() as tx:
+            row = await tx.first(
+                """UPDATE academy.eval_runs SET status = 'failed', passed = false, score = NULL,
+                       error = :e, finished_at = now(),
+                       tokens = COALESCE(CAST(:t AS bigint), tokens),
+                       input_tokens = COALESCE(CAST(:i AS bigint), input_tokens),
+                       output_tokens = COALESCE(CAST(:o AS bigint), output_tokens),
+                       equiv_cost_usd = COALESCE(CAST(:usd AS numeric), equiv_cost_usd)
+                   WHERE id = CAST(:id AS uuid) AND status IN ('queued', 'running') RETURNING *""",
+                id=run_id,
+                e=error[:300],
+                t=u.total if u else None,
+                i=u.input if u else None,
+                o=u.output if u else None,
+                usd=u.usd if u else None,
+            )
+            if row is None:
+                return False
+            if row["skill_version_id"] is not None:
+                await self._gate_skill(tx, row, None, holding.code)
+            await A.emit_eval(tx, holding.code, row)
+        return True
+
+    @activity.defn(name="academy_eval_failed")
+    async def eval_failed(self, run_id: str, error: str) -> dict[str, Any]:
+        """The workflow's failure handler (a crash or a timeout of the run)."""
+        return {"run": run_id, "failed": await self._fail(run_id, f"run_failed: {error}")}
 
     @contextlib.asynccontextmanager
     async def _beating(self) -> AsyncIterator[None]:
@@ -121,7 +200,7 @@ class AcademyActivities:
                         "text_md": candidate["addendum_md"],
                     },
                 ]
-            extra = S.prompt_section([], addenda)
+            extra = S.prompt_section([], addenda).text
             if subject["kind"] == "model":
                 model = str(subject["version"])
         else:  # a skill version, or a teaching's draft skill
@@ -146,7 +225,7 @@ class AcademyActivities:
                     }
                 ],
                 [],
-            )
+            ).text
         if role not in lib.roles:
             role = "manager"
         charter = lib.roles[role]
@@ -166,7 +245,6 @@ class AcademyActivities:
 
     @activity.defn(name="academy_eval_run")
     async def eval_run(self, run_id: str) -> dict[str, Any]:
-        s = self.hub.settings
         holding = await self.hub.companies.holding()
         async with self._tx() as tx:
             run = await tx.first(
@@ -174,74 +252,66 @@ class AcademyActivities:
             )
             if run is None or run["status"] not in ("queued", "running"):
                 return {"run": run_id, "skipped": run["status"] if run else "unknown"}
+            locked = await tx.scalar("SELECT control.lock_state(:h)", h=holding.id)
+        if locked is not None:
+            # The holding's kill switch (owner decision 2026-10-22): no model is
+            # called; the run ends failed and holds nothing (eval.run again later).
+            await self._fail(run_id, "holding_locked: the holding kill switch is engaged")
+            return {"run": run_id, "skipped": "holding_locked"}
+        try:
+            return await self._run(run_id, holding)
+        except Exception as exc:
+            # The run fails, never stays `running` holding the cap.
+            log.warning(
+                "academy eval failed", extra={"run": run_id, "error_type": type(exc).__name__}
+            )
+            await self._fail(run_id, f"error: {type(exc).__name__}")
+            raise
+
+    async def _run(self, run_id: str, holding: Any) -> dict[str, Any]:
+        async with self._tx() as tx:
+            run = await tx.one(
+                "SELECT * FROM academy.eval_runs WHERE id = CAST(:id AS uuid) FOR UPDATE", id=run_id
+            )
             suite = await A.suite(tx, run["suite_ref"])
             role, system, model, effort = await self._subject(tx, run, suite)
             await tx.exec(
                 "UPDATE academy.eval_runs SET status = 'running' WHERE id = :id", id=run["id"]
             )
         cases = S._j(suite["cases"]) or []
+        if not cases:
+            await self._fail(run_id, "no_cases: the suite has no case")
+            return {"run": run_id, "failed": "no_cases", "passed": False, "tokens": 0}
+        under_test = {
+            "role": role,
+            "system": system,
+            "model": model,
+            "effort": effort,
+            "suite": suite["ref"],
+        }
         scores: list[float] = []
         results: list[dict[str, Any]] = []
-        tokens = 0
-        base_meta = {"eval_run": run_id, "suite": suite["ref"]}  # the router's allow-list
-        async with self._beating():
-            for case in cases:
-                answer = await self.router.run(
-                    {
-                        "company_code": holding.code,
-                        "actor_ref": f"{holding.code}-AIOPS-MGR",
-                        "role": role,
-                        "task_class": "academy_eval",
-                        "priority": 4,
-                        "model": model,
-                        "effort": effort,
-                        "system": system,
-                        "prompt": str(case["input_md"]),
-                        "timeout_s": CASE_TIMEOUT_S,
-                        "max_output_tokens": ANSWER_MAX_TOKENS,
-                        "meta": {**base_meta, "purpose": "academy_eval", "case": case["id"]},
-                    },
-                    CASE_TIMEOUT_S,
-                )
-                tokens += _tokens(answer)
-                if not answer.ok or not (answer.text or "").strip():
-                    scores.append(0.0)
-                    results.append(
-                        {"id": case["id"], "score": 0.0, "notes": f"no answer ({answer.code})"}
-                    )
-                    continue
-                judge = await self.router.run(
-                    {
-                        "company_code": holding.code,
-                        "actor_ref": f"{holding.code}-AIOPS-MGR",
-                        "task_class": "academy_judge",
-                        "priority": 4,
-                        "model": s.academy_qc_model
-                        if case.get("sensitive")
-                        else s.academy_judge_model,
-                        "effort": "low",
-                        "system": JUDGE_SYSTEM,
-                        "prompt": (
-                            f"## Case\n{case['input_md']}\n\n## Rubric\n{case['rubric_md']}\n\n"
-                            f"## Answer under test\n{scrub(answer.text or '')[:20000]}"
-                        ),
-                        "json_schema": JUDGE_SCHEMA,
-                        "timeout_s": CASE_TIMEOUT_S,
-                        "max_output_tokens": 600,
-                        "meta": {**base_meta, "purpose": "academy_judge", "case": case["id"]},
-                    },
-                    CASE_TIMEOUT_S,
-                )
-                tokens += _tokens(judge)
-                score, notes = _judged(judge) if judge.ok else (0.0, f"judge failed ({judge.code})")
-                scores.append(score)
-                results.append({"id": case["id"], "score": score, "notes": scrub(notes)})
-        total = A.weighted(cases, scores) if cases else 0.0
-        g = A.gate(total, S._j(suite["baseline"]))
+        usage = Usage()
+        try:
+            async with self._beating():
+                for case in cases:
+                    score, notes = await self._case(run_id, holding.code, case, under_test, usage)
+                    scores.append(score)
+                    results.append({"id": case["id"], "score": score, "notes": scrub(notes)})
+                    await self._write_usage(run_id, usage)  # after each case (8.1 §2.11)
+        except CaseFailed as exc:
+            await self._fail(run_id, str(exc), usage)
+            return {"run": run_id, "failed": str(exc), "passed": False, "tokens": usage.total}
+        total = A.weighted(cases, scores)
         async with self._tx() as tx:
+            suite_now = await A.suite(tx, run["suite_ref"])
+            g = A.gate(total, S._j(suite_now["baseline"]))
+            if g.get("sets_baseline"):
+                await A.set_first_baseline(tx, run["suite_ref"], S._j(run["subject"]) or {}, total)
             row = await tx.one(
                 """UPDATE academy.eval_runs SET status = 'done', score = :sc, passed = :p,
                        gate = CAST(:g AS jsonb), cases = CAST(:c AS jsonb), tokens = :t,
+                       input_tokens = :i, output_tokens = :o, equiv_cost_usd = :usd,
                        finished_at = now()
                    WHERE id = CAST(:id AS uuid) RETURNING *""",
                 id=run_id,
@@ -249,34 +319,111 @@ class AcademyActivities:
                 p=g["passed"],
                 g=json.dumps(g),
                 c=json.dumps(results, ensure_ascii=False),
-                t=tokens,
+                t=usage.total,
+                i=usage.input,
+                o=usage.output,
+                usd=usage.usd,
             )
             if row["skill_version_id"] is not None:
                 await self._gate_skill(tx, row, g, holding.code)
             await A.emit_eval(tx, holding.code, row)
             await self._budget_warning(tx, holding)
-        return {"run": run_id, "score": total, "passed": g["passed"], "tokens": tokens}
+        out: dict[str, Any] = {
+            "run": run_id,
+            "score": total,
+            "passed": g["passed"],
+            "tokens": usage.total,
+        }
+        if g.get("sets_baseline"):
+            out["baseline_set"] = True
+        return out
+
+    async def _case(
+        self,
+        run_id: str,
+        holding_code: str,
+        case: dict[str, Any],
+        t: dict[str, Any],
+        usage: Usage,
+    ) -> tuple[float, str]:
+        """One case: the role's answer, then the judge's score 0-10. Any failed
+        call (an error, an empty answer, a judge without a score) fails the
+        whole run (CaseFailed): never a zero that counts as a result."""
+        s = self.hub.settings
+        meta = {"eval_run": run_id, "suite": t["suite"], "case": case["id"]}  # router allow-list
+        answer = await self.router.run(
+            {
+                "company_code": holding_code,
+                "actor_ref": f"{holding_code}-AIOPS-MGR",
+                "role": t["role"],
+                "task_class": "academy_eval",
+                "priority": 4,
+                "model": t["model"],
+                "effort": t["effort"],
+                "system": t["system"],
+                "prompt": str(case["input_md"]),
+                "timeout_s": CASE_TIMEOUT_S,
+                "max_output_tokens": ANSWER_MAX_TOKENS,
+                "meta": {**meta, "purpose": "academy_eval"},
+            },
+            CASE_TIMEOUT_S,
+        )
+        usage.add(answer)
+        if not answer.ok or not (answer.text or "").strip():
+            raise CaseFailed(f"no_answer: case {case['id']} ({answer.code or 'empty'})"[:300])
+        judge = await self.router.run(
+            {
+                "company_code": holding_code,
+                "actor_ref": f"{holding_code}-AIOPS-MGR",
+                "task_class": "academy_judge",
+                "priority": 4,
+                "model": s.academy_qc_model if case.get("sensitive") else s.academy_judge_model,
+                "effort": "low",
+                "system": JUDGE_SYSTEM,
+                "prompt": (
+                    f"## Case\n{case['input_md']}\n\n## Rubric\n{case['rubric_md']}\n\n"
+                    f"## Answer under test\n{scrub(answer.text or '')[:20000]}"
+                ),
+                "json_schema": JUDGE_SCHEMA,
+                "timeout_s": CASE_TIMEOUT_S,
+                "max_output_tokens": 600,
+                "meta": {**meta, "purpose": "academy_judge"},
+            },
+            CASE_TIMEOUT_S,
+        )
+        usage.add(judge)
+        judged = _judged(judge) if judge.ok else None
+        if judged is None:
+            raise CaseFailed(f"judge_failed: case {case['id']} ({judge.code or 'no score'})"[:300])
+        return judged
 
     async def _gate_skill(
-        self, tx: Any, run: dict[str, Any], g: dict[str, Any], holding_code: str
+        self, tx: Any, run: dict[str, Any], g: dict[str, Any] | None, holding_code: str
     ) -> None:
-        """The version under review: approved by a passing eval, else rejected
-        with the report (its review's pass alone never makes it live)."""
+        """The version under review: approved by a passing eval, rejected by a
+        failing one (its review's pass alone never makes it live). A failed run
+        (`g` None) or the run that only set the suite's first baseline decides
+        nothing: the version stays in review for another eval (8.1 §2.10)."""
         v = await tx.one(
             "SELECT * FROM knowledge.skill_versions WHERE id = :id FOR UPDATE",
             id=run["skill_version_id"],
         )
         review = S._j(v["review"]) or {}
-        ok = bool(g["passed"]) and review.get("verdict") == "pass"
-        ev = {
+        undecided = g is None or bool(g.get("sets_baseline"))
+        ok = g is not None and bool(g["passed"]) and review.get("verdict") == "pass"
+        ev: dict[str, Any] = {
             "suite": run["suite_ref"],
-            "score": float(run["score"]),
-            "baseline": g["baseline"],
-            "passed": bool(g["passed"]),
+            "score": float(run["score"]) if run["score"] is not None else None,
+            "baseline": g["baseline"] if g else None,
+            "passed": ok,
             "run": str(run["id"]),
         }
+        if g is None:
+            ev["failed"] = True
+        elif g.get("sets_baseline"):
+            ev["baseline_set"] = True
         status = v["status"]
-        if status == "in_review":
+        if status == "in_review" and not undecided:
             status = "approved" if ok else "rejected"
         await tx.exec(
             """UPDATE knowledge.skill_versions SET eval = CAST(:e AS jsonb), status = :st,
@@ -296,7 +443,8 @@ class AcademyActivities:
                 st=S._status_of_version(status, sk["active_version"]),
             )
         row = await tx.one(S.SKILL_SQL + " WHERE s.id = :id", id=sk["id"])
-        await S.emit_updated(tx, holding_code, row, f"eval:{'pass' if ok else 'fail'}")
+        change = "pass" if ok else ("undecided" if undecided else "fail")
+        await S.emit_updated(tx, holding_code, row, f"eval:{change}")
 
     async def _budget_warning(self, tx: Any, holding: Any) -> None:
         """One report-level notification per month once 80% of the cap is used."""

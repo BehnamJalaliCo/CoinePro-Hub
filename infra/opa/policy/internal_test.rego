@@ -456,12 +456,26 @@ test_code_session_proposals if {
 
 test_skills_and_academy_are_holding_roles_only if {
 	every op in ["skill.review", "academy.eval", "academy.teach"] {
-		allowed(f.hq_ovs, op, {"company": "HQ"})
-		allowed(f.hq_adv, op, {"company": "HQ"})
 		reasons(f.ty_ceo, op, {"company": "TY"}) == {concat("", [op, "_not_permitted"])}
 		not allowed(f.ty_growth_01, op, {"company": "TY"})
 		not allowed(f.svc, op, {"company": "HQ"})
+
+		# 8.1 §4: not every holding agent (the advisor, the assistant)
+		not allowed(f.hq_adv, op, {"company": "HQ"})
+		not allowed(f.hq_pa, op, {"company": "HQ"})
 	}
+
+	# The oversight roles review; the AI Ops department runs evals and drafts.
+	allowed(f.hq_ovr, "skill.review", {"company": "HQ"})
+	allowed(f.hq_ovs, "skill.review", {"company": "HQ"})
+	allowed(f.hq_ovs_01, "skill.review", {"company": "HQ"})
+	not allowed(f.hq_ovr, "academy.eval", {"company": "HQ"})
+	aiops := {"kind": "agent", "code": "HQ-AIOPS-MGR", "role": "manager", "company": "HQ", "department": "AIOPS", "scope": "holding"}
+	allowed(aiops, "academy.eval", {"company": "HQ"})
+	allowed(aiops, "academy.teach", {"company": "HQ"})
+	not allowed(aiops, "skill.review", {"company": "HQ"})
+	ty_aiops := {"kind": "agent", "code": "TY-AIOPS-MGR", "role": "manager", "company": "TY", "department": "AIOPS", "scope": "company"}
+	not allowed(ty_aiops, "academy.eval", {"company": "TY"})
 }
 
 # ----------------------------------------------- oversight (prompt 08 §2) --

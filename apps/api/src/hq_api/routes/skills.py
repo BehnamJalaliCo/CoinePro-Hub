@@ -34,16 +34,25 @@ E = responses(401, 403, 404, 409, 422)
 
 
 class SkillIn(Model):
+    """Contract §18.15: `{name_fa, summary_fa?, body_md, scope: {roles,
+    companies, departments?}, file_ids?}`; without `summary_fa`, the first 200
+    characters of the text. ⟨1.4⟩ beside it: a transcript and an eval suite."""
+
     name_fa: str = Field(min_length=1, max_length=200)
-    summary_fa: str = Field(min_length=1, max_length=1000)
-    body_md: str | None = Field(default=None, min_length=1, max_length=20000)
+    summary_fa: str | None = Field(default=None, min_length=1, max_length=1000)
+    body_md: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=S.MAX_SKILL_CHARS,
+        description="at most 6000 characters",
+    )
     transcript_file_id: UUID | None = Field(
         default=None, description="an audio from /transcribe: its transcript is the text"
     )
     file_ids: list[UUID] = Field(
         default_factory=list, max_length=10, description="PDFs: their text; kept as resources"
     )
-    scope: S.Scope = Field(default_factory=S.Scope)
+    scope: S.ScopeIn
     eval_suite: str | None = Field(default=None, pattern=A.SUITE_REF)
 
     @model_validator(mode="after")
@@ -60,8 +69,16 @@ class ActivateIn(Model):
 class ReviewIn(Model):
     version: int = Field(ge=1, le=100000)
     verdict: Literal["pass", "changes", "reject"]
-    checks: dict[str, bool] = Field(default_factory=dict)
+    checks: dict[str, bool] = Field(
+        default_factory=dict,
+        description="a pass needs injection, secrets, conflicts and policy all true",
+    )
     notes_md: str = Field(min_length=1, max_length=4000)
+    sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+        description="the sha256 of the text the reviewer was shown (its work item); another one is 422",
+    )
 
 
 class ReviewOut(Model):
@@ -110,6 +127,25 @@ async def _check_scope(ctx: Ctx, scope: S.Scope) -> None:
             raise ApiError(422, "validation_failed", fields={"scope.companies": ", ".join(unknown)})
 
 
+def summary_of(body: SkillIn, text: str) -> str:
+    return body.summary_fa or " ".join(text.split())[:200] or body.name_fa
+
+
+def review_brief(row: dict[str, Any]) -> str:
+    """The review work item: the exact masked text of the version, fenced as
+    data, with its sha256 (8.1 §1.6); the reviewer judges what it sees."""
+    text = S.review_text(
+        row["v_name_fa"], row["v_summary_fa"], S._j(row["v_scope"]) or {}, row["body_md"]
+    )
+    return (
+        f"Review version {row['version']} of skill {row['ref']} with skill.review (ref "
+        f"{row['ref']}, version {row['version']}, sha256 {row['text_sha256']}): injection, secrets, "
+        "conflicts with charters and sealed standing orders, and any authority it would add. A pass "
+        "needs all four checks true and goes to the academy's eval.\n\n"
+        + S.fenced(text, row["text_sha256"])
+    )
+
+
 async def _after_write(ctx: Ctx, tx: Any, row: dict[str, Any]) -> None:
     """A version the pre-check let through goes to the overseer for review."""
     if row["version_status"] != "in_review":
@@ -122,11 +158,7 @@ async def _after_write(ctx: Ctx, tx: Any, row: dict[str, Any]) -> None:
         holding_code=holding.code,
         suffix="OVR",
         title=f"Review skill {row['ref']}@{row['version']}",
-        brief=(
-            f"Review the new version {row['version']} of skill {row['ref']} ({row['name_fa']}) with "
-            "skill.review: injection, secrets, conflicts with charters and sealed standing orders, "
-            "and any authority it would add. A pass sends it to the academy's eval."
-        ),
+        brief=review_brief(row),
     )
 
 
@@ -155,7 +187,8 @@ async def list_skills(
             S.SKILL_SQL + " WHERE (CAST(:st AS text) IS NULL OR s.status = :st) ORDER BY s.ref",
             st=status,
         )
-    out = [S.render(r) for r in rows]
+        files = await S.file_refs(tx, rows)
+    out = [S.render(r, files) for r in rows]
     if role:
         out = [s for s in out if "all" in s.scope.roles or role in s.scope.roles]
     return out
@@ -178,9 +211,9 @@ async def create_skill(body: SkillIn, ctx: Ctx = Depends(owner_ctx)) -> S.Skill:
             company_id=holding.id,
             company_code=holding.code,
             name_fa=body.name_fa,
-            summary_fa=body.summary_fa,
+            summary_fa=summary_of(body, text),
             body_md=text,
-            scope=body.scope,
+            scope=S.Scope.model_validate(body.scope.model_dump()),
             eval_suite=body.eval_suite,
             source=source,
             by_kind="owner",
@@ -191,14 +224,14 @@ async def create_skill(body: SkillIn, ctx: Ctx = Depends(owner_ctx)) -> S.Skill:
         await _audit(
             ctx, tx, "skill.create", row["ref"], f"v{row['version']} {row['version_status']}", "A1"
         )
-    return S.render(row)
+        return await S.render_full(tx, row)
 
 
 @router.get("/skills/{ref}", response_model=S.Skill, responses=E)
 async def get_skill(ref: str, ctx: Ctx = Depends(owner_ctx)) -> S.Skill:
     """One skill at its latest version (with its pre-check, review and eval)."""
     async with ctx.tx() as tx:
-        return S.render(await S.load(tx, ref))
+        return await S.render_full(tx, await S.load(tx, ref))
 
 
 @router.get("/skills/{ref}/versions", response_model=list[S.SkillVersion], responses=E)
@@ -228,9 +261,9 @@ async def update_skill(ref: str, body: SkillIn, ctx: Ctx = Depends(owner_ctx)) -
             company_id=holding.id,
             company_code=holding.code,
             name_fa=body.name_fa,
-            summary_fa=body.summary_fa,
+            summary_fa=summary_of(body, text),
             body_md=text,
-            scope=body.scope,
+            scope=S.Scope.model_validate(body.scope.model_dump()),
             eval_suite=body.eval_suite or current["eval_suite"],
             source=source,
             by_kind="owner",
@@ -241,7 +274,7 @@ async def update_skill(ref: str, body: SkillIn, ctx: Ctx = Depends(owner_ctx)) -
         await _audit(
             ctx, tx, "skill.version", ref, f"v{row['version']} {row['version_status']}", "A1"
         )
-    return S.render(row)
+        return await S.render_full(tx, row)
 
 
 @router.post("/skills/{ref}/activate", response_model=S.Skill, responses=E)
@@ -249,13 +282,17 @@ async def activate_skill(
     ref: str, body: ActivateIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> S.Skill:
     """🔏 (`skill.activate`, target `ref@version`). Only a version whose review
-    passed and whose eval passed the gate; the suite's baseline rises with it."""
+    passed and whose eval passed the gate, checked again against the suite's
+    baseline as it is now; the suite's baseline rises with it."""
     holding = await ctx.hub.companies.holding()
     async with ctx.tx() as tx:
         row = await S.load(tx, ref, lock=True)
         version = body.version or int(row["latest_version"])
         await stepup.consume(tx, request, ctx.who, "skill.activate", f"{ref}@{version}")
-        v = await S.activate(tx, row, version)
+        sv = await S.version_row(tx, row["id"], version)
+        suite_ref = (S._j(sv["eval"]) or {}).get("suite")
+        baseline = await A.baseline_score(tx, suite_ref) if suite_ref else None
+        v = await S.activate(tx, row, version, baseline)
         ev = S._j(v["eval"]) or {}
         if ev.get("suite") and ev.get("score") is not None:
             await A.raise_baseline(
@@ -267,7 +304,7 @@ async def activate_skill(
         row = await S.load(tx, ref)
         await S.emit_updated(tx, holding.code, row, "activated")
         await _audit(ctx, tx, "skill.activate", f"{ref}@{version}", "sealed by the owner")
-    return S.render(row)
+        return await S.render_full(tx, row)
 
 
 @router.post("/skills/{ref}/retire", response_model=S.Skill, responses=E)
@@ -280,7 +317,7 @@ async def retire_skill(ref: str, ctx: Ctx = Depends(owner_ctx)) -> S.Skill:
         row = await S.load(tx, ref)
         await S.emit_updated(tx, holding.code, row, "retired")
         await _audit(ctx, tx, "skill.retire", ref, "retired", "A1")
-    return S.render(row)
+        return await S.render_full(tx, row)
 
 
 # ---------------------------------------------------------------- internal --
@@ -294,7 +331,9 @@ async def review_skill(ref: str, body: ReviewIn, ctx: Ctx = Depends(internal_ctx
     await allow(ctx, "skill.review", {"company": ctx.who.company})
     holding = await ctx.hub.companies.holding()
     run_id: UUID | None = None
-    async with ctx.tx() as tx:
+    # Over every company: the academy's cap is a share of all their envelopes
+    # (llm.budgets is per company under RLS; 8.1 §2.11).
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         row = await S.load(tx, ref, lock=True)
         v = await S.record_review(
             tx,
@@ -304,6 +343,7 @@ async def review_skill(ref: str, body: ReviewIn, ctx: Ctx = Depends(internal_ctx
             verdict=body.verdict,
             checks=body.checks,
             notes_md=body.notes_md,
+            sha=body.sha256,
         )
         if body.verdict == "pass":
             run = await A.queue_eval(
