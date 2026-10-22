@@ -462,7 +462,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - اگر متن ماسک‌شدنی داشته باشد (رمزی بلند خوانده شده)، گذر مدل اصلاً انجام نمیشود.
   - پیامی که فایل صدای `purpose=message` را پیوست دارد `kind: voice_transcript` است.
   - وقتی پروفایل `stt` خاموش است: `503 channel_not_configured`.
-- **ffmpeg** نسخه‌ی `7:7.1.5-0+deb13u1` (Debian trixie) است. **Pillow** ‏12.3.0 (MIT-CMU) و **pillow-heif** ‏1.8.0 (BSD-3) در image مشترک api و worker هستند.
+- **ffmpeg** نسخه‌ی `7:7.1.5-0+deb13u1` (Debian trixie) است. **Pillow** ‏13.0.0 (MIT-CMU) و **pillow-heif** ‏1.8.0 (BSD-3) در image مشترک api و worker هستند.
 ## ۱۶. گفتار به متن فارسی، STT (پرامپت ۶ §۳، قرارداد §۱۷.۲)
 - **سرویس `stt`** (`services/stt`):
   - faster-whisper ‏1.2.1 روی CTranslate2 ‏4.8.2، با int8 روی CPU، زبان `fa`، beam 5 و VAD ‏Silero.
@@ -842,4 +842,4 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   فهرست ابزارهای ساخته‌شده‌ی Gateway در `hq_common.tool_status` است. تست Gateway آن را با جدول خودش یکی نگه میدارد.
 - **`files.read`** (`agents/tools.md` v2): `variant` اختیاری است: `original`، `thumb` یا `poster`.
   - عکس: نسخه‌ی `agent` آن (≤ ۱۵۶۸ پیکسل، بدون EXIF) به مدل میرسد.
-  - PDF: متنش هنگام آپلود با pypdf 6.19.0 (BSD-3) استخراج میشود؛ تا ۲۰۰ صفحه، ۲۰۰ هزار نویسه و ۳۰ ثانیه. متن در `files.processing.text` میماند و در meta ایجنت ماسک‌شده برمیگردد. PDF اسکن‌شده، رمزدار یا خراب متن ندارد و آپلودش هم شکست نمیخورد.
+  - PDF: متنش هنگام آپلود با pypdf 6.21.1 (BSD-3) استخراج میشود؛ تا ۲۰۰ صفحه، ۲۰۰ هزار نویسه و ۳۰ ثانیه. متن در `files.processing.text` میماند و در meta ایجنت ماسک‌شده برمیگردد. PDF اسکن‌شده، رمزدار یا خراب متن ندارد و آپلودش هم شکست نمیخورد.
