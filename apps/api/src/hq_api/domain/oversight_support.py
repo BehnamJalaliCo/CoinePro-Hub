@@ -24,7 +24,6 @@ Registered on import (worker/oversight_activities.py imports this module).
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 from hq_api.db import Tx
 from hq_api.domain import gate, kb

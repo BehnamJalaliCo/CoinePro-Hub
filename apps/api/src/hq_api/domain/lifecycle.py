@@ -553,7 +553,7 @@ async def _record(
            ON CONFLICT (company_id, dedupe_key) DO UPDATE SET status = EXCLUDED.status,
                reason = EXCLUDED.reason, blocked_reasons = EXCLUDED.blocked_reasons,
                message_id = EXCLUDED.message_id
-             WHERE growth.sends.status = 'queued' AND growth.sends.message_id IS NULL
+             WHERE growth.sends.status IN ('queued', 'no_channel') AND growth.sends.message_id IS NULL
            RETURNING *""",
         co=company_id,
         rule=rule_row["id"] if rule_row else None,
@@ -585,6 +585,7 @@ def _out(row: dict[str, Any] | None, status: str, reason: str | None = None) -> 
         "send_id": str(row["id"]) if row else None,
         "message_id": str(row["message_id"]) if row and row["message_id"] else None,
         "blocked_reasons": list(row["blocked_reasons"] or []) if row else [],
+        "template": row["template"] if row else None,
     }
 
 
@@ -637,7 +638,10 @@ async def send_template(
         co=company_id,
         k=dedupe_key[:200],
     )
-    if prior is not None and not (prior["status"] == "queued" and prior["message_id"] is None):
+    # Held (quiet hours, the daily cap) or not reachable yet (no channel): tried again.
+    if prior is not None and not (
+        prior["status"] in ("queued", "no_channel") and prior["message_id"] is None
+    ):
         return _out(prior, prior["status"])
     r = await active_rule(tx, company_id, purpose, rule_ref)
     if r is None:
@@ -686,6 +690,7 @@ async def send_template(
         """SELECT 1 FROM growth.sends WHERE company_id = :co AND rule_id IN
                (SELECT id FROM growth.rules WHERE ref = :ref) AND subject = :s AND status = 'sent'
              AND at > CAST(:now AS timestamptz) - make_interval(days => :d) AND dedupe_key <> :k
+             AND (CAST(:rc AS uuid) IS NULL OR rescue_case_id IS DISTINCT FROM CAST(:rc AS uuid))
            LIMIT 1""",
         co=company_id,
         ref=r["ref"],
@@ -693,7 +698,8 @@ async def send_template(
         now=now,
         d=int(limits.get("per_customer_days", 30)),
         k=dedupe_key[:200],
-    ):
+        rc=rescue_case_id,
+    ):  # a rescue case's own follow-ups go by after_hours and max_follow_ups
         return _out(await _record(tx, **common, status="skipped", reason="per_customer_days"), "")
     if in_quiet_hours(limits, now):
         return _out(await _record(tx, **common, status="queued", reason="quiet_hours"), "")
@@ -904,15 +910,15 @@ async def take_answer(
             w=pending["nps_wave_id"],
         )
         if comment:
-            # The comment goes to the feedback inbox (tagged later by rules or the nightly batch).
-            await tx.exec(
-                """INSERT INTO feedback.signals (company_id, source_ref, nps_response_id, quote)
-                   VALUES (:co, :ref, :r, :q) ON CONFLICT DO NOTHING""",
-                co=conv["company_id"],
-                ref=pending["ref"],
-                r=resp["id"],
-                q=customer_mask.quote(comment, max_chars=600),
-            )
+            # The comment goes to the feedback inbox: the company's keywords
+            # tag it at once (no model), else the nightly batch (§8.1).
+            from hq_api.domain import feedback
+
+            await feedback.ingest(
+                tx, hub, company_id=conv["company_id"],
+                company=await hub.companies.code_of(conv["company_id"]),
+                source_ref=pending["ref"], text=comment, nps_response_id=resp["id"],
+            )  # fmt: skip
             await tx.exec(
                 "UPDATE growth.nps_waves SET comments_to_feedback = comments_to_feedback + 1 WHERE id = :w",
                 w=pending["nps_wave_id"],

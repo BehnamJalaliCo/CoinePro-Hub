@@ -21,7 +21,8 @@ telegram-bot-token COMPANY=… CHANNEL=…` (the owner's terminal; never the API
 A customer's message goes to domain.support.store_inbound (masked first) and
 then to the worker's SupportInbound; a product's own events (signup,
 referral_failed ...) are stored masked (the UID becomes its pseudonym) and
-handed to the handler registered for their kind (APPLIERS), if any.
+handed to the handler of their kind (APPLIERS, domain/product_events.py:
+referral rescue, the funnel's stages).
 """
 
 from __future__ import annotations
@@ -43,6 +44,7 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, workflows_client
 from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
+from hq_api.domain import product_events
 from hq_api.domain import support as S
 from hq_api.errors import ApiError, problem_response, responses
 from hq_api.hub import Hub, get_hub
@@ -64,10 +66,10 @@ SourceKind = Literal["telegram", "chatwoot", "product"]
 ChannelKind = Literal["telegram_business", "telegram_bot", "chatwoot", "product_bot"]
 MAX_EVENTS = 100
 # Product events other parts of prompt 10 act on (referral rescue, the
-# funnel): kind -> handler(tx, hub, company_id, event_row). Without one the
-# event stays `accepted` for them.
+# funnel): kind -> handler(tx, hub, company_id, event_row) -> the event's
+# state. Without one (or on None) the event stays `accepted`.
 Applier = Callable[[Tx, Hub, UUID, dict[str, Any]], Awaitable[str | None]]
-APPLIERS: dict[str, Applier] = {}
+APPLIERS: dict[str, Applier] = dict(product_events.APPLIERS)
 
 
 class IntakeSourceIn(Model):

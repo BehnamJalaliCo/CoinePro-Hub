@@ -1,6 +1,6 @@
 """Shared fakes of prompt 10's revenue and growth tests: an affiliate connector
 that answers as egress's lbank-affiliate-v2 reductions do (no real exchange),
-a model router that counts its calls, a template sender stand-in, and the
+a model router that counts its calls, and the
 setup of one company's affiliate account."""
 
 from __future__ import annotations

@@ -2,7 +2,7 @@
 referral.check and referral rescue, the feedback inbox, the weekly support
 figures; and that none of them acts while the holding is locked. No exchange,
 no model and no customer channel is reached: a fake connector, a counting
-router and a stand-in for the §7 sender."""
+router and a fake Telegram behind §7's sender."""
 
 from __future__ import annotations
 
@@ -14,11 +14,11 @@ from typing import Any
 
 import httpx
 
+from hq_api.domain import desk, lifecycle
 from hq_api.domain import feedback as FB
 from hq_api.domain import funnel as F
 from hq_api.domain import rescue as R
 from hq_api.domain import support as S
-from hq_api.domain import template_send
 from hq_api.hub import Hub
 from hq_api.worker.activities import _ScopedTx
 from hq_api.worker.revenue_activities import RevenueActivities
@@ -32,6 +32,7 @@ from .p10_fakes import (
     holding_switch,
     settled,
 )
+from .p10_support import fake_telegram, inbound, make_live, seal_basics
 from .test_egress import FakeBao
 
 
@@ -259,6 +260,84 @@ async def test_referral_check_opens_a_rescue_case_and_a_later_check_rescues_it(
     assert (rate["rescued"], rate["lost"], rate["rate"]) == (1, 1, 0.5)
 
 
+async def test_i_registered_already_a_uid_check_in_a_conversation_opens_its_rescue_case(
+    client: httpx.AsyncClient, hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    """§4.5: the support agent, woken on a conversation, checks the UID the
+    customer gave; the UID stays on that customer (support.customers, the
+    one place a raw UID lives) and "not ours" opens the conversation's
+    rescue case. The agent's brief says how."""
+    co = await new_company()
+    acct = await affiliate_account(su, co)
+    code = await _employee(su, co, "01", "support_agent")
+    body = {"company": co["code"], "exchange": "lbank", "uid": "4455667"}
+    hub.bao = FakeBao({acct["key"]: SIGNER_SECRET})
+    try:
+        async with holding_switch(su, "released"):
+            m = await _inbound(hub, co, "7301", "من قبلاً ثبت‌نام کردم ولی VIP ندارم")
+            async with hub.db.tx([co["id"]]) as tx:
+                out = await desk.process(tx, hub, m["message"]["id"])
+            assert out.result == "drafting" and out.work
+            # The agent's run on that work item (the runner starts it; the test does).
+            await su.execute(
+                """INSERT INTO agents.runs (company_id, employee_id, work_id, trigger, reason, state,
+                       started_at, token_expires_at)
+                   SELECT e.company_id, e.id, w.id, 'work', 'test', 'running', now(), now() + interval '1 hour'
+                   FROM core.employees e, work.work w WHERE e.code = $2 AND w.ref = $1""",
+                out.work, code,
+            )  # fmt: skip
+            agent = await agent_headers(code)
+            r = await client.post("/internal/v1/growth/referral-check", headers=agent, json=body)
+            assert r.status_code == 200, r.text
+            g = r.json()["grant"]
+            r = await client.post("/internal/v1/growth/referral-check/result", headers=agent,
+                                  json={**body, "reservation": g["reservation"], "ok": True, "invitee": False,
+                                        "meets_minimum": None, "entries": []})  # fmt: skip
+    finally:
+        hub.bao = None
+    assert r.status_code == 200, r.text
+    rescue = r.json()["rescue"]
+    assert rescue["state"] == "open"
+    case = await su.fetchrow(
+        "SELECT conversation_id, subject FROM growth.rescue_cases WHERE ref = $1", rescue["ref"]
+    )
+    assert case["conversation_id"] == m["conversation"]["id"] and "4455667" not in case["subject"]
+    uids = await su.fetchval("SELECT uids FROM support.customers WHERE id = $1", m["customer_id"])
+    assert json.loads(uids) == [{"exchange": "lbank", "uid": "4455667"}]
+    assert await su.fetchval(
+        "SELECT rescue_case_id FROM support.conversations WHERE id = $1", m["conversation"]["id"]
+    ) is not None  # fmt: skip
+    brief = await su.fetchval("SELECT brief FROM work.work WHERE ref = $1", out.work)
+    assert "referral.check" in brief and "vip.min_balance" in brief
+
+
+async def test_a_customer_message_reaches_the_feedback_inbox_by_rule(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    """§8.1 meets §4.3: each customer message is a feedback signal, tagged by
+    the company's keywords with no model; nothing while the holding is locked."""
+    co = await new_company()
+    await su.execute(
+        """INSERT INTO feedback.keywords (company_id, pattern, kind, area, created_by_kind, created_by_code)
+           VALUES ($1, 'برداشت', 'bug', 'withdrawal', 'owner', 'owner')""",
+        co["id"],
+    )
+    locked = await _inbound(hub, co, "8802", "برداشت من گیر کرده است")
+    async with holding_switch(su, "engaged"), hub.db.tx([co["id"]]) as tx:
+        assert (await desk.process(tx, hub, locked["message"]["id"])).result == "skipped"
+    assert await su.fetchval(
+        "SELECT count(*) FROM feedback.signals WHERE company_id = $1", co["id"]
+    ) == 0  # fmt: skip
+    async with holding_switch(su, "released"), hub.db.tx([co["id"]]) as tx:
+        await desk.process(tx, hub, locked["message"]["id"])
+    sig = await su.fetchrow(
+        "SELECT tagged_by, kind, area, source_ref, item_id, quote FROM feedback.signals WHERE message_id = $1",
+        locked["message"]["id"],
+    )
+    assert (sig["tagged_by"], sig["kind"], sig["area"]) == ("rule", "bug", "withdrawal")
+    assert sig["source_ref"] == locked["conversation"]["ref"] and sig["item_id"] is not None
+
+
 async def test_referral_check_has_a_cap_a_gate_and_only_its_roles(
     client: httpx.AsyncClient, hub: Hub, new_company: Callable[..., Any], su: Any
 ) -> None:
@@ -330,47 +409,84 @@ async def test_rescue_update_notes_and_closes_but_never_sends(
     )
 
 
-async def test_follow_ups_go_by_the_sealed_rule_through_the_sender_only(
+async def _sealed_rescue_rule(hub: Hub, company_id: Any) -> dict[str, Any]:
+    """The company's own sealed rescue template and rule (the owner's path,
+    §7.2), on telegram_bot; quiet hours off so the test runs at any hour."""
+    async with hub.db.tx([company_id]) as tx:
+        t = await lifecycle.propose_template(
+            tx, company_id=company_id, purpose="rescue", variables=[], by_kind="owner",
+            by_code="owner", body_fa="سلام؛ برای فعال شدن VIP راهنمای ثبت‌نام دوباره را ببینید.",
+        )  # fmt: skip
+        t = await lifecycle.seal_template(tx, t["ref"], t["version"], step_up_id=None)
+        r = await lifecycle.create_rule(
+            tx, company_id=company_id, kind="rescue", template_ref=t["ref"],
+            template_version=t["version"], channel="telegram_bot", trigger={"after_hours": 24},
+            limits={"max_follow_ups": 2, "quiet_hours": ["00:00", "00:00"], "daily_cap": 50,
+                    "per_customer_days": 30},
+            by_kind="owner", by_code="owner",
+        )  # fmt: skip
+        return await lifecycle.seal_rule(tx, r["ref"], r["version"], step_up_id=None)
+
+
+async def test_follow_ups_go_by_the_sealed_rule_through_the_lifecycle_sender(
     hub: Hub, new_company: Callable[..., Any], su: Any
 ) -> None:
+    """Rescue follow-ups (§3.4) go only through §7's growth.send_template
+    (sealed rule and template, opt-out, a live channel, the guard with the
+    safety line) and out through desk.send; nothing while locked."""
     co, bare = await new_company(), await new_company()
-    sent: list[dict[str, Any]] = []
-
-    async def sender(tx: Any, hub: Any, **kw: Any) -> dict[str, Any]:
-        sent.append(kw)
-        return {"status": "sent", "template": "TM-0001@1"}
-
-    await su.execute(
-        """INSERT INTO growth.rules (company_id, kind, trigger, template_ref, template_version, channel, limits,
-               status, sealed_at, proposed_by_kind, proposed_by_code)
-           VALUES ($1, 'rescue', '{"after_hours": 24}', 'TM-0001', 1, 'telegram_bot', '{"max_follow_ups": 2}',
-                   'active', now(), 'owner', 'owner')""",
-        co["id"],
-    )
+    await seal_basics(hub, co["id"])
+    await make_live(su, co["id"])
+    rule = await _sealed_rescue_rule(hub, co["id"])
+    talk = await inbound(hub, co["id"], "سلام، VIP ندارم", user="7101")
+    quits = await inbound(hub, co["id"], "سلام", user="7102")
     async with hub.db.tx([co["id"], bare["id"]]) as tx:
-        case, _ = await R.open_case(tx, company_id=co["id"], company=co["code"], source="product",
-                                    exchange="lbank", subject="e1" * 32)  # fmt: skip
-        quit_, _ = await R.open_case(tx, company_id=co["id"], company=co["code"], source="product",
-                                     exchange="lbank", subject="e2" * 32)  # fmt: skip
+        case, _ = await R.open_case(tx, company_id=co["id"], company=co["code"], source="support",
+                                    exchange="lbank", subject="e1" * 32,
+                                    conversation_id=talk["conversation"]["id"])  # fmt: skip
+        quit_, _ = await R.open_case(tx, company_id=co["id"], company=co["code"], source="support",
+                                     exchange="lbank", subject="e2" * 32,
+                                     conversation_id=quits["conversation"]["id"])  # fmt: skip
+        far, _ = await R.open_case(tx, company_id=co["id"], company=co["code"], source="product",
+                                   exchange="lbank", subject="e4" * 32)  # fmt: skip
         waiting, _ = await R.open_case(tx, company_id=bare["id"], company=bare["code"], source="product",
                                        exchange="lbank", subject="e3" * 32)  # fmt: skip
-    await su.execute(
-        "INSERT INTO growth.opt_outs (company_id, subject, source) VALUES ($1, $2, 'message')",
-        co["id"],
-        "e2" * 32,
-    )
-    with template_send.using(sender):
+    async with fake_telegram() as tg:
         async with holding_switch(su, "engaged"):
             assert (await R.follow_ups(hub, txf(hub)))["reason"] == "holding_locked"
-        assert sent == []  # nothing while locked
+        assert tg.calls == []  # nothing while locked
+        assert (
+            await su.fetchval("SELECT count(*) FROM growth.sends WHERE company_id = $1", co["id"])
+            == 0
+        )
         async with holding_switch(su, "released"):
-            await R.follow_ups(hub, txf(hub))
+            stop = await inbound(hub, co["id"], "لغو", user="7102", message_id="stop-7102")
+            async with hub.db.tx([co["id"]]) as tx:
+                assert (await desk.process(tx, hub, stop["message"]["id"])).result == "opted_out"
+            out = await R.follow_ups(hub, txf(hub))
+            mine = next(c for c in out["companies"] if c["company"] == co["code"])
+            assert (mine["sent"], mine["opted_out"], mine["no_channel"]) == (1, 1, 1)
+            assert [s["status"] for s in mine["sends"]] == ["sent"]
             row = await su.fetchrow("SELECT state, follow_ups, next_follow_up_at FROM growth.rescue_cases WHERE id = $1",
                                     case["id"])  # fmt: skip
             assert (row["state"], row["follow_ups"]) == ("contacted", 1)
             assert row["next_follow_up_at"] > datetime.now(UTC) + timedelta(hours=23)
-            assert [s["dedupe_key"] for s in sent] == [f"rescue:{case['ref']}:1"]
-            assert sent[0]["kind"] == "rescue" and sent[0]["rescue_case_id"] == case["id"]
+            send = await su.fetchrow("SELECT * FROM growth.sends WHERE dedupe_key = $1",
+                                     f"rescue:{case['ref']}:1")  # fmt: skip
+            assert (send["status"], send["rescue_case_id"], send["follow_up"]) == (
+                "sent",
+                case["id"],
+                1,
+            )
+            assert send["template"].startswith(rule["template_ref"])
+            assert len(tg.calls) == 1 and "VIP" in tg.calls[0]["text"]
+            assert desk.SAFETY_DEFAULT.split("؛")[0] in tg.calls[0]["text"]  # the safety line
+            # A product's case with no conversation reaches no channel: tried again in a day.
+            nc = await su.fetchrow("SELECT status, reason FROM growth.sends WHERE dedupe_key = $1",
+                                   f"rescue:{far['ref']}:1")  # fmt: skip
+            assert (nc["status"], nc["reason"]) == ("no_channel", "no_conversation")
+            assert await su.fetchval("SELECT next_follow_up_at FROM growth.rescue_cases WHERE id = $1",
+                                     far["id"]) > datetime.now(UTC) + timedelta(hours=23)  # fmt: skip
             for _ in range(2):
                 await su.execute(
                     "UPDATE growth.rescue_cases SET next_follow_up_at = now() - interval '1 minute' WHERE id = $1",
@@ -379,19 +495,19 @@ async def test_follow_ups_go_by_the_sealed_rule_through_the_sender_only(
                 await R.follow_ups(hub, txf(hub))
     states = {r["id"]: (r["state"], r["close_reason"]) for r in await su.fetch(
         "SELECT id, state, close_reason FROM growth.rescue_cases WHERE id = ANY($1::uuid[])",
-        [case["id"], quit_["id"], waiting["id"]])}  # fmt: skip
+        [case["id"], quit_["id"], waiting["id"], far["id"]])}  # fmt: skip
     assert states[case["id"]] == ("lost", "max_follow_ups")
     assert states[quit_["id"]] == ("opted_out", "opted_out")
+    assert states[far["id"]] == ("open", None)
     assert states[waiting["id"]] == ("open", None)  # no sealed rescue rule: nothing is ever sent
-    assert len(sent) == 2 and all(s["subject"] != "e3" * 32 for s in sent)
+    assert len(tg.calls) == 2  # follow-ups 1 and 2 of the one reachable case
     kinds = [r["kind"] for r in await su.fetch(
         "SELECT kind FROM growth.rescue_steps WHERE case_id = $1 ORDER BY at", case["id"])]  # fmt: skip
     assert kinds == ["check", "message", "follow_up", "note"]
-    # Without §7's sender the answer is "skipped: no_sender", never a send.
-    async with hub.db.tx([co["id"]]) as tx:
-        out = await template_send.send_template(tx, hub, company_id=co["id"], kind="rescue",
-                                                subject="e1" * 32, dedupe_key="x")  # fmt: skip
-    assert out["status"] in ("skipped", "sent", "blocked", "no_channel", "opted_out", "failed")
+    assert (
+        await su.fetchval("SELECT count(*) FROM growth.sends WHERE company_id = $1", bare["id"])
+        == 0
+    )
 
 
 async def test_a_products_referral_failed_event_opens_a_case_once(

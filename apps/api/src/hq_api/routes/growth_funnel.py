@@ -273,6 +273,20 @@ async def _checker(ctx: Ctx, body: ReferralCheckIn) -> Any:
     return await _company_row(ctx, body.company)
 
 
+async def _conversation(
+    tx: Any, ctx: Ctx, company_id: Any, body: ReferralCheckIn
+) -> dict[str, Any] | None:
+    """The customer's open conversation: by a UID they gave before, or (§4.5,
+    "I registered already") the one the support agent's run is answering,
+    which then keeps the UID (support.customers.uids)."""
+    conv = await R.conversation_of(tx, company_id, body.exchange, body.uid)
+    if conv is None and ctx.who.charter == "support_agent":
+        conv = await R.conversation_of_run(tx, company_id, ctx.who.run_id)
+        if conv is not None:
+            await R.link_uid(tx, conv["customer_id"], body.exchange, body.uid)
+    return conv
+
+
 def _effect(case: dict[str, Any] | None) -> dict[str, Any] | None:
     return {"ref": case["ref"], "state": case["state"]} if case else None
 
@@ -291,7 +305,7 @@ async def referral_check(body: ReferralCheckIn, ctx: Ctx = Depends(internal_ctx)
         lock = await gate.automation_lock(tx, co.id)
         if lock is not None:
             raise ApiError(423, "company_locked", f"locked: {lock}")
-        conv = await R.conversation_of(tx, co.id, body.exchange, body.uid)
+        conv = await _conversation(tx, ctx, co.id, body)
         mystery = bool(conv and conv["mystery"])
         hit = (
             None
@@ -369,7 +383,7 @@ async def referral_check_result(
             tx, company_id=co.id, actor=ctx.who.code, run_id=ctx.who.run_id,
             entries=[e.model_dump(by_alias=True) for e in body.entries], call_id=body.reservation,
         )  # fmt: skip
-        conv = await R.conversation_of(tx, co.id, body.exchange, body.uid)
+        conv = await _conversation(tx, ctx, co.id, body)
         case = None
         ok = body.ok and body.invitee is not None
         if ok:

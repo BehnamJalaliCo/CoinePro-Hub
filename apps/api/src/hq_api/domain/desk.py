@@ -9,7 +9,9 @@ One customer message (worker activity support_inbound -> process()):
      word («لغو»، stop، «نمیخواهم» ...) stops every rule for that customer
      for good; a 1..5 after a CSAT question is the answer, not a new case
   2. the loop guard: a conversation that looks like a bot (the same text
-     again and again, a burst) is paused and handed off
+     again and again, a burst) is paused and handed off; then the message
+     goes to the feedback inbox (domain.feedback.ingest: masked, tagged by
+     the company's keywords with no model, else the nightly batch)
   3. a security report, a complaint or "I want a person" is handed off at
      once (a security handoff is urgent, within the urgent limit)
   4. the rule: the top approved faq of the company, above the company's
@@ -733,6 +735,13 @@ async def process(tx: Tx, hub: Any, message_id: UUID | str) -> Outcome:
         )
         await handoff(tx, hub, conv, "blocked", note="bot_loop", holding_reply=False)
         return Outcome("handoff", conv["ref"], msg["id"], "bot_loop")
+    if body.strip():
+        from hq_api.domain import feedback  # §8.1: every customer message is a signal
+
+        await feedback.ingest(
+            tx, hub, company_id=conv["company_id"], company=company, source_ref=conv["ref"],
+            text=body, message_id=msg["id"], mystery=conv["mystery"],
+        )  # fmt: skip
     # 3. what goes to a person at once (a masked secret first gets the safety line)
     if set(msg["masked"] or ()) & customer_mask.SAFETY_KINDS and conv["safety_sent_at"] is None:
         safety, sref = await safety_line(tx, conv["company_id"])
@@ -831,7 +840,13 @@ async def wake_agent(tx: Tx, conv: dict[str, Any], company: str, agent_code: str
             f"(kb.search), then call support.draft with conversation {conv['ref']}, your answer, "
             "the KB-…@version refs you used and your honest confidence; or support.handoff when "
             "nothing approved answers it. Copy links, codes and figures exactly from the "
-            "articles. Read the conversation with kb.search's context only."
+            "articles. Read the conversation with kb.search's context only. If the customer "
+            "says they registered already: ask for their UID on the exchange (a UID is not a "
+            "secret; never ask for a password, a key or a code), then referral.check {company, "
+            "exchange, uid}. Our invitee over the minimum -> the VIP activation article; our "
+            "invitee under it -> the vip.min_balance policy article; not our invitee -> the "
+            "article on signing up again with our referral (its code and link exactly as "
+            "approved); a rescue case opens by itself."
         ),
         kind="event",
         priority="P1",

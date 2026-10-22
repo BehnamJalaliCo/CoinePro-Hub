@@ -2,18 +2,21 @@
 without our referral is brought back, by rule and sealed template only.
 
     open        a referral.check that answers "not our invitee" (support), or
-                a product's `referral_failed` event (intake.events; applied
-                by the follow-up job, idempotently); one open case per
-                company, exchange and subject
+                a product's `referral_failed` event (intake.events: applied
+                as it arrives by intake.APPLIERS, domain/product_events.py;
+                the follow-up job catches up any left `accepted`); one open
+                case per company, exchange and subject
     follow-ups  hourly (hq-rescue-follow-ups), behind hq_api.domain.gate:
                 under the company's ACTIVE `rescue` rule only, through the
-                §7 sender (template_send.send_template: sealed template,
-                opt-outs, quiet hours, caps, the guard); the rescue
-                specialist reviews cases and proposes templates but sends
-                nothing
-    close       a later check that says "our invitee" -> rescued; 30 days
-                without a result or the rule's max_follow_ups -> lost; the
-                customer's opt-out -> opted_out
+                §7 sender (growth.send_template: sealed template, opt-outs,
+                quiet hours, caps, a live channel, the guard with the safety
+                line); the message it queues goes out through desk.send
+                (gated again); the rescue specialist reviews cases and
+                proposes templates but sends nothing
+    close       a later check that says "our invitee" (or the product's own
+                `referral_verified`) -> rescued; 30 days without a result or
+                the rule's max_follow_ups -> lost; the customer's opt-out ->
+                opted_out
     rate        rescued / (rescued + lost) over a period (mystery cases never
                 count)
 
@@ -27,13 +30,14 @@ cached rows do not count against the cap).
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import gate, template_send
+from hq_api.domain import gate, growth
 from hq_common import pseudonym
 
 LOST_AFTER = timedelta(days=30)
@@ -41,6 +45,10 @@ DEFAULT_AFTER_HOURS = 48
 DEFAULT_MAX_FOLLOW_UPS = 3
 OPEN = ("open", "contacted")
 CLOSED = ("rescued", "lost", "opted_out")
+NO_CHANNEL_RETRY = timedelta(hours=24)  # a customer no live channel reaches yet
+EXCHANGE = re.compile(r"^[a-z][a-z0-9_-]{1,30}$")
+MAX_UIDS = 10  # UIDs kept on one support customer (support.customers.uids)
+CONVERSATION_REF = re.compile(r"\bSC-[0-9]{6,}\b")
 
 
 def subject_of(hub: Any, company_id: UUID | str, exchange: str, uid: str) -> str:
@@ -187,6 +195,20 @@ async def apply_check(
         await add_step(
             tx, case, "check", "هنوز دعوت‌شده‌ی ما نیست.", by_kind="agent", by_code=by_code
         )
+        if case["conversation_id"] is None and conversation_id is not None:
+            # A product's case meets its customer in support: follow-ups can reach them now.
+            case = await tx.one(
+                """UPDATE growth.rescue_cases SET conversation_id = :conv, updated_at = now()
+                   WHERE id = :id RETURNING *""",
+                id=case["id"],
+                conv=conversation_id,
+            )
+            await tx.exec(
+                """UPDATE support.conversations SET rescue_case_id = :c, updated_at = now()
+                   WHERE id = :id AND rescue_case_id IS NULL""",
+                id=conversation_id,
+                c=case["id"],
+            )
         return case
     if not opens:
         return None
@@ -218,6 +240,49 @@ async def conversation_of(
            ORDER BY c.last_message_at DESC LIMIT 1""",
         co=company_id,
         probe=json.dumps([{"exchange": exchange, "uid": uid}]),
+    )
+
+
+async def conversation_of_run(
+    tx: Tx, company_id: UUID | str, run_id: str | None
+) -> dict[str, Any] | None:
+    """The open conversation a support agent's run is answering: its work
+    item is the one desk.wake_agent made for that conversation (§4.5: the
+    customer says they registered already and gives a UID)."""
+    if not run_id:
+        return None
+    title = await tx.scalar(
+        """SELECT w.title FROM agents.runs r JOIN work.work w ON w.id = r.work_id
+           WHERE r.id = CAST(:id AS uuid) AND r.company_id = :co""",
+        id=run_id,
+        co=company_id,
+    )
+    m = CONVERSATION_REF.search(str(title or ""))
+    if m is None:
+        return None
+    return await tx.first(
+        """SELECT id, ref, mystery, customer_id FROM support.conversations
+           WHERE ref = :ref AND company_id = :co AND state <> 'closed'""",
+        ref=m.group(0),
+        co=company_id,
+    )
+
+
+async def link_uid(tx: Tx, customer_id: UUID, exchange: str, uid: str) -> None:
+    """The UID a customer gave in a conversation, kept on their support
+    customer row (the one place a raw UID lives, prompt 10 §1.2), so the
+    next check finds the conversation and the guard knows the UID is theirs."""
+    await tx.exec(
+        """UPDATE support.customers
+              SET uids = uids || jsonb_build_array(jsonb_build_object('exchange', CAST(:ex AS text),
+                                                                      'uid', CAST(:uid AS text)))
+            WHERE id = :id AND NOT uids @> CAST(:probe AS jsonb)
+              AND jsonb_array_length(uids) < :cap""",
+        id=customer_id,
+        ex=exchange,
+        uid=uid,
+        probe=json.dumps([{"exchange": exchange, "uid": uid}]),
+        cap=MAX_UIDS,
     )
 
 
@@ -283,30 +348,64 @@ async def record_check(
     )
 
 
+# -------------------------------------------------------- product events --
+def event_exchange(ev: dict[str, Any]) -> str | None:
+    """The exchange of a product event (CR-009/010: data.exchange). Its
+    subject is the UID's pseudonym under `uid:<exchange>` only then
+    (routes/intake.py), so without one no case can match a check."""
+    raw = ev.get("data")
+    data: dict[str, Any] = raw if isinstance(raw, dict) else {}
+    exchange = str(data.get("exchange") or "").lower()
+    return exchange if exchange.isalnum() and EXCHANGE.match(exchange) else None
+
+
+async def apply_referral_event(
+    tx: Tx, company_id: UUID, company: str, ev: dict[str, Any]
+) -> tuple[str, bool]:
+    """A product's `referral_failed` opens a case (once); its
+    `referral_verified` rescues the open one. -> (the event's state, a case
+    opened?). An event without an exchange or a subject is `ignored`."""
+    exchange = event_exchange(ev)
+    if exchange is None or not ev.get("subject"):
+        return "ignored", False
+    if ev["kind"] == "referral_failed":
+        _, created = await open_case(
+            tx, company_id=company_id, company=company, source="product", exchange=exchange,
+            subject=ev["subject"], note_fa="محصول گزارش داد: ثبت‌نام بی‌رفرال ما.",
+        )  # fmt: skip
+        return "applied", created
+    case = await tx.first(
+        """SELECT * FROM growth.rescue_cases WHERE company_id = :co AND exchange = :ex AND subject = :s
+             AND state IN ('open', 'contacted') FOR UPDATE""",
+        co=company_id,
+        ex=exchange,
+        s=ev["subject"],
+    )
+    if case is not None:
+        await close_case(tx, case, company, "rescued", "product_verified",
+                         "محصول تأیید کرد: حالا زیر رفرال ما است.", by_kind="rule", by_code="product")  # fmt: skip
+    return "applied", False
+
+
 # ------------------------------------------------------------ follow-ups --
 async def apply_product_failures(tx: Tx, company_id: UUID, company: str) -> int:
-    """`referral_failed` events from a product (intake) open cases, once each."""
+    """The catch-up: product referral events still `accepted` (intake applies
+    them as they arrive) open or rescue their cases, once each."""
     rows = await tx.all(
-        """SELECT id, subject, data FROM intake.events
-           WHERE company_id = :co AND kind = 'referral_failed' AND state = 'accepted'
-             AND subject IS NOT NULL
+        """SELECT id, kind, subject, data FROM intake.events
+           WHERE company_id = :co AND kind IN ('referral_failed', 'referral_verified')
+             AND state = 'accepted'
            ORDER BY received_at LIMIT 200 FOR UPDATE SKIP LOCKED""",
         co=company_id,
     )
     n = 0
     for r in rows:
-        data = r["data"] if isinstance(r["data"], dict) else {}
-        exchange = str(data.get("exchange") or "lbank")[:30].lower()
-        if not exchange.replace("_", "").replace("-", "").isalnum() or not exchange[:1].isalpha():
-            exchange = "lbank"
-        _, created = await open_case(
-            tx, company_id=company_id, company=company, source="product", exchange=exchange,
-            subject=r["subject"], note_fa="محصول گزارش داد: ثبت‌نام بی‌رفرال ما.",
-        )  # fmt: skip
+        state, created = await apply_referral_event(tx, company_id, company, dict(r))
         n += 1 if created else 0
         await tx.exec(
-            "UPDATE intake.events SET state = 'applied', applied_at = now() WHERE id = :id",
+            "UPDATE intake.events SET state = :st, applied_at = now() WHERE id = :id",
             id=r["id"],
+            st=state,
         )
     return n
 
@@ -346,6 +445,7 @@ async def follow_up_company(
     )
     out: dict[str, Any] = {
         "company": company, "opened": opened, "sent": 0, "lost": 0, "opted_out": 0, "waiting": 0,
+        "no_channel": 0, "blocked": 0, "queued": [],
     }  # fmt: skip
     for case in cases:
         if await tx.scalar(
@@ -374,16 +474,17 @@ async def follow_up_company(
             out["waiting"] += 1
             continue
         n = case["follow_ups"] + 1
-        sent = await template_send.send_template(
-            tx,
-            hub,
-            company_id=company_id,
-            kind="rescue",
-            subject=case["subject"],
-            dedupe_key=f"rescue:{case['ref']}:{n}",
-            rescue_case_id=case["id"],
-        )
-        if sent["status"] == "sent":
+        # The customer is the case's conversation (a case's own subject is
+        # the UID's pseudonym, which reaches no channel by itself).
+        sent = await growth.send_template(
+            tx, hub, company_id=company_id, purpose="rescue", dedupe_key=f"rescue:{case['ref']}:{n}",
+            conversation_id=case["conversation_id"], subject=case["subject"],
+            rule_ref=str(rule["ref"]), rescue_case_id=case["id"], follow_up=n, now=now,
+        )  # fmt: skip
+        status, reason = sent["status"], sent.get("reason")
+        if status in ("queued", "sent") and sent.get("message_id"):
+            if status == "queued":
+                out["queued"].append(sent["message_id"])  # desk.send, after the commit
             row = await tx.one(
                 """UPDATE growth.rescue_cases SET state = 'contacted', follow_ups = :n, last_contact_at = :now,
                        next_follow_up_at = :next, updated_at = now() WHERE id = :id RETURNING *""",
@@ -396,16 +497,21 @@ async def follow_up_company(
                         by_kind="rule", by_code=str(rule["ref"]), template=sent.get("template"))  # fmt: skip
             await _emit(tx, company, row, "contacted")
             out["sent"] += 1
-        elif sent["status"] == "opted_out":
+        elif reason == "opted_out" or status == "opted_out":
             await close_case(tx, case, company, "opted_out", "opted_out", "مشتری لغو کرده است.")
             out["opted_out"] += 1
-        else:  # quiet hours, a cap, a template not sealed yet, no sender: later
+        else:
+            # no_channel (no conversation or no live channel yet) and blocked
+            # (the guard refused the sealed template: the owner fixes it) wait
+            # a day; quiet hours and the daily cap (held, the sweep retries),
+            # a rule or template not sealed, a lock: an hour.
+            later = NO_CHANNEL_RETRY if status in ("no_channel", "blocked") else timedelta(hours=1)
             await tx.exec(
                 "UPDATE growth.rescue_cases SET next_follow_up_at = :t WHERE id = :id",
                 id=case["id"],
-                t=now + timedelta(hours=1),
+                t=now + later,
             )
-            out["waiting"] += 1
+            out[status if status in ("no_channel", "blocked") else "waiting"] += 1
     return out
 
 
@@ -422,6 +528,8 @@ async def follow_ups(hub: Any, txf: Any, now: datetime | None = None) -> dict[st
                   OR EXISTS (SELECT 1 FROM intake.events e WHERE e.company_id = c.id
                              AND e.kind = 'referral_failed' AND e.state = 'accepted')"""
         )
+    from hq_api.domain import desk  # the one sender of a queued message
+
     done: list[dict[str, Any]] = []
     skipped: list[str] = []
     for co in companies:
@@ -430,7 +538,12 @@ async def follow_ups(hub: Any, txf: Any, now: datetime | None = None) -> dict[st
             if lock is not None:
                 skipped.append(co["code"])
                 continue
-            done.append(await follow_up_company(tx, hub, co["id"], co["code"], now))
+            result = await follow_up_company(tx, hub, co["id"], co["code"], now)
+        sends = []
+        for mid in result.pop("queued"):
+            async with txf() as tx:  # desk.send asks the gate again
+                sends.append(await desk.send(tx, hub, mid))
+        done.append({**result, "sends": sends})
     return {"companies": done, "skipped": skipped}
 
 

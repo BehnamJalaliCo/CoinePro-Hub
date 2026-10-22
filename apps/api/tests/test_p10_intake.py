@@ -19,6 +19,7 @@ from hq_api.hub import Hub
 from hq_api.routes import intake as I
 
 from .conftest import body_bytes, idem, step_up
+from .p10_support import holding_switch
 
 TG_IP = "149.154.167.220"  # inside Telegram's published 149.154.160.0/20
 SECRET = "intake-test-secret-" + "a" * 24
@@ -246,6 +247,56 @@ async def test_signed_product_events_stale_and_repeated_ids_are_refused(
             "SELECT channel FROM support.conversations WHERE company_id = $1", co["id"]
         )
         == "product_bot"
+    )
+
+
+async def test_product_referral_events_open_and_rescue_a_case_as_they_arrive(
+    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], new_company: Callable[..., Any],
+    su: Any, bao: FakeBao,
+) -> None:  # fmt: skip
+    """§3.4 meets §9 (intake.APPLIERS, domain/product_events.py): a signed
+    `referral_failed` opens the rescue case as it arrives, the product's
+    later `referral_verified` of the same UID closes it rescued, a signup is
+    kept for the funnel and an event without an exchange is ignored. A
+    database write only (no model, no outside call): it runs while locked."""
+    co = await new_company()
+    body = {"company": co["code"], "kind": "product", "allowed_ips": ["10.20.0.0/16"],
+            "kinds": ["referral_failed", "referral_verified", "signup"]}  # fmt: skip
+    assert (await _source(client, hub, owner_session, body)).status_code == 201
+    bao.data[f"support/intake/{co['code']}/product"] = {"secret": SECRET}
+    inside = {"X-Forwarded-For": "10.20.3.4", "Content-Type": "application/json"}
+
+    async def post(events: list[dict[str, Any]]) -> httpx.Response:
+        raw, ts, sig = _signed({"events": events})
+        return await client.post(f"/intake/v1/product/{co['code']}", content=raw,
+                                 headers={**inside, "X-HQ-Timestamp": ts, "X-HQ-Signature": sig})  # fmt: skip
+
+    async with holding_switch(su, "engaged"):
+        r = await post([
+            {"id": "rf-1", "kind": "referral_failed", "subject": "77001122", "data": {"exchange": "lbank"}},
+            {"id": "su-1", "kind": "signup", "subject": "77001122", "data": {}},
+            {"id": "rf-2", "kind": "referral_failed", "subject": "77009999", "data": {}},
+        ])  # fmt: skip
+        assert r.status_code == 200 and r.json()["accepted"] == 3
+        states = {e["event_id"]: e["state"] for e in await su.fetch(
+            "SELECT event_id, state FROM intake.events WHERE company_id = $1", co["id"])}  # fmt: skip
+        assert states == {"rf-1": "applied", "su-1": "applied", "rf-2": "ignored"}
+        case = await su.fetchrow(
+            "SELECT ref, source, state, subject FROM growth.rescue_cases WHERE company_id = $1",
+            co["id"],
+        )
+        assert (case["source"], case["state"]) == ("product", "open")
+        assert "77001122" not in case["subject"] and len(case["subject"]) == 64
+        r = await post([
+            {"id": "rv-1", "kind": "referral_verified", "subject": "77001122", "data": {"exchange": "lbank"}},
+        ])  # fmt: skip
+        assert r.status_code == 200 and r.json()["accepted"] == 1
+    row = await su.fetchrow(
+        "SELECT state, close_reason FROM growth.rescue_cases WHERE ref = $1", case["ref"]
+    )
+    assert (row["state"], row["close_reason"]) == ("rescued", "product_verified")
+    assert (
+        await su.fetchval("SELECT count(*) FROM growth.sends WHERE company_id = $1", co["id"]) == 0
     )
 
 
