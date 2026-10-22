@@ -354,6 +354,7 @@ async def reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str
     host = G.host_of(body.url)
 
     async def refuse(reason: str, err: ApiError) -> NoReturn:
+        """A refused call: its row in the egress log and in the audit log (7.1)."""
         async with ctx.hub.db.tx([company_id]) as tx:
             await G.record(
                 tx,
@@ -363,23 +364,38 @@ async def reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str
                 entries=[{"tool": body.tool, "kind": "request", "class": body.cls,
                           "method": body.method[:10], "host": host, "blocked_reason": reason}],
             )  # fmt: skip
+            await ctx.audit(
+                tx,
+                company_id=company_id,
+                action="egress.refused",
+                action_class=body.cls,
+                target_kind="host",
+                target_ref=host[:200],  # the audit's limit (a host may have 255)
+                summary=f"{body.tool} {body.method[:10]} refused: {reason}",
+            )
         raise err
 
     reason = G.internal_data([*body.strings, body.url or ""], codes, employees)
     if reason:
         await refuse("internal_data", ApiError(403, "internal_data", reason))
-    async with ctx.tx() as tx:
-        usage = await tx.one(G.USAGE_SQL, run=who.run_id, co=company_id)
-        left = G.limits_left(ctx.hub.settings, usage)
-        acct = None
-        if body.account:
-            acct = await G.account(tx, ctx.hub.bao, body.account, who.company)
+    try:
+        async with ctx.tx() as tx:
+            usage = await tx.one(G.USAGE_SQL, run=who.run_id, co=company_id, actor=who.code[:60])
+            left = G.limits_left(ctx.hub.settings, usage)
+            acct = None
+            if body.account:
+                acct = await G.account(tx, ctx.hub.bao, body.account, who.company)
+    except ApiError as err:  # the account: unknown, not this company's, no secret yet
+        await refuse(err.code, err)
     if (
         left["requests"] <= 0
         or left["bytes"] <= 0
         or (body.tool == "web.browse" and left["browser_s"] <= 0)
     ):
-        await refuse("egress_limit", ApiError(429, "egress_limit"))
+        retry = G.retry_after(ctx.hub.settings, usage)
+        await refuse(
+            "egress_limit", ApiError(429, "egress_limit", headers={"Retry-After": str(retry)})
+        )
     if body.tool == "http.request" and body.method not in G.READ_METHODS:
         policy = acct.get("_policy") if acct else None
         if not acct or not G.non_committing(policy or {}, acct["site"], body.method, body.url):
@@ -440,7 +456,7 @@ async def log_entries(body: LogIn, ctx: Ctx = Depends(internal_ctx)) -> None:
                 action="egress.request",
                 action_class=e.cls,
                 target_kind="host",
-                target_ref=e.host,
+                target_ref=e.host[:200],
                 summary=f"{e.tool} {e.method} {e.status or '-'}"
                 + (f" x{e.requests}" if e.requests > 1 else "")
                 + (f" blocked: {e.blocked_reason}" if e.blocked_reason else "")
