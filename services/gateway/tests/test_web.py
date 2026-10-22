@@ -70,7 +70,8 @@ class Net:
     def _reserve(self, request: httpx.Request) -> httpx.Response:
         self.reserved.append(json.loads(request.content))
         status, body = self.reserve_answer
-        return httpx.Response(status, json=body)
+        headers = {"Retry-After": "120"} if status == 429 else {}
+        return httpx.Response(status, json=body, headers=headers)
 
     async def _log(self, request: httpx.Request) -> httpx.Response:
         await asyncio.sleep(self.log_delay)
@@ -151,7 +152,9 @@ async def test_refusals_come_back_with_their_codes(mock: respx.MockRouter) -> No
     out = await call(gw_web(), "web.search", {"q": "status of W-000123"})
     assert (out["outcome"], out["code"]) == ("denied", "internal_data") and not net.sent
     net.reserve_answer = (429, {"code": "egress_limit"})
-    assert (await call(gw_web(), "web.read", {"url": "https://e.com/"}))["code"] == "egress_limit"
+    out = await call(gw_web(), "web.read", {"url": "https://e.com/"})
+    assert (out["outcome"], out["code"]) == ("denied", "egress_limit")
+    assert out["result"] == {"retry_after_s": 120}  # the api's Retry-After (7.1 §2.22)
     net.reserve_answer = (403, {"code": "needs_owner"})
     out = await call(
         gw_web(), "http.request", {"method": "POST", "url": "https://e.com/pay", "json": {"a": 1}}

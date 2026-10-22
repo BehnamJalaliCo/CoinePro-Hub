@@ -122,11 +122,15 @@ async def test_log_limits_and_who_reads_the_log(
     try:
         r = await _reserve(client, h, strings=["more"])
         assert r.status_code == 429 and r.json()["code"] == "egress_limit"
+        # 7.1 §2.22: when it could go: a run's own cap never comes back in the run.
+        assert r.headers["Retry-After"] == str(G.RUN_RETRY_AFTER_S)
     finally:
         hub.settings = real
     hub.settings = replace(real, egress_day_bytes=3000)
     try:
-        assert (await _reserve(client, h, strings=["x y"])).status_code == 429
+        r = await _reserve(client, h, strings=["x y"])
+        assert r.status_code == 429
+        assert 1 <= int(r.headers["Retry-After"]) <= 86_400  # the owner's next day
     finally:
         hub.settings = real
     # The owner's log and summary.
@@ -351,3 +355,49 @@ async def test_a_call_counts_before_its_answer(
     bad = {**ENTRY, "method": "VERYLONGMETHOD"}
     r = await client.post("/internal/v1/egress/log", headers=h, json={**log, "entries": [bad]})
     assert r.status_code == 422  # the gateway and egress shape rows before they get here
+
+
+async def test_every_refusal_is_audited_and_no_run_keeps_its_caps(
+    client: httpx.AsyncClient, hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """7.1 §3: a refused reserve writes its egress row AND an audit row (an
+    account refusal too); an empty run_id never switches the per-run caps off."""
+    co = await new_company()
+    h = await agent_headers(f"{co['code']}-TECH-MGR")
+    assert (await _reserve(client, h, strings=["status of W-000123"])).status_code == 403
+    r = await _reserve(client, h, tool="web.browse", account="no-such-account", **{"class": "A2"})
+    assert r.status_code == 404
+    real = hub.settings
+    hub.settings = replace(real, egress_run_requests=1)
+    try:
+        assert (await _reserve(client, h, strings=["x"])).status_code == 429
+    finally:
+        hub.settings = real
+    rows = await su.fetch(
+        "SELECT blocked_reason FROM egress.log WHERE company_id = $1 ORDER BY at", co["id"]
+    )
+    assert [r["blocked_reason"] for r in rows] == ["internal_data", "not_found", "egress_limit"]
+    audits = await su.fetch(
+        """SELECT action_class, target_kind, summary FROM audit.entries
+           WHERE company_id = $1 AND action = 'egress.refused' ORDER BY seq""",
+        co["id"],
+    )
+    assert [a["summary"].rsplit(": ", 1)[1] for a in audits] == [
+        "internal_data",
+        "not_found",
+        "egress_limit",
+    ]
+    assert audits[1]["action_class"] == "A2" and audits[0]["target_kind"] == "host"
+    # No run: the actor's run-less rows of the day are one run (never zero).
+    for _ in range(3):
+        await su.execute(
+            """INSERT INTO egress.log (company_id, actor, run_id, tool, kind, class, method, host)
+               VALUES ($1, 'NO-RUN-ACTOR', NULL, 'web.read', 'request', 'A0', 'GET', 'x.example')""",
+            co["id"],
+        )
+    async with hub.db.tx([co["id"]]) as tx:
+        none = await tx.one(G.USAGE_SQL, run=None, co=co["id"], actor="NO-RUN-ACTOR")
+        other = await tx.one(G.USAGE_SQL, run=None, co=co["id"], actor="SOMEONE-ELSE")
+    assert none["run_requests"] == 3 and other["run_requests"] == 0
+    assert 0 < none["day_reset_s"] <= 86_400
+    assert G.limits_left(replace(real, egress_run_requests=3), none)["requests"] <= 0

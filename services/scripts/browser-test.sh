@@ -5,10 +5,14 @@
 # and the few test packages it needs from requirements-test.lock (all
 # hash-pinned). The source is mounted read-only and the container has no
 # network at all: the fake sites, egress's proxy and Chromium share its
-# loopback. Nothing here touches the coinepro-hq stack.
+# loopback. It runs as production's browser does (7.1 §2.20): uid 10001,
+# read-only, every capability dropped but SYS_CHROOT, no-new-privileges and
+# Playwright's seccomp profile, so Chromium's own sandbox is on.
+# Nothing here touches the coinepro-hq stack.
 #
 # Usage: browser-test.sh [pytest args...]   (HQ_TEST_IMAGE_TAG: the image's tag)
 set -euo pipefail
+SECCOMP="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/infra/browser/seccomp_profile.json"
 
 SERVICES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="coinepro-hq/browser-test:${HQ_TEST_IMAGE_TAG:-dev}"
@@ -43,4 +47,7 @@ WORKDIR /w
 EOF
 docker build -q -t "$IMAGE" "$ctx" >/dev/null
 docker run --rm --network none --tmpfs /tmp:size=256m,mode=1777 --shm-size 256m \
-  -v "$SERVICES_DIR:/w:ro" "$IMAGE" python3 -m pytest egress/tests/test_browser.py "$@"
+  --user 10001:10001 --read-only --cap-drop ALL --cap-add SYS_CHROOT \
+  --security-opt no-new-privileges:true --security-opt "seccomp=$SECCOMP" \
+  -e BROWSER_SANDBOX=1 -v "$SERVICES_DIR:/w:ro" "$IMAGE" \
+  python3 -m pytest -p no:cacheprovider egress/tests/test_browser.py "$@"

@@ -14,6 +14,9 @@
 #         host's node-exporter, no internet); from inside the gateway's, the
 #         api and OPA answer and neither Temporal, Postgres nor any other
 #         data service does.
+#   7.1 §2.19  egress and SearXNG probed by IP too (the neighbours, the
+#         metadata address, the host's own addresses): a GAP line, not a
+#         failure (closing it is the owner's DOCKER-USER rule).
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -125,6 +128,49 @@ if running "$EGRESS"; then
 else
   fail "egress is not running"
 fi
+
+# ------------------------------------------------------------ 7.1 §2.19 ----
+# By address, beyond the hub's own services: the production neighbours
+# (10.10.1.1-3), the cloud metadata address and the host's own addresses,
+# from inside egress's and SearXNG's network namespaces (the two with a route
+# out). Egress's guard refuses every one of them for an agent's request; the
+# network itself does not, and closing that is the owner's DOCKER-USER rule
+# (prompt 7.1 §0.4; nothing here touches iptables). So what answers is
+# reported as a visible GAP line and does not fail the check.
+GAP_PORTS="80 443"
+gap_targets() {
+  printf '%s\n' 10.10.1.1 10.10.1.2 10.10.1.3 169.254.169.254
+  ip -o -4 addr show scope global 2>/dev/null | awk '{ split($4, a, "/"); print a[1] }'
+}
+open_by_ip() { # open_by_ip CONTAINER -> the "ip:port" of every target that opens, on one line
+  local targets
+  targets="$(gap_targets | sort -u | tr '\n' ' ')"
+  # shellcheck disable=SC2016 # expanded by the probe's own shell
+  docker run --rm --network "container:$1" -e TARGETS="$targets" -e PORTS="$GAP_PORTS" \
+    "$PROBE_IMAGE" sh -c 'for ip in $TARGETS; do for port in $PORTS; do
+      if nc -z -w 2 "$ip" "$port" >/dev/null 2>&1; then printf "%s:%s " "$ip" "$port"; fi
+    done; done' 2>/dev/null || true
+}
+for c in "$EGRESS" "$SEARXNG"; do
+  running "$c" || continue
+  name="${c#coinepro-hq-}" name="${name%-1}"
+  open="$(open_by_ip "$c")"
+  if [[ -z "$open" ]]; then
+    echo "live: $name reaches no neighbour (10.10.1.1-3), metadata or host address by IP"
+    continue
+  fi
+  neighbours="" metadata="" host=0
+  for hit in $open; do
+    case "$hit" in
+      10.10.1.[123]:*) neighbours+="$hit " ;;
+      169.254.169.254:*) metadata+="$hit " ;;
+      *) host=$((host + 1)) ;;
+    esac
+  done
+  echo "live: GAP $name reaches by IP: neighbours [${neighbours% }], metadata [${metadata% }]," \
+    "$host host address:port pairs of $(gap_targets | sort -u | wc -l | tr -d ' ') addresses x 80/443" \
+    "(refused by egress's guard for agents; closing it at the network is the owner's DOCKER-USER rule)"
+done
 
 # ----------------------------------------------------------------- 1.12 ----
 before=$failures
