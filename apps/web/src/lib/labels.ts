@@ -32,6 +32,9 @@ export const DECISION_KIND: Record<string, { fa: string; icon: IconName }> = {
   media_publish: { fa: 'انتشار رسانه', icon: 'video' },
   email_send: { fa: 'ارسال ایمیل حقوقی', icon: 'send' },
   role_new: { fa: 'نقش تازه', icon: 'department' },
+  // ⟨1.7⟩ §23.11
+  archive_schema: { fa: 'تغییر طرح بایگانی', icon: 'settings' },
+  archive_disposal: { fa: 'امحای سندهای بایگانی', icon: 'report' },
 };
 
 export const DECISION_STATUS: Record<string, string> = {
@@ -112,6 +115,8 @@ export const ROLE_FA: Record<string, string> = {
   // ⟨1.6⟩ §22.1
   media_director: 'مدیر رسانه و طراحی', scriptwriter: 'سناریست', video_director: 'کارگردان ویدیو', motion_designer: 'طراح موشن‌گرافیک',
   voice_producer: 'تهیه‌کننده‌ی صدا', visual_designer: 'طراح گرافیک', ui_designer: 'طراح رابط کاربری', legal_counsel: 'مشاور حقوقی',
+  // ⟨1.7⟩ §23.11
+  archivist: 'بایگان',
 };
 
 export const ACTOR_FA =(a: { kind: string; code: string; display_fa?: string | null } | null | undefined): string =>

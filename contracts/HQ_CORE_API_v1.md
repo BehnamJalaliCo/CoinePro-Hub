@@ -2515,3 +2515,49 @@ Each lands as a `filed` record of its seed class with `source.kind: "system"`.
 - **Codes (§14):** `clearance` (403, the record is above the reader's clearance; returned only where the reader already knows the ref),
   `sealed_record` (409), `schema_invalid` (422 with `fields`), `secret_in_document` (422, a secret pattern was found; the file is not
   stored), `held` (423, §18.15). A fixity failure is a data-loss alarm (`urgent`, category data loss), not a Problem code.
+
+### 23.12 Shapes both apps read ⟨1.7.1⟩
+Recorded from the web client's data layer (`apps/web/src/lib/api/v20.ts`, 2026-10-22), so the server builds to what the apps already read.
+Where §23.1–§23.11 is silent, this list is the contract.
+```
+Level        { key, title_fa, rank, … }                    // seeded 0, 10, 20, 30: a new level fits between two; a used level's rank is fixed (422 schema_invalid, fields.rank)
+             owner_settings: agents_max = the highest level any agent may be cleared for (seeded on "confidential")
+Clearance    { subject: "role:<role>"|"employee:<code>", grants: [{scope: "own"|<company code>|"holding", level}], metadata_level, version }
+             // saved one subject at a time: PUT /archive/schema/clearance/<subject>; "own" = the subject's own company;
+             // metadata_level lets the archivist see the metadata of what it files at every level
+Schema rows  carry usage counts: records (classes, folders, levels, retention, link kinds), parties (party kinds)
+GET /archive/schema  also returns vocab: {events, actions, ops, ref_kinds, currencies, mimes} and parties
+Values       money {amount: decimal string, currency} · date "YYYY-MM-DD" · date_range {from, to} · enum key · multi_enum [key]
+             party "PT-…" · company <code> · ref {kind, ref}
+Record       { …§23.1, doc_date|null,                     // what from/to filter on
+               masked: [field key], class|null,            // null on a draft from import
+               suggestion: {class, title_fa, metadata, parties, by: "rules"|"archivist", note_fa}|null,   // drafts only
+               tombstone: {decision, at, hashes}|null }    // after disposal
+Version      { …§23.1, state: "current"|"superseded" }
+Link         { kind, to_kind, to_ref, title_fa, at, by, sealed, inverse }          // a sealed link is never removed
+AccessRow    { at, actor, action: "view"|"download"|"metadata", file_id, version, step_up, watermarked }
+DueReminder  { id, record, title_fa, scope, class, field, at, lead_days, days_left, state, rule, to, channel }
+RetentionDue { ref, title_fa, scope, class, rule, trigger_at, due_at, then, holds, decision_ref|null }
+Fixity       { at, checked, failed: [ref], next_at }
+Hold         { …§23.5, records: n, record_refs: [ref] }   // scope: records is an explicit list; the other facets (folders, classes, parties, from/to) must all match
+Source       { key, title_fa, class, enabled, filed, last_at, note_fa }
+Automation   { …§23.7, runs_30d, last_run_at|null }
+             action args: notify {to, level: "info"|"report"|"decision", text_fa} · work_item {role, title_fa} · link {kind, to}
+                          move_to_folder {folder} · raise_level {level} · add_reminder {field, lead_days}
+```
+| Method | Path | Notes |
+|---|---|---|
+| PUT | `/archive/schema/{part}/{key}?dry_run=1` | the impact only, nothing applied, no passkey; answers `{part, key, version, impact, row, dry_run: true}` |
+| PUT | `/archive/schema/{part}/{key}` 🔏 | answers `{part, key, version, impact, row}`. A new key sends `If-None-Match: *`; parts keyed by ref (folders, retention, reminders, automations) are created with key `new` and the server assigns the ref |
+| POST | `/archive/schema/{part}/{key}/retire` 🔏 | body `{part, key, version}`; its hash is the step-up target |
+| PUT | `/archive/sources` | owner · `{<key>: on}` for the switches that change |
+| POST | `/archive/intake` | `{file_ids}` → `{files, suggestion}`: the secret scan, hashes and text extraction run here (`422 secret_in_document`) |
+| POST | `/archive/records/{ref}/file` | `If-Match` · a completed draft becomes `filed` |
+| DELETE | `/archive/records/{ref}/links?kind&to_kind&to_ref` | removes an unsealed link |
+| POST | `/archive/reminders/{id}/done` | closes a reminder |
+- **Declassify** is the record's `PATCH` with a lower `level` and `X-Step-Up` target `archive.declassify`. **Seal** posts
+  `{manifest_sha256}`; the server recomputes it and refuses a mismatch.
+- **A class's default folder:** the first folder in the record's scope whose `classes` include the class; otherwise the class's
+  `default_folder` if it lies in that scope.
+- **Cards:** the `archive_schema` payload is `{part, key, base_version, body, impact}`; the card is void if that schema row changed since.
+  Both archive cards are approved with the usual `decision.approve` step-up, target the card's ref.

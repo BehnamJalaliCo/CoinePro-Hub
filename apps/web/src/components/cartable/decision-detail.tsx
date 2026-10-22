@@ -33,7 +33,7 @@ type Decision = Schemas['Decision'];
 // governance kinds marked 🔏 in §20.11 (a charter amendment, a risk acceptance, an authority change), target = ref; and ⟨1.5⟩ §21.12 the
 // monthly HR round's `evaluation` (payload v2). ⟨1.6⟩ §22.6: `media_publish`, `email_send` and `role_new` are sealed too; `email_send` on the
 // message digest rather than the ref (sealTarget).
-const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption', 'message_template', 'lifecycle_rule', 'support_go_live', 'charter_amendment', 'risk_acceptance', 'authority_change', 'evaluation', 'media_publish', 'email_send', 'role_new']);
+const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption', 'message_template', 'lifecycle_rule', 'support_go_live', 'charter_amendment', 'risk_acceptance', 'authority_change', 'evaluation', 'media_publish', 'email_send', 'role_new', 'archive_schema', 'archive_disposal']);
 export const needsStepUp = (d: Decision) => d.action_class === 'A3' || STEP_UP_KINDS.has(d.kind);
 /** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8). */
 const OWN_ROUTE: Record<string, { href: (d: Decision) => string; fa: string }> = {

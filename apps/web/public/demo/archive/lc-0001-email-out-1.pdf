@@ -1,0 +1,61 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 420 595] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Length 1094 >>
+stream
+0.11 0.13 0.2 rg
+0 561 420 34 re f
+BT 1 1 1 rg /F2 10 Tf
+40 573 Td (legal@coinepro.com \(sent, demo\)) Tj ET
+BT 0.85 0.75 0.45 rg /F1 7 Tf
+310 573 Td (DEMO - NO LEGAL VALUE) Tj ET
+0 0 0 rg
+BT /F2 10 Tf 40 539 Td (Instagram business account cannot reply to messages - CoinePro FX) Tj ET
+BT /F1 9 Tf 40 524 Td (From:  legal@coinepro.com) Tj ET
+BT /F1 9 Tf 40 510 Td (To:  appeals@platform-support.example) Tj ET
+BT /F1 9 Tf 40 496 Td (Sealed by:  D-000083) Tj ET
+0.75 0.75 0.75 RG 0.6 w
+40 486 m 380 486 l S
+BT /F1 9 Tf 40 472 Td (Hello,) Tj ET
+BT /F1 9 Tf 40 458 Td (Since 18 October 2026 the Instagram business account of CoinePro FX cannot reply) Tj ET
+BT /F1 9 Tf 40 444 Td (to direct messages. We have submitted the in-app review form and would like to) Tj ET
+BT /F1 9 Tf 40 430 Td (understand which policy the restriction refers to and what we should change.) Tj ET
+BT /F1 9 Tf 40 410 Td (Thank you,) Tj ET
+BT /F1 9 Tf 40 396 Td (CoinePro Holding, legal desk) Tj ET
+BT 0.45 0.45 0.45 rg /F1 6.5 Tf
+40 26 Td (Demo document generated for the CoinePro HQ archive mock. Not a real email.) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Title (Email) /Producer (CoinePro HQ demo fixtures) /Creator (scripts/gen-demo-archive.mjs) >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000257 00000 n 
+0000000354 00000 n 
+0000000456 00000 n 
+0000001602 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 7 0 R >>
+startxref
+1716
+%%EOF

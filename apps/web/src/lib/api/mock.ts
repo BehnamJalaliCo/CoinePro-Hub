@@ -9,6 +9,7 @@ import { DECISIONS_16, decided16, handle16 } from './mock-v16';
 import { DECISIONS_17, decided17, handle17 } from './mock-v17';
 import { CONNECTIONS_18, DECISIONS_18, decided18, decorate18, handle18 } from './mock-v18';
 import { decided19, decorate19, departments19, handle19 } from './mock-v19';
+import { decided20, decorate20, handle20 } from './mock-v20';
 import { roles } from './mock-roles';
 
 const now = Date.now();
@@ -354,6 +355,9 @@ export async function handle(req: Request): Promise<Response> {
   await new Promise((r) => setTimeout(r, 120 + Math.random() * 180));
   const brand = await handleBrand(req, p, files);
   if (brand) return brand;
+  // ⟨1.7⟩ §23 first: it also checks the step-up (and, for archive_schema, that the card is not void) before an archive card is approved.
+  const v20 = await handle20(req, p, u);
+  if (v20) return v20;
   // ⟨1.6⟩ §22 first: it also answers GET /roles (file charters and active drafts) and refuses a media_series card on the cartable's approve.
   const v19 = await handle19(req, p, u);
   if (v19) return v19;
@@ -412,7 +416,7 @@ export async function handle(req: Request): Promise<Response> {
       const x = decisions.find((y) => y.ref === d[1]);
       if (x) Object.assign(x, { status: d[2] === 'approve' ? 'approved' : d[2] === 'reject' ? 'rejected' : 'returned', decided_at: new Date().toISOString(), decided_by: owner, seal: d[2] === 'approve' ? { method: 'passkey_uv', sealed_at: new Date().toISOString(), step_up_id: 'mock' } : null, resolution: d[2] === 'approve' ? 'M-0007' : null });
       if (x && d[2] === 'approve') { decided16(x); decided17(x); }
-      if (x) { decided18(x); decided19(x); }
+      if (x) { decided18(x); decided19(x); decided20(x); }
       return json(x);
     }
     const r = /^\/deliverables\/(O-\d+)\/rating$/.exec(p);
@@ -598,3 +602,5 @@ const presence = { khalvat: false, since: iso(60 * 9), until: null as string | n
 
 // ⟨1.6⟩ §22 adds the MEDIA teams, the legal counsel and thread L, its cards and the role story (after the stories exist).
 decorate19({ decisions, messages, employees, threads, stories });
+// ⟨1.7⟩ §23 adds the archivist, its two pending cards (archive_schema, archive_disposal) and reads uploads from the shared file map.
+decorate20({ decisions, employees, files });

@@ -59,7 +59,7 @@ async function problem(res: Response): Promise<never> {
 }
 
 /** One JSON call against /api/v1 with the contract's headers. */
-export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH', path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
   const h = new Headers(headers);
   h.set('Accept', 'application/json');
   if (method !== 'GET') {
