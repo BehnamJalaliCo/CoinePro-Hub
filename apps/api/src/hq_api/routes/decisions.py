@@ -61,6 +61,7 @@ async def list_decisions(
         "budget_change",
         "evaluation",
         "code_session",
+        "tool_enable",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,
@@ -183,8 +184,10 @@ async def _decide(
 async def approve_decision(
     ref: str, body: Approve, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
-    """🔏 for A3, `hire`, `dismissal` and `budget_change` (step-up action
-    `decision.approve`, target = the ref). Creates the resolution (M-…), tells
+    """🔏 for A3, `hire`, `dismissal`, `budget_change`, `code_session` and
+    `tool_enable` (step-up action `decision.approve`, target = the ref; a
+    `tool_enable` card whose server changed since is superseded: 409
+    decision_not_pending). Creates the resolution (M-…), tells
     the proposer, and hands the effect to the worker. Requires `Idempotency-Key`."""
     return await _decide(ctx, request, ref, "approved", note=body.note, amendments=body.amendments)
 
