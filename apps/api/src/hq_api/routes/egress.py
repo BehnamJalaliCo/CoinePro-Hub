@@ -4,7 +4,8 @@ Owner:
     GET  /egress              the egress log (?company&since&blocked), newest first
     GET  /egress/summary      per day and company (?period=day: today)
     GET  /tools/accounts      the holding's service accounts (metadata only)
-    POST /tools/accounts      add or change one (the secret: `make account-secret`)
+    POST /tools/accounts      add or change one 🔏 (`account.put`, the body's SHA-256;
+                              the secret: `make account-secret`)
 Gateway (the run's agent token):
     POST /internal/v1/egress/reserve   before a request leaves: data guard, limits, account
     POST /internal/v1/egress/log       its log entries afterwards
@@ -26,6 +27,7 @@ from hq_api.domain import egress as G
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow
 from hq_api.schemas import CODE, Model, Page
+from hq_api.security import stepup
 
 router = APIRouter(tags=["egress"])
 internal_router = APIRouter(tags=["internal"])
@@ -293,9 +295,11 @@ async def list_accounts(ctx: Ctx = Depends(owner_ctx)) -> list[ServiceAccount]:
 
 @router.post("/tools/accounts", response_model=ServiceAccount, status_code=201, responses=E)
 async def put_account(body: AccountIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
-    """Adds an account, or changes one with the same key. Metadata and policy
-    only: the owner writes the secret on the server (`make account-secret`).
-    Requires `Idempotency-Key`."""
+    """🔏 (`account.put`, target = SHA-256 of the exact body; 7.1 §2.14): a new
+    site, allow rule or port widens what a stored secret can do. Adds an
+    account, or changes one with the same key. Metadata and policy only: the
+    owner writes the secret on the server (`make account-secret`). Requires
+    `Idempotency-Key` (claimed before the seal: a replay answers the same)."""
     companies = None if body.companies == "all" else sorted(set(body.companies))
     if companies is not None:
         known = {c.code for c in await ctx.hub.companies.all()}
@@ -306,6 +310,9 @@ async def put_account(body: AccountIn, request: Request, ctx: Ctx = Depends(owne
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
+        step_up_id = await stepup.consume(
+            tx, request, ctx.who, "account.put", await stepup.body_target(request)
+        )
         row = await tx.one(
             """INSERT INTO tools.accounts (key, site, title_fa, companies, policy)
                VALUES (:k, :site, :t, CAST(:co AS text[]), CAST(:p AS jsonb))
@@ -327,6 +334,7 @@ async def put_account(body: AccountIn, request: Request, ctx: Ctx = Depends(owne
             target_kind="service_account",
             target_ref=body.key,
             summary=f"{body.site}; companies: {','.join(companies or ['all'])}",
+            step_up=step_up_id is not None,
         )
         out = await _account_out(ctx, row)
         if idem:

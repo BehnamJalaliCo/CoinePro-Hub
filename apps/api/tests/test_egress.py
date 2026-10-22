@@ -17,7 +17,7 @@ from hq_api.domain import egress as G
 from hq_api.hub import Hub
 from hq_common.openbao import SecretNotFound
 
-from .conftest import agent_headers, idem
+from .conftest import agent_headers, body_bytes, idem, step_up
 
 SECRET = "acct-secret-" + "K" * 28
 
@@ -161,9 +161,66 @@ async def test_log_limits_and_who_reads_the_log(
         )
 
 
-async def test_service_accounts(
-    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], new_company: Callable[..., Any]
+async def put_account(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    body: dict[str, Any],
+    key: dict[str, str] | None = None,
+) -> httpx.Response:
+    """POST /tools/accounts sealed: 🔏 `account.put` on the body's SHA-256 (7.1 §2.14)."""
+    import hashlib
+
+    content = body_bytes(body)
+    seal = await step_up(
+        hub, owner_session["session_id"], "account.put", hashlib.sha256(content).hexdigest()
+    )
+    return await client.post(
+        "/api/v1/tools/accounts",
+        content=content,
+        headers={**owner_session["headers"], **seal, **(key or idem()),
+                 "Content-Type": "application/json"},
+    )  # fmt: skip
+
+
+async def test_an_account_change_is_sealed_and_idempotent(
+    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any]
 ) -> None:
+    """7.1 §2.13-§2.14: a new site, allow rule or port widens what a stored
+    secret can do, so POST /tools/accounts needs the owner's seal on the exact
+    body; the Idempotency-Key is claimed before the seal is spent, so the
+    same key and body answer the first 201 again."""
+    body = {"key": "seal-test", "site": "api.seal.example", "title_fa": "حساب"}
+    h = owner_session["headers"]
+    r = await client.post("/api/v1/tools/accounts", headers={**h, **idem()}, json=body)
+    assert (r.status_code, r.json()["code"]) == (403, "step_up_required")
+    other = await step_up(hub, owner_session["session_id"], "account.put", "0" * 64)
+    r = await client.post("/api/v1/tools/accounts", headers={**h, **other, **idem()}, json=body)
+    assert (r.status_code, r.json()["code"]) == (403, "step_up_invalid")
+    same = idem()
+    first = await put_account(client, hub, owner_session, body, same)
+    assert first.status_code == 201, first.text
+    content = body_bytes(body)
+    again = await client.post(
+        "/api/v1/tools/accounts",
+        content=content,
+        headers={**h, **same, "Content-Type": "application/json"},  # no new seal: a replay
+    )
+    assert again.status_code == 201 and again.headers.get("Idempotent-Replay") == "true"
+    assert again.json() == first.json()
+    wider = {**body, "policy": {"ports": [8443]}}
+    r = await client.post("/api/v1/tools/accounts", headers={**h, **idem()}, json=wider)
+    assert (r.status_code, r.json()["code"]) == (403, "step_up_required")
+    assert (await put_account(client, hub, owner_session, wider)).status_code == 201
+
+
+async def test_service_accounts(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+) -> None:
+    owner = owner_session["headers"]
     co, other = await new_company(), await new_company()
     body = {
         "key": f"crm-{co['code'].lower()}",
@@ -178,15 +235,13 @@ async def test_service_accounts(
             ],
         },
     }
-    r = await client.post("/api/v1/tools/accounts", headers={**owner, **idem()}, json=body)
+    r = await put_account(client, hub, owner_session, body)
     assert r.status_code == 201, r.text
     acct = r.json()
     assert acct["has_secret"] is False and acct["companies"] == [co["code"]]
     assert "secret" not in json.dumps(acct).lower().replace("has_secret", "")
     bad = {**body, "key": "crm-bad", "companies": ["NOPE9"]}
-    assert (
-        await client.post("/api/v1/tools/accounts", headers={**owner, **idem()}, json=bad)
-    ).status_code == 422
+    assert (await put_account(client, hub, owner_session, bad)).status_code == 422
     h = await agent_headers(f"{co['code']}-TECH-MGR")
     key = body["key"]
     r = await _reserve(client, h, tool="web.browse", account=key, **{"class": "A2"})

@@ -130,8 +130,8 @@ llm-provision: ## OpenBao: KV, policies, AppRoles, service tokens (idempotent)
 claude-token: ## OWNER: store the token from `claude setup-token` in OpenBao (hidden input)
 	@infra/openbao/claude-token.sh
 
-mcp-secret: ## OWNER: the secret of one MCP server, KEY=<server key> (hidden input -> OpenBao)
-	@infra/openbao/mcp-secret.sh "$(KEY)"
+mcp-secret: ## OWNER: the secret of one MCP server, KEY=<server key> [FILE=<json key file>] (-> OpenBao)
+	@infra/openbao/mcp-secret.sh "$(KEY)" "$(FILE)"
 
 account-secret: ## OWNER: the secret of one holding service account (KEY=<key>; hidden input)
 	@infra/openbao/account-secret.sh "$(KEY)"

@@ -10,7 +10,9 @@ validate  the tool's input model (field errors back, never the values)
 carry out through the internal API with the run's agent token; mcp.call
           (class `per tool`) first asks the api for the server and the class
           the owner sealed for that tool, then the policy decides on that
-          class; an A3 tool becomes the owner's decision instead (hq_gateway.mcp)
+          class; an A3 tool becomes the owner's decision instead, and runs
+          only as the one call of an approved card (hq_gateway.mcp); a server
+          over http is reserved at the egress gate first (data guard, limits)
 redact    the result (keys, tokens, e-mails, phones, ...), size-capped
 audit     one row per call, whatever happened (a refusal at reserve, a cap,
           an exception, a timeout): tool, class, outcome, code, ref - no
@@ -37,7 +39,7 @@ from typing import Any
 import httpx
 
 from hq_common.charters import IMPLICIT_TOOLS, Library
-from hq_common.redact import fit_async, scrub_async
+from hq_common.redact import fit_async, mask_secrets
 from hq_gateway import mcp as M
 from hq_gateway import tools as T
 from hq_gateway import web  # registers the internet tools (web.*, http.request)
@@ -45,6 +47,16 @@ from hq_gateway import web  # registers the internet tools (web.*, http.request)
 log = logging.getLogger("hq_gateway")
 TOOL_NAME = re.compile(r"[a-z][a-z_]*(?:\.[a-z_]+)?")  # always fullmatch: "work.get\n" is no tool
 AUDIT_CODE = re.compile(r"[a-z][a-z0-9_]{1,60}")
+RESERVE_STRINGS = 500  # what /internal/v1/egress/reserve takes in one list
+
+
+@dataclass(frozen=True)
+class Refused:
+    """An MCP call that did not run, and why (a step outcome's code)."""
+
+    outcome: str
+    code: str
+    hint_fa: str | None = None
 
 
 @dataclass
@@ -234,8 +246,16 @@ class Gateway:
             r.outcome, cls, r.code, r.ref, result, r.fields, truncated, hint_fa=r.hint_fa
         )
 
-    async def _policy(self, gate: dict[str, Any], name: str, cls: str, args: Any) -> Outcome | None:
-        """hq.actions for one call of class `cls`: None when allowed."""
+    async def _policy(
+        self,
+        gate: dict[str, Any],
+        name: str,
+        cls: str,
+        args: Any,
+        approved_decision: str | None = None,
+    ) -> Outcome | None:
+        """hq.actions for one call of class `cls`: None when allowed. An A3
+        call carries the approved card the api consumed for it."""
         allowed, reasons = await self.opa.actions(
             {
                 "principal": {
@@ -256,6 +276,7 @@ class Gateway:
                     and isinstance(args, dict)
                     and args.get("level") == "urgent"
                     and bool(args.get("category")),
+                    **({"approved_decision": approved_decision} if approved_decision else {}),
                 },
             }
         )
@@ -273,12 +294,16 @@ class Gateway:
         self, token: str, gate: dict[str, Any], step: int, index: int, name: str, args: Any
     ) -> Outcome:
         """resolve (api: enabled, the company may, the sealed class; an A3 tool
-        becomes a decision there) -> policy on that class -> open the server ->
+        becomes a decision there, or the approved card's one call) -> policy on
+        that class -> reserve at the egress gate (http) -> open the server ->
         its listing must be the pinned one -> call -> labelled, redacted data."""
         parsed, fields = T.validate(name, args)
         if parsed is None:
             return Outcome("error", None, "invalid_args", None, None, fields)
         canon = json.dumps(parsed.args, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        # What an A3 card shows the owner: the arguments with only their
+        # secrets masked (recipients and amounts stay; contract §18.13).
+        shown = mask_secrets(parsed.args)  # at most 20000 characters: no thread needed
         resp = await self.api.request(
             "POST",
             "/internal/v1/tools/mcp/resolve",
@@ -287,7 +312,8 @@ class Gateway:
                 "server": parsed.server,
                 "tool": parsed.tool,
                 "args_sha256": hashlib.sha256(canon.encode()).hexdigest(),
-                "preview": (await scrub_async(canon))[:20000],
+                "preview": json.dumps(shown, ensure_ascii=False, sort_keys=True)[:20000],
+                "args": shown,
             },
         )
         ref = f"mcp:{parsed.server}/{parsed.tool}"[:80]
@@ -297,7 +323,8 @@ class Gateway:
             return Outcome(r.outcome, None, code, ref, None, r.fields, hint_fa=r.hint_fa)
         d = r.data
         cls = str(d.get("class") or "")
-        if d.get("decision"):  # an A3 tool: the owner decides; nothing ran
+        approved: str | None = None
+        if d.get("decision") and not d.get("server"):  # an A3 tool: the owner decides
             decision = str(d["decision"])[:40]
             return Outcome(
                 "denied",
@@ -308,9 +335,11 @@ class Gateway:
                 {},
                 hint_fa=str(d.get("message_fa") or "")[:300] or None,
             )
-        if cls not in ("A0", "A1", "A2"):
+        if cls == "A3" and isinstance(d.get("decision"), str):
+            approved = str(d["decision"])[:40]  # the approved card's one call
+        elif cls not in ("A0", "A1", "A2"):
             return Outcome("error", None, "api_bad_answer", ref, None, {})
-        denied = await self._policy(gate, name, cls, args)
+        denied = await self._policy(gate, name, cls, args, approved)
         if denied is not None:
             denied.ref = ref
             return denied
@@ -328,6 +357,14 @@ class Gateway:
         del d, srv, r, resp  # the secret lives in `spec` only
         if self.mcp_opener is None:
             return Outcome("denied", cls, "channel_not_configured", ref, None, {})
+        reservation: Any = None
+        if spec.transport == "http":
+            # Like every internet call (RUNBOOK §20): the data guard on what
+            # would leave and the run's and company's limits, before CONNECT.
+            refused, reservation = await self._mcp_reserve(token, spec, cls, parsed)
+            if refused is not None:
+                refused.ref = ref
+                return refused
         started = time.monotonic()
         try:
             out = await asyncio.wait_for(
@@ -341,11 +378,11 @@ class Gateway:
             log.warning("mcp call failed", extra={"server": spec.key, "tool": parsed.tool})
             return Outcome("error", cls, "mcp_unreachable", ref, None, {})
         finally:
-            await web.shielded(self._mcp_egress_log(token, spec))
+            await web.shielded(self._mcp_egress_log(token, spec, reservation))
         ms = int((time.monotonic() - started) * 1000)
         log.info("mcp call", extra={"server": spec.key, "tool": parsed.tool, "ms": ms})
-        if isinstance(out, str):
-            return Outcome("denied", cls, out, ref, None, {})
+        if isinstance(out, Refused):
+            return Outcome(out.outcome, cls, out.code, ref, None, {}, hint_fa=out.hint_fa)
         result, truncated = await fit_async(out, self.max_result_chars)
         failed = bool(out.get("is_error"))
         return Outcome(
@@ -358,41 +395,91 @@ class Gateway:
             truncated,
         )
 
-    async def _mcp_egress_log(self, token: str, spec: M.ServerSpec) -> None:
+    async def _mcp_reserve(
+        self, token: str, spec: M.ServerSpec, cls: str, parsed: Any
+    ) -> tuple[Outcome | None, Any]:
+        """(refusal, reservation): the egress gate's reserve for one call to
+        an http server, as for web.* and http.request: everything that would
+        leave (the tool's name and its arguments, keys and values) through the
+        data guard, the limits, and the call's row written before it leaves."""
+        strings = web._strings(parsed.tool, parsed.args)  # the web tools' own walk
+        if len(strings) > RESERVE_STRINGS:  # the gate takes 500: the rest as one, all read
+            strings = [*strings[: RESERVE_STRINGS - 1], "\n".join(strings[RESERVE_STRINGS - 1 :])]
+        resp = await self.api.request(
+            "POST",
+            "/internal/v1/egress/reserve",
+            token,
+            json={
+                "tool": "mcp.call",
+                "class": cls,
+                "strings": strings,
+                "method": "POST",
+                "url": spec.url,
+            },
+        )
+        r = T.from_response(resp, None)
+        if r.outcome != "ok":
+            return Outcome(
+                r.outcome, cls, r.code or "api_bad_answer", None, None, r.fields, hint_fa=r.hint_fa
+            ), None
+        grant = r.data if isinstance(r.data, dict) else {}
+        return None, grant.get("reservation")
+
+    async def _mcp_egress_log(
+        self, token: str, spec: M.ServerSpec, reservation: Any = None
+    ) -> None:
         """The proxied connections of one MCP call, from egress to the egress
-        log (an http server only; a failure here never fails the call)."""
+        log (an http server only; a failure here never fails the call); they
+        settle the call's reservation."""
         egress = getattr(self.api, "egress", None)
         if spec.transport != "http" or egress is None:
             return
         try:
             out = await egress.post("/v1/proxy/drain", {"call_id": spec.call_id})
             if isinstance(out, dict):  # in the log's shape, rows beyond 200 summed
-                await web.log_entries(self.api, token, "mcp.call", spec.cls, out)
+                await web.log_entries(self.api, token, "mcp.call", spec.cls, out, reservation)
         except Exception:  # noqa: BLE001 - logged as missing, the call stands
             log.warning("mcp egress entries not logged", extra={"server": spec.key})
 
     async def _mcp_session(
         self, token: str, spec: M.ServerSpec, tool: str, args: dict[str, Any]
-    ) -> dict[str, Any] | str:
-        """The call itself, or a refusal code: the server's listing differs from
-        the one pinned after the owner's enable (the api switches it off), or the
-        tool is not on the server."""
+    ) -> dict[str, Any] | Refused:
+        """The call itself, or a refusal: the server's listing differs from the
+        one pinned after the owner's seal (the api switches it off), the api
+        could not be told (nothing runs, and that is no listing change), or
+        the tool is not on the server."""
         assert self.mcp_opener is not None
         async with self.mcp_opener(spec) as session:
-            listed = await session.list_tools()
-            listing = M.listing_of(list(getattr(listed, "tools", None) or []))
+            try:
+                listing = M.listing_of(await M.list_all(session))
+            except M.ListingTooLong:
+                return Refused("error", "mcp_tool_error")
             if spec.listing_sha256 != listing.sha256:
                 resp = await self.api.request(
                     "POST",
                     f"/internal/v1/tools/mcp/{spec.key}/listing",
                     token,
-                    json={"listing_sha256": listing.sha256, "tools": listing.names[:200]},
+                    json={
+                        "listing_sha256": listing.sha256,
+                        "tools": listing.names[:500],
+                        "listing": listing.tools[:500],
+                    },
                 )
-                body = resp.json() if resp.status_code == 200 else {}
-                if not (isinstance(body, dict) and body.get("status") == "enabled"):
-                    return "mcp_tools_changed"
+                if resp.status_code != 200:
+                    r = T.from_response(resp, None)
+                    return Refused(r.outcome, r.code or "api_bad_answer", r.hint_fa)
+                try:
+                    body = resp.json()
+                except ValueError:
+                    body = None
+                if not isinstance(body, dict) or body.get("status") not in (
+                    "enabled", "disabled", "pending",
+                ):  # fmt: skip
+                    return Refused("error", "api_bad_answer")
+                if body["status"] != "enabled":
+                    return Refused("denied", "mcp_tools_changed")
             if tool not in listing.names:
-                return "mcp_tool_missing"
+                return Refused("denied", "mcp_tool_missing")
             result = await session.call_tool(tool, args)
         return M.render(spec.key, tool, result)
 

@@ -14,6 +14,7 @@ import rego.v1
 kinds := {
 	"hire", "dismissal", "recurring_approval", "deploy",
 	"a3_action", "proposal", "budget_change", "evaluation", "code_session",
+	"tool_enable",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

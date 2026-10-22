@@ -68,6 +68,12 @@ class OpenBaoClient:
 
     async def read_kv(self, path: str) -> dict[str, Any]:
         """Read the latest version of a KV v2 secret (`path` relative to the mount)."""
+        data, _ = await self.read_kv_meta(path)
+        return data
+
+    async def read_kv_meta(self, path: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        """The latest version of a KV v2 secret and its version metadata
+        (`created_time`, `version`, ...): when the value was written."""
         for attempt in (1, 2):
             resp = await self._http.get(
                 f"/v1/{self._kv_mount}/data/{path}", headers=await self._headers()
@@ -79,8 +85,10 @@ class OpenBaoClient:
                 raise SecretNotFound(path)
             if resp.status_code != 200:
                 raise OpenBaoError(f"KV read {path} failed (HTTP {resp.status_code})")
-            data: dict[str, Any] = resp.json()["data"]["data"]
-            return data
+            body = resp.json()["data"]
+            data: dict[str, Any] = body["data"]
+            meta: dict[str, Any] = body.get("metadata") or {}
+            return data, meta
         raise OpenBaoError(f"KV read {path} failed after re-login")
 
     async def write_kv(self, path: str, data: dict[str, Any]) -> None:

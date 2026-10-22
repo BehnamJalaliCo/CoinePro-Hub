@@ -11,8 +11,13 @@ transport `container`  a compose service on the internal network hq-mcp
 
 The server's secret (if any) comes from the api for this one call and only
 ever goes into the request header; it is in no result, log line or error.
-What the server answers is untrusted data: labelled (`source: "mcp"`) and
-redacted by the gateway like every result.
+What the server answers is untrusted data: labelled (`source: "mcp"`,
+`untrusted`, `suspected_injection` as for web content) and redacted by the
+gateway like every result.
+
+The listing the owner's seal pins is every page of `tools/list` (no cache):
+per tool its name, title, description, input and output schemas and
+annotations, so any change of what a tool says or does is a changed tool.
 """
 
 from __future__ import annotations
@@ -26,8 +31,13 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
+from hq_common.injection import injection_flags
+
 CONTAINER_HOST = re.compile(r"^mcp-[a-z0-9-]{1,40}$")
 MAX_TEXT_BLOCKS = 20
+MAX_PAGES = 20  # of tools/list: a server listing more is not pinned
+MAX_TOOLS = 500
+DESCRIPTION_CHARS = 500  # what the owner's card and the api keep of each description
 
 
 @dataclass(frozen=True)
@@ -60,14 +70,20 @@ class ServerSpec:
 class Listing:
     names: list[str]
     sha256: str
+    # Per tool, as the api keeps it: name, description (cut), digest.
+    tools: list[dict[str, str]] = field(default_factory=list)
 
 
 class NotConfigured(Exception):
     """The server cannot be reached from here (no egress proxy, a bad URL)."""
 
 
+class ListingTooLong(Exception):
+    """tools/list pages beyond MAX_PAGES or MAX_TOOLS (or a cursor loop)."""
+
+
 class Session(Protocol):
-    async def list_tools(self) -> Any: ...
+    async def list_tools(self, *, cursor: str | None = None, cache_mode: Any = ...) -> Any: ...
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any: ...
 
@@ -75,22 +91,72 @@ class Session(Protocol):
 Opener = Callable[[ServerSpec], contextlib.AbstractAsyncContextManager[Session]]
 
 
+def _plain(value: Any) -> Any:
+    """A schema or annotations object as plain JSON data."""
+    if value is None:
+        return None
+    dump = getattr(value, "model_dump", None)
+    if callable(dump):
+        return dump(mode="json", by_alias=True, exclude_none=True)
+    return value
+
+
+def _digest(value: Any) -> str:
+    canon = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
+    )
+    return hashlib.sha256(canon.encode()).hexdigest()
+
+
 def listing_of(tools: list[Any]) -> Listing:
-    """The server's tools as the owner's seal pins them: names, descriptions and
-    input schemas (a changed description or schema is a changed tool)."""
+    """The server's tools as the owner's seal pins them: per tool its name,
+    title, description, input and output schemas and annotations (any of them
+    changed is a changed tool); the listing's digest covers them all."""
     rows: list[dict[str, Any]] = [
         {
             "name": str(getattr(t, "name", "")),
+            "title": getattr(t, "title", None),
             "description": str(getattr(t, "description", None) or ""),
-            "input_schema": getattr(t, "input_schema", None) or {},
+            "input_schema": _plain(getattr(t, "input_schema", None)) or {},
+            "output_schema": _plain(getattr(t, "output_schema", None)),
+            "annotations": _plain(getattr(t, "annotations", None)),
         }
         for t in tools
     ]
     rows.sort(key=lambda r: str(r["name"]))
-    canon = json.dumps(rows, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return Listing(
-        names=[str(r["name"]) for r in rows], sha256=hashlib.sha256(canon.encode()).hexdigest()
+        names=[str(r["name"]) for r in rows],
+        sha256=_digest(rows),
+        tools=[
+            {
+                "name": str(r["name"])[:128],
+                "description": str(r["description"])[:DESCRIPTION_CHARS],
+                "sha256": _digest(r),
+            }
+            for r in rows
+        ],
     )
+
+
+async def list_all(session: Session) -> list[Any]:
+    """Every page of tools/list, never from a cache (the pin is checked
+    against what the server says now)."""
+    tools: list[Any] = []
+    cursor: str | None = None
+    seen: set[str] = set()
+    for _ in range(MAX_PAGES):
+        page = await session.list_tools(cursor=cursor, cache_mode="bypass")
+        tools += list(getattr(page, "tools", None) or [])
+        if len(tools) > MAX_TOOLS:
+            raise ListingTooLong("too many tools")
+        nxt = getattr(page, "next_cursor", None)
+        if not nxt:
+            return tools
+        if str(nxt) in seen:
+            raise ListingTooLong("the cursor repeats")
+        seen.add(str(nxt))
+        cursor = str(nxt)
+    raise ListingTooLong("too many pages")
 
 
 def render(server: str, tool: str, result: Any) -> dict[str, Any]:
@@ -104,6 +170,10 @@ def render(server: str, tool: str, result: Any) -> dict[str, Any]:
             texts.append(str(getattr(block, "text", "")))
         else:
             other.append(kind or "unknown")
+    structured = getattr(result, "structured_content", None)
+    flags = injection_flags(
+        *texts, json.dumps(structured, ensure_ascii=False, default=str) if structured else ""
+    )
     out: dict[str, Any] = {
         "source": "mcp",
         "untrusted": True,
@@ -111,8 +181,8 @@ def render(server: str, tool: str, result: Any) -> dict[str, Any]:
         "tool": tool,
         "is_error": bool(getattr(result, "is_error", False)),
         "text": texts,
+        "suspected_injection": flags,
     }
-    structured = getattr(result, "structured_content", None)
     if structured is not None:
         out["structured"] = structured
     if other:
