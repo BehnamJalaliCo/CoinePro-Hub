@@ -257,7 +257,11 @@ async def test_ceo_approves_recurring_work_within_quota(
         json={
             "kind": "deploy",
             "title": "deploy v2",
-            "payload": {"repo": "TradeYar", "pr_url": "https://github.com/x/y/pull/1"},
+            "payload": {
+                "repo": "TradeYar",
+                "pr_url": "https://github.com/x/y/pull/1",
+                "head_sha": "0a1b2c3d4e5f",  # required from prompt 11 (contract §21.6)
+            },
         },
     )
     dep = r.json()["ref"]
