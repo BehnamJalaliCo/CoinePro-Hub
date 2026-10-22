@@ -142,6 +142,21 @@ CODES: dict[str, tuple[int, str, str]] = {
         "برآورد این استخدام در پاکت ماهانه‌ی شرکت جا نمیشود.",
     ),
     "story_limit": (429, "Story limit", "امروز سه استوری این شرکت گذاشته شده است."),
+    # prompt 10 (contract §19.9)
+    "channel_not_live": (409, "Channel not live", "این کانال هنوز زنده نیست."),
+    "shadow_not_passed": (
+        409,
+        "Shadow test not passed",
+        "آزمون سایه‌ی پشتیبانی این شرکت هنوز قبول نشده است.",
+    ),
+    "template_not_sealed": (
+        409,
+        "Template not sealed",
+        "قالب این نسخه هنوز مُهر نشده است.",
+    ),
+    "send_blocked": (422, "Send blocked", "نگهبان خروجی این پیام را رد کرد؛ دلیل‌ها را ببین."),
+    "opted_out": (409, "Opted out", "این مشتری پیام‌ها را لغو کرده است."),
+    "send_limit": (429, "Send limit", "سقف ارسال امروز یا این ساعت پر شده است."),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 

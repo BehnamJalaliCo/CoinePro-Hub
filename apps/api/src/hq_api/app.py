@@ -31,10 +31,13 @@ from hq_api.routes import (
     deliverables,
     egress,
     errands,
+    feedback,
     files,
     founding,
+    growth,
     inbox,
     inquiries,
+    intake,
     internal,
     messages,
     meta,
@@ -44,9 +47,11 @@ from hq_api.routes import (
     oversight,
     owner,
     people,
+    revenue,
     runs,
     skills,
     stream,
+    support,
     tools,
     treasury,
     work,
@@ -157,6 +162,12 @@ def create_app(
         skills,
         academy,
         founding,
+        # prompt 10 (contract §19): revenue, support, growth, feedback, intake
+        revenue,
+        support,
+        growth,
+        feedback,
+        intake,
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
@@ -171,6 +182,10 @@ def create_app(
     app.include_router(skills.internal_router, prefix="/internal/v1")
     app.include_router(academy.internal_router, prefix="/internal/v1")
     app.include_router(founding.internal_router, prefix="/internal/v1")
+    for p10 in (revenue, support, growth, feedback):
+        app.include_router(p10.internal_router, prefix="/internal/v1")
+    # The only public routes prompt 10 adds (webhooks; never /internal).
+    app.include_router(intake.webhook_router, prefix="/intake/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

@@ -249,6 +249,12 @@ OP_CLASS: dict[str, str] = {
     "oversight.challenge_submit": "A1",
     "oversight.challenge_score": "A2",
     "oversight.hold": "A2",
+    # prompt 10 §1.5 (support.rego): reads of the support desk, the radar, the funnel
+    "support.read": "A0",
+    "support.stats": "A0",
+    "kb.read": "A0",
+    "revenue.read": "A0",
+    "funnel.read": "A0",
 }
 
 

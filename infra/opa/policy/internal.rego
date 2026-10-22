@@ -40,6 +40,8 @@ ops := {
 	"oversight.hold",
 	# prompt 09: an agent's server plan (server.plan); the provisioner's runs
 	"provisioning.plan", "provisioning.run",
+	# prompt 10 §1.5: the support desk's data, the revenue radar, the funnel (support.rego)
+	"support.read", "support.stats", "kb.read", "revenue.read", "funnel.read",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and
