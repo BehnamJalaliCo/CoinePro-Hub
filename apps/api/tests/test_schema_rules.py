@@ -36,6 +36,12 @@ SCHEMAS = (
     "provisioning",
     "infra",
     "tools",  # 7.1 §2.12: tools.mcp_calls is a tenant table
+    # prompt 10 §1.1: revenue and support; every table there is a tenant table
+    "revenue",
+    "support",
+    "growth",
+    "feedback",
+    "intake",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.

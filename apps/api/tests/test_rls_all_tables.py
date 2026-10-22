@@ -41,6 +41,12 @@ SCHEMAS = (
     "provisioning",
     "infra",
     "tools",  # 7.1 §2.12: tools.mcp_calls is a tenant table
+    # prompt 10 §1.1: revenue and support; every table there is a tenant table
+    "revenue",
+    "support",
+    "growth",
+    "feedback",
+    "intake",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.
@@ -468,6 +474,198 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p10(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 10 §1.1: one row of company `co` in every table of revenue,
+    support, growth, feedback and intake (migration 0025)."""
+    c = co["id"]
+    sub = "c" * 64
+    acc = await su.fetchval(
+        """INSERT INTO revenue.accounts (company_id, exchange, adapter, service_account, title_fa,
+               created_by_kind, created_by_code)
+           VALUES ($1, 'lbank', 'lbank-affiliate-v2', 'lbank-aff', 'افیلیت', 'owner', 'owner')
+           RETURNING id""",
+        c,
+    )
+    await su.execute(
+        "INSERT INTO revenue.days (company_id, account_id, day, complete) VALUES ($1, $2, current_date, true)",
+        c,
+        acc,
+    )
+    await su.execute(
+        "INSERT INTO revenue.invitees (company_id, account_id, subject) VALUES ($1, $2, $3)",
+        c,
+        acc,
+        sub,
+    )
+    await su.execute(
+        """INSERT INTO revenue.pulls (company_id, account_id, kind, from_day, to_day, requested_by_kind,
+               requested_by_code) VALUES ($1, $2, 'manual', current_date, current_date, 'owner', 'owner')""",
+        c,
+        acc,
+    )
+    await su.execute(
+        """INSERT INTO revenue.alerts (company_id, account_id, kind, incident_key, note_fa)
+           VALUES ($1, $2, 'drop', 'drop:test', 'افت')""",
+        c,
+        acc,
+    )
+    await su.execute("INSERT INTO support.settings (company_id) VALUES ($1)", c)
+    await su.execute(
+        "INSERT INTO support.channels (company_id, kind) VALUES ($1, 'telegram_bot')", c
+    )
+    cust = await su.fetchval(
+        """INSERT INTO support.customers (company_id, channel, external_id, subject)
+           VALUES ($1, 'telegram_bot', '42', $2) RETURNING id""",
+        c,
+        sub,
+    )
+    conv = await su.fetchrow(
+        """INSERT INTO support.conversations (company_id, channel, customer_id)
+           VALUES ($1, 'telegram_bot', $2) RETURNING id, ref""",
+        c,
+        cust,
+    )
+    msg = await su.fetchval(
+        """INSERT INTO support.messages (company_id, conversation_id, direction, author, body, status)
+           VALUES ($1, $2, 'in', 'customer', 'سلام', 'sent') RETURNING id""",
+        c,
+        conv["id"],
+    )
+    await su.execute(
+        """INSERT INTO support.kb_articles (company_id, kind, question_fa, answer_md, sha256,
+               proposed_by_kind, proposed_by_code)
+           VALUES ($1, 'faq', 'سؤال', 'جواب', $2, 'owner', 'owner')""",
+        c,
+        "d" * 64,
+    )
+    file_id = await su.fetchval(
+        """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key, created_by_kind,
+               created_by_code, kind)
+           VALUES ($1, 'h.json', 'application/pdf', 10, repeat('e', 64), $2, 'owner', 'owner',
+                   'document') RETURNING id""",
+        c,
+        f"p10/{c}",
+    )
+    await su.execute(
+        "INSERT INTO support.history_imports (company_id, file_id) VALUES ($1, $2)", c, file_id
+    )
+    await su.execute(
+        """INSERT INTO support.shadow_runs (company_id, suite_ref, suite_version, requested_by_kind,
+               requested_by_code) VALUES ($1, 'support-shadow-X', 1, 'owner', 'owner')""",
+        c,
+    )
+    case = await su.fetchval(
+        """INSERT INTO growth.rescue_cases (company_id, source, conversation_id, exchange, subject)
+           VALUES ($1, 'support', $2, 'lbank', $3) RETURNING id""",
+        c,
+        conv["id"],
+        sub,
+    )
+    await su.execute(
+        """INSERT INTO growth.rescue_steps (case_id, company_id, kind, result_fa, by_kind, by_code)
+           VALUES ($1, $2, 'check', 'دعوت‌شده نیست', 'service', 'worker')""",
+        case,
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.referral_checks (company_id, exchange, subject, ok, invitee, by_kind, by_code)
+           VALUES ($1, 'lbank', $2, true, false, 'agent', 'X-SALES-01')""",
+        c,
+        sub,
+    )
+    await su.execute(
+        """INSERT INTO growth.templates (company_id, purpose, body_fa, sha256, proposed_by_kind,
+               proposed_by_code) VALUES ($1, 'safety', 'پشتیبانی Coine', $2, 'owner', 'owner')""",
+        c,
+        "f" * 64,
+    )
+    rule = await su.fetchval(
+        """INSERT INTO growth.rules (company_id, kind, template_ref, template_version, channel,
+               proposed_by_kind, proposed_by_code)
+           VALUES ($1, 'csat', 'TM-0001', 1, 'telegram_bot', 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.sends (company_id, rule_id, template, subject, channel, dedupe_key, status)
+           VALUES ($1, $2, 'TM-0001@1', $3, 'telegram_bot', 'csat:test', 'skipped')""",
+        c,
+        rule,
+        sub,
+    )
+    await su.execute(
+        "INSERT INTO growth.opt_outs (company_id, subject, source) VALUES ($1, $2, 'message')",
+        c,
+        sub,
+    )
+    wave = await su.fetchval(
+        """INSERT INTO growth.nps_waves (company_id, ref, quarter, opens_at, closes_at)
+           VALUES ($1, $2, '2026Q4', now(), now() + interval '14 days') RETURNING id""",
+        c,
+        f"NP-2026Q4-{co['code']}",
+    )
+    nps = await su.fetchval(
+        """INSERT INTO growth.nps_responses (wave_id, company_id, subject, score)
+           VALUES ($1, $2, $3, 9) RETURNING id""",
+        wave,
+        c,
+        sub,
+    )
+    await su.execute(
+        """INSERT INTO growth.funnel_days (company_id, day, stage, count, source)
+           VALUES ($1, current_date, 'referral_verified', 3, 'affiliate')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.leaks (company_id, stage, period, period_start, rate, median_rate, note_fa)
+           VALUES ($1, 'min_balance', 'week', current_date, 0.1, 0.3, 'نشتی')""",
+        c,
+    )
+    item = await su.fetchval(
+        """INSERT INTO feedback.items (company_id, kind, area, title_fa) VALUES ($1, 'bug', 'app', 'خطا')
+           RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO feedback.signals (company_id, item_id, source_ref, message_id, quote, tagged_by)
+           VALUES ($1, $2, $3, $4, 'خطا', 'rule')""",
+        c,
+        item,
+        conv["ref"],
+        msg,
+    )
+    await su.execute(
+        """INSERT INTO feedback.signals (company_id, source_ref, nps_response_id)
+           VALUES ($1, $2, $3)""",
+        c,
+        f"NP-2026Q4-{co['code']}",
+        nps,
+    )
+    await su.execute(
+        """INSERT INTO feedback.keywords (company_id, pattern, kind, area, created_by_kind, created_by_code)
+           VALUES ($1, 'خطا', 'bug', 'app', 'owner', 'owner')""",
+        c,
+    )
+    src = await su.fetchval(
+        "INSERT INTO intake.sources (company_id, kind) VALUES ($1, 'product') RETURNING id", c
+    )
+    await su.execute(
+        "INSERT INTO intake.nonces (company_id, source_id, nonce) VALUES ($1, $2, 'n-1')", c, src
+    )
+    await su.execute(
+        """INSERT INTO intake.events (company_id, source_id, kind, event_id, subject)
+           VALUES ($1, $2, 'signup', 'e-1', $3)""",
+        c,
+        src,
+        sub,
+    )
+    await su.execute(
+        """INSERT INTO intake.rejections (company_id, source_id, kind, reason)
+           VALUES ($1, $2, 'product', 'bad_signature')""",
+        c,
+        src,
+    )
+
+
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_no_table_leaks_between_companies(
     client: httpx.AsyncClient,
@@ -479,6 +677,7 @@ async def test_no_table_leaks_between_companies(
     a, b = await new_company(), await new_company()
     await _fill(client, hub, owner_session, b["code"])
     await _fill_agents(su, b)
+    await _fill_p10(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
@@ -492,6 +691,14 @@ async def test_no_table_leaks_between_companies(
     )
     assert len(tables) >= 18
     assert "tools.mcp_calls" in {f"{r['s']}.{r['t']}" for r in tables}
+    # Prompt 10 §1.1: no company-less table in the five new schemas.
+    p10_tables = await su.fetch(
+        """SELECT x.table_schema || '.' || x.table_name AS t FROM information_schema.tables x
+           WHERE x.table_schema = ANY($1::text[]) AND x.table_type = 'BASE TABLE'""",
+        ["revenue", "support", "growth", "feedback", "intake"],
+    )
+    assert len(p10_tables) >= 31
+    assert {r["t"] for r in p10_tables} <= {f"{r['s']}.{r['t']}" for r in tables}
     companyless = await su.fetch(
         """SELECT x.table_name AS t FROM information_schema.tables x
            WHERE x.table_schema = 'tools' AND x.table_type = 'BASE TABLE'
