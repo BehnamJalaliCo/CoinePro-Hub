@@ -7,7 +7,7 @@
 >
 > **v1.1 (۲۰۲۶-۱۰-۱۷):** «Contract notes» گزارش پرامپت ۴ و نتیجه‌ی بازبینی وارد شد. تغییرها با ⟨1.1⟩ علامت خورده‌اند؛ آن‌هایی که هنوز پیاده نشده‌اند در `docs/server-prompts/PROMPT_04_1_HARDENING.md` هستند.
 >
-> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
+> **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.4.7 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۸ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۵)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_08_1_FIXES.md`. **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
 
 ---
 
@@ -468,6 +468,7 @@ Used by the agent runtime in prompt 5 and by tests now (with a fake agent princi
 ⟨1.3⟩ `runtime_not_configured` (503, the Code Workshop has no runtime yet, §17.7).
 ⟨1.4.3⟩ `envelope_required` (422, delegated hiring needs a monthly envelope for every operating company), `envelope_exceeded` (409, the hire's monthly estimate does not fit the company's envelope), `story_limit` (429, a company's three stories a day). `not_ready` (409, a feature the contract names that this server build does not serve yet, e.g. `delegated` before prompt 8).
 ⟨1.4.5⟩ `needs_owner` (403, a web step or call that would commit the holding outside: the agent proposes it instead), `internal_data` (403, an outgoing query or call carries internal data), `egress_limit` (429 with `Retry-After`, a run's or a company-day's internet limit), `account_not_configured` (409, a service account has no secret yet). The MCP outcomes are not Problem codes: they are step outcomes (§18.13).
+⟨1.4.7⟩ `held` (423, the target is held by the overseer, §18.15), `academy_budget` (409, the academy's monthly cap).
 ⟨1.5⟩ `channel_not_live` (409), `shadow_not_passed` (409), `template_not_sealed` (409), `send_blocked` (422, with `blocked_reasons`), `opted_out` (409), `send_limit` (429 with `Retry-After`) — §19; `meeting_not_live` (409), `knowledge_expired` (422), `batch_not_eligible` (422, `fields.items`) — §20.
 
 ---
@@ -1048,6 +1049,53 @@ Brands       { etag, companies: {CODE: {version, mark, wordmark|null, ink, accen
   (`*-mark-flat.svg`, `*-wordmark*-flat.svg`; layers by `--logo-ink` / `--logo-accent`), `source.kind: "seed"`. A new upload replaces it like
   any version.
 - Stream: `brand.updated` on topic `companies`. Step-up target: `company.brand` (digest).
+
+### 18.15 As built in prompt 8 ⟨1.4.7⟩
+Recorded from the server's report and the review of `server/p08-organisation` (2026-10-22); the fixes are `docs/server-prompts/PROMPT_08_1_FIXES.md`.
+Where the build differs from §18.0–18.6 and §18.11–18.12, this list is the contract.
+- **Holds.** `Hold.target.kind`: `decision`, `session`, `work`, `employee`, `tool`, `story`. A held target answers `423 held` (new stable
+  code). **`release`** 🔏 lets the action go on; **`cancel`** (no step-up) **cancels the action itself**: a pending card is rejected (by the
+  owner, note «لغو از hold»), a queued effect is cancelled, a workshop session is stopped, a work item is cancelled. Nothing held ever runs
+  after a cancel. A hold on a running workshop session interrupts it at once; a release resumes it.
+- **Kill switch.** An engage by the overseer, like the owner's, takes the switch over; only the owner releases a switch the owner or the
+  overseer engaged. A CEO releases only a switch it engaged itself and nobody took over.
+- **Protocol runs.** `last_run.result`: `pass`, `fail`, `partial`, `deferred` — never `skipped`. The oversight token share
+  (`OVERSIGHT_DAILY_SHARE`, §18.1) is enforced on the ledger; once spent only `critical` protocols run and the rest are `deferred` and run
+  first the next day. A count cap on model runs (`HQ_OVERSIGHT_MODEL_RUNS_PER_DAY`) may exist on top but never stops a `critical` protocol.
+  A `paused` protocol has no schedule at all and every path refuses it: `protocol.result`, `finding.raise`, and the event-driven checks.
+- **Findings.** Only the answerable (or its chain of command) sets `acknowledged`, `fixing`, `fixed`, `disputed`; the overseer sets
+  `verified` only after a `fixed` that carried evidence, and `closed`.
+- **Hiring.** `hire.decide` works only while hiring is `open` in mode `delegated`; switching to `proposals` clears `approver` on pending
+  cards (they return to the owner's cartable). The envelope check and the five-a-day guard run under a per-company lock, and
+  `committed_month` counts approved hires whose employee is active **or not created yet**. The estimate is `payload.quota_estimate_month`
+  only. A hire the owner approved first is the owner's (no probation line «… استخدام کرد»).
+- **Watch mode** holds cards a CEO decides as well; a target the owner released or decided during the same watch period is not held again;
+  release and cancel count as owner activity.
+- **Skills.** `POST /skills` `{name_fa, summary_fa?, body_md, scope: {roles: [role], companies: "all"|[code], departments?: [code]},
+  file_ids?}` (`summary_fa` defaults to the first 200 characters of `body_md`). `name_fa`, `summary_fa` and `scope` belong to a **version**;
+  a `PUT` makes a new version and the active one stays in every prompt until the new one is activated. `Skill.resources: [FileRef]`.
+  `Skill.eval: {suite, score, baseline|null}|null`. A review shows the reviewer the exact masked text fenced as data, records its sha256, and
+  a `pass` needs all four checks true and the same sha. `Run` gains `skills: ["SK-001@3"]` and `addenda: [id]` — what was really in the
+  prompt.
+- **Academy.**
+  ```
+  EvalSuite { …§18.6, baseline: {subject: {kind, ref, version}, score}|null, recent: [EvalRun] }
+  EvalRun   { id, suite, subject: {kind, ref, version}, state: "queued"|"running"|"done"|"failed",
+              score: 0..100|null, passed: bool|null, cases: [{id, score, notes}], at, tokens: {input, output}, equiv_cost_usd }
+  Teaching  { …§18.6, eval_run: {id, score, baseline|null, passed}|null }
+  ```
+  A run in which any model call failed is `failed`, never a pass. A suite's first successful run sets its baseline but is not itself a pass
+  for activation. Activation checks the eval against the baseline as it is at that moment. The monthly academy cap reserves an estimate for
+  queued and running runs (`409 academy_budget`). A teaching aimed at one employee becomes an addendum for that employee only; an addendum can
+  be retired (`POST /academy/addenda/{id}/retire` 🔏 `academy.approve`, target = its teaching ref). `GET /academy/runs` as in §18.6.
+- **Stories.** `links.period` matches `^(week|month):…$`; a link to outside the hub, with or without `http`, is refused; a `milestone`
+  links work, a deliverable or a metric. The owner's welcome is a small positive part of the employee score.
+- **Stars.** Rubric weights are numbers. Stars are whole or half (`0, 0.5, … 5`); anything else is `422 validation_failed` with the field.
+- **Decisions.** `protocol` and `errand_action` are valid in `GET /decisions?kind=`; `lesson_adoption` is sealed with step-up (§18.10); a
+  returned or expired `lesson_adoption` card frees the lesson to be proposed again.
+- **Other contract notes from the build:** planner items `PL-…`; stream types `inquiry.late` (`inquiries`) and `academy.teaching`
+  (`academy`); `academy_budget` (409) and `held` (423) join §14; an approved `charter_rule` is an addendum row on the server, never a change
+  to `agents/`.
 
 ## 19. v1.5 — revenue and support (prompt 10)
 
