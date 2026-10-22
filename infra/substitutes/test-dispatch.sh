@@ -46,7 +46,7 @@ done
 case " $* " in
   *" -m hq_common.secret_files "*)
     # The real secret scan on the host copy (the image runs the same module).
-    PYTHONPATH="$HQ_COMMON_SRC" python3 -m hq_common.secret_files "$mount" >/dev/null
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$HQ_COMMON_SRC" python3 -m hq_common.secret_files "$mount" >/dev/null
     exit 0 ;;
 esac
 if [[ -n "$mount" ]]; then (cd "$mount" && find . -type f | sed 's#^\./##' | sort) >"$FAKE_DIR/listing"; fi
