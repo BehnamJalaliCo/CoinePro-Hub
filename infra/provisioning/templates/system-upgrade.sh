@@ -3,6 +3,7 @@
 # system-upgrade: every package up to date before anything else. If the new
 # kernel or libc needs it, THIS new server reboots once, during its build only,
 # and coinepro-provision.service finishes the remaining steps after the boot.
+# The step asks for that reboot with its exit code (REBOOT_RC); run_step reboots.
 step_system_upgrade() {
   apt_get update
   apt_get full-upgrade
@@ -23,11 +24,9 @@ WantedBy=multi-user.target
 UNIT
     systemctl daemon-reload
     systemctl enable coinepro-provision.service
-    touch "$STATE/rebooted" "$STATE/system-upgrade.done"
+    touch "$STATE/rebooted"
     result system-upgrade 1 "$(uname -r)" "upgraded; this new server rebooted once to continue"
-    log "rebooting this new server once (its build only)"
-    systemctl reboot
-    exit 0
+    return "$REBOOT_RC"
   fi
   result system-upgrade 1 "$(uname -r)" "upgraded"
 }

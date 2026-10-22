@@ -5,6 +5,7 @@ the services test image: PYTHONPATH has hq_common and hq_provisioner):
 
 full.sh       every software key, the callback to the bench's receiver
 bad-docker.sh the same with a wrong Docker key fingerprint (must stop there)
+bad-node.sh   the same with a wrong Node sha256 (must stop there, nothing unpacked)
 """
 
 from __future__ import annotations
@@ -43,7 +44,12 @@ def main() -> None:
     out, templates = Path(sys.argv[1]), sys.argv[2]
     out.mkdir(parents=True, exist_ok=True)
     pins = cloudinit.Pins(wait_s=2)
-    for name, p in (("full", pins), ("bad-docker", replace(pins, docker_key_fpr="0" * 40))):
+    variants = (
+        ("full", pins),
+        ("bad-docker", replace(pins, docker_key_fpr="0" * 40)),
+        ("bad-node", replace(pins, node_sha256_x64="0" * 64, node_sha256_arm64="0" * 64)),
+    )
+    for name, p in variants:
         ud = cloudinit.render(
             PLAN,
             run_id="run-bench",

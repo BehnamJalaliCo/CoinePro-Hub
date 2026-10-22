@@ -1,6 +1,7 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2154  # the values block of the rendered script sets them
 # node-lts: the official Node.js LTS build from nodejs.org, its sha256 pinned.
+# A tarball whose sha256 is not the pinned one is never unpacked or run.
 step_node_lts() {
   local arch sha dir b
   case "$(uname -m)" in
@@ -10,7 +11,11 @@ step_node_lts() {
   esac
   dir="node-v$NODE_VERSION-linux-$arch"
   curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/$dir.tar.xz" -o "$STATE/node.tar.xz"
-  echo "$sha  $STATE/node.tar.xz" | sha256sum -c --quiet -
+  if ! echo "$sha  $STATE/node.tar.xz" | sha256sum -c --quiet - >/dev/null 2>&1; then
+    rm -f "$STATE/node.tar.xz"
+    log "node-lts: the tarball's sha256 is not the pinned one; nothing unpacked"
+    return 1
+  fi
   install -d -m 0755 /usr/local/lib/nodejs
   tar -xJf "$STATE/node.tar.xz" -C /usr/local/lib/nodejs
   rm -f "$STATE/node.tar.xz"
