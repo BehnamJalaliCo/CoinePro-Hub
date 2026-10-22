@@ -884,7 +884,7 @@ async def finish(
             p=c["player"],
         )
     elif c["kind"] == "models" and body.ok and body.models is not None:
-        await apply_models(tx, c["player"], body.models)
+        await apply_models(tx, c["player"], body.models, c["model"])
     await _applied(tx, hub, row)
     holding = await hub.companies.holding()
     await events.emit(
@@ -981,7 +981,8 @@ async def ask_models(tx: Tx, hub: Any) -> int:
     day = owner_day()
     n = 0
     for p in await tx.all(
-        "SELECT player FROM substitutes.players WHERE runner IS NOT NULL AND login_state = 'signed_in'"
+        """SELECT player, runner, models FROM substitutes.players
+           WHERE runner IS NOT NULL AND login_state = 'signed_in'"""
     ):
         if await tx.scalar(
             """SELECT 1 FROM substitutes.calls WHERE player = :p AND kind = 'models'
@@ -989,25 +990,39 @@ async def ask_models(tx: Tx, hub: Any) -> int:
             p=p["player"],
         ):
             continue
-        await tx.exec(
-            """INSERT INTO substitutes.calls (company_id, player, kind, via, state, caller_kind, caller_code,
-                   timeout_s, day, month_key)
-               VALUES (:co, :p, 'models', 'cli', 'queued', 'service', 'substitutes', 120, :day, :mkey)""",
-            co=holding.id,
-            p=p["player"],
-            day=day,
-            mkey=month_key(day),
+        # Codex lists what the account offers; Gemini CLI has no listing, so
+        # each of its models is probed by a job of its own (`model` named).
+        probes: list[str | None] = (
+            [str(m["id"]) for m in p["models"] or []] if p["runner"] == "gemini_cli" else [None]
         )
-        n += 1
+        for model in probes:
+            await tx.exec(
+                """INSERT INTO substitutes.calls (company_id, player, kind, via, state, caller_kind,
+                       caller_code, model, timeout_s, day, month_key)
+                   VALUES (:co, :p, 'models', 'cli', 'queued', 'service', 'substitutes', :m, 120, :day,
+                           :mkey)""",
+                co=holding.id,
+                p=p["player"],
+                m=model,
+                day=day,
+                mkey=month_key(day),
+            )
+            n += 1
     return n
 
 
-async def apply_models(tx: Tx, player: str, offered: list[str]) -> None:
+async def apply_models(
+    tx: Tx, player: str, offered: list[str], probed: str | None = None
+) -> None:
     """What the CLI offers under the subscription: a model it does not offer
     is `available: false`, and a seat on it moves to the nearest available
-    model of the same tier (the morning report says so)."""
+    model of the same tier (the morning report says so). A probe of one
+    model (`probed`, Gemini CLI) decides that model only."""
     p = await _player(tx, player, lock=True)
-    models = [dict(m, available=m["id"] in offered) for m in p["models"] or []]
+    models = [
+        dict(m, available=m["id"] in offered) if probed is None or m["id"] == probed else dict(m)
+        for m in p["models"] or []
+    ]
     await tx.exec(
         """UPDATE substitutes.players SET models = CAST(:m AS jsonb), models_checked_at = now(),
                updated_at = now() WHERE player = :p""",
