@@ -4,16 +4,21 @@ api tells the gateway the sealed class of a tool (an A3 tool becomes an
 `a3_action` decision, and its approval runs that one call once), pins the
 server's listing and, when it changes, switches the server off and raises a
 `tool_enable` card; the three POSTs are idempotent; the catalog; PDF text for
-files.read."""
+files.read. Prompt 12 §14 (contract §21.11): container servers only exactly
+as the reviewed allow-list names them, runnable only with the `mcp` profile,
+CodeCortex's editing tools never callable, the allow-list = the compose
+services = the images (the servers themselves: `make mcp-test`)."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import replace
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -319,28 +324,300 @@ async def test_another_host_voids_the_secret(
     await _finish_runs(su, [me])
 
 
-async def test_a_container_server_is_not_runnable_yet(
-    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any]
+# ------------------------------------------- container servers (prompt 12 §14) --
+REAL_ALLOWLIST = Path(os.environ.get(M.ALLOWLIST_ENV, M.DEFAULT_ALLOWLIST))
+DIGEST = "sha256:" + "a" * 64
+
+
+def allowed_entry(k: str, **over: Any) -> dict[str, Any]:
+    """An allow-list entry shaped like the reviewed `time` server, under key k."""
+    entry = {
+        "key": k,
+        "title_fa": "زمان",
+        "image": f"coinepro-hq/mcp-{k}:0.1.0@{DIGEST}",
+        "build": "infra/mcp/time/Dockerfile",
+        "url": f"http://mcp-{k}:8080/mcp",
+        "tools": [
+            {"name": "get_current_time", "class": "A0"},
+            {"name": "convert_time", "class": "A0"},
+            {"name": "set_clock", "class": "A2"},
+        ],
+        "banned_tools": ["edit_*"],
+        "needs_internet": False,
+        "needs_secret": False,
+    }
+    entry.update(over)
+    return entry
+
+
+def container_body(entry: dict[str, Any], **over: Any) -> dict[str, Any]:
+    """A registration exactly as the allow-list entry names it."""
+    body: dict[str, Any] = {
+        "key": entry["key"],
+        "title_fa": entry["title_fa"],
+        "transport": "container",
+        "url": entry["url"],
+        "image": entry["image"],
+        "tools": [{"name": t["name"], "class": t["class"]} for t in entry["tools"]],
+        "companies": "all",
+    }
+    body.update(over)
+    return body
+
+
+@pytest.fixture
+def allowlist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]:
+    """A throwaway allow-list (the api reads HQ_MCP_ALLOWLIST on every call)."""
+    path = tmp_path / "servers.yaml"
+
+    def write(*entries: dict[str, Any]) -> Path:
+        import yaml
+
+        path.write_text(yaml.safe_dump({"servers": list(entries)}, allow_unicode=True))
+        stat = path.stat()  # a new mtime: the cache sees the new file
+        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+        monkeypatch.setenv(M.ALLOWLIST_ENV, str(path))
+        return path
+
+    return write
+
+
+@pytest.fixture
+def mcp_profile(hub: Hub) -> Any:
+    """Switch the api's view of the `mcp` profile (hq.sh's MCP_CONTAINERS)."""
+    real = hub.settings
+
+    def switch(on: bool) -> None:
+        hub.settings = replace(real, mcp_containers=on)
+
+    yield switch
+    hub.settings = real
+
+
+async def catalog_items(client: httpx.AsyncClient, owner_session: dict[str, Any]) -> dict[str, Any]:
+    r = await client.get("/api/v1/tools/catalog", headers=owner_session["headers"])
+    return {t["name"]: t for t in r.json()}
+
+
+async def test_a_container_server_is_exactly_a_reviewed_one(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    allowlist: Callable[..., Path],
 ) -> None:
-    """7.1 §2.15: no hq-mcp network and no stdio bridge in this build."""
+    """Prompt 12 §14.4 (contract §21.11): key, image digest and URL exactly as
+    the reviewed allow-list names them, no secret, no banned or unreviewed
+    tool enabled, no class below the reviewed one: else 422; a server that
+    needs the internet or a secret is 409 not_ready."""
+    k, net, unknown = key(), key(), key()
+    entry = allowed_entry(k)
+    allowlist(entry, allowed_entry(net, needs_internet=True))
+    bad = [
+        container_body(
+            entry, image=f"coinepro-hq/mcp-{k}:0.1.0@sha256:" + "b" * 64
+        ),  # another digest
+        container_body(entry, image=None),
+        container_body(entry, url=f"http://mcp-{k}:8000/mcp"),
+        container_body(entry, auth_header="Authorization"),
+        container_body(entry, tools=[{"name": "edit_file", "class": "A2"}]),  # banned
+        container_body(entry, tools=[{"name": "shell", "class": "A2"}]),  # not reviewed
+        container_body(entry, tools=[{"name": "set_clock", "class": "A0"}]),  # below its class
+        container_body(allowed_entry(unknown)),  # not in the allow-list at all
+    ]
+    for body in bad:
+        r = await add(client, hub, owner_session, body)
+        assert (r.status_code, r.json()["code"]) == (422, "validation_failed"), (body, r.text)
+    assert "digest" in (await add(client, hub, owner_session, bad[0])).text
+    r = await add(client, hub, owner_session, container_body(allowed_entry(net)))
+    assert (r.status_code, r.json()["code"]) == (409, "not_ready")
+    assert "internet or a secret" in r.json()["detail"]
+    # A banned tool may be listed switched off; the exact entry is accepted, pending.
+    ok = container_body(entry, tools=[*container_body(entry)["tools"],
+                                      {"name": "edit_file", "class": "A2", "enabled": False}])  # fmt: skip
+    r = await add(client, hub, owner_session, ok)
+    assert r.status_code == 201, r.text
+    assert (r.json()["status"], r.json()["status_reason"]) == ("pending", None)
+    assert r.json()["image"] == entry["image"] and r.json()["has_secret"] is False
+
+
+async def test_a_container_server_runs_only_with_the_mcp_profile(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    su: Any,
+    allowlist: Callable[..., Path],
+    mcp_profile: Callable[[bool], None],
+    new_company: Callable[..., Any],
+) -> None:
+    """Prompt 12 §14: while the `mcp` profile is off its enable is 409
+    not_ready (before the seal is spent) and the catalog says so; on, it
+    enables like any server and mcp.call resolves it straight to
+    http://mcp-<key>:8080/mcp; an allow-list that no longer names the sealed
+    image makes it not runnable again (503 channel_not_configured)."""
+    co = (await new_company())["code"]
+    me = f"{co}-TECH-MGR"
     k = key()
-    body = server_body(k, transport="container", url="http://mcp-time:8000/mcp", auth_header=None)
-    r = await add(client, hub, owner_session, body)
-    assert r.status_code == 201 and r.json()["status"] == "pending"
-    assert r.json()["status_reason"].startswith("not runnable yet")
+    entry = allowed_entry(k)
+    allowlist(entry)
+    assert (await add(client, hub, owner_session, container_body(entry))).status_code == 201
+    mcp_profile(False)
     r = await enable(client, hub, owner_session, k)
     assert (r.status_code, r.json()["code"]) == (409, "not_ready")
-    assert "not runnable yet" in r.json()["detail"]
-    items = {
-        t["name"]: t
-        for t in (
-            await client.get("/api/v1/tools/catalog", headers=owner_session["headers"])
-        ).json()
-    }
-    lookup = items[f"{k}/lookup"]
-    assert lookup["status"] == "channel_not_configured"
-    assert "هنوز اجراشدنی نیست" in lookup["description"]
-    assert "not runnable yet" in lookup["description"]
+    assert "mcp profile is off" in r.json()["detail"]
+    tool = (await catalog_items(client, owner_session))[f"{k}/get_current_time"]
+    assert tool["status"] == "channel_not_configured"
+    assert M.PROFILE_OFF_FA in tool["description"]
+    mcp_profile(True)
+    assert (await catalog_items(client, owner_session))[f"{k}/get_current_time"][
+        "status"
+    ] == "pending"
+    r = await enable(client, hub, owner_session, k)
+    assert r.status_code == 200 and r.json()["status"] == "enabled", r.text
+    out = (await resolve(client, me, k, "get_current_time", {"timezone": "Asia/Tehran"})).json()
+    assert out["class"] == "A0" and out["server"]["transport"] == "container"
+    assert out["server"]["url"] == f"http://mcp-{k}:8080/mcp" and out["server"]["secret"] is None
+    assert (await catalog_items(client, owner_session))[f"{k}/get_current_time"]["status"] == "live"
+    # The profile goes off again: mcp.call is refused, nothing is called.
+    mcp_profile(False)
+    r = await resolve(client, me, k, "get_current_time")
+    assert (r.status_code, r.json()["code"]) == (503, "channel_not_configured")
+    # A reviewed change moves the digest: the sealed registration is not runnable.
+    mcp_profile(True)
+    allowlist(allowed_entry(k, image=f"coinepro-hq/mcp-{k}:0.1.0@sha256:" + "c" * 64))
+    r = await resolve(client, me, k, "get_current_time")
+    assert (r.status_code, r.json()["code"]) == (503, "channel_not_configured")
+    assert (
+        M.NOT_REVIEWED_FA
+        in (await catalog_items(client, owner_session))[f"{k}/convert_time"]["description"]
+    )
+    await _finish_runs(su, [me])
+
+
+async def test_a_container_servers_changed_tool_list_switches_it_off_and_raises_a_card(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    su: Any,
+    allowlist: Callable[..., Path],
+    mcp_profile: Callable[[bool], None],
+    new_company: Callable[..., Any],
+) -> None:
+    """Prompt 12 §14 (§18.13 unchanged): the first listing is pinned; a tool
+    list that changes switches the container server off and raises one
+    `tool_enable` card for the owner's seal."""
+    co = (await new_company())["code"]
+    me = f"{co}-TECH-MGR"
+    k = key()
+    entry = allowed_entry(k)
+    allowlist(entry)
+    mcp_profile(True)
+    await add(client, hub, owner_session, container_body(entry))
+    assert (await enable(client, hub, owner_session, k)).status_code == 200
+    v1 = {"get_current_time": "1" * 64, "convert_time": "2" * 64}
+    assert (await listing(client, me, k, v1)).json() == {"status": "enabled"}
+    v2 = {**v1, "set_timezone_of_the_host": "3" * 64}
+    assert (await listing(client, me, k, v2)).json() == {"status": "disabled"}
+    row = await su.fetchrow("SELECT status, status_reason FROM tools.mcp_servers WHERE key = $1", k)
+    assert (row["status"], row["status_reason"]) == ("disabled", M.TOOLS_CHANGED)
+    cards = await su.fetch(
+        """SELECT status, payload FROM cartable.decisions
+           WHERE kind = 'tool_enable' AND payload ->> 'key' = $1""",
+        k,
+    )
+    assert [c["status"] for c in cards] == ["pending"]
+    assert json.loads(cards[0]["payload"])["diff"]["added"] == ["set_timezone_of_the_host"]
+    r = await resolve(client, me, k, "get_current_time")
+    assert (r.status_code, r.json()["code"]) == (503, "channel_not_configured")
+    await _finish_runs(su, [me])
+
+
+def _codecortex() -> tuple[dict[str, Any], dict[str, Any]]:
+    """The reviewed CodeCortex entry and its proposed registration, as written."""
+    import yaml
+
+    real = {e["key"]: e for e in yaml.safe_load(REAL_ALLOWLIST.read_text())["servers"]}
+    seed = yaml.safe_load((Path(__file__).parents[1] / "seed" / "mcp_proposals.yaml").read_text())
+    return real["codecortex"], next(p for p in seed["proposals"] if p["key"] == "codecortex")
+
+
+async def test_codecortex_never_exposes_its_editing_memory_or_sync_tools(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    su: Any,
+    allowlist: Callable[..., Path],
+    mcp_profile: Callable[[bool], None],
+) -> None:
+    """Prompt 12 §14.6: the reviewed CodeCortex entry (its tool lists as they
+    are, under a test key): an editing tool enabled in a registration is 422;
+    the proposed registration (those tools `enabled: false`) is accepted; once
+    enabled, mcp.call resolves its read tools at A0 and refuses an editing or
+    memory tool and any tool outside the registration."""
+    reviewed, proposal = _codecortex()
+    k = key()
+    entry = {**reviewed, "key": k, "url": f"http://mcp-{k}:8080/mcp"}
+    allowlist(entry)
+    tools = proposal["tools"]
+    body = container_body(entry, tools=tools, companies=proposal["companies"])
+    for name in (
+        "cortex_rename_symbol",
+        "cortex_remember",
+        "cortex_sync_push",
+        "cortex_dependency_docs",
+    ):
+        edited = [*(t for t in tools if t["name"] != name), {"name": name, "class": "A2"}]
+        r = await add(client, hub, owner_session, {**body, "tools": edited})
+        assert (r.status_code, r.json()["code"]) == (422, "validation_failed"), name
+        assert "always off" in r.text
+    r = await add(client, hub, owner_session, body)
+    assert r.status_code == 201, r.text
+    mcp_profile(True)
+    assert (await enable(client, hub, owner_session, k)).status_code == 200
+    me = "HQ-ADV"
+    out = (
+        await resolve(client, me, k, "cortex_pr_intelligence", {"base_ref": "origin/main"})
+    ).json()
+    assert out["class"] == "A0" and out["server"]["url"] == f"http://mcp-{k}:8080/mcp", out
+    for name in (
+        "cortex_rename_symbol",
+        "cortex_rewrite_apply",
+        "cortex_remember",
+        "cortex_context",
+    ):
+        r = await resolve(client, me, k, name)
+        assert (r.status_code, r.json()["code"]) == (403, "policy_denied"), name
+    await _finish_runs(su, [me])
+
+
+def test_the_allow_list_is_the_compose_services_and_the_images() -> None:
+    """Prompt 12 §14.2-§14.3: every reviewed entry is one service of
+    infra/compose/mcp.yaml run by the same digest (never pulled), on hq-mcp
+    only, its Dockerfile's ENTRYPOINT is the entry's command, and it needs no
+    internet and no secret; no tool is both reviewed and banned."""
+    import yaml
+
+    compose_file = Path("/mcp-compose/mcp.yaml")
+    if not REAL_ALLOWLIST.is_file() or not compose_file.is_file():
+        pytest.skip("infra/mcp and infra/compose/mcp.yaml are mounted by test-env.sh")
+    entries = yaml.safe_load(REAL_ALLOWLIST.read_text())["servers"]
+    services = yaml.safe_load(compose_file.read_text())["services"]
+    assert sorted(e["key"] for e in entries) == ["codecortex", "time"]
+    for e in entries:
+        svc = services[f"mcp-{e['key']}"]
+        assert svc["image"] == e["image"] and "@sha256:" in e["image"]
+        assert e["url"] == f"http://mcp-{e['key']}:8080/mcp"
+        assert e["needs_internet"] is False and e["needs_secret"] is False
+        dockerfile = (REAL_ALLOWLIST.parent / e["build"].removeprefix("infra/mcp/")).read_text()
+        entrypoint = next(
+            line for line in dockerfile.splitlines() if line.startswith("ENTRYPOINT ")
+        )
+        assert json.loads(entrypoint.removeprefix("ENTRYPOINT ")) == e["command"], e["key"]
+        allowed = M.allowlist(REAL_ALLOWLIST)[e["key"]]
+        assert not [t for t in allowed.tools if allowed.is_banned(t)], e["key"]
+    assert services["mcp-codecortex-index"]["network_mode"] == "none"
+    for name, svc in services.items():
+        assert svc.get("pull_policy", "never") == "never", name
+        assert "docker.sock" not in json.dumps(svc), name
 
 
 async def test_resolve_gives_the_sealed_class_and_makes_a3_a_decision(
@@ -739,17 +1016,31 @@ async def test_pdf_text_reaches_files_read_masked(
 
 
 def test_the_proposed_servers_are_valid_registrations() -> None:
-    """apps/api/seed/mcp_proposals.yaml: what the owner may register as it is."""
-    from pathlib import Path
-
+    """apps/api/seed/mcp_proposals.yaml: what the owner may register as it is;
+    the allow-listed container proposals (prompt 12 §14: time, codecortex)
+    pass the reviewed allow-list exactly, the others are not runnable yet."""
     import yaml
+    from pydantic import ValidationError
 
-    from hq_api.domain import mcp as M
+    from hq_api.errors import ApiError
 
     data = yaml.safe_load((Path(__file__).parents[1] / "seed" / "mcp_proposals.yaml").read_text())
+    reviewed = M.allowlist(REAL_ALLOWLIST)
+    assert sorted(reviewed) == ["codecortex", "time"]
     keys = []
     for p in data["proposals"]:
-        body = {k: p[k] for k in ("key", "title_fa", "transport", "url", "tools", "companies")}
-        M.McpServerIn.model_validate(body)
+        fields = ("key", "title_fa", "transport", "url", "tools", "companies", "image")
         keys.append(p["key"])
-    assert keys == ["github-read", "search-console", "analytics", "time", "fetch"]
+        if p["key"] in reviewed:
+            body = M.McpServerIn.model_validate({k: p.get(k) for k in fields})
+            M.check_container(body)  # no exception: exactly the reviewed entry
+            continue
+        # Not reviewed (needs a secret or the internet): refused, 422 either way.
+        try:
+            body = M.McpServerIn.model_validate({k: p.get(k) for k in fields})
+        except ValidationError:
+            continue  # no image: the request's own 422
+        with pytest.raises(ApiError) as err:
+            M.check_container(body)
+        assert err.value.status == 422
+    assert keys == ["github-read", "search-console", "analytics", "time", "codecortex", "fetch"]

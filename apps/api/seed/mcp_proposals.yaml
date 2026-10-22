@@ -6,9 +6,14 @@
 # Classes: A0 read, A1 draft, A2 internal and reversible, A3 = an external
 # commitment (always becomes the owner's decision; only its approval runs
 # that one call, once).
-# NOT RUNNABLE YET (7.1 §2.15): every proposal below is a `container` server,
-# and this build has neither the hq-mcp network nor the stdio->HTTP bridge.
-# Registering one is possible; its enable answers 409 not_ready.
+# Container servers (prompt 12 §14, contract §21.11): a `container` proposal
+# runs on the internal network hq-mcp behind mcp-proxy, and is accepted only
+# when its key, image (digest) and URL are exactly an entry of the reviewed
+# allow-list infra/mcp/servers.yaml; it runs only while the opt-in profile
+# `mcp` is on. Allow-listed today: `time` (the reference server) and
+# `codecortex` (read-only; its editing, memory and sync tools are listed with
+# `enabled: false` and are banned in the allow-list). The others below need
+# a secret or the internet: 409 not_ready until a later version.
 proposals:
   - key: github-read
     title_fa: GitHub (فقط خواندن)
@@ -52,14 +57,51 @@ proposals:
   - key: time
     title_fa: زمان و منطقه‌ی زمانی
     source: modelcontextprotocol/servers "time" (MIT), a reference server
-    transport: container  # no network at all
-    url: http://mcp-time:8000/mcp
+    transport: container  # no network at all; behind mcp-proxy on hq-mcp
+    url: http://mcp-time:8080/mcp
+    image: coinepro-hq/mcp-time:0.1.0@sha256:8552b94bf09d743779cc643f5cf295029fdac301af234a29b0036186fe8c385a
     secret: none
     egress: none
     companies: all
     tools:
       - {name: get_current_time, class: A0}
       - {name: convert_time, class: A0}
+  - key: codecortex
+    title_fa: هوش کد (CodeCortex)
+    source: BehnamJalaliCo/CodeCortex (Apache-2.0), the owner's own project; read tools only
+    transport: container  # no network at all; the hub repository's copy read-only
+    url: http://mcp-codecortex:8080/mcp
+    image: coinepro-hq/mcp-codecortex:0.1.0@sha256:c1766a8aa2d353fd2baa37f6870b121353b240a806719d6fe38a978e68afeeba
+    secret: none
+    egress: none
+    companies: [HQ]  # the hub's own repository: the holding's agents (advisor, overseer, librarian)
+    tools:
+      - {name: cortex_repository_map, class: A0}
+      - {name: cortex_find_symbol, class: A0}
+      - {name: cortex_find_references, class: A0}
+      - {name: cortex_dependency_graph, class: A0}
+      - {name: cortex_impact, class: A0}
+      - {name: cortex_architecture, class: A0}
+      - {name: cortex_architecture_drift, class: A0}
+      - {name: cortex_symbol_history, class: A0}
+      - {name: cortex_pr_intelligence, class: A0}
+      - {name: cortex_precise_definition, class: A0}
+      - {name: cortex_precise_references, class: A0}
+      - {name: cortex_precise_implementations, class: A0}
+      - {name: cortex_structural_search, class: A0}
+      - {name: cortex_stats, class: A0}
+      - {name: cortex_validate, class: A0}
+      # Always off (owner, 2026-10-18): editing, its own memory, sync, dependency docs.
+      - {name: cortex_rename_symbol, class: A2, enabled: false}
+      - {name: cortex_replace_symbol_body, class: A2, enabled: false}
+      - {name: cortex_insert_before_symbol, class: A2, enabled: false}
+      - {name: cortex_insert_after_symbol, class: A2, enabled: false}
+      - {name: cortex_rewrite_apply, class: A2, enabled: false}
+      - {name: cortex_rewrite_preview, class: A1, enabled: false}
+      - {name: cortex_remember, class: A1, enabled: false}
+      - {name: cortex_memory_search, class: A0, enabled: false}
+      - {name: cortex_team_memory_search, class: A0, enabled: false}
+      - {name: cortex_dependency_docs, class: A0, enabled: false}
   - key: fetch
     title_fa: دریافت صفحه (fetch)
     source: modelcontextprotocol/servers "fetch" (MIT), a reference server
