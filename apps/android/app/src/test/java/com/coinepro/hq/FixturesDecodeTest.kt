@@ -93,12 +93,22 @@ class FixturesDecodeTest {
         assertTrue(list("/tools/mcp", McpServer.serializer()).any { it.status == "pending" })
         assertTrue(list("/tools/accounts", ServiceAccount.serializer()).isNotEmpty())
         assertTrue(list("/tools/catalog", ToolInfo.serializer()).any { it.name == "web.search" })
-        assertTrue(page("/foundings", Founding.serializer()).map { it.state }.containsAll(listOf("proposed", "ready_for_login")))
-        assertEquals("proposed", decode("/foundings/C-0002", Founding.serializer()).state)
+        assertTrue(page("/foundings", Founding.serializer()).map { it.state }.containsAll(listOf("auditing", "proposed", "ready_for_login")))
+        val c2 = decode("/foundings/C-0002", Founding.serializer())
+        assertEquals("proposed", c2.state)
+        // ⟨1.4.8⟩ §18.16: money is a decimal string, audit scores are 0..10, the plan is a ref beside its detail.
+        assertEquals("60.00", c2.proposal?.monthlyUsd)
+        assertTrue(c2.audit!!.scores.values.all { it == null || it in 0.0..10.0 } && c2.planDetail?.ref == c2.plan)
+        val c3 = decode("/foundings/C-0003", Founding.serializer())
+        assertTrue(c3.nameFa == null && c3.code == null && c3.title.isNotBlank())
         val plan = decode("/provisioning/plans/PV-0002", ServerPlan.serializer())
-        assertTrue(plan.digest.isNotBlank() && plan.state == "proposed")
+        assertTrue(plan.digest.isNotBlank() && plan.state == "proposed" && plan.sealable)
+        val unpriced = decode("/provisioning/plans/PV-0003", ServerPlan.serializer())
+        assertTrue(unpriced.founding == null && unpriced.monthlyEur == null && unpriced.problems.isNotEmpty() && !unpriced.sealable)
+        assertTrue(decode("/provisioning/plans/PV-0001", ServerPlan.serializer()).firewall.any { it.protocol == "icmp" && it.port == null })
         val run = decode("/provisioning/runs/r1", ProvisionRun.serializer())
-        assertTrue(run.state == "done" && run.login != null && run.steps.all { it.state == "done" })
+        assertTrue(run.state == "done" && run.login != null && run.steps.all { it.state == "done" && it.logTail.isNotEmpty() })
+        assertTrue(run.server!!.hostKeys.isNotEmpty())
         val b = decode("/backups/status", BackupStatus.serializer())
         assertTrue(b.destinations.any { it.key == "gdrive" } && b.retention.hourly > 0)
         assertTrue(!b.wal.failing && b.baseBackup?.count == 9 && b.check?.ok == true && b.openbaoSnapshot.configured == false)
@@ -157,6 +167,51 @@ class FixturesDecodeTest {
         assertTrue(h.envelopes.isNotEmpty() && h.envelopes.all { it.company != "HQ" })
         val roll = decode("/stars/rollup?period=week", com.coinepro.hq.core.net.StarRollup.serializer())
         assertTrue(roll.companies.all { it.parts.efficiency > 0 } && roll.employees.all { it.efficiency != null })
+    }
+
+    // ------------------------------------------------------------ ⟨1.4.6⟩ --
+    @Test
+    fun brandsAndSealsDecode() {
+        // §18.14: every built-in company has an active seed version 1 in /brands, with the same layers its versions carry.
+        val brands = decode("/brands", com.coinepro.hq.core.net.Brands.serializer())
+        assertEquals(setOf("FX", "PC", "TY"), brands.companies.keys)
+        assertTrue(brands.companies.values.all { b -> b.version == 1 && b.mark.layers.isNotEmpty() && b.mark.layers.all { it.d.isNotBlank() && it.role in setOf("ink", "accent") } })
+        assertTrue(brands.companies.values.all { b -> (b.accent != null) == b.mark.layers.any { it.role == "accent" } })
+        for (code in brands.companies.keys) {
+            val view = decode("/companies/$code/brand", com.coinepro.hq.core.net.CompanyBrandView.serializer())
+            val active = requireNotNull(view.active)
+            assertTrue(active.state == "active" && active.source.kind == "seed" && active.digest.length == 64 && view.proposed == null)
+            assertEquals(brands.companies.getValue(code).mark, active.mark)
+            assertTrue(active.checks!!.warnings.isEmpty() && active.checks!!.minFeaturePx16 > 0)
+            assertEquals(listOf(active), list("/companies/$code/brand/versions", com.coinepro.hq.core.net.CompanyBrand.serializer()))
+        }
+        // A founded company with no brand yet: nothing to draw, so it shows its code, and the founding's step says so.
+        assertEquals(com.coinepro.hq.core.net.CompanyBrandView(), decode("/companies/AC/brand", com.coinepro.hq.core.net.CompanyBrandView.serializer()))
+        assertTrue(list("/companies/AC/brand/versions", com.coinepro.hq.core.net.CompanyBrand.serializer()).isEmpty())
+        val f = decode("/foundings/C-0001", Founding.serializer())
+        assertTrue(f.company == "AC" && f.brand.state == "missing" && f.brand.version == null)
+        assertTrue(page("/foundings", Founding.serializer()).all { it.company != null || it.brand.state == "missing" })
+        val companies = list("/companies", com.coinepro.hq.core.net.Company.serializer())
+        assertTrue(companies.all { c -> c.brandVersion == brands.companies[c.code]?.version })
+    }
+
+    @Test
+    fun brandVersionsAsTheContractDescribesThem() {
+        // A proposal from an upload, and a failed one: mark null, the reason stable.
+        val v = Api.json.decodeFromString(
+            com.coinepro.hq.core.net.CompanyBrand.serializer(),
+            """{"company":"AC","version":2,"state":"proposed","source":{"kind":"upload","file_id":"f1","path":null,"sha256":"ab","width":1200,"height":800,"has_alpha":true},
+               "mark":{"vb":"0 0 120 80","layers":[{"role":"ink","color":"#111216","d":"M0 0L1 1Z"},{"role":"accent","color":"#0FB5AE","d":"M2 2L3 3Z"}]},"wordmark":null,
+               "ink":"#111216","accent":"#0FB5AE","accent_night":null,"accent_day":"#08756F","palette":[{"hex":"#111216","share":0.7},{"hex":"#0FB5AE","share":0.3}],
+               "options":{"colors":2,"detail":3},"checks":{"paths_bytes":20,"min_feature_px_16":0.8,"iou":0.93,"contrast_night":7.6,"contrast_day":2.2,
+               "warnings":["در اندازه‌ی کوچک جزئیات گم میشود"]},"digest":"d1","status_reason":null,"created_at":"2026-10-22T08:00:00Z","activated_at":null}""",
+        )
+        assertTrue(v.checks!!.minFeaturePx16 < 1 && v.accentDay == "#08756F" && v.accentNight == null && v.options.colors == 2 && v.source.hasAlpha)
+        val failed = Api.json.decodeFromString(com.coinepro.hq.core.net.CompanyBrand.serializer(), """{"company":"AC","version":3,"state":"failed","mark":null,"checks":null,"status_reason":"no_background"}""")
+        assertTrue(failed.mark == null && failed.statusReason == "no_background")
+        // 409 not_ready names what is missing (§18.8).
+        val p = Api.json.decodeFromString(com.coinepro.hq.core.net.Problem.serializer(), """{"code":"not_ready","message_fa":"…","missing":["brand"],"status":409}""")
+        assertEquals(listOf("brand"), p.missing)
     }
 
     // ------------------------------------------------------------ ⟨1.4.4⟩ --

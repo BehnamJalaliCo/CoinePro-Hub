@@ -140,16 +140,16 @@ private fun Count(label: String, n: Int, modifier: Modifier, gold: Boolean = fal
     }
 }
 
-/** One company: departments, people (org chart) and its open work. */
+/** One company: departments, people (org chart), its open work and ⟨1.4.6⟩ its brand and seal (not the holding's: fixed). */
 @Composable
-fun CompanyScreen(code: String) {
+fun CompanyScreen(code: String, tab0: String = "departments") {
     val nav = LocalNav.current
     val c = Divan.colors
     val co = rememberQuery("company:$code", "companies") { company(code) }
     val depts = rememberQuery("departments:$code", "companies") { departments(code) }
     val chart = rememberQuery("chart:$code", "employees") { orgChart(code) }
     val work = rememberQuery("work:company:$code", "work") { work(company = code) }
-    var tab by rememberSaveable { mutableStateOf("departments") }
+    var tab by rememberSaveable { mutableStateOf(tab0) }
     val r = refresher(co, depts, chart, work)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
@@ -168,7 +168,8 @@ fun CompanyScreen(code: String) {
             }
         }
         item {
-            Segmented(listOf(SegOption("departments", "دپارتمان‌ها"), SegOption("people", "کارمندها"), SegOption("work", "کارها")), tab, { tab = it }, Modifier.fillMaxWidth())
+            val brand = co.data?.let { it.kind != "holding" } == true
+            Segmented(listOf(SegOption("departments", "دپارتمان‌ها"), SegOption("people", "کارمندها"), SegOption("work", "کارها")) + (if (brand) listOf(SegOption("brand", "نشان و مُهر")) else emptyList()), tab, { tab = it }, Modifier.fillMaxWidth())
         }
         when (tab) {
             "departments" -> {
@@ -186,6 +187,9 @@ fun CompanyScreen(code: String) {
                         }
                     }
                 }
+            }
+            "brand" -> item {
+                Loadable(co) { x -> HqCard(Modifier.fillMaxWidth()) { BrandBlock(x.code, x.nameFa ?: x.code, x.nameEn ?: x.code) } }
             }
             "people" -> item {
                 Loadable(chart) { ch ->

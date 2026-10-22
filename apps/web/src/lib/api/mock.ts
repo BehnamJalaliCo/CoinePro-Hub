@@ -1,6 +1,7 @@
 // Development-only fixtures (npm run dev:mock). Never bundled in production:
 // the client imports this module only when NEXT_PUBLIC_HQ_MOCK=1.
 
+import { activeVersion, handleBrand } from './mock-brand';
 import { DEMO_CHART, DEMO_SKETCH, DEMO_VOICE } from './mock-media';
 import { handleOps } from './mock-ops';
 import { handle14 } from './mock-v14';
@@ -335,6 +336,8 @@ export async function handle(req: Request): Promise<Response> {
   const p = u.pathname.replace(/^\/api\/v1/, '');
   const m = req.method;
   await new Promise((r) => setTimeout(r, 120 + Math.random() * 180));
+  const brand = await handleBrand(req, p, files);
+  if (brand) return brand;
   const v14 = await handle14(req, p, u);
   if (v14) return v14;
   const ops = await handleOps(req, p, u, { work, employees, control, companies, messages, threads, envelope, summary, connections });
@@ -505,8 +508,9 @@ export async function handle(req: Request): Promise<Response> {
   const dd = /^\/decisions\/(D-\d+)$/.exec(p); if (dd) return json(decisions.find((d) => d.ref === dd[1]) ?? {}, decisions.some((d) => d.ref === dd[1]) ? 200 : 404);
   if (p === '/deliverables') return json(page(u.searchParams.get('unrated') === 'true' ? deliverables.filter((d) => !d.rating) : deliverables));
   const od = /^\/deliverables\/(O-\d+)$/.exec(p); if (od) return json(deliverables.find((d) => d.ref === od[1]) ?? {});
-  if (p === '/companies') return json(companies);
-  const cd = /^\/companies\/([A-Z0-9]+)$/.exec(p); if (cd) return json(companies.find((c) => c.code === cd[1]) ?? {});
+  // ⟨1.4.6⟩ brand_version: the company's active brand (§3.1), which changes when the owner seals a new one.
+  if (p === '/companies') return json(companies.map((c) => ({ ...c, brand_version: activeVersion(c.code) })));
+  const cd = /^\/companies\/([A-Z0-9]+)$/.exec(p); if (cd) { const c = companies.find((x) => x.code === cd[1]); return json(c ? { ...c, brand_version: activeVersion(c.code) } : {}); }
   const dep = /^\/companies\/([A-Z0-9]+)\/departments$/.exec(p);
   if (dep && dep[1] === 'HQ') return json([['OVS', 'نظارت و کنترل کیفیت', 'بازرس کل', 'Oversight'], ['AIOPS', 'عملیات هوش مصنوعی', 'مدیر عملیات AI', 'AI Operations']].map(([k, fa, mgr, en], i) => ({ id: `HQ-${k}`, code: k, company: 'HQ', name_fa: fa, name_en: en, manager_title_fa: mgr, manager_title_en: en, manager: { code: `HQ-${k}-MGR`, company: 'HQ', department: k, kind: 'manager', title_fa: mgr }, sort: i, status: 'active', version: 1 })));
   if (dep) return json(['TECH', 'GROWTH', 'SALES', 'PRODUCT', 'FIN', 'QUANT', 'AIOPS', 'HR'].map((k, i) => ({ id: `${dep[1]}-${k}`, code: k, company: dep[1], name_fa: ['فنی', 'رشد و مارکتینگ', 'فروش و پشتیبانی', 'محصول', 'مالی', 'کوانت', 'عملیات هوش مصنوعی', 'منابع انسانی'][i], name_en: k, manager_title_fa: ['مدیر فنی', 'مدیر مارکتینگ', 'مدیر فروش', 'مدیر محصول', 'مدیر مالی', 'مدیر کوانت', 'مدیر عملیات AI', 'مدیر منابع انسانی'][i], manager_title_en: k, manager: { code: `${dep[1]}-${k}-MGR`, company: dep[1], department: k, kind: 'manager', title_fa: 'مدیر' }, sort: i, status: 'active', version: 1 })));

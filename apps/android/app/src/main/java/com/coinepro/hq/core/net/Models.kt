@@ -210,6 +210,8 @@ data class Company(
     val status: String = "active",
     val killSwitch: String = "released",
     val deployFreezeUntil: String? = null,
+    /** ⟨1.4.6⟩ the active brand version (§18.14); null: the company shows its code. */
+    val brandVersion: Int? = null,
     val counts: CompanyCounts = CompanyCounts(),
     val createdAt: String = "",
     val version: Int = 1,
@@ -541,6 +543,8 @@ data class Problem(
     val status: Int? = null,
     val requestId: String? = null,
     val fields: Map<String, String>? = null,
+    /** ⟨1.4.6⟩ `409 not_ready`: what is still missing (§18.8, e.g. ["brand"]). */
+    val missing: List<String> = emptyList(),
 )
 
 /** One event of the holding stream (contract §7). */

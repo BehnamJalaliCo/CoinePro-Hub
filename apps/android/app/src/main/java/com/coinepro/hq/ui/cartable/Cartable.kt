@@ -105,7 +105,11 @@ import kotlinx.serialization.json.contentOrNull
 private val STEP_UP_KINDS = setOf(
     "hire", "dismissal", "budget_change", "code_session", "protocol", "tool_enable", "errand_action", "company_found", "lesson_adoption",
 )
-private val OWN_ROUTE = mapOf("server_plan" to ("founding" to "مُهر طرح سرور در تأسیس شرکت"))
+/** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8).
+ *  The card carries {plan, company}; the plan page sends a founding's plan on to its founding (§18.16). */
+private val OWN_ROUTE: Map<String, Pair<(Decision) -> String, String>> = mapOf(
+    "server_plan" to ({ d: Decision -> (d.payload["plan"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content?.let { "founding/$it" } ?: "founding" } to "مُهر طرح سرور"),
+)
 
 /** A3 actions and hire, dismissal and budget changes are approved with a fresh passkey (contract §4). */
 fun needsStepUp(d: Decision) = d.actionClass == "A3" || d.kind in STEP_UP_KINDS
@@ -363,7 +367,7 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     val own = OWN_ROUTE[d.kind]
                     if (own != null) {
-                        HqButton(own.second, { nav.go(own.first) }, icon = DivanIcon.SEAL)
+                        HqButton(own.second, { nav.go(own.first(d)) }, icon = DivanIcon.SEAL)
                     } else SealButton(d.company, co.nameFa, co.nameEn, co.holding, busy = seal.busy) {
                         seal.run {
                             val token = if (needsStepUp(d)) env.auth.stepUp(act, "decision.approve", d.ref) else null

@@ -50,7 +50,7 @@ const paths = [
   '/inquiries?from=HQ-ADV', '/errands', '/stars/rollup?period=week', '/stars/rollup?period=month', '/stars/rubrics', '/lessons',
   '/skills', '/academy/curricula', '/academy/evals', '/academy/teach',
   '/egress/summary?period=day', '/egress', '/tools/mcp', '/tools/accounts', '/tools/catalog',
-  '/foundings', '/foundings/C-0001', '/foundings/C-0002', '/provisioning/plans/PV-0001', '/provisioning/plans/PV-0002', '/provisioning/runs/r1',
+  '/foundings', '/foundings/C-0001', '/foundings/C-0002', '/foundings/C-0003', '/provisioning/plans/PV-0001', '/provisioning/plans/PV-0002', '/provisioning/plans/PV-0003', '/provisioning/runs/r1',
   '/backups/status', '/threads/N/messages', '/threads/P/messages',
   // ⟨1.4.2⟩ hiring starts with the owner: the state and the charters the owner hires from.
   '/owner/hiring', '/roles',
@@ -64,6 +64,8 @@ const paths = [
   // ⟨1.4.5⟩ every employee's training record (item 16) and each role's model comparison (item 30).
   ...employeeCodes.map((c) => `/academy/records/${c}`),
   ...academyRoles.map((r) => `/academy/runs?latest=true&role=${r}&subject_kind=model`),
+  // ⟨1.4.6⟩ the companies' brands and seals: every active brand, and each company's versions (the founding's company too).
+  '/brands', ...['TY', 'FX', 'PC', 'AC'].flatMap((c) => [`/companies/${c}/brand`, `/companies/${c}/brand/versions`]),
   // A wide planner (eight weeks either side) the demo cuts to the asked range and scope.
   ['/planner', `/planner?from=${new Date(Date.now() - 56 * 86_400_000).toISOString().slice(0, 10)}&to=${new Date(Date.now() + 56 * 86_400_000).toISOString().slice(0, 10)}`],
 ];

@@ -212,8 +212,8 @@ class ApiContractTest {
 
     @Test
     fun serverPlanSealIsBoundToTheServerDigest() = runTest {
-        val p = ServerPlan(ref = "PV-0002", name = "signal-bot-1", type = "cpx21", location = "fsn1", image = "ubuntu-24.04", workUser = "signalbot", monthlyEur = 9.2, digest = "4e0d7a91c3", state = "proposed")
-        val (a, t, req) = signed("""{"ref":"PV-0002","name":"signal-bot-1","type":"cpx21","location":"fsn1","image":"ubuntu-24.04","work_user":"signalbot","monthly_eur":9.2,"digest":"4e0d7a91c3","state":"running","run":"r2"}""") { api.sealPlan(p, it) }
+        val p = ServerPlan(ref = "PV-0002", name = "signal-bot-1", type = "cpx21", location = "fsn1", image = "ubuntu-24.04", workUser = "signalbot", monthlyEur = "9.20", digest = "4e0d7a91c3", state = "proposed")
+        val (a, t, req) = signed("""{"ref":"PV-0002","name":"signal-bot-1","type":"cpx21","location":"fsn1","image":"ubuntu-24.04","work_user":"signalbot","monthly_eur":"9.20","digest":"4e0d7a91c3","state":"running","run":"r2"}""") { api.sealPlan(p, it) }
         assertEquals("provision.seal" to "4e0d7a91c3", a to t)
         assertEquals("/api/v1/provisioning/plans/PV-0002/seal", req.url.encodedPath)
     }

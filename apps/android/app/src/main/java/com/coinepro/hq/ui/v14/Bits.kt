@@ -128,12 +128,19 @@ fun scoreTone(v: Double): BarTone = when {
     else -> BarTone.NEG
 }
 
-/** A 0–100 score as a number and a thin bar. */
+/** A score as a number and a thin bar: 0–100 unless [max] says otherwise (an audit's 0–10); null is «—». */
 @Composable
-fun ScoreBar(value: Double, modifier: Modifier = Modifier) {
+fun ScoreBar(value: Double?, modifier: Modifier = Modifier, max: Double = 100.0) {
+    if (value == null) {
+        Fig("—", modifier, style = Divan.type.figureSmall, color = Divan.colors.textMuted)
+        return
+    }
+    val pct = value / max * 100
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Fig(value.toInt().toString(), Modifier.width(26.dp), style = Divan.type.figureSmall, color = Divan.colors.textPrimary)
-        MeterBar(value, Modifier.weight(1f), tone = scoreTone(value), height = 5.dp)
+        // A 0–100 score is whole; an audit's 0–10 keeps its one decimal ("7.5").
+        val shown = if (max == 100.0 || value % 1.0 == 0.0) value.toInt().toString() else String.format(java.util.Locale.US, "%.1f", value)
+        Fig(shown, Modifier.width(26.dp), style = Divan.type.figureSmall, color = Divan.colors.textPrimary)
+        MeterBar(pct, Modifier.weight(1f), tone = scoreTone(pct), height = 5.dp)
     }
 }
 

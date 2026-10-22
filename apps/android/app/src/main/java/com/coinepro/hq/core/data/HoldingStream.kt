@@ -118,7 +118,7 @@ class HoldingStream(
         const val CORE_TOPICS = "work,decisions,deliverables,messages,notifications,activity,llm,control"
 
         // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories"
+        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies"
 
         // Event type prefix -> query tags to refresh (mirrors apps/web/src/lib/stream.ts).
         val INVALIDATE: List<Pair<String, Array<String>>> = listOf(
@@ -148,6 +148,8 @@ class HoldingStream(
             "founding." to arrayOf("founding"),
             "provision." to arrayOf("founding"),
             "backup." to arrayOf("backups"),
+            // ⟨1.4.6⟩ §18.14: a traced or sealed brand — the company's versions, every mark and seal, the founding's step.
+            "brand." to arrayOf("brand", "brands", "companies", "founding"),
         )
     }
 }

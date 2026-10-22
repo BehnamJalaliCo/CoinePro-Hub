@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { use, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { use, useEffect, useState } from 'react';
+import { BrandBlock } from '@/components/brand/brand-block';
 import { Icon } from '@/components/icon';
 import { Button, Spinner } from '@/components/ui/button';
 import { Md } from '@/components/ui/md';
@@ -10,7 +12,7 @@ import { Card, ErrorState, Pill, SectionTitle, Skeleton } from '@/components/ui/
 import { useToast } from '@/components/ui/toast';
 import { FOUNDING_STATE, Figs, Score } from '@/components/v14/bits';
 import { ApiError } from '@/lib/api/client';
-import { useFounding, useFoundingAction, usePlan, useRun, type Founding } from '@/lib/api/v14';
+import { foundingName, useFounding, useFoundingAction, usePlan, useRun, type Founding, type ProvisionRun, type ServerPlan } from '@/lib/api/v14';
 import { cx, jTime, modelLabel, usd } from '@/lib/format';
 import { DEPT_FA, ROLE_FA } from '@/lib/labels';
 
@@ -21,6 +23,11 @@ const SOFTWARE_FA: Record<string, string> = {
   'hetzner-firewall': 'فایروال هتزنر', 'node-exporter': 'پایش (فقط روی IP خصوصی)',
 };
 const AUDIT_FA: Record<string, string> = { architecture: 'معماری', quality: 'کیفیت', security: 'امنیت', tests: 'تست‌ها', debt: 'بدهی فنی' };
+/** ⟨1.4.6⟩ the step «مُهر شرکت» (§18.8, §18.14): open once the company exists, i.e. from the seal of `company_found` on. */
+const BRAND_OPEN = new Set(['sealed', 'provisioning', 'ready_for_login', 'active']);
+const BRAND_STATE: Record<'missing' | 'proposed' | 'active', { fa: string; tone: 'warn' | 'gold' | 'pos' }> = {
+  missing: { fa: 'هنوز نشان ندارد', tone: 'warn' }, proposed: { fa: 'نشان آماده، منتظر مُهر تو', tone: 'gold' }, active: { fa: 'مُهر شد', tone: 'pos' },
+};
 
 function Copy({ text }: { text: string }) {
   const [done, setDone] = useState(false);
@@ -49,26 +56,48 @@ function Stepper({ f }: { f: Founding }) {
   );
 }
 
-function Plan({ f }: { f: Founding }) {
-  const plan = usePlan(f.plan);
+const RUN_STATE: Record<ProvisionRun['state'], { fa: string; tone: 'lapis' | 'pos' | 'neg' | 'warn'; live?: boolean }> = {
+  queued: { fa: 'در صف', tone: 'warn' }, running: { fa: 'در جریان', tone: 'lapis', live: true }, done: { fa: 'تمام شد', tone: 'pos' }, failed: { fa: 'خطا', tone: 'neg' },
+};
+const eur = (v: string | null) => (v == null ? null : `€${Number(v).toFixed(2)}`);
+
+/** The new server's host-key fingerprints, which the owner checks on the first login (§18.16). */
+function HostKeys({ keys }: { keys: Array<{ type: string; fingerprint_sha256: string }> }) {
+  if (!keys.length) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[12px] text-sec">پیش از اولین ورود، اثر انگشت کلید سرور را با همین‌ها بسنج:</span>
+      {keys.map((k) => <span key={k.type} dir="ltr" className="fig flex gap-2 rounded-[8px] bg-page px-3 py-1.5 text-left text-[12px]"><span className="text-muted">{k.type}</span><span className="min-w-0 break-all text-ink">{k.fingerprint_sha256}</span></span>)}
+    </div>
+  );
+}
+
+/** A server plan, its seal and its build (§18.8, §18.16): no price or an open problem, no seal. */
+function Plan({ refId, seed }: { refId: string | null; seed?: ServerPlan | null }) {
+  const plan = usePlan(refId, seed);
   const run = useRun(plan.data?.run ?? null);
   const act = useFoundingAction();
   const toast = useToast();
   const err = (e: unknown) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : e instanceof Error ? e.message : 'انجام نشد.' });
-  if (!f.plan) return null;
+  if (!refId) return null;
+  if (plan.error) return <ErrorState error={plan.error} onRetry={() => plan.refetch()} />;
   if (!plan.data) return <Skeleton className="h-48" />;
   const p = plan.data;
   const r = run.data;
+  const price = eur(p.monthly_eur);
+  const problems = p.problems ?? [];
+  const sealable = p.state === 'proposed' && price != null && !problems.length;
   return (
     <Card className="flex flex-col gap-4 p-4">
-      <SectionTitle title="سرور" note={<><span className="fig">{p.ref}</span> · <span className="fig">{p.name}</span></>} action={<span className="fig text-[18px] font-semibold">€{p.monthly_eur.toFixed(2)}<span className="text-[12px] font-normal text-muted"> / ماه</span></span>} />
+      <SectionTitle title="سرور" note={<><span className="fig">{p.ref}</span> · <span className="fig">{p.name}</span></>}
+        action={price ? <span className="fig text-[18px] font-semibold">{price}<span className="text-[12px] font-normal text-muted"> / ماه</span></span> : <Pill tone="warn" dot>قیمت هنوز معلوم نیست</Pill>} />
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {[['نوع', p.type], ['محل', p.location], ['سیستم', p.image]].map(([k, v]) => <div key={k} className="flex min-w-0 flex-col rounded-[10px] bg-tile px-2.5 py-2 sm:px-3"><span className="text-[11px] text-muted">{k}</span><span className="fig truncate text-[13px] sm:text-[14px]">{v}</span></div>)}
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-[12px] font-semibold text-sec">فایروال هتزنر (ورودی)</span>
         {p.firewall.map((w, i) => (
-          <div key={i} className="flex items-center gap-3 text-[12px]"><span className="fig w-24 text-ink">{w.protocol} {w.port}</span><span className="fig min-w-0 flex-1 truncate text-muted">{w.sources.join(', ')}</span><span className="text-sec">{w.note_fa}</span></div>
+          <div key={i} className="flex items-center gap-3 text-[12px]"><span className="fig w-24 text-ink">{w.protocol}{w.port ? ` ${w.port}` : ''}</span><span className="fig min-w-0 flex-1 truncate text-muted">{w.sources.join(', ')}</span><span className="text-sec">{w.note_fa}</span></div>
         ))}
       </div>
       <div className="flex flex-col gap-1.5">
@@ -76,62 +105,117 @@ function Plan({ f }: { f: Founding }) {
         <ul className="grid gap-1 sm:grid-cols-2">{p.software.map((k) => <li key={k} className="flex items-center gap-2 text-[12px] text-ink"><Icon name="seal" size={12} className="text-pos" />{SOFTWARE_FA[k] ?? k}</li>)}</ul>
         <span className="text-[11px] text-muted">کاربر کاری <span className="fig">{p.work_user}</span>{p.repo ? <> · ریپو <span className="fig">{p.repo}</span></> : null} · رمز root ساخته نمیشود؛ فقط کلید عمومی تو.</span>
       </div>
+      {p.state === 'proposed' && problems.length ? (
+        <div className="flex flex-col gap-1 rounded-[10px] bg-warn-soft p-3">
+          <span className="text-[12px] font-semibold text-warn">تا این‌ها رفع نشود، طرح مُهر نمیشود</span>
+          {problems.map((x) => <code key={x} dir="ltr" className="fig text-left text-[11px] text-sec">{x}</code>)}
+        </div>
+      ) : null}
       {p.state === 'proposed' ? (
-        <Button variant="primary" icon="seal" loading={act.sealPlan.isPending} onClick={() => act.sealPlan.mutateAsync(p).then(() => toast({ tone: 'ok', text: 'مُهر شد؛ ساخت سرور شروع شد.' })).catch(err)}>
-          با گذرکلید مُهر کن و بساز (<span className="fig">€{p.monthly_eur.toFixed(2)}</span> در ماه)
+        <Button variant="primary" icon="seal" disabled={!sealable} loading={act.sealPlan.isPending} onClick={() => act.sealPlan.mutateAsync(p).then(() => toast({ tone: 'ok', text: 'مُهر شد؛ ساخت سرور شروع شد.' })).catch(err)}>
+          با گذرکلید مُهر کن و بساز{price ? <> (<span className="fig">{price}</span> در ماه)</> : null}
         </Button>
       ) : null}
       {r ? (
         <div className="flex flex-col gap-2 border-t border-div pt-3">
-          <span className="flex items-center gap-2 text-[12px] font-semibold text-sec">ساخت {r.state === 'running' ? <Pill tone="lapis" live>در جریان</Pill> : r.state === 'done' ? <Pill tone="pos" dot>تمام شد</Pill> : <Pill tone="neg" dot>خطا</Pill>}</span>
+          <span className="flex items-center gap-2 text-[12px] font-semibold text-sec">ساخت <Pill tone={RUN_STATE[r.state].tone} live={RUN_STATE[r.state].live} dot={!RUN_STATE[r.state].live}>{RUN_STATE[r.state].fa}</Pill></span>
           <ol className="flex flex-col gap-2">
             {r.steps.map((s) => (
               <li key={s.key} className="flex items-start gap-3">
                 <span className={cx('mt-0.5 flex size-5 flex-none items-center justify-center rounded-full', s.state === 'done' ? 'bg-pos-soft text-pos' : s.state === 'running' ? 'bg-lapis-soft text-lapis' : s.state === 'failed' ? 'bg-neg-soft text-neg' : 'bg-tile text-muted')}>
                   {s.state === 'running' ? <Spinner size={12} /> : s.state === 'done' ? <Icon name="seal" size={11} active /> : s.state === 'failed' ? <Icon name="urgent" size={11} /> : null}
                 </span>
-                <span className="flex min-w-0 flex-1 flex-col"><span className="text-[13px] text-ink">{s.title_fa}</span>{s.log_tail ? <code dir="ltr" className="fig text-left text-[11px] text-muted">{s.log_tail}</code> : null}</span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="text-[13px] text-ink">{s.title_fa}</span>
+                  {s.log_tail.length ? <code dir="ltr" className="fig whitespace-pre-wrap break-all text-left text-[11px] text-muted">{s.log_tail.slice(-3).join('\n')}</code> : null}
+                </span>
                 {s.finished_at ? <span className="text-[11px] text-muted">{jTime(s.finished_at)}</span> : null}
               </li>
             ))}
           </ol>
-          {r.server ? <span className="fig text-[12px] text-sec" dir="ltr">{r.server.name} · {r.server.ipv4} · {r.server.private_ip ?? ''}</span> : null}
+          {r.state === 'failed' ? (
+            <div className="flex flex-col gap-2 rounded-[10px] bg-neg-soft p-3">
+              <span className="text-[12px] text-sec">ساخت در گام شکست‌خورده متوقف شد{r.error?.code ? <> (<span className="fig">{r.error.code}</span>)</> : null}. با همان مُهر از همان گام ادامه میدهد؛ یا تأسیس را لغو کن.</span>
+              <Button variant="secondary" size="sm" icon="refresh" className="self-start" loading={act.resume.isPending} onClick={() => act.resume.mutateAsync(r.id).then(() => toast({ tone: 'ok', text: 'ساخت از همان گام ادامه پیدا کرد.' })).catch(err)}>از همان گام ادامه بده</Button>
+            </div>
+          ) : null}
+          {r.server ? <span className="fig text-[12px] text-sec" dir="ltr">{[r.server.name, r.server.ipv4, r.server.ipv6, r.server.private_ip].filter(Boolean).join(' · ')}</span> : null}
+          {r.server?.host_keys?.length && r.state === 'done' ? <HostKeys keys={r.server.host_keys} /> : null}
         </div>
       ) : null}
     </Card>
   );
 }
 
+/** A server plan with no founding (a company's CTO wrote it, §18.16): the cartable's server_plan card lands here. */
+function PlanOnly({ refId }: { refId: string }) {
+  const q = usePlan(refId);
+  const router = useRouter();
+  const founding = q.data?.founding;
+  useEffect(() => { if (founding) router.replace(`/founding/${founding}`); }, [founding, router]);
+  return (
+    <>
+      <Link href="/cartable" className="inline-flex items-center gap-1 self-start text-[13px] text-sec hover:text-ink"><Icon name="back" size={16} mirror />کارتابل</Link>
+      <header className="flex flex-wrap items-center gap-3">
+        <span className="flex size-12 items-center justify-center rounded-full bg-gold-soft text-gold-ink"><Icon name="server" size={24} /></span>
+        <div className="flex min-w-0 flex-col"><span className="text-caption text-muted">طرح سرور{q.data ? <> · <span className="fig">{q.data.company}</span></> : null}</span><h1 className="fig text-h1 font-semibold">{refId}</h1></div>
+      </header>
+      <div className="max-w-2xl"><Plan refId={refId} /></div>
+    </>
+  );
+}
+
 /** One founding, from audit to an active company (contract §18.8). */
 export default function FoundingDetail({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = use(params);
+  return ref.startsWith('PV-') ? <PlanOnly refId={ref} /> : <FoundingView refId={ref} />;
+}
+
+function FoundingView({ refId: ref }: { refId: string }) {
   const q = useFounding(ref);
-  const plan = usePlan(q.data?.plan ?? null);
+  const plan = usePlan(q.data?.plan ?? null, q.data?.plan_detail);
   const run = useRun(plan.data?.run ?? null);
   const act = useFoundingAction();
   const toast = useToast();
   const [cancel, setCancel] = useState(false);
+  const [noBrand, setNoBrand] = useState(false);
   if (q.isLoading) return <Skeleton className="h-64" />;
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const f = q.data;
   const st = FOUNDING_STATE[f.state];
   const login = run.data?.login;
+  const name = foundingName(f);
+  // §18.16: cancel closes everything, so it is offered until a build runs; a failed build returns the founding to `sealed`.
+  const building = run.data?.state === 'running' || run.data?.state === 'queued';
+  const cancellable = f.state === 'auditing' || f.state === 'proposed' || (f.state === 'sealed' && !building);
+  const serverMade = !!run.data?.server;
+  const activated = () => toast({ tone: 'ok', text: 'شرکت فعال شد؛ مدیرعامل شروع به کار کرد.' });
+  const activate = (skipBrand = false) => act.activate.mutateAsync({ ref: f.ref, skipBrand })
+    .then(() => { setNoBrand(false); activated(); })
+    .catch((e) => {
+      // §18.8: without an active brand the hub asks first; the owner may still go on and seal the brand later.
+      if (e instanceof ApiError && e.status === 409 && e.code === 'not_ready' && e.missing?.includes('brand')) setNoBrand(true);
+      else toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'فعال نشد.' });
+    });
   return (
     <>
       <Link href="/founding" className="inline-flex items-center gap-1 self-start text-[13px] text-sec hover:text-ink"><Icon name="back" size={16} mirror />تأسیس شرکت</Link>
       <header className="flex flex-wrap items-center gap-3">
         <span className="flex size-12 items-center justify-center rounded-full bg-gold-soft text-gold-ink"><Icon name="found" size={24} /></span>
-        <div className="flex min-w-0 flex-[1_1_16rem] flex-col"><span className="text-caption text-muted"><span className="fig">{f.ref}</span>{f.source.repo ? <> · <span className="fig">{f.source.repo}</span></> : ' · ایده'}</span><h1 className="flex flex-wrap items-baseline gap-x-2 text-h1 font-semibold">{f.name_fa}{f.name_en ? <span className="fig text-[16px] font-normal text-muted">{f.name_en}</span> : null}</h1></div>
+        <div className="flex min-w-0 flex-[1_1_16rem] flex-col"><span className="text-caption text-muted"><span className="fig">{f.ref}</span>{f.source.repo ? <> · <span className="fig">{f.source.repo}</span></> : ' · ایده'}</span><h1 className="flex flex-wrap items-baseline gap-x-2 text-h1 font-semibold">{name}{f.name_en ? <span className="fig text-[16px] font-normal text-muted">{f.name_en}</span> : null}</h1></div>
         <Pill tone={st.tone} live={st.live} dot={!st.live}>{st.fa}</Pill>
-        {/* Before a server exists nothing is spent, so cancelling is safe; afterwards only the owner removes servers, in Hetzner. */}
-        {f.state === 'auditing' || f.state === 'proposed' ? <Button size="sm" variant="ghost" onClick={() => setCancel(true)}>لغو تأسیس</Button> : null}
+        {/* Cancelling withdraws the cards, returns an unrun sealed plan and stops the audit (§18.16); only the owner removes servers, in Hetzner. */}
+        {cancellable ? <Button size="sm" variant="ghost" onClick={() => setCancel(true)}>لغو تأسیس</Button> : null}
       </header>
       <Dialog open={cancel} onOpenChange={setCancel} title="این تأسیس لغو شود؟"
         actions={<>
           <Button variant="ghost" onClick={() => setCancel(false)}>نه</Button>
           <Button variant="danger" loading={act.cancel.isPending} onClick={() => act.cancel.mutateAsync(f.ref).then(() => { setCancel(false); toast({ tone: 'ok', text: 'لغو شد.' }); }).catch((e) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'لغو نشد.' }))}>لغو کن</Button>
         </>}>
-        <p className="text-[13px] leading-7 text-sec">ممیزی و پیشنهاد در سوابق میماند. هنوز سروری ساخته نشده و هزینه‌ای نیست.</p>
+        <p className="text-[13px] leading-7 text-sec">
+          ممیزی و پیشنهاد در سوابق میماند و کارت‌های باز این تأسیس از کارتابل برداشته میشوند.{' '}
+          {serverMade ? 'سروری که ساخته شده خاموش یا پاک نمیشود؛ پاک کردنش فقط با خودت در کنسول هتزنر است.' : f.state === 'sealed' ? 'طرح سرور مُهرشده به پیشنهاد برمیگردد و هیچ سروری ساخته نمیشود.' : 'هنوز سروری ساخته نشده و هزینه‌ای نیست.'}
+        </p>
       </Dialog>
       <Stepper f={f} />
       {f.state === 'ready_for_login' && login ? (
@@ -142,15 +226,29 @@ export default function FoundingDetail({ params }: { params: Promise<{ ref: stri
             <li className="flex flex-col gap-1"><span className="text-sec">۲. Claude Code را باز کن و با حساب خودت وارد شو</span>{login.then.map((c) => <Copy key={c} text={c} />)}</li>
             <li className="text-sec">۳. وقتی وارد شدی، شرکت را فعال کن تا مدیرعامل شروع کند.</li>
           </ol>
-          <Button variant="primary" icon="seal" loading={act.activate.isPending} onClick={() => act.activate.mutateAsync(f.ref).then(() => toast({ tone: 'ok', text: 'شرکت فعال شد؛ مدیرعامل شروع به کار کرد.' })).catch((e) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'فعال نشد.' }))}>وارد شدم؛ شرکت را فعال کن</Button>
+          {run.data?.server?.host_keys?.length ? <HostKeys keys={run.data.server.host_keys} /> : null}
+          <Button variant="primary" icon="seal" loading={act.activate.isPending} onClick={() => activate()}>وارد شدم؛ شرکت را فعال کن</Button>
+        </Card>
+      ) : null}
+      <Dialog open={noBrand} onOpenChange={setNoBrand} title="شرکت هنوز مُهر ندارد"
+        actions={<>
+          <Button variant="secondary" onClick={() => { setNoBrand(false); document.getElementById('brand-step')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>اول مُهر را بساز</Button>
+          <Button variant="ghost" loading={act.activate.isPending} onClick={() => activate(true)}>بدون مُهر فعال کن</Button>
+        </>}>
+        <p className="text-[13px] leading-7 text-sec">نشان و مُهر شرکت از لوگوی PNG آن ساخته میشود. اگر بدون مُهر فعال کنی، شرکت تا وقتی نشانش را مُهر کنی با کدش دیده میشود؛ این کار از صفحه‌ی شرکت هم شدنی است.</p>
+      </Dialog>
+      {f.company && BRAND_OPEN.has(f.state) ? (
+        <Card id="brand-step" className="scroll-mt-20 p-4">
+          <BrandBlock code={f.company} nameFa={name} nameEn={f.name_en || f.company} title="مُهر شرکت"
+            badge={f.brand ? <Pill tone={BRAND_STATE[f.brand.state].tone} dot>{BRAND_STATE[f.brand.state].fa}</Pill> : undefined} />
         </Card>
       ) : null}
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           {f.audit ? (
             <Card className="flex flex-col gap-3 p-4">
-              <SectionTitle title="ممیزی" note={<>جلسه‌ی فقط‌خواندنی <Link href={`/workshop/${f.audit.session_ref}`} className="fig text-gold-ink">{f.audit.session_ref}</Link></>} />
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">{Object.entries(f.audit.scores).map(([k, v]) => <span key={k} className="flex flex-col gap-0.5"><span className="text-[11px] text-muted">{AUDIT_FA[k]}</span><Score value={v} /></span>)}</div>
+              <SectionTitle title="ممیزی" note={f.audit.session_ref ? <>جلسه‌ی فقط‌خواندنی <Link href={`/workshop/${f.audit.session_ref}`} className="fig text-gold-ink">{f.audit.session_ref}</Link></> : 'امتیاز هر محور از ۱۰'} />
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">{Object.entries(f.audit.scores).map(([k, v]) => <span key={k} className="flex flex-col gap-0.5"><span className="text-[11px] text-muted">{AUDIT_FA[k]}</span><Score value={v} max={10} /></span>)}</div>
               <Md text={f.audit.report_md} className="flex flex-col gap-2 text-[13px] leading-7 text-sec" />
             </Card>
           ) : f.state === 'auditing' ? <Card className="flex items-center gap-3 p-5 text-[13px] text-sec"><Spinner size={16} />ممیزی در جریان است؛ نتیجه و پیشنهاد به کارتابلت میاید.</Card> : null}
@@ -167,7 +265,7 @@ export default function FoundingDetail({ params }: { params: Promise<{ ref: stri
             </Card>
           ) : null}
         </div>
-        <div className="flex min-w-0 flex-col gap-4"><Plan f={f} /></div>
+        <div className="flex min-w-0 flex-col gap-4"><Plan refId={f.plan} seed={f.plan_detail} /></div>
       </div>
     </>
   );

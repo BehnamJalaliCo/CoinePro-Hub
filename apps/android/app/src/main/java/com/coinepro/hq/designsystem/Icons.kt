@@ -88,11 +88,29 @@ fun Wordmark(width: Dp, modifier: Modifier = Modifier) {
     Image(v, contentDescription = "CoinePro", modifier = modifier.size(width = width, height = width * (vb[3] / vb[2])))
 }
 
-private fun BrandMark.vector(code: String, ink: Color, mono: Boolean): ImageVector =
-    buildMark(code, viewBox, layers.map { it.path to if (mono || it.role == MarkRole.INK) ink else Color(it.color) })
+private fun BrandMark.vector(ink: Color, mono: Boolean, swap: Pair<Long, Long>?): ImageVector =
+    buildMark("mark", viewBox, layers.map { it.path to if (mono || it.role == MarkRole.INK) ink else Color(if (it.color == swap?.first) swap.second else it.color) })
 
-/** A company's own mark (data keyed by company code). [mono] draws it in one ink (lists, seals).
- *  A company without a mark shows its code in a small cartouche. */
+/** One vector mark. [mono] draws it in one ink (lists, seals, 24dp and below); otherwise the ink layer takes [ink] and accent
+ *  layers their own colour, or [brand]'s accent for this theme where the signature colour fails 3:1 on its page (§18.14). */
+@Composable
+fun BrandMarkImage(
+    mark: BrandMark,
+    height: Dp,
+    modifier: Modifier = Modifier,
+    mono: Boolean = false,
+    ink: Color = LocalContentColor.current,
+    brand: LiveBrand? = null,
+    label: String? = null,
+) {
+    val swap = if (mono) null else brand?.themedAccent(Divan.night)
+    val v = remember(mark, ink, mono, swap) { mark.vector(ink, mono, swap) }
+    val vb = mark.viewBox
+    Image(v, contentDescription = label, modifier = modifier.size(width = height * (vb[2] / vb[3]), height = height))
+}
+
+/** A company's own mark: its brand from GET /brands ([LocalBrands]), then the built-in marks, then its code in a small
+ *  cartouche. [mono] draws it in one ink (lists, seals). */
 @Composable
 fun CompanyMark(
     code: String,
@@ -103,8 +121,7 @@ fun CompanyMark(
     wordmark: Boolean = false,
     label: String? = null,
 ) {
-    val brand = BrandData.companies[code]
-    val mark = if (wordmark) brand?.wordmark ?: brand?.mark else brand?.mark
+    val mark = companyMarkOf(code, wordmark)
     if (mark == null) {
         Box(
             modifier
@@ -118,7 +135,5 @@ fun CompanyMark(
         }
         return
     }
-    val v = remember(code, ink, mono, wordmark) { mark.vector(code, ink, mono) }
-    val vb = mark.viewBox
-    Image(v, contentDescription = label ?: code, modifier = modifier.size(width = height * (vb[2] / vb[3]), height = height))
+    BrandMarkImage(mark, height, modifier, mono = mono, ink = ink, brand = LocalBrands.current[code], label = label ?: code)
 }
