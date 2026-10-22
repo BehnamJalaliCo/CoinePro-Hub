@@ -506,6 +506,34 @@ async def test_propose(mock: respx.MockRouter, gw: Gateway, quota: Any) -> None:
     assert sent["quota_estimate"] == ({"tokens": 50000} if quota == 50000 else quota)
 
 
+@pytest.mark.parametrize(
+    ("kind", "payload"),
+    [("lesson_adoption", {"lesson": "L-0001", "adopt": True}), ("protocol", {"ref": "PR-001"})],
+)
+async def test_propose_prompt8_kinds(
+    mock: respx.MockRouter, gw: Gateway, kind: str, payload: dict[str, Any]
+) -> None:
+    # A CEO adopts a lesson and the overseer proposes a protocol through propose
+    # (prompt 08 §2, §4); the API and OPA decide who may, the gateway passes both.
+    Stub(mock)
+    work_route(mock)
+    route = mock.post(f"{API}/internal/v1/decisions").mock(
+        return_value=httpx.Response(201, json={"ref": "D-000034", "status": "pending"})
+    )
+    out = await call(gw, "propose", {"kind": kind, "title_fa": "t", "payload": payload})
+    assert out["result"] == {"decision": "D-000034", "status": "pending", "kind": kind}
+    assert json.loads(route.calls.last.request.content)["kind"] == kind
+
+
+async def test_propose_refuses_server_plan(mock: respx.MockRouter, gw: Gateway) -> None:
+    Stub(mock)
+    work_route(mock)
+    route = mock.post(f"{API}/internal/v1/decisions")
+    out = await call(gw, "propose", {"kind": "server_plan", "title_fa": "t"})
+    assert (out["outcome"], out["code"]) == ("error", "invalid_args")  # server.plan makes it
+    assert not route.called
+
+
 @pytest.mark.parametrize("quota", [True, {"tokens": True}, "lots"])
 async def test_propose_quota_is_never_guessed(
     mock: respx.MockRouter, gw: Gateway, quota: Any

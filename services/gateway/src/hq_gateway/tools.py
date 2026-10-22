@@ -257,7 +257,9 @@ class ProposeIn(In):
         "evaluation",
         "code_session",
         "errand_action",
-    ]
+        "lesson_adoption",
+        "protocol",
+    ]  # the API kinds an agent may propose (prompt 08 §2, §4)
     title_fa: str = Field(min_length=1, max_length=300)
     what_md: str = Field(default="", max_length=20000)
     why_md: str = Field(default="", max_length=20000)
