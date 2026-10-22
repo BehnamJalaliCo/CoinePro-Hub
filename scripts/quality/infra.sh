@@ -273,4 +273,20 @@ else
   pass "stt: STT_URL empty while stt is off"
 fi
 
+# ---------------------------------------------- tracing (review 7.1 §0.2) --
+# Tempo and the collector are an opt-in profile: off by default (not rendered,
+# Prometheus mounts the empty scrape dir), on with HQ_TRACING=on.
+off_services="$(HQ_PROFILE=full HQ_TRACING=off "$HQ" config --services)"
+on_json="$(HQ_PROFILE=full HQ_TRACING=on "$HQ" config --format json)"
+off_scrape="$(HQ_PROFILE=full HQ_TRACING=off "$HQ" config --format json |
+  jq -r '.services.prometheus.volumes[] | select(.target == "/etc/prometheus/scrape-tracing") | .source')"
+if grep -qxE 'tempo|otel-collector' <<<"$off_services" || [[ "$off_scrape" != */scrape-tracing/off ]]; then
+  fail "tracing: on by default (services or the scrape dir $off_scrape)"
+elif [[ "$(jq -r '.services | has("tempo") and has("otel-collector")' <<<"$on_json")" != true ]] ||
+  [[ "$(jq -r '.services.prometheus.volumes[] | select(.target == "/etc/prometheus/scrape-tracing") | .source' <<<"$on_json")" != */scrape-tracing/on ]]; then
+  fail "tracing: HQ_TRACING=on does not start Tempo and the collector, or Prometheus does not scrape them"
+else
+  pass "tracing: off by default; HQ_TRACING=on adds Tempo, the collector and their scrape jobs"
+fi
+
 exit "$failed"

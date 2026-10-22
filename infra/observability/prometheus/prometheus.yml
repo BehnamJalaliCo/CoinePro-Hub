@@ -9,3 +9,4 @@ global:
 scrape_config_files:
   - /etc/prometheus/scrape/*.yml
   - /etc/prometheus/scrape-profile/*.yml
+  - /etc/prometheus/scrape-tracing/*.yml
