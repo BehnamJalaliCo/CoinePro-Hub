@@ -105,18 +105,19 @@ norm_token() {
 
 # save_token TOKEN CLIENT_ID CLIENT_SECRET: checks rclone's JSON, then OpenBao.
 save_token() {
-  local token client_id="$2" client_secret="$3" work code
+  local token client_id="$2" client_secret="$3" code
   token="$(jq -c . <<<"$1" 2>/dev/null)" || die "that is not the JSON rclone printed; nothing was saved"
   jq -e 'type == "object" and (.access_token | length > 0) and (.refresh_token | length > 0)' \
     <<<"$token" >/dev/null || die "the JSON has no access_token/refresh_token; nothing was saved"
   umask 077
-  work="$(mktemp -d)"
-  trap 'rm -rf "$work"; secrets_cleanup' EXIT
-  printf 'X-Vault-Token: %s\n' "$(cat "$ADMIN_FILE")" >"$work/auth"
+  # A global: the EXIT trap runs after this function has returned.
+  WORK="$(mktemp -d)"
+  trap 'secrets_cleanup; rm -rf "$WORK"' EXIT
+  printf 'X-Vault-Token: %s\n' "$(cat "$ADMIN_FILE")" >"$WORK/auth"
   # The three values reach jq on stdin, NUL-separated (printf is a shell builtin: no argv).
   code="$(printf '%s\0%s\0%s' "$token" "$client_id" "$client_secret" |
     jq -Rsc 'split("\u0000") | {data: {token: .[0], client_id: (.[1] // ""), client_secret: (.[2] // "")}}' |
-    curl -sS -o /dev/null -w '%{http_code}' -H @"$work/auth" -H 'Content-Type: application/json' \
+    curl -sS -o /dev/null -w '%{http_code}' -H @"$WORK/auth" -H 'Content-Type: application/json' \
       --data-binary @- "$BAO_ADDR/v1/kv/data/backup/gdrive")"
   [[ "$code" == 200 || "$code" == 204 ]] || die "OpenBao refused the write (HTTP $code); nothing was saved"
   printf 'Saved in OpenBao (kv/backup/gdrive). Checking the connection...\n'
