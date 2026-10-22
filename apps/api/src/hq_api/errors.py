@@ -167,6 +167,8 @@ class Problem(BaseModel):
     message_fa: str
     fields: dict[str, str] | None = None
     request_id: str | None = None
+    # ⟨1.4.6⟩ 409 not_ready: what is still missing (§18.8, e.g. ["brand"])
+    missing: list[str] | None = None
 
 
 class ApiError(Exception):
@@ -179,6 +181,7 @@ class ApiError(Exception):
         fields: dict[str, str] | None = None,
         message_fa: str | None = None,
         headers: dict[str, str] | None = None,
+        missing: list[str] | None = None,
     ) -> None:
         default_status, _, _ = CODES.get(code, CODES["internal_error"])
         self.status = status or default_status
@@ -187,6 +190,7 @@ class ApiError(Exception):
         self.fields = fields
         self.message_fa = message_fa
         self.headers = headers
+        self.missing = missing
         super().__init__(f"{code}: {detail or ''}")
 
 
@@ -201,6 +205,7 @@ def problem_response(request: Request, err: ApiError) -> JSONResponse:
         message_fa=err.message_fa or message_fa,
         fields=err.fields,
         request_id=getattr(request.state, "request_id", None),
+        missing=err.missing,
     )
     return JSONResponse(
         body.model_dump(exclude_none=True),

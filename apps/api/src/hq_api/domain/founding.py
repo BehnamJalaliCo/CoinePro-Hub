@@ -46,8 +46,9 @@ from pydantic import BaseModel, Field
 
 from hq_api import audit, events
 from hq_api.db import Tx
-from hq_api.domain import notify, templates
+from hq_api.domain import brands, notify, templates
 from hq_api.domain import work as W
+from hq_api.domain.brands import FoundingBrand
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, actor
@@ -194,13 +195,6 @@ class FoundingSource(BaseModel):
     brief_md: str = ""
 
 
-class FoundingBrand(BaseModel):
-    """The step «مُهر شرکت» (§18.14): `missing` until prompt 9.1 builds it."""
-
-    state: Literal["missing", "proposed", "active"] = "missing"
-    version: int | None = None
-
-
 class Founding(BaseModel):
     id: UUID
     ref: str
@@ -216,7 +210,6 @@ class Founding(BaseModel):
     plan: str | None
     plan_detail: ServerPlan | None = None
     company: str | None
-    brand: FoundingBrand = Field(default_factory=FoundingBrand)
     created_at: datetime
     updated_at: datetime
     # ⟨additive⟩ who does what next
@@ -224,6 +217,10 @@ class Founding(BaseModel):
     audit_work: str | None = None
     proposal_work: str | None = None
     workspace: str | None = None
+    # ⟨1.4.6⟩ the step «مُهر شرکت» (§18.14), open once the company exists
+    brand: FoundingBrand = Field(
+        default_factory=lambda: FoundingBrand(state="missing", version=None)
+    )
 
 
 # ------------------------------------------------------------------- plans --
@@ -626,6 +623,7 @@ async def plan_of(tx: Tx, founding_id: UUID) -> dict[str, Any] | None:
 
 async def render(tx: Tx, r: dict[str, Any], ssh_sources: list[str] | None = None) -> Founding:
     plan = await plan_of(tx, r["id"])
+    brand = await brands.founding_brand(tx, r.get("new_company_id"))
     if ssh_sources is None:
         ssh_sources = await owner_ssh_sources(tx)
     a = r.get("audit")
@@ -646,14 +644,13 @@ async def render(tx: Tx, r: dict[str, Any], ssh_sources: list[str] | None = None
         plan=plan["ref"] if plan else None,
         plan_detail=render_plan(plan, ssh_sources) if plan else None,
         company=r.get("new_company"),
-        # The company's seal arrives with prompt 9.1 (§18.14).
-        brand=FoundingBrand(),
         created_at=r["created_at"],
         updated_at=r["updated_at"],
         created_by=actor(r["created_by_kind"], r["created_by_code"]),
         audit_work=r.get("audit_work_ref"),
         proposal_work=r.get("proposal_work_ref"),
         workspace=r.get("workspace_code"),
+        brand=brand,
     )
 
 
@@ -1096,13 +1093,23 @@ async def found_company(tx: Tx, d: dict[str, Any], p: dict[str, Any]) -> dict[st
 
 
 async def activate(
-    tx: Tx, who: Principal, f: dict[str, Any], *, step_up_id: UUID
+    tx: Tx, who: Principal, f: dict[str, Any], *, step_up_id: UUID, skip_brand: bool = False
 ) -> dict[str, Any]:
     """After the owner logged in on the new server: the company goes live and
     its CEO starts (the team of the proposal is the CEO's to hire, under the
-    hiring rules)."""
+    hiring rules). ⟨1.4.6⟩ Without an active brand: 409 not_ready (missing
+    ["brand"]) unless `skip_brand` (the company then shows its code)."""
     if f["state"] != "ready_for_login":
         raise ApiError(409, "validation_failed", f"{f['ref']} is {f['state']}")
+    has_brand = (await brands.founding_brand(tx, f["new_company_id"])).state == "active"
+    if not has_brand and not skip_brand:
+        raise ApiError(
+            409,
+            "not_ready",
+            "the company has no sealed brand; seal one or send skip_brand",
+            message_fa="مُهر شرکت هنوز ساخته نشده است: لوگو را بده و مُهر کن، یا بدون مُهر فعال کن.",
+            missing=["brand"],
+        )
     await tx.exec(
         "UPDATE core.companies SET status = 'active' WHERE id = :co AND status = 'paused'",
         co=f["new_company_id"],
@@ -1148,7 +1155,9 @@ async def activate(
         action_class="A2",
         target_kind="founding",
         target_ref=f["ref"],
-        summary=f"{code} active" + (f", {work_ref}" if work_ref else ""),
+        summary=f"{code} active"
+        + (f", {work_ref}" if work_ref else "")
+        + ("" if has_brand else ", without a sealed brand (skip_brand)"),
         step_up=True,
     )
     holding = await _holding(tx)

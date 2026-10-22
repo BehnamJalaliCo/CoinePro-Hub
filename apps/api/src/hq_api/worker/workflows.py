@@ -338,6 +338,22 @@ class FileProcess:
         return result
 
 
+@workflow.defn(name="BrandTrace")
+class BrandTrace:
+    """One brand version (prompt 9.1 §2): the owner's logo traced into a
+    vector mark by code in a sandboxed child (no model, no network)."""
+
+    @workflow.run
+    async def run(self, brand_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await workflow.execute_activity(
+            "brand_trace",
+            args=[brand_id],
+            start_to_close_timeout=timedelta(minutes=3),  # the child's own deadline is 60 s
+            retry_policy=RetryPolicy(maximum_attempts=2),
+        )
+        return result
+
+
 @workflow.defn(name="Transcribe")
 class Transcribe:
     """POST /transcribe (prompt 6 §3): one audio file to exact Persian text; the
@@ -382,6 +398,7 @@ WORKFLOWS = [
     ProtocolRun,
     OversightWeekly,
     FileProcess,
+    BrandTrace,
     Transcribe,
     AgentRun,
     SiteChecks,

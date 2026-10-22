@@ -144,6 +144,26 @@ async def file_uploaded(hub: Any, file_id: str) -> None:
         log.warning("could not start file processing", extra={"file": file_id})
 
 
+BRAND_WORKFLOW = "BrandTrace"
+
+
+async def brand_trace(hub: Any, brand_id: str) -> None:
+    """A brand version to trace (prompt 9.1 §2): code on the worker, no model."""
+    client = _client(hub)
+    if client is None:
+        return
+    try:
+        await client.start_workflow(
+            BRAND_WORKFLOW,
+            brand_id,
+            id=f"brand-{brand_id}",
+            task_queue=hub.settings.task_queue,
+            id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+        )
+    except Exception:  # noqa: BLE001 - reconcile_decisions resumes versions still processing
+        log.warning("could not start a brand trace", extra={"brand": brand_id})
+
+
 async def transcribe(hub: Any, file_id: str, timeout_s: int) -> dict[str, Any]:
     """Runs the transcription on the worker and waits for its result."""
     client = _client(hub)

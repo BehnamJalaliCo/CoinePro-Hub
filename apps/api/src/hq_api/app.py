@@ -27,6 +27,7 @@ from hq_api.routes import (
     audit_control,
     auth,
     backups,
+    brands,
     decisions,
     deliverables,
     egress,
@@ -157,6 +158,7 @@ def create_app(
         skills,
         academy,
         founding,
+        brands,
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")

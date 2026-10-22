@@ -458,6 +458,15 @@ async def test_a_repository_becomes_a_company_and_its_server(
     assert r.status_code == 403
     su_tok = await step_up(hub, sid, "founding.activate", f["ref"])
     r = await client.post(f"/api/v1/foundings/{f['ref']}/activate", headers={**h, **su_tok})
+    # ⟨1.4.6⟩ prompt 9.1 §4: no sealed brand yet -> 409 not_ready, missing ["brand"]
+    assert r.status_code == 409 and r.json()["code"] == "not_ready", r.text
+    assert r.json()["missing"] == ["brand"]
+    assert f["brand"] == {"state": "missing", "version": None}
+    r = await client.post(
+        f"/api/v1/foundings/{f['ref']}/activate",
+        headers={**h, **su_tok},  # the refused call rolled back: the step-up is unused
+        json={"skip_brand": True},
+    )
     assert r.status_code == 200 and r.json()["state"] == "active", r.text
     assert await su.fetchval("SELECT status FROM core.companies WHERE code = $1", code) == "active"
     start = await su.fetchval(
