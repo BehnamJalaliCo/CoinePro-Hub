@@ -250,11 +250,16 @@ async def test_a_judgement_protocol_is_the_overseers_work_within_the_daily_cap(
         again = await acts.protocol_run(llm["ref"])  # an hourly one would be the same
         assert again["skipped"] == "once_a_day"
         # No CEO approved a hire for review (or another test already ran it today).
-        assert (await acts.protocol_run("PR-098"))["skipped"] in ("nothing_to_review", "once_a_day")
+        # PR-098: nothing to review, already handed today, or a CEO's hire to review.
+        pr98 = await acts.protocol_run("PR-098")
+        assert pr98.get("why") == "nothing_to_review" or pr98.get("skipped") == "once_a_day" or (
+            pr98.get("work") and pr98.get("assignee") == OVR
+        ), pr98
         hub.settings = replace(real, oversight_model_runs_per_day=0)
+        # Over the count cap: deferred to the next day, never `skipped` (8.1 §2.2).
         assert await acts.protocol_run(capped["ref"]) == {
             "protocol": capped["ref"],
-            "skipped": "daily_cap",
+            "deferred": "daily_cap",
         }
     finally:
         hub.settings = real
@@ -347,7 +352,8 @@ async def test_a_hold_stops_the_card_and_only_the_owner_releases_it(
     assert err.value.type == "HoldingLocked"
     r = await client.post(f"/api/v1/oversight/holds/{hb['ref']}/cancel", headers=owner, json={})
     assert r.status_code == 200 and r.json()["state"] == "cancelled"
-    assert (await wk["acts"].decision_apply_effect(b["ref"]))["effect"] == "applied"
+    # A cancel cancels the action itself (8.1 §1.1): the effect never runs.
+    assert (await wk["acts"].decision_apply_effect(b["ref"]))["effect"] == "cancelled"
 
 
 @pytest.mark.usefixtures("done_runs")
@@ -768,7 +774,7 @@ async def test_with_the_share_spent_a_high_protocol_is_deferred_and_a_critical_o
         async with hub.db.tx(await hub.companies.ids()) as tx:
             assert await O.oversight_tokens_today(tx) >= 251_000
             assert await O.share_spent(tx, 1_000_000, 0.2)
-            assert not await O.share_spent(tx, 0, 0.2)  # no daily cap: no share either
+            assert await O.share_spent(tx, 0, 0.2)  # a cap of 0 is nothing (8.1)
         assert await acts.protocol_run(high["ref"]) == {
             "protocol": high["ref"],
             "deferred": "oversight_share",

@@ -138,7 +138,8 @@ class CodeSession(BaseModel):
     updated_at: datetime
     # ⟨additive⟩ the repository area it writes ("" = all), why it waits, its transcript
     area: str = ""
-    held: Literal["work_lock", "company_locked", "budget"] | None = None
+    # `hold`: the Chief Overseer's hold (contract §18.15), until the owner decides
+    held: Literal["work_lock", "company_locked", "budget", "hold"] | None = None
     transcript_file: UUID | None = None
 
 
@@ -684,6 +685,12 @@ async def ingest(tx: Tx, session_id: UUID, items: list[RuntimeEvent]) -> dict[st
     s = await load(tx, session_id, lock=True)
     if s["state"] in FINAL:
         return {"session": s, "interrupt": False, "finished": False}
+    if s["held"] == "hold":
+        # The overseer's hold (contract §18.15): nothing it reports now is taken
+        # (no step, no approval, no push); only what it spent is counted, and
+        # the runtime is interrupted again.
+        await _usage_only(tx, s, items)
+        return {"session": await load(tx, s["id"]), "interrupt": True, "finished": False}
     paused = s["held"] in ("company_locked", "budget")
     for ev in items:
         if (
@@ -751,6 +758,73 @@ async def ingest(tx: Tx, session_id: UUID, items: list[RuntimeEvent]) -> dict[st
         if ev.held == "budget" or Decimal(s["usd"]) >= Decimal(s["budget_usd"]):
             return {"session": await budget_stop(tx, s), "interrupt": True, "finished": True}
     return {"session": s, "interrupt": paused, "finished": False}
+
+
+async def _usage_only(tx: Tx, s: dict[str, Any], items: list[RuntimeEvent]) -> None:
+    usd = Decimal(s["usd"])
+    tin, tout = int(s["input_tokens"]), int(s["output_tokens"])
+    for ev in items:
+        if ev.usd is not None and Decimal(ev.usd) > usd:
+            usd = Decimal(ev.usd)
+        if ev.tokens:
+            tin, tout = tin + ev.tokens[0], tout + ev.tokens[1]
+    await tx.exec(
+        "UPDATE workshop.sessions SET usd = :u, input_tokens = :i, output_tokens = :o WHERE id = :id",
+        u=usd,
+        i=tin,
+        o=tout,
+        id=s["id"],
+    )
+
+
+async def overseer_hold(tx: Tx, ref: str) -> dict[str, Any] | None:
+    """The overseer's hold on a session (contract §18.15): it stops at once
+    (held `hold`; a running one goes idle and the caller interrupts it on its
+    runtime). The session keeps its area until the owner decides."""
+    s = await by_ref(tx, ref, lock=True)
+    if s["state"] in FINAL or s["held"] == "hold":
+        return None
+    state = "idle" if s["state"] in ("working", "waiting_approval") else s["state"]
+    await tx.exec(
+        "UPDATE workshop.sessions SET held = 'hold', state = :st WHERE id = :id",
+        st=state,
+        id=s["id"],
+    )
+    s = await load(tx, s["id"])
+    await append(
+        tx, s, "state", "ناظر کل سشن را نگه داشت؛ تا تصمیم مالک متوقف است",
+        {"state": state, "held": "hold"},
+    )  # fmt: skip
+    await emit_state(tx, s)
+    return s
+
+
+async def overseer_release(tx: Tx, ref: str) -> dict[str, Any] | None:
+    """The owner released the hold: the session goes on. One that had started
+    takes messages and is followed again; one that never reached its runtime
+    starts now (the caller starts it) unless its area is taken (back in line)."""
+    s = await by_ref(tx, ref, lock=True)
+    if s["state"] in FINAL or s["held"] != "hold":
+        return None
+    held = None
+    if not s["external_id"] and await lock_holder(tx, s["workspace_id"], s["area"], exclude=s["id"]):
+        held = "work_lock"
+    await tx.exec("UPDATE workshop.sessions SET held = :h WHERE id = :id", h=held, id=s["id"])
+    s = await load(tx, s["id"])
+    await append(
+        tx, s, "state", "مالک نگه‌داشت ناظر را برداشت؛ سشن ادامه میدهد",
+        {"state": s["state"], "held": held},
+    )  # fmt: skip
+    await emit_state(tx, s)
+    return s
+
+
+async def overseer_cancel(tx: Tx, ref: str) -> dict[str, Any] | None:
+    """The owner cancelled the held session: it stops for good."""
+    s = await by_ref(tx, ref, lock=True)
+    if s["state"] in FINAL:
+        return None
+    return await finish(tx, s, "stopped", "hold_cancelled", "مالک سشن نگه‌داشته را لغو کرد")
 
 
 async def budget_stop(tx: Tx, s: dict[str, Any]) -> dict[str, Any]:

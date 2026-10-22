@@ -88,9 +88,14 @@ class DecisionLifecycle:
                 result = await _act(
                     "decision_apply_effect", ref, limit=timedelta(minutes=2), retry=EFFECT_RETRY
                 )
+                if result.get("effect") == "cancelled":  # the owner cancelled its hold
+                    return {"ref": ref, **result, "result": "cancelled"}
                 return {"ref": ref, "result": "applied", **result}
             except ActivityError as err:
                 if _cause_type(err) == "HoldingLocked":
+                    # A company switch or a hold: wait like the holding lock,
+                    # never spin (prompt 08.1 §2.4).
+                    await workflow.sleep(timedelta(seconds=lock["retry_in_s"]))
                     continue
                 cause = err.cause
                 message = str(cause.message if isinstance(cause, ApplicationError) else err)

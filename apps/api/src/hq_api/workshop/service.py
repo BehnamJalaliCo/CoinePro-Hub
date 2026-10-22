@@ -251,6 +251,22 @@ async def paused(hub: Any) -> None:
     await resume(hub)
 
 
+async def overseer_held(hub: Any, s: dict[str, Any] | None) -> None:
+    """The overseer held a session (contract §18.15): interrupted at once on
+    its runtime (the record is already held)."""
+    if s is not None:
+        await interrupt(hub, [s])
+
+
+async def overseer_released(hub: Any, s: dict[str, Any] | None) -> None:
+    """The owner released the hold: a session that never reached its runtime
+    starts now (one that had started takes messages and is followed again)."""
+    if s is None or getattr(hub, "workshop", None) is None:
+        return
+    if s["state"] == "starting" and not s["external_id"] and s["held"] is None:
+        await start(hub, s["id"])
+
+
 async def resume(hub: Any) -> int:
     """Sessions waiting for a lifted company lock (or a freeze that ran out)
     that never reached their runtime: started now."""

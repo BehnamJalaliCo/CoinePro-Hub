@@ -634,6 +634,8 @@ async def propose(
             priority="P2",
             assignee_code=approver,
         )
+        # Watch mode holds a card a CEO decides as well (contract §18.15).
+        await oversight.hold_if_watching(tx, d)
         return d
     if not notify_owner:  # the owner wrote it (a direct hire): nothing to tell them
         return d
