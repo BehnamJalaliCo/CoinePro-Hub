@@ -291,6 +291,7 @@ async def resolve_mcp(body: ResolveIn, ctx: Ctx = Depends(internal_ctx)) -> Reso
     assert ctx.who.company_id is not None
     await allow(ctx, "mcp.call", {"company": ctx.who.company})
     made: str | None = None
+    server: ResolvedServer | None = None
     async with ctx.tx() as tx:
         row = await M.load(tx, body.server)
         if row is None:
@@ -315,14 +316,15 @@ async def resolve_mcp(body: ResolveIn, ctx: Ctx = Depends(internal_ctx)) -> Reso
                 return _card(body.tool, ref, pending=True)
         else:
             await _record(tx, ctx, body, cls, "resolved", None)
-        server = ResolvedServer(
-            key=row["key"],
-            transport=row["transport"],
-            url=row["url"],
-            auth_header=row["auth_header"],
-            secret=await M.secret(ctx.hub, row) if row["auth_header"] else None,
-            listing_sha256=row["listing_sha256"],
-        )
+        if made is None:  # a call that runs: the server, and its secret for this call
+            server = ResolvedServer(
+                key=row["key"],
+                transport=row["transport"],
+                url=row["url"],
+                auth_header=row["auth_header"],
+                secret=await M.secret(ctx.hub, row) if row["auth_header"] else None,
+                listing_sha256=row["listing_sha256"],
+            )
     if made is not None:
         await workflows_client.decision_created(ctx.hub, made)
         return _card(body.tool, made, pending=False)

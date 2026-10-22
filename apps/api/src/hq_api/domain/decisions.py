@@ -620,6 +620,14 @@ async def decide(
         raise ApiError(409, "decision_not_pending", f"{d['ref']} is {d['status']}")
     effect = "pending" if verdict == "approved" and d["kind"] in EFFECT_KINDS else "none"
     server = None
+    sealed_as_is = d["kind"] == "tool_enable" or (
+        d["kind"] == "a3_action" and (d["payload"] or {}).get("action") == "mcp_call"
+    )
+    if verdict == "approved" and amendments and sealed_as_is:
+        # Bound to exactly what it shows (a listing; a call's arguments and their hash).
+        raise ApiError(
+            422, "validation_failed", fields={"amendments": "this card is sealed as it is"}
+        )
     if verdict == "approved" and d["kind"] == "tool_enable":
         # Bound to the listing it shows: superseded (409) when the server changed.
         server = await mcp.sealed_listing(tx, d)

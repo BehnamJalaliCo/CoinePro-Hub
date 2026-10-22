@@ -428,6 +428,16 @@ async def test_an_approved_a3_card_runs_its_call_exactly_once(
     )
     assert payload["args"]["to"] == "sara@example.com" and payload["args"]["amount"] == 1500
     assert token not in json.dumps(payload) and payload["args"]["api_key"] == "[redacted]"
+    # The card is the call as it is: amending its arguments is refused.
+    seal = await step_up(hub, owner_session["session_id"], "decision.approve", card)
+    r = await client.post(
+        f"/api/v1/decisions/{card}/approve",
+        headers={**owner_session["headers"], **seal, **idem()},
+        json={"amendments": {"args": {"to": "other@example.com"}}},
+    )
+    assert r.status_code == 422 and r.json()["fields"] == {
+        "amendments": "this card is sealed as it is"
+    }
     assert (await decide(client, hub, owner_session, card, "approve")).status_code == 200
     # The follow-up is another run of the same agent.
     await _finish_runs(su, [me])
