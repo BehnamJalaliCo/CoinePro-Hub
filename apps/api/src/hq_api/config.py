@@ -174,6 +174,11 @@ class Settings:
     # Prompt 09: the provisioner's small API (pricing, the project's servers,
     # wake); empty while its opt-in profile is off (hq.sh sets it).
     provisioner_url: str = field(default_factory=lambda: _env("PROVISIONER_URL", ""))
+    # Review 9.2 §2.3: a running build the provisioner said nothing about for
+    # this long is failed (its callback wait of 60 minutes plus a margin).
+    provision_quiet_s: float = field(
+        default_factory=lambda: float(_env("HQ_PROVISION_QUIET_S", "4500"))
+    )
     workshop_model: str = field(default_factory=lambda: _env("WORKSHOP_MODEL", "claude-opus-5-5"))
     workshop_effort: str = field(default_factory=lambda: _env("WORKSHOP_EFFORT", "high"))
 

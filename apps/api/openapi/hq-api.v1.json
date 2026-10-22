@@ -6549,6 +6549,9 @@
             ],
             "title": "Audit Work"
           },
+          "brand": {
+            "$ref": "#/components/schemas/FoundingBrand"
+          },
           "code": {
             "anyOf": [
               {
@@ -6627,6 +6630,17 @@
           "plan": {
             "anyOf": [
               {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "plan_detail": {
+            "anyOf": [
+              {
                 "$ref": "#/components/schemas/ServerPlan"
               },
               {
@@ -6662,9 +6676,7 @@
             "type": "string"
           },
           "source": {
-            "additionalProperties": true,
-            "title": "Source",
-            "type": "object"
+            "$ref": "#/components/schemas/FoundingSource"
           },
           "state": {
             "title": "State",
@@ -6756,6 +6768,34 @@
         "title": "FoundingAudit",
         "type": "object"
       },
+      "FoundingBrand": {
+        "description": "The step «مُهر شرکت» (§18.14): `missing` until prompt 9.1 builds it.",
+        "properties": {
+          "state": {
+            "default": "missing",
+            "enum": [
+              "missing",
+              "proposed",
+              "active"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "title": "FoundingBrand",
+        "type": "object"
+      },
       "FoundingIn": {
         "additionalProperties": false,
         "properties": {
@@ -6767,6 +6807,39 @@
           "source"
         ],
         "title": "FoundingIn",
+        "type": "object"
+      },
+      "FoundingSource": {
+        "properties": {
+          "brief_md": {
+            "default": "",
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "repo",
+              "idea"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "FoundingSource",
         "type": "object"
       },
       "Frame": {
@@ -7677,6 +7750,25 @@
           "companies"
         ],
         "title": "HoldingState",
+        "type": "object"
+      },
+      "HostKey": {
+        "description": "One of the new server's SSH host keys, as `ssh` shows it on the first\nlogin (`SHA256:` + base64 of the key blob's sha256).",
+        "properties": {
+          "fingerprint_sha256": {
+            "title": "Fingerprint Sha256",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "fingerprint_sha256"
+        ],
+        "title": "HostKey",
         "type": "object"
       },
       "Hourly": {
@@ -10752,6 +10844,33 @@
         "title": "Page[Finding]",
         "type": "object"
       },
+      "Page_Founding_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Founding"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Founding]",
+        "type": "object"
+      },
       "Page_Inquiry_": {
         "properties": {
           "items": {
@@ -11177,6 +11296,62 @@
           "work_user"
         ],
         "title": "PlanIn",
+        "type": "object"
+      },
+      "PlanPrice": {
+        "description": "Where `monthly_eur` came from (§18.16): Hetzner's monthly net prices, EUR.",
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "ipv4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv4"
+          },
+          "network": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server"
+          },
+          "source": {
+            "default": "",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "title": "PlanPrice",
         "type": "object"
       },
       "Planner": {
@@ -12241,14 +12416,12 @@
           "server": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/RunServer"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Server"
+            ]
           },
           "state": {
             "enum": [
@@ -13670,6 +13843,59 @@
         "title": "RunDetail",
         "type": "object"
       },
+      "RunServer": {
+        "properties": {
+          "host_keys": {
+            "items": {
+              "$ref": "#/components/schemas/HostKey"
+            },
+            "title": "Host Keys",
+            "type": "array"
+          },
+          "ipv4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv4"
+          },
+          "ipv6": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv6"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "private_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Private Ip"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "RunServer",
+        "type": "object"
+      },
       "RunTokens": {
         "properties": {
           "cache_read": {
@@ -14231,14 +14457,12 @@
           "price": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/PlanPrice"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Price"
+            ]
           },
           "private_network": {
             "title": "Private Network",
@@ -23904,7 +24128,9 @@
                     "errand_action",
                     "lesson_adoption",
                     "protocol",
-                    "tool_enable"
+                    "tool_enable",
+                    "company_found",
+                    "server_plan"
                   ],
                   "type": "string"
                 },
@@ -27834,7 +28060,7 @@
     },
     "/api/v1/foundings": {
       "get": {
-        "description": "Newest first.",
+        "description": "A `Page`, newest first (§18.16).",
         "operationId": "list_foundings",
         "parameters": [
           {
@@ -27853,78 +28079,120 @@
               ],
               "title": "State"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
           }
         ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "example": [
-                  {
-                    "audit": {
-                      "deliverable": "O-000456",
-                      "report_md": "x",
-                      "scores": {},
-                      "session_ref": "x"
-                    },
-                    "audit_work": "x",
-                    "code": "TY",
-                    "company": "TY",
-                    "created_at": "2026-10-17T05:42:00Z",
-                    "created_by": {
-                      "code": "TY-CEO",
-                      "display_fa": "x",
-                      "kind": "agent"
-                    },
-                    "decision_ref": "x",
-                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "name_en": "TradeYar",
-                    "name_fa": "تریدیار",
-                    "plan": {
+                "example": {
+                  "items": [
+                    {
+                      "audit": {
+                        "deliverable": "O-000456",
+                        "report_md": "x",
+                        "scores": {},
+                        "session_ref": "x"
+                      },
+                      "audit_work": "x",
+                      "brand": {
+                        "state": "missing",
+                        "version": 1
+                      },
+                      "code": "TY",
                       "company": "TY",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "created_by": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
                       "decision_ref": "x",
-                      "digest": "x",
-                      "firewall": [
-                        {}
-                      ],
-                      "founding": "x",
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                      "image": "x",
-                      "location": "x",
-                      "monthly_eur": "x",
-                      "name": "report.pdf",
-                      "price": {},
-                      "private_network": false,
-                      "problems": [
-                        "x"
-                      ],
+                      "name_en": "TradeYar",
+                      "name_fa": "تریدیار",
+                      "plan": "x",
+                      "plan_detail": {
+                        "company": "TY",
+                        "decision_ref": "x",
+                        "digest": "x",
+                        "firewall": [
+                          {}
+                        ],
+                        "founding": "x",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "image": "x",
+                        "location": "x",
+                        "monthly_eur": "x",
+                        "name": "report.pdf",
+                        "price": {
+                          "at": null,
+                          "ipv4": null,
+                          "network": null,
+                          "server": null,
+                          "source": null
+                        },
+                        "private_network": false,
+                        "problems": [
+                          "x"
+                        ],
+                        "ref": "W-000789",
+                        "repo": "x",
+                        "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "sealed_at": "2026-10-17T05:42:00Z",
+                        "software": [
+                          "x"
+                        ],
+                        "state": "x",
+                        "type": "x",
+                        "version": 1,
+                        "work_user": "x"
+                      },
+                      "proposal": {},
+                      "proposal_work": "x",
                       "ref": "W-000789",
-                      "repo": "x",
-                      "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                      "sealed_at": "2026-10-17T05:42:00Z",
-                      "software": [
-                        "x"
-                      ],
+                      "source": {
+                        "brief_md": "x",
+                        "kind": "repo",
+                        "repo": "x"
+                      },
                       "state": "x",
-                      "type": "x",
-                      "version": 1,
-                      "work_user": "x"
-                    },
-                    "proposal": {},
-                    "proposal_work": "x",
-                    "ref": "W-000789",
-                    "source": {},
-                    "state": "x",
-                    "updated_at": "2026-10-17T05:42:00Z",
-                    "workspace": "x"
-                  }
-                ],
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "workspace": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Founding"
-                  },
-                  "title": "Response List Foundings",
-                  "type": "array"
+                  "$ref": "#/components/schemas/Page_Founding_"
                 }
               }
             },
@@ -28023,6 +28291,10 @@
                     "session_ref": "x"
                   },
                   "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
                   "code": "TY",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
@@ -28035,7 +28307,8 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
-                  "plan": {
+                  "plan": "x",
+                  "plan_detail": {
                     "company": "TY",
                     "decision_ref": "x",
                     "digest": "x",
@@ -28048,7 +28321,13 @@
                     "location": "x",
                     "monthly_eur": "x",
                     "name": "report.pdf",
-                    "price": {},
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
                     "private_network": false,
                     "problems": [
                       "x"
@@ -28068,7 +28347,11 @@
                   "proposal": {},
                   "proposal_work": "x",
                   "ref": "W-000789",
-                  "source": {},
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
                   "state": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
@@ -28169,6 +28452,10 @@
                     "session_ref": "x"
                   },
                   "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
                   "code": "TY",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
@@ -28181,7 +28468,8 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
-                  "plan": {
+                  "plan": "x",
+                  "plan_detail": {
                     "company": "TY",
                     "decision_ref": "x",
                     "digest": "x",
@@ -28194,7 +28482,13 @@
                     "location": "x",
                     "monthly_eur": "x",
                     "name": "report.pdf",
-                    "price": {},
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
                     "private_network": false,
                     "problems": [
                       "x"
@@ -28214,7 +28508,11 @@
                   "proposal": {},
                   "proposal_work": "x",
                   "ref": "W-000789",
-                  "source": {},
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
                   "state": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
@@ -28315,6 +28613,10 @@
                     "session_ref": "x"
                   },
                   "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
                   "code": "TY",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
@@ -28327,7 +28629,8 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
-                  "plan": {
+                  "plan": "x",
+                  "plan_detail": {
                     "company": "TY",
                     "decision_ref": "x",
                     "digest": "x",
@@ -28340,7 +28643,13 @@
                     "location": "x",
                     "monthly_eur": "x",
                     "name": "report.pdf",
-                    "price": {},
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
                     "private_network": false,
                     "problems": [
                       "x"
@@ -28360,7 +28669,11 @@
                   "proposal": {},
                   "proposal_work": "x",
                   "ref": "W-000789",
-                  "source": {},
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
                   "state": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
@@ -28436,7 +28749,7 @@
     },
     "/api/v1/foundings/{ref}/cancel": {
       "post": {
-        "description": "Before it is active; a company already made stays (paused), never\ndeleted. Requires `Idempotency-Key`.",
+        "description": "Before it is active, and not while a build runs; it closes everything\n(§18.16): its pending cards are withdrawn, a sealed but unrun plan is\nproposed again, its audit and proposal work is cancelled and its workshop\nsession stops. A company already made stays (paused), never deleted.\nRequires `Idempotency-Key`.",
         "operationId": "cancel_founding",
         "parameters": [
           {
@@ -28461,6 +28774,10 @@
                     "session_ref": "x"
                   },
                   "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
                   "code": "TY",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
@@ -28473,7 +28790,8 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
-                  "plan": {
+                  "plan": "x",
+                  "plan_detail": {
                     "company": "TY",
                     "decision_ref": "x",
                     "digest": "x",
@@ -28486,7 +28804,13 @@
                     "location": "x",
                     "monthly_eur": "x",
                     "name": "report.pdf",
-                    "price": {},
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
                     "private_network": false,
                     "problems": [
                       "x"
@@ -28506,7 +28830,11 @@
                   "proposal": {},
                   "proposal_work": "x",
                   "ref": "W-000789",
-                  "source": {},
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
                   "state": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
@@ -33970,7 +34298,13 @@
                     "location": "x",
                     "monthly_eur": "x",
                     "name": "report.pdf",
-                    "price": {},
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
                     "private_network": false,
                     "problems": [
                       "x"
@@ -34093,7 +34427,13 @@
                   "location": "x",
                   "monthly_eur": "x",
                   "name": "report.pdf",
-                  "price": {},
+                  "price": {
+                    "at": "x",
+                    "ipv4": "x",
+                    "network": "x",
+                    "server": "x",
+                    "source": "x"
+                  },
                   "private_network": false,
                   "problems": [
                     "x"
@@ -34211,7 +34551,13 @@
                   "location": "x",
                   "monthly_eur": "x",
                   "name": "report.pdf",
-                  "price": {},
+                  "price": {
+                    "at": "x",
+                    "ipv4": "x",
+                    "network": "x",
+                    "server": "x",
+                    "source": "x"
+                  },
                   "private_network": false,
                   "problems": [
                     "x"
@@ -34324,7 +34670,18 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "login": {},
                   "plan": "x",
-                  "server": {},
+                  "server": {
+                    "host_keys": [
+                      {
+                        "fingerprint_sha256": "x",
+                        "type": "x"
+                      }
+                    ],
+                    "ipv4": "x",
+                    "ipv6": "x",
+                    "name": "report.pdf",
+                    "private_ip": "x"
+                  },
                   "state": "queued",
                   "steps": [
                     {
@@ -34541,7 +34898,18 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "login": {},
                   "plan": "x",
-                  "server": {},
+                  "server": {
+                    "host_keys": [
+                      {
+                        "fingerprint_sha256": "x",
+                        "type": "x"
+                      }
+                    ],
+                    "ipv4": "x",
+                    "ipv6": "x",
+                    "name": "report.pdf",
+                    "private_ip": "x"
+                  },
                   "state": "queued",
                   "steps": [
                     {
@@ -49841,7 +50209,7 @@
     },
     "/internal/v1/provisioning/plans": {
       "post": {
-        "description": "server.plan (A1; a CTO for its company, the platform SRE for any and for\na founding): a plan with its cost; the owner seals it, the provisioner (code,\nnot an agent) builds it. A founding's plan waits for the company to exist.",
+        "description": "server.plan (A1; a CTO for its own company, a holding role for any and\nfor a founding): a plan with its cost; the owner seals it, the provisioner\n(code, not an agent) builds it. A founding's plan waits for the company to\nexist. Plans of a founding are written by holding roles only (§18.16):\nanyone else is refused before the founding is even looked at.",
         "operationId": "agent_server_plan",
         "requestBody": {
           "content": {
@@ -49895,7 +50263,13 @@
                   "location": "x",
                   "monthly_eur": "x",
                   "name": "report.pdf",
-                  "price": {},
+                  "price": {
+                    "at": "x",
+                    "ipv4": "x",
+                    "network": "x",
+                    "server": "x",
+                    "source": "x"
+                  },
                   "private_network": false,
                   "problems": [
                     "x"

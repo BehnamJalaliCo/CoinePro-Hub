@@ -19,10 +19,19 @@ the step-up target is the digest, the api recomputes it, so a plan changed
 after the owner saw it cannot be sealed, and the provisioner refuses a plan
 whose digest differs from its seal. The provisioner is code: it executes the
 sealed plan only; this module hands runs out and records what it reports.
+
+Review 9.2 (contract §18.16): cancel closes everything (its cards are
+withdrawn, a sealed but unrun plan is proposed again, its audit and proposal
+work is cancelled, its workshop session stops) and nothing of a cancelled
+founding is ever sealed, created or built; a failed run returns the
+founding to `sealed` (resume or cancel); a run the provisioner went quiet on
+is failed by the reaper; SSH comes only from the owner's own addresses.
 """
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import logging
@@ -69,6 +78,11 @@ DEFAULT_LOCATION = "fsn1"
 AUDITOR_ROLES = ("hub_platform_sre", "aiops_head")  # the first active one audits
 PROPOSER_ROLE = "aiops_head"
 _SCORE = re.compile(r"^\s*([0-9]{1,2}(?:\.[0-9])?)\s*(?:/\s*10)?")
+CANCEL_NOTE = "تأسیس لغو شد؛ این کارت دیگر معتبر نیست."
+# The reaper (review 9.2 §2.3): a run the provisioner has said nothing about
+# for this long is failed (the provisioner's longest silent wait is the
+# callback's 60 minutes; the margin covers a slow poll).
+REAP_EVERY_S = 300
 
 
 # ------------------------------------------------------------------ models --
@@ -93,6 +107,16 @@ class PlanFields(BaseModel):
     repo: str | None = Field(default=None, max_length=200)
 
 
+class PlanPrice(BaseModel):
+    """Where `monthly_eur` came from (§18.16): Hetzner's monthly net prices, EUR."""
+
+    server: str | None = None
+    ipv4: str | None = None
+    network: str | None = None
+    source: str = ""
+    at: str | None = None
+
+
 class ServerPlan(BaseModel):
     id: UUID
     ref: str
@@ -112,9 +136,9 @@ class ServerPlan(BaseModel):
     state: str
     decision_ref: str | None
     run: UUID | None
-    # ⟨additive⟩ what stops a seal (empty: it may be sealed), and the price's source
+    # §18.16: what stops a seal (empty: it may be sealed), the price's source
     problems: list[str] = Field(default_factory=list)
-    price: dict[str, Any] | None = None
+    price: PlanPrice | None = None
     sealed_at: datetime | None = None
     version: int = 1
 
@@ -128,12 +152,29 @@ class Step(BaseModel):
     log_tail: list[str] = Field(default_factory=list)
 
 
+class HostKey(BaseModel):
+    """One of the new server's SSH host keys, as `ssh` shows it on the first
+    login (`SHA256:` + base64 of the key blob's sha256)."""
+
+    type: str
+    fingerprint_sha256: str
+
+
+class RunServer(BaseModel):
+    name: str
+    ipv4: str | None = None
+    ipv6: str | None = None
+    private_ip: str | None = None
+    # §18.16: the owner checks them before the first login
+    host_keys: list[HostKey] = Field(default_factory=list)
+
+
 class ProvisionRun(BaseModel):
     id: UUID
     plan: str
     state: Literal["queued", "running", "done", "failed"]
     steps: list[Step]
-    server: dict[str, Any] | None
+    server: RunServer | None
     login: dict[str, Any] | None
     error: dict[str, Any] | None = None
     created_at: datetime
@@ -147,19 +188,35 @@ class FoundingAudit(BaseModel):
     deliverable: str | None = None
 
 
+class FoundingSource(BaseModel):
+    kind: Literal["repo", "idea"]
+    repo: str | None = None
+    brief_md: str = ""
+
+
+class FoundingBrand(BaseModel):
+    """The step «مُهر شرکت» (§18.14): `missing` until prompt 9.1 builds it."""
+
+    state: Literal["missing", "proposed", "active"] = "missing"
+    version: int | None = None
+
+
 class Founding(BaseModel):
     id: UUID
     ref: str
     name_fa: str | None
     name_en: str | None
     code: str | None
-    source: dict[str, Any]
+    source: FoundingSource
     state: str
     audit: FoundingAudit | None
     proposal: dict[str, Any] | None
     decision_ref: str | None
-    plan: ServerPlan | None
+    # §18.16: the plan is a ref; the plan itself beside it
+    plan: str | None
+    plan_detail: ServerPlan | None = None
     company: str | None
+    brand: FoundingBrand = Field(default_factory=FoundingBrand)
     created_at: datetime
     updated_at: datetime
     # ⟨additive⟩ who does what next
@@ -201,11 +258,40 @@ def plan_doc(r: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def render_plan(r: dict[str, Any]) -> ServerPlan:
+def render_price(src: dict[str, Any] | None) -> PlanPrice | None:
+    """The price's source as §18.16 serves it (also from a row priced before 9.2)."""
+    if not src:
+        return None
+    return PlanPrice(
+        server=src.get("server") or src.get("server_monthly_net"),
+        ipv4=src.get("ipv4") or src.get("ipv4_monthly_net"),
+        network=src.get("network") or "0.00",
+        source=str(src.get("source") or ""),
+        at=src.get("at"),
+    )
+
+
+async def owner_ssh_sources(tx: Tx) -> list[str]:
+    """The owner's addresses SSH may come from (owner settings)."""
+    return [
+        str(s)
+        for s in await tx.scalar("SELECT provision_ssh_sources FROM owner.settings WHERE id = 1")
+        or []
+    ]
+
+
+def plan_problems(r: dict[str, Any], ssh_sources: list[str]) -> list[str]:
+    """What stops this plan's seal: the shared rules (SSH from the owner's
+    addresses only) and, here, a price (no price, no seal)."""
     doc = plan_doc(r)
-    probs = P.problems(doc)
+    probs = P.problems(doc, ssh_sources=ssh_sources)
     if doc["monthly_eur"] is None:
         probs.append("monthly_eur: no price yet (the provisioner is off: make hetzner-token)")
+    return probs
+
+
+def render_plan(r: dict[str, Any], ssh_sources: list[str]) -> ServerPlan:
+    doc = plan_doc(r)
     return ServerPlan(
         **{k: v for k, v in doc.items() if k != "id"},
         id=r["id"],
@@ -213,8 +299,8 @@ def render_plan(r: dict[str, Any]) -> ServerPlan:
         state=r["state"],
         decision_ref=r.get("decision_ref"),
         run=r.get("run_id"),
-        problems=probs if r["state"] == "proposed" else [],
-        price=r.get("price"),
+        problems=plan_problems(r, ssh_sources) if r["state"] == "proposed" else [],
+        price=render_price(r.get("price")),
         sealed_at=r.get("sealed_at"),
         version=r["version"],
     )
@@ -277,6 +363,11 @@ async def save_plan(
     row: dict[str, Any] | None = None
     if ref is not None:
         cur = await load_plan(tx, ref, lock=True)
+        founding_id = cur["founding_id"]
+    if await founding_state(tx, founding_id) == "cancelled":
+        # Nothing of a cancelled founding is planned, carded or sealed again.
+        raise ApiError(409, "validation_failed", "the founding is cancelled")
+    if ref is not None:
         if cur["state"] not in ("proposed", "sealed"):
             raise ApiError(409, "validation_failed", f"{ref} is {cur['state']}: make a new plan")
         if cur["company_id"] != company_id:
@@ -295,7 +386,11 @@ async def save_plan(
                    private_network = :pn, firewall = CAST(:fw AS jsonb), software = CAST(:sw AS jsonb),
                    work_user = :wu, repo = :repo, monthly_eur = :eur, price = CAST(:price AS jsonb),
                    state = 'proposed', sealed_digest = NULL, sealed_at = NULL, seal_step_up_id = NULL,
-                   decision_id = CASE WHEN :voided THEN NULL ELSE decision_id END,
+                   decision_id = CASE WHEN :voided OR NOT EXISTS (
+                                          SELECT 1 FROM cartable.decisions dd
+                                          WHERE dd.id = provisioning.plans.decision_id
+                                            AND dd.status = 'pending')
+                                      THEN NULL ELSE decision_id END,
                    version = version + 1, updated_at = now()
                WHERE id = :id""",
             id=cur["id"],
@@ -406,10 +501,19 @@ async def seal(tx: Tx, who: Principal, row: dict[str, Any], *, step_up_id: UUID)
 
     if row["state"] != "proposed":
         raise ApiError(409, "validation_failed", f"{row['ref']} is {row['state']}")
+    if row["founding_id"] is not None:
+        # Nothing of a cancelled founding is ever sealed (§18.16).
+        fstate = await tx.scalar(
+            "SELECT state FROM core.foundings WHERE id = :f FOR SHARE", f=row["founding_id"]
+        )
+        if fstate != "sealed":
+            raise ApiError(
+                409, "validation_failed", f"the founding {row['founding_ref']} is {fstate}"
+            )
     doc = plan_doc(row)
     if P.digest(doc) != row["digest"]:  # never: every write recomputes it
         raise ApiError(409, "seal_mismatch", "the plan changed: look at it again")
-    probs = P.problems(doc)
+    probs = P.problems(doc, ssh_sources=await owner_ssh_sources(tx))
     if probs:
         raise ApiError(
             422, "plan_invalid", fields={f"plan.{i}": p[:200] for i, p in enumerate(probs[:20])}
@@ -424,6 +528,14 @@ async def seal(tx: Tx, who: Principal, row: dict[str, Any], *, step_up_id: UUID)
         await plan_card(tx, row)
         row = await load_plan(tx, row["ref"])
     d = await D.load(tx, row["decision_ref"], lock=True)
+    if d["status"] not in ("pending", "approved"):
+        # The owner declined this plan's card, or it lapsed (§4): a new
+        # version of the plan gets a new card.
+        raise ApiError(
+            409,
+            "validation_failed",
+            f"the plan's card {d['ref']} is {d['status']}: revise the plan",
+        )
     if d["status"] == "pending":
         await D.decide(tx, who, d, "approved", note=f"مُهر طرح {row['ref']}", step_up_id=step_up_id)
     await tx.exec(
@@ -476,16 +588,14 @@ async def price_of(
         eur = Decimal(str(data["monthly_eur"])).quantize(Decimal("0.01"))
     except (KeyError, ArithmeticError, ValueError):
         return None, None
-    keep = (
-        "monthly_eur",
-        "server_monthly_net",
-        "ipv4_monthly_net",
-        "monthly_eur_gross",
-        "vat_rate",
-    )
-    src = {k: str(data[k]) for k in keep if k in data}
+    keep = ("monthly_eur", "monthly_eur_gross", "vat_rate")
+    src: dict[str, Any] = {k: str(data[k]) for k in keep if k in data}
     src.update(
-        source="hetzner /pricing (net, with the primary IPv4)", at=datetime.now(UTC).isoformat()
+        server=str(data["server_monthly_net"]) if "server_monthly_net" in data else None,
+        ipv4=str(data["ipv4_monthly_net"]) if "ipv4_monthly_net" in data else None,
+        network="0.00",  # a Hetzner private network costs nothing
+        source="hetzner /pricing (net, with the primary IPv4)",
+        at=datetime.now(UTC).isoformat(),
     )
     return eur, src
 
@@ -514,22 +624,30 @@ async def plan_of(tx: Tx, founding_id: UUID) -> dict[str, Any] | None:
     )
 
 
-async def render(tx: Tx, r: dict[str, Any]) -> Founding:
+async def render(tx: Tx, r: dict[str, Any], ssh_sources: list[str] | None = None) -> Founding:
     plan = await plan_of(tx, r["id"])
+    if ssh_sources is None:
+        ssh_sources = await owner_ssh_sources(tx)
     a = r.get("audit")
+    src = r["source"] or {}
     return Founding(
         id=r["id"],
         ref=r["ref"],
         name_fa=r["name_fa"],
         name_en=r["name_en"],
         code=r["code"],
-        source=r["source"],
+        source=FoundingSource(
+            kind=src["kind"], repo=src.get("repo"), brief_md=str(src.get("brief_md") or "")
+        ),
         state=r["state"],
         audit=FoundingAudit.model_validate(a) if a else None,
         proposal=r.get("proposal"),
         decision_ref=r.get("decision_ref"),
-        plan=render_plan(plan) if plan else None,
+        plan=plan["ref"] if plan else None,
+        plan_detail=render_plan(plan, ssh_sources) if plan else None,
         company=r.get("new_company"),
+        # The company's seal arrives with prompt 9.1 (§18.14).
+        brand=FoundingBrand(),
         created_at=r["created_at"],
         updated_at=r["updated_at"],
         created_by=actor(r["created_by_kind"], r["created_by_code"]),
@@ -765,6 +883,17 @@ async def check_proposal(tx: Tx, payload: dict[str, Any], company_id: UUID) -> N
         )
     if f["state"] == "proposed" and f["decision_id"] is not None:
         raise ApiError(409, "validation_failed", fields={"payload.founding": "already proposed"})
+    if payload.get("plan"):
+        # A plan named on the card is this founding's own (else it is refused, never ignored).
+        own = await tx.scalar(
+            "SELECT 1 FROM provisioning.plans WHERE ref = :r AND founding_id = :f",
+            r=payload["plan"],
+            f=f["id"],
+        )
+        if not own:
+            raise ApiError(
+                422, "validation_failed", fields={"payload.plan": "not a plan of this founding"}
+            )
     if await tx.scalar("SELECT 1 FROM core.companies WHERE code = :c", c=payload["code"]) or (
         await tx.scalar(
             "SELECT 1 FROM core.foundings WHERE code = :c AND state <> 'cancelled' AND id <> :id",
@@ -794,9 +923,8 @@ async def default_plan(tx: Tx, code: str, repo: str | None) -> PlanFields:
         if sources
         else []
     )
-    user = code.lower()
-    if len(user) < 2 or user in P.RESERVED_USERS:
-        user = f"{user}-ops"
+    # A new account, never one of the system's (MAIL, PROXY, BACKUP ... are codes too).
+    user = P.default_work_user(code)
     return PlanFields(
         name=f"{code.lower()}-app-1",
         type=DEFAULT_TYPE,
@@ -885,10 +1013,18 @@ async def proposal_declined(tx: Tx, d: dict[str, Any], verdict: str) -> None:
 async def found_company(tx: Tx, d: dict[str, Any], p: dict[str, Any]) -> dict[str, Any]:
     """The effect of a sealed company_found card: the company as DATA (the
     standard template's chosen departments, paused until activation), its
-    workspace, and the server plan's own card. Idempotent."""
+    workspace, and the server plan's own card. Idempotent. Only the card the
+    founding waits for founds it (§18.16): a cancelled founding, or a card it
+    no longer waits for, makes nothing."""
     f = await load(tx, p["founding"], lock=True)
-    if f["new_company_id"] is not None:
+    if f["new_company_id"] is not None and f["decision_id"] == d["id"]:
         return {"founding": f["ref"], "company": f["new_company"]}
+    if f["state"] != "proposed" or f["decision_id"] != d["id"]:
+        log.warning(
+            "founding: card approved for a founding that does not wait for it",
+            extra={"founding": f["ref"], "decision": d["ref"], "state": f["state"]},
+        )
+        return {"founding": f["ref"], "company": None, "skipped": f"the founding is {f['state']}"}
     await tx.exec("SELECT pg_advisory_xact_lock(hashtext('core.companies.color_index'))")
     co = await tx.one(
         """INSERT INTO core.companies (code, name, kind, name_fa, name_en, color_index, template, status)
@@ -1020,24 +1156,86 @@ async def activate(
     return await load(tx, f["ref"])
 
 
-async def cancel(tx: Tx, who: Principal, f: dict[str, Any]) -> dict[str, Any]:
-    """Before it is active: the founding ends; its read-only grant is revoked.
-    A company already made stays (paused): nothing is ever deleted here."""
+async def cancel(
+    tx: Tx, who: Principal, f: dict[str, Any]
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Before it is active, cancel closes everything (§18.16): its pending
+    company_found and server_plan cards are withdrawn, a sealed but unrun plan
+    is proposed again, its audit and proposal work is cancelled, its read-only
+    grant is revoked and its workshop sessions stop (returned, for the
+    runtime). A company already made stays (paused): nothing is deleted here.
+    Not while a build is queued or running (a failed one returns the
+    founding to `sealed`)."""
     if f["state"] in ("active", "cancelled"):
         raise ApiError(409, "validation_failed", f"{f['ref']} is {f['state']}")
-    if f["state"] in ("provisioning",):
+    building = await tx.scalar(
+        """SELECT 1 FROM provisioning.runs r JOIN provisioning.plans p ON p.id = r.plan_id
+           WHERE p.founding_id = :f AND r.state IN ('queued', 'running') LIMIT 1""",
+        f=f["id"],
+    )
+    if f["state"] == "provisioning" or building:
         raise ApiError(409, "validation_failed", "a server is being built: wait for it")
+    holding = await _holding(tx)
+    cards = await tx.all(
+        """UPDATE cartable.decisions d
+              SET status = 'withdrawn', decided_at = now(), decided_by_kind = 'service',
+                  decided_by_code = 'system', note = :note
+             FROM core.companies c
+            WHERE c.id = d.company_id AND d.status = 'pending'
+              AND ((d.kind = 'company_found' AND d.payload ->> 'founding' = :ref)
+                OR (d.kind = 'server_plan' AND (
+                      d.id IN (SELECT decision_id FROM provisioning.plans
+                                WHERE founding_id = :f AND decision_id IS NOT NULL)
+                   OR d.payload ->> 'plan' IN (SELECT ref FROM provisioning.plans
+                                                WHERE founding_id = :f))))
+        RETURNING d.ref, d.kind, c.code AS company""",
+        note=CANCEL_NOTE,
+        ref=f["ref"],
+        f=f["id"],
+    )
+    unsealed = await tx.all(
+        """UPDATE provisioning.plans SET state = 'proposed', sealed_digest = NULL, sealed_at = NULL,
+               seal_step_up_id = NULL, decision_id = NULL, updated_at = now()
+           WHERE founding_id = :f AND state = 'sealed'
+        RETURNING ref, company_id""",
+        f=f["id"],
+    )
+    work = await tx.all(
+        """WITH RECURSIVE down AS (
+               SELECT id FROM work.work WHERE id = ANY(CAST(:ids AS uuid[]))
+               UNION ALL SELECT c.id FROM work.work c JOIN down ON c.parent_id = down.id)
+           UPDATE work.work w SET status = 'cancelled', close_reason = :r, closed_at = now()
+             FROM core.companies c
+            WHERE w.id IN (SELECT id FROM down) AND w.status = ANY(CAST(:open AS text[]))
+              AND c.id = w.company_id
+        RETURNING w.ref, c.code AS company""",
+        ids=[str(i) for i in (f["audit_work_id"], f["proposal_work_id"]) if i],
+        r=f"founding {f['ref']} cancelled",
+        open=list(W.OPEN),
+    )
+    stopped: list[dict[str, Any]] = []
     if f["grant_id"]:
         from hq_api.workshop import domain as workshop
 
         g = await tx.scalar("SELECT ref FROM workshop.grants WHERE id = :g", g=f["grant_id"])
         if g:
-            await workshop.revoke_grant(tx, who, workshop.direct_audit(who), g)
+            _grant, stopped = await workshop.revoke_grant(tx, who, workshop.direct_audit(who), g)
     await tx.exec(
         """UPDATE core.foundings SET state = 'cancelled', cancelled_at = now(), updated_at = now()
            WHERE id = :id""",
         id=f["id"],
     )
+    for p in unsealed:
+        await audit.record(
+            tx,
+            who,
+            company_id=p["company_id"],
+            action="provision.seal_void",
+            action_class="A1",
+            target_kind="server_plan",
+            target_ref=p["ref"],
+            summary=f"the founding {f['ref']} was cancelled: not built, back to proposed",
+        )
     await audit.record(
         tx,
         who,
@@ -1046,11 +1244,23 @@ async def cancel(tx: Tx, who: Principal, f: dict[str, Any]) -> dict[str, Any]:
         action_class="A1",
         target_kind="founding",
         target_ref=f["ref"],
-        summary=f"cancelled at {f['state']}",
+        summary=(
+            f"cancelled at {f['state']}: {len(cards)} card(s) withdrawn, {len(unsealed)} plan(s) "
+            f"unsealed, {len(work)} work item(s) and {len(stopped)} session(s) stopped"
+        )[:300],
     )
-    holding = await _holding(tx)
+    for c in cards:
+        await events.emit(
+            tx,
+            c["company"],
+            "decision.updated",
+            c["ref"],
+            {"status": "withdrawn", "kind": c["kind"], "note": CANCEL_NOTE},
+        )
+    for w in work:
+        await events.emit(tx, w["company"], "work.updated", w["ref"], {"status": "cancelled"})
     await _emit(tx, holding["code"], await load(tx, f["ref"]), "cancelled")
-    return await load(tx, f["ref"])
+    return await load(tx, f["ref"]), stopped
 
 
 # -------------------------------------------------------------------- runs --
@@ -1060,13 +1270,41 @@ RUN_SQL = """
 """
 
 
+def host_key(line: str) -> HostKey | None:
+    """`ssh-ed25519 AAAA... root@x` -> its type and OpenSSH SHA256 fingerprint."""
+    parts = str(line).split()
+    if len(parts) < 2 or not parts[0].startswith(("ssh-", "ecdsa-", "sk-")):
+        return None
+    try:
+        blob = base64.b64decode(parts[1], validate=True)
+    except (binascii.Error, ValueError):
+        return None
+    fp = base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("=")
+    return HostKey(type=parts[0][:40], fingerprint_sha256=f"SHA256:{fp}")
+
+
+def render_server(r: dict[str, Any]) -> RunServer | None:
+    s = r.get("server")
+    if not s:
+        return None
+    lines = ((r.get("cloud_init") or {}).get("ssh_host_keys")) or []
+    keys = [k for k in (host_key(x) for x in lines) if k is not None]
+    return RunServer(
+        name=str(s.get("name") or ""),
+        ipv4=s.get("ipv4"),
+        ipv6=s.get("ipv6"),
+        private_ip=s.get("private_ip"),
+        host_keys=keys,
+    )
+
+
 def render_run(r: dict[str, Any]) -> ProvisionRun:
     return ProvisionRun(
         id=r["id"],
         plan=r["plan_ref"],
         state=r["state"],
         steps=[Step.model_validate(s) for s in r["steps"] or []],
-        server=r.get("server"),
+        server=render_server(r),
         login=r.get("login"),
         error=r.get("error"),
         created_at=r["created_at"],
@@ -1080,7 +1318,7 @@ async def load_run(tx: Tx, run_id: UUID, *, lock: bool = False) -> dict[str, Any
     return await tx.one(RUN_SQL + " WHERE r.id = :id", id=run_id, not_found="not_found")
 
 
-def _handout(run: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+def _handout(run: dict[str, Any], plan: dict[str, Any], ssh_sources: list[str]) -> dict[str, Any]:
     doc = plan_doc(plan)
     return {
         "id": str(run["id"]),
@@ -1094,23 +1332,42 @@ def _handout(run: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         },
         "sealed_digest": run["sealed_digest"],
         "steps": [{"key": s["key"], "state": s["state"]} for s in run["steps"] or []],
+        # The owner's SSH addresses: the provisioner checks the plan against them too.
+        "ssh_sources": ssh_sources,
     }
+
+
+async def founding_state(tx: Tx, founding_id: UUID | None) -> str | None:
+    if founding_id is None:
+        return None
+    state: str | None = await tx.scalar(
+        "SELECT state FROM core.foundings WHERE id = :f", f=founding_id
+    )
+    return state
 
 
 async def next_run(tx: Tx) -> dict[str, Any] | None:
     """The provisioner's next job: a resumed run, else the oldest sealed plan
-    whose digest is still its seal (a changed one loses its seal instead)."""
-    resumed = await tx.first(
-        RUN_SQL
-        + " WHERE r.state = 'queued' ORDER BY r.updated_at LIMIT 1 FOR UPDATE OF r SKIP LOCKED"
-    )
-    if resumed is not None:
+    whose digest is still its seal (a changed one loses its seal instead).
+    Nothing of a cancelled founding is built; a plan whose SSH is not from
+    the owner's addresses (they changed since the seal) is not built either."""
+    sources = await owner_ssh_sources(tx)
+    while True:
+        resumed = await tx.first(
+            RUN_SQL
+            + " WHERE r.state = 'queued' ORDER BY r.updated_at LIMIT 1 FOR UPDATE OF r SKIP LOCKED"
+        )
+        if resumed is None:
+            break
+        plan = await load_plan(tx, resumed["plan_ref"])
+        if await founding_state(tx, plan["founding_id"]) == "cancelled":
+            await _refuse_run(tx, resumed, "the founding was cancelled")
+            continue
         await tx.exec(
             "UPDATE provisioning.runs SET state = 'running', updated_at = now() WHERE id = :id",
             id=resumed["id"],
         )
-        plan = await load_plan(tx, resumed["plan_ref"])
-        return _handout(await load_run(tx, resumed["id"]), plan)
+        return _handout(await load_run(tx, resumed["id"]), plan, sources)
     while True:
         cand = await tx.first(
             PLAN_SQL
@@ -1123,6 +1380,12 @@ async def next_run(tx: Tx) -> dict[str, Any] | None:
             or cand["digest"] != cand["sealed_digest"]
         ):
             await _void_seal(tx, cand)
+            continue
+        if await founding_state(tx, cand["founding_id"]) == "cancelled":
+            await _void_seal(tx, cand, "cancelled")
+            continue
+        if P.problems(plan_doc(cand), ssh_sources=sources):
+            await _void_seal(tx, cand, "rules")
             continue
         steps: list[dict[str, Any]] = [
             {"key": k, "title_fa": t, "state": "pending", "started_at": None, "finished_at": None,
@@ -1154,10 +1417,37 @@ async def next_run(tx: Tx) -> dict[str, Any] | None:
             cand["ref"],
             {"run": str(run["id"]), "state": "running"},
         )
-        return _handout(await load_run(tx, run["id"]), await load_plan(tx, cand["ref"]))
+        return _handout(await load_run(tx, run["id"]), await load_plan(tx, cand["ref"]), sources)
 
 
-async def _void_seal(tx: Tx, plan: dict[str, Any]) -> None:
+async def _refuse_run(tx: Tx, run: dict[str, Any], why: str) -> None:
+    """A queued run that must not go on (never handed out): failed, `refused`."""
+    await tx.exec(
+        """UPDATE provisioning.runs SET state = 'failed', finished_at = now(), updated_at = now(),
+               error = CAST(:e AS jsonb)
+           WHERE id = :id""",
+        id=run["id"],
+        e=json.dumps({"step": "ssh-key", "code": "refused"}),
+    )
+    await tx.exec(
+        "UPDATE provisioning.plans SET state = 'failed', updated_at = now() WHERE id = :id",
+        id=run["plan_id"],
+    )
+    await _append_event(tx, run, "ssh-key", "failed", [f"refused: {why}"])
+
+
+VOID_REASONS: dict[str, tuple[str, str]] = {
+    "changed": ("the plan's digest is not its seal any more", "طرح بعد از مُهر عوض شده بود"),
+    "cancelled": ("the founding was cancelled", "تأسیس این طرح لغو شده است"),
+    "rules": (
+        "the plan breaks a rule now (the owner's SSH addresses changed?)",
+        "طرح دیگر با قاعده‌ها نمیخواند (نشانی‌های SSH مالک عوض شده؟)",
+    ),
+}
+
+
+async def _void_seal(tx: Tx, plan: dict[str, Any], reason: str = "changed") -> None:
+    why, why_fa = VOID_REASONS[reason]
     await tx.exec(
         """UPDATE provisioning.plans SET state = 'proposed', sealed_digest = NULL, sealed_at = NULL,
                seal_step_up_id = NULL, decision_id = NULL, updated_at = now()
@@ -1172,15 +1462,15 @@ async def _void_seal(tx: Tx, plan: dict[str, Any]) -> None:
         action_class="A1",
         target_kind="server_plan",
         target_ref=plan["ref"],
-        summary="the plan's digest is not its seal any more: not run, back to proposed",
+        summary=f"{why}: not run, back to proposed"[:300],
     )
     await notify.raise_notification(
         tx,
         company_id=plan["company_id"],
         company_code=plan["company_code"],
         level="decision",
-        title_fa=f"مُهر طرح {plan['ref']} باطل شد: طرح بعد از مُهر عوض شده بود",
-        body_fa="هیچ سروری ساخته نشد. طرح را دوباره ببین و اگر درست است مُهر کن.",
+        title_fa=f"مُهر طرح {plan['ref']} باطل شد و سروری ساخته نشد",
+        body_fa=f"{why_fa}. طرح را دوباره ببین و اگر درست است مُهر کن.",
         link_kind="server_plan",
         link_ref=plan["ref"],
         source_kind="service",
@@ -1228,7 +1518,15 @@ def clean_log(lines: Any) -> list[str]:
     return [scrub(str(x))[:300] for x in items][-10:]
 
 
+def _must_run(run: dict[str, Any]) -> None:
+    """The provisioner reports on a running run only (a reaped or finished
+    one takes nothing more: its next try is a resume)."""
+    if run["state"] != "running":
+        raise ApiError(409, "validation_failed", f"the run is {run['state']}")
+
+
 async def record_step(tx: Tx, run: dict[str, Any], body: dict[str, Any]) -> None:
+    _must_run(run)
     key = str(body.get("key") or "")
     if key not in STEP_KEYS:
         raise ApiError(422, "validation_failed", fields={"key": "unknown step"})
@@ -1261,6 +1559,7 @@ async def record_step(tx: Tx, run: dict[str, Any], body: dict[str, Any]) -> None
 
 
 async def record_server(tx: Tx, run: dict[str, Any], body: dict[str, Any]) -> None:
+    _must_run(run)
     raw = body.get("labels")
     labels: dict[str, Any] = raw if isinstance(raw, dict) else {}
     if labels.get(P.LABEL_MANAGED) != P.MANAGED_BY:
@@ -1325,11 +1624,14 @@ async def finish(tx: Tx, run: dict[str, Any], body: dict[str, Any]) -> None:
     )
     await _append_event(tx, run, "login" if state == "done" else "verify", state, [])
     f = None
-    if plan["founding_id"] and state == "done":
+    if plan["founding_id"]:
+        # Done: the owner logs in. Failed: back to `sealed` (§18.16), where the
+        # owner resumes the run on the same seal or cancels the founding.
         await tx.exec(
-            """UPDATE core.foundings SET state = 'ready_for_login', updated_at = now()
+            """UPDATE core.foundings SET state = :st, updated_at = now()
                WHERE id = :f AND state = 'provisioning'""",
             f=plan["founding_id"],
+            st="ready_for_login" if state == "done" else "sealed",
         )
         f = await tx.scalar("SELECT ref FROM core.foundings WHERE id = :f", f=plan["founding_id"])
     ssh = (login or {}).get("ssh")
@@ -1362,17 +1664,41 @@ async def finish(tx: Tx, run: dict[str, Any], body: dict[str, Any]) -> None:
     )
     if f:
         holding = await _holding(tx)
-        await events.emit(tx, holding["code"], "founding.updated", f, {"state": "ready_for_login"})
+        fstate = await tx.scalar(
+            "SELECT state FROM core.foundings WHERE id = :f", f=plan["founding_id"]
+        )
+        await events.emit(tx, holding["code"], "founding.updated", f, {"state": fstate})
 
 
 async def resume(tx: Tx, who: Principal, run: dict[str, Any]) -> None:
     """A failed run continues from its first step not done (the same sealed
-    plan; the provisioner never makes a resource twice)."""
+    plan; the provisioner never makes a resource twice). Never for a
+    cancelled founding, and never after a refusal (e.g. Hetzner answered with
+    a root password: that server is not used, §4)."""
     if run["state"] != "failed":
         raise ApiError(409, "validation_failed", f"the run is {run['state']}")
+    if (run.get("error") or {}).get("code") == "refused":
+        raise ApiError(
+            409,
+            "validation_failed",
+            "refused: this build was refused for safety and is not resumed (a new plan is a new build)",
+        )
     plan = await load_plan(tx, run["plan_ref"], lock=True)
     if plan["sealed_digest"] != run["sealed_digest"]:
         raise ApiError(409, "seal_mismatch", "the plan is not the sealed one any more")
+    if plan["founding_id"] is not None:
+        f = await tx.first(
+            "SELECT ref, state FROM core.foundings WHERE id = :f FOR UPDATE", f=plan["founding_id"]
+        )
+        if f is None or f["state"] != "sealed":
+            raise ApiError(
+                409, "validation_failed", f"the founding is {f['state'] if f else 'gone'}"
+            )
+        await tx.exec(
+            """UPDATE core.foundings SET state = 'provisioning', updated_at = now()
+               WHERE id = :f""",
+            f=plan["founding_id"],
+        )
     await tx.exec(
         """UPDATE provisioning.runs SET state = 'queued', error = NULL, finished_at = NULL,
                updated_at = now()
@@ -1423,12 +1749,15 @@ def _clean_report(run: dict[str, Any], body: dict[str, Any]) -> dict[str, Any]:
 
 async def callback(tx: Tx, token: str, body: dict[str, Any]) -> bool:
     """The new server's one report (public, its one-time token): stored once,
-    within the token's 60 minutes; anything else is refused the same way."""
+    within the token's 60 minutes; anything else is refused the same way.
+    A run that failed meanwhile (e.g. its boot step timed out) still takes it
+    (review 9.2 §2.3): its resume then finds the report instead of waiting
+    for one the server can never send again."""
     digest = hashlib.sha256(token.encode()).hexdigest()
     run = await tx.first(
         RUN_SQL
         + """ WHERE r.callback_sha256 = :h AND r.callback_used_at IS NULL
-                AND r.callback_expires_at > now() AND r.state = 'running'
+                AND r.callback_expires_at > now() AND r.state IN ('running', 'failed', 'queued')
               FOR UPDATE OF r""",
         h=digest,
     )
@@ -1465,10 +1794,81 @@ async def inventory_loop(hub: Any) -> None:
     while True:
         with contextlib.suppress(Exception):
             async with hub.db.tx(await hub.companies.ids()) as tx:
-                await refresh_inventory(
-                    tx, hub.settings.provisioner_url, getattr(hub, "provisioner_transport", None)
-                )
+                # An outside call (Hetzner, through the provisioner): never
+                # while the holding is locked (its kill switch, a deploy freeze).
+                if not await holding_locked(tx):
+                    await refresh_inventory(
+                        tx,
+                        hub.settings.provisioner_url,
+                        getattr(hub, "provisioner_transport", None),
+                    )
         await asyncio.sleep(INVENTORY_EVERY_S)
+
+
+async def holding_locked(tx: Tx) -> bool:
+    holding = await _holding(tx)
+    return await tx.scalar("SELECT control.lock_state(:co)", co=holding["id"]) is not None
+
+
+# ------------------------------------------------------------------ reaper --
+async def reap_stale_runs(tx: Tx, quiet_s: float) -> list[str]:
+    """Runs the provisioner has said nothing about for `quiet_s` (it was
+    restarted mid-run, or the hub could not be told): failed, on the step
+    they stood at, so the owner can resume or cancel (review 9.2 §2.3).
+    Rule-only: no model, no outside call."""
+    rows = await tx.all(
+        RUN_SQL
+        + """ WHERE r.state = 'running'
+                AND r.updated_at < now() - make_interval(secs => CAST(:q AS double precision))
+              ORDER BY r.updated_at LIMIT 50 FOR UPDATE OF r SKIP LOCKED""",
+        q=float(quiet_s),
+    )
+    reaped = []
+    for r in rows:
+        steps = list(r["steps"] or [])
+        at = next((s for s in steps if s.get("state") == "running"), None) or next(
+            (s for s in steps if s.get("state") != "done"), None
+        )
+        key = at["key"] if at else STEP_KEYS[-1]
+        minutes = int(quiet_s // 60)
+        code = "callback_timeout" if key == "cloud-init" else "error"
+        note = f"{code}: no word from the provisioner for {minutes} minutes (reaped)"
+        for s in steps:
+            if s["key"] == key:
+                s["state"] = "failed"
+                s["finished_at"] = datetime.now(UTC).isoformat()
+                s["log_tail"] = [*(s.get("log_tail") or []), note][-10:]
+        await tx.exec(
+            "UPDATE provisioning.runs SET steps = CAST(:s AS jsonb) WHERE id = :id",
+            s=json.dumps(steps, ensure_ascii=False),
+            id=r["id"],
+        )
+        await _append_event(tx, r, key, "failed", [note])
+        await finish(tx, r, {"state": "failed", "error": {"step": key, "code": code}})
+        await audit.record(
+            tx,
+            SERVICE,
+            company_id=r["company_id"],
+            action="provision.reap",
+            action_class="A1",
+            target_kind="provision_run",
+            target_ref=str(r["id"]),
+            summary=f"failed at {key}: quiet for {minutes} minutes",
+        )
+        reaped.append(str(r["id"]))
+    return reaped
+
+
+async def reaper_loop(hub: Any) -> None:
+    """Every few minutes while the provisioner is on: reap_stale_runs."""
+    import asyncio
+    import contextlib
+
+    while True:
+        await asyncio.sleep(REAP_EVERY_S)
+        with contextlib.suppress(Exception):
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                await reap_stale_runs(tx, hub.settings.provision_quiet_s)
 
 
 async def refresh_inventory(

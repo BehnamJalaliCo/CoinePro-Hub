@@ -28,6 +28,15 @@ test_server_plans_for_the_own_company_or_by_a_holding_role if {
 	not allowed(f.svc, "provisioning.plan", {"company": "TY"})
 }
 
+# Review 9.2 §2.4: a founding's plan is a holding role's only.
+test_a_company_role_never_plans_a_founding if {
+	allowed(f.ty_growth_mgr, "provisioning.plan", {"company": "TY", "founding": null})
+	not allowed(f.ty_growth_mgr, "provisioning.plan", {"company": "TY", "founding": "C-0001"})
+	not allowed(f.ty_ceo, "provisioning.plan", {"company": "TY", "founding": "C-0001"})
+	allowed(hq_aiops, "provisioning.plan", {"company": "NX", "founding": "C-0001"})
+	allowed(f.hq_ovs, "provisioning.plan", {"company": "TY", "founding": "C-0001"})
+}
+
 test_only_the_provisioner_drives_runs if {
 	allowed(provisioner, "provisioning.run", {})
 	not allowed(f.svc, "provisioning.run", {})

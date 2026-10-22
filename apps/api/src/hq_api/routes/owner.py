@@ -20,6 +20,7 @@ from hq_api.domain import hiring, notify
 from hq_api.errors import ApiError, responses
 from hq_api.routes.notifications import if_match, time_cursor
 from hq_api.security import stepup
+from hq_common import provisioning
 
 log = logging.getLogger("hq_api.routes.owner")
 router = APIRouter(tags=["owner"])
@@ -157,6 +158,9 @@ class OwnerSettingsIn(BaseModel):
             if net.prefixlen == 0:
                 raise ValueError("not the whole internet: name your own addresses")
             out.append(str(net))
+        # Review 9.2 §2.1: nor the whole internet in pieces (0.0.0.0/1 + 128.0.0.0/1).
+        if provisioning.covers_everything([ipaddress.ip_network(s) for s in out]):
+            raise ValueError("not the whole internet: name your own addresses")
         return list(dict.fromkeys(out))
 
     @field_validator("timezone")

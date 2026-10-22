@@ -191,10 +191,13 @@ grant if {
 
 # prompt 09: a server plan for the agent's own company (a CTO), or by a
 # holding-scope role (the platform SRE) for any company or a founding.
+# Review 9.2 §2.4: a plan of a founding is a holding role's only; a company's
+# CTO never writes one (it would be the holding's server).
 grant if {
 	op == "provisioning.plan"
 	agent
 	same_company(tv("company"))
+	tv("founding") == null
 }
 
 grant if {

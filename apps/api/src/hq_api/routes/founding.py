@@ -25,12 +25,12 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import Field, model_validator
 
-from hq_api import idempotency
+from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
 from hq_api.domain import founding as F
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow
-from hq_api.schemas import Model
+from hq_api.schemas import Model, Page
 from hq_api.security import deps, stepup
 from hq_common.tokens import bearer
 
@@ -152,18 +152,30 @@ class InfraServers(Model):
 
 
 # -------------------------------------------------------------- foundings --
-@router.get("/foundings", response_model=list[F.Founding], responses=E)
+@router.get("/foundings", response_model=Page[F.Founding], responses=E)
 async def list_foundings(
-    state: str | None = Query(default=None, max_length=20), ctx: Ctx = Depends(owner_ctx)
-) -> list[F.Founding]:
-    """Newest first."""
+    state: str | None = Query(default=None, max_length=20),
+    limit: int = Query(default=50, ge=1, le=pagination.MAX_LIMIT),
+    cursor: str | None = None,
+    ctx: Ctx = Depends(owner_ctx),
+) -> Page[F.Founding]:
+    """A `Page`, newest first (§18.16)."""
+    before_t, before_id = pagination.time_id(cursor)
     async with ctx.tx() as tx:
         rows = await tx.all(
             F.FOUNDING_SQL
-            + " WHERE (CAST(:s AS text) IS NULL OR f.state = :s) ORDER BY f.created_at DESC LIMIT 200",
+            + """ WHERE (CAST(:s AS text) IS NULL OR f.state = :s)
+                    AND (CAST(:bt AS timestamptz) IS NULL
+                         OR (f.created_at, f.id) < (CAST(:bt AS timestamptz), CAST(:bid AS uuid)))
+                  ORDER BY f.created_at DESC, f.id DESC LIMIT :lim""",
             s=state,
+            bt=before_t,
+            bid=before_id,
+            lim=limit + 1,
         )
-        return [await F.render(tx, r) for r in rows]
+        items, nxt = pagination.page(rows, limit, ("created_at", "id"))
+        sources = await F.owner_ssh_sources(tx)
+        return Page(items=[await F.render(tx, r, sources) for r in items], next_cursor=nxt)
 
 
 @router.post("/foundings", response_model=F.Founding, status_code=201, responses=E)
@@ -200,16 +212,23 @@ async def get_founding(ref: str, ctx: Ctx = Depends(owner_ctx)) -> F.Founding:
 
 @router.post("/foundings/{ref}/cancel", response_model=F.Founding, responses=E)
 async def cancel_founding(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
-    """Before it is active; a company already made stays (paused), never
-    deleted. Requires `Idempotency-Key`."""
+    """Before it is active, and not while a build runs; it closes everything
+    (§18.16): its pending cards are withdrawn, a sealed but unrun plan is
+    proposed again, its audit and proposal work is cancelled and its workshop
+    session stops. A company already made stays (paused), never deleted.
+    Requires `Idempotency-Key`."""
+    from hq_api.workshop import service as workshop
+
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
-        f = await F.cancel(tx, ctx.who, await F.load(tx, ref, lock=True))
+        f, stopped = await F.cancel(tx, ctx.who, await F.load(tx, ref, lock=True))
         out = await F.render(tx, f)
         if idem:
             await idem.store(tx, 200, out.model_dump(mode="json"))
+    if stopped:
+        await workshop.stopped(ctx.hub, stopped)
     return out
 
 
@@ -242,7 +261,8 @@ async def list_plans(
             s=state,
             c=company,
         )
-    return [F.render_plan(r) for r in rows]
+        sources = await F.owner_ssh_sources(tx)
+    return [F.render_plan(r, sources) for r in rows]
 
 
 @router.get("/provisioning/plans/{ref}", response_model=F.ServerPlan, responses=E)
@@ -256,6 +276,7 @@ async def get_plan(ref: str, ctx: Ctx = Depends(owner_ctx)) -> F.ServerPlan:
             row["state"] == "proposed"
             and row["monthly_eur"] is None
             and ctx.hub.settings.provisioner_url
+            and await F.founding_state(tx, row["founding_id"]) != "cancelled"
         ):
             price = await F.price_of(
                 ctx.hub.settings.provisioner_url, row["type"], row["location"], _transport(ctx)
@@ -271,7 +292,7 @@ async def get_plan(ref: str, ctx: Ctx = Depends(owner_ctx)) -> F.ServerPlan:
                     ref=ref,
                     price=price,
                 )
-        return F.render_plan(row)
+        return F.render_plan(row, await F.owner_ssh_sources(tx))
 
 
 @router.post("/provisioning/plans/{ref}/seal", response_model=F.ServerPlan, responses=E)
@@ -282,7 +303,7 @@ async def seal_plan(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -
     async with ctx.tx() as tx:
         row = await F.load_plan(tx, ref, lock=True)
         su = await stepup.consume(tx, request, ctx.who, "provision.seal", row["digest"])
-        out = F.render_plan(await F.seal(tx, ctx.who, row, step_up_id=su))
+        out = F.render_plan(await F.seal(tx, ctx.who, row, step_up_id=su), [])
     await _wake(ctx)
     return out
 
@@ -441,10 +462,15 @@ async def provisioning_callback(request: Request) -> Response:
 async def agent_server_plan(
     body: PlanIn, request: Request, ctx: Ctx = Depends(internal_ctx)
 ) -> Any:
-    """server.plan (A1; a CTO for its company, the platform SRE for any and for
-    a founding): a plan with its cost; the owner seals it, the provisioner (code,
-    not an agent) builds it. A founding's plan waits for the company to exist."""
+    """server.plan (A1; a CTO for its own company, a holding role for any and
+    for a founding): a plan with its cost; the owner seals it, the provisioner
+    (code, not an agent) builds it. A founding's plan waits for the company to
+    exist. Plans of a founding are written by holding roles only (§18.16):
+    anyone else is refused before the founding is even looked at."""
     await allow(ctx, "provisioning.plan", {"company": body.company, "founding": body.founding})
+    holding = ctx.who.scope == "holding"
+    if (body.founding and not holding) or (not holding and body.company != ctx.who.company):
+        raise ApiError(403, "policy_denied", "a plan of your own company only")
     hub = ctx.hub
     async with hub.db.tx(await hub.companies.ids()) as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
@@ -483,7 +509,7 @@ async def agent_server_plan(
             ref=body.ref,
             price=price,
         )
-        out = F.render_plan(row)
+        out = F.render_plan(row, await F.owner_ssh_sources(tx))
         if idem:
             await idem.store(tx, 201, out.model_dump(mode="json"))
     return out
