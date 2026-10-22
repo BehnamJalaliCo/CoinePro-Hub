@@ -402,6 +402,11 @@ CREATE POLICY calls_substitutes_insert ON llm.calls FOR INSERT TO hq_api, hq_wor
 """
 
 
+def _q(text: str) -> str:
+    """A SQL string literal's body (the constants above carry apostrophes)."""
+    return text.replace("'", "''")
+
+
 def _connections_sql() -> str:
     """The three substitute accounts (kind subscription; disabled for the
     router, which never routes a Claude run to them) and their web profiles."""
@@ -424,7 +429,7 @@ def _connections_sql() -> str:
         f"('{k}', '{s}', '{t}', NULL, '{{\"browse\": {{\"kind\": \"profile\"}}}}'::jsonb)"
         for k, s, t in accounts
     )
-    classes = ",\n".join(f"('{k}', false, '{d}')" for k, d in TASK_CLASSES)
+    classes = ",\n".join(f"('{k}', false, '{_q(d)}')" for k, d in TASK_CLASSES)
     return f"""
         INSERT INTO llm.connections (key, kind, provider, display_name, status, status_reason, models,
                                      default_model)
