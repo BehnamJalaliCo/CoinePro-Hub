@@ -601,6 +601,38 @@ async def test_a_paused_protocol_is_refused_on_every_path(
             )
 
 
+# --------------------------------------------- §4 a held approved card --
+@pytest.mark.usefixtures("done_runs")
+async def test_a_hold_on_an_approved_card_stops_its_follow_up_work(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+) -> None:
+    co = (await new_company())["code"]
+    d = await _proposal(client, co)  # a proposal: approved, it becomes the CEO's work
+    r = await client.post(
+        f"/api/v1/decisions/{d['ref']}/approve", headers={**owner, **idem()}, json={}
+    )
+    assert r.status_code == 200, r.text
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        follow = await tx.scalar(
+            """SELECT w.ref FROM cartable.resolutions r JOIN cartable.decisions d
+                 ON d.id = r.source_decision_id JOIN work.work w ON w.id = r.follow_up_work_id
+               WHERE d.ref = :r""",
+            r=d["ref"],
+        )
+        assert follow
+        assert await O.holds_for_run(tx, f"{co}-CEO", follow) == []
+    h = (await _hold(client, "decision", d["ref"])).json()
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await O.holds_for_run(tx, f"{co}-CEO", follow) == [h["ref"]]
+    await _cancel(client, owner, h["ref"])  # the follow-up work is cancelled with it
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await tx.scalar("SELECT status FROM work.work WHERE ref = :r", r=follow) == "cancelled"
+
+
 # ------------------------------------------------------ daily cap of 0 --
 async def test_a_daily_token_cap_of_zero_means_nothing_runs(
     client: httpx.AsyncClient,

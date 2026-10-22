@@ -884,8 +884,9 @@ async def score_challenge(
     tx: Tx, who: Principal, ref: str, score: int, notes: str
 ) -> dict[str, Any]:
     ch = await load_challenge(tx, ref, lock=True)
-    judges = {ch["judge_code"]}
-    if not (who.role in ("overseer", "inspector") or who.code in judges):
+    # The challenge's judge scores it (the overseer may too); QC scores only
+    # the challenges it judges (prompt 08.1 §4).
+    if not (who.code == ch["judge_code"] or who.role == "overseer"):
         raise ApiError(403, "policy_denied", "the judge scores")
     if ch["status"] not in ("submitted", "missed"):
         raise ApiError(409, "validation_failed", f"{ref} is {ch['status']}")
@@ -992,7 +993,12 @@ async def holds_for_run(tx: Tx, employee: str, work_ref: str | None) -> list[str
         """SELECT ref, target_kind, target_ref FROM oversight.holds WHERE state = 'held'
              AND ((target_kind = 'employee' AND target_ref = :e)
                OR (target_kind = 'tool' AND split_part(target_ref, ':', 1) = :e)
-               OR (target_kind = 'work' AND target_ref = :w))""",
+               OR (target_kind = 'work' AND target_ref = :w)
+               -- a held approved card stops its follow-up work too (8.1 §4)
+               OR (target_kind = 'decision' AND target_ref IN (
+                     SELECT d.ref FROM cartable.decisions d
+                     JOIN cartable.resolutions r ON r.source_decision_id = d.id
+                     JOIN work.work fw ON fw.id = r.follow_up_work_id WHERE fw.ref = :w)))""",
         e=employee,
         w=work_ref or "",
     )
@@ -1422,10 +1428,19 @@ async def hold_if_watching(tx: Tx, d: dict[str, Any]) -> dict[str, Any] | None:
         ref=d["ref"],
         reason_md="حالت نگهبان: مالک نیست؛ این کارت پرریسک تا بازگشت مالک نگه داشته شد.",
         by_kind="system",
-        by_code="HQ-OVR",
+        by_code=await overseer_code(tx),
         watch=True,
     )
     return h
+
+
+async def overseer_code(tx: Tx) -> str:
+    """The holding's Chief Overseer (its code is data, never hard-coded)."""
+    code = await tx.scalar(
+        """SELECT c.code || '-' || :o FROM core.companies c WHERE c.kind = 'holding' LIMIT 1""",
+        o=OVERSEER,
+    )
+    return str(code or f"HQ-{OVERSEER}")
 
 
 async def hold_pending_cards(tx: Tx) -> int:

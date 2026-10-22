@@ -614,6 +614,13 @@ async def test_challenges_and_compliance(
         json={"note": "تحویل"},
     )
     assert r.status_code == 200 and r.json()["status"] == "submitted"
+    # QC scores only the challenges it judges (8.1 §4): this one is the overseer's.
+    r = await client.post(
+        f"/internal/v1/oversight/challenges/{ch}/score",
+        headers=await agent_headers("HQ-OVS-MGR"),
+        json={"score": 99},
+    )
+    assert r.status_code == 403
     r = await client.post(
         f"/internal/v1/oversight/challenges/{ch}/score", headers=ovr, json={"score": 80}
     )
