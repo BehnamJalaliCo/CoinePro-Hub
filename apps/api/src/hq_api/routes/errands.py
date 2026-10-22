@@ -14,7 +14,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
-from hq_api import idempotency, pagination
+from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, internal_ctx, owner_ctx
 from hq_api.domain import errands as R
 from hq_api.errors import ApiError, responses
@@ -105,7 +105,8 @@ async def get_errand(ref: str, ctx: Ctx = Depends(owner_ctx)) -> R.Errand:
 
 @router.post("/errands/{ref}/cancel", response_model=R.Errand, responses=E)
 async def cancel_errand(ref: str, ctx: Ctx = Depends(owner_ctx)) -> R.Errand:
-    """The owner stops an open errand (no step-up: stopping is always safe)."""
+    """The owner stops an open errand (no step-up: stopping is always safe); its
+    pending `errand_action` card, if any, is withdrawn."""
     async with ctx.tx() as tx:
         e = await R.cancel(tx, ref)
         await ctx.audit(
@@ -115,9 +116,13 @@ async def cancel_errand(ref: str, ctx: Ctx = Depends(owner_ctx)) -> R.Errand:
             action_class="A1",
             target_kind="errand",
             target_ref=ref,
-            summary="cancelled by the owner",
+            summary="cancelled by the owner"
+            + (f"; {e['withdrawn']} withdrawn" if e.get("withdrawn") else ""),
         )
-        return await R.render(tx, e)
+        out = await R.render(tx, e)
+    if e.get("withdrawn"):  # its DecisionLifecycle sees it is no longer pending and ends
+        await workflows_client.decision_decided(ctx.hub, e["withdrawn"])
+    return out
 
 
 # ------------------------------------------------------------------ agents --

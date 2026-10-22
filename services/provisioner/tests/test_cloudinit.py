@@ -51,9 +51,50 @@ def test_user_data_carries_public_values_and_a_single_use_token_only() -> None:
 
 
 def test_only_the_chosen_keys_are_rendered() -> None:
-    ud = render(plan=make_plan(software=["system-upgrade", "work-user", "ssh-hardening"], repo=None,
-                               private_network=False))  # fmt: skip
+    ud = render(plan=make_plan(software=["system-upgrade", "unattended-upgrades", "work-user",
+                                         "ssh-hardening"], repo=None, private_network=False))  # fmt: skip
     assert "step_docker" not in ud and "step_claude_code" not in ud and "step_ssh_hardening" in ud
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="no bash in this image")
+def test_a_step_fails_when_any_command_in_it_fails(tmp_path: Path) -> None:
+    """Review 9.2 §1.1: the header's run_step, as the templates run it (the
+    whole provisioning run is the provisioning gate's bench)."""
+    header = (Path(TEMPLATES) / "_header.sh").read_text()
+    run_step = header[header.index("run_step() {") :]
+    script = (
+        "set -euo pipefail\nshopt -s inherit_errexit\n"
+        f"STATE={tmp_path}\nLOG=/dev/null\nREBOOT_RC=100\n"
+        'log() { :; }\nresult() { echo "$*" >>"$STATE/results"; }\n'
+        'systemctl() { echo "$*" >>"$STATE/systemctl"; }\n'
+        + run_step
+        + 'step_mid() { false; touch "$STATE/after-mid"; }\n'  # fails in the middle
+        'step_pipe() { false | cat; touch "$STATE/after-pipe"; }\n'
+        "step_ok() { true; }\n"
+        'step_boot() { return "$REBOOT_RC"; }\n'
+        'for k in $KEYS; do run_step "$k"; [[ ! -e "$STATE/failed" ]] || break; done\n'
+        'touch "$STATE/end"\n'
+    )
+    (tmp_path / "s.sh").write_text(script)
+
+    def go(keys: str) -> None:
+        for f in tmp_path.iterdir():
+            if f.name != "s.sh":
+                f.unlink()
+        subprocess.run([BASH, str(tmp_path / "s.sh")], env={"KEYS": keys, "PATH": "/usr/bin:/bin"},
+                       check=True)  # fmt: skip
+
+    for bad in ("mid", "pipe"):
+        go(f"ok {bad} ok")
+        assert (tmp_path / "failed").exists() and not (tmp_path / f"after-{bad}").exists()
+        assert not (tmp_path / f"{bad}.done").exists() and (tmp_path / "ok.done").exists()
+        assert (tmp_path / "results").read_text().startswith(f"{bad} 0 ")
+    go("ok ok")
+    assert not (tmp_path / "failed").exists() and (tmp_path / "end").exists()
+    # The upgrade's reboot: the step is done, the server reboots, nothing after it runs.
+    go("boot ok")
+    assert (tmp_path / "boot.done").exists() and (tmp_path / "systemctl").read_text() == "reboot\n"
+    assert not (tmp_path / "end").exists() and not (tmp_path / "failed").exists()
 
 
 @pytest.mark.parametrize(

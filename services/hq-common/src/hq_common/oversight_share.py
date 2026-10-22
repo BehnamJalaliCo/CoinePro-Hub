@@ -28,15 +28,14 @@ def parse_share(value: str | None) -> float:
     return share
 
 
-def limit(daily_cap: int, share: float) -> int | None:
-    """Tokens oversight may use per UTC day; None when there is no daily cap
-    (AGENT_DAILY_TOKEN_CAP=0 means no cap at all, and so no share of it)."""
+def limit(daily_cap: int, share: float) -> int:
+    """Tokens oversight may use per UTC day. AGENT_DAILY_TOKEN_CAP=0 means
+    nothing at all (prompt 08.1: never "no cap"), so its share is 0 too."""
     if daily_cap <= 0:
-        return None
+        return 0
     return int(daily_cap * min(max(share, 0.0), 1.0))
 
 
 def spent(used: int, daily_cap: int, share: float) -> bool:
     """True once oversight's tokens of the day reach its share."""
-    cap = limit(daily_cap, share)
-    return cap is not None and used >= cap
+    return used >= limit(daily_cap, share)

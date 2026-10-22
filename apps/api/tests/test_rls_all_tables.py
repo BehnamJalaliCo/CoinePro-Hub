@@ -424,9 +424,10 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
         f"SK-{n}",
     )
     sv = await su.fetchval(
-        """INSERT INTO knowledge.skill_versions (skill_id, company_id, version, body_md, source,
-               precheck, created_by_kind, created_by_code)
-           VALUES ($1, $2, 1, 'b', 'text', '{}', 'owner', 'owner') RETURNING id""",
+        """INSERT INTO knowledge.skill_versions (skill_id, company_id, version, body_md, name_fa,
+               summary_fa, scope, text_sha256, source, precheck, created_by_kind, created_by_code)
+           VALUES ($1, $2, 1, 'b', 'm', 's', '{}', repeat('0', 64), 'text', '{}', 'owner', 'owner')
+           RETURNING id""",
         skill,
         co["id"],
     )
@@ -452,7 +453,8 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     await su.execute(
         """INSERT INTO academy.eval_runs (company_id, suite_ref, subject, purpose, skill_version_id,
                requested_by_kind, requested_by_code)
-           VALUES ($1, $2, '{}', 'manual', $3, 'owner', 'owner')""",
+           VALUES ($1, $2, '{"kind": "skill", "ref": "SK-999", "version": 1}', 'manual', $3,
+                   'owner', 'owner')""",
         co["id"],
         f"EV-{n}",
         sv,

@@ -454,10 +454,21 @@ async def _decide_hold(
             action_class="A2",
             target_kind=h["target_kind"],
             target_ref=h["target_ref"],
-            summary=ref,
+            summary=ref + "".join(f" {k}={v}" for k, v in (h.get("cancelled") or {}).items())[:200],
             step_up=su is not None,
         )
-        return O.render_hold(h)
+    # After the commit: the runtime follows the record (a released session goes
+    # on or starts; a cancelled one stops), and a rejected card's lifecycle ends.
+    if h["target_kind"] == "session" and h.get("session") is not None:
+        if state == "released":
+            await workshop_service.overseer_released(ctx.hub, h["session"])
+        else:
+            await workshop_service.stopped(ctx.hub, [h["session"]])
+    if (h.get("cancelled") or {}).get("decision") == "rejected":
+        from hq_api import workflows_client
+
+        await workflows_client.decision_decided(ctx.hub, h["target_ref"])
+    return O.render_hold(h)
 
 
 @router.post("/oversight/holds/{ref}/release", response_model=O.Hold, responses=E)
@@ -465,7 +476,8 @@ async def release_hold(
     ref: str, request: Request, body: NoteIn | None = None, ctx: Ctx = Depends(owner_ctx)
 ) -> O.Hold:
     """🔏 (`oversight.release`, target = ref): the held action may go on (a
-    held decision can now be decided; its effect runs)."""
+    held decision can now be decided; its effect runs; a held workshop session
+    goes on, or starts if it never had)."""
     return await _decide_hold(ctx, request, ref, "released", body.note if body else None)
 
 
@@ -473,8 +485,10 @@ async def release_hold(
 async def cancel_hold(
     ref: str, request: Request, body: NoteIn | None = None, ctx: Ctx = Depends(owner_ctx)
 ) -> O.Hold:
-    """The hold is lifted without a step-up (the owner looked and decided the
-    hold was not needed); like release, only the owner can."""
+    """No step-up: the held action itself is cancelled (contract §18.15) and
+    never runs: a pending card is rejected (by the owner, «لغو از hold»), a
+    queued effect is cancelled, a workshop session is stopped, a work item is
+    cancelled. Like release, only the owner can."""
     return await _decide_hold(ctx, request, ref, "cancelled", body.note if body else None)
 
 
@@ -686,10 +700,14 @@ async def update_finding(
 @internal_router.post("/oversight/protocol-runs/result", response_model=ProtocolRun, responses=EI)
 async def protocol_result(body: ProtocolResultIn, ctx: Ctx = Depends(internal_ctx)) -> ProtocolRun:
     """protocol.result: the overseer's (or QC's) result of the protocol run
-    handed to it; the findings it raised are linked by ref."""
+    handed to it; the findings it raised are linked by ref. A protocol that is
+    not active takes no result (409). Every company the protocol covers gets
+    its pass or fail (compliance counts both, contract §18.15)."""
     _agent(ctx)
     await allow(ctx, "oversight.protocol_result", {"protocol": body.protocol})
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+        protocol = await O.load_protocol(tx, body.protocol)
+        O.require_active(protocol)
         run = await tx.first(
             """SELECT r.id FROM oversight.protocol_runs r LEFT JOIN work.work w ON w.id = r.work_id
                LEFT JOIN core.employees e ON e.id = w.assignee_id
@@ -699,20 +717,36 @@ async def protocol_result(body: ProtocolResultIn, ctx: Ctx = Depends(internal_ct
             me=ctx.who.code,
         )
         if run is None:
-            protocol = await O.load_protocol(tx, body.protocol)
             run = await O.start_run(tx, protocol, by_kind="agent", by_code=ctx.who.code)
-        per_company: dict[str, str] = {}
+        mine: list[str] = []
         if body.findings:
+            # Only findings of this protocol, or raised by this agent (§4).
             rows = await tx.all(
-                "SELECT f.ref, c.code FROM oversight.findings f JOIN core.companies c ON c.id = f.company_id"
-                " WHERE f.ref = ANY(:r)",
+                """SELECT f.ref, c.code FROM oversight.findings f
+                   JOIN core.companies c ON c.id = f.company_id
+                   WHERE f.ref = ANY(:r)
+                     AND (f.protocol_id IN (SELECT id FROM oversight.protocols WHERE ref = :p)
+                          OR (f.raised_by_kind = 'agent' AND f.raised_by_code = :me))""",
                 r=body.findings,
+                p=body.protocol,
+                me=ctx.who.code,
             )
-            per_company = {r["code"]: "fail" for r in rows}
+            unknown = sorted(set(body.findings) - {r["ref"] for r in rows})
+            if unknown:
+                raise ApiError(
+                    422,
+                    "validation_failed",
+                    fields={
+                        "findings": f"not of {body.protocol} nor yours: {', '.join(unknown)[:200]}"
+                    },
+                )
+            mine = [r["code"] for r in rows]
             await tx.exec(
                 "UPDATE oversight.findings SET updated_at = now() WHERE ref = ANY(:r)",
                 r=body.findings,
             )
+        covered = await _covered(ctx, protocol)
+        per_company = O.per_company_result(body.result, covered, mine)
         done = await O.finish_run(
             tx,
             run["id"],
@@ -732,6 +766,15 @@ async def protocol_result(body: ProtocolResultIn, ctx: Ctx = Depends(internal_ct
             summary=body.result,
         )
         return _run(done)
+
+
+async def _covered(ctx: Ctx, protocol: dict[str, Any]) -> list[str]:
+    """The companies a protocol's run looks at: the holding for a holding
+    protocol, every active operating company otherwise."""
+    companies = await ctx.hub.companies.all()
+    if protocol["scope"] == "holding":
+        return [c.code for c in companies if c.kind == "holding"]
+    return [c.code for c in companies if c.kind != "holding" and c.status == "active"]
 
 
 @internal_router.post(
@@ -854,7 +897,8 @@ async def place_hold(body: HoldIn, request: Request, ctx: Ctx = Depends(internal
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
     if body.target.kind == "session":
-        await workshop_service.paused(ctx.hub)
+        # Interrupted at once on its runtime (contract §18.15).
+        await workshop_service.overseer_held(ctx.hub, h.get("session"))
     return result
 
 

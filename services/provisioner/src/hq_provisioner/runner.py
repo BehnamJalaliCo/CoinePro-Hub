@@ -89,7 +89,11 @@ class Runner:
             return self._fail(
                 run_id, "ssh-key", "seal_mismatch", "the plan is not the one the owner sealed"
             )
-        if problems := P.problems(plan):
+        # The owner's SSH addresses as the api knows them (§18.16): every SSH
+        # source of the plan lies inside them, checked here too.
+        sources = run.get("ssh_sources")
+        problems = P.problems(plan, ssh_sources=sources if isinstance(sources, list) else None)
+        if problems:
             return self._fail(run_id, "ssh-key", "plan_invalid", "; ".join(problems)[:300])
         done = {s.get("key") for s in run.get("steps") or [] if s.get("state") == "done"}
         try:
@@ -97,13 +101,15 @@ class Runner:
             hz = self.hetzner(self.secrets.hetzner_token())
         except NotConfigured as exc:
             return self._fail(run_id, "ssh-key", "not_configured", str(exc))
+        except Exception as exc:  # noqa: BLE001 - OpenBao sealed or down: reported, resumable
+            return self._fail(run_id, "ssh-key", "not_configured", message(exc))
         labels = P.labels(plan)
         ctx: dict[str, Any] = {"labels": labels, "keys": keys}
         for key, _title in STEPS:
             started = now()
-            if key not in done:
-                self.hub.step(run_id, {"key": key, "state": "running", "started_at": started})
             try:
+                if key not in done:
+                    self.hub.step(run_id, {"key": key, "state": "running", "started_at": started})
                 notes = getattr(self, "_" + key.replace("-", "_"))(
                     hz, run_id, plan, ctx, key in done
                 )
@@ -116,36 +122,54 @@ class Runner:
             except Exception as exc:  # noqa: BLE001 - Hetzner or the hub: reported, resumable
                 return self._fail(run_id, key, "error", message(exc), started)
             if key not in done:
-                self.hub.step(
-                    run_id,
-                    {
-                        "key": key,
-                        "state": "done",
-                        "started_at": started,
-                        "finished_at": now(),
-                        "log_tail": [n[:300] for n in notes][-10:],
-                    },
-                )
-        login = ctx["login"]
-        self.hub.finish(run_id, {"state": "done", "login": login})
+                try:
+                    self.hub.step(
+                        run_id,
+                        {
+                            "key": key,
+                            "state": "done",
+                            "started_at": started,
+                            "finished_at": now(),
+                            "log_tail": [n[:300] for n in notes][-10:],
+                        },
+                    )
+                except Exception as exc:  # noqa: BLE001 - the hub: reported, resumable
+                    return self._fail(run_id, key, "error", message(exc), started)
+        try:
+            self.hub.finish(run_id, {"state": "done", "login": ctx["login"]})
+        except Exception as exc:  # noqa: BLE001 - the api's reaper fails the run later
+            log.warning(
+                "provisioning: done, not reported", extra={"run": run_id, "detail": message(exc)}
+            )
+            return "unreported"
         log.info("provisioned", extra={"run": run_id, "plan": plan["ref"]})
         return "done"
 
     def _fail(
         self, run_id: str, key: str, code: str, detail: str, started: str | None = None
     ) -> str:
+        """The step and the run as failed. Never raises: if the hub cannot be
+        told, the run stays `running` and the api's reaper fails it after its
+        quiet time (review 9.2 §2.3)."""
         log.warning("provisioning step failed", extra={"run": run_id, "step": key, "code": code})
-        self.hub.step(
-            run_id,
-            {
-                "key": key,
-                "state": "failed",
-                "started_at": started or now(),
-                "finished_at": now(),
-                "log_tail": [f"{code}: {detail}"[:300]],
-            },
-        )
-        self.hub.finish(run_id, {"state": "failed", "error": {"step": key, "code": code}})
+        try:
+            self.hub.step(
+                run_id,
+                {
+                    "key": key,
+                    "state": "failed",
+                    "started_at": started or now(),
+                    "finished_at": now(),
+                    "log_tail": [f"{code}: {detail}"[:300]],
+                },
+            )
+            self.hub.finish(run_id, {"state": "failed", "error": {"step": key, "code": code}})
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "provisioning: the failure was not reported",
+                extra={"run": run_id, "step": key, "detail": message(exc)},
+            )
+            return "unreported"
         return "failed"
 
     # ---------------------------------------------------------------- steps --

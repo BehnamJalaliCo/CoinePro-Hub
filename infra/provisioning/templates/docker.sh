@@ -8,7 +8,7 @@ step_docker() {
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$STATE/docker.asc"
   local gh="$STATE/gnupg" fpr codename
   install -d -m 0700 "$gh"
-  fpr="$(GNUPGHOME="$gh" gpg --show-keys --with-colons "$STATE/docker.asc" | awk -F: '/^fpr/ {print $10; exit}')"
+  fpr="$(GNUPGHOME="$gh" gpg --show-keys --with-colons "$STATE/docker.asc" | awk -F: '/^fpr/ && !n++ {print $10}')"
   if [[ "$fpr" != "$DOCKER_KEY_FPR" ]]; then
     log "docker: the signing key's fingerprint is not the pinned one"
     return 1

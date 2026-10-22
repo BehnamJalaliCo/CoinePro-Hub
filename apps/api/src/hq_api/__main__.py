@@ -120,6 +120,8 @@ def make_app(s: Settings) -> FastAPI:
         if s.provisioner_url:
             # PR-063 (prompt 09): the Hetzner project's servers, read-only
             tasks.append(asyncio.create_task(founding.inventory_loop(hub)))
+            # Review 9.2 §2.3: builds the provisioner went quiet on (rule-only)
+            tasks.append(asyncio.create_task(founding.reaper_loop(hub)))
         log.info(
             "api ready",
             extra={"login_configured": s.login_configured, "workshop": workshop.meta_runtime(hub)},

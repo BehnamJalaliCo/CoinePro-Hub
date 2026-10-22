@@ -18,7 +18,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -95,6 +97,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             return if (q.isEmpty()) path else path + "?" + q.entries.joinToString("&") { "${it.key}=${it.value}" }
         }
         Regex("^/provisioning/runs/([^/]+)$").find(path)?.let { m -> return advanceRun(m.groupValues[1]) }
+        Regex("^/companies/([A-Z0-9]+)/brand(/versions)?$").find(path)?.let { m -> return brandRead(m.groupValues[1], m.groupValues[2].isNotEmpty()) }
         // A parameter that selects (⟨1.4⟩ period=month, from=HQ-ADV) matches first; ranges and paging never do.
         store[key(setOf("limit", "cursor"))]?.let { return it }
         val q = query.filterKeys { it !in setOf("limit", "cursor", "from", "to", "period") }.filterValues { it != null }.toSortedMap()
@@ -184,6 +187,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             return 200 to (list("/threads").firstOrNull { it.jsonObject.str("code") == m.groupValues[1] } ?: JsonObject(emptyMap()))
         }
         workshop(path, body)?.let { return it }
+        brand(path, body)?.let { return it }
         v14(path, body)?.let { return it }
         hiring(path, body)?.let { return it }
         if (path == "/orders") return order(body)
@@ -441,7 +445,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val src = body?.get("source")?.jsonObject
             val ref = "C-%04d".format(list("/foundings").size + 1)
             val f = buildJsonObject {
-                put("id", "fo${System.nanoTime()}"); put("ref", ref); put("name_fa", src?.str("repo")?.substringAfter('/') ?: "شرکت تازه"); put("name_en", ""); put("code", "")
+                put("id", "fo${System.nanoTime()}"); put("ref", ref); put("name_fa", JsonNull); put("name_en", JsonNull); put("code", JsonNull)
                 put("source", src ?: JsonNull); put("state", "auditing"); put("audit", JsonNull); put("proposal", JsonNull); put("decision_ref", JsonNull); put("plan", JsonNull); put("company", JsonNull)
                 put("created_at", stamp); put("updated_at", stamp)
             }
@@ -451,25 +455,200 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         }
         Regex("^/foundings/(C-\\d+)/(activate|cancel)$").find(path)?.let { m ->
             val (ref, verb) = m.destructured
+            // ⟨1.4.6⟩ §18.8: no active brand → 409 not_ready, unless the owner activates without it.
+            val brand = store["/foundings/$ref"]?.second?.jsonObject?.get("brand") as? JsonObject
+            if (verb == "activate" && brand?.str("state") != "active" && (body?.get("skip_brand") as? JsonPrimitive)?.booleanOrNull != true) {
+                return 409 to buildJsonObject {
+                    put("code", "not_ready"); put("message_fa", "شرکت هنوز مُهر ندارد؛ نشانش را از لوگوی PNG بساز یا بدون مُهر فعال کن.")
+                    putJsonArray("missing") { add(JsonPrimitive("brand")) }; put("status", 409); put("title", "Not ready"); put("type", "about:blank")
+                }
+            }
+            // §18.16: cancelling returns a sealed but unrun plan to `proposed`.
+            val planRef = store["/foundings/$ref"]?.second?.jsonObject?.str("plan")
+            val plan = planRef?.let { store["/provisioning/plans/$it"]?.second?.jsonObject }
+            if (verb == "cancel" && plan?.str("state") == "sealed") store["/provisioning/plans/$planRef"] = 200 to JsonObject(plan + mapOf("state" to JsonPrimitive("proposed"), "sealed_at" to JsonNull))
             val f = saveFounding(ref) { it + mapOf("state" to JsonPrimitive(if (verb == "activate") "active" else "cancelled"), "updated_at" to stamp) } ?: return 404 to problem("not_found", "پیدا نشد.")
             return 200 to f
         }
         Regex("^/provisioning/plans/(PV-\\d+)/seal$").find(path)?.let { m ->
             val ref = m.groupValues[1]
             val pl = store["/provisioning/plans/$ref"]?.second?.jsonObject ?: return 404 to problem("not_found", "پیدا نشد.")
+            // No price, no seal (§18.16).
+            if (pl["monthly_eur"] !is JsonPrimitive || (pl["problems"] as? JsonArray)?.isNotEmpty() == true) return 409 to problem("price_unknown", "قیمت این طرح هنوز معلوم نیست؛ بدون قیمت مُهر نمیشود.")
             val id = "r${System.nanoTime()}"
             // The steps a build goes through are the hub's; the finished demo build lends its list.
             val template = store["/provisioning/runs/r1"]!!.second.jsonObject["steps"]!!.jsonArray
             store["/provisioning/runs/$id"] = 200 to buildJsonObject {
-                put("id", id); put("plan", ref); put("state", "running"); put("server", JsonNull); put("login", JsonNull)
-                put("steps", JsonArray(template.mapIndexed { i, s ->
-                    JsonObject(s.jsonObject + mapOf("state" to JsonPrimitive(if (i == 0) "running" else "pending"), "started_at" to if (i == 0) stamp else JsonNull, "finished_at" to JsonNull, "log_tail" to JsonPrimitive("")))
+                put("id", id); put("plan", ref); put("state", "queued"); put("server", JsonNull); put("login", JsonNull); put("error", JsonNull)
+                put("steps", JsonArray(template.map { s ->
+                    JsonObject(s.jsonObject + mapOf("state" to JsonPrimitive("pending"), "started_at" to JsonNull, "finished_at" to JsonNull, "log_tail" to JsonArray(emptyList())))
                 }))
             }
-            val sealed = JsonObject(pl + mapOf("state" to JsonPrimitive("running"), "run" to JsonPrimitive(id), "decision_ref" to JsonPrimitive("D-000025")))
+            val sealed = JsonObject(pl + mapOf("state" to JsonPrimitive("running"), "run" to JsonPrimitive(id), "decision_ref" to JsonPrimitive("D-000025"), "sealed_at" to stamp))
             store["/provisioning/plans/$ref"] = 200 to sealed
             pl.str("founding")?.let { saveFounding(it) { f -> f + mapOf("state" to JsonPrimitive("provisioning"), "updated_at" to stamp) } }
             return 200 to sealed
+        }
+        Regex("^/provisioning/runs/([^/]+)/resume$").find(path)?.let { m ->
+            val id = m.groupValues[1]
+            val r = store["/provisioning/runs/$id"]?.second?.jsonObject ?: return 404 to problem("not_found", "پیدا نشد.")
+            if (r.str("state") != "failed") return 409 to problem("conflict", "فقط ساخت شکست‌خورده ادامه پیدا میکند.")
+            val steps = r["steps"]!!.jsonArray.map { it.jsonObject }.toMutableList()
+            val i = steps.indexOfFirst { it.str("state") == "failed" }
+            if (i >= 0) steps[i] = JsonObject(steps[i] + mapOf("state" to JsonPrimitive("running"), "started_at" to stamp, "finished_at" to JsonNull))
+            val next = JsonObject(r + mapOf("state" to JsonPrimitive("running"), "error" to JsonNull, "steps" to JsonArray(steps)))
+            store["/provisioning/runs/$id"] = 200 to next
+            return 200 to next
+        }
+        return null
+    }
+
+    // ---------------------------------------------------------------- ⟨1.4.6⟩ --
+    // The companies' brands (§18.14), as the web's mock-brand.ts: an upload is traced about three seconds later with another
+    // company's two-colour mark; a file named like a photo fails `no_background`, one named "complex" `too_complex` above detail 1.
+    private val tracing = mutableMapOf<String, Long>()
+    private val traced = mutableMapOf<String, Pair<String, String>>()
+
+    private fun versions(code: String): List<JsonObject> = list("/companies/$code/brand/versions").map { it.jsonObject }
+
+    private fun brandRead(code: String, all: Boolean): Pair<Int, JsonElement> {
+        val now = System.currentTimeMillis()
+        val due = tracing.filter { (k, at) -> k.startsWith("$code/") && now - at >= 3_000 }.keys
+        if (due.isNotEmpty()) saveBrand(code, versions(code).map { v -> if ("$code/${v.int("version")}" in due) trace(v) else v })
+        due.forEach(tracing::remove)
+        return store[if (all) "/companies/$code/brand/versions" else "/companies/$code/brand"]
+            ?: (200 to if (all) JsonArray(emptyList()) else buildJsonObject { put("active", JsonNull); put("proposed", JsonNull) })
+    }
+
+    /** The versions, and everything that shows them: the company's view, /brands, `brand_version` and `Founding.brand`. */
+    private fun saveBrand(code: String, all: List<JsonObject>) {
+        val sorted = all.sortedByDescending { it.int("version") }
+        store["/companies/$code/brand/versions"] = 200 to JsonArray(sorted)
+        val active = sorted.firstOrNull { it.str("state") == "active" }
+        val proposed = sorted.firstOrNull { it.str("state") == "proposed" && it.int("version") > (active?.int("version") ?: 0) }
+        store["/companies/$code/brand"] = 200 to buildJsonObject { put("active", active ?: JsonNull); put("proposed", proposed ?: JsonNull) }
+        if (active != null) edit("/brands") { b ->
+            val one = buildJsonObject { put("version", active["version"]!!); for (k in listOf("mark", "wordmark", "ink", "accent", "accent_night", "accent_day")) put(k, active[k] ?: JsonNull) }
+            b + ("companies" to JsonObject((b["companies"] as? JsonObject).orEmpty() + (code to one)))
+        }
+        val version = active?.get("version") ?: JsonNull
+        store["/companies/$code"]?.let { (st, co) -> store["/companies/$code"] = st to JsonObject(co.jsonObject + ("brand_version" to version)) }
+        update("/companies", code, idKey = "code") { it + ("brand_version" to version) }
+        val fb = buildJsonObject {
+            put("state", if (active != null) "active" else if (proposed != null) "proposed" else "missing"); put("version", (active ?: proposed)?.get("version") ?: JsonNull)
+        }
+        for (ref in list("/foundings").map { it.jsonObject }.filter { it.str("company") == code }.mapNotNull { it.str("ref") }) saveFounding(ref) { it + ("brand" to fb) }
+    }
+
+    private fun startBrand(code: String, source: JsonObject, part: String, options: JsonObject?, name: String): JsonObject {
+        val all = versions(code)
+        val version = (all.maxOfOrNull { it.int("version") } ?: 0) + 1
+        val v = buildJsonObject {
+            put("company", code); put("version", version); put("state", "processing"); put("source", source)
+            put("mark", JsonNull); put("wordmark", JsonNull); put("ink", "#111216"); put("accent", JsonNull); put("accent_night", JsonNull); put("accent_day", JsonNull)
+            putJsonArray("palette") {}
+            putJsonObject("options") { options?.get("colors")?.let { put("colors", it) }; put("detail", options?.get("detail") ?: JsonPrimitive(3)) }
+            put("checks", JsonNull); put("digest", ""); put("status_reason", JsonNull); put("created_at", stamp); put("activated_at", JsonNull)
+        }
+        tracing["$code/$version"] = System.currentTimeMillis()
+        traced["$code/$version"] = part to name
+        saveBrand(code, all + v)
+        return v
+    }
+
+    private fun trace(v: JsonObject): JsonObject {
+        val code = v.str("company")!!
+        val (part, name) = traced["$code/${v.int("version")}"] ?: ("mark" to "logo.png")
+        val opts = v["options"]!!.jsonObject
+        val detail = opts.int("detail").coerceIn(1, 5)
+        if (Regex("photo|عکس|img_", RegexOption.IGNORE_CASE).containsMatchIn(name)) return JsonObject(v + mapOf("state" to JsonPrimitive("failed"), "status_reason" to JsonPrimitive("no_background")))
+        if (Regex("complex|پیچیده", RegexOption.IGNORE_CASE).containsMatchIn(name) && detail > 1) return JsonObject(v + mapOf("state" to JsonPrimitive("failed"), "status_reason" to JsonPrimitive("too_complex")))
+        val donor = (store["/brands"]!!.second.jsonObject["companies"] as JsonObject).entries.first { (c, b) -> c != code && b.jsonObject.str("accent") != null }.value.jsonObject
+        val prev = versions(code).firstOrNull { it.str("state") == "active" }
+        // One colour asked for: every layer is the body.
+        fun mono(m: JsonElement): JsonElement = if (opts.int("colors") != 1 || m !is JsonObject) m else {
+            val ink = m["layers"]!!.jsonArray.map { it.jsonObject }.firstOrNull { it.str("role") == "ink" }?.str("color") ?: "#111216"
+            JsonObject(m + ("layers" to JsonArray(m["layers"]!!.jsonArray.map { JsonObject(it.jsonObject + mapOf("role" to JsonPrimitive("ink"), "color" to JsonPrimitive(ink))) })))
+        }
+        val mark = mono(if (part == "mark") donor["mark"]!! else prev?.get("mark") ?: donor["mark"]!!)
+        val wordmark = mono(if (part == "wordmark") donor["wordmark"] ?: JsonNull else prev?.get("wordmark") ?: JsonNull)
+        val layers = mark.jsonObject["layers"]!!.jsonArray.map { it.jsonObject }
+        val ink = layers.firstOrNull { it.str("role") == "ink" }?.str("color") ?: "#111216"
+        val accent = layers.firstOrNull { it.str("role") == "accent" }?.str("color")
+        val night = accent?.let { passing(it, night = true) }
+        val day = accent?.let { passing(it, night = false) }
+        val min = listOf(1.6, 1.3, 1.1, 0.9, 0.7)[detail - 1]
+        val warnings = buildList {
+            if (Regex("\\.(jpe?g|webp)$", RegexOption.IGNORE_CASE).containsMatchIn(name)) add("بدون شفافیت")
+            if (min < 1) add("در اندازه‌ی کوچک جزئیات گم میشود")
+            if (night != null) add("رنگ امضا روی زمینه‌ی شب کم‌کنتراست بود؛ برای شب روشن‌تر شد")
+            if (day != null) add("رنگ امضا روی زمینه‌ی روز کم‌کنتراست بود؛ برای روز تیره‌تر شد")
+        }
+        val bytes = listOf(mark, wordmark).sumOf { m -> (m as? JsonObject)?.get("layers")?.jsonArray?.sumOf { it.jsonObject.str("d")?.length ?: 0 } ?: 0 }
+        return JsonObject(v + mapOf(
+            "state" to JsonPrimitive("proposed"), "mark" to mark, "wordmark" to wordmark, "ink" to JsonPrimitive(ink), "accent" to JsonPrimitive(accent),
+            "accent_night" to JsonPrimitive(night), "accent_day" to JsonPrimitive(day),
+            "options" to buildJsonObject { put("colors", opts["colors"] ?: JsonPrimitive(layers.map { it.str("color") }.distinct().size)); put("detail", detail) },
+            "palette" to JsonArray(listOfNotNull(
+                buildJsonObject { put("hex", ink); put("share", if (accent != null) 0.64 else 1.0) },
+                accent?.let { buildJsonObject { put("hex", it); put("share", 0.36) } },
+            )),
+            "checks" to buildJsonObject {
+                put("paths_bytes", bytes); put("min_feature_px_16", min); put("iou", 0.9 + detail * 0.015)
+                put("contrast_night", accent?.let { contrast(it, PAGE_NIGHT) }); put("contrast_day", accent?.let { contrast(it, PAGE_DAY) })
+                putJsonArray("warnings") { warnings.forEach { add(JsonPrimitive(it)) } }
+            },
+            "digest" to JsonPrimitive(Api.sha256("$code/${v.int("version")}/$mark/$wordmark/$ink/$accent/$night/$day")),
+        ))
+    }
+
+    private fun brand(path: String, body: JsonObject?): Pair<Int, JsonElement>? {
+        Regex("^/companies/([A-Z0-9]+)/brand$").find(path)?.let { m ->
+            val id = body?.str("file_id") ?: return 422 to problem("validation_failed", "فایل لوگو لازم است.")
+            val f = files[id]
+            val name = f?.str("name") ?: "logo.png"
+            val source = buildJsonObject {
+                put("kind", "upload"); put("file_id", id); put("path", JsonNull); put("sha256", f?.str("sha256") ?: "demo")
+                put("width", f?.get("width") ?: JsonPrimitive(1024)); put("height", f?.get("height") ?: JsonPrimitive(1024)); put("has_alpha", !Regex("\\.jpe?g$", RegexOption.IGNORE_CASE).containsMatchIn(name))
+            }
+            return 202 to startBrand(m.groupValues[1], source, body.str("part") ?: "mark", body["options"] as? JsonObject, name)
+        }
+        Regex("^/companies/([A-Z0-9]+)/brand/(\\d+)/(retrace|activate)$").find(path)?.let { m ->
+            val (code, ver, verb) = m.destructured
+            val v = versions(code).firstOrNull { it.int("version") == ver.toInt() } ?: return 404 to problem("not_found", "این نسخه پیدا نشد.")
+            if (verb == "retrace") {
+                val (part, name) = traced["$code/$ver"] ?: ("mark" to "logo.png")
+                return 202 to startBrand(code, v["source"]!!.jsonObject, part, body?.get("options") as? JsonObject ?: v["options"] as? JsonObject, name)
+            }
+            if (v.str("state") != "proposed") return 409 to problem("brand_not_proposed", "این نسخه هنوز آماده‌ی مُهر نیست.")
+            val next = versions(code).map { x ->
+                when {
+                    x.int("version") == ver.toInt() -> JsonObject(x + mapOf("state" to JsonPrimitive("active"), "activated_at" to stamp))
+                    x.str("state") == "active" -> JsonObject(x + ("state" to JsonPrimitive("retired")))
+                    else -> x
+                }
+            }
+            saveBrand(code, next)
+            return 200 to next.first { it.int("version") == ver.toInt() }
+        }
+        return null
+    }
+
+    private fun lum(hex: String): Double {
+        val ch = (0..2).map { hex.removePrefix("#").substring(it * 2, it * 2 + 2).toInt(16) / 255.0 }.map { if (it <= 0.04045) it / 12.92 else Math.pow((it + 0.055) / 1.055, 2.4) }
+        return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
+    }
+
+    private fun contrast(a: String, b: String): Double = (maxOf(lum(a), lum(b)) + 0.05) / (minOf(lum(a), lum(b)) + 0.05)
+
+    /** The accent made lighter (night) or darker (day) until it passes 3:1 on that page; null when it already does. */
+    private fun passing(accent: String, night: Boolean): String? {
+        val page = if (night) PAGE_NIGHT else PAGE_DAY
+        if (contrast(accent, page) >= 3) return null
+        val rgb = (0..2).map { accent.removePrefix("#").substring(it * 2, it * 2 + 2).toInt(16) }
+        for (i in 1..50) {
+            val c = "#" + rgb.joinToString("") { v -> "%02X".format(Math.round(v + ((if (night) 255 else 0) - v) * i * 0.02).toInt()) }
+            if (contrast(c, page) >= 3) return c
         }
         return null
     }
@@ -485,15 +664,26 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private fun advanceRun(id: String): Pair<Int, JsonElement> {
         val (_, cur) = store["/provisioning/runs/$id"] ?: return 404 to problem("not_found", "پیدا نشد.")
         var r = cur.jsonObject
+        // The first poll starts a queued run.
+        if (r.str("state") == "queued") {
+            val steps = r["steps"]!!.jsonArray.map { it.jsonObject }.toMutableList()
+            steps[0] = JsonObject(steps[0] + mapOf("state" to JsonPrimitive("running"), "started_at" to stamp))
+            r = JsonObject(r + mapOf("state" to JsonPrimitive("running"), "steps" to JsonArray(steps)))
+            store["/provisioning/runs/$id"] = 200 to r
+            return 200 to r
+        }
         if (r.str("state") != "running") return 200 to r
         val plan = store["/provisioning/plans/${r.str("plan")}"]!!.second.jsonObject
         val steps = r["steps"]!!.jsonArray.map { it.jsonObject }.toMutableList()
         val i = steps.indexOfFirst { it.str("state") != "done" }
         if (i >= 0) {
-            steps[i] = JsonObject(steps[i] + mapOf("state" to JsonPrimitive("done"), "finished_at" to stamp, "log_tail" to JsonPrimitive(logFor(steps[i].str("key")!!, plan))))
+            steps[i] = JsonObject(steps[i] + mapOf("state" to JsonPrimitive("done"), "finished_at" to stamp, "log_tail" to JsonArray(logFor(steps[i].str("key")!!, plan).map { JsonPrimitive(it) })))
             if (i + 1 < steps.size) steps[i + 1] = JsonObject(steps[i + 1] + mapOf("state" to JsonPrimitive("running"), "started_at" to stamp))
             r = JsonObject(r + ("steps" to JsonArray(steps)))
-            if (steps[i].str("key") == "server") r = JsonObject(r + ("server" to buildJsonObject { put("name", plan.str("name")); put("ipv4", "203.0.113.31"); put("ipv6", "2001:db8::31"); put("private_ip", "10.10.1.6") }))
+            if (steps[i].str("key") == "server") r = JsonObject(r + ("server" to buildJsonObject { put("name", plan.str("name")); put("ipv4", "203.0.113.31"); put("ipv6", "2001:db8::31"); put("private_ip", "10.10.1.6")
+                // The demo build lends the finished one's host keys.
+                put("host_keys", store["/provisioning/runs/r1"]?.second?.jsonObject?.get("server")?.jsonObject?.get("host_keys") ?: JsonArray(emptyList()))
+            }))
         }
         if (steps.all { it.str("state") == "done" }) {
             r = JsonObject(r + mapOf("state" to JsonPrimitive("done"), "login" to buildJsonObject { put("ssh", "ssh ${plan.str("work_user")}@203.0.113.31"); putJsonArray("then") { add(JsonPrimitive("claude")) } }))
@@ -504,16 +694,18 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         return 200 to r
     }
 
-    private fun logFor(key: String, plan: JsonObject): String = when (key) {
-        "ssh-key" -> "owner key registered (label managed-by=coinepro-hq)"
-        "firewall" -> "firewall fw-${plan.str("name")!!.replace(Regex("-\\d+$"), "")}: " + plan["firewall"]!!.jsonArray.joinToString(", ") { w ->
-            "in ${w.jsonObject.str("port")}/tcp from ${if (w.jsonObject["sources"]!!.jsonArray.any { it.jsonPrimitive.content == "owner" }) "owner IPs" else "any"}"
+    /** The last lines a step leaves (§18.16), as the web's mock writes them from the plan being built. */
+    private fun logFor(key: String, plan: JsonObject): List<String> = when (key) {
+        "ssh-key" -> listOf("owner key registered (label managed-by=coinepro-hq)")
+        "firewall" -> listOf("firewall fw-${plan.str("name")!!.replace(Regex("-\\d+$"), "")}") + plan["firewall"]!!.jsonArray.map { w ->
+            val port = w.jsonObject.str("port")
+            "in ${w.jsonObject.str("protocol")}${port?.let { " $it" } ?: ""} from ${if (w.jsonObject["sources"]!!.jsonArray.any { it.jsonPrimitive.content == "owner" }) "owner IPs" else "any"}"
         }
-        "server" -> "${plan.str("type")} · ${plan.str("location")} · ${plan.str("image")} · no root password"
-        "boot" -> "running · ssh answers"
-        "cloud-init" -> "apt full-upgrade ✓ · unattended-upgrades ✓ · docker 28.x ✓ · node 22 LTS ✓ · claude-code ✓ · repo cloned ✓"
-        "verify" -> "ssh: keys only, root login off · auto security updates on"
-        else -> "ready"
+        "server" -> listOf("${plan.str("type")} · ${plan.str("location")} · ${plan.str("image")}", "no root password")
+        "boot" -> listOf("running", "ssh answers")
+        "cloud-init" -> listOf("apt full-upgrade ✓ · unattended-upgrades ✓", "docker 28.x ✓ · node 22 LTS ✓", "claude-code ✓ · repo cloned ✓")
+        "verify" -> listOf("ssh: keys only, root login off", "auto security updates on")
+        else -> listOf("ready")
     }
 
     /** Rules first, like the hub (§17.4): a named company, then the kind of work from known words. */
@@ -545,6 +737,10 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     }
 
     private companion object {
+        /** The page surfaces a brand's accent is checked against (design/tokens, night and day). */
+        const val PAGE_NIGHT = "#0B0D14"
+        const val PAGE_DAY = "#F3EEE3"
+
         val TRANSCRIPTS = mapOf(
             "message" to listOf(
                 "سلام. گزارش امروز دقت سیگنال‌های طلا را تا ساعت پنج بفرست و اگر افت ادامه داشت، دو پیشنهاد اصلاح هم کنارش بگذار.",
@@ -881,4 +1077,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private fun problem(code: String, fa: String) = buildJsonObject { put("code", code); put("message_fa", fa); put("status", 404); put("title", code); put("type", "about:blank") }
 
     private fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+    private fun JsonObject.int(k: String): Int = (this[k] as? JsonPrimitive)?.intOrNull ?: 0
+
 }

@@ -16,13 +16,14 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, internal_ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
+from hq_api.domain import hiring, scoring
 from hq_api.domain import stars as S
 from hq_api.domain import stories as ST
 from hq_api.errors import ApiError, responses
@@ -134,7 +135,10 @@ class StoryLinks(Model):
     deliverable: str | None = Field(default=None, max_length=20)
     decision: str | None = Field(default=None, max_length=20)
     work: str | None = Field(default=None, max_length=20)
-    period: str | None = Field(default=None, max_length=30)
+    period: str | None = Field(default=None, pattern=ST.PERIOD)
+    # ⟨additive⟩ the metric a milestone reached, by name (§18.15: a milestone
+    # links work, a deliverable or a metric), e.g. "users_active".
+    metric: str | None = Field(default=None, pattern=ST.METRIC)
 
 
 class Story(BaseModel):
@@ -174,7 +178,7 @@ def _rubric(r: dict[str, Any], *, latest: bool = True) -> StarRubric:
     return StarRubric(
         company=r["company"],
         version=r["version"],
-        criteria=list(r["criteria"]),
+        criteria=S.rubric_criteria(list(r["criteria"])),  # weights are numbers (§18.15)
         rules_md=r["rules_md"],
         by=actor(r["by_kind"], r["by_code"]),
         status="active" if latest else "draft",
@@ -376,6 +380,9 @@ async def story_archive(
         rows = await tx.all(
             ST.STORY_SQL
             + """ WHERE s.expires_at <= now() AND (CAST(:co AS text) IS NULL OR c.code = :co)
+                    AND """
+            + ST.NOT_HELD
+            + """
                     AND (CAST(:after_t AS timestamptz) IS NULL
                          OR (s.created_at, s.id) < (CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))
                   ORDER BY s.created_at DESC, s.id DESC LIMIT :lim""",
@@ -428,6 +435,12 @@ async def welcome(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Story:
                     await D.post_system_message(
                         tx, t, f"مدیر کل به {code} خوشامد گفت.", {"employee": code}
                     )
+                # A small positive part of the employee score (§18.12, §18.15): now.
+                dept = await tx.scalar(
+                    "SELECT department_id FROM core.employees WHERE code = :c", c=code
+                )
+                if dept is not None:
+                    await scoring.recompute_department(tx, dept)
             await ctx.audit(
                 tx,
                 company_id=row["company_id"],
@@ -451,9 +464,16 @@ class StarIn(Model):
     employee: str = Field(pattern=EMP)
     week: date
     stars: Decimal = Field(ge=0, le=5, max_digits=2, decimal_places=1)
-    criteria: dict[str, Decimal] = Field(default_factory=dict)
+    criteria: dict[str, Decimal] = Field(default_factory=dict, max_length=12)
     reason_md: str = Field(default="", max_length=4000)
     evidence: list[Evidence] = Field(default_factory=list, max_length=20)
+
+    @field_validator("stars")
+    @classmethod
+    def _half(cls, v: Decimal) -> Decimal:
+        if not S.half_step(v):
+            raise ValueError("whole or half stars: 0, 0.5, … 5")
+        return v
 
 
 class AuditIn(Model):
@@ -671,6 +691,12 @@ async def agent_hire_decide(
         if d["kind"] != "hire":
             raise ApiError(422, "validation_failed", fields={"ref": "a hire card"})
         await allow(ctx, "hire.decide", {"company": d["company"], "approver": d["approver_code"]})
+        # Only while hiring is open in mode `delegated` (contract §18.15).
+        current = await hiring.mode(tx)
+        if current is None:
+            raise ApiError(403, "hiring_closed")
+        if current != "delegated":
+            raise ApiError(403, "policy_denied", "hiring is in mode proposals: the owner decides")
         if d["approver_code"] != ctx.who.code:
             raise ApiError(403, "policy_denied", "this card is not yours to decide")
         verdict: Literal["approved", "rejected", "returned"] = {

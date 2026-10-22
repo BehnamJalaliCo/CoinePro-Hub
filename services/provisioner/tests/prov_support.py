@@ -109,13 +109,15 @@ class FakeApi:
         self.auth: set[str] = set()
         self.polls_until_callback = 2
         self.report: dict[str, Any] | None = None  # what the new server reports
+        self.fail_steps = 0  # the next N step reports get a 500 (the hub in trouble)
 
     def add(self, plan: dict[str, Any], steps: list[dict[str, Any]] | None = None,
-            sealed: str | None = None) -> str:  # fmt: skip
+            sealed: str | None = None, ssh_sources: list[str] | None = None) -> str:  # fmt: skip
         rid = f"run-{len(self.runs) + 1}"
         self.runs[rid] = {"id": rid, "state": "sealed", "plan": plan,
                           "sealed_digest": plan["digest"] if sealed is None else sealed,
-                          "steps": steps or [], "polls": 0}  # fmt: skip
+                          "steps": steps or [], "polls": 0,
+                          "ssh_sources": ["198.51.100.0/24"] if ssh_sources is None else ssh_sources}  # fmt: skip
         self.queue.append(rid)
         return rid
 
@@ -144,6 +146,9 @@ class FakeApi:
         if run is None:
             return httpx.Response(404, json={"code": "not_found"})
         if path.endswith("/steps"):
+            if self.fail_steps > 0:
+                self.fail_steps -= 1
+                return httpx.Response(500, json={"code": "internal"})
             self.steps.append({"run": rid, **body})
             return httpx.Response(204)
         if path.endswith("/server"):

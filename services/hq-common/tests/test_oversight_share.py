@@ -17,9 +17,9 @@ def test_parse_share() -> None:
 
 def test_limit_and_spent() -> None:
     assert S.limit(600_000, 0.2) == 120_000
-    assert S.limit(0, 0.2) is None  # no daily cap: no share either
+    assert S.limit(0, 0.2) == 0  # a daily cap of 0 is nothing: no share either
     assert S.limit(1000, 7.0) == 1000 and S.limit(1000, -1.0) == 0
     assert not S.spent(119_999, 600_000, 0.2) and S.spent(120_000, 600_000, 0.2)
-    assert not S.spent(10**9, 0, 0.2)
+    assert S.spent(0, 0, 0.2)  # cap 0: spent before anything runs
     assert S.spent(0, 1000, 0.0)  # share 0: only critical protocols run
     assert S.ROLES == ("overseer", "inspector") and S.CRITICAL == "critical"

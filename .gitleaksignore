@@ -20,3 +20,7 @@ dfbfc729e5c1d1abf16e6c6a0f23bb7cade6a9d2:apps/api/tests/test_agents_more.py:gene
 45efa18068312993552ca586929d366920afa93e:services/provisioner/tests/test_app_vault.py:private-key:66
 # ... the same stub as the branch carries it (rebased commit f86f630; built at runtime since c14de77)
 f86f63045b68a1737d15e998046cd2a088813603:services/provisioner/tests/test_app_vault.py:private-key:66
+# Apps' demo fixtures and mocks (main 19dda76): identifier keys such as connection and rule keys, not secrets
+11b6ee2838bc8d630914f63b46a74b8f2215b840:apps/android/app/src/debug/assets/demo-fixtures.json:generic-api-key:38429
+11b6ee2838bc8d630914f63b46a74b8f2215b840:apps/android/app/src/debug/assets/demo-fixtures.json:generic-api-key:43416
+36b5ec68385b652d8c7fdf1d142f6411caf61ba7:apps/web/src/lib/api/mock-v17.ts:generic-api-key:441

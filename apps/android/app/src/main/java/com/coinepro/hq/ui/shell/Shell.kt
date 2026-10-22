@@ -61,6 +61,7 @@ import com.coinepro.hq.designsystem.DIcon
 import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.IconBtn
 import com.coinepro.hq.designsystem.LiveDot
+import com.coinepro.hq.designsystem.LocalBrands
 import com.coinepro.hq.designsystem.Monogram
 import com.coinepro.hq.designsystem.Orb
 import com.coinepro.hq.designsystem.generated.DivanIcon
@@ -203,7 +204,10 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
         if (!env.demo) com.coinepro.hq.device.CartableWidget.update(ctx, i.decisionsPending, i.notifications["urgent"] ?: 0)
     }
 
-    CompositionLocalProvider(LocalNav provides navApi, LocalLive provides Live(streamState, last, feed.toList())) {
+    // ⟨1.4.6⟩ marks and seals draw from GET /brands first (§18.14).
+    val brands = com.coinepro.hq.ui.companies.rememberBrands()
+
+    CompositionLocalProvider(LocalNav provides navApi, LocalLive provides Live(streamState, last, feed.toList()), LocalBrands provides brands) {
         Column(Modifier.fillMaxSize()) {
             TopBar(
                 back = !top,

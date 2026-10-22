@@ -48,13 +48,15 @@ export function Spark({ values, width = 72, height = 22, max, min }: { values: n
   );
 }
 
-/** A 0–100 score as a number and a thin bar; tone follows the bands used across the holding. */
-export function Score({ value, className }: { value: number; className?: string }) {
-  const tone = value >= 80 ? 'bg-pos' : value >= 65 ? 'bg-warn' : 'bg-neg';
+/** A score as a number and a thin bar (0–100 unless `max` says otherwise, e.g. an audit's 0–10); tone follows the bands used across the holding. */
+export function Score({ value, max = 100, className }: { value: number | null; max?: number; className?: string }) {
+  if (value == null) return <span className={cx('fig text-[13px] text-muted', className)}>—</span>;
+  const share = Math.max(0, Math.min(1, value / max));
+  const tone = share >= 0.8 ? 'bg-pos' : share >= 0.65 ? 'bg-warn' : 'bg-neg';
   return (
     <span className={cx('inline-flex min-w-0 items-center gap-2', className)}>
-      <span className="fig w-8 text-[13px] font-semibold text-ink">{Math.round(value)}</span>
-      <span className="h-1.5 min-w-[48px] flex-1 overflow-hidden rounded-full bg-tile" dir="ltr"><span className={cx('block h-full rounded-full', tone)} style={{ width: `${value}%` }} /></span>
+      <span className="fig w-8 text-[13px] font-semibold text-ink">{max === 100 ? Math.round(value) : value.toFixed(value % 1 ? 1 : 0)}</span>
+      <span className="h-1.5 min-w-[48px] flex-1 overflow-hidden rounded-full bg-tile" dir="ltr"><span className={cx('block h-full rounded-full', tone)} style={{ width: `${share * 100}%` }} /></span>
     </span>
   );
 }

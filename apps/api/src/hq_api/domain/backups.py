@@ -79,8 +79,9 @@ async def oversight_finding(tx: Tx, kind: str, data: dict[str, Any]) -> None:
     from hq_api.domain import oversight
 
     holding = await tx.first("SELECT id, code FROM core.companies WHERE kind = 'holding'")
-    protocol = await tx.first(oversight.PROTOCOL_SQL + " WHERE p.ref = 'PR-070'")
-    if holding is None:
+    # A paused PR-070 raises nothing (contract §18.15: every path refuses it).
+    protocol = await oversight.protocol_in_force(tx, "PR-070")
+    if holding is None or protocol is None:
         return
     since = data.get("last_ok_at") or "never"
     await oversight.raise_finding(

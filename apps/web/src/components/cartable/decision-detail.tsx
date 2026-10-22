@@ -24,7 +24,11 @@ type Decision = Schemas['Decision'];
 // bound to what it proposes (§18.13 ⟨1.4.5⟩); a server plan is sealed only on its own route, against its digest (§18.8).
 const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption']);
 export const needsStepUp = (d: Decision) => d.action_class === 'A3' || STEP_UP_KINDS.has(d.kind);
-const OWN_ROUTE: Record<string, { href: string; fa: string }> = { server_plan: { href: '/founding', fa: 'مُهر طرح سرور در تأسیس شرکت' } };
+/** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8). */
+const OWN_ROUTE: Record<string, { href: (d: Decision) => string; fa: string }> = {
+  // The card carries {plan, company}; the plan page sends a founding's plan on to its founding (§18.16).
+  server_plan: { href: (d) => { const plan = (d.payload as { plan?: unknown } | null)?.plan; return typeof plan === 'string' ? `/founding/${plan}` : '/founding'; }, fa: 'مُهر طرح سرور' },
+};
 
 function Fact({ label, children, mono }: { label: string; children: ReactNode; mono?: boolean }) {
   return (
@@ -202,7 +206,7 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
       {pending ? (
         <div className="flex flex-col items-center gap-4 rounded-[18px] bg-card p-5">
           {OWN_ROUTE[d.kind] ? (
-            <Button variant="primary" icon="seal" onClick={() => router.push(OWN_ROUTE[d.kind]!.href)}>{OWN_ROUTE[d.kind]!.fa}</Button>
+            <Button variant="primary" icon="seal" onClick={() => router.push(OWN_ROUTE[d.kind]!.href(d))}>{OWN_ROUTE[d.kind]!.fa}</Button>
           ) : (
             <SealButton code={d.company} nameFa={co.nameFa} nameEn={co.nameEn} holding={co.holding} busy={busy} onSealed={seal} />
           )}

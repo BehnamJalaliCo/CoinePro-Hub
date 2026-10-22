@@ -33,6 +33,19 @@ RUBRIC = {
 }
 
 
+@pytest.fixture(autouse=True)
+async def seeded(hub: Any, owner_db: Any) -> None:
+    """The protocols (a hire's PR-098 review, PR-080): another file's
+    migration round trip drops them for the rest of the session (8.1)."""
+    from hq_api.domain import oversight
+    from hq_common import charters
+
+    holding = await hub.companies.holding()
+    async with owner_db.raw() as tx:
+        await tx.exec("SET LOCAL ROLE hq")
+        await oversight.seed_protocols(tx, holding.id, charters.load().root)
+
+
 async def _end_test_runs(su: Any, *codes: str) -> None:
     await su.execute(
         """UPDATE agents.runs r SET state = 'done', finished_at = now() FROM core.employees e
@@ -265,7 +278,10 @@ async def test_a_lesson_goes_to_the_other_ceos_for_adoption(
     )
     assert r.status_code == 201, r.text
     ref = r.json()["ref"]
-    r = await client.post(f"/api/v1/decisions/{ref}/approve", headers={**h, **idem()}, json={})
+    seal = await step_up(hub, owner_session["session_id"], "decision.approve", ref)  # 8.1 §2.16
+    r = await client.post(
+        f"/api/v1/decisions/{ref}/approve", headers={**h, **seal, **idem()}, json={}
+    )
     assert r.status_code == 200, r.text
     async with hub.db.tx(await hub.companies.ids()) as tx:
         await D.apply_effect(tx, ref, SYSTEM)
@@ -522,6 +538,7 @@ async def test_stories_limits_masking_rings_and_welcome(
         "kind": "milestone",
         "title_fa": "۱۰۰۰ کاربر",
         "figures": [{"label_fa": "کاربر", "value": "1000"}],
+        "links": {"metric": "users"},  # 8.1 §2.17: a metric with its figure
     }
     for body in (post, milestone):
         r = await client.post("/internal/v1/stories", headers={**ceo, **idem()}, json=body)

@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.res.ResourcesCompat
 import com.coinepro.hq.R
-import com.coinepro.hq.designsystem.generated.BrandData
+import com.coinepro.hq.designsystem.generated.BrandMark
 import com.coinepro.hq.designsystem.generated.DivanFixed
 import com.coinepro.hq.designsystem.generated.DivanMotion
 import kotlin.math.PI
@@ -71,6 +71,8 @@ fun Seal(
     size: Dp = 88.dp,
     progress: Float = 0f,
     dateLabel: String? = null,
+    /** A brand version to draw in place of the company's own mark: the owner looks at a proposal before sealing it (§18.14). */
+    mark: BrandMark? = null,
 ) {
     val c = Divan.colors
     val ctx = LocalContext.current
@@ -112,7 +114,9 @@ fun Seal(
                     if (sealed) SealedMonogram(size * 0.34f) else Monogram(size * 0.34f, ink = ink)
                 } else {
                     val ink = if (sealed) c.onGold else c.goldInk
-                    if (BrandData.companies.containsKey(code)) CompanyMark(code, height = size * (if (showText) 0.36f else 0.5f), mono = true, ink = ink)
+                    // The company's mark as CompanyMark resolves it (GET /brands, then the built-in marks), engraved in one ink.
+                    val m = mark ?: companyMarkOf(code)
+                    if (m != null) BrandMarkImage(m, size * (if (showText) 0.36f else 0.5f), mono = true, ink = ink, label = code)
                     else Monogram(size * 0.3f, ink = ink)
                 }
             }

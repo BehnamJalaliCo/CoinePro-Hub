@@ -2,16 +2,20 @@
 
 protocol_run      one scheduled run of a protocol: a checker in code when one
                   exists (rule, reconcile), else work for the overseer or QC,
-                  within the daily cap of model-backed runs and the oversight
-                  share of the token cap (prompt 08 §2.3: once it is spent only
-                  `critical` protocols go on, the rest are `deferred`); a code
-                  check wakes the overseer only for a failure or what it could
-                  not decide, with the evidence it collected
+                  within the oversight share of the token cap (prompt 08 §2.3:
+                  once it is spent only `critical` protocols go on, the rest
+                  are `deferred`) and the count cap of model-backed runs (never
+                  for a `critical` one; the rest `deferred`); a code check
+                  wakes the overseer only for a failure or what it could not
+                  decide, with the evidence it collected. Nothing at all while
+                  the holding is locked (no run row, no work, no model).
 oversight_tick    every 5 minutes (Maintenance): yesterday's deferred runs
-                  first, watch mode on/off and its report, missed challenges,
-                  today's compliance
+                  first (not while the holding is locked), watch mode on/off
+                  and its report, missed challenges, today's compliance (rule
+                  only: no model, no outside call)
 oversight_weekly  Saturday morning: one work item for the overseer to issue
-                  this week's challenge to every company that has none
+                  this week's challenge to every company that has none (none
+                  while the holding is locked)
 reconcile()       the protocols seeded from agents/ and one Temporal schedule
                   per ACTIVE protocol (a paused one has none; called from
                   reconcile_schedules)
@@ -110,53 +114,68 @@ class OversightActivities:
         return out
 
     # ------------------------------------------------------------- the run --
+    async def holding_locked(self, tx: Any, holding: Any) -> bool:
+        """The holding kill switch (or any lock on the holding): oversight runs
+        nothing on its own (no run, no work, no model call) until it is lifted."""
+        return await tx.scalar("SELECT control.lock_state(:co)", co=holding.id) is not None
+
     @activity.defn(name="protocol_run")
     async def protocol_run(self, ref: str) -> dict[str, Any]:
         holding = await self.hub.companies.holding()
-        s = self.hub.settings
         async with self._tx() as tx:
+            if await self.holding_locked(tx, holding):
+                return {"protocol": ref, "skipped": "holding_locked"}
             try:
                 p = await O.load_protocol(tx, ref)
             except ApiError:
                 return {"protocol": ref, "skipped": "unknown"}
             if p["status"] != "active":
                 return {"protocol": ref, "skipped": p["status"]}
-            run = await O.start_run(tx, p)
-            checker = C.CHECKS.get(ref) if p["method"] in O.CODE_METHODS else None
-            if checker is not None:
-                return await self._by_code(tx, p, run, checker, holding)
             tz = str(
                 await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
             )
-            precheck = C.PRECHECKS.get(ref)
-            if precheck is not None and not await precheck(tx):
-                await O.finish_run(tx, run["id"], "skipped", notes="nothing to review")
-                return {"protocol": ref, "skipped": "nothing_to_review"}
-            if await tx.scalar(
+            checker = C.CHECKS.get(ref) if p["method"] in O.CODE_METHODS else None
+            if checker is None and await tx.scalar(
                 """SELECT 1 FROM oversight.protocol_runs WHERE protocol_ref = :r AND work_id IS NOT NULL
                      AND started_at >= :s LIMIT 1""",
                 r=ref,
                 s=O.day_start(datetime.now(UTC), tz),
             ):
-                # An hourly judgement protocol goes to a model at most once a day.
-                await O.finish_run(tx, run["id"], "skipped", notes="handed to the overseer today")
+                # An hourly judgement protocol goes to a model at most once a
+                # day: today's run stands, no new run is recorded.
                 return {"protocol": ref, "skipped": "once_a_day"}
+            run = await O.start_run(tx, p)
+            if checker is not None:
+                return await self._by_code(tx, p, run, checker, holding)
+            precheck = C.PRECHECKS.get(ref)
+            if precheck is not None and not await precheck(tx):
+                await O.finish_run(tx, run["id"], "pass", notes="nothing to review")
+                return {"protocol": ref, "result": "pass", "why": "nothing_to_review"}
             if await self._defer(tx, p, run):
                 return {"protocol": ref, "deferred": "oversight_share"}
-            if await O.model_runs_today(tx, tz) >= s.oversight_model_runs_per_day:
-                await O.finish_run(
-                    tx,
-                    run["id"],
-                    "skipped",
-                    notes="daily cap of model-backed protocol runs reached",
-                )
-                return {"protocol": ref, "skipped": "daily_cap"}
+            if await self._over_count(tx, p, run, tz):
+                return {"protocol": ref, "deferred": "daily_cap"}
             prefer = O.QC if p["method"] in O.QC_METHODS else O.OVERSEER
             handed = await self._hand(tx, p, run, holding, prefer, self._brief(p))
             if handed is None:
-                await O.finish_run(tx, run["id"], "skipped", notes="no overseer to run it")
-                return {"protocol": ref, "skipped": "no_overseer"}
+                await O.finish_run(tx, run["id"], "deferred", notes="no overseer to run it")
+                return {"protocol": ref, "deferred": "no_overseer"}
             return {"protocol": ref, "work": handed[0], "assignee": handed[1]}
+
+    async def _over_count(self, tx: Any, p: dict[str, Any], run: dict[str, Any], tz: str) -> bool:
+        """The count cap of model-backed runs (HQ_OVERSIGHT_MODEL_RUNS_PER_DAY),
+        counted under a lock: a run beyond it is `deferred` to the next day,
+        except a `critical` protocol, which it never stops (contract §18.15)."""
+        count = await O.model_runs_today(tx, tz)  # takes the lock first
+        if (
+            p["severity"] == oversight_share.CRITICAL
+            or count < self.hub.settings.oversight_model_runs_per_day
+        ):
+            return False
+        await O.finish_run(
+            tx, run["id"], "deferred", notes="daily cap of model-backed protocol runs reached"
+        )
+        return True
 
     async def _defer(self, tx: Any, p: dict[str, Any], run: dict[str, Any]) -> bool:
         """The oversight share is spent and the protocol is not critical: the
@@ -306,7 +325,10 @@ class OversightActivities:
             tx, s.agent_daily_token_cap, s.oversight_daily_share
         ):
             return {"woken": None, "why": "oversight_share"}
-        if await O.model_runs_today(tx, tz) >= s.oversight_model_runs_per_day:
+        if (
+            await O.model_runs_today(tx, tz) >= s.oversight_model_runs_per_day
+            and p["severity"] != oversight_share.CRITICAL
+        ):
             return {"woken": None, "why": "daily_cap"}
         handed = await self._hand(
             tx,
@@ -411,7 +433,9 @@ class OversightActivities:
     async def oversight_tick(self) -> dict[str, Any]:
         holding = await self.hub.companies.holding()
         async with self._tx() as tx:
-            due = await O.deferred_due(tx)
+            # While the holding is locked no deferred run is resumed (the rest
+            # of the tick is rule-only bookkeeping: no model, no outside call).
+            due = [] if await self.holding_locked(tx, holding) else await O.deferred_due(tx)
         resumed = [await self.protocol_run(ref) for ref in due]  # first in the new day's queue
         async with self._tx() as tx:
             watch = await O.evaluate_watch(tx, holding.id, holding.code)
@@ -440,6 +464,13 @@ class OversightActivities:
                 await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
             )
             key = O.week_key(datetime.now(UTC), tz)
+            if await self.holding_locked(tx, holding):
+                return {
+                    "week": key.isoformat(),
+                    "missing": [],
+                    "work": None,
+                    "skipped": "holding_locked",
+                }
             missing = []
             for c in await self.hub.companies.all():
                 if c.kind == "holding" or c.status != "active":

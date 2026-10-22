@@ -603,7 +603,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - `manifest.json` و `SHA256SUMS`
 - **snapshot ‏restic:** از مجموعه، آرشیو WAL و خود فایل‌های `hq-files`:
   1. اول در مخزن محلی
-  2. بعد با `restic copy` به **Google Drive** (`rclone:gdrive:CoinePro-HQ/restic`)
+  2. بعد با `restic copy` به **Google Drive** (`rclone:gdrive:CoinePro HQ Backup`؛ خود پوشه مخزن restic است)
   3. و اگر روشن باشد، به Hetzner
 - **نگهداری:**
   - Drive و Hetzner: `--keep-hourly 168 --keep-daily 90 --keep-weekly 52 --keep-monthly 36 --keep-yearly 10`
@@ -658,13 +658,15 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **نتیجه:** در `backup.restore_tests` ثبت میشود. شکست ← اعلان فوری.
 
 ### کارهای مالک (به ترتیب، در ترمینال SSH خودش)
-1. **`make gdrive-auth`:**
-   - توضیح فارسی چاپ میکند.
-   - مالک روی کامپیوتر خودش این را اجرا میکند (scope ‏`drive.file`: rclone فقط فایل‌های خودش را میبیند):
-     `rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"`
-   - JSON را بی‌نمایش میچسباند ← `kv/backup/gdrive`. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro-HQ/restic` را میسازد.
-   - **پیشنهاد (اختیاری):** یک OAuth client ID اختصاصی (نوع Desktop) در Google Cloud خود مالک، برای سهمیه‌ی جدا از client عمومی rclone. در این صورت مالک client ID و client secret را در پرسش اسکریپت میدهد، و اسکریپت فرمان را میسازد: `rclone authorize "drive" "<base64>"`. این رشته یک JSON با `client_id`، `client_secret` و `"scope":"drive.file"` است، base64 بدون padding (۷.۱ §۲.۸). شکل دو-آرگومانی (`"<client_id>" "<client_secret>"`) دسترسی **کل** Drive را میخواست و دیگر استفاده نمیشود.
-   - **کار مالک: consent screen آن پروژه در Google Cloud باید «In production» باشد.** در حالت «Testing»، گوگل refresh token را بعد از ۷ روز باطل میکند و backup بیرونی بی‌خبر میایستد (اسکریپت هم همین را میگوید). برای client عمومی rclone لازم نیست.
+1. **`make gdrive-auth`** (لینک و کد؛ درخواست مالک ۲۰۲۶-۱۰-۲۲، چیزی نصب نمیشود):
+   - اسکریپت یک لینک Google چاپ میکند. مالک آن را روی گوشی یا کامپیوتر خودش باز میکند، وارد میشود و «Allow» میزند.
+   - مرورگر به `127.0.0.1:53682/?state=…&code=…` میرود که باز نمیشود (درست است). مالک همه‌ی آن آدرس را کپی میکند و بی‌نمایش در پرسش اسکریپت میچسباند.
+   - پشت صحنه: `rclone authorize` با client عمومی rclone و scope ‏`drive.file` در یک کانتینر موقت backup-tools ‏(`hq-gdrive-auth`، بدون root، root filesystem فقط‌خواندنی) منتظر است. آدرس فقط به صفحه‌ی محلی همان کانتینر داده میشود و rclone کد یک‌بارمصرف را همان‌جا با توکن عوض میکند. توکن مستقیم به `kv/backup/gdrive` میرود و هیچ‌جا چاپ نمیشود. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro HQ Backup` را میسازد.
+   - **دو مرحله‌ای:** `make gdrive-auth step=link` فقط لینک را میدهد و ورود ۳۰ دقیقه منتظر میماند (`HQ_GDRIVE_AUTH_WAIT_S`). بعد `make gdrive-auth step=code` آدرس را میگیرد: بی‌نمایش در ترمینال، یا از stdin وقتی مالک آدرس را به Claude سرور میدهد. کد درون آدرس فقط یک بار و فقط چند دقیقه معتبر است و بعد از مصرف بی‌ارزش است.
+   - **client اختصاصی مالک (`own=1`، راه ماندگار):** client عمومی rclone سهمیه‌ی مشترک همه‌ی کاربران rclone را دارد و خود rclone میگوید در ۲۰۲۶ کنار میرود. اولین copy به Drive (۲۰۲۶-۱۰-۲۲) با `403 rateLimitExceeded` همان سهمیه شکست خورد.
+     - **کار مالک در Google Cloud:** یک پروژه بسازد، Google Drive API را Enable کند، consent screen را بسازد و در Audience، «Publish app» بزند تا **«In production»** شود (در حالت «Testing»، refresh token بعد از ۷ روز باطل میشود). بعد در Clients یک OAuth client از نوع **Desktop app** بسازد.
+     - با `make gdrive-auth own=1` (همراه `step=link` هم میشود) اسکریپت client ID و client secret را میپرسد (secret بی‌نمایش؛ با `step=link` دو خط از stdin) و همان لینک و آدرس بالا را با client مالک میگیرد. ID و secret از stdin به tmpfs کانتینر میرسند، نه argv و نه env کانتینر، و کنار توکن در `kv/backup/gdrive` ذخیره میشوند. scope همچنان `drive.file` است.
+     - **عوض کردن client:** با `drive.file` هر client فقط فایل‌های خودش را میبیند. client تازه پوشه و مخزن restic خودش را میسازد (اولین copy کامل است). پوشه‌ی client قبلی در Drive میماند تا مالک خودش پاکش کند. ۲۰۲۶-۱۰-۲۲: از client عمومی به client خود مالک (پروژه‌ی `coinepro-hq-backup`، In production) رفتیم؛ ۵۱ snapshot در ۲۶۶ ثانیه کپی شد.
    - تا این کار نشده، backup ساعتی فقط محلی است و وضعیت Drive «پیکربندی نشده» است.
 2. **نسخه‌ی کاغذی رمز restic:** `make backup-password`.
    - فقط در ترمینال خود مالک، با تایپ `show`. بعد از Enter صفحه پاک میشود.
@@ -856,7 +858,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - بقیه‌ی پروتکل‌ها (`sample`، `llm`، `blind_test`، `mystery`، و `rule`/`reconcile` بی‌checker) کار ناظر یا QC میشوند. سقف: `HQ_OVERSIGHT_MODEL_RUNS_PER_DAY` (پیش‌فرض ۳ در روز مالک) و بودجه‌ی هر اجرا `HQ_OVERSIGHT_RUN_TOKENS` (پیش‌فرض ۶۰ هزار، **هرگز بیشتر از `tokens_per_run` منشور مجری**: ناظر v2 و مشاور v3 هر کدام ۲۰۰ هزار). بیرون از سقف، اجرا `skipped` ثبت میشود. هر پروتکل حداکثر یک بار در روز به مدل میرود (پروتکل ساعتی هم)، و PR-098 فقط وقتی که مدیرعاملی در ۲۴ ساعت گذشته استخدامی تأیید کرده باشد.
   - **سهم توکن نظارت، `OVERSIGHT_DAILY_SHARE`** (در `.env`، پیش‌فرض `0.2`؛ قرارداد §۱۸.۱ v1.4.4): ناظر و QC روی هم حداکثر این سهم از `AGENT_DAILY_TOKEN_CAP` را در روز UTC مصرف میکنند (با ۶۰۰ هزار: ۱۲۰ هزار). LLM Router آن را مثل بودجه اجرا میکند: وقتی مصرف امروز نقش‌های `overseer` و `inspector` هلدینگ به سهم رسید، هر فراخوانی بعدی آن‌ها با `429 budget_exhausted` (در دفتر: `rejected_budget` / `oversight_share`) رد میشود، در هر اولویتی. فقط اجرای پروتکل `critical` ادامه میدهد (runner شماره و شدت پروتکل را در meta فراخوانی میفرستد).
     - وقتی سهم پر است، اجرای پروتکل غیر `critical` نتیجه‌ی **`deferred`** میگیرد (کاری ساخته نمیشود). deferred رد نیست و در نمره‌ی انطباق حساب نمیشود. روز بعد (UTC)، اولین `oversight_tick` پروتکل‌های deferred را **اول صف** دوباره اجرا میکند: اول شدیدترها، بعد قدیمی‌ترها.
-    - `AGENT_DAILY_TOKEN_CAP=0` یعنی بی‌سقف، پس سهمی هم نیست. `OVERSIGHT_DAILY_SHARE=0` یعنی فقط پروتکل‌های `critical`. مقدار باید بین ۰ و ۱ باشد، وگرنه سرویس بالا نمیاید.
+    - `AGENT_DAILY_TOKEN_CAP=0` یعنی «هیچ» (پرامپت ۸.۱): هیچ اجرای ایجنتی نیست و سهم نظارت هم صفر است. `OVERSIGHT_DAILY_SHARE=0` یعنی فقط پروتکل‌های `critical`. مقدار باید بین ۰ و ۱ باشد، وگرنه سرویس بالا نمیاید.
   - **برآورد مصرف:** حداکثر ۳ × ۶۰ هزار = ۱۸۰ هزار توکن در روز، به‌علاوه‌ی صدور چالش‌های هفتگی (۶۰ هزار در هفته) و پیام‌های مالک در رشته‌ی `N`؛ سهم نظارت (۱۲۰ هزار با سقف فعلی) زودتر جلوی آن را میگیرد. منشور ناظر v2 سقف هر اجرا را ۲۰۰ هزار گذاشته و هیچ اجرایی از آن نمیگذرد، حتی اگر `HQ_OVERSIGHT_RUN_TOKENS` بیشتر باشد.
 - **یافته:** پاسخ‌گو (نقش پروتکل در همان شرکت، وگرنه مدیرعامل، وگرنه مالک) وضعیت را `acknowledged`، `fixing`، `fixed` یا `disputed` میکند؛ `fixed` شاهد میخواهد. `verified` فقط با شاهد رفع است و فقط با ناظر یا مالک؛ `closed` هم همین‌طور. مالک: `POST /oversight/findings/{ref}/status`.
 - **hold:** هر hold یک ردیف `H-` روی یک هدف است و هر هدف فقط یک hold باز دارد. هدف‌ها و آنچه متوقف میشود:
@@ -1032,6 +1034,8 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
      - کار‌بر کاری سرور تازه همین کلیدها را میگیرد.
   - تا این دو انجام نشده‌اند، `/v1/pricing` و ساخت جواب `channel_not_configured` میدهند.
   - **IPهای مجاز SSH** را مالک در طرح تعیین میکند. SSH باز به کل اینترنت (`0.0.0.0/0` روی 22) پذیرفته نمیشود.
+    - ⟨۹.۲⟩ هر بازه‌ی tcp که ۲۲ را شامل شود SSH است، و منبع‌هایش باید **درون** `provision_ssh_sources` مالک باشند (تا تنظیم نشده‌اند، هیچ طرحی با SSH مُهر نمیشود).
+    - منبع‌هایی که روی هم کل فضای IPv4 یا IPv6 را میپوشانند (مثلاً `0.0.0.0/1` و `128.0.0.0/1`) فقط روی 80 و 443 مجازند.
 - **گام‌ها** (هر کدام با لاگ کوتاه به api، و قابل ادامه):
   1. `ssh-key`
   2. `firewall`: یک Hetzner Cloud Firewall تازه، دقیقاً با قاعده‌های طرح. اگر طرح شبکه‌ی خصوصی بخواهد، شبکه‌ی **خود شرکت** (`10.20.0.0/16`) هم ساخته میشود. به شبکه‌ی موجود هاب وصل نمیشود، چون آن تغییر شبکه‌ی production است و با مالک است.
@@ -1044,10 +1048,13 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   رفتار در خطا:
   - گامی که شکست بخورد گزارش میشود. api دوباره اجرایش میکند؛ گام‌های تمام‌شده تکرار نمیشوند و چیزی دو بار ساخته نمیشود.
   - سروری که ساخته شده بود و بعد در کنسول حذف شد، دوباره ساخته نمیشود (`server_gone`). سرور تازه یعنی یک طرح مُهرشده‌ی تازه.
+  - ⟨۹.۲⟩ اجرایی که provisioner درباره‌اش ۷۵ دقیقه چیزی نگفته (`HQ_PROVISION_QUIET_S`، مثلاً restart وسط کار یا api که جواب نداد) را reaper در api روی همان گام `failed` میکند. فقط قاعده است، بدون مدل و بدون فراخوان بیرونی، و فقط وقتی provisioner روشن است.
+  - اجرای شکست‌خورده تأسیس را به `sealed` برمیگرداند: مالک `resume` میکند یا تأسیس را لغو میکند. اجرایی که `refused` شد (مثلاً هتزنر رمز root داد) دیگر ادامه نمیگیرد.
 - **cloud-init** از قالب‌های بازبینی‌شده‌ی `infra/provisioning/templates/` ساخته میشود، یکی برای هر کلید نرم‌افزار. هیچ قالبی ورودی نمیگیرد؛ همه‌ی مقدارها یک بار با `shlex.quote` میایند. حداکثر 32 KiB.
   - `system-upgrade`: ‏`full-upgrade`. اگر لازم باشد، **همین سرور تازه** یک بار، فقط حین ساخت، ریبوت میشود و بقیه‌ی گام‌ها را `coinepro-provision.service` بعد از بوت تمام میکند.
   - `unattended-upgrades`
-  - `work-user`: کلید مالک، رمز قفل‌شده، sudo با کلید.
+  - `work-user`: کلید مالک، رمز قفل‌شده، sudo با کلید. ⟨۹.۲⟩ کاربر را خود ساخت میسازد؛ اگر از قبل باشد گام شکست میخورد. نام‌های سیستمی Ubuntu (مثل `mail` و `proxy`) رد میشوند و پیش‌فرض `<code>-ops` است.
+  - ⟨۹.۲⟩ هر گام در یک subshell با `errexit` اجرا میشود، پس **شکست هر دستور گام را شکست میدهد**. `ssh-hardening`، `unattended-upgrades` و `work-user` در هر طرح اجباری‌اند.
   - `ssh-hardening`: فقط کلید، بدون root، بدون رمز، فقط کاربر کاری.
   - `docker`: از مخزن رسمی Docker. اثر انگشت کلید امضا (`9DC8…CD88`) پیش از اعتماد چک میشود.
   - `git`
@@ -1081,6 +1088,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
     - فقط apt، npm، docker CLI و systemctl جایگزین ضبط‌کننده‌اند.
     - کلید Docker و Node واقعی در زمان build ایمیج آزمون گرفته و چک میشوند.
     - چهار سناریو: کامل، اجرای دوباره، ریبوت، و گام شکست‌خورده.
+    - ⟨۹.۲⟩ و سه سناریوی دیگر: sha256 غلط Node، پیکربندی‌ای که `sshd -t` رد میکند، و حسابی که از قبل با نام کاربر کاری هست. هر کدام گامش را شکست میدهد و چیزی را که آن گام نگه میدارد دست‌نخورده میگذارد.
   - `HQ_PROVISION_ONLINE=1 bash scripts/quality/provisioning.sh` همان را با apt، مخزن Docker و npm واقعی اجرا میکند.
 
 ## ۲۶. تأسیس شرکت و طرح سرور، سمت api (پرامپت ۹ §۲ تا §۴، قرارداد §۱۸.۸)
@@ -1098,6 +1106,8 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   4. `provisioning` و بعد `ready_for_login`: provisioner طرح مُهرشده را میسازد (بخش provisioner).
   5. `active`: بعد از ورود خود مالک، `POST /foundings/{ref}/activate` با 🔏 (هدف = ref). شرکت `active` میشود و مدیرعامل یک کار شروع میگیرد که نقشه‌ی راه، KPIها و تیم پیشنهادی را دارد. استخدام تیم با خود مدیرعامل است، طبق قاعده‌ی استخدام.
   - `POST /foundings/{ref}/cancel` تا پیش از `active` کار میکند. شرکتی که ساخته شده میماند (`paused`) و چیزی حذف نمیشود.
+    - ⟨۹.۲⟩ لغو همه‌چیز را میبندد: کارت‌های pending `company_found` و `server_plan` withdraw میشوند، طرح مُهرشده‌ی اجرانشده به `proposed` برمیگردد، کار ممیزی و پیشنهاد لغو میشود و سشن کارگاه متوقف میشود. از تأسیس لغوشده هیچ چیز مُهر، ساخته یا build نمیشود.
+    - تا وقتی ساخت در صف یا در حال اجراست، لغو `409` میگیرد.
 - **طرح سرور** (`server.plan`، کلاس A1؛ مدیر فنی برای شرکت خودش، platform SRE برای هر شرکت یا تأسیس):
   - نرم‌افزار فقط از فهرست ثابت `hq_common.provisioning.SOFTWARE` است. کلید ناشناخته `422` میگیرد.
   - `digest` همان sha256 از JSON کانونی است و هر دو سمت آن را با یک کد حساب میکنند.

@@ -16,7 +16,9 @@
 - oversight.watch: the periods of watch mode with the "while you were away"
   report.
 Also owner.settings.watch_after_hours (default 6) and the decision kind
-`protocol` (A1, sealed by the owner).
+`protocol` (A1, sealed by the owner). A cancelled hold cancels the action
+itself (contract §18.15): a queued decision effect becomes `cancelled`; a held
+workshop session is marked held `hold` (interrupted, resumed on release).
 
 Revision ID: 0019
 Revises: 0018
@@ -125,8 +127,9 @@ def upgrade() -> None:
             started_at    timestamptz NOT NULL DEFAULT now(),
             finished_at   timestamptz,
             result        text NOT NULL DEFAULT 'pending'
-                               -- deferred: the oversight share was spent (contract §18.1 v1.4.4)
-                               CHECK (result IN ('pending', 'pass', 'fail', 'partial', 'skipped', 'deferred')),
+                               -- deferred: the oversight share (or the count cap) was spent; it
+                               -- runs first the next day. Never `skipped` (contract §18.15).
+                               CHECK (result IN ('pending', 'pass', 'fail', 'partial', 'deferred')),
             by_kind       text NOT NULL CHECK (by_kind IN ('system', 'agent')),
             by_code       text NOT NULL,
             findings      int NOT NULL DEFAULT 0 CHECK (findings >= 0),
@@ -348,6 +351,14 @@ def upgrade() -> None:
             $$;
         REVOKE ALL ON FUNCTION oversight.watch_on() FROM PUBLIC;
         GRANT EXECUTE ON FUNCTION oversight.watch_on() TO {APP_ROLES};
+        -- When the open watch began (NULL when off): a target the owner released
+        -- or cancelled since then is not held again (contract §18.15).
+        CREATE FUNCTION oversight.watch_since() RETURNS timestamptz
+            LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+                SELECT since FROM oversight.watch WHERE until IS NULL
+            $$;
+        REVOKE ALL ON FUNCTION oversight.watch_since() FROM PUBLIC;
+        GRANT EXECUTE ON FUNCTION oversight.watch_since() TO {APP_ROLES};
         CREATE TRIGGER watch_no_delete BEFORE DELETE ON oversight.watch
             FOR EACH ROW EXECUTE FUNCTION core.reject_change();
 
@@ -387,6 +398,14 @@ def upgrade() -> None:
         ALTER TABLE cartable.decisions DROP CONSTRAINT decisions_kind_check;
         ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check
             CHECK (kind IN ({KINDS}, 'protocol')) NOT VALID;  -- 0023 validates
+
+        -- ------------------------------- a cancelled hold (contract §18.15) --
+        ALTER TABLE cartable.decisions DROP CONSTRAINT decisions_effect_status_check;
+        ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_effect_status_check
+            CHECK (effect_status IN ('none', 'pending', 'applied', 'failed', 'cancelled'));
+        ALTER TABLE workshop.sessions DROP CONSTRAINT sessions_held_check;
+        ALTER TABLE workshop.sessions ADD CONSTRAINT sessions_held_check
+            CHECK (held IN ('work_lock', 'company_locked', 'budget', 'hold'));
         """
     )
 
@@ -394,10 +413,18 @@ def upgrade() -> None:
 def downgrade() -> None:
     execute_script(
         f"""
+        UPDATE workshop.sessions SET held = 'company_locked' WHERE held = 'hold';
+        ALTER TABLE workshop.sessions DROP CONSTRAINT sessions_held_check;
+        ALTER TABLE workshop.sessions ADD CONSTRAINT sessions_held_check
+            CHECK (held IN ('work_lock', 'company_locked', 'budget'));
+        ALTER TABLE cartable.decisions DROP CONSTRAINT decisions_effect_status_check;
+        ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_effect_status_check
+            CHECK (effect_status IN ('none', 'pending', 'applied', 'failed')) NOT VALID;
         ALTER TABLE cartable.decisions DROP CONSTRAINT decisions_kind_check;
         ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check
             CHECK (kind IN ({KINDS})) NOT VALID;
         ALTER TABLE owner.settings DROP COLUMN watch_after_hours;
+        DROP FUNCTION oversight.watch_since();
         DROP FUNCTION oversight.watch_on();
         DROP VIEW oversight.current_protocols;
         DROP TABLE oversight.watch, oversight.compliance, oversight.holds, oversight.orders,

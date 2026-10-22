@@ -11,6 +11,10 @@
 #   again     run again: every step "already done", no second callback
 #   reboot    an upgrade that needs a reboot reboots once and finishes after
 #   failed    a wrong Docker key fingerprint stops the build there and says so
+#   bad-node  a wrong Node sha256 fails node-lts: nothing unpacked, nothing after it
+#   bad-sshd  a config sshd -t refuses fails ssh-hardening: ssh not reloaded, root keys kept
+#   taken-user an existing account named like the work user fails work-user: no sudo
+#             for it, no hardening, root keys kept (review 9.2 §1.1, §2.2)
 # Offline by default (--network none): apt, npm and the docker CLI are
 # recording shims, the Docker key and the Node build come from the bench
 # image (fetched and checked at its build), Hetzner's metadata from a fixture;
@@ -21,7 +25,7 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-BENCH="coinepro-hq/provision-bench:dev"
+BENCH="coinepro-hq/provision-bench:${HQ_TEST_IMAGE_TAG:-dev}"
 TEST_IMAGE="coinepro-hq/services-test:${HQ_TEST_IMAGE_TAG:-dev}"
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
@@ -60,6 +64,13 @@ else
     rm -f /var/run/reboot-required && /usr/local/sbin/coinepro-provision &&
     python3 /bench/check.py done bx ${STEPS[*]}"
   bench failed none "! bash /ud/bad-docker.sh && python3 /bench/check.py failed bx docker"
+  # Root's key login as Hetzner leaves it, for the cases that must not touch it.
+  rootkey="install -d -m 0700 /root/.ssh && echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBench root@bench' >/root/.ssh/authorized_keys"
+  bench bad-node none "! bash /ud/bad-node.sh && python3 /bench/check.py failed bx node-lts"
+  bench bad-sshd none "$rootkey && echo 'NoSuchKeyword yes' >/etc/ssh/sshd_config.d/00-bench-broken.conf &&
+    ! bash /ud/full.sh && python3 /bench/check.py failed bx ssh-hardening"
+  bench taken-user none "$rootkey && useradd --create-home --shell /usr/sbin/nologin bx &&
+    ! bash /ud/full.sh && python3 /bench/check.py failed bx work-user"
 fi
 grep -h '^ok\|^FAIL' "$T"/*.log | sort | uniq -c | sed 's/^ */provisioning:   /' | head -60
 exit "$failed"

@@ -1,5 +1,6 @@
 package com.coinepro.hq.core.net
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -278,9 +279,9 @@ data class SkillScope(val roles: List<String> = emptyList(), val companies: Json
 data class SkillReview(val by: Actor? = null, val at: String? = null, val verdict: String, val notesMd: String = "", val checks: Map<String, Boolean> = emptyMap())
 
 @Serializable
-data class SkillEval(val suite: String, val score: Double, val baseline: Double) {
-    /** The academy's gate (§18.6): no worse than the baseline by more than one point. */
-    val passed: Boolean get() = score >= baseline - 1
+data class SkillEval(val suite: String, val score: Double, val baseline: Double? = null) {
+    /** The academy's gate (§18.6): no worse than the baseline by more than one point; null while the suite has no baseline ⟨1.4.7⟩. */
+    val passed: Boolean? get() = baseline?.let { score >= it - 1 }
 }
 
 @Serializable
@@ -308,9 +309,9 @@ data class CurriculumModule(val key: String, val titleFa: String, val skills: Li
 @Serializable
 data class Curriculum(val role: String, val version: Int = 1, val modules: List<CurriculumModule> = emptyList())
 
-/** A baseline or run version is a number for charters and a string for skills (`ref@version`); kept as JSON. */
+/** ⟨1.4.7⟩ A suite's baseline: the subject that set it and its score. */
 @Serializable
-data class Baseline(val subject: String? = null, val version: JsonElement? = null, val score: Double)
+data class Baseline(val subject: EvalSubject? = null, val score: Double)
 
 @Serializable
 data class EvalSubject(val kind: String, val ref: String, val version: JsonElement? = null)
@@ -318,19 +319,22 @@ data class EvalSubject(val kind: String, val ref: String, val version: JsonEleme
 @Serializable
 data class EvalTokens(val input: Long = 0, val output: Long = 0)
 
-/** ⟨1.4.5⟩ One eval run, with what it cost (so models can be compared on quality and price). */
+/** ⟨1.4.5⟩ One eval run, with what it cost (so models can be compared on quality and price).
+ *  ⟨1.4.7⟩ Score and verdict are null until the run is `done`; the API layer keeps only done runs. */
 @Serializable
 data class EvalRun(
     val id: String = "",
     val suite: String = "",
     val subject: EvalSubject = EvalSubject("charter", ""),
-    val score: Double,
-    val passed: Boolean,
+    val state: String = "done",
+    val score: Double = 0.0,
+    val passed: Boolean = false,
     val at: String,
     val tokens: EvalTokens? = null,
     val equivCostUsd: JsonPrimitive? = null,
 ) {
     val costUsd: Double? get() = equivCostUsd?.contentOrNull?.toDoubleOrNull()
+    val done: Boolean get() = state == "done"
 }
 
 @Serializable
@@ -369,7 +373,7 @@ data class TeachTarget(val kind: String, val ref: String)
 data class TeachProposal(val kind: String, val diffMd: String)
 
 @Serializable
-data class TeachEval(val score: Double, val baseline: Double, val passed: Boolean)
+data class TeachEval(val id: String? = null, val score: Double, val baseline: Double? = null, val passed: Boolean)
 
 @Serializable
 data class Teaching(
@@ -446,17 +450,18 @@ data class ServiceAccount(
 data class ToolInfo(val name: String, val `class`: String, val roles: List<String> = emptyList(), val status: String = "on", val via: String = "gateway")
 
 // ------------------------------------------------ founding and provisioning --
+// ⟨1.4.8⟩ as built (§18.16): names and code are null until the proposal; money is a decimal string (§1); audit scores are 0..10.
 @Serializable
 data class FoundingSource(val kind: String, val repo: String? = null, val briefMd: String = "")
 
 @Serializable
-data class FoundingAudit(val sessionRef: String, val reportMd: String = "", val scores: Map<String, Double> = emptyMap())
+data class FoundingAudit(val sessionRef: String? = null, val reportMd: String = "", val scores: Map<String, Double?> = emptyMap())
 
 @Serializable
 data class Kpi(val nameFa: String, val target: String)
 
 @Serializable
-data class TeamSeat(val role: String, val model: String, val monthlyUsd: Double)
+data class TeamSeat(val role: String, val model: String, val monthlyUsd: String? = null)
 
 @Serializable
 data class FoundingProposal(
@@ -464,29 +469,39 @@ data class FoundingProposal(
     val kpis: List<Kpi> = emptyList(),
     val team: List<TeamSeat> = emptyList(),
     val roadmapMd: String = "",
-    val monthlyUsd: Double = 0.0,
+    val monthlyUsd: String? = null,
 )
 
 @Serializable
 data class Founding(
     val id: String = "",
     val ref: String,
-    val nameFa: String,
-    val nameEn: String = "",
-    val code: String = "",
+    val nameFa: String? = null,
+    val nameEn: String? = null,
+    val code: String? = null,
     val source: FoundingSource,
     val state: String,
     val audit: FoundingAudit? = null,
     val proposal: FoundingProposal? = null,
     val decisionRef: String? = null,
     val plan: String? = null,
+    val planDetail: ServerPlan? = null,
     val company: String? = null,
     val createdAt: String,
     val updatedAt: String,
-)
+    /** ⟨1.4.6⟩ the step «مُهر شرکت» (§18.14), open once the company exists; `missing` until prompt 9.1. */
+    val brand: FoundingBrand = FoundingBrand(),
+) {
+    /** The name as far as it is known: the proposal names it; before that, its repository or «ایده‌ی تازه». */
+    val title: String get() = nameFa ?: source.repo?.substringAfter('/') ?: "ایده‌ی تازه"
+}
+
+/** `port` is null for icmp. */
+@Serializable
+data class FirewallRule(val direction: String = "in", val protocol: String, val port: String? = null, val sources: List<String> = emptyList(), val noteFa: String = "")
 
 @Serializable
-data class FirewallRule(val direction: String = "in", val protocol: String, val port: String, val sources: List<String> = emptyList(), val noteFa: String = "")
+data class PlanPrice(val server: String? = null, val ipv4: String? = null, val network: String? = null, val source: String = "", val at: String? = null)
 
 @Serializable
 data class ServerPlan(
@@ -503,30 +518,46 @@ data class ServerPlan(
     val software: List<String> = emptyList(),
     val workUser: String,
     val repo: String? = null,
-    val monthlyEur: Double,
+    /** Null until Hetzner's price is known: no price, no seal. */
+    val monthlyEur: String? = null,
+    val price: PlanPrice? = null,
+    /** What stops the seal; empty once it may be sealed. */
+    val problems: List<String> = emptyList(),
     val digest: String,
     val state: String,
     val decisionRef: String? = null,
     val run: String? = null,
-)
+    val sealedAt: String? = null,
+    val version: Int = 1,
+) {
+    val sealable: Boolean get() = state == "proposed" && monthlyEur != null && problems.isEmpty()
+}
 
 @Serializable
-data class RunStep(val key: String, val titleFa: String, val state: String, val startedAt: String? = null, val finishedAt: String? = null, val logTail: String = "")
+data class RunStep(val key: String, val titleFa: String, val state: String, val startedAt: String? = null, val finishedAt: String? = null, val logTail: List<String> = emptyList())
 
 @Serializable
-data class NewServer(val name: String, val ipv4: String, val ipv6: String = "", val privateIp: String? = null)
+data class HostKey(val type: String, val fingerprintSha256: String)
+
+@Serializable
+data class NewServer(val name: String, val ipv4: String? = null, val ipv6: String? = null, val privateIp: String? = null, val hostKeys: List<HostKey> = emptyList())
 
 @Serializable
 data class Login(val ssh: String, val then: List<String> = emptyList())
 
 @Serializable
+data class RunError(val code: String? = null, val message: String? = null, val step: String? = null)
+
+@Serializable
 data class ProvisionRun(
     val id: String,
     val plan: String,
+    /** queued · running · done · failed */
     val state: String,
     val steps: List<RunStep> = emptyList(),
     val server: NewServer? = null,
     val login: Login? = null,
+    val error: RunError? = null,
 )
 
 // ---------------------------------------------------------------- backups --
@@ -685,3 +716,77 @@ data class CompanyBudgetIn(val company: String, val scopeType: String, val scope
 @Serializable
 data class BudgetsPut(val budgets: List<CompanyBudgetIn>)
 
+// ------------------------------------------------- brand and seal ⟨1.4.6⟩ --
+// Contract §18.14: a company's mark and seal are data, traced (code, no model) from the owner's PNG logo and sealed by the owner.
+@Serializable
+data class BrandLayer(val role: String = "ink", val color: String = "#111216", val d: String)
+
+/** A vector mark: viewBox "minX minY width height" and its layers, the shape the built-in marks have (BrandData). */
+@Serializable
+data class BrandMark(val vb: String, val layers: List<BrandLayer> = emptyList())
+
+@Serializable
+data class BrandSource(val kind: String = "upload", val fileId: String? = null, val path: String? = null, val sha256: String = "", val width: Int = 0, val height: Int = 0, val hasAlpha: Boolean = false)
+
+/** [colors] 1..4 (null: as many as the logo has, at most 4), [detail] 1..5. */
+@Serializable
+data class BrandOptions(val colors: Int? = null, val detail: Int = 3)
+
+@Serializable
+data class BrandChecks(
+    val pathsBytes: Int = 0,
+    @SerialName("min_feature_px_16") val minFeaturePx16: Double = 0.0,
+    val iou: Double = 0.0,
+    val contrastNight: Double? = null,
+    val contrastDay: Double? = null,
+    val warnings: List<String> = emptyList(),
+)
+
+@Serializable
+data class PaletteShare(val hex: String, val share: Double = 0.0)
+
+/** One version of a company's brand: `processing` → `proposed` (or `failed`, [statusReason]) → `active` → `retired`. [mark] is
+ *  null until it is traced. [accentNight] / [accentDay] are set only where the accent fails 3:1 on that theme's page. */
+@Serializable
+data class CompanyBrand(
+    val company: String,
+    val version: Int,
+    val state: String,
+    val source: BrandSource = BrandSource(),
+    val mark: BrandMark? = null,
+    val wordmark: BrandMark? = null,
+    val ink: String = "#111216",
+    val accent: String? = null,
+    val accentNight: String? = null,
+    val accentDay: String? = null,
+    val palette: List<PaletteShare> = emptyList(),
+    val options: BrandOptions = BrandOptions(),
+    val checks: BrandChecks? = null,
+    val digest: String = "",
+    val statusReason: String? = null,
+    val createdAt: String = "",
+    val activatedAt: String? = null,
+)
+
+/** `GET /companies/{code}/brand`: the active version and, if any, the newest proposed one. */
+@Serializable
+data class CompanyBrandView(val active: CompanyBrand? = null, val proposed: CompanyBrand? = null)
+
+/** One company's active brand in `GET /brands`. */
+@Serializable
+data class ActiveBrand(
+    val version: Int,
+    val mark: BrandMark,
+    val wordmark: BrandMark? = null,
+    val ink: String = "#111216",
+    val accent: String? = null,
+    val accentNight: String? = null,
+    val accentDay: String? = null,
+)
+
+/** Every active brand in one response; marks and seals are drawn from it. */
+@Serializable
+data class Brands(val etag: String = "", val companies: Map<String, ActiveBrand> = emptyMap())
+
+@Serializable
+data class FoundingBrand(val state: String = "missing", val version: Int? = null)

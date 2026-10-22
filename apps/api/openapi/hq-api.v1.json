@@ -84,73 +84,24 @@
         "title": "AccountPolicy",
         "type": "object"
       },
-      "ActiveBrand": {
+      "ActivateIn": {
+        "additionalProperties": false,
         "properties": {
-          "accent": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accent"
-          },
-          "accent_day": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accent Day"
-          },
-          "accent_night": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accent Night"
-          },
-          "ink": {
-            "title": "Ink",
-            "type": "string"
-          },
-          "mark": {
-            "$ref": "#/components/schemas/BrandShape"
-          },
           "version": {
-            "title": "Version",
-            "type": "integer"
-          },
-          "wordmark": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/BrandShape"
+                "minimum": 1.0,
+                "type": "integer"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "default: the latest version",
+            "title": "Version"
           }
         },
-        "required": [
-          "version",
-          "mark",
-          "wordmark",
-          "ink",
-          "accent",
-          "accent_night",
-          "accent_day"
-        ],
-        "title": "ActiveBrand",
+        "title": "ActivateIn",
         "type": "object"
       },
       "Activity": {
@@ -224,6 +175,57 @@
           "code"
         ],
         "title": "Actor",
+        "type": "object"
+      },
+      "Addendum": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "employee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "teaching": {
+            "title": "Teaching",
+            "type": "string"
+          },
+          "text_md": {
+            "title": "Text Md",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "version",
+          "employee",
+          "teaching",
+          "active",
+          "text_md"
+        ],
+        "title": "Addendum",
         "type": "object"
       },
       "Adoption": {
@@ -1269,272 +1271,21 @@
         "title": "BaseBackup",
         "type": "object"
       },
-      "BrandChecks": {
+      "Baseline": {
         "properties": {
-          "contrast_day": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contrast Day"
-          },
-          "contrast_night": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contrast Night"
-          },
-          "iou": {
-            "title": "Iou",
+          "score": {
+            "title": "Score",
             "type": "number"
           },
-          "min_feature_px_16": {
-            "title": "Min Feature Px 16",
-            "type": "number"
-          },
-          "paths_bytes": {
-            "title": "Paths Bytes",
-            "type": "integer"
-          },
-          "warnings": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Warnings",
-            "type": "array"
+          "subject": {
+            "$ref": "#/components/schemas/Subject"
           }
         },
         "required": [
-          "paths_bytes",
-          "min_feature_px_16",
-          "iou"
+          "subject",
+          "score"
         ],
-        "title": "BrandChecks",
-        "type": "object"
-      },
-      "BrandIn": {
-        "additionalProperties": false,
-        "properties": {
-          "file_id": {
-            "format": "uuid",
-            "title": "File Id",
-            "type": "string"
-          },
-          "options": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BrandOptionsIn"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "part": {
-            "default": "mark",
-            "enum": [
-              "mark",
-              "wordmark"
-            ],
-            "title": "Part",
-            "type": "string"
-          }
-        },
-        "required": [
-          "file_id"
-        ],
-        "title": "BrandIn",
-        "type": "object"
-      },
-      "BrandLayer": {
-        "properties": {
-          "color": {
-            "title": "Color",
-            "type": "string"
-          },
-          "d": {
-            "title": "D",
-            "type": "string"
-          },
-          "role": {
-            "enum": [
-              "ink",
-              "accent"
-            ],
-            "title": "Role",
-            "type": "string"
-          }
-        },
-        "required": [
-          "role",
-          "color",
-          "d"
-        ],
-        "title": "BrandLayer",
-        "type": "object"
-      },
-      "BrandOptions": {
-        "properties": {
-          "colors": {
-            "anyOf": [
-              {
-                "maximum": 4.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Colors"
-          },
-          "detail": {
-            "default": 3,
-            "maximum": 5.0,
-            "minimum": 1.0,
-            "title": "Detail",
-            "type": "integer"
-          }
-        },
-        "title": "BrandOptions",
-        "type": "object"
-      },
-      "BrandOptionsIn": {
-        "additionalProperties": false,
-        "properties": {
-          "colors": {
-            "anyOf": [
-              {
-                "maximum": 4.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Colors"
-          },
-          "detail": {
-            "default": 3,
-            "maximum": 5.0,
-            "minimum": 1.0,
-            "title": "Detail",
-            "type": "integer"
-          }
-        },
-        "title": "BrandOptionsIn",
-        "type": "object"
-      },
-      "BrandShape": {
-        "properties": {
-          "layers": {
-            "items": {
-              "$ref": "#/components/schemas/BrandLayer"
-            },
-            "title": "Layers",
-            "type": "array"
-          },
-          "vb": {
-            "title": "Vb",
-            "type": "string"
-          }
-        },
-        "required": [
-          "vb",
-          "layers"
-        ],
-        "title": "BrandShape",
-        "type": "object"
-      },
-      "BrandSource": {
-        "properties": {
-          "file_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "File Id"
-          },
-          "has_alpha": {
-            "title": "Has Alpha",
-            "type": "boolean"
-          },
-          "height": {
-            "title": "Height",
-            "type": "integer"
-          },
-          "kind": {
-            "enum": [
-              "upload",
-              "seed"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Path"
-          },
-          "sha256": {
-            "title": "Sha256",
-            "type": "string"
-          },
-          "width": {
-            "title": "Width",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "kind",
-          "sha256",
-          "width",
-          "height",
-          "has_alpha"
-        ],
-        "title": "BrandSource",
-        "type": "object"
-      },
-      "Brands": {
-        "properties": {
-          "companies": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ActiveBrand"
-            },
-            "title": "Companies",
-            "type": "object"
-          },
-          "etag": {
-            "title": "Etag",
-            "type": "string"
-          }
-        },
-        "required": [
-          "etag",
-          "companies"
-        ],
-        "title": "Brands",
+        "title": "Baseline",
         "type": "object"
       },
       "BreakdownRow": {
@@ -2744,7 +2495,8 @@
                 "enum": [
                   "work_lock",
                   "company_locked",
-                  "budget"
+                  "budget",
+                  "hold"
                 ],
                 "type": "string"
               },
@@ -2851,17 +2603,6 @@
       },
       "Company": {
         "properties": {
-          "brand_version": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Brand Version"
-          },
           "code": {
             "title": "Code",
             "type": "string"
@@ -3001,201 +2742,6 @@
           "notifications_new"
         ],
         "title": "CompanyAway",
-        "type": "object"
-      },
-      "CompanyBrand": {
-        "properties": {
-          "accent": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accent"
-          },
-          "accent_day": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accent Day"
-          },
-          "accent_night": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accent Night"
-          },
-          "activated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Activated At"
-          },
-          "checks": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BrandChecks"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "digest": {
-            "title": "Digest",
-            "type": "string"
-          },
-          "ink": {
-            "title": "Ink",
-            "type": "string"
-          },
-          "mark": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BrandShape"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "options": {
-            "$ref": "#/components/schemas/BrandOptions"
-          },
-          "palette": {
-            "items": {
-              "$ref": "#/components/schemas/PaletteShare"
-            },
-            "title": "Palette",
-            "type": "array"
-          },
-          "part": {
-            "default": "mark",
-            "enum": [
-              "mark",
-              "wordmark"
-            ],
-            "title": "Part",
-            "type": "string"
-          },
-          "source": {
-            "$ref": "#/components/schemas/BrandSource"
-          },
-          "state": {
-            "enum": [
-              "processing",
-              "proposed",
-              "active",
-              "failed",
-              "retired"
-            ],
-            "title": "State",
-            "type": "string"
-          },
-          "status_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status Reason"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          },
-          "wordmark": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BrandShape"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "company",
-          "version",
-          "state",
-          "source",
-          "mark",
-          "wordmark",
-          "ink",
-          "accent",
-          "accent_night",
-          "accent_day",
-          "palette",
-          "options",
-          "checks",
-          "digest",
-          "status_reason",
-          "created_at",
-          "activated_at"
-        ],
-        "title": "CompanyBrand",
-        "type": "object"
-      },
-      "CompanyBrandView": {
-        "properties": {
-          "active": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CompanyBrand"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "proposed": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CompanyBrand"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "active",
-          "proposed"
-        ],
-        "title": "CompanyBrandView",
         "type": "object"
       },
       "CompanyCounts": {
@@ -6350,6 +5896,28 @@
             ],
             "title": "Baseline"
           },
+          "baseline_set": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Set"
+          },
+          "failed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed"
+          },
           "passed": {
             "anyOf": [
               {
@@ -6397,6 +5965,7 @@
         "type": "object"
       },
       "EvalRun": {
+        "description": "Contract §18.15: `score` and `passed` are null until the run is `done`;\na `failed` run (any model call failed) is never a pass.",
         "properties": {
           "at": {
             "format": "date-time",
@@ -6409,6 +5978,22 @@
             },
             "title": "Cases",
             "type": "array"
+          },
+          "equiv_cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Equiv Cost Usd",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
           },
           "finished_at": {
             "anyOf": [
@@ -6465,8 +6050,14 @@
             ],
             "title": "Score"
           },
-          "status": {
-            "title": "Status",
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
             "type": "string"
           },
           "subject": {
@@ -6477,22 +6068,22 @@
             "type": "string"
           },
           "tokens": {
-            "title": "Tokens",
-            "type": "integer"
+            "$ref": "#/components/schemas/hq_api__domain__academy__RunTokens"
           }
         },
         "required": [
           "id",
           "suite",
           "subject",
+          "state",
           "score",
           "passed",
           "cases",
           "at",
-          "status",
+          "tokens",
+          "equiv_cost_usd",
           "purpose",
           "gate",
-          "tokens",
           "finished_at"
         ],
         "title": "EvalRun",
@@ -6503,20 +6094,25 @@
           "baseline": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/Baseline"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Baseline"
+            ]
           },
           "cases": {
             "items": {
               "$ref": "#/components/schemas/EvalCase"
             },
             "title": "Cases",
+            "type": "array"
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/EvalRun"
+            },
+            "title": "Recent",
             "type": "array"
           },
           "ref": {
@@ -7153,6 +6749,17 @@
           "plan": {
             "anyOf": [
               {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "plan_detail": {
+            "anyOf": [
+              {
                 "$ref": "#/components/schemas/ServerPlan"
               },
               {
@@ -7188,9 +6795,7 @@
             "type": "string"
           },
           "source": {
-            "additionalProperties": true,
-            "title": "Source",
-            "type": "object"
+            "$ref": "#/components/schemas/FoundingSource"
           },
           "state": {
             "title": "State",
@@ -7283,8 +6888,10 @@
         "type": "object"
       },
       "FoundingBrand": {
+        "description": "The step «مُهر شرکت» (§18.14): `missing` until prompt 9.1 builds it.",
         "properties": {
           "state": {
+            "default": "missing",
             "enum": [
               "missing",
               "proposed",
@@ -7305,10 +6912,6 @@
             "title": "Version"
           }
         },
-        "required": [
-          "state",
-          "version"
-        ],
         "title": "FoundingBrand",
         "type": "object"
       },
@@ -7323,6 +6926,39 @@
           "source"
         ],
         "title": "FoundingIn",
+        "type": "object"
+      },
+      "FoundingSource": {
+        "properties": {
+          "brief_md": {
+            "default": "",
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "repo",
+              "idea"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "FoundingSource",
         "type": "object"
       },
       "Frame": {
@@ -8235,6 +7871,25 @@
         "title": "HoldingState",
         "type": "object"
       },
+      "HostKey": {
+        "description": "One of the new server's SSH host keys, as `ssh` shows it on the first\nlogin (`SHA256:` + base64 of the key blob's sha256).",
+        "properties": {
+          "fingerprint_sha256": {
+            "title": "Fingerprint Sha256",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "fingerprint_sha256"
+        ],
+        "title": "HostKey",
+        "type": "object"
+      },
       "Hourly": {
         "properties": {
           "error": {
@@ -9065,6 +8720,37 @@
           "reason"
         ],
         "title": "KillSwitchIn",
+        "type": "object"
+      },
+      "LastRun": {
+        "description": "A protocol's last finished run (contract §18.15: never `skipped`).",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "findings": {
+            "title": "Findings",
+            "type": "integer"
+          },
+          "result": {
+            "enum": [
+              "pass",
+              "fail",
+              "partial",
+              "deferred"
+            ],
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "result",
+          "findings"
+        ],
+        "title": "LastRun",
         "type": "object"
       },
       "Lesson": {
@@ -11146,33 +10832,6 @@
         "title": "Page[CodeSession]",
         "type": "object"
       },
-      "Page_CompanyBrand_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/CompanyBrand"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "title": "Page[CompanyBrand]",
-        "type": "object"
-      },
       "Page_Decision_": {
         "properties": {
           "items": {
@@ -11308,6 +10967,33 @@
         "title": "Page[Errand]",
         "type": "object"
       },
+      "Page_EvalRun_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvalRun"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[EvalRun]",
+        "type": "object"
+      },
       "Page_Finding_": {
         "properties": {
           "items": {
@@ -11333,6 +11019,33 @@
           "items"
         ],
         "title": "Page[Finding]",
+        "type": "object"
+      },
+      "Page_Founding_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Founding"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Founding]",
         "type": "object"
       },
       "Page_Inquiry_": {
@@ -11659,24 +11372,6 @@
         "title": "Page[Work]",
         "type": "object"
       },
-      "PaletteShare": {
-        "properties": {
-          "hex": {
-            "title": "Hex",
-            "type": "string"
-          },
-          "share": {
-            "title": "Share",
-            "type": "number"
-          }
-        },
-        "required": [
-          "hex",
-          "share"
-        ],
-        "title": "PaletteShare",
-        "type": "object"
-      },
       "PlanIn": {
         "additionalProperties": false,
         "description": "server.plan: a new plan, or a new version of one (`ref`).",
@@ -11778,6 +11473,62 @@
           "work_user"
         ],
         "title": "PlanIn",
+        "type": "object"
+      },
+      "PlanPrice": {
+        "description": "Where `monthly_eur` came from (§18.16): Hetzner's monthly net prices, EUR.",
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "ipv4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv4"
+          },
+          "network": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server"
+          },
+          "source": {
+            "default": "",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "title": "PlanPrice",
         "type": "object"
       },
       "Planner": {
@@ -12310,20 +12061,6 @@
             "title": "Message Fa",
             "type": "string"
           },
-          "missing": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Missing"
-          },
           "request_id": {
             "anyOf": [
               {
@@ -12458,7 +12195,7 @@
         "additionalProperties": false,
         "properties": {
           "diff_md": {
-            "maxLength": 8000,
+            "maxLength": 6000,
             "minLength": 1,
             "title": "Diff Md",
             "type": "string"
@@ -12507,14 +12244,12 @@
           "last_run": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/LastRun"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Last Run"
+            ]
           },
           "method": {
             "title": "Method",
@@ -12856,14 +12591,12 @@
           "server": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/RunServer"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Server"
+            ]
           },
           "state": {
             "enum": [
@@ -13630,16 +13363,6 @@
         "title": "Retention",
         "type": "object"
       },
-      "RetraceIn": {
-        "additionalProperties": false,
-        "properties": {
-          "options": {
-            "$ref": "#/components/schemas/BrandOptionsIn"
-          }
-        },
-        "title": "RetraceIn",
-        "type": "object"
-      },
       "Return": {
         "additionalProperties": false,
         "properties": {
@@ -13679,6 +13402,17 @@
             "title": "Notes Md",
             "type": "string"
           },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
           "verdict": {
             "enum": [
               "pass",
@@ -13706,6 +13440,7 @@
             "additionalProperties": {
               "type": "boolean"
             },
+            "description": "a pass needs injection, secrets, conflicts and policy all true",
             "title": "Checks",
             "type": "object"
           },
@@ -13714,6 +13449,19 @@
             "minLength": 1,
             "title": "Notes Md",
             "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the sha256 of the text the reviewer was shown (its work item); another one is 422",
+            "title": "Sha256"
           },
           "verdict": {
             "enum": [
@@ -13907,6 +13655,14 @@
       },
       "Run": {
         "properties": {
+          "addenda": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Addenda",
+            "type": "array"
+          },
           "charter": {
             "anyOf": [
               {
@@ -14014,6 +13770,13 @@
             "title": "Reason",
             "type": "string"
           },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
           "started_at": {
             "anyOf": [
               {
@@ -14046,7 +13809,7 @@
             "title": "Thread"
           },
           "tokens": {
-            "$ref": "#/components/schemas/RunTokens"
+            "$ref": "#/components/schemas/hq_api__routes__runs__RunTokens"
           },
           "tool_calls": {
             "title": "Tool Calls",
@@ -14098,6 +13861,14 @@
       },
       "RunDetail": {
         "properties": {
+          "addenda": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Addenda",
+            "type": "array"
+          },
           "charter": {
             "anyOf": [
               {
@@ -14205,6 +13976,13 @@
             "title": "Reason",
             "type": "string"
           },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
           "started_at": {
             "anyOf": [
               {
@@ -14244,7 +14022,7 @@
             "title": "Thread"
           },
           "tokens": {
-            "$ref": "#/components/schemas/RunTokens"
+            "$ref": "#/components/schemas/hq_api__routes__runs__RunTokens"
           },
           "tool_calls": {
             "title": "Tool Calls",
@@ -14295,32 +14073,57 @@
         "title": "RunDetail",
         "type": "object"
       },
-      "RunTokens": {
+      "RunServer": {
         "properties": {
-          "cache_read": {
-            "title": "Cache Read",
-            "type": "integer"
+          "host_keys": {
+            "items": {
+              "$ref": "#/components/schemas/HostKey"
+            },
+            "title": "Host Keys",
+            "type": "array"
           },
-          "cache_write": {
-            "title": "Cache Write",
-            "type": "integer"
+          "ipv4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv4"
           },
-          "input": {
-            "title": "Input",
-            "type": "integer"
+          "ipv6": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv6"
           },
-          "output": {
-            "title": "Output",
-            "type": "integer"
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "private_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Private Ip"
           }
         },
         "required": [
-          "input",
-          "output",
-          "cache_read",
-          "cache_write"
+          "name"
         ],
-        "title": "RunTokens",
+        "title": "RunServer",
         "type": "object"
       },
       "Schedule": {
@@ -14418,6 +14221,49 @@
           }
         },
         "title": "Scope",
+        "type": "object"
+      },
+      "ScopeIn": {
+        "description": "POST/PUT /skills (contract §18.15): `roles` and `companies` given, `departments` optional.",
+        "properties": {
+          "companies": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Companies"
+          },
+          "departments": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Departments",
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Roles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "roles",
+          "companies"
+        ],
+        "title": "ScopeIn",
         "type": "object"
       },
       "Score": {
@@ -14856,14 +14702,12 @@
           "price": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/PlanPrice"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Price"
+            ]
           },
           "private_network": {
             "title": "Private Network",
@@ -15584,8 +15428,7 @@
           },
           "resources": {
             "items": {
-              "format": "uuid",
-              "type": "string"
+              "$ref": "#/components/schemas/FileRef"
             },
             "title": "Resources",
             "type": "array"
@@ -15647,11 +15490,12 @@
       },
       "SkillIn": {
         "additionalProperties": false,
+        "description": "Contract §18.15: `{name_fa, summary_fa?, body_md, scope: {roles,\ncompanies, departments?}, file_ids?}`; without `summary_fa`, the first 200\ncharacters of the text. ⟨1.4⟩ beside it: a transcript and an eval suite.",
         "properties": {
           "body_md": {
             "anyOf": [
               {
-                "maxLength": 20000,
+                "maxLength": 6000,
                 "minLength": 1,
                 "type": "string"
               },
@@ -15659,6 +15503,7 @@
                 "type": "null"
               }
             ],
+            "description": "at most 6000 characters",
             "title": "Body Md"
           },
           "eval_suite": {
@@ -15690,13 +15535,20 @@
             "type": "string"
           },
           "scope": {
-            "$ref": "#/components/schemas/Scope"
+            "$ref": "#/components/schemas/ScopeIn"
           },
           "summary_fa": {
-            "maxLength": 1000,
-            "minLength": 1,
-            "title": "Summary Fa",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Fa"
           },
           "transcript_file_id": {
             "anyOf": [
@@ -15714,7 +15566,7 @@
         },
         "required": [
           "name_fa",
-          "summary_fa"
+          "scope"
         ],
         "title": "SkillIn",
         "type": "object"
@@ -15759,6 +15611,10 @@
               }
             ]
           },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
           "precheck": {
             "additionalProperties": true,
             "title": "Precheck",
@@ -15774,12 +15630,23 @@
               }
             ]
           },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
           "source": {
             "title": "Source",
             "type": "string"
           },
           "status": {
             "title": "Status",
+            "type": "string"
+          },
+          "summary_fa": {
+            "title": "Summary Fa",
+            "type": "string"
+          },
+          "text_sha256": {
+            "title": "Text Sha256",
             "type": "string"
           },
           "version": {
@@ -15790,7 +15657,11 @@
         "required": [
           "version",
           "status",
+          "name_fa",
+          "summary_fa",
+          "scope",
           "body_md",
+          "text_sha256",
           "source",
           "precheck",
           "review",
@@ -16063,6 +15934,7 @@
                 }
               ]
             },
+            "maxProperties": 12,
             "title": "Criteria",
             "type": "object"
           },
@@ -16524,10 +16396,22 @@
             ],
             "title": "Employee"
           },
+          "metric": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
           "period": {
             "anyOf": [
               {
-                "maxLength": 30,
+                "pattern": "^(week|month):[0-9]{4}-[0-9]{2}(-[0-9]{2})?$",
                 "type": "string"
               },
               {
@@ -16865,6 +16749,7 @@
             "additionalProperties": {
               "type": "boolean"
             },
+            "description": "a pass needs injection, secrets, conflicts and policy all true",
             "title": "Checks",
             "type": "object"
           },
@@ -16873,6 +16758,19 @@
             "minLength": 1,
             "title": "Notes Md",
             "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the sha256 of the proposal the reviewer was shown; another one is 422",
+            "title": "Sha256"
           },
           "verdict": {
             "enum": [
@@ -16920,14 +16818,12 @@
           "eval_run": {
             "anyOf": [
               {
-                "format": "uuid",
-                "type": "string"
+                "$ref": "#/components/schemas/TeachingEval"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Eval Run"
+            ]
           },
           "file_id": {
             "anyOf": [
@@ -17041,6 +16937,56 @@
           "decided_at"
         ],
         "title": "Teaching",
+        "type": "object"
+      },
+      "TeachingEval": {
+        "properties": {
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "required": [
+          "id",
+          "score",
+          "baseline",
+          "passed"
+        ],
+        "title": "TeachingEval",
         "type": "object"
       },
       "Template": {
@@ -19088,6 +19034,11 @@
             "title": "Month Start",
             "type": "string"
           },
+          "reserved_tokens": {
+            "default": 0,
+            "title": "Reserved Tokens",
+            "type": "integer"
+          },
           "share": {
             "title": "Share",
             "type": "number"
@@ -19109,6 +19060,24 @@
           "warning"
         ],
         "title": "Budget",
+        "type": "object"
+      },
+      "hq_api__domain__academy__RunTokens": {
+        "properties": {
+          "input": {
+            "title": "Input",
+            "type": "integer"
+          },
+          "output": {
+            "title": "Output",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "input",
+          "output"
+        ],
+        "title": "RunTokens",
         "type": "object"
       },
       "hq_api__domain__errands__FinishIn": {
@@ -19519,13 +19488,6 @@
         "title": "Device",
         "type": "object"
       },
-      "hq_api__routes__brands__ActivateIn": {
-        "additionalProperties": false,
-        "description": "Empty: the seal is the step-up on the version's digest.",
-        "properties": {},
-        "title": "ActivateIn",
-        "type": "object"
-      },
       "hq_api__routes__egress__ReserveIn": {
         "additionalProperties": false,
         "properties": {
@@ -19589,19 +19551,6 @@
           "class"
         ],
         "title": "ReserveIn",
-        "type": "object"
-      },
-      "hq_api__routes__founding__ActivateIn": {
-        "additionalProperties": false,
-        "description": "⟨1.4.6⟩ `skip_brand`: activate a company whose brand is not sealed yet.",
-        "properties": {
-          "skip_brand": {
-            "default": false,
-            "title": "Skip Brand",
-            "type": "boolean"
-          }
-        },
-        "title": "ActivateIn",
         "type": "object"
       },
       "hq_api__routes__founding__FinishIn": {
@@ -19929,6 +19878,34 @@
         "title": "Evidence",
         "type": "object"
       },
+      "hq_api__routes__runs__RunTokens": {
+        "properties": {
+          "cache_read": {
+            "title": "Cache Read",
+            "type": "integer"
+          },
+          "cache_write": {
+            "title": "Cache Write",
+            "type": "integer"
+          },
+          "input": {
+            "title": "Input",
+            "type": "integer"
+          },
+          "output": {
+            "title": "Output",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "input",
+          "output",
+          "cache_read",
+          "cache_write"
+        ],
+        "title": "RunTokens",
+        "type": "object"
+      },
       "hq_api__routes__runs__Step": {
         "properties": {
           "actions": {
@@ -19965,26 +19942,6 @@
           "actions"
         ],
         "title": "Step",
-        "type": "object"
-      },
-      "hq_api__routes__skills__ActivateIn": {
-        "additionalProperties": false,
-        "properties": {
-          "version": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "default: the latest version",
-            "title": "Version"
-          }
-        },
-        "title": "ActivateIn",
         "type": "object"
       },
       "hq_api__routes__tools__Resolved": {
@@ -20347,6 +20304,104 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/academy/addenda/{addendum_id}/retire": {
+      "post": {
+        "description": "🔏 (`academy.approve`, target = the addendum's teaching ref): a sealed\nrule leaves every prompt from the next run (contract §18.15).",
+        "operationId": "retire_addendum",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "addendum_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Addendum Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "active": false,
+                  "employee": "TY-GROWTH-01",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "role": "x",
+                  "teaching": "x",
+                  "text_md": "x",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Addendum"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Retire Addendum",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
     "/api/v1/academy/budget": {
       "get": {
         "description": "This month's eval tokens against the academy's cap (⟨1.4⟩, beside §18.6).",
@@ -20358,6 +20413,7 @@
                 "example": {
                   "cap_tokens": 1,
                   "month_start": "x",
+                  "reserved_tokens": 1,
                   "share": 1.0,
                   "used_tokens": 1,
                   "warning": false
@@ -20620,7 +20676,7 @@
     },
     "/api/v1/academy/evals": {
       "get": {
-        "description": "The golden eval suites with their cases and current baselines.",
+        "description": "The golden eval suites with their cases, current baselines and their\nlast 10 runs (`recent`, oldest first).",
         "operationId": "list_suites",
         "responses": {
           "200": {
@@ -20628,13 +20684,51 @@
               "application/json": {
                 "example": [
                   {
-                    "baseline": {},
+                    "baseline": {
+                      "score": 1.0,
+                      "subject": {
+                        "kind": "charter",
+                        "ref": "W-000789",
+                        "version": "x"
+                      }
+                    },
                     "cases": [
                       {
                         "id": "x",
                         "input_md": "x",
                         "rubric_md": "x",
                         "weight": 1.0
+                      }
+                    ],
+                    "recent": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "cases": [
+                          {
+                            "id": "x",
+                            "notes": "x",
+                            "score": 1.0
+                          }
+                        ],
+                        "equiv_cost_usd": "2.410000",
+                        "error": "x",
+                        "finished_at": "2026-10-17T05:42:00Z",
+                        "gate": {},
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "passed": false,
+                        "purpose": "x",
+                        "score": 1.0,
+                        "state": "queued",
+                        "subject": {
+                          "kind": "charter",
+                          "ref": "W-000789",
+                          "version": "x"
+                        },
+                        "suite": "x",
+                        "tokens": {
+                          "input": 1,
+                          "output": 1
+                        }
                       }
                     ],
                     "ref": "W-000789",
@@ -20717,7 +20811,7 @@
     },
     "/api/v1/academy/evals/{ref}/runs": {
       "get": {
-        "description": "A suite's runs, newest first: score, gate and each case's notes.",
+        "description": "A suite's runs, newest first (a cursor page): state, score, gate,\ntokens, cost and each case's notes.",
         "operationId": "suite_runs",
         "parameters": [
           {
@@ -20728,44 +20822,76 @@
               "title": "Ref",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
           }
         ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "example": [
-                  {
-                    "at": "2026-10-17T05:42:00Z",
-                    "cases": [
-                      {
-                        "id": "x",
-                        "notes": "x",
-                        "score": 1.0
+                "example": {
+                  "items": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "cases": [
+                        {
+                          "id": "x",
+                          "notes": "x",
+                          "score": 1.0
+                        }
+                      ],
+                      "equiv_cost_usd": "2.410000",
+                      "error": "x",
+                      "finished_at": "2026-10-17T05:42:00Z",
+                      "gate": {},
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "passed": false,
+                      "purpose": "x",
+                      "score": 1.0,
+                      "state": "queued",
+                      "subject": {
+                        "kind": "charter",
+                        "ref": "W-000789",
+                        "version": "x"
+                      },
+                      "suite": "x",
+                      "tokens": {
+                        "input": 1,
+                        "output": 1
                       }
-                    ],
-                    "finished_at": "2026-10-17T05:42:00Z",
-                    "gate": {},
-                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "passed": false,
-                    "purpose": "x",
-                    "score": 1.0,
-                    "status": "active",
-                    "subject": {
-                      "kind": "charter",
-                      "ref": "W-000789",
-                      "version": "x"
-                    },
-                    "suite": "x",
-                    "tokens": 1
-                  }
-                ],
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/EvalRun"
-                  },
-                  "title": "Response Suite Runs",
-                  "type": "array"
+                  "$ref": "#/components/schemas/Page_EvalRun_"
                 }
               }
             },
@@ -20941,6 +21067,230 @@
         ]
       }
     },
+    "/api/v1/academy/runs": {
+      "get": {
+        "description": "Runs across suites, newest first (contract §18.6): `?role&suite&subject_kind\n&subject_ref&latest&cursor`. `latest=true` keeps only the newest run per\n(suite, subject); `?subject_kind=model&latest=true` compares the models:\nwhich does each suite's work best, and at what cost.",
+        "operationId": "all_runs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z][a-z0-9_]{1,40}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "in": "query",
+            "name": "suite",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^EV-[0-9]{3,6}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Suite"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subject_kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "charter",
+                    "skill",
+                    "model"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subject_ref",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 60,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject Ref"
+            }
+          },
+          {
+            "in": "query",
+            "name": "latest",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Latest",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "cases": [
+                        {
+                          "id": "x",
+                          "notes": "x",
+                          "score": 1.0
+                        }
+                      ],
+                      "equiv_cost_usd": "2.410000",
+                      "error": "x",
+                      "finished_at": "2026-10-17T05:42:00Z",
+                      "gate": {},
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "passed": false,
+                      "purpose": "x",
+                      "score": 1.0,
+                      "state": "queued",
+                      "subject": {
+                        "kind": "charter",
+                        "ref": "W-000789",
+                        "version": "x"
+                      },
+                      "suite": "x",
+                      "tokens": {
+                        "input": 1,
+                        "output": 1
+                      }
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_EvalRun_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "All Runs",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
     "/api/v1/academy/teach": {
       "get": {
         "description": "The owner's teachings, newest first, with their proposal, review and result.",
@@ -20953,7 +21303,12 @@
                   {
                     "created_at": "2026-10-17T05:42:00Z",
                     "decided_at": "2026-10-17T05:42:00Z",
-                    "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "eval_run": {
+                      "baseline": 1.0,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "passed": false,
+                      "score": 1.0
+                    },
                     "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                     "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                     "precheck": {},
@@ -21069,7 +21424,12 @@
                 "example": {
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
-                  "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "eval_run": {
+                    "baseline": 1.0,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "passed": false,
+                    "score": 1.0
+                  },
                   "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "precheck": {},
@@ -21173,7 +21533,12 @@
                 "example": {
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
-                  "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "eval_run": {
+                    "baseline": 1.0,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "passed": false,
+                    "score": 1.0
+                  },
                   "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "precheck": {},
@@ -21277,7 +21642,12 @@
                 "example": {
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
-                  "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "eval_run": {
+                    "baseline": 1.0,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "passed": false,
+                    "score": 1.0
+                  },
                   "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "precheck": {},
@@ -22891,90 +23261,6 @@
         ]
       }
     },
-    "/api/v1/brands": {
-      "get": {
-        "description": "Every active brand in one response; the clients draw every company's\nmark and seal from it. `ETag`; `If-None-Match` -> `304`.",
-        "operationId": "all_brands",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "companies": {},
-                  "etag": "x"
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Brands"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "304": {
-            "description": "Not modified"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "All Brands",
-        "tags": [
-          "brand"
-        ]
-      }
-    },
     "/api/v1/budgets": {
       "get": {
         "description": "Every budget with its current-period use.",
@@ -23236,7 +23522,6 @@
               "application/json": {
                 "example": [
                   {
-                    "brand_version": 1,
                     "code": "TY",
                     "color_index": 1,
                     "counts": {
@@ -23353,7 +23638,6 @@
             "content": {
               "application/json": {
                 "example": {
-                  "brand_version": 1,
                   "code": "TY",
                   "color_index": 1,
                   "counts": {
@@ -23461,7 +23745,6 @@
             "content": {
               "application/json": {
                 "example": {
-                  "brand_version": 1,
                   "code": "TY",
                   "color_index": 1,
                   "counts": {
@@ -23583,7 +23866,6 @@
             "content": {
               "application/json": {
                 "example": {
-                  "brand_version": 1,
                   "code": "TY",
                   "color_index": 1,
                   "counts": {
@@ -23679,928 +23961,6 @@
         "summary": "Update Company",
         "tags": [
           "organisation"
-        ]
-      }
-    },
-    "/api/v1/companies/{code}/brand": {
-      "get": {
-        "description": "The active version and, if any, the newest `proposed` one.",
-        "operationId": "get_brand",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "code",
-            "required": true,
-            "schema": {
-              "title": "Code",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "active": {
-                    "accent": "x",
-                    "accent_day": "x",
-                    "accent_night": "x",
-                    "activated_at": "2026-10-17T05:42:00Z",
-                    "checks": {
-                      "contrast_day": 1.0,
-                      "contrast_night": 1.0,
-                      "iou": 1.0,
-                      "min_feature_px_16": 1.0,
-                      "paths_bytes": 1,
-                      "warnings": [
-                        "x"
-                      ]
-                    },
-                    "company": "TY",
-                    "created_at": "2026-10-17T05:42:00Z",
-                    "digest": "x",
-                    "ink": "x",
-                    "mark": {
-                      "layers": [
-                        {
-                          "color": null,
-                          "d": null,
-                          "role": null
-                        }
-                      ],
-                      "vb": "x"
-                    },
-                    "options": {
-                      "colors": 1,
-                      "detail": 1
-                    },
-                    "palette": [
-                      {
-                        "hex": "x",
-                        "share": 1.0
-                      }
-                    ],
-                    "part": "mark",
-                    "source": {
-                      "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                      "has_alpha": false,
-                      "height": 1,
-                      "kind": "upload",
-                      "path": "x",
-                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                      "width": 1
-                    },
-                    "state": "processing",
-                    "status_reason": "x",
-                    "version": 1,
-                    "wordmark": {
-                      "layers": [
-                        {
-                          "color": null,
-                          "d": null,
-                          "role": null
-                        }
-                      ],
-                      "vb": "x"
-                    }
-                  },
-                  "proposed": {
-                    "accent": "x",
-                    "accent_day": "x",
-                    "accent_night": "x",
-                    "activated_at": "2026-10-17T05:42:00Z",
-                    "checks": {
-                      "contrast_day": 1.0,
-                      "contrast_night": 1.0,
-                      "iou": 1.0,
-                      "min_feature_px_16": 1.0,
-                      "paths_bytes": 1,
-                      "warnings": [
-                        "x"
-                      ]
-                    },
-                    "company": "TY",
-                    "created_at": "2026-10-17T05:42:00Z",
-                    "digest": "x",
-                    "ink": "x",
-                    "mark": {
-                      "layers": [
-                        {
-                          "color": null,
-                          "d": null,
-                          "role": null
-                        }
-                      ],
-                      "vb": "x"
-                    },
-                    "options": {
-                      "colors": 1,
-                      "detail": 1
-                    },
-                    "palette": [
-                      {
-                        "hex": "x",
-                        "share": 1.0
-                      }
-                    ],
-                    "part": "mark",
-                    "source": {
-                      "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                      "has_alpha": false,
-                      "height": 1,
-                      "kind": "upload",
-                      "path": "x",
-                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                      "width": 1
-                    },
-                    "state": "processing",
-                    "status_reason": "x",
-                    "version": 1,
-                    "wordmark": {
-                      "layers": [
-                        {
-                          "color": null,
-                          "d": null,
-                          "role": null
-                        }
-                      ],
-                      "vb": "x"
-                    }
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/CompanyBrandView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Get Brand",
-        "tags": [
-          "brand"
-        ]
-      },
-      "post": {
-        "description": "A new version from the owner's logo (`file_id` from POST /files: PNG,\nbest with transparency; WebP or JPEG with the warning «بدون شفافیت»), the\nother part carried over from the active version. `processing` until the\nmedia worker has traced it (then `brand.updated`). Requires `Idempotency-Key`.",
-        "operationId": "upload_brand",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "code",
-            "required": true,
-            "schema": {
-              "title": "Code",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                "options": {
-                  "colors": 1,
-                  "detail": 1
-                },
-                "part": "mark"
-              },
-              "schema": {
-                "$ref": "#/components/schemas/BrandIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "accent": "x",
-                  "accent_day": "x",
-                  "accent_night": "x",
-                  "activated_at": "2026-10-17T05:42:00Z",
-                  "checks": {
-                    "contrast_day": 1.0,
-                    "contrast_night": 1.0,
-                    "iou": 1.0,
-                    "min_feature_px_16": 1.0,
-                    "paths_bytes": 1,
-                    "warnings": [
-                      "x"
-                    ]
-                  },
-                  "company": "TY",
-                  "created_at": "2026-10-17T05:42:00Z",
-                  "digest": "x",
-                  "ink": "x",
-                  "mark": {
-                    "layers": [
-                      {
-                        "color": "x",
-                        "d": "x",
-                        "role": "ink"
-                      }
-                    ],
-                    "vb": "x"
-                  },
-                  "options": {
-                    "colors": 1,
-                    "detail": 1
-                  },
-                  "palette": [
-                    {
-                      "hex": "x",
-                      "share": 1.0
-                    }
-                  ],
-                  "part": "mark",
-                  "source": {
-                    "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "has_alpha": false,
-                    "height": 1,
-                    "kind": "upload",
-                    "path": "x",
-                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                    "width": 1
-                  },
-                  "state": "processing",
-                  "status_reason": "x",
-                  "version": 1,
-                  "wordmark": {
-                    "layers": [
-                      {
-                        "color": "x",
-                        "d": "x",
-                        "role": "ink"
-                      }
-                    ],
-                    "vb": "x"
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/CompanyBrand"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Upload Brand",
-        "tags": [
-          "brand"
-        ]
-      }
-    },
-    "/api/v1/companies/{code}/brand/versions": {
-      "get": {
-        "description": "Every version, newest first.",
-        "operationId": "brand_versions",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "code",
-            "required": true,
-            "schema": {
-              "title": "Code",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 200,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 200,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "items": [
-                    {
-                      "accent": "x",
-                      "accent_day": "x",
-                      "accent_night": "x",
-                      "activated_at": "2026-10-17T05:42:00Z",
-                      "checks": {
-                        "contrast_day": 1.0,
-                        "contrast_night": 1.0,
-                        "iou": 1.0,
-                        "min_feature_px_16": 1.0,
-                        "paths_bytes": 1,
-                        "warnings": [
-                          "x"
-                        ]
-                      },
-                      "company": "TY",
-                      "created_at": "2026-10-17T05:42:00Z",
-                      "digest": "x",
-                      "ink": "x",
-                      "mark": {
-                        "layers": [
-                          {
-                            "color": null,
-                            "d": null,
-                            "role": null
-                          }
-                        ],
-                        "vb": "x"
-                      },
-                      "options": {
-                        "colors": 1,
-                        "detail": 1
-                      },
-                      "palette": [
-                        {
-                          "hex": "x",
-                          "share": 1.0
-                        }
-                      ],
-                      "part": "mark",
-                      "source": {
-                        "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                        "has_alpha": false,
-                        "height": 1,
-                        "kind": "upload",
-                        "path": "x",
-                        "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                        "width": 1
-                      },
-                      "state": "processing",
-                      "status_reason": "x",
-                      "version": 1,
-                      "wordmark": {
-                        "layers": [
-                          {
-                            "color": null,
-                            "d": null,
-                            "role": null
-                          }
-                        ],
-                        "vb": "x"
-                      }
-                    }
-                  ],
-                  "next_cursor": "x"
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Page_CompanyBrand_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Brand Versions",
-        "tags": [
-          "brand"
-        ]
-      }
-    },
-    "/api/v1/companies/{code}/brand/{version}/activate": {
-      "post": {
-        "description": "🔏 step-up `company.brand`, target = the version's `digest`, which the\nserver recomputes from the stored version: a version that changed after\nthe owner saw it is not sealed. The previous active version is retired.",
-        "operationId": "activate_brand",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "code",
-            "required": true,
-            "schema": {
-              "title": "Code",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "version",
-            "required": true,
-            "schema": {
-              "title": "Version",
-              "type": "integer"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {},
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/hq_api__routes__brands__ActivateIn"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "accent": "x",
-                  "accent_day": "x",
-                  "accent_night": "x",
-                  "activated_at": "2026-10-17T05:42:00Z",
-                  "checks": {
-                    "contrast_day": 1.0,
-                    "contrast_night": 1.0,
-                    "iou": 1.0,
-                    "min_feature_px_16": 1.0,
-                    "paths_bytes": 1,
-                    "warnings": [
-                      "x"
-                    ]
-                  },
-                  "company": "TY",
-                  "created_at": "2026-10-17T05:42:00Z",
-                  "digest": "x",
-                  "ink": "x",
-                  "mark": {
-                    "layers": [
-                      {
-                        "color": "x",
-                        "d": "x",
-                        "role": "ink"
-                      }
-                    ],
-                    "vb": "x"
-                  },
-                  "options": {
-                    "colors": 1,
-                    "detail": 1
-                  },
-                  "palette": [
-                    {
-                      "hex": "x",
-                      "share": 1.0
-                    }
-                  ],
-                  "part": "mark",
-                  "source": {
-                    "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "has_alpha": false,
-                    "height": 1,
-                    "kind": "upload",
-                    "path": "x",
-                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                    "width": 1
-                  },
-                  "state": "processing",
-                  "status_reason": "x",
-                  "version": 1,
-                  "wordmark": {
-                    "layers": [
-                      {
-                        "color": "x",
-                        "d": "x",
-                        "role": "ink"
-                      }
-                    ],
-                    "vb": "x"
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/CompanyBrand"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Activate Brand",
-        "tags": [
-          "brand"
-        ]
-      }
-    },
-    "/api/v1/companies/{code}/brand/{version}/retrace": {
-      "post": {
-        "description": "A new `processing` version from the same file with other options.\nRequires `Idempotency-Key`.",
-        "operationId": "retrace_brand",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "code",
-            "required": true,
-            "schema": {
-              "title": "Code",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "version",
-            "required": true,
-            "schema": {
-              "title": "Version",
-              "type": "integer"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "options": {
-                  "colors": 1,
-                  "detail": 1
-                }
-              },
-              "schema": {
-                "$ref": "#/components/schemas/RetraceIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "accent": "x",
-                  "accent_day": "x",
-                  "accent_night": "x",
-                  "activated_at": "2026-10-17T05:42:00Z",
-                  "checks": {
-                    "contrast_day": 1.0,
-                    "contrast_night": 1.0,
-                    "iou": 1.0,
-                    "min_feature_px_16": 1.0,
-                    "paths_bytes": 1,
-                    "warnings": [
-                      "x"
-                    ]
-                  },
-                  "company": "TY",
-                  "created_at": "2026-10-17T05:42:00Z",
-                  "digest": "x",
-                  "ink": "x",
-                  "mark": {
-                    "layers": [
-                      {
-                        "color": "x",
-                        "d": "x",
-                        "role": "ink"
-                      }
-                    ],
-                    "vb": "x"
-                  },
-                  "options": {
-                    "colors": 1,
-                    "detail": 1
-                  },
-                  "palette": [
-                    {
-                      "hex": "x",
-                      "share": 1.0
-                    }
-                  ],
-                  "part": "mark",
-                  "source": {
-                    "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "has_alpha": false,
-                    "height": 1,
-                    "kind": "upload",
-                    "path": "x",
-                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
-                    "width": 1
-                  },
-                  "state": "processing",
-                  "status_reason": "x",
-                  "version": 1,
-                  "wordmark": {
-                    "layers": [
-                      {
-                        "color": "x",
-                        "d": "x",
-                        "role": "ink"
-                      }
-                    ],
-                    "vb": "x"
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/CompanyBrand"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          }
-        },
-        "summary": "Retrace Brand",
-        "tags": [
-          "brand"
         ]
       }
     },
@@ -25579,7 +24939,9 @@
                     "errand_action",
                     "lesson_adoption",
                     "protocol",
-                    "tool_enable"
+                    "tool_enable",
+                    "company_found",
+                    "server_plan"
                   ],
                   "type": "string"
                 },
@@ -29011,7 +28373,7 @@
     },
     "/api/v1/errands/{ref}/cancel": {
       "post": {
-        "description": "The owner stops an open errand (no step-up: stopping is always safe).",
+        "description": "The owner stops an open errand (no step-up: stopping is always safe); its\npending `errand_action` card, if any, is withdrawn.",
         "operationId": "cancel_errand",
         "parameters": [
           {
@@ -29509,7 +28871,7 @@
     },
     "/api/v1/foundings": {
       "get": {
-        "description": "Newest first.",
+        "description": "A `Page`, newest first (§18.16).",
         "operationId": "list_foundings",
         "parameters": [
           {
@@ -29528,82 +28890,120 @@
               ],
               "title": "State"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
           }
         ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "example": [
-                  {
-                    "audit": {
-                      "deliverable": "O-000456",
-                      "report_md": "x",
-                      "scores": {},
-                      "session_ref": "x"
-                    },
-                    "audit_work": "x",
-                    "brand": {
-                      "state": "missing",
-                      "version": 1
-                    },
-                    "code": "TY",
-                    "company": "TY",
-                    "created_at": "2026-10-17T05:42:00Z",
-                    "created_by": {
-                      "code": "TY-CEO",
-                      "display_fa": "x",
-                      "kind": "agent"
-                    },
-                    "decision_ref": "x",
-                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "name_en": "TradeYar",
-                    "name_fa": "تریدیار",
-                    "plan": {
+                "example": {
+                  "items": [
+                    {
+                      "audit": {
+                        "deliverable": "O-000456",
+                        "report_md": "x",
+                        "scores": {},
+                        "session_ref": "x"
+                      },
+                      "audit_work": "x",
+                      "brand": {
+                        "state": "missing",
+                        "version": 1
+                      },
+                      "code": "TY",
                       "company": "TY",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "created_by": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
                       "decision_ref": "x",
-                      "digest": "x",
-                      "firewall": [
-                        {}
-                      ],
-                      "founding": "x",
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                      "image": "x",
-                      "location": "x",
-                      "monthly_eur": "x",
-                      "name": "report.pdf",
-                      "price": {},
-                      "private_network": false,
-                      "problems": [
-                        "x"
-                      ],
+                      "name_en": "TradeYar",
+                      "name_fa": "تریدیار",
+                      "plan": "x",
+                      "plan_detail": {
+                        "company": "TY",
+                        "decision_ref": "x",
+                        "digest": "x",
+                        "firewall": [
+                          {}
+                        ],
+                        "founding": "x",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "image": "x",
+                        "location": "x",
+                        "monthly_eur": "x",
+                        "name": "report.pdf",
+                        "price": {
+                          "at": null,
+                          "ipv4": null,
+                          "network": null,
+                          "server": null,
+                          "source": null
+                        },
+                        "private_network": false,
+                        "problems": [
+                          "x"
+                        ],
+                        "ref": "W-000789",
+                        "repo": "x",
+                        "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "sealed_at": "2026-10-17T05:42:00Z",
+                        "software": [
+                          "x"
+                        ],
+                        "state": "x",
+                        "type": "x",
+                        "version": 1,
+                        "work_user": "x"
+                      },
+                      "proposal": {},
+                      "proposal_work": "x",
                       "ref": "W-000789",
-                      "repo": "x",
-                      "run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                      "sealed_at": "2026-10-17T05:42:00Z",
-                      "software": [
-                        "x"
-                      ],
+                      "source": {
+                        "brief_md": "x",
+                        "kind": "repo",
+                        "repo": "x"
+                      },
                       "state": "x",
-                      "type": "x",
-                      "version": 1,
-                      "work_user": "x"
-                    },
-                    "proposal": {},
-                    "proposal_work": "x",
-                    "ref": "W-000789",
-                    "source": {},
-                    "state": "x",
-                    "updated_at": "2026-10-17T05:42:00Z",
-                    "workspace": "x"
-                  }
-                ],
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "workspace": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Founding"
-                  },
-                  "title": "Response List Foundings",
-                  "type": "array"
+                  "$ref": "#/components/schemas/Page_Founding_"
                 }
               }
             },
@@ -29718,7 +29118,8 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
-                  "plan": {
+                  "plan": "x",
+                  "plan_detail": {
                     "company": "TY",
                     "decision_ref": "x",
                     "digest": "x",
@@ -29731,7 +29132,13 @@
                     "location": "x",
                     "monthly_eur": "x",
                     "name": "report.pdf",
-                    "price": {},
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
                     "private_network": false,
                     "problems": [
                       "x"
@@ -29751,7 +29158,11 @@
                   "proposal": {},
                   "proposal_work": "x",
                   "ref": "W-000789",
-                  "source": {},
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
                   "state": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
@@ -29868,7 +29279,8 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
-                  "plan": {
+                  "plan": "x",
+                  "plan_detail": {
                     "company": "TY",
                     "decision_ref": "x",
                     "digest": "x",
@@ -29881,7 +29293,13 @@
                     "location": "x",
                     "monthly_eur": "x",
                     "name": "report.pdf",
-                    "price": {},
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
                     "private_network": false,
                     "problems": [
                       "x"
@@ -29901,7 +29319,11 @@
                   "proposal": {},
                   "proposal_work": "x",
                   "ref": "W-000789",
-                  "source": {},
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
                   "state": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
@@ -29977,7 +29399,7 @@
     },
     "/api/v1/foundings/{ref}/activate": {
       "post": {
-        "description": "🔏 step-up `founding.activate`, target = the ref: after the owner logged\nin on the new server, the company goes live and its CEO starts. ⟨1.4.6⟩\nWithout an active brand: `409 not_ready` with `missing: [\"brand\"]`,\nunless the body says `{skip_brand: true}`.",
+        "description": "🔏 step-up `founding.activate`, target = the ref: after the owner logged\nin on the new server, the company goes live and its CEO starts.",
         "operationId": "activate_founding",
         "parameters": [
           {
@@ -29990,26 +29412,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "skip_brand": false
-              },
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/hq_api__routes__founding__ActivateIn"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -30038,7 +29440,8 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
-                  "plan": {
+                  "plan": "x",
+                  "plan_detail": {
                     "company": "TY",
                     "decision_ref": "x",
                     "digest": "x",
@@ -30051,7 +29454,13 @@
                     "location": "x",
                     "monthly_eur": "x",
                     "name": "report.pdf",
-                    "price": {},
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
                     "private_network": false,
                     "problems": [
                       "x"
@@ -30071,7 +29480,11 @@
                   "proposal": {},
                   "proposal_work": "x",
                   "ref": "W-000789",
-                  "source": {},
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
                   "state": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
@@ -30147,7 +29560,7 @@
     },
     "/api/v1/foundings/{ref}/cancel": {
       "post": {
-        "description": "Before it is active; a company already made stays (paused), never\ndeleted. Requires `Idempotency-Key`.",
+        "description": "Before it is active, and not while a build runs; it closes everything\n(§18.16): its pending cards are withdrawn, a sealed but unrun plan is\nproposed again, its audit and proposal work is cancelled and its workshop\nsession stops. A company already made stays (paused), never deleted.\nRequires `Idempotency-Key`.",
         "operationId": "cancel_founding",
         "parameters": [
           {
@@ -30188,7 +29601,8 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
-                  "plan": {
+                  "plan": "x",
+                  "plan_detail": {
                     "company": "TY",
                     "decision_ref": "x",
                     "digest": "x",
@@ -30201,7 +29615,13 @@
                     "location": "x",
                     "monthly_eur": "x",
                     "name": "report.pdf",
-                    "price": {},
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
                     "private_network": false,
                     "problems": [
                       "x"
@@ -30221,7 +29641,11 @@
                   "proposal": {},
                   "proposal_work": "x",
                   "ref": "W-000789",
-                  "source": {},
+                  "source": {
+                    "brief_md": "x",
+                    "kind": "repo",
+                    "repo": "x"
+                  },
                   "state": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
@@ -33271,7 +32695,7 @@
     },
     "/api/v1/oversight/holds/{ref}/cancel": {
       "post": {
-        "description": "The hold is lifted without a step-up (the owner looked and decided the\nhold was not needed); like release, only the owner can.",
+        "description": "No step-up: the held action itself is cancelled (contract §18.15) and\nnever runs: a pending card is rejected (by the owner, «لغو از hold»), a\nqueued effect is cancelled, a workshop session is stopped, a work item is\ncancelled. Like release, only the owner can.",
         "operationId": "cancel_hold",
         "parameters": [
           {
@@ -33405,7 +32829,7 @@
     },
     "/api/v1/oversight/holds/{ref}/release": {
       "post": {
-        "description": "🔏 (`oversight.release`, target = ref): the held action may go on (a\nheld decision can now be decided; its effect runs).",
+        "description": "🔏 (`oversight.release`, target = ref): the held action may go on (a\nheld decision can now be decided; its effect runs; a held workshop session\ngoes on, or starts if it never had).",
         "operationId": "release_hold",
         "parameters": [
           {
@@ -33986,7 +33410,11 @@
                     "check_md": "x",
                     "evidence_md": "x",
                     "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "last_run": {},
+                    "last_run": {
+                      "at": "2026-10-17T05:42:00Z",
+                      "findings": 1,
+                      "result": "pass"
+                    },
                     "method": "x",
                     "ref": "W-000789",
                     "schedule": "x",
@@ -34105,7 +33533,11 @@
                   "check_md": "x",
                   "evidence_md": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                  "last_run": {},
+                  "last_run": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "findings": 1,
+                    "result": "pass"
+                  },
                   "method": "x",
                   "ref": "W-000789",
                   "schedule": "x",
@@ -34232,7 +33664,11 @@
                   "check_md": "x",
                   "evidence_md": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                  "last_run": {},
+                  "last_run": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "findings": 1,
+                    "result": "pass"
+                  },
                   "method": "x",
                   "ref": "W-000789",
                   "schedule": "x",
@@ -35685,7 +35121,13 @@
                     "location": "x",
                     "monthly_eur": "x",
                     "name": "report.pdf",
-                    "price": {},
+                    "price": {
+                      "at": "x",
+                      "ipv4": "x",
+                      "network": "x",
+                      "server": "x",
+                      "source": "x"
+                    },
                     "private_network": false,
                     "problems": [
                       "x"
@@ -35808,7 +35250,13 @@
                   "location": "x",
                   "monthly_eur": "x",
                   "name": "report.pdf",
-                  "price": {},
+                  "price": {
+                    "at": "x",
+                    "ipv4": "x",
+                    "network": "x",
+                    "server": "x",
+                    "source": "x"
+                  },
                   "private_network": false,
                   "problems": [
                     "x"
@@ -35926,7 +35374,13 @@
                   "location": "x",
                   "monthly_eur": "x",
                   "name": "report.pdf",
-                  "price": {},
+                  "price": {
+                    "at": "x",
+                    "ipv4": "x",
+                    "network": "x",
+                    "server": "x",
+                    "source": "x"
+                  },
                   "private_network": false,
                   "problems": [
                     "x"
@@ -36039,7 +35493,18 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "login": {},
                   "plan": "x",
-                  "server": {},
+                  "server": {
+                    "host_keys": [
+                      {
+                        "fingerprint_sha256": "x",
+                        "type": "x"
+                      }
+                    ],
+                    "ipv4": "x",
+                    "ipv6": "x",
+                    "name": "report.pdf",
+                    "private_ip": "x"
+                  },
                   "state": "queued",
                   "steps": [
                     {
@@ -36256,7 +35721,18 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "login": {},
                   "plan": "x",
-                  "server": {},
+                  "server": {
+                    "host_keys": [
+                      {
+                        "fingerprint_sha256": "x",
+                        "type": "x"
+                      }
+                    ],
+                    "ipv4": "x",
+                    "ipv6": "x",
+                    "name": "report.pdf",
+                    "private_ip": "x"
+                  },
                   "state": "queued",
                   "steps": [
                     {
@@ -37254,6 +36730,9 @@
                 "example": {
                   "items": [
                     {
+                      "addenda": [
+                        "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      ],
                       "charter": "x",
                       "charter_version": 1,
                       "company": "TY",
@@ -37269,6 +36748,9 @@
                       "priority": "P2",
                       "queued_at": "2026-10-17T05:42:00Z",
                       "reason": "دلیل",
+                      "skills": [
+                        "x"
+                      ],
                       "started_at": "2026-10-17T05:42:00Z",
                       "state": "x",
                       "steps": 1,
@@ -37376,6 +36858,9 @@
             "content": {
               "application/json": {
                 "example": {
+                  "addenda": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
                   "charter": "x",
                   "charter_version": 1,
                   "company": "TY",
@@ -37391,6 +36876,9 @@
                   "priority": "P2",
                   "queued_at": "2026-10-17T05:42:00Z",
                   "reason": "دلیل",
+                  "skills": [
+                    "x"
+                  ],
                   "started_at": "2026-10-17T05:42:00Z",
                   "state": "x",
                   "steps": 1,
@@ -37783,6 +37271,8 @@
                     "created_by": {},
                     "eval": {
                       "baseline": 1.0,
+                      "baseline_set": false,
+                      "failed": false,
                       "passed": false,
                       "run": "x",
                       "score": 1.0,
@@ -37794,13 +37284,30 @@
                     "precheck": {},
                     "ref": "W-000789",
                     "resources": [
-                      "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      {
+                        "duration_s": 1.0,
+                        "height": 1,
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "image",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                        "size": 1,
+                        "status": "processing",
+                        "transcript": "x",
+                        "variants": {
+                          "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                          "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                        },
+                        "width": 1
+                      }
                     ],
                     "review": {
                       "at": "2026-10-17T05:42:00Z",
                       "by": {},
                       "checks": {},
                       "notes_md": "x",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
                       "verdict": "pass"
                     },
                     "scope": {
@@ -37933,6 +37440,8 @@
                   "created_by": {},
                   "eval": {
                     "baseline": 1.0,
+                    "baseline_set": false,
+                    "failed": false,
                     "passed": false,
                     "run": "x",
                     "score": 1.0,
@@ -37944,13 +37453,30 @@
                   "precheck": {},
                   "ref": "W-000789",
                   "resources": [
-                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    {
+                      "duration_s": 1.0,
+                      "height": 1,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
+                      "mime": "application/pdf",
+                      "name": "report.pdf",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
+                    }
                   ],
                   "review": {
                     "at": "2026-10-17T05:42:00Z",
                     "by": {},
                     "checks": {},
                     "notes_md": "x",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
                     "verdict": "pass"
                   },
                   "scope": {
@@ -38062,6 +37588,8 @@
                   "created_by": {},
                   "eval": {
                     "baseline": 1.0,
+                    "baseline_set": false,
+                    "failed": false,
                     "passed": false,
                     "run": "x",
                     "score": 1.0,
@@ -38073,13 +37601,30 @@
                   "precheck": {},
                   "ref": "W-000789",
                   "resources": [
-                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    {
+                      "duration_s": 1.0,
+                      "height": 1,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
+                      "mime": "application/pdf",
+                      "name": "report.pdf",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
+                    }
                   ],
                   "review": {
                     "at": "2026-10-17T05:42:00Z",
                     "by": {},
                     "checks": {},
                     "notes_md": "x",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
                     "verdict": "pass"
                   },
                   "scope": {
@@ -38218,6 +37763,8 @@
                   "created_by": {},
                   "eval": {
                     "baseline": 1.0,
+                    "baseline_set": false,
+                    "failed": false,
                     "passed": false,
                     "run": "x",
                     "score": 1.0,
@@ -38229,13 +37776,30 @@
                   "precheck": {},
                   "ref": "W-000789",
                   "resources": [
-                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    {
+                      "duration_s": 1.0,
+                      "height": 1,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
+                      "mime": "application/pdf",
+                      "name": "report.pdf",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
+                    }
                   ],
                   "review": {
                     "at": "2026-10-17T05:42:00Z",
                     "by": {},
                     "checks": {},
                     "notes_md": "x",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
                     "verdict": "pass"
                   },
                   "scope": {
@@ -38322,7 +37886,7 @@
     },
     "/api/v1/skills/{ref}/activate": {
       "post": {
-        "description": "🔏 (`skill.activate`, target `ref@version`). Only a version whose review\npassed and whose eval passed the gate; the suite's baseline rises with it.",
+        "description": "🔏 (`skill.activate`, target `ref@version`). Only a version whose review\npassed and whose eval passed the gate, checked again against the suite's\nbaseline as it is now; the suite's baseline rises with it.",
         "operationId": "activate_skill",
         "parameters": [
           {
@@ -38342,7 +37906,7 @@
                 "version": 1
               },
               "schema": {
-                "$ref": "#/components/schemas/hq_api__routes__skills__ActivateIn"
+                "$ref": "#/components/schemas/ActivateIn"
               }
             }
           },
@@ -38360,6 +37924,8 @@
                   "created_by": {},
                   "eval": {
                     "baseline": 1.0,
+                    "baseline_set": false,
+                    "failed": false,
                     "passed": false,
                     "run": "x",
                     "score": 1.0,
@@ -38371,13 +37937,30 @@
                   "precheck": {},
                   "ref": "W-000789",
                   "resources": [
-                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    {
+                      "duration_s": 1.0,
+                      "height": 1,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
+                      "mime": "application/pdf",
+                      "name": "report.pdf",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
+                    }
                   ],
                   "review": {
                     "at": "2026-10-17T05:42:00Z",
                     "by": {},
                     "checks": {},
                     "notes_md": "x",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
                     "verdict": "pass"
                   },
                   "scope": {
@@ -38489,6 +38072,8 @@
                   "created_by": {},
                   "eval": {
                     "baseline": 1.0,
+                    "baseline_set": false,
+                    "failed": false,
                     "passed": false,
                     "run": "x",
                     "score": 1.0,
@@ -38500,13 +38085,30 @@
                   "precheck": {},
                   "ref": "W-000789",
                   "resources": [
-                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    {
+                      "duration_s": 1.0,
+                      "height": 1,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "image",
+                      "mime": "application/pdf",
+                      "name": "report.pdf",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "size": 1,
+                      "status": "processing",
+                      "transcript": "x",
+                      "variants": {
+                        "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "width": 1
+                    }
                   ],
                   "review": {
                     "at": "2026-10-17T05:42:00Z",
                     "by": {},
                     "checks": {},
                     "notes_md": "x",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
                     "verdict": "pass"
                   },
                   "scope": {
@@ -38618,21 +38220,36 @@
                     "decided_at": "2026-10-17T05:42:00Z",
                     "eval": {
                       "baseline": 1.0,
+                      "baseline_set": false,
+                      "failed": false,
                       "passed": false,
                       "run": "x",
                       "score": 1.0,
                       "suite": "x"
                     },
+                    "name_fa": "تریدیار",
                     "precheck": {},
                     "review": {
                       "at": "2026-10-17T05:42:00Z",
                       "by": {},
                       "checks": {},
                       "notes_md": "x",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
                       "verdict": "pass"
+                    },
+                    "scope": {
+                      "companies": "all",
+                      "departments": [
+                        "GROWTH"
+                      ],
+                      "roles": [
+                        "x"
+                      ]
                     },
                     "source": "x",
                     "status": "active",
+                    "summary_fa": "x",
+                    "text_sha256": "x",
                     "version": 1
                   }
                 ],
@@ -43857,6 +43474,9 @@
               "application/json": {
                 "example": [
                   {
+                    "addenda": [
+                      "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    ],
                     "charter": "x",
                     "charter_version": 1,
                     "company": "TY",
@@ -43872,6 +43492,9 @@
                     "priority": "P2",
                     "queued_at": "2026-10-17T05:42:00Z",
                     "reason": "دلیل",
+                    "skills": [
+                      "x"
+                    ],
                     "started_at": "2026-10-17T05:42:00Z",
                     "state": "x",
                     "steps": 1,
@@ -45841,20 +45464,25 @@
                       "score": 1.0
                     }
                   ],
+                  "equiv_cost_usd": "2.410000",
+                  "error": "x",
                   "finished_at": "2026-10-17T05:42:00Z",
                   "gate": {},
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "passed": false,
                   "purpose": "x",
                   "score": 1.0,
-                  "status": "active",
+                  "state": "queued",
                   "subject": {
                     "kind": "charter",
                     "ref": "W-000789",
                     "version": "x"
                   },
                   "suite": "x",
-                  "tokens": 1
+                  "tokens": {
+                    "input": 1,
+                    "output": 1
+                  }
                 },
                 "schema": {
                   "$ref": "#/components/schemas/EvalRun"
@@ -45963,7 +45591,12 @@
                 "example": {
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
-                  "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "eval_run": {
+                    "baseline": 1.0,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "passed": false,
+                    "score": 1.0
+                  },
                   "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "precheck": {},
@@ -46066,6 +45699,7 @@
               "example": {
                 "checks": {},
                 "notes_md": "x",
+                "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
                 "verdict": "pass",
                 "version": 1
               },
@@ -46083,7 +45717,12 @@
                 "example": {
                   "created_at": "2026-10-17T05:42:00Z",
                   "decided_at": "2026-10-17T05:42:00Z",
-                  "eval_run": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "eval_run": {
+                    "baseline": 1.0,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "passed": false,
+                    "score": 1.0
+                  },
                   "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "precheck": {},
@@ -51316,7 +50955,7 @@
     },
     "/internal/v1/oversight/protocol-runs/result": {
       "post": {
-        "description": "protocol.result: the overseer's (or QC's) result of the protocol run\nhanded to it; the findings it raised are linked by ref.",
+        "description": "protocol.result: the overseer's (or QC's) result of the protocol run\nhanded to it; the findings it raised are linked by ref. A protocol that is\nnot active takes no result (409). Every company the protocol covers gets\nits pass or fail (compliance counts both, contract §18.15).",
         "operationId": "protocol_result",
         "requestBody": {
           "content": {
@@ -51556,7 +51195,7 @@
     },
     "/internal/v1/provisioning/plans": {
       "post": {
-        "description": "server.plan (A1; a CTO for its company, the platform SRE for any and for\na founding): a plan with its cost; the owner seals it, the provisioner (code,\nnot an agent) builds it. A founding's plan waits for the company to exist.",
+        "description": "server.plan (A1; a CTO for its own company, a holding role for any and\nfor a founding): a plan with its cost; the owner seals it, the provisioner\n(code, not an agent) builds it. A founding's plan waits for the company to\nexist. Plans of a founding are written by holding roles only (§18.16):\nanyone else is refused before the founding is even looked at.",
         "operationId": "agent_server_plan",
         "requestBody": {
           "content": {
@@ -51610,7 +51249,13 @@
                   "location": "x",
                   "monthly_eur": "x",
                   "name": "report.pdf",
-                  "price": {},
+                  "price": {
+                    "at": "x",
+                    "ipv4": "x",
+                    "network": "x",
+                    "server": "x",
+                    "source": "x"
+                  },
                   "private_network": false,
                   "problems": [
                     "x"
@@ -52484,6 +52129,7 @@
               "example": {
                 "checks": {},
                 "notes_md": "x",
+                "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
                 "verdict": "pass",
                 "version": 1
               },
@@ -52952,6 +52598,7 @@
                   "decision": "D-000123",
                   "deliverable": "O-000456",
                   "employee": "TY-GROWTH-01",
+                  "metric": "x",
                   "period": "x",
                   "work": "x"
                 },

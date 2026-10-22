@@ -75,8 +75,11 @@ async def _cases(su: Any, suite: str) -> int:
     )
 
 
+ALL_CHECKS = {"injection": True, "secrets": True, "conflicts": True, "policy": True}
+
+
 async def _review(
-    client: httpx.AsyncClient, ref: str, version: int, verdict: str = "pass"
+    client: httpx.AsyncClient, ref: str, version: int, verdict: str = "pass", **kw: Any
 ) -> httpx.Response:
     return await client.post(
         f"/internal/v1/skills/{ref}/review",
@@ -84,9 +87,23 @@ async def _review(
         json={
             "version": version,
             "verdict": verdict,
-            "checks": {"injection": True},
+            "checks": ALL_CHECKS,
             "notes_md": "checked",
+            **kw,
         },
+    )
+
+
+async def set_baseline(su: Any, suite: str, score: float | None) -> None:
+    """A suite's baseline for a test (None: none yet; the next good run sets it)."""
+    await su.execute(
+        "UPDATE academy.eval_suites SET baseline = $2::jsonb WHERE ref = $1",
+        suite,
+        None
+        if score is None
+        else json.dumps(
+            {"subject": {"kind": "charter", "ref": "test", "version": 1}, "score": score}
+        ),
     )
 
 
@@ -107,7 +124,7 @@ async def _new_skill(
             "name_fa": "ارقام تاریخ‌دار",
             "summary_fa": "هر عدد منبع و تاریخ دارد.",
             "body_md": body_md,
-            "scope": {"roles": ["cto"]},
+            "scope": {"roles": ["cto"], "companies": "all"},
             "eval_suite": "EV-001",
             **kw,
         },
@@ -161,7 +178,11 @@ async def test_a_skill_that_tries_an_override_fails_review(
     )
     # No overseer is asked to review it, and a pass is refused anyway.
     assert not await su.fetchval(
-        "SELECT 1 FROM work.work WHERE title = $1", f"Review skill {s['ref']}@1"
+        # a ref comes back after a migration round trip (test_hiring): this skill's only
+        """SELECT 1 FROM work.work WHERE title = $1
+             AND created_at >= (SELECT created_at FROM knowledge.skills WHERE ref = $2)""",
+        f"Review skill {s['ref']}@1",
+        s["ref"],
     )
     r = await _review(client, s["ref"], 1)
     assert r.status_code in (409, 422), r.text
@@ -198,6 +219,14 @@ async def test_a_skill_goes_live_only_after_review_eval_and_seal_and_is_recorded
     assert run_id and r.json()["status"] == "in_review"
     assert (await activate(1)).status_code == 409  # reviewed, not evaluated
     n = await _cases(su, "EV-001")
+    _score(agents, holding, n, 9)
+    # 8.1 §2.10: the suite had no baseline: this first run sets it and is not a pass.
+    out = await academy.eval_run(run_id)
+    assert out["passed"] is False and out["baseline_set"] is True and out["score"] == 90.0, out
+    v = (await client.get(f"/api/v1/skills/{ref}/versions", headers=owner)).json()[0]
+    assert v["status"] == "in_review" and v["eval"]["passed"] is False
+    assert (await activate(1)).status_code == 409
+    run_id = (await _review(client, ref, 1)).json()["eval_run"]  # a second run decides
     _score(agents, holding, n, 9)
     out = await academy.eval_run(run_id)
     assert out["passed"] is True and out["score"] == 90.0, out
@@ -239,6 +268,9 @@ async def test_a_skill_goes_live_only_after_review_eval_and_seal_and_is_recorded
         "SELECT meta FROM llm.calls WHERE meta->>'run_id' = $1 LIMIT 1", str(row["id"])
     )
     assert f"{ref}@1" in json.loads(meta)["skills"]
+    # 8.1 §2.20: the run says what was in its prompt (contract §18.15).
+    shown = (await client.get(f"/api/v1/runs/{row['id']}", headers=owner)).json()
+    assert shown["skills"] == [f"{ref}@1"] and isinstance(shown["addenda"], list), shown
 
     # A worse version is rejected by the gate; the live one stays live.
     r = await client.put(
@@ -248,7 +280,7 @@ async def test_a_skill_goes_live_only_after_review_eval_and_seal_and_is_recorded
             "name_fa": "ارقام تاریخ‌دار",
             "summary_fa": "نسخه‌ی دوم",
             "body_md": CLEAN + "3. Round every figure.\n",
-            "scope": {"roles": ["cto"]},
+            "scope": {"roles": ["cto"], "companies": "all"},
         },
     )
     assert r.status_code == 200 and r.json()["version"] == 2 and r.json()["active_version"] == 1
@@ -272,7 +304,7 @@ async def test_a_skill_goes_live_only_after_review_eval_and_seal_and_is_recorded
     rec = (await client.get(f"/api/v1/academy/records/{co}-TECH-MGR", headers=owner)).json()
     lib = charters.load()
     assert rec["charter_version"] == lib.roles["cto"].version and rec["skills"] == [f"{ref}@1"]
-    assert [e["score"] for e in rec["evals"]][:2] == [20.0, 90.0] and rec["trend"][-2:] == [
+    assert [e["score"] for e in rec["evals"]][:3] == [20.0, 90.0, 90.0] and rec["trend"][-2:] == [
         90.0,
         20.0,
     ]
@@ -295,6 +327,7 @@ async def test_an_owner_teaching_becomes_a_sealed_rule_after_review_eval_and_app
 ) -> None:
     owner = owner_session["headers"]
     holding = await _holding(hub)
+    await set_baseline(su, "EV-001", 50.0)
     r = await client.post(
         "/api/v1/academy/teach",
         headers=owner,
@@ -326,11 +359,11 @@ async def test_an_owner_teaching_becomes_a_sealed_rule_after_review_eval_and_app
     r = await client.post(
         f"/internal/v1/academy/teach/{ref}/review",
         headers={**await agent_headers("HQ-OVR"), **idem()},
-        json={"verdict": "pass", "checks": {"injection": True}, "notes_md": "clean"},
+        json={"verdict": "pass", "checks": ALL_CHECKS, "notes_md": "clean"},
     )
     assert r.status_code == 200, r.text
-    run_id = r.json()["eval_run"]
-    assert run_id
+    run_id = r.json()["eval_run"]["id"]
+    assert run_id and r.json()["eval_run"]["passed"] is None  # queued: no result yet
     assert (await approve()).status_code == 409  # not evaluated yet
     _score(agents, holding, await _cases(su, "EV-001"), 10)
     assert (await academy.eval_run(str(run_id)))["passed"] is True
@@ -416,10 +449,11 @@ async def test_a_teaching_of_a_skill_and_a_refused_draft(
         await client.post(
             f"/internal/v1/academy/teach/{ref}/review",
             headers={**await agent_headers("HQ-OVR"), **idem()},
-            json={"verdict": "pass", "notes_md": "clean"},
+            json={"verdict": "pass", "checks": ALL_CHECKS, "notes_md": "clean"},
         )
-    ).json()["eval_run"]
+    ).json()["eval_run"]["id"]
     suite = await su.fetchval("SELECT suite_ref FROM academy.eval_runs WHERE id = $1::uuid", run_id)
+    await set_baseline(su, suite, 50.0)
     _score(agents, holding, await _cases(su, suite), 10)
     assert (await academy.eval_run(str(run_id)))["passed"] is True
     su_h = await step_up(hub, owner_session["session_id"], "academy.approve", ref)
@@ -455,7 +489,12 @@ async def test_eval_runs_stop_at_the_academy_cap(
         "/internal/v1/academy/evals/run", headers={**headers, **idem()}, json=body
     )
     assert r.status_code == 202, r.text
-    assert r.json()["status"] == "queued" and r.json()["subject"]["ref"] == "cto"
+    assert r.json()["state"] == "queued" and r.json()["subject"]["ref"] == "cto"
+    assert r.json()["score"] is None and r.json()["passed"] is None
+    await su.execute(
+        "UPDATE academy.eval_runs SET status = 'failed', finished_at = now() WHERE id = $1::uuid",
+        r.json()["id"],
+    )  # never run here: it holds nothing for the next tests
     b = (await client.get("/api/v1/academy/budget", headers=await _owner(hub))).json()
     assert b["cap_tokens"] > 0 and b["share"] == 0.05
     # Not an AI Ops head: refused by the gateway's charters, and here by hq.internal.

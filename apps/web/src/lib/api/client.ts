@@ -11,6 +11,8 @@ export class ApiError extends Error {
   readonly messageFa: string;
   readonly fields?: Record<string, string> | null;
   readonly requestId?: string | null;
+  /** ⟨1.4.6⟩ `409 not_ready`: what is still missing (§18.8, e.g. ["brand"]). */
+  readonly missing?: string[];
 
   constructor(status: number, problem: Partial<Problem> | undefined) {
     super(problem?.title ?? `HTTP ${status}`);
@@ -20,6 +22,7 @@ export class ApiError extends Error {
     this.messageFa = problem?.message_fa ?? (status === 0 ? 'اتصال برقرار نشد. اینترنت را بررسی کن.' : 'خطای غیرمنتظره؛ دوباره تلاش کن.');
     this.fields = problem?.fields;
     this.requestId = problem?.request_id;
+    this.missing = (problem as { missing?: string[] } | undefined)?.missing;
   }
 }
 

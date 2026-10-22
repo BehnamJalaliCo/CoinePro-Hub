@@ -4,9 +4,11 @@ the provisioner itself is tested in services/provisioner with a mock Hetzner).""
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import secrets
+import struct
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import replace
@@ -27,6 +29,10 @@ from .test_agents import run, runs_of, step
 
 pytestmark = pytest.mark.usefixtures("relay")
 OWNER_NET = "198.51.100.7/32"
+# A host key as a new server reports it (the key blob of an ed25519 key).
+HOST_KEY_B64 = base64.b64encode(
+    struct.pack(">I", 11) + b"ssh-ed25519" + struct.pack(">I", 32) + bytes(range(32))
+).decode()
 DOC_KEYS = (
     "id", "ref", "founding", "company", "name", "type", "location", "image", "private_network",
     "firewall", "software", "work_user", "repo", "monthly_eur",
@@ -122,6 +128,7 @@ async def test_a_plan_is_checked_priced_and_sealed_on_its_digest(
     owner_session: dict[str, Any],
     su: Any,
     new_company: Callable[..., Any],
+    ssh_sources: Any,
 ) -> None:
     co = (await new_company())["code"]
     cto = await agent_headers(f"{co}-TECH-MGR")
@@ -187,6 +194,7 @@ async def test_no_build_without_a_seal_and_a_tampered_plan_loses_it(
     owner_session: dict[str, Any],
     su: Any,
     new_company: Callable[..., Any],
+    ssh_sources: Any,
 ) -> None:
     co = (await new_company())["code"]
     cto = await agent_headers(f"{co}-TECH-MGR")
@@ -235,6 +243,13 @@ async def test_a_repository_becomes_a_company_and_its_server(
     assert r.status_code == 201, r.text
     f = r.json()
     assert f["state"] == "auditing" and f["audit_work"] and f["workspace"] is None  # no runtime
+    # §18.16: names and code null until the proposal, no plan yet, the brand missing until 9.1.
+    assert (f["name_fa"], f["code"], f["plan"], f["plan_detail"]) == (None, None, None, None)
+    assert f["brand"] == {"state": "missing", "version": None}
+    assert f["source"] == {"kind": "repo", "repo": "behnamjalalico/nx-app", "brief_md": ""}
+    # GET /foundings is a Page, newest first.
+    page = (await client.get("/api/v1/foundings?limit=1", headers=h)).json()
+    assert page["items"][0]["ref"] == f["ref"] and "next_cursor" in page
     auditor = await su.fetchval(
         """SELECT e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id
            WHERE w.ref = $1""",
@@ -305,7 +320,9 @@ async def test_a_repository_becomes_a_company_and_its_server(
     f = (await client.get(f"/api/v1/foundings/{f['ref']}", headers=h)).json()
     assert f["state"] == "proposed" and f["code"] == code and f["decision_ref"]
     assert f["proposal"]["departments"] == ["TECH", "GROWTH"]
-    plan = f["plan"]
+    plan = f["plan_detail"]
+    assert f["plan"] == plan["ref"]  # §18.16: a ref, the plan beside it
+    assert plan["work_user"] == f"{code.lower()}-ops"  # a new account, never a system one
     assert plan["company"] == code and plan["state"] == "proposed"
     assert [r["sources"] for r in plan["firewall"]] == [[OWNER_NET]]  # SSH from the owner only
     assert any(
@@ -338,10 +355,10 @@ async def test_a_repository_becomes_a_company_and_its_server(
     assert await su.fetchval("SELECT 1 FROM core.employees WHERE code = $1", f"{code}-CEO")
     f = (await client.get(f"/api/v1/foundings/{f['ref']}", headers=h)).json()
     assert f["state"] == "sealed" and f["company"] == code
-    assert f["plan"]["decision_ref"]  # the plan's own card, for its own seal
+    assert f["plan_detail"]["decision_ref"]  # the plan's own card, for its own seal
     # The plan: priced through the provisioner, sealed on its digest, built.
     with provisioner_on(hub):
-        assert (await seal(client, hub, owner_session, f["plan"]["ref"])).status_code == 200
+        assert (await seal(client, hub, owner_session, f["plan"])).status_code == 200
         r = await client.get("/internal/v1/provisioning/runs/next", headers=provisioner_headers())
     assert r.status_code == 200, r.text
     handed = r.json()["run"]
@@ -350,6 +367,7 @@ async def test_a_repository_becomes_a_company_and_its_server(
     # What the provisioner checks before it touches anything: the same digest.
     assert P.digest(plan) == handed["sealed_digest"] == plan["digest"] and not P.problems(plan)
     assert [s["key"] for s in handed["steps"]][:3] == ["ssh-key", "firewall", "server"]
+    assert handed["ssh_sources"] == [OWNER_NET]  # the provisioner checks SSH against them too
     pv = provisioner_headers()
     hid = secrets.randbelow(10**9) + 10_000  # a Hetzner server id
     token = secrets.token_urlsafe(32)
@@ -389,7 +407,7 @@ async def test_a_repository_becomes_a_company_and_its_server(
         "run": rid, "plan": plan["ref"], "failed": False,
         "results": [{"key": k, "ok": True, "version": "v1", "note": None} for k in P.ordered(plan["software"])],
         "deploy_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOdeploy coinepro-deploy",
-        "ssh_host_keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHhost root@nx"],
+        "ssh_host_keys": [f"ssh-ed25519 {HOST_KEY_B64} root@nx", "ssh-ed25519 not-base64! x"],
     }  # fmt: skip
     for bad in ("x" * 43, ""):
         r = await client.post(
@@ -423,8 +441,16 @@ async def test_a_repository_becomes_a_company_and_its_server(
     run_out = (await client.get(f"/api/v1/provisioning/runs/{rid}", headers=h)).json()
     assert run_out["state"] == "done" and run_out["login"]["then"] == ["claude"]
     assert [s["state"] for s in run_out["steps"]][:4] == ["done"] * 4
+    # §18.16: the host key's fingerprint, as ssh shows it on the owner's first login.
+    blob = base64.b64decode(HOST_KEY_B64)  # the invalid one is left out
+    fp = "SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("=")
+    assert run_out["server"]["host_keys"] == [{"type": "ssh-ed25519", "fingerprint_sha256": fp}]
+    assert run_out["server"]["ipv4"] == "203.0.113.9"
     f = (await client.get(f"/api/v1/foundings/{f['ref']}", headers=h)).json()
     assert f["state"] == "ready_for_login"
+    price = f["plan_detail"]["price"]
+    assert set(price) == {"server", "ipv4", "network", "source", "at"}
+    assert (price["server"], price["ipv4"], price["network"]) == ("26.49", "0.50", "0.00")
     servers = (await client.get("/api/v1/infra/servers", headers=h)).json()["items"]
     assert any(s["hetzner_id"] == hid and s["company"] == code for s in servers)
     # The owner logged in: activation (🔏 on the ref) starts its CEO.
@@ -468,6 +494,7 @@ async def test_an_idea_cancel_and_a_failed_run_that_resumes(
     owner_session: dict[str, Any],
     su: Any,
     new_company: Callable[..., Any],
+    ssh_sources: Any,
 ) -> None:
     h = owner_session["headers"]
     bad = await client.post(
@@ -482,13 +509,12 @@ async def test_an_idea_cancel_and_a_failed_run_that_resumes(
         )
     ).json()
     assert f["state"] == "auditing" and f["audit_work"] is None and f["proposal_work"]
+    assert f["source"] == {"kind": "idea", "repo": None, "brief_md": "یک بازار آنلاین کتاب"}
     r = await client.post(f"/api/v1/foundings/{f['ref']}/cancel", headers={**h, **idem()})
     assert r.status_code == 200 and r.json()["state"] == "cancelled"
-    await su.execute(
-        """UPDATE work.work w SET status = 'cancelled' FROM core.foundings f
-           WHERE f.ref = $1 AND w.id = f.proposal_work_id""",
-        f["ref"],
-    )
+    # Cancel closes its work too (§18.16): the proposal is no one's job any more.
+    status = await su.fetchval("SELECT status FROM work.work WHERE ref = $1", f["proposal_work"])
+    assert status == "cancelled"
     # A run that failed at a step continues from there, on the same sealed plan.
     co = (await new_company())["code"]
     cto = await agent_headers(f"{co}-TECH-MGR")
@@ -533,6 +559,7 @@ async def test_pr063_finds_servers_without_a_sealed_plan(
     hub: Hub,
     owner_session: dict[str, Any],
     new_company: Callable[..., Any],
+    ssh_sources: Any,
 ) -> None:
     co = (await new_company())["code"]
     cto = await agent_headers(f"{co}-TECH-MGR")

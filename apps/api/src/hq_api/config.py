@@ -136,7 +136,8 @@ class Settings:
         default_factory=lambda: _env("HQ_OVERSIGHT_SCHEDULES", "on") == "on"
     )
     # Real-model spend of all agent runs per UTC day (input + output + cache
-    # tokens); a run is refused once the day's total reaches it (0 = no cap).
+    # tokens); a run is refused once the day's total reaches it. 0 means nothing:
+    # every run is refused (prompt 08.1; never "no cap").
     agent_daily_token_cap: int = field(
         default_factory=lambda: _int("AGENT_DAILY_TOKEN_CAP", 2_000_000)
     )
@@ -174,6 +175,11 @@ class Settings:
     # Prompt 09: the provisioner's small API (pricing, the project's servers,
     # wake); empty while its opt-in profile is off (hq.sh sets it).
     provisioner_url: str = field(default_factory=lambda: _env("PROVISIONER_URL", ""))
+    # Review 9.2 §2.3: a running build the provisioner said nothing about for
+    # this long is failed (its callback wait of 60 minutes plus a margin).
+    provision_quiet_s: float = field(
+        default_factory=lambda: float(_env("HQ_PROVISION_QUIET_S", "4500"))
+    )
     workshop_model: str = field(default_factory=lambda: _env("WORKSHOP_MODEL", "claude-opus-5-5"))
     workshop_effort: str = field(default_factory=lambda: _env("WORKSHOP_EFFORT", "high"))
 

@@ -6,14 +6,14 @@ step_private_network() {
   local ip="" i
   for ((i = 0; i < WAIT_S; i++)); do
     ip="$(private_ip)"
-    [[ -n "$ip" ]] && ip -4 addr show | grep -qF " $ip/" && break
+    [[ -n "$ip" ]] && ip -4 addr show | grep -F " $ip/" >/dev/null && break
     sleep 1
   done
   if [[ -z "$ip" ]]; then
     result private-network 0 "" "no private address in the metadata"
     return 1
   fi
-  if ip -4 addr show | grep -qF " $ip/"; then
+  if ip -4 addr show | grep -F " $ip/" >/dev/null; then
     result private-network 1 "$ip" "up"
   else
     result private-network 1 "$ip" "attached; not on an interface yet (cloud-init configures it)"

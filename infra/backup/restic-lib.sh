@@ -32,7 +32,10 @@ ENV_FILE="${HQ_ENV_FILE:-$REPO_DIR/infra/compose/.env}"
 TEXTFILE_DIR="${HQ_TEXTFILE_DIR:-/var/lib/coinepro-hq/textfile}"
 # The restic repositories. Local: root-owned, made by `make bootstrap`.
 LOCAL_REPO_DIR="$BACKUP_ROOT/restic"
-GDRIVE_REPO="rclone:gdrive:CoinePro-HQ/restic"
+# The owner's folder in Drive; the restic repository is the folder itself
+# (owner decision 2026-10-22: one folder, "CoinePro HQ Backup").
+GDRIVE_FOLDER="${HQ_GDRIVE_FOLDER:-CoinePro HQ Backup}"
+GDRIVE_REPO="rclone:gdrive:$GDRIVE_FOLDER"
 STATUS_DIR="$BACKUP_ROOT/status"
 # hourly.sh's memory (what was done when); restore-weekly.sh reads it too.
 HOURLY_STATE="$BACKUP_ROOT/hourly/state.json"
@@ -230,7 +233,10 @@ gdrive_authorize_blob() {
 # restic as root inside a throwaway container: the inputs belong to several
 # uids (Postgres' WAL archive 999, the api's files 10001, Hub's dumps), so it
 # keeps only DAC_READ_SEARCH (read any file); a restore adds RESTORE_CAPS.
-# No network unless a remote is used, a read-only root filesystem.
+# No network unless a remote is used, a read-only root filesystem. restic's
+# temporary pack files go to the repository's disk (/restic/tmp), not the
+# 64 MiB tmpfs: a copy to a remote keeps one 16 MiB pack per connection and
+# filled the tmpfs (ENOSPC) on the first Google Drive copy (2026-10-22).
 brestic() {
   local network="$1"; shift
   local extra=()
@@ -243,8 +249,8 @@ brestic() {
     --security-opt no-new-privileges:true --read-only --tmpfs /tmp:size=64m \
     -v "$CSEC:/run/hq-backup:ro" -v "$RCLONE_DIR:/run/hq-rclone" -v "$LOCAL_REPO_DIR:/restic" "${test_mount[@]}" \
     -e RESTIC_PASSWORD_FILE=/run/hq-backup/restic.pass -e RCLONE_CONFIG=/run/hq-rclone/rclone.conf \
-    -e RESTIC_CACHE_DIR=/restic/cache -e RESTIC_PROGRESS_FPS=0 \
-    "${extra[@]}" "$BACKUP_IMAGE" restic "$@"
+    -e RESTIC_CACHE_DIR=/restic/cache -e RESTIC_PROGRESS_FPS=0 -e TMPDIR=/restic/tmp \
+    "${extra[@]}" "$BACKUP_IMAGE" sh -c 'mkdir -p /restic/tmp && exec restic "$@"' restic "$@"
 }
 
 # brclone NETWORK rclone-args... -- rclone alone (Drive's quota, the folder check).
