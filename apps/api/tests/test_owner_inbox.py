@@ -58,7 +58,6 @@ async def test_owner_settings_validation_and_versions(
         "learning_daily_cap",
         "calendars",
         "watch_after_hours",
-        "provision_ssh_sources",
         "version",
     }
     v = {"If-Match": str(s["version"])}
