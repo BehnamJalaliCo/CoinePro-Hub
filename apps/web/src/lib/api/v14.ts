@@ -108,14 +108,16 @@ export type Skill = {
   scope: { roles: string[]; companies: 'all' | string[]; departments: string[] }; version: number;
   status: 'draft' | 'in_review' | 'approved' | 'active' | 'retired';
   review: { by: Actor; at: string; verdict: 'pass' | 'changes' | 'reject'; notes_md: string; checks: Record<'injection' | 'secrets' | 'conflicts' | 'policy', boolean> } | null;
-  eval: { suite: string; score: number; baseline: number } | null; created_by: Actor; created_at: string; activated_at: string | null;
+  eval: { suite: string; score: number; baseline: number | null } | null; created_by: Actor; created_at: string; activated_at: string | null;
 };
+// ⟨1.4.7⟩ name, summary and scope belong to a version; the summary defaults to the start of the text.
+export type SkillIn = { name_fa: string; summary_fa?: string; body_md: string; scope: { roles: string[]; companies: 'all' | string[]; departments?: string[] }; file_ids?: string[] };
 export const useSkills = () => useQuery({ queryKey: ['skills'], queryFn: () => call<Skill[]>('GET', '/skills') });
 export function useSkillAction() {
   const qc = useQueryClient();
   const done = () => qc.invalidateQueries({ queryKey: ['skills'] });
   return {
-    create: useMutation({ mutationFn: (v: { name_fa: string; body_md: string; roles: string[]; companies: 'all' | string[]; file_ids: string[] }) => call<Skill>('POST', '/skills', v), onSuccess: done }),
+    create: useMutation({ mutationFn: (v: SkillIn) => call<Skill>('POST', '/skills', v), onSuccess: done }),
     activate: useMutation({ mutationFn: async (s: Skill) => call<Skill>('POST', `/skills/${s.ref}/activate`, { version: s.version }, { 'X-Step-Up': await stepUp('skill.activate', `${s.ref}@${s.version}`) }), onSuccess: done }),
     retire: useMutation({ mutationFn: (ref: string) => call<Skill>('POST', `/skills/${ref}/retire`, {}), onSuccess: done }),
   };
@@ -124,14 +126,16 @@ export function useSkillAction() {
 // ------------------------------------------------------------- academy --
 export type Curriculum = { role: string; version: number; modules: Array<{ key: string; title_fa: string; skills: string[]; evals: string[] }> };
 // ⟨1.4.5⟩ runs carry their cost; the suites list carries each suite's last 10 runs (`recent`, oldest first).
+// ⟨1.4.7⟩ a run has a state; its score and verdict are null until it is done, and a run with a failed model call is `failed`.
+export type EvalSubject = { kind: 'charter' | 'skill' | 'model'; ref: string; version: string | number | null };
 export type EvalRun = {
-  id: string; suite: string; subject: { kind: 'charter' | 'skill' | 'model'; ref: string; version: string | number | null };
-  score: number; passed: boolean; cases?: Array<{ id: string; score: number; notes: string }>; at: string;
+  id: string; suite: string; subject: EvalSubject; state?: 'queued' | 'running' | 'done' | 'failed';
+  score: number | null; passed: boolean | null; cases?: Array<{ id: string; score: number; notes: string }>; at: string;
   tokens?: { input: number; output: number } | null; equiv_cost_usd?: string | null;
 };
 export type EvalSuite = {
   ref: string; role: string; title_fa: string; cases: Array<{ id: string; input_md: string; rubric_md: string; weight: number }>;
-  baseline: { subject?: string; version: string | number; score: number } | null; recent: EvalRun[];
+  baseline: { subject: EvalSubject; score: number } | null; recent: EvalRun[];
 };
 /** The employee card's training history (item 16): charter and curriculum versions, active skills, evals newest first, the score trend. */
 export type TrainingRecord = {
@@ -140,7 +144,7 @@ export type TrainingRecord = {
 };
 export type Teaching = {
   id: string; ref: string; target: { kind: 'role' | 'employee'; ref: string }; source: 'voice' | 'text'; text_md: string;
-  proposal: { kind: string; diff_md: string } | null; eval_run: { score: number; baseline: number; passed: boolean } | null;
+  proposal: { kind: string; diff_md: string } | null; eval_run: { id?: string; score: number; baseline: number | null; passed: boolean } | null;
   status: 'drafting' | 'proposed' | 'approved' | 'rejected'; created_at: string;
 };
 export const useCurricula = () => useQuery({ queryKey: ['academy', 'curricula'], queryFn: () => call<Curriculum[]>('GET', '/academy/curricula'), staleTime: 300_000 });

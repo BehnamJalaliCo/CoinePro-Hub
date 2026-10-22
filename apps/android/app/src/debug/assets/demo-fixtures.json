@@ -12077,8 +12077,11 @@
      }
     ],
     "baseline": {
-     "subject": "charter",
-     "version": 3,
+     "subject": {
+      "kind": "charter",
+      "ref": "common",
+      "version": 3
+     },
      "score": 90
     },
     "recent": [
@@ -12090,6 +12093,7 @@
        "ref": "common",
        "version": 1
       },
+      "state": "done",
       "score": 86,
       "passed": false,
       "at": "@-4320m",
@@ -12107,6 +12111,7 @@
        "ref": "common",
        "version": 2
       },
+      "state": "done",
       "score": 90,
       "passed": true,
       "at": "@-2880m",
@@ -12124,6 +12129,7 @@
        "ref": "common",
        "version": 3
       },
+      "state": "done",
       "score": 94,
       "passed": true,
       "at": "@-1440m",
@@ -12160,8 +12166,11 @@
      }
     ],
     "baseline": {
-     "subject": "charter",
-     "version": 3,
+     "subject": {
+      "kind": "charter",
+      "ref": "ceo",
+      "version": 3
+     },
      "score": 85
     },
     "recent": [
@@ -12173,6 +12182,7 @@
        "ref": "ceo",
        "version": 1
       },
+      "state": "done",
       "score": 80,
       "passed": false,
       "at": "@-4320m",
@@ -12190,6 +12200,7 @@
        "ref": "ceo",
        "version": 2
       },
+      "state": "done",
       "score": 85,
       "passed": true,
       "at": "@-2880m",
@@ -12207,6 +12218,7 @@
        "ref": "ceo",
        "version": 3
       },
+      "state": "done",
       "score": 89,
       "passed": true,
       "at": "@-1440m",
@@ -12255,8 +12267,11 @@
      }
     ],
     "baseline": {
-     "subject": "charter",
-     "version": 3,
+     "subject": {
+      "kind": "charter",
+      "ref": "overseer",
+      "version": 3
+     },
      "score": 90
     },
     "recent": [
@@ -12268,6 +12283,7 @@
        "ref": "overseer",
        "version": 1
       },
+      "state": "done",
       "score": 84,
       "passed": false,
       "at": "@-4320m",
@@ -12285,6 +12301,7 @@
        "ref": "overseer",
        "version": 2
       },
+      "state": "done",
       "score": 90,
       "passed": true,
       "at": "@-2880m",
@@ -12302,6 +12319,7 @@
        "ref": "overseer",
        "version": 3
       },
+      "state": "done",
       "score": 93,
       "passed": true,
       "at": "@-1440m",
@@ -12338,8 +12356,11 @@
      }
     ],
     "baseline": {
-     "subject": "charter",
-     "version": 3,
+     "subject": {
+      "kind": "charter",
+      "ref": "common",
+      "version": 3
+     },
      "score": 90
     },
     "recent": [
@@ -12351,6 +12372,7 @@
        "ref": "common",
        "version": 1
       },
+      "state": "done",
       "score": 88,
       "passed": false,
       "at": "@-4320m",
@@ -12368,6 +12390,7 @@
        "ref": "common",
        "version": 2
       },
+      "state": "done",
       "score": 90,
       "passed": true,
       "at": "@-2880m",
@@ -12385,6 +12408,7 @@
        "ref": "common",
        "version": 3
       },
+      "state": "done",
       "score": 92,
       "passed": true,
       "at": "@-1440m",
@@ -12415,8 +12439,11 @@
      }
     ],
     "baseline": {
-     "subject": "charter",
-     "version": 3,
+     "subject": {
+      "kind": "charter",
+      "ref": "ceo",
+      "version": 3
+     },
      "score": 88
     },
     "recent": [
@@ -12428,6 +12455,7 @@
        "ref": "ceo",
        "version": 1
       },
+      "state": "done",
       "score": 82,
       "passed": false,
       "at": "@-4320m",
@@ -12445,6 +12473,7 @@
        "ref": "ceo",
        "version": 2
       },
+      "state": "done",
       "score": 88,
       "passed": true,
       "at": "@-2880m",
@@ -12462,6 +12491,7 @@
        "ref": "ceo",
        "version": 3
       },
+      "state": "done",
       "score": 91,
       "passed": true,
       "at": "@-1440m",
@@ -12498,8 +12528,11 @@
      }
     ],
     "baseline": {
-     "subject": "charter",
-     "version": 1,
+     "subject": {
+      "kind": "charter",
+      "ref": "assistant",
+      "version": 1
+     },
      "score": 87
     },
     "recent": [
@@ -12511,6 +12544,7 @@
        "ref": "assistant",
        "version": 1
       },
+      "state": "done",
       "score": 87,
       "passed": true,
       "at": "@-1440m",
@@ -12542,6 +12576,7 @@
      "diff_md": "+ When a company misses its challenge two weeks in a row, convene a meeting with its CEO and require a written recovery plan with dates; track it as a finding until it is met."
     },
     "eval_run": {
+     "id": "er-te2",
      "score": 93,
      "baseline": 90,
      "passed": true
@@ -12564,6 +12599,7 @@
      "diff_md": "+ Daily report: exactly three lines — what moved, what is blocked, what you need from the owner."
     },
     "eval_run": {
+     "id": "er-te1",
      "score": 91,
      "baseline": 88,
      "passed": true
@@ -20068,6 +20104,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 95,
      "passed": true,
      "at": "@-4320m",
@@ -20085,6 +20122,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 94,
      "passed": true,
      "at": "@-4320m",
@@ -20102,6 +20140,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 93,
      "passed": true,
      "at": "@-4320m",
@@ -20119,6 +20158,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 94,
      "passed": true,
      "at": "@-4360m",
@@ -20136,6 +20176,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 91,
      "passed": true,
      "at": "@-4360m",
@@ -20153,6 +20194,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 92,
      "passed": true,
      "at": "@-4360m",
@@ -20170,6 +20212,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 88,
      "passed": false,
      "at": "@-4400m",
@@ -20187,6 +20230,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 79,
      "passed": false,
      "at": "@-4400m",
@@ -20204,6 +20248,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 90,
      "passed": true,
      "at": "@-4400m",
@@ -20229,6 +20274,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 95,
      "passed": true,
      "at": "@-4320m",
@@ -20246,6 +20292,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 93,
      "passed": true,
      "at": "@-4320m",
@@ -20263,6 +20310,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 94,
      "passed": true,
      "at": "@-4360m",
@@ -20280,6 +20328,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 92,
      "passed": true,
      "at": "@-4360m",
@@ -20297,6 +20346,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 88,
      "passed": false,
      "at": "@-4400m",
@@ -20314,6 +20364,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 90,
      "passed": true,
      "at": "@-4400m",
@@ -20339,6 +20390,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 95,
      "passed": true,
      "at": "@-4320m",
@@ -20356,6 +20408,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 91,
      "passed": true,
      "at": "@-4320m",
@@ -20373,6 +20426,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 93,
      "passed": true,
      "at": "@-4320m",
@@ -20390,6 +20444,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 92,
      "passed": true,
      "at": "@-4320m",
@@ -20407,6 +20462,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 94,
      "passed": true,
      "at": "@-4360m",
@@ -20424,6 +20480,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 89,
      "passed": true,
      "at": "@-4360m",
@@ -20441,6 +20498,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 92,
      "passed": true,
      "at": "@-4360m",
@@ -20458,6 +20516,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 91,
      "passed": true,
      "at": "@-4360m",
@@ -20475,6 +20534,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 88,
      "passed": false,
      "at": "@-4400m",
@@ -20492,6 +20552,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 81,
      "passed": false,
      "at": "@-4400m",
@@ -20509,6 +20570,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 90,
      "passed": true,
      "at": "@-4400m",
@@ -20526,6 +20588,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 87,
      "passed": true,
      "at": "@-4400m",
@@ -20551,6 +20614,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 95,
      "passed": true,
      "at": "@-4320m",
@@ -20568,6 +20632,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 93,
      "passed": true,
      "at": "@-4320m",
@@ -20585,6 +20650,7 @@
       "ref": "claude-opus-5-5",
       "version": null
      },
+     "state": "done",
      "score": 90,
      "passed": true,
      "at": "@-4320m",
@@ -20602,6 +20668,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 94,
      "passed": true,
      "at": "@-4360m",
@@ -20619,6 +20686,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 92,
      "passed": true,
      "at": "@-4360m",
@@ -20636,6 +20704,7 @@
       "ref": "claude-sonnet-5-5",
       "version": null
      },
+     "state": "done",
      "score": 89,
      "passed": true,
      "at": "@-4360m",
@@ -20653,6 +20722,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 88,
      "passed": false,
      "at": "@-4400m",
@@ -20670,6 +20740,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 90,
      "passed": true,
      "at": "@-4400m",
@@ -20687,6 +20758,7 @@
       "ref": "claude-haiku-5-5",
       "version": null
      },
+     "state": "done",
      "score": 88,
      "passed": true,
      "at": "@-4400m",

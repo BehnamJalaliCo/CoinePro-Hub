@@ -167,10 +167,10 @@ const evals = ([
 ] as Array<[string, string, string, number, number, number[]]>).map(([ref, role, title_fa, cases, base, runs]) => ({
   ref, role, title_fa,
   cases: Array.from({ length: cases as number }, (_, i) => ({ id: `${ref}-c${i + 1}`, input_md: '', rubric_md: '', weight: 1 })),
-  baseline: { subject: 'charter', version: (runs as number[]).length, score: base },
+  baseline: { subject: { kind: 'charter', ref: role === 'all' ? 'common' : role, version: (runs as number[]).length }, score: base },
   // ⟨1.4.5⟩ the last 10 runs, oldest first, with what each cost.
   recent: (runs as number[]).map((score, i, a) => ({
-    id: `${ref}-r${i + 1}`, suite: ref, subject: { kind: 'charter', ref: role === 'all' ? 'common' : role, version: i + 1 }, score, passed: score >= (base as number) - 1,
+    id: `${ref}-r${i + 1}`, suite: ref, subject: { kind: 'charter', ref: role === 'all' ? 'common' : role, version: i + 1 }, state: 'done', score, passed: score >= (base as number) - 1,
     at: iso(60 * 24 * (a.length - i)), tokens: { input: 41_000 + i * 900, output: 6_200 + i * 140 }, equiv_cost_usd: (0.62 + i * 0.03).toFixed(2),
   })),
 }));
@@ -184,7 +184,7 @@ const MODEL_COST: Record<string, [number, number]> = { 'claude-opus-5-5': [15, 7
 const modelRuns = evals.flatMap((e) => (['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const).map((m, j) => {
   const score = MODEL_RUNS[e.ref]![j]!; const input = 38_000 + e.cases.length * 4_000; const output = 5_500 + e.cases.length * 700;
   const [ci, co] = MODEL_COST[m]!;
-  return { id: `${e.ref}-${m}`, suite: e.ref, subject: { kind: 'model', ref: m, version: null }, score, passed: score >= e.baseline.score - 1,
+  return { id: `${e.ref}-${m}`, suite: e.ref, subject: { kind: 'model', ref: m, version: null }, state: 'done', score, passed: score >= e.baseline.score - 1,
     at: iso(60 * 24 * 3 + j * 40), tokens: { input, output }, equiv_cost_usd: ((input * ci + output * co) / 1e6).toFixed(2) };
 }));
 
@@ -202,10 +202,10 @@ const record = (code: string) => {
 const teachings: any[] = [
   { ref: 'TE-0002', target: { kind: 'role', ref: 'overseer' }, source: 'voice', text_md: 'هر وقت یک شرکت دو هفته پشت سر هم چالش را از دست داد، با مدیرعاملش جلسه بگذار و برنامه‌ی جبران بخواه.',
     proposal: { kind: 'charter_rule', diff_md: '+ When a company misses its challenge two weeks in a row, convene a meeting with its CEO and require a written recovery plan with dates; track it as a finding until it is met.' },
-    eval_run: { score: 93, baseline: 90, passed: true }, status: 'proposed', created_at: iso(35) },
+    eval_run: { id: 'er-te2', score: 93, baseline: 90, passed: true }, status: 'proposed', created_at: iso(35) },
   { ref: 'TE-0001', target: { kind: 'role', ref: 'ceo' }, source: 'text', text_md: 'گزارش روزانه را در سه خط بنویسید: چه جلو رفت، چه گیر است، چه از من میخواهید.',
     proposal: { kind: 'charter_rule', diff_md: '+ Daily report: exactly three lines — what moved, what is blocked, what you need from the owner.' },
-    eval_run: { score: 91, baseline: 88, passed: true }, status: 'approved', created_at: iso(60 * 24) },
+    eval_run: { id: 'er-te1', score: 91, baseline: 88, passed: true }, status: 'approved', created_at: iso(60 * 24) },
 ].map((t, i) => ({ id: `te${i}`, file_id: null, ...t }));
 
 // ------------------------------------------------------- egress and MCP --
@@ -389,8 +389,8 @@ export async function handle14(req: Request, p: string, u: URL): Promise<Respons
   }
   const ec = /^\/errands\/(E-\d+)\/cancel$/.exec(p); if (ec) { const e = errands.find((x) => x.ref === ec[1]); if (e) e.status = 'cancelled'; return json(e ?? {}); }
   if (p === '/skills') {
-    const b = await body<{ name_fa: string; body_md: string; roles: string[]; companies: 'all' | string[] }>();
-    const s = { id: `sk${skills.length}`, ref: `SK-${String(skills.length + 1).padStart(3, '0')}`, name_fa: b.name_fa, summary_fa: b.body_md.slice(0, 120), body_md: b.body_md, resources: [], scope: { roles: b.roles, companies: b.companies, departments: [] }, version: 1, status: 'in_review', review: null, eval: null, created_by: owner, created_at: new Date().toISOString(), activated_at: null };
+    const b = await body<{ name_fa: string; summary_fa?: string; body_md: string; scope: { roles: string[]; companies: 'all' | string[]; departments?: string[] } }>();
+    const s = { id: `sk${skills.length}`, ref: `SK-${String(skills.length + 1).padStart(3, '0')}`, name_fa: b.name_fa, summary_fa: b.summary_fa ?? b.body_md.slice(0, 200), body_md: b.body_md, resources: [], scope: { roles: b.scope.roles, companies: b.scope.companies, departments: b.scope.departments ?? [] }, version: 1, status: 'in_review', review: null, eval: null, created_by: owner, created_at: new Date().toISOString(), activated_at: null };
     skills.unshift(s);
     return json(s, 201);
   }
@@ -400,7 +400,7 @@ export async function handle14(req: Request, p: string, u: URL): Promise<Respons
     const b = await body<{ target: { kind: 'role' | 'employee'; ref: string }; text: string; source: 'voice' | 'text' }>();
     const t = { id: `te${teachings.length}`, ref: `TE-${String(teachings.length + 1).padStart(4, '0')}`, target: b.target, source: b.source, text_md: b.text, file_id: null, proposal: null, eval_run: null, status: 'drafting', created_at: new Date().toISOString() };
     teachings.unshift(t);
-    setTimeout(() => Object.assign(t, { status: 'proposed', proposal: { kind: 'charter_rule', diff_md: `+ ${b.text}` }, eval_run: { score: 92, baseline: 90, passed: true } }), 4000);
+    setTimeout(() => Object.assign(t, { status: 'proposed', proposal: { kind: 'charter_rule', diff_md: `+ ${b.text}` }, eval_run: { id: `er-${t.ref}`, score: 92, baseline: 90, passed: true } }), 4000);
     return json(t, 201);
   }
   const ta = /^\/academy\/teach\/(TE-\d+)\/(approve|reject)$/.exec(p);

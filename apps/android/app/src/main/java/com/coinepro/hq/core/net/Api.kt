@@ -288,16 +288,20 @@ class Api(
     suspend fun skills(): List<Skill> = get("/skills")
     suspend fun newSkill(name: String, body: String, roles: List<String>, companies: List<String>?, fileIds: List<String>): Skill =
         post("/skills", buildJsonObject {
-            put("name_fa", name); put("body_md", body); put("roles", ids(roles)); put("companies", companies?.let(::ids) ?: JsonPrimitive("all")); put("file_ids", ids(fileIds))
+            // ⟨1.4.7⟩ scope is nested; the summary defaults to the start of the text on the server.
+            put("name_fa", name); put("body_md", body)
+            put("scope", buildJsonObject { put("roles", ids(roles)); put("companies", companies?.let(::ids) ?: JsonPrimitive("all")) })
+            put("file_ids", ids(fileIds))
         })
     /** Activation is bound to the exact version reviewed and tested: target "SK-005@1". */
     suspend fun activateSkill(s: Skill, stepUp: StepUp): Skill =
         post("/skills/${seg(s.ref)}/activate", buildJsonObject { put("version", s.version) }, stepUp("skill.activate", "${s.ref}@${s.version}"))
     suspend fun retireSkill(ref: String): Skill = post("/skills/${seg(ref)}/retire", JsonObject(emptyMap()))
     suspend fun curricula(): List<Curriculum> = get("/academy/curricula")
-    suspend fun evals(): List<EvalSuite> = get("/academy/evals")
+    suspend fun evals(): List<EvalSuite> = get<List<EvalSuite>>("/academy/evals").map { s -> s.copy(recent = s.recent.filter { it.done }) }
     /** Item 30: the newest run of each (suite, model) for a role. */
-    suspend fun modelComparison(role: String): Page<EvalRun> = get("/academy/runs?role=${seg(role)}&subject_kind=model&latest=true")
+    suspend fun modelComparison(role: String): Page<EvalRun> =
+        get<Page<EvalRun>>("/academy/runs?role=${seg(role)}&subject_kind=model&latest=true").let { p -> p.copy(items = p.items.filter { it.done }) }
     suspend fun trainingRecord(employee: String): TrainingRecord = get("/academy/records/${seg(employee)}")
     suspend fun teachings(): List<Teaching> = get("/academy/teach")
     suspend fun teach(targetKind: String, targetRef: String, text: String, source: String, fileId: String?): Teaching =

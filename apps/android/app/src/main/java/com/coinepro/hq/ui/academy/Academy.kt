@@ -176,7 +176,7 @@ private fun TeachingCard(t: Teaching, roleOf: (String) -> String, busy: Boolean,
         }
         t.evalRun?.let { e ->
             Text(buildAnnotatedString {
-                append("آزمون: "); fig(e.score.toInt().toString()); append(" در برابر خط پایه "); fig(e.baseline.toInt().toString()); append(if (e.passed) " · قبول" else " · رد")
+                append("آزمون: "); fig(e.score.toInt().toString()); append(" در برابر خط پایه "); fig(e.baseline?.toInt()?.toString() ?: "—"); append(if (e.passed) " · قبول" else " · رد")
             }, style = Divan.type.caption, color = if (e.passed) c.positive else c.negative)
         }
         if (proposed) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

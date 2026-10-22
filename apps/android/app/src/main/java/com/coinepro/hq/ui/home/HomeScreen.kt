@@ -113,7 +113,7 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
 
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
-            val h = LocalTime.now(ZoneId.of("Asia/Tehran")).hour
+            val h = LocalTime.ofInstant(com.coinepro.hq.core.format.HqClock.now(), ZoneId.of(com.coinepro.hq.core.format.OWNER_TZ)).hour  // the pinned clock, so screenshots do not change with the time of day
             val hello = when { h < 12 -> "صبح بخیر"; h < 17 -> "روز بخیر"; else -> "عصر بخیر" }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(jWeekday(com.coinepro.hq.core.format.HqClock.now().toString()), style = Divan.type.caption, color = c.textMuted)

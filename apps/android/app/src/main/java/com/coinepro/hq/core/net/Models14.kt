@@ -278,9 +278,9 @@ data class SkillScope(val roles: List<String> = emptyList(), val companies: Json
 data class SkillReview(val by: Actor? = null, val at: String? = null, val verdict: String, val notesMd: String = "", val checks: Map<String, Boolean> = emptyMap())
 
 @Serializable
-data class SkillEval(val suite: String, val score: Double, val baseline: Double) {
-    /** The academy's gate (§18.6): no worse than the baseline by more than one point. */
-    val passed: Boolean get() = score >= baseline - 1
+data class SkillEval(val suite: String, val score: Double, val baseline: Double? = null) {
+    /** The academy's gate (§18.6): no worse than the baseline by more than one point; null while the suite has no baseline ⟨1.4.7⟩. */
+    val passed: Boolean? get() = baseline?.let { score >= it - 1 }
 }
 
 @Serializable
@@ -308,9 +308,9 @@ data class CurriculumModule(val key: String, val titleFa: String, val skills: Li
 @Serializable
 data class Curriculum(val role: String, val version: Int = 1, val modules: List<CurriculumModule> = emptyList())
 
-/** A baseline or run version is a number for charters and a string for skills (`ref@version`); kept as JSON. */
+/** ⟨1.4.7⟩ A suite's baseline: the subject that set it and its score. */
 @Serializable
-data class Baseline(val subject: String? = null, val version: JsonElement? = null, val score: Double)
+data class Baseline(val subject: EvalSubject? = null, val score: Double)
 
 @Serializable
 data class EvalSubject(val kind: String, val ref: String, val version: JsonElement? = null)
@@ -318,19 +318,22 @@ data class EvalSubject(val kind: String, val ref: String, val version: JsonEleme
 @Serializable
 data class EvalTokens(val input: Long = 0, val output: Long = 0)
 
-/** ⟨1.4.5⟩ One eval run, with what it cost (so models can be compared on quality and price). */
+/** ⟨1.4.5⟩ One eval run, with what it cost (so models can be compared on quality and price).
+ *  ⟨1.4.7⟩ Score and verdict are null until the run is `done`; the API layer keeps only done runs. */
 @Serializable
 data class EvalRun(
     val id: String = "",
     val suite: String = "",
     val subject: EvalSubject = EvalSubject("charter", ""),
-    val score: Double,
-    val passed: Boolean,
+    val state: String = "done",
+    val score: Double = 0.0,
+    val passed: Boolean = false,
     val at: String,
     val tokens: EvalTokens? = null,
     val equivCostUsd: JsonPrimitive? = null,
 ) {
     val costUsd: Double? get() = equivCostUsd?.contentOrNull?.toDoubleOrNull()
+    val done: Boolean get() = state == "done"
 }
 
 @Serializable
@@ -369,7 +372,7 @@ data class TeachTarget(val kind: String, val ref: String)
 data class TeachProposal(val kind: String, val diffMd: String)
 
 @Serializable
-data class TeachEval(val score: Double, val baseline: Double, val passed: Boolean)
+data class TeachEval(val id: String? = null, val score: Double, val baseline: Double? = null, val passed: Boolean)
 
 @Serializable
 data class Teaching(

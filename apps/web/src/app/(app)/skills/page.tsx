@@ -31,7 +31,7 @@ function NewSkill({ onClose }: { onClose: () => void }) {
   const pick = useRef<HTMLInputElement>(null);
   const v = useVoiceInput({ purpose: 'note', onText: (r) => setBody((b) => (b.trim() ? `${b.trimEnd()}\n${r.text}` : r.text)) });
   const rec = v.state === 'recording' || v.state === 'asking';
-  const save = () => act.create.mutateAsync({ name_fa: name.trim(), body_md: body.trim(), roles, companies: 'all', file_ids: files.ids })
+  const save = () => act.create.mutateAsync({ name_fa: name.trim(), body_md: body.trim(), scope: { roles, companies: 'all' }, file_ids: files.ids })
     .then(() => { toast({ tone: 'ok', text: 'ثبت شد؛ ناظر بررسی میکند و آزمون آکادمی اجرا میشود.' }); onClose(); })
     .catch((e) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'ثبت نشد.' }));
   const field = 'w-full rounded-[10px] border border-strong bg-tile px-3 text-[15px] text-ink outline-none focus:border-gold-ink';
@@ -95,7 +95,7 @@ function SkillSheet({ s, onClose }: { s: Skill; onClose: () => void }) {
             {s.eval ? (
               <>
                 <span className="fig text-[22px] font-semibold">{s.eval.score}</span>
-                <span className="text-[11px] text-muted">خط پایه <span className="fig">{s.eval.baseline}</span> · <span className="fig">{s.eval.suite}</span> · {s.eval.score >= s.eval.baseline - 1 ? 'قبول' : 'رد'}</span>
+                <span className="text-[11px] text-muted">خط پایه <span className="fig">{s.eval.baseline ?? '—'}</span> · <span className="fig">{s.eval.suite}</span> · {s.eval.baseline == null ? 'بدون خط پایه' : s.eval.score >= s.eval.baseline - 1 ? 'قبول' : 'رد'}</span>
               </>
             ) : <span className="text-[12px] text-muted">بعد از بررسی</span>}
           </div>
@@ -128,7 +128,7 @@ export default function SkillsPage() {
             <button key={s.ref} type="button" onClick={() => setOpen(s.ref)} className={cx('flex flex-col gap-2 rounded-[16px] p-4 text-start transition-colors hover:bg-hover', s.status === 'approved' ? 'bg-gold-soft' : 'bg-card')}>
               <span className="flex items-center gap-2"><Icon name="skill" size={18} className="text-gold-ink" /><span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{s.name_fa}</span><Pill tone={STATUS[s.status].tone} dot>{STATUS[s.status].fa}</Pill></span>
               <span className="line-clamp-2 text-[12px] leading-6 text-sec">{s.summary_fa}</span>
-              <span className="flex items-center gap-2 text-[11px] text-muted"><span className="fig">{s.ref}</span><span>نسخه‌ی <span className="fig">{s.version}</span></span><span className="flex-1" />{s.eval ? <span>آزمون <span className={cx('fig', s.eval.score >= s.eval.baseline - 1 ? 'text-pos' : 'text-neg')}>{s.eval.score}</span> · پایه <span className="fig">{s.eval.baseline}</span></span> : null}</span>
+              <span className="flex items-center gap-2 text-[11px] text-muted"><span className="fig">{s.ref}</span><span>نسخه‌ی <span className="fig">{s.version}</span></span><span className="flex-1" />{s.eval ? <span>آزمون <span className={cx('fig', s.eval.baseline == null ? 'text-ink' : s.eval.score >= s.eval.baseline - 1 ? 'text-pos' : 'text-neg')}>{s.eval.score}</span> · پایه <span className="fig">{s.eval.baseline ?? '—'}</span></span> : null}</span>
             </button>
           ))}
         </div>

@@ -50,7 +50,7 @@ export default function AcademyPage() {
                   </div>
                   <p className="text-[14px] leading-7 text-ink">{t.text_md}</p>
                   {t.proposal ? <pre dir="ltr" className="fig overflow-x-auto whitespace-pre-wrap rounded-[10px] bg-page p-3 text-left text-[12px] leading-6 text-sec">{t.proposal.diff_md}</pre> : null}
-                  {t.eval_run ? <span className={cx('text-[12px]', t.eval_run.passed ? 'text-pos' : 'text-neg')}>آزمون: <span className="fig">{t.eval_run.score}</span> در برابر خط پایه <span className="fig">{t.eval_run.baseline}</span> · {t.eval_run.passed ? 'قبول' : 'رد'}</span> : null}
+                  {t.eval_run ? <span className={cx('text-[12px]', t.eval_run.passed ? 'text-pos' : 'text-neg')}>آزمون: <span className="fig">{t.eval_run.score}</span> در برابر خط پایه <span className="fig">{t.eval_run.baseline ?? '—'}</span> · {t.eval_run.passed ? 'قبول' : 'رد'}</span> : null}
                   {t.status === 'proposed' ? (
                     <div className="flex gap-2">
                       <Button size="sm" variant="primary" icon="seal" disabled={t.eval_run?.passed === false} loading={act.approve.isPending} onClick={() => act.approve.mutateAsync(t.ref).then(() => toast({ tone: 'ok', text: 'تأیید شد؛ نسخه‌ی تازه فعال شد.' })).catch(err)}>تأیید کن</Button>
@@ -75,11 +75,12 @@ export default function AcademyPage() {
           <Card className="flex flex-col gap-3 p-4">
             <SectionTitle title="آزمون‌های طلایی" note="نمره‌ی نسخه‌ها در برابر خط پایه" />
             {evals.isLoading ? <Skeleton className="h-32" /> : suites.map((s) => {
-              const last = s.recent.at(-1);
+              const done = s.recent.filter((r) => r.score != null && (r.state ?? 'done') === 'done');
+              const last = done.at(-1);
               return (
                 <div key={s.ref} className="flex items-center gap-3 border-b border-div py-2 last:border-0">
                   <span className="flex min-w-0 flex-1 flex-col"><span className="text-[13px]">{s.title_fa}</span><span className="text-[11px] text-muted"><span className="fig">{s.ref}</span> · {s.cases.length} مورد · خط پایه <span className="fig">{s.baseline?.score ?? '—'}</span></span></span>
-                  <Spark values={s.recent.map((r) => r.score)} min={60} max={100} />
+                  <Spark values={done.map((r) => r.score as number)} min={60} max={100} />
                   {last ? <span className={cx('fig w-8 text-left text-[14px] font-semibold', last.passed ? 'text-pos' : 'text-neg')}>{last.score}</span> : null}
                 </div>
               );
