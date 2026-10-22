@@ -74,4 +74,6 @@ PROMPT_09_1 REPORT (the company seal from the owner's PNG logo; contract §18.14
   - Founding activation checks the brand after the step-up; a refused call rolls back, so the step-up stays usable.
 - For the owner: nothing to do before the deploy. After it, give each company's PNG logo in the app (company page or founding step «مُهر شرکت»), look at the previews and seal it. The existing companies already show their seeded version 1.
 
+- **Deploy (2026-10-22, `server/p09-1-seal` 8de5373, on top of the deployed 8+9):** backup first (snapshot 97bdb04b, local + Google Drive); `make up` ran migration 0023 → 0024; all services healthy; `make verify-live` passed (only the known by-IP GAP lines). Seeded brands: FX, PC and TY v1 active (from `design/brand/companies/`). Zero model calls since the deploy; the holding kill switch stays engaged. The merge with 9.2 needed one fix: 9.2's placeholder `FoundingBrand` gave way to 9.1's (7 founding/brand tests and lint green again).
+
 این گزارش را برای Claude سشن مشورت ببر.
