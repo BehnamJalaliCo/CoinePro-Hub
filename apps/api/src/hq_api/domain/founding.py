@@ -195,13 +195,6 @@ class FoundingSource(BaseModel):
     brief_md: str = ""
 
 
-class FoundingBrand(BaseModel):
-    """The step «مُهر شرکت» (§18.14): `missing` until prompt 9.1 builds it."""
-
-    state: Literal["missing", "proposed", "active"] = "missing"
-    version: int | None = None
-
-
 class Founding(BaseModel):
     id: UUID
     ref: str
@@ -217,7 +210,6 @@ class Founding(BaseModel):
     plan: str | None
     plan_detail: ServerPlan | None = None
     company: str | None
-    brand: FoundingBrand = Field(default_factory=FoundingBrand)
     created_at: datetime
     updated_at: datetime
     # ⟨additive⟩ who does what next
