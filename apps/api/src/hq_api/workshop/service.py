@@ -5,6 +5,9 @@ goes through domain.ingest in a short transaction of its own. After a
 session ends: its transcript is stored (rule 7) and the next session waiting
 for the same area of the repository starts (rule 6). A runtime that fails
 fails the session (error code runtime_error), never the request that asked.
+A session starts only after a last check (06.1 §2): its grant still alive,
+its company under no kill switch or deploy freeze. The managed runtime is
+enabled only when its agent asks before every tool (06.1 §2).
 """
 
 from __future__ import annotations
@@ -14,6 +17,8 @@ import contextlib
 import logging
 from typing import Any
 from uuid import UUID
+
+import httpx
 
 from hq_api.errors import ApiError
 from hq_api.workshop import domain as D
@@ -35,9 +40,10 @@ def runtime(hub: Any) -> Runtime:
     return rt
 
 
-async def build(hub: Any) -> Runtime | None:
+async def build(hub: Any, transport: httpx.AsyncBaseTransport | None = None) -> Runtime | None:
     """At start: the runtime of WORKSHOP_RUNTIME, when everything it needs is
-    there. `self_hosted` is a design only (docs/ops/WORKSHOP.md): None."""
+    there and its agent asks before every tool. `self_hosted` is a design only
+    (docs/ops/WORKSHOP.md): None. `transport`: tests."""
     name = configured(hub.settings)
     if name != "managed" or hub.bao is None:
         return None
@@ -59,12 +65,26 @@ async def build(hub: Any) -> Runtime | None:
         token = data.get("token")
         return str(token) if token else None
 
-    return ManagedRuntime(
+    rt = ManagedRuntime(
         api_key=lambda: key,
         agent_id=str(cfg["agent_id"]),
         environment_id=str(cfg["environment_id"]),
         github_token=github_token,
+        transport=transport,
     )
+    try:
+        problems = await rt.permission_problems()
+    except Exception as exc:  # noqa: BLE001 - unreachable now: checked again at each start
+        log.warning(
+            "workshop: agent permissions not checked", extra={"error_type": type(exc).__name__}
+        )
+        return rt
+    if problems:
+        # A tool that runs without asking would bypass the hub's rules: off.
+        log.warning("workshop: managed agent does not ask before every tool; runtime off",
+                    extra={"tools": ", ".join(problems)[:300]})  # fmt: skip
+        return None
+    return rt
 
 
 def meta_runtime(hub: Any) -> str | None:
@@ -100,7 +120,12 @@ async def start(hub: Any, session_id: UUID) -> dict[str, Any]:
     rt = runtime(hub)
     async with await _tx(hub) as tx:
         s = await D.load(tx, session_id)
-    if s["state"] != "starting" or s["held"] or s["runtime"] != rt.name:
+        if s["state"] != "starting" or s["held"] or s["runtime"] != rt.name:
+            return s
+        s, why = await D.may_start(tx, session_id)
+    if why == "grant_expired":
+        await after_finish(hub, s)
+    if why is not None:
         return s
     try:
         external_id, items = await rt.start(D.spec(s))
@@ -206,9 +231,10 @@ async def stopped(hub: Any, sessions: list[dict[str, Any]]) -> None:
 
 
 async def paused(hub: Any) -> None:
-    """After a kill switch or a deploy freeze: the paused sessions are
+    """After a kill switch or a deploy freeze changed: the paused sessions are
     interrupted on their runtime (the records were paused in the same
-    transaction as the lock)."""
+    transaction as the lock); the ones that never started and whose lock is
+    lifted now start (resume)."""
     if getattr(hub, "workshop", None) is None:
         return
     async with await _tx(hub) as tx:
@@ -217,6 +243,19 @@ async def paused(hub: Any) -> None:
             final=list(D.FINAL),
         )
     await interrupt(hub, rows)
+    await resume(hub)
+
+
+async def resume(hub: Any) -> int:
+    """Sessions waiting for a lifted company lock (or a freeze that ran out)
+    that never reached their runtime: started now."""
+    if getattr(hub, "workshop", None) is None:
+        return 0
+    async with await _tx(hub) as tx:
+        ready = await D.resume_unlocked(tx)
+    for s in ready:
+        await start(hub, s["id"])
+    return len(ready)
 
 
 async def sync(hub: Any) -> int:
@@ -257,8 +296,11 @@ async def sync(hub: Any) -> int:
 
 
 async def loop(hub: Any) -> None:
-    """The api's background poller (only does anything for `managed`)."""
+    """The api's background poller (only does anything for `managed`); a
+    deploy freeze that ran out by itself lets its waiting sessions start."""
     while True:
         await asyncio.sleep(SYNC_EVERY_S)
         with contextlib.suppress(Exception):
             await sync(hub)
+        with contextlib.suppress(Exception):
+            await resume(hub)
