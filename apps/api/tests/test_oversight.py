@@ -210,6 +210,8 @@ async def test_every_code_checker_runs(
     results = {}
     for ref in sorted(C.CHECKS):
         out = await acts.protocol_run(ref)
+        if out.get("skipped") == "paused":
+            continue  # seeded paused (prompt 10 §11: PR-103); its own test runs its checker
         assert out.get("result") in ("pass", "fail"), (ref, out)
         results[ref] = out["result"]
     assert (

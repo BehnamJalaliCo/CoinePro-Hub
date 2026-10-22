@@ -205,9 +205,9 @@ def test_the_advisor_v2_has_its_read_tools() -> None:
     assert not [p for p in lib.problems if p.startswith("advisor:")]
     from hq_common.tool_status import GATEWAY_TOOLS
 
-    # Every one of them is a live gateway tool, but prompt 10's reads: §12 builds
-    # revenue.read and funnel.read in the gateway and then drops this exception.
-    assert adv - {"done", "revenue.read", "funnel.read"} <= set(GATEWAY_TOOLS)
+    # Every one of them is a live gateway tool (prompt 10 §12 built revenue.read
+    # and funnel.read).
+    assert adv - {"done"} <= set(GATEWAY_TOOLS)
 
 
 async def test_the_advisor_reads_a_workshop_session_and_still_answers(
