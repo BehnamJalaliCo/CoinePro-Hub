@@ -18,7 +18,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -44,11 +44,20 @@ RAW_BODY = {
 CHUNK = 1024 * 1024
 
 
+# Persian writing needs the zero-width (non-)joiner; every other control or
+# format character (bidi overrides among them) is dropped from a file name.
+_JOINERS = ("\u200c", "\u200d")
+
+
+def _printable(ch: str) -> bool:
+    return unicodedata.category(ch)[0] != "C" or ch in _JOINERS
+
+
 def file_name(raw: str | None) -> str:
     """X-File-Name: percent-encoded UTF-8, no path, no control characters."""
     name = unquote(raw or "", errors="replace")
     name = name.replace("\\", "/").rsplit("/", 1)[-1]
-    name = "".join(ch for ch in name if unicodedata.category(ch)[0] != "C").strip()
+    name = "".join(ch for ch in name if _printable(ch)).strip()
     return name[:255] or "file"
 
 
@@ -289,7 +298,48 @@ async def _document_text(ctx: Ctx, row: dict[str, Any], idem: Any) -> FileRef:
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._ -]")
 _RANGE = re.compile(r"^bytes=(\d*)-(\d*)$")
-INLINE = ("image/", "video/", "audio/")
+MAX_RANGE_DIGITS = 18  # more is beyond any file here (and int() of 4300+ digits raises)
+# Served inline: only the media types an owner may upload and the variants
+# made of them (06.1 §2). Anything else, an agent's SVG or HTML among them, is
+# an attachment; every answer also carries CSP sandbox and nosniff.
+INLINE = frozenset(
+    {m for m, k in media.ALLOWED.items() if k.kind in ("image", "video", "audio")}
+    | {"image/jpeg", "image/webp"}
+)
+SANDBOX = "sandbox"
+
+
+def disposition(kind: str, name: str) -> str:
+    """Content-Disposition with an ASCII fallback and the real (Persian) name
+    as RFC 6266 / 5987 `filename*=UTF-8''...`."""
+    clean = "".join(ch for ch in name if _printable(ch) and ch not in '"\\')
+    fallback = _SAFE_NAME.sub("_", clean)[:120].strip() or "file"
+    encoded = quote(clean[:200] or "file", safe="")
+    return f"{kind}; filename=\"{fallback}\"; filename*=UTF-8''{encoded}"
+
+
+def byte_range(raw: str | None, total: int) -> tuple[int, int] | None | str:
+    """One range `bytes=a-b`, `bytes=a-` or `bytes=-n` -> (start, end); None:
+    serve the whole file (no header, a multi-range, another unit or a malformed
+    value are ignored, RFC 9110 §14.2); "unsatisfiable": 416."""
+    if not raw:
+        return None
+    m = _RANGE.match(raw.strip())
+    if m is None or not (m.group(1) or m.group(2)):
+        return None
+
+    def num(v: str) -> int:
+        return int(v) if len(v) <= MAX_RANGE_DIGITS else 10**MAX_RANGE_DIGITS
+
+    if m.group(1):
+        start = num(m.group(1))
+        end = min(num(m.group(2)), total - 1) if m.group(2) else total - 1
+    else:  # the last N bytes
+        start = max(total - num(m.group(2)), 0)
+        end = total - 1
+    if start > end or start >= total:
+        return "unsatisfiable"
+    return start, end
 
 
 @router.get(
@@ -330,27 +380,24 @@ async def get_file(
         total = (await asyncio.to_thread(path.stat)).st_size
     except OSError as exc:
         raise ApiError(404, "not_found", "file content missing") from exc
-    name = _SAFE_NAME.sub("_", f["name"])[:120] or "file"
-    disposition = "inline" if f["mime"].startswith(INLINE) else "attachment"
+    inline = f["mime"] in INLINE
     headers = {
-        "Content-Disposition": f'{disposition}; filename="{name}"',
+        "Content-Disposition": disposition("inline" if inline else "attachment", f["name"]),
+        "Content-Security-Policy": SANDBOX,
+        "X-Content-Type-Options": "nosniff",
         "X-Content-Sha256": f["sha256"],
         "Accept-Ranges": "bytes",
         "Cache-Control": "private, max-age=3600",
     }
     start, end, status = 0, total - 1, 200
-    raw = request.headers.get("range")
-    if raw:
-        m = _RANGE.match(raw.strip())
-        if m is None or (not m.group(1) and not m.group(2)):
-            return Response(status_code=416, headers={"Content-Range": f"bytes */{total}"})
-        if m.group(1):
-            start = int(m.group(1))
-            end = min(int(m.group(2)), total - 1) if m.group(2) else total - 1
-        else:  # the last N bytes
-            start = max(total - int(m.group(2)), 0)
-        if start > end or start >= total:
-            return Response(status_code=416, headers={"Content-Range": f"bytes */{total}"})
+    got = byte_range(request.headers.get("range"), total)
+    if got == "unsatisfiable":
+        return Response(
+            status_code=416,
+            headers={"Content-Range": f"bytes */{total}", "Content-Security-Policy": SANDBOX},
+        )
+    if isinstance(got, tuple):
+        start, end = got
         status = 206
         headers["Content-Range"] = f"bytes {start}-{end}/{total}"
     headers["Content-Length"] = str(end - start + 1)
@@ -407,7 +454,7 @@ class Transcript(BaseModel):
 @router.post(
     "/transcribe",
     response_model=Transcript,
-    responses=responses(401, 403, 409, 413, 415, 422, 503),
+    responses=responses(401, 403, 409, 413, 415, 422, 429, 503),
     openapi_extra=RAW_BODY,
 )
 async def transcribe(
@@ -436,8 +483,16 @@ async def transcribe(
             ctx.hub, str(fid), ctx.hub.settings.transcribe_wait_s
         )
     except WorkflowFailureError as exc:
-        if _failure_type(exc) == "TooLong":
+        kind = _failure_type(exc)
+        if kind == "TooLong":
             err = ApiError(413, "validation_failed", fields={"duration": "too long"})
+        elif kind == "SttBusy":  # up, but its queue stayed full: try again shortly (06.1 §3)
+            err = ApiError(
+                429,
+                "rate_limited",
+                "speech recognition is busy; try again shortly",
+                headers={"Retry-After": "30"},
+            )
         else:
             err = ApiError(
                 503, "channel_not_configured", "speech recognition is not available on this hub"

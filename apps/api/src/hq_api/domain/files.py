@@ -3,8 +3,10 @@ an original with its variants, and attaching owner uploads to a thread.
 
 An owner upload belongs to the holding until it is attached; attaching moves
 it, its variants and its processing row to the thread's company, once (the
-append-only guard of files.files allows exactly that move). A file already in
-another operating company is refused: it is that company's now.
+append-only guard of files.files allows exactly that move, and only for the
+owner's own uploads: never a holding agent's output or a transcript). A file
+already in another operating company is refused: it is that company's now.
+Until then the holding's own agents do not see it either (UNATTACHED_UPLOAD).
 """
 
 from __future__ import annotations
@@ -30,6 +32,13 @@ FILE_SQL = """
            (SELECT v.id FROM files.files v WHERE v.parent_id = f.id AND v.variant = 'poster' LIMIT 1) AS poster
     FROM files.files f LEFT JOIN files.processing p ON p.file_id = f.id
 """
+
+
+# An owner upload still waiting in the holding for its first attachment (06.1
+# §3): no agent reads it, not even the holding's own. `f` is files.files.
+UNATTACHED_UPLOAD = """(f.created_by_kind = 'owner'
+    AND EXISTS (SELECT 1 FROM core.companies hc WHERE hc.id = f.company_id AND hc.kind = 'holding')
+    AND NOT EXISTS (SELECT 1 FROM msg.messages m WHERE m.attachments @> ARRAY[f.id]))"""
 
 
 def render(r: dict[str, Any]) -> FileRef:
@@ -116,8 +125,13 @@ async def attach(tx: Tx, ids: list[UUID], thread_company: UUID, holding_id: UUID
         )
     if not unique:
         return []
+    # Locked first (06.1 §2): the worker storing a variant of one of them holds
+    # it FOR SHARE (files.lock_company), so either it finishes first and its
+    # variant moves with the file below, or it waits and stores it here after.
     rows = await tx.all(
-        "SELECT id, company_id, variant FROM files.files WHERE id = ANY(:ids)", ids=unique
+        """SELECT id, company_id, variant, created_by_kind FROM files.files
+           WHERE id = ANY(:ids) ORDER BY id FOR UPDATE""",
+        ids=unique,
     )
     found = {r["id"]: r for r in rows}
     for fid in unique:
@@ -129,6 +143,16 @@ async def attach(tx: Tx, ids: list[UUID], thread_company: UUID, holding_id: UUID
                 422,
                 "validation_failed",
                 fields={"attachments": "a file attached in another company; upload it again"},
+            )
+        if (
+            r["company_id"] == holding_id
+            and thread_company != holding_id
+            and r["created_by_kind"] != "owner"
+        ):
+            raise ApiError(
+                422,
+                "validation_failed",
+                fields={"attachments": "only your own uploads move to a company"},
             )
     moving = [fid for fid in unique if found[fid]["company_id"] == holding_id]
     if moving and thread_company != holding_id:
@@ -159,26 +183,32 @@ async def document_pending(tx: Tx, file_id: UUID, company_id: UUID) -> None:
 
 
 async def document_done(
-    tx: Tx, file_id: UUID, status: str, text: str | None, error: str | None
+    tx: Tx, file_id: UUID, status: str, text: str | None, error: str | None, *, count: bool = True
 ) -> None:
-    """The second transaction: `ready` (with or without text) or `failed`."""
+    """The second transaction: `ready` (with or without text) or `failed`.
+    `count`: this is an attempt of its own (the worker counted it at its start)."""
     await tx.exec(
         """UPDATE files.processing SET status = :st, text = :t, error = :e,
-               attempts = attempts + 1, updated_at = now()
+               attempts = attempts + CAST(:n AS int), updated_at = now()
            WHERE file_id = :f AND status = 'processing'""",
         f=file_id,
         st=status,
         t=text[:200_000] if text else None,
         e=error[:300] if error else None,
+        n=1 if count else 0,
     )
 
 
 async def extract_text(
-    tx: Callable[[], AbstractAsyncContextManager[Tx]], file_id: UUID, path: Path
+    tx: Callable[[], AbstractAsyncContextManager[Tx]],
+    file_id: UUID,
+    path: Path,
+    *,
+    count: bool = True,
 ) -> str:
     """A PDF's text from a child process (media.pdf_text), outside any
     transaction, then written in one of its own -> the status."""
     got = await media.pdf_text(path)
     async with tx() as t:
-        await document_done(t, file_id, got.status, got.text, got.error)
+        await document_done(t, file_id, got.status, got.text, got.error, count=count)
     return got.status
