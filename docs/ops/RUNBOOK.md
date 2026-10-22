@@ -1126,3 +1126,27 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - **backup:** متنی که پاک شد، در snapshotهای restic تا پایان نگهداری همان snapshot میماند (§۱۸: ساعتی ۷ روز، روزانه ۹۰، هفتگی ۵۲، ماهانه ۳۶، سالانه ۱۰). پاک کردن آن از backup فقط با تصمیم مالک است.
 - **دروازه‌ی راه‌اندازی:** هر چیزی از پرامپت ۱۰ که خودش اجرا میشود (pull، ارسال، پیش‌نویس، batch، پروتکل) اول `hq_api.domain.gate` را میپرسد و تا قفل هلدینگ یا شرکت هست، بی‌مدل و بی‌تماس بیرونی رد میشود (`skipped`).
 - **متغیرها** (`.env`، خالی یعنی پیش‌فرض): `SUPPORT_RETENTION_DAYS`، `SUPPORT_DRAFT_DAILY_TOKENS` (۶۰ هزار برای هر شرکت در روز)، `SUPPORT_DAILY_OUTBOUND_CAP`، `SUPPORT_AUTO_REPLIES_PER_HOUR`، `SUPPORT_HANDOFF_DIGEST_MIN`، `REFERRAL_CHECKS_PER_HOUR`، `REFERRAL_CHECK_CACHE_S`، `REVENUE_BACKFILL_DAYS`، `REVENUE_PULL_MAX_DAYS`، `INTAKE_MAX_SKEW_S`.
+
+### ۲۷.۱ رادار درآمد، قیف، نجات رفرال و صندوق بازخورد (پرامپت ۱۰ §۲، §۳، §۸؛ قرارداد §۱۹.۱، §۱۹.۲، §۱۹.۷)
+- **حساب افیلیت** = یک حساب سرویس §۱۸.۱۳ با policy `{"inject": {"kind": "signer", "signer": "lbank-v2"}}` و `site` = میزبان API افیلیت LBank.
+  - رمز: `make account-secret KEY=<key>` (مالک)، **در یک خط به شکل `api_key:secret_key`**. هرگز چاپ و هرگز از API برگردانده نمیشود.
+  - بعد `POST /api/v1/revenue/accounts` 🔏 `revenue.account` (هش بدنه): `{company, exchange: "lbank", service_account: <key>, title_fa}`.
+  - **whitelist:** IP عمومی هاب باید در پنل API افیلیت همان صرافی ثبت شود؛ LBank بدون آن جواب نمیدهد (کار مالک).
+- **مسیر امضا:** worker ← gateway `POST /v1/connectors/call` (توکن worker) ← api `POST /internal/v1/egress/connectors/{adapter}/pull` (توکن سرویس `worker` در `kv/hq-agents/connector`؛ `make up` یک بار میسازد) ← egress `POST /v1/connectors/call`.
+  - egress امضا میکند (`hq_egress/signers.py`، فهرست ثابت)، سقف مستند LBank (۵ درخواست در ۱۰ ثانیه، token bucket هر حساب) را نگه میدارد و پاسخ را **همان‌جا کوچک میکند**: از فهرست تیم فقط UID، روز دعوت و `meets_minimum`؛ موجودی خوانده و دور ریخته میشود.
+  - secret در هیچ پاسخ، لاگ یا `egress.log` نیست (هر شکلش scrub میشود). حساب signer برای `http.request`، `web.read` و `web.browse` رد میشود (`policy_denied`، در api و در egress).
+  - قیمت دلاری کوین‌های غیر USDT: قیمت بسته‌شدن همان روز از kline عمومی LBank (`EGRESS_LBANK_PUBLIC_URL`، پیش‌فرض `https://api.lbkex.com`)؛ منبع در `by_coin[].price_source`.
+- **زمان‌ها (worker):** `hq-revenue-pull` هر روز ۰۷:۰۰ تهران، روز قبل (تسویه‌ی T+1 به وقت UTC+8)؛ اولین بار backfill `REVENUE_BACKFILL_DAYS` (۹۰). `hq-revenue-retry` ساعت ۱۱:۰۰ و ۱۸:۰۰، فقط روزهای ناقص یا نیامده‌ی ۳ روز اخیر. pull دستی: `POST /api/v1/revenue/accounts/{id}/pull?from&to` (حداکثر `REVENUE_PULL_MAX_DAYS`، `Idempotency-Key` اجباری).
+  - هر pull اول دروازه را میپرسد: تا کلید توقف هلدینگ (یا شرکت) روشن است، ردیف `skipped` با `holding_locked` ثبت میشود و هیچ تماسی بیرون نمیرود.
+  - روزی که یکی از صفحه‌هایش نیامد `complete: false` با `gaps` است؛ روز کامل هرگز با pull ناقص بعدی بازنویسی نمیشود.
+- **هشدارها** (یکی برای هر رخداد، سطح `report`، بسته‌ی مالک + یک خط سیستمی در thread مدیرعامل): کمیسیون زیر ۶۰٪ میانه‌ی همان روزِ هفته در ۲۸ روز؛ دو pull شکست‌خورده‌ی پشت‌سرهم (+ یک کار برای SRE پلتفرم)؛ روزی که pull امتحانش کرد و ۳۶ ساعت بعد از تسویه هنوز ناقص است.
+- **هزینه در برابر درآمد:** `token_cost_usd` = جمع `cost_usd + equiv_cost_usd` در `llm.calls` همان روزها (به وقت UTC+8)، هرگز از گزارش ایجنت؛ `net_usd = usdt − token_cost_usd` (USDT ≈ USD).
+- **PR-103** (تطبیق رادار با داده‌ی خام): هر صفحه‌ی هر endpoint با ارقام کوچک‌شده و SHA-256اش در `revenue.days.source.pages` میماند؛ checker کد (`domain/revenue_checks.py`) سه روز اخیر را از همان‌ها دوباره حساب میکند. پروتکل در فایلش `paused` است تا کلید افیلیت مالک برسد.
+- **قیف:** `visit` (بی‌منبع)، `signup` و `vip_active` (رویداد محصول، وقتی منبع `product` با آن نوع ثبت شد)، `referral_verified` (دعوت‌شده‌های تازه‌ی هر روز) و `min_balance` (از آن‌ها، بالای **همان یک عدد** مقاله‌ی `policy` با کلید `vip.min_balance`؛ بی‌آن مقاله وصل نیست). مرحله‌ی بی‌منبع `connected: false, count: null` است و هیچ نرخی تخمین زده نمیشود.
+  - نشتی: نرخ هفته‌ی آخر کمتر از ۷۰٪ میانه‌ی چهار هفته‌ی قبل ← یک ردیف `growth.leaks` و یک کار برای مدیر SALES (بعد از هر pull).
+- **نجات رفرال:** `referral.check` (پشتیبان و متخصص نجات) فقط `{invitee, meets_minimum}`؛ حداکثر `REFERRAL_CHECKS_PER_HOUR` در ساعت برای هر شرکت، جواب تا `REFERRAL_CHECK_CACHE_S` دوباره استفاده میشود؛ با قفل هلدینگ ۴۲۳.
+  - «دعوت‌شده‌ی ما نیست» در یک گفت‌وگو (یا رویداد `referral_failed` محصول) ← پرونده `RC-…`؛ چک بعدی «هست» ← `rescued`؛ ۳۰ روز یا `max_follow_ups` ← `lost`؛ لغو مشتری ← `opted_out`.
+  - پیگیری‌ها (`hq-rescue-follow-ups`، ساعتی، پشت دروازه) فقط زیر قاعده‌ی **فعال** `rescue` و فقط از فرستنده‌ی §۷ (`growth.send_template`)؛ تا آن فرستنده نیست، هیچ پیامی نمیرود (`no_sender`). متخصص نجات هیچ ابزار ارسالی ندارد.
+- **صندوق بازخورد:** کلیدواژه‌های هر شرکت در `feedback.keywords` (داده) ← نوع و حوزه، بی‌مدل؛ بقیه در `hq-feedback-batch` (۰۲:۳۰ تهران، پشت دروازه) با یک فراخوانی مدل سبک (Haiku 5.5، P4) برای هر شرکت. نقل‌قول‌ها ماسک‌شده (بی handle و UID)، حداکثر ۳. موردی که در پنجره‌ی شرکت به آستانه برسد (پیش‌فرض ۵ در ۷ روز، `support.settings`) یک کار برای مدیر PRODUCT میشود.
+  - گزارش هفتگی پشتیبانی (`hq-support-weekly`، شنبه ۰۸:۳۰ تهران): کار برای سرپرست پشتیبانی؛ شرکت بی‌سرپرست ← همان ارقام در گزارش صبحگاهی شنبه.
+- **متغیرهای تازه‌ی egress:** `EGRESS_LBANK_PUBLIC_URL`، `EGRESS_CONNECTOR_WAIT_S` (انتظار حداکثر برای سقف نرخ، پیش‌فرض ۸ ثانیه).
