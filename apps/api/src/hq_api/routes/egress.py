@@ -19,7 +19,7 @@ from typing import Any, Literal, NoReturn
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
@@ -68,9 +68,18 @@ class EgressDay(Model):
 
 class InjectPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["bearer", "header", "basic", "cookie"] = "bearer"
+    # ⟨1.5⟩ "signer" (contract §19.1): a reviewed request signer of egress, for
+    # the worker's connector only (http.request and web.browse refuse it).
+    kind: Literal["bearer", "header", "basic", "cookie", "signer"] = "bearer"
     name: str | None = Field(default=None, max_length=100, pattern=r"^[A-Za-z0-9_-]{1,100}$")
     username: str | None = Field(default=None, max_length=200)
+    signer: Literal["lbank-v2"] | None = None
+
+    @model_validator(mode="after")
+    def _signer_with_its_kind(self) -> InjectPolicy:
+        if (self.kind == "signer") != (self.signer is not None):
+            raise ValueError("signer goes with kind 'signer', and only with it")
+        return self
 
 
 class BrowsePolicy(BaseModel):
@@ -395,6 +404,10 @@ async def reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str
                 acct = await G.account(tx, ctx.hub.bao, body.account, who.company)
     except ApiError as err:  # the account: unknown, not this company's, no secret yet
         await refuse(err.code, err)
+    if acct is not None and (acct.get("inject") or {}).get("kind") == "signer":
+        # A signer's account (prompt 10 §2.2) serves the worker's connector only.
+        acct = None
+        await refuse("policy_denied", ApiError(403, "policy_denied", "a connector's account"))
     if (
         left["requests"] <= 0
         or left["bytes"] <= 0

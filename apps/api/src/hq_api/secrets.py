@@ -7,6 +7,9 @@ kv/hq-api/channels/telegram bot_token, chat_id (empty -> channel off)
 kv/hq-agents/runtime        llm_router_token, gateway_token (the worker as agent runtime)
 kv/support/pseudonym        key (hex, 32 bytes): the customer pseudonym's HMAC key (prompt 10
                             §1.2; made once with cas 0, read by the api and the worker)
+kv/hq-agents/connector      api_token: the worker's own api service token ("worker"; its
+                            sha256 is in hq-api/config service_tokens) for the gateway's
+                            connector calls (prompt 10 §2.2); optional
 """
 
 from __future__ import annotations
@@ -36,6 +39,9 @@ class Secrets:
     gateway_token: str = field(default="", repr=False)
     # Prompt 10 §1.2: hq_common.pseudonym's key (empty: no subject can be made).
     support_pseudonym_key: bytes = field(default=b"", repr=False)
+    # Prompt 10 §2.2: the worker's api service token, carried by the gateway's
+    # connector calls (empty: no pull can leave; the pulls record why).
+    worker_api_token: str = field(default="", repr=False)
 
     @property
     def runtime_ready(self) -> bool:
@@ -84,6 +90,7 @@ async def load(bao: OpenBaoClient, *, api_config: bool = True, runtime: bool = F
         tg = await _read(bao, "hq-api/channels/telegram")
         rt = await _read(bao, "hq-agents/runtime") if runtime else {}
         pseudonym = await _optional(bao, "support/pseudonym")
+        connector = await _optional(bao, "hq-agents/connector") if runtime else {}
     except OpenBaoError:
         log.warning("openbao unavailable; secrets not (re)loaded")
         raise
@@ -108,6 +115,7 @@ async def load(bao: OpenBaoClient, *, api_config: bool = True, runtime: bool = F
         llm_router_token=str(rt.get("llm_router_token") or ""),
         gateway_token=str(rt.get("gateway_token") or ""),
         support_pseudonym_key=_hex_key(pseudonym.get("key")),
+        worker_api_token=str(connector.get("api_token") or ""),
     )
 
 

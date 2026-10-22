@@ -130,6 +130,12 @@ CODES: dict[str, tuple[int, str, str]] = {
         "Account not configured",
         "این حساب سرویس هنوز رمز ندارد؛ مالک باید آن را روی سرور بگذارد.",
     ),
+    # prompt 10 §2-§3: an exchange's connector (the revenue pulls, referral.check)
+    "connector_failed": (
+        502,
+        "Connector failed",
+        "صرافی جواب نداد یا جواب ناقص داد؛ کمی بعد دوباره امتحان کن.",
+    ),
     # ⟨1.4.3⟩ delegated hiring and stories (contract §18.11, §18.12; prompt 08)
     "envelope_required": (
         422,

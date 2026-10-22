@@ -255,6 +255,11 @@ OP_CLASS: dict[str, str] = {
     "kb.read": "A0",
     "revenue.read": "A0",
     "funnel.read": "A0",
+    # prompt 10 §2-§3, §8 (revenue.rego): the worker's connector, the agents' tools
+    "egress.connector": "A0",
+    "referral.check": "A0",
+    "rescue.update": "A2",
+    "feedback.tag": "A2",
 }
 
 

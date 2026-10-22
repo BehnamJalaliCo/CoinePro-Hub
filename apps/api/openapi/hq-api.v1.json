@@ -84,6 +84,31 @@
         "title": "AccountPolicy",
         "type": "object"
       },
+      "AccountRevenue": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "usdt": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "company",
+          "usdt"
+        ],
+        "title": "AccountRevenue",
+        "type": "object"
+      },
       "ActivateIn": {
         "additionalProperties": false,
         "properties": {
@@ -2532,6 +2557,49 @@
         "title": "CodeSession",
         "type": "object"
       },
+      "CoinRow": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "coin": {
+            "title": "Coin",
+            "type": "string"
+          },
+          "price_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Source"
+          },
+          "usdt": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usdt"
+          }
+        },
+        "required": [
+          "coin",
+          "amount"
+        ],
+        "title": "CoinRow",
+        "type": "object"
+      },
       "Company": {
         "properties": {
           "code": {
@@ -2806,6 +2874,49 @@
           }
         },
         "title": "CompanyPatch",
+        "type": "object"
+      },
+      "CompanyRevenue": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "net_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net Usd",
+            "type": "string"
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share"
+          },
+          "token_cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Token Cost Usd",
+            "type": "string"
+          },
+          "usdt": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "usdt",
+          "token_cost_usd",
+          "net_usd"
+        ],
+        "title": "CompanyRevenue",
         "type": "object"
       },
       "CompanyStanding": {
@@ -3218,6 +3329,172 @@
         "title": "ConnectionPatch",
         "type": "object"
       },
+      "ConnectorEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "bytes_in": {
+            "default": 0,
+            "maximum": 4.611686018427388e+18,
+            "minimum": 0.0,
+            "title": "Bytes In",
+            "type": "integer"
+          },
+          "bytes_out": {
+            "default": 0,
+            "maximum": 4.611686018427388e+18,
+            "minimum": 0.0,
+            "title": "Bytes Out",
+            "type": "integer"
+          },
+          "class": {
+            "const": "A0",
+            "default": "A0",
+            "title": "Class",
+            "type": "string"
+          },
+          "host": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Host",
+            "type": "string"
+          },
+          "kind": {
+            "const": "request",
+            "default": "request",
+            "title": "Kind",
+            "type": "string"
+          },
+          "method": {
+            "maxLength": 10,
+            "minLength": 1,
+            "pattern": "^[A-Z0-9_-]{1,10}$",
+            "title": "Method",
+            "type": "string"
+          },
+          "ms": {
+            "default": 0,
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Ms",
+            "type": "integer"
+          },
+          "requests": {
+            "default": 1,
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Requests",
+            "type": "integer"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 100.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tool": {
+            "default": "revenue.pull",
+            "enum": [
+              "revenue.pull",
+              "referral.check"
+            ],
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "host"
+        ],
+        "title": "ConnectorEntry",
+        "type": "object"
+      },
+      "ConnectorLogIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorEntry"
+            },
+            "maxItems": 200,
+            "title": "Entries",
+            "type": "array"
+          },
+          "reservation": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation"
+          }
+        },
+        "required": [
+          "company"
+        ],
+        "title": "ConnectorLogIn",
+        "type": "object"
+      },
+      "ConnectorPullIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "endpoint": {
+            "pattern": "^[a-z][a-z/._-]{1,60}$",
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "exchange": {
+            "pattern": "^[a-z][a-z0-9_-]{1,30}$",
+            "title": "Exchange",
+            "type": "string"
+          },
+          "tool": {
+            "const": "revenue.pull",
+            "default": "revenue.pull",
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "exchange",
+          "endpoint"
+        ],
+        "title": "ConnectorPullIn",
+        "type": "object"
+      },
       "Consumer": {
         "properties": {
           "actor": {
@@ -3312,6 +3589,50 @@
         "title": "ControlState",
         "type": "object"
       },
+      "Conversion": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "enum": [
+              "visit",
+              "signup",
+              "referral_verified",
+              "min_balance",
+              "vip_active"
+            ],
+            "title": "From",
+            "type": "string"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "to": {
+            "enum": [
+              "visit",
+              "signup",
+              "referral_verified",
+              "min_balance",
+              "vip_active"
+            ],
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "Conversion",
+        "type": "object"
+      },
       "Count": {
         "properties": {
           "updated": {
@@ -3399,6 +3720,31 @@
           "updated_at"
         ],
         "title": "Curriculum",
+        "type": "object"
+      },
+      "DaySource": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter"
+          },
+          "endpoints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Endpoints",
+            "type": "array"
+          }
+        },
+        "title": "DaySource",
         "type": "object"
       },
       "Decision": {
@@ -6062,6 +6408,191 @@
         "title": "FcmTokenIn",
         "type": "object"
       },
+      "FeedbackItem": {
+        "additionalProperties": false,
+        "properties": {
+          "area": {
+            "title": "Area",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "first_seen": {
+            "format": "date-time",
+            "title": "First Seen",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "bug",
+              "feature",
+              "confusion",
+              "complaint",
+              "praise"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_seen": {
+            "format": "date-time",
+            "title": "Last Seen",
+            "type": "string"
+          },
+          "quotes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Quotes",
+            "type": "array"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "new",
+              "triaged",
+              "in_backlog",
+              "done",
+              "wont_do"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "company",
+          "kind",
+          "area",
+          "title_fa",
+          "count",
+          "first_seen",
+          "last_seen",
+          "quotes",
+          "sources",
+          "state",
+          "version"
+        ],
+        "title": "FeedbackItem",
+        "type": "object"
+      },
+      "FeedbackPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "new",
+                  "triaged",
+                  "in_backlog",
+                  "done",
+                  "wont_do"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "pattern": "^[A-Z][A-Z0-9-]{1,39}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "title": "FeedbackPatch",
+        "type": "object"
+      },
+      "FeedbackTagIn": {
+        "additionalProperties": false,
+        "properties": {
+          "area": {
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "Area",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "bug",
+              "feature",
+              "confusion",
+              "complaint",
+              "praise"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "source_ref": {
+            "pattern": "^(SC-[0-9]{6,}|NP-[0-9]{4}Q[1-4]-[A-Z][A-Z0-9]{1,9})$",
+            "title": "Source Ref",
+            "type": "string"
+          },
+          "title_fa": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_ref",
+          "kind",
+          "area",
+          "title_fa"
+        ],
+        "title": "FeedbackTagIn",
+        "type": "object"
+      },
       "Figure": {
         "additionalProperties": false,
         "properties": {
@@ -6874,6 +7405,146 @@
           "until"
         ],
         "title": "FreezeOut",
+        "type": "object"
+      },
+      "Funnel": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "conversions": {
+            "items": {
+              "$ref": "#/components/schemas/Conversion"
+            },
+            "title": "Conversions",
+            "type": "array"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "leaks": {
+            "items": {
+              "$ref": "#/components/schemas/Leak"
+            },
+            "title": "Leaks",
+            "type": "array"
+          },
+          "period": {
+            "enum": [
+              "week",
+              "month"
+            ],
+            "title": "Period",
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelStage"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "period",
+          "from",
+          "to",
+          "stages",
+          "conversions",
+          "leaks"
+        ],
+        "title": "Funnel",
+        "type": "object"
+      },
+      "FunnelReadIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "period": {
+            "default": "week",
+            "enum": [
+              "week",
+              "month"
+            ],
+            "title": "Period",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company"
+        ],
+        "title": "FunnelReadIn",
+        "type": "object"
+      },
+      "FunnelStage": {
+        "additionalProperties": false,
+        "properties": {
+          "connected": {
+            "title": "Connected",
+            "type": "boolean"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "key": {
+            "enum": [
+              "visit",
+              "signup",
+              "referral_verified",
+              "min_balance",
+              "vip_active"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "label_fa": {
+            "title": "Label Fa",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "affiliate",
+                  "product_events",
+                  "support",
+                  "analytics"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "key",
+          "label_fa",
+          "connected"
+        ],
+        "title": "FunnelStage",
         "type": "object"
       },
       "Gate": {
@@ -8115,7 +8786,8 @@
               "bearer",
               "header",
               "basic",
-              "cookie"
+              "cookie",
+              "signer"
             ],
             "title": "Kind",
             "type": "string"
@@ -8132,6 +8804,18 @@
               }
             ],
             "title": "Name"
+          },
+          "signer": {
+            "anyOf": [
+              {
+                "const": "lbank-v2",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signer"
           },
           "username": {
             "anyOf": [
@@ -8509,6 +9193,42 @@
           "reason"
         ],
         "title": "KillSwitchIn",
+        "type": "object"
+      },
+      "Leak": {
+        "additionalProperties": false,
+        "properties": {
+          "median_rate": {
+            "title": "Median Rate",
+            "type": "number"
+          },
+          "note_fa": {
+            "title": "Note Fa",
+            "type": "string"
+          },
+          "rate": {
+            "title": "Rate",
+            "type": "number"
+          },
+          "stage": {
+            "enum": [
+              "visit",
+              "signup",
+              "referral_verified",
+              "min_balance",
+              "vip_active"
+            ],
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "note_fa",
+          "rate",
+          "median_rate"
+        ],
+        "title": "Leak",
         "type": "object"
       },
       "Lesson": {
@@ -10725,6 +11445,33 @@
         "title": "Page[Errand]",
         "type": "object"
       },
+      "Page_FeedbackItem_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[FeedbackItem]",
+        "type": "object"
+      },
       "Page_Finding_": {
         "properties": {
           "items": {
@@ -10831,6 +11578,33 @@
           "items"
         ],
         "title": "Page[OrderRecord]",
+        "type": "object"
+      },
+      "Page_RescueCase_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RescueCase"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[RescueCase]",
         "type": "object"
       },
       "Page_Resolution_": {
@@ -12572,6 +13346,123 @@
         "title": "Reason",
         "type": "object"
       },
+      "ReferralCheckIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "exchange": {
+            "pattern": "^[a-z][a-z0-9_-]{1,30}$",
+            "title": "Exchange",
+            "type": "string"
+          },
+          "uid": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "title": "Uid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "exchange",
+          "uid"
+        ],
+        "title": "ReferralCheckIn",
+        "type": "object"
+      },
+      "ReferralResultIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorEntry"
+            },
+            "maxItems": 20,
+            "title": "Entries",
+            "type": "array"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,59}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "exchange": {
+            "pattern": "^[a-z][a-z0-9_-]{1,30}$",
+            "title": "Exchange",
+            "type": "string"
+          },
+          "invitee": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invitee"
+          },
+          "meets_minimum": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meets Minimum"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "reservation": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation"
+          },
+          "uid": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "title": "Uid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "exchange",
+          "uid",
+          "ok"
+        ],
+        "title": "ReferralResultIn",
+        "type": "object"
+      },
       "RegisterOptionsIn": {
         "properties": {
           "enrolment_token": {
@@ -12668,6 +13559,180 @@
           "run_id"
         ],
         "title": "Reply",
+        "type": "object"
+      },
+      "RescueCase": {
+        "additionalProperties": false,
+        "properties": {
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "conversation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "rescued_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rescued At"
+          },
+          "source": {
+            "enum": [
+              "support",
+              "product"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "contacted",
+              "rescued",
+              "lost",
+              "opted_out"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RescueStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "company",
+          "source",
+          "exchange",
+          "subject",
+          "state",
+          "steps",
+          "opened_at"
+        ],
+        "title": "RescueCase",
+        "type": "object"
+      },
+      "RescueStep": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "check",
+              "message",
+              "follow_up",
+              "note"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "result_fa": {
+            "title": "Result Fa",
+            "type": "string"
+          },
+          "template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template"
+          }
+        },
+        "required": [
+          "at",
+          "kind",
+          "result_fa"
+        ],
+        "title": "RescueStep",
+        "type": "object"
+      },
+      "RescueUpdateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note_fa": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Note Fa",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "contacted",
+              "rescued",
+              "lost",
+              "opted_out"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "note_fa"
+        ],
+        "title": "RescueUpdateIn",
         "type": "object"
       },
       "Resolution": {
@@ -13029,6 +14094,458 @@
           "note"
         ],
         "title": "Return",
+        "type": "object"
+      },
+      "RevenueAccount": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter": {
+            "title": "Adapter",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_pull_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Pull At"
+          },
+          "service_account": {
+            "title": "Service Account",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "not_configured",
+              "ok",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "company",
+          "exchange",
+          "adapter",
+          "service_account",
+          "title_fa",
+          "status",
+          "version"
+        ],
+        "title": "RevenueAccount",
+        "type": "object"
+      },
+      "RevenueAccountIn": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter": {
+            "const": "lbank-affiliate-v2",
+            "default": "lbank-affiliate-v2",
+            "title": "Adapter",
+            "type": "string"
+          },
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "exchange": {
+            "pattern": "^[a-z][a-z0-9_-]{1,30}$",
+            "title": "Exchange",
+            "type": "string"
+          },
+          "service_account": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]{1,40}$",
+            "title": "Service Account",
+            "type": "string"
+          },
+          "title_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "exchange",
+          "service_account",
+          "title_fa"
+        ],
+        "title": "RevenueAccountIn",
+        "type": "object"
+      },
+      "RevenueDay": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "active_traders": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Traders"
+          },
+          "by_coin": {
+            "items": {
+              "$ref": "#/components/schemas/CoinRow"
+            },
+            "title": "By Coin",
+            "type": "array"
+          },
+          "commission_usdt": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Commission Usdt",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "deposits_usdt": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposits Usdt"
+          },
+          "fees_usdt": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fees Usdt"
+          },
+          "new_invitees": {
+            "title": "New Invitees",
+            "type": "integer"
+          },
+          "pulled_at": {
+            "format": "date-time",
+            "title": "Pulled At",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/DaySource"
+          },
+          "volume_usdt": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume Usdt"
+          }
+        },
+        "required": [
+          "company",
+          "account",
+          "day",
+          "commission_usdt",
+          "by_coin",
+          "new_invitees",
+          "complete",
+          "pulled_at",
+          "source"
+        ],
+        "title": "RevenueDay",
+        "type": "object"
+      },
+      "RevenuePull": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "days_complete": {
+            "title": "Days Complete",
+            "type": "integer"
+          },
+          "days_incomplete": {
+            "title": "Days Incomplete",
+            "type": "integer"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "scheduled",
+              "retry",
+              "manual",
+              "backfill"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "skipped_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped Reason"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "ok",
+              "incomplete",
+              "failed",
+              "skipped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "account",
+          "kind",
+          "from",
+          "to",
+          "state",
+          "days_complete",
+          "days_incomplete",
+          "created_at"
+        ],
+        "title": "RevenuePull",
+        "type": "object"
+      },
+      "RevenueReadIn": {
+        "additionalProperties": false,
+        "properties": {
+          "by": {
+            "default": "day",
+            "enum": [
+              "day",
+              "company",
+              "account"
+            ],
+            "title": "By",
+            "type": "string"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "RevenueReadIn",
+        "type": "object"
+      },
+      "RevenueSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "by_account": {
+            "items": {
+              "$ref": "#/components/schemas/AccountRevenue"
+            },
+            "title": "By Account",
+            "type": "array"
+          },
+          "by_company": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyRevenue"
+            },
+            "title": "By Company",
+            "type": "array"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "period": {
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "title": "Period",
+            "type": "string"
+          },
+          "prev_total_usdt": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Total Usdt"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "total_usdt": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Usdt",
+            "type": "string"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/TrendPoint"
+            },
+            "title": "Trend",
+            "type": "array"
+          }
+        },
+        "required": [
+          "period",
+          "from",
+          "to",
+          "total_usdt",
+          "by_company",
+          "by_account",
+          "trend",
+          "alerts"
+        ],
+        "title": "RevenueSummary",
         "type": "object"
       },
       "Review": {
@@ -16115,6 +17632,46 @@
         "title": "Subscription",
         "type": "object"
       },
+      "SummaryAlert": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "drop",
+              "pull_failed",
+              "incomplete"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note_fa": {
+            "title": "Note Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "company",
+          "note_fa"
+        ],
+        "title": "SummaryAlert",
+        "type": "object"
+      },
       "Target-Input": {
         "additionalProperties": false,
         "properties": {
@@ -16975,6 +18532,27 @@
           "engine"
         ],
         "title": "Transcript",
+        "type": "object"
+      },
+      "TrendPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "usdt": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "usdt"
+        ],
+        "title": "TrendPoint",
         "type": "object"
       },
       "UsageIn": {
@@ -27482,6 +29060,345 @@
         ]
       }
     },
+    "/api/v1/feedback": {
+      "get": {
+        "description": "Most frequent first (count, then the latest).",
+        "operationId": "list_feedback",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "bug",
+                    "feature",
+                    "confusion",
+                    "complaint",
+                    "praise"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "new",
+                    "triaged",
+                    "in_backlog",
+                    "done",
+                    "wont_do"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "area": "x",
+                      "company": "TY",
+                      "count": 1,
+                      "first_seen": "2026-10-17T05:42:00Z",
+                      "id": "x",
+                      "kind": "bug",
+                      "last_seen": "2026-10-17T05:42:00Z",
+                      "quotes": [
+                        "x"
+                      ],
+                      "ref": "W-000789",
+                      "sources": [
+                        "x"
+                      ],
+                      "state": "new",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "version": 1,
+                      "work_ref": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_FeedbackItem_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Feedback",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/v1/feedback/{ref}": {
+      "patch": {
+        "description": "The item's state and its backlog reference (`If-Match`: its version).",
+        "operationId": "patch_feedback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "state": "new",
+                "work_ref": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "area": "x",
+                  "company": "TY",
+                  "count": 1,
+                  "first_seen": "2026-10-17T05:42:00Z",
+                  "id": "x",
+                  "kind": "bug",
+                  "last_seen": "2026-10-17T05:42:00Z",
+                  "quotes": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "sources": [
+                    "x"
+                  ],
+                  "state": "new",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "version": 1,
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Patch Feedback",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
     "/api/v1/files": {
       "post": {
         "description": "Owner only. Raw body, `Content-Type` = the file's type, `X-File-Name` =\nUTF-8 name, percent-encoded; `Idempotency-Key` as every POST. Images\n(jpeg, png, webp, heic ≤ 20 MB), video (mp4, webm, quicktime ≤ 200 MB,\n≤ 10 min), audio (m4a/aac, ogg/opus, webm, wav, mpeg ≤ 25 MB, ≤ 15 min),\npdf (≤ 30 MB). The type is checked by content, the size while streaming.\n`201 FileRef` (`status: processing` for video and audio).",
@@ -28577,6 +30494,487 @@
         "summary": "Cancel Founding",
         "tags": [
           "founding"
+        ]
+      }
+    },
+    "/api/v1/growth/funnel": {
+      "get": {
+        "description": "The company's funnel over the last settled week (7 days) or month (30).",
+        "operationId": "growth_funnel",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+              "title": "Company",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "week",
+              "enum": [
+                "week",
+                "month"
+              ],
+              "title": "Period",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "conversions": [
+                    {
+                      "from": "visit",
+                      "rate": 1.0,
+                      "to": "visit"
+                    }
+                  ],
+                  "from": "x",
+                  "leaks": [
+                    {
+                      "median_rate": 1.0,
+                      "note_fa": "x",
+                      "rate": 1.0,
+                      "stage": "visit"
+                    }
+                  ],
+                  "period": "week",
+                  "stages": [
+                    {
+                      "connected": false,
+                      "count": 1,
+                      "key": "visit",
+                      "label_fa": "x",
+                      "source": "affiliate"
+                    }
+                  ],
+                  "to": "TY-GROWTH-MGR"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Funnel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Growth Funnel",
+        "tags": [
+          "growth"
+        ]
+      }
+    },
+    "/api/v1/growth/rescue": {
+      "get": {
+        "description": "Rescue cases, newest first. The rescue rate is the client's\nrescued / (rescued + lost) (contract §19.9 ⟨1.5.1⟩).",
+        "operationId": "rescue_list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "contacted",
+                    "rescued",
+                    "lost",
+                    "opted_out"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "company": "TY",
+                      "conversation": "x",
+                      "exchange": "x",
+                      "id": "x",
+                      "opened_at": "2026-10-17T05:42:00Z",
+                      "ref": "W-000789",
+                      "rescued_at": "2026-10-17T05:42:00Z",
+                      "source": "support",
+                      "state": "open",
+                      "steps": [
+                        {
+                          "at": "2026-10-17T05:42:00Z",
+                          "kind": "check",
+                          "result_fa": "x",
+                          "template": "x"
+                        }
+                      ],
+                      "subject": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RescueCase_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Rescue List",
+        "tags": [
+          "growth"
+        ]
+      }
+    },
+    "/api/v1/growth/rescue/{ref}": {
+      "get": {
+        "description": "One rescue case with its steps (checks, rule messages, notes).",
+        "operationId": "rescue_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "closed_at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "conversation": "x",
+                  "exchange": "x",
+                  "id": "x",
+                  "opened_at": "2026-10-17T05:42:00Z",
+                  "ref": "W-000789",
+                  "rescued_at": "2026-10-17T05:42:00Z",
+                  "source": "support",
+                  "state": "open",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "kind": "check",
+                      "result_fa": "x",
+                      "template": "x"
+                    }
+                  ],
+                  "subject": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RescueCase"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Rescue Get",
+        "tags": [
+          "growth"
         ]
       }
     },
@@ -35302,6 +37700,801 @@
         ]
       }
     },
+    "/api/v1/revenue/accounts": {
+      "get": {
+        "description": "Every affiliate account: its service account (never the key), the\nlast pull and its error.",
+        "operationId": "list_revenue_accounts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "adapter": "x",
+                    "company": "TY",
+                    "exchange": "x",
+                    "id": "x",
+                    "last_error": "x",
+                    "last_pull_at": "2026-10-17T05:42:00Z",
+                    "service_account": "x",
+                    "status": "not_configured",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RevenueAccount"
+                  },
+                  "title": "Response List Revenue Accounts",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Revenue Accounts",
+        "tags": [
+          "revenue"
+        ]
+      },
+      "post": {
+        "description": "🔏 (`revenue.account`, target = SHA-256 of the exact body): which\nservice account (a signer, `make account-secret` holds its key) pulls a\ncompany's commission from an exchange. Requires `Idempotency-Key`.",
+        "operationId": "put_revenue_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "adapter": "lbank-affiliate-v2",
+                "company": "TY",
+                "exchange": "x",
+                "service_account": "x",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RevenueAccountIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "adapter": "x",
+                  "company": "TY",
+                  "exchange": "x",
+                  "id": "x",
+                  "last_error": "x",
+                  "last_pull_at": "2026-10-17T05:42:00Z",
+                  "service_account": "x",
+                  "status": "not_configured",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RevenueAccount"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Put Revenue Account",
+        "tags": [
+          "revenue"
+        ]
+      }
+    },
+    "/api/v1/revenue/accounts/{id}/pull": {
+      "post": {
+        "description": "The owner's pull of `from`..`to` (at most REVENUE_PULL_MAX_DAYS settled\ndays; default: the last settled day), through the same connector and rate\nlimit as the schedule. Requires `Idempotency-Key`. While the holding is\nlocked it is recorded `skipped` and nothing leaves the hub.",
+        "operationId": "pull_now",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "days_complete": 1,
+                  "days_incomplete": 1,
+                  "error_code": "x",
+                  "finished_at": "2026-10-17T05:42:00Z",
+                  "from": "2026-10-17",
+                  "id": "x",
+                  "kind": "scheduled",
+                  "skipped_reason": "x",
+                  "state": "queued",
+                  "to": "2026-10-17"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RevenuePull"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Pull Now",
+        "tags": [
+          "revenue"
+        ]
+      }
+    },
+    "/api/v1/revenue/days": {
+      "get": {
+        "description": "RevenueDay rows, newest first (at most 400): `from` and `to` are the\nexchange's settlement days (lbank: UTC+8).",
+        "operationId": "revenue_days",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "account": "x",
+                    "active_traders": 1,
+                    "by_coin": [
+                      {
+                        "amount": "x",
+                        "coin": "x",
+                        "price_source": "x",
+                        "usdt": "x"
+                      }
+                    ],
+                    "commission_usdt": "x",
+                    "company": "TY",
+                    "complete": false,
+                    "day": "2026-10-17",
+                    "deposits_usdt": "x",
+                    "fees_usdt": "x",
+                    "new_invitees": 1,
+                    "pulled_at": "2026-10-17T05:42:00Z",
+                    "source": {
+                      "adapter": "x",
+                      "endpoints": [
+                        "x"
+                      ]
+                    },
+                    "volume_usdt": "x"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RevenueDay"
+                  },
+                  "title": "Response Revenue Days",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Revenue Days",
+        "tags": [
+          "revenue"
+        ]
+      }
+    },
+    "/api/v1/revenue/summary": {
+      "get": {
+        "description": "Commission per company and account against the Token Treasury's cost\nof the same days (`net_usd = usdt - token_cost_usd`; USDT taken as USD).",
+        "operationId": "revenue_summary",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "day",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "title": "Period",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "alerts": [
+                    {
+                      "account": "x",
+                      "company": "TY",
+                      "kind": "drop",
+                      "note_fa": "x"
+                    }
+                  ],
+                  "by_account": [
+                    {
+                      "account": "x",
+                      "company": "TY",
+                      "usdt": "x"
+                    }
+                  ],
+                  "by_company": [
+                    {
+                      "company": "TY",
+                      "net_usd": "2.410000",
+                      "share": 1.0,
+                      "token_cost_usd": "2.410000",
+                      "usdt": "x"
+                    }
+                  ],
+                  "from": "2026-10-17",
+                  "period": "day",
+                  "prev_total_usdt": "x",
+                  "to": "2026-10-17",
+                  "total_usdt": "x",
+                  "trend": [
+                    {
+                      "day": "2026-10-17",
+                      "usdt": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RevenueSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Revenue Summary",
+        "tags": [
+          "revenue"
+        ]
+      }
+    },
     "/api/v1/roles": {
       "get": {
         "description": "The role charters (agents/roles/*.md), read-only: what each role is, its\ndefault model and effort, its tools and limits, and the charter version.",
@@ -39116,6 +42309,7 @@
                   "inject": {
                     "kind": "bearer",
                     "name": "report.pdf",
+                    "signer": "lbank-v2",
                     "username": "x"
                   },
                   "ports": [
@@ -46071,6 +49265,289 @@
         ]
       }
     },
+    "/internal/v1/egress/connectors/{adapter}/log": {
+      "post": {
+        "description": "The entries of one connector call (no secret: method, host, status,\nsizes, time); they settle its reservation.",
+        "operationId": "connector_log",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter",
+            "required": true,
+            "schema": {
+              "title": "Adapter",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "entries": [
+                  {
+                    "blocked_reason": "x",
+                    "bytes_in": 0,
+                    "bytes_out": 0,
+                    "class": "A0",
+                    "host": "x",
+                    "kind": "request",
+                    "method": "x",
+                    "ms": 0,
+                    "requests": 1,
+                    "status": 100,
+                    "tool": "revenue.pull"
+                  }
+                ],
+                "reservation": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorLogIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Connector Log",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/egress/connectors/{adapter}/pull": {
+      "post": {
+        "description": "For the gateway, on the worker's behalf: the account (with its secret,\nfor this one call) of the company's exchange, and the call's row in the\negress log, written now. The worker's connector is the ONLY user of a\nsigner account (contract §19.1); a keyless endpoint gets no account.",
+        "operationId": "connector_pull",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter",
+            "required": true,
+            "schema": {
+              "title": "Adapter",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "endpoint": "x",
+                "exchange": "x",
+                "tool": "revenue.pull"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorPullIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Connector Pull",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Connector Pull",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/egress/log": {
       "post": {
         "description": "The entries of one tool call (the gateway, after egress answered).",
@@ -46811,6 +50288,113 @@
         ]
       }
     },
+    "/internal/v1/feedback/tag": {
+      "post": {
+        "description": "feedback.tag (A2): files a source of the agent's own company.",
+        "operationId": "feedback_tag",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "area": "x",
+                "kind": "bug",
+                "source_ref": "x",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackTagIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Feedback Tag",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Feedback Tag",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/files": {
       "post": {
         "description": "Raw body upload (`Content-Type` = the file's media type) for the agent's\nown company; returns a FileRef to attach to a deliverable or message.",
@@ -47071,6 +50655,503 @@
           }
         },
         "summary": "Tool File Meta",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/growth/funnel/read": {
+      "post": {
+        "description": "funnel.read (A0): the stages (\"not connected\" is never zero), the\nconversions, the leaks, and the period's rescue figures.",
+        "operationId": "funnel_read",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "period": "week"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FunnelReadIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Funnel Read",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Funnel Read",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/growth/referral-check": {
+      "post": {
+        "description": "referral.check (A0), step one: a fresh cached answer is the answer\n(and does its rescue effect); else the company's cap (an hour) and the\ngate, then the connector's grant: the signer account for this one call,\nits egress reservation, the endpoint and the company's minimum.",
+        "operationId": "referral_check",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "exchange": "x",
+                "uid": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ReferralCheckIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Referral Check",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Referral Check",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/growth/referral-check/result": {
+      "post": {
+        "description": "referral.check, step two (the gateway, after egress answered): the\nreduced answer recorded, its egress entries logged, the case opened\n(\"not ours\", in a conversation) or closed rescued (\"ours\").",
+        "operationId": "referral_check_result",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "entries": [
+                  {
+                    "blocked_reason": "x",
+                    "bytes_in": 0,
+                    "bytes_out": 0,
+                    "class": "A0",
+                    "host": "x",
+                    "kind": "request",
+                    "method": "x",
+                    "ms": 0,
+                    "requests": 1,
+                    "status": 100,
+                    "tool": "revenue.pull"
+                  }
+                ],
+                "error_code": "x",
+                "exchange": "x",
+                "invitee": false,
+                "meets_minimum": false,
+                "ok": false,
+                "reservation": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                "uid": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ReferralResultIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Referral Check Result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Referral Check Result",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/growth/rescue/{ref}/update": {
+      "post": {
+        "description": "rescue.update (A2): the specialist's note on a case of its company,\nand its closing as lost or opted_out; `rescued` only on a referral.check\nthat said \"our invitee\" since the case opened. Nothing is sent.",
+        "operationId": "rescue_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "note_fa": "x",
+                "state": "open"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RescueUpdateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rescue Update",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Rescue Update",
         "tags": [
           "internal"
         ]
@@ -50493,6 +54574,135 @@
           }
         },
         "summary": "Runs Step",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/revenue/read": {
+      "post": {
+        "description": "revenue.read (A0): commission and referrals by day, company and\naccount, incomplete days marked, the treasury's cost beside it. A\ncompany's readers see their own company; the holding's advisor and\noverseer any company.",
+        "operationId": "revenue_read",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "by": "day",
+                "company": "TY",
+                "from": "2026-10-17",
+                "to": "2026-10-17"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RevenueReadIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Revenue Read",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Revenue Read",
         "tags": [
           "internal"
         ]

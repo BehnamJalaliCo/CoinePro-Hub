@@ -22,3 +22,9 @@ path "kv/data/hq-agents/runtime" {
 path "kv/data/support/pseudonym" {
   capabilities = ["read"]
 }
+
+# The worker's own api service token for the connector calls of the revenue
+# pulls (prompt 10 §2.2): made once by provision.sh.
+path "kv/data/hq-agents/connector" {
+  capabilities = ["read"]
+}

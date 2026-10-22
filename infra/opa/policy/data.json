@@ -51,7 +51,8 @@
           "eval.run",
           "academy.eval",
           "finding.update",
-          "oversight.finding_update"
+          "oversight.finding_update",
+          "feedback.tag"
         ],
         "inspector": [
           "work.delegate",
@@ -83,7 +84,9 @@
           "finding.update",
           "oversight.finding_update",
           "hold",
-          "oversight.hold"
+          "oversight.hold",
+          "rescue.update",
+          "feedback.tag"
         ],
         "assistant": [
           "errand.step",

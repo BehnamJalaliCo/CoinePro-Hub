@@ -35,6 +35,7 @@ from hq_api.routes import (
     files,
     founding,
     growth,
+    growth_funnel,
     inbox,
     inquiries,
     intake,
@@ -166,6 +167,7 @@ def create_app(
         revenue,
         support,
         growth,
+        growth_funnel,
         feedback,
         intake,
     ):
@@ -182,7 +184,7 @@ def create_app(
     app.include_router(skills.internal_router, prefix="/internal/v1")
     app.include_router(academy.internal_router, prefix="/internal/v1")
     app.include_router(founding.internal_router, prefix="/internal/v1")
-    for p10 in (revenue, support, growth, feedback):
+    for p10 in (revenue, support, growth, growth_funnel, feedback):
         app.include_router(p10.internal_router, prefix="/internal/v1")
     # The only public routes prompt 10 adds (webhooks; never /internal).
     app.include_router(intake.webhook_router, prefix="/intake/v1")

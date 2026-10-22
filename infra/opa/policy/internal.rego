@@ -42,6 +42,8 @@ ops := {
 	"provisioning.plan", "provisioning.run",
 	# prompt 10 §1.5: the support desk's data, the revenue radar, the funnel (support.rego)
 	"support.read", "support.stats", "kb.read", "revenue.read", "funnel.read",
+	# prompt 10 §2-§3, §8: the worker's connector, referral.check, rescue, feedback (revenue.rego)
+	"egress.connector", "referral.check", "rescue.update", "feedback.tag",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and

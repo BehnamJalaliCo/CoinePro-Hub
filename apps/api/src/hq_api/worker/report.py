@@ -11,6 +11,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from hq_api.db import Tx
+from hq_api.domain import feedback as FB
 from hq_api.worker.jalali import jalali_long, jalali_str
 
 RISK_FA = {"high": "بالا", "medium": "متوسط", "low": "کم"}
@@ -79,6 +80,9 @@ async def gather(tx: Tx, now: datetime, tz: str) -> dict[str, Any]:
         "unread": int(unread or 0),
         "companies": companies,
         "budgets": budgets,
+        # Saturdays (prompt 10 §8.3): the week's support figures of a company
+        # without a support lead, figures only.
+        "support_week": await FB.morning_lines(tx, today) if today.weekday() == 5 else [],
     }
 
 
@@ -131,6 +135,8 @@ def render(data: dict[str, Any]) -> tuple[str, str]:
             )
     else:
         lines.append("- هیچ بودجه‌ای به آستانه‌ی هشدار (۷۰٪) نرسیده است.")
+    if data.get("support_week"):
+        lines += ["", "## پشتیبانی هفته (شرکت‌های بی‌سرپرست پشتیبانی)", *data["support_week"]]
     engaged = [c["code"] for c in data["companies"] if c["kill_switch"] == "engaged"]
     if engaged:
         lines += ["", f"**کلید توقف فعال:** {', '.join(engaged)}"]
