@@ -16,6 +16,9 @@ kinds := {
 	"a3_action", "proposal", "budget_change", "evaluation", "code_session",
 	"errand_action",
 	"lesson_adoption",
+	"protocol",
+	# 7.1 §18.13: an MCP server re-enabled with its new listing
+	"tool_enable",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

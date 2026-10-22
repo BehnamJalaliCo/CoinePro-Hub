@@ -448,9 +448,16 @@ async def files_read(api: Api, call: Call, a: FileIn) -> Result:
         elif d.get("kind") == "image":
             images = one(d.get("agent"))  # the copy a model sees (<= 1568 px, no EXIF)
         elif d.get("kind") == "video":
-            raw = d.get("frames")
+            raw = d.get("frames")  # [{id, at_s}] (contract §17.8); plain ids before
             frames: list[Any] = raw if isinstance(raw, list) else []
-            images = [f for f in frames if isinstance(f, str)] or one(variants.get("poster"))
+            pairs = [
+                (f.get("id"), f.get("at_s")) if isinstance(f, dict) else (f, None) for f in frames
+            ]
+            shown = [(i, at) for i, at in pairs if isinstance(i, str)]
+            images = [i for i, _ in shown] or one(variants.get("poster"))
+            if any(isinstance(at, int | float) for _, at in shown):
+                # where each picture is in the video (s), in the order of image_file_ids
+                meta["frames_at_s"] = [at for _, at in shown][:MAX_VIEW_IMAGES]
     meta["view"] = {"variant": a.variant, "image_file_ids": images[:MAX_VIEW_IMAGES]}
     return Result("ok", ref=f"file:{d['id']}", data=meta)
 

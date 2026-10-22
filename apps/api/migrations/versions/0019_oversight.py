@@ -34,7 +34,7 @@ depends_on = None
 APP_ROLES = "hq_api, hq_worker"
 KINDS = (
     "'hire', 'dismissal', 'recurring_approval', 'deploy', 'a3_action', 'proposal', "
-    "'budget_change', 'evaluation', 'code_session'"
+    "'budget_change', 'evaluation', 'code_session', 'tool_enable'"
 )
 AREAS = (
     "'truth', 'authority', 'money', 'safety', 'quality', 'delivery', 'security', 'data', "

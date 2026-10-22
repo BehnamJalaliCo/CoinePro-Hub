@@ -261,7 +261,7 @@
         "type": "object"
       },
       "AgentFileRef": {
-        "description": "files.read: an owner file attached in the agent's own company (§17.1),\nplus the key frames of a video; the model sees images as vision input.\n`agent`: the image copy a model sees (long edge <= 1568, no EXIF);\n`text`: a PDF's text (prompt 07 §3), masked.",
+        "description": "files.read: an owner file attached in the agent's own company (§17.1),\nplus the key frames of a video; the model sees images as vision input.\n`frames`: [{id, at_s}] in time order; `agent`: the image copy a model sees\n(long edge <= 1568, no EXIF); `text`: a PDF's text (prompt 07 §3), masked.",
         "properties": {
           "agent": {
             "anyOf": [
@@ -288,8 +288,7 @@
           },
           "frames": {
             "items": {
-              "format": "uuid",
-              "type": "string"
+              "$ref": "#/components/schemas/Frame"
             },
             "title": "Frames",
             "type": "array"
@@ -3658,7 +3657,8 @@
               "code_session",
               "errand_action",
               "lesson_adoption",
-              "protocol"
+              "protocol",
+              "tool_enable"
             ],
             "title": "Kind",
             "type": "string"
@@ -6476,6 +6476,32 @@
         "title": "FinishIn",
         "type": "object"
       },
+      "Frame": {
+        "description": "A key frame of a video (contract §17.8): its file and where it is (s).",
+        "properties": {
+          "at_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At S"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Frame",
+        "type": "object"
+      },
       "Freeze": {
         "properties": {
           "company": {
@@ -8298,9 +8324,71 @@
         "title": "Links",
         "type": "object"
       },
+      "ListedIn": {
+        "additionalProperties": false,
+        "description": "One tool as the server listed it: its name, description (cut by the\ngateway) and the digest of everything the seal covers (description,\ntitle, input and output schemas, annotations).",
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "sha256"
+        ],
+        "title": "ListedIn",
+        "type": "object"
+      },
+      "ListedTool": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "ListedTool",
+        "type": "object"
+      },
       "ListingIn": {
         "additionalProperties": false,
         "properties": {
+          "listing": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ListedIn"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing"
+          },
           "listing_sha256": {
             "pattern": "^[0-9a-f]{64}$",
             "title": "Listing Sha256",
@@ -8310,7 +8398,7 @@
             "items": {
               "type": "string"
             },
-            "maxItems": 200,
+            "maxItems": 500,
             "title": "Tools",
             "type": "array"
           }
@@ -8406,6 +8494,13 @@
             "title": "Ms",
             "type": "integer"
           },
+          "requests": {
+            "default": 1,
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Requests",
+            "type": "integer"
+          },
           "status": {
             "anyOf": [
               {
@@ -8454,6 +8549,18 @@
             "maxItems": 200,
             "title": "Entries",
             "type": "array"
+          },
+          "reservation": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation"
           },
           "tool": {
             "maxLength": 40,
@@ -8592,7 +8699,7 @@
             "anyOf": [
               {
                 "items": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ListedTool"
                 },
                 "type": "array"
               },
@@ -12022,6 +12129,18 @@
       "ResolveIn": {
         "additionalProperties": false,
         "properties": {
+          "args": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Args"
+          },
           "args_sha256": {
             "pattern": "^[0-9a-f]{64}$",
             "title": "Args Sha256",
@@ -16121,6 +16240,17 @@
             ],
             "title": "Failed Count"
           },
+          "failing": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failing"
+          },
           "lag_s": {
             "anyOf": [
               {
@@ -16142,6 +16272,17 @@
               }
             ],
             "title": "Last Archived At"
+          },
+          "ready_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready Count"
           }
         },
         "required": [
@@ -20916,8 +21057,10 @@
                   },
                   "wal": {
                     "failed_count": 1,
+                    "failing": false,
                     "lag_s": 1,
-                    "last_archived_at": "x"
+                    "last_archived_at": "x",
+                    "ready_count": 1
                   }
                 },
                 "schema": {
@@ -22631,7 +22774,10 @@
                     "budget_change",
                     "evaluation",
                     "code_session",
-                    "lesson_adoption"
+                    "errand_action",
+                    "lesson_adoption",
+                    "protocol",
+                    "tool_enable"
                   ],
                   "type": "string"
                 },
@@ -22993,7 +23139,7 @@
     },
     "/api/v1/decisions/{ref}/approve": {
       "post": {
-        "description": "🔏 for A3, `hire`, `dismissal` and `budget_change` (step-up action\n`decision.approve`, target = the ref). Creates the resolution (M-…), tells\nthe proposer, and hands the effect to the worker. Requires `Idempotency-Key`.",
+        "description": "🔏 for A3, `hire`, `dismissal`, `budget_change`, `code_session` and\n`tool_enable` (step-up action `decision.approve`, target = the ref; a\n`tool_enable` card whose server changed since is superseded: 409\ndecision_not_pending). Creates the resolution (M-…), tells\nthe proposer, and hands the effect to the worker. Requires `Idempotency-Key`.",
         "operationId": "approve_decision",
         "parameters": [
           {
@@ -36206,7 +36352,7 @@
         ]
       },
       "post": {
-        "description": "Adds an account, or changes one with the same key. Metadata and policy\nonly: the owner writes the secret on the server (`make account-secret`).\nRequires `Idempotency-Key`.",
+        "description": "🔏 (`account.put`, target = SHA-256 of the exact body; 7.1 §2.14): a new\nsite, allow rule or port widens what a stored secret can do. Adds an\naccount, or changes one with the same key. Metadata and policy only: the\nowner writes the secret on the server (`make account-secret`). Requires\n`Idempotency-Key` (claimed before the seal: a replay answers the same).",
         "operationId": "put_account",
         "requestBody": {
           "content": {
@@ -36348,7 +36494,7 @@
     },
     "/api/v1/tools/catalog": {
       "get": {
-        "description": "Every tool the agents may be given (agents/tools.md, and each sealed\nMCP tool): class (`A0/A2` = decided per call; `per tool` = the server's\nregistration), the roles whose charters grant it, and its status in this\nbuild (`live`, `off`, `channel_not_configured`, `pending`).",
+        "description": "Every tool the agents may be given (agents/tools.md, and each sealed\nMCP tool): class (`A0/A2` = decided per call; `per tool` = the server's\nregistration), the roles whose charters grant it, and its status in this\nbuild (`live`, `off`, `channel_not_configured`, `pending`). A `container`\nserver's tools are `channel_not_configured`: not runnable yet.",
         "operationId": "tool_catalog",
         "responses": {
           "200": {
@@ -36462,7 +36608,10 @@
                     "key": "x",
                     "listed_at": "2026-10-17T05:42:00Z",
                     "listed_tools": [
-                      "x"
+                      {
+                        "description": "x",
+                        "name": "report.pdf"
+                      }
                     ],
                     "status": "pending",
                     "status_reason": "x",
@@ -36552,7 +36701,7 @@
         ]
       },
       "post": {
-        "description": "🔏 (`mcp.add`, target = SHA-256 of the exact body). Registers a server,\nor a new version of it: its transport (`http` through the egress proxy;\n`container` on the internal network hq-mcp), the tools with their class\nand the companies that may call it. Pending until `/enable`. The secret is\nwritten on the server (`make mcp-secret KEY=…`), never through the API.",
+        "description": "🔏 (`mcp.add`, target = SHA-256 of the exact body). Registers a server,\nor a new version of it: its transport (`http` through the egress proxy;\n`container` on the internal network hq-mcp, not runnable yet), the tools\nwith their class and the companies that may call it. Pending until\n`/enable`; the same body again changes nothing. Another host voids the\nstored secret (`has_secret` false until it is written again). The secret\nis written on the server (`make mcp-secret KEY=…`), never through the API.\nRequires `Idempotency-Key`.",
         "operationId": "add_mcp",
         "requestBody": {
           "content": {
@@ -36595,7 +36744,10 @@
                   "key": "x",
                   "listed_at": "2026-10-17T05:42:00Z",
                   "listed_tools": [
-                    "x"
+                    {
+                      "description": "x",
+                      "name": "report.pdf"
+                    }
                   ],
                   "status": "pending",
                   "status_reason": "x",
@@ -36682,7 +36834,7 @@
     },
     "/api/v1/tools/mcp/{key}/disable": {
       "post": {
-        "description": "Switches a server off at once (no step-up: stopping is always allowed).",
+        "description": "Switches a server off at once (no step-up: stopping is always allowed);\na pending `tool_enable` card of it is withdrawn. Requires `Idempotency-Key`.",
         "operationId": "disable_mcp",
         "parameters": [
           {
@@ -36710,7 +36862,10 @@
                   "key": "x",
                   "listed_at": "2026-10-17T05:42:00Z",
                   "listed_tools": [
-                    "x"
+                    {
+                      "description": "x",
+                      "name": "report.pdf"
+                    }
                   ],
                   "status": "pending",
                   "status_reason": "x",
@@ -36797,7 +36952,7 @@
     },
     "/api/v1/tools/mcp/{key}/enable": {
       "post": {
-        "description": "🔏 (`mcp.enable`, target = the key). The gateway pins the server's tool\nlisting on its next call; a later change switches it off again.",
+        "description": "🔏 (`mcp.enable`, target = the key). The gateway pins the server's tool\nlisting on its next call; a later change switches it off again. A\n`container` server is not runnable yet: 409 not_ready (its status_reason\nsays why). Requires `Idempotency-Key`.",
         "operationId": "enable_mcp",
         "parameters": [
           {
@@ -36825,7 +36980,10 @@
                   "key": "x",
                   "listed_at": "2026-10-17T05:42:00Z",
                   "listed_tools": [
-                    "x"
+                    {
+                      "description": "x",
+                      "name": "report.pdf"
+                    }
                   ],
                   "status": "pending",
                   "status_reason": "x",
@@ -37038,6 +37196,17 @@
             },
             "description": "Problem"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -37082,36 +37251,40 @@
             }
           },
           {
+            "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
             "in": "query",
             "name": "from",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "format": "date-time",
+                  "maxLength": 40,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
+              "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
               "title": "From"
             }
           },
           {
+            "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
             "in": "query",
             "name": "to",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "format": "date-time",
+                  "maxLength": 40,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
+              "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
               "title": "To"
             }
           },
@@ -37668,36 +37841,40 @@
             }
           },
           {
+            "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
             "in": "query",
             "name": "from",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "format": "date-time",
+                  "maxLength": 40,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
+              "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
               "title": "From"
             }
           },
           {
+            "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
             "in": "query",
             "name": "to",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "format": "date-time",
+                  "maxLength": 40,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
+              "description": "A date (YYYY-MM-DD: that day in the owner's time zone; `to` counts its own day) or an ISO date-time (without a zone: the owner's time zone).",
               "title": "To"
             }
           },
@@ -40470,7 +40647,7 @@
     },
     "/api/v1/workshop/sessions/{ref}/live": {
       "get": {
-        "description": "SSE of `SessionEvent` (`event:` = its type, `id:` = its seq); resumes after\n`Last-Event-ID`. Ends after the session's last event once it is finished; a\ncomment line every 15 s keeps the connection open meanwhile.",
+        "description": "SSE of `SessionEvent` (`event:` = its type, `id:` = its seq); resumes after\n`Last-Event-ID`, or after `?after` (a seq, like the events list) when the\nclient cannot set that header (06.1 §3); the header wins when both come.\nEnds after the session's last event once it is finished; a comment line\nevery 15 s keeps the connection open meanwhile.",
         "operationId": "session_live",
         "parameters": [
           {
@@ -40480,6 +40657,24 @@
             "schema": {
               "title": "Ref",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2147483647,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
             }
           },
           {
@@ -41911,8 +42106,10 @@
                   },
                   "wal": {
                     "failed_count": 1,
+                    "failing": false,
                     "lag_s": 1,
-                    "last_archived_at": "x"
+                    "last_archived_at": "x",
+                    "ready_count": 1
                   }
                 },
                 "schema": {
@@ -43159,10 +43356,12 @@
                     "kind": "request",
                     "method": "x",
                     "ms": 0,
+                    "requests": 1,
                     "status": 100,
                     "tool": "x"
                   }
                 ],
+                "reservation": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                 "tool": "x"
               },
               "schema": {
@@ -43442,7 +43641,7 @@
     },
     "/internal/v1/egress/reserve": {
       "post": {
-        "description": "Before an agent's request leaves: what it would send, the limits, the\naccount. The answer carries the account's secret for this call only.",
+        "description": "Before an agent's request leaves: what it would send, the limits, the\naccount. The answer carries the account's secret for this call only, and\n`reservation`: the call's row, written now, so a call whose answer is\nlost still counts (its log entries settle it).",
         "operationId": "reserve",
         "requestBody": {
           "content": {
@@ -44031,7 +44230,10 @@
                   "agent": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "duration_s": 1.0,
                   "frames": [
-                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    {
+                      "at_s": 1.0,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    }
                   ],
                   "height": 1,
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -48025,12 +48227,13 @@
     },
     "/internal/v1/tools/mcp/resolve": {
       "post": {
-        "description": "The gateway's question before one mcp.call. Refused: an unknown server\nor tool (always: a tool outside the sealed registration), a company the\nserver is not for, a server not enabled, the caps. An A3 tool never runs:\nan `a3_action` decision for the owner is made (once per run and arguments).",
+        "description": "The gateway's question before one mcp.call. Refused: an unknown server\nor tool (always: a tool outside the sealed registration), a company the\nserver is not for, a server not enabled, the caps (429, Retry-After). An\nA3 tool runs only as the one call of an approved card (same company,\nserver, tool, arguments and registration; sealed in the last 24 hours;\nconsumed atomically, so it runs once); otherwise an `a3_action` card for\nthe owner is made (once: the same pending card is answered again), and a\ncard the owner rejected answers 403 without a new one.",
         "operationId": "resolve_mcp",
         "requestBody": {
           "content": {
             "application/json": {
               "example": {
+                "args": {},
                 "args_sha256": "x",
                 "preview": "x",
                 "server": "x",
@@ -48165,7 +48368,7 @@
     },
     "/internal/v1/tools/mcp/{key}/listing": {
       "post": {
-        "description": "What the server listed on a call. The first listing after an enable is\npinned; any other one switches the server off (`tools changed`) and tells\nthe owner, who seals it again (`POST /tools/mcp`, then `/enable`).",
+        "description": "What the server listed on a call (only from a company the server is\nfor). The first listing after an enable is pinned. Any other one switches\nthe server off (`tools changed`) and raises a `tool_enable` card in the\nholding's cartable (`{key, listing_sha256, diff}`); its seal re-enables the\nserver with exactly that listing. A listing that differs again before the\nseal supersedes the card (withdrawn) and raises a new one.",
         "operationId": "mcp_listing",
         "parameters": [
           {
@@ -48182,6 +48385,13 @@
           "content": {
             "application/json": {
               "example": {
+                "listing": [
+                  {
+                    "description": "x",
+                    "name": "report.pdf",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a"
+                  }
+                ],
                 "listing_sha256": "x",
                 "tools": [
                   "x"
@@ -49715,7 +49925,7 @@
     },
     "/internal/v1/workshop/sessions": {
       "get": {
-        "description": "An agent's company's sessions (`mine`: the ones it drives), newest first, 50.",
+        "description": "An agent's company's sessions (`mine`: the ones it drives), newest first, 50;\nnever another company's, whatever the agent's charter scope.",
         "operationId": "agent_list_sessions",
         "parameters": [
           {

@@ -14,7 +14,7 @@ Classes (OPERATING_MODEL §1.12): **A0** observe · **A1** propose/draft · **A2
 | `knowledge.search` | A0 | `{q, kinds?}` | Search what the role may read. `kinds`: `resolutions`, `deliverables`, `decisions`, `work`; `messages` for the advisor only. Returns refs + short snippets. |
 | `audit.recent` | A0 | `{company?, action?, since?}` | Recent audit rows (metadata only). Oversight roles and the advisor. |
 | `memory.read` | A0 | `{}` | The employee's own memory notes (latest first). |
-| `github.read` | A0 | `{repo, what: "commits"/"issues"/"pulls"/"file", path?}` | Read-only GitHub. **Off** until the owner provides a read-only token (`channel_not_configured`). |
+| `github.read` | A0 | `{repo, what: "commits"/"issues"/"pulls"/"file", path?}` | Read-only GitHub through the hub's own git access (owner decision 2026-10-17: no separate token; prompt 12). Until then, and for a repository the hub cannot read, `channel_not_configured`. |
 | `deliver` | A1 | `{work_ref, title_fa, body_md, evidence: [{kind, ref, note}]}` | Creates a deliverable (output card) for the owner or the requester. Evidence `kind` is exactly one of `deliverable` (an `O-…`), `link` (a URL or a work/decision ref), `metric` (a named measurement and its value) or `log` (an audit, run or check record); anything else is refused. |
 | `propose` | A1 | `{kind, title_fa, what_md, why_md, risk, reversible, quota_estimate, payload}` | Creates a decision card (contract §5.1 kinds). The only path to anything A3, to hiring, and to recurring work. The `payload` shape of each kind is the API's own model, which the runtime puts in the prompt; a `hire` payload names the charter `role` (an `employee` charter that fits the company and department, contract §16.6). While hiring is closed a `hire` answers `403 hiring_closed` and no card is made (§18.11). |
 | `hire.decide` | A2 | `{ref, verdict: approve/reject/return, note}` | ⟨1.4.3⟩ CEO only, own company, only hire cards whose approver is this CEO (hiring `delegated`, contract §18.11). The system checks the charter, the model, the estimate and the envelope before an employee exists; a refusal (`envelope_exceeded`, `validation_failed`) is reported as refused. |
@@ -44,6 +44,15 @@ The runtime adds `done` (finish the run) implicitly; there is no other way to en
 
 **Egress guard:** loopback, link-local, RFC 1918 (the hub's private network and its production neighbours), cloud metadata, the hub's
 internal names and `/internal` are unreachable. Service-account credentials are injected at egress; no model sees them.
+
+**Refusals you will see** (contract §14, §18.13) — each is a reason to change course, never to retry the same call:
+- `needs_owner` — the step would commit the holding outside (pay, buy, publish, message a person, sign up, change security). `propose` it.
+- `internal_data` — your query or call carries internal data (codes, refs, e-mails, phones, tokens), however encoded. Rewrite it without them.
+- `egress_limit` — the run's or the company's daily internet limit is spent. Stop and report; do not split the work to get round it.
+- `account_not_configured` — the service account has no secret yet; tell your manager.
+- `mcp.call` outcomes: `a3_requires_decision` (the tool is A3: a card went to the owner; when it is approved, the follow-up run makes the **same**
+  call once), `mcp_tools_changed` (the server changed its tools and is off until the owner seals it again), `mcp_tool_missing`, `mcp_unreachable`,
+  `mcp_tool_error`.
 
 ### Files, code and the workshop
 | Tool | Class | Input | What it does |

@@ -298,7 +298,7 @@ fun SessionScreen(ref: String) {
                             Text(actorFa(s.driver), style = Divan.type.caption, color = c.textSecondary)
                         }
                         Fig("${modelLabel(s.model)} · ${s.effort}", style = Divan.type.figureSmall, color = c.textSecondary)
-                        Text(if (s.runtime == "managed") "Managed Agents" else "میزبانی خودمان", style = Divan.type.caption, color = c.textSecondary)
+                        Text(when (s.runtime) { "subscription" -> "اشتراک Claude، روی هاب"; "managed" -> "Managed Agents"; else -> "میزبانی خودمان" }, style = Divan.type.caption, color = c.textSecondary)
                         Fig(usd(s.usage.usd) + (grant?.let { " / " + usd(it.budgetUsd, 0) } ?: ""), style = Divan.type.figureSmall, color = c.textSecondary)
                     }
                     grant?.let {

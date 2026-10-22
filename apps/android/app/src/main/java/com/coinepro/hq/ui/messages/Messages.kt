@@ -106,9 +106,39 @@ fun ThreadsScreen() {
     val c = Divan.colors
     val q = rememberQuery("threads", "threads") { threads() }
     val r = refresher(q)
+    var text by rememberSaveable { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
+    LaunchedEffect(text) { kotlinx.coroutines.delay(300); query = text.trim() }
+    val hits = if (query.length >= 2) rememberQuery("search:messages:$query", "messages", maxAgeMs = 30_000) { searchMessages(query) } else null
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item { PageHeader("پیام‌ها", eyebrow = "گفت‌وگو با مشاور، مدیرعامل‌ها و مدیرها") }
+        item { com.coinepro.hq.designsystem.HqTextField(text, { text = it }, "جستجو در همه‌ی پیام‌ها", Modifier.fillMaxWidth(), maxLength = 200) }
         val list = q.data
+        if (hits != null) {
+            val found = hits.data?.items
+            when {
+                found == null && hits.error != null -> item { ErrorBlock(hits.error, { hits.refresh() }) }
+                found == null -> items(3) { Skeleton(Modifier.fillMaxWidth().height(64.dp)) }
+                found.isEmpty() -> item { Text("در پیام‌ها پیدا نشد.", style = Divan.type.caption, color = c.textMuted) }
+                else -> items(found, key = { it.id }) { h ->
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.card).clickable(role = Role.Button) {
+                            val t = list?.firstOrNull { it.code == h.thread }
+                            nav.go(when (t?.kind) { "advisor" -> "advisor"; "overseer" -> "oversight/chat"; "assistant" -> "assistant"; else -> "messages/${h.thread}" })
+                        }.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(h.body.replace(Regex("[*_`#>]"), ""), style = Divan.type.small, color = c.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(com.coinepro.hq.core.format.actorFa(h.author), style = Divan.type.micro, color = c.textMuted)
+                            Fig(h.ref, style = Divan.type.figureSmall, color = c.textMuted)
+                            Text(com.coinepro.hq.core.format.jDate(h.createdAt), style = Divan.type.micro, color = c.textMuted)
+                        }
+                    }
+                }
+            }
+            return@Page
+        }
         when {
             list == null && q.error == null -> items(4) { Skeleton(Modifier.fillMaxWidth().height(64.dp)) }
             list == null -> item { ErrorBlock(q.error, { q.refresh() }) }
@@ -193,7 +223,7 @@ private suspend fun startLive(scope: CoroutineScope, env: Env, code: String, liv
 }
 
 @Composable
-private fun Bubble(m: Message, agentKind: String) {
+private fun Bubble(m: Message, agentKind: String, onResolve: (Message) -> Unit) {
     val nav = LocalNav.current
     val c = Divan.colors
     val mine = m.author.kind == "owner"
@@ -220,11 +250,12 @@ private fun Bubble(m: Message, agentKind: String) {
                 for ((k, v) in m.links) {
                     val ref = (v as? JsonPrimitive)?.contentOrNull ?: continue
                     val route = when (k) {
-                        "decision" -> "cartable/$ref"; "work" -> "work/$ref"; "resolution" -> "audit"; "errand" -> "assistant"; "teaching" -> "academy"
+                        "decision" -> "cartable/$ref"; "work" -> "work/$ref"; "resolution" -> "resolutions"; "errand" -> "assistant"; "teaching" -> "academy"
                         "inquiry" -> "advisor"; "finding" -> "oversight"; "session" -> "workshop/$ref"; else -> null
                     }
                     Fig(ref, Modifier.clip(CircleShape).background(c.tile).clickable(enabled = route != null) { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.figureSmall, color = c.goldInk)
                 }
+                if (m.body.isNotBlank()) Text("مصوبه", style = Divan.type.micro, color = c.textSecondary, modifier = Modifier.clip(CircleShape).clickable(onClickLabel = "این پیام را به‌عنوان مصوبه ثبت کن") { onResolve(m) }.padding(horizontal = 8.dp, vertical = 2.dp))
             }
         }
     }
@@ -244,6 +275,7 @@ fun ChatScreen(code: String, advisor: Boolean = false, agent: String? = null, he
     val agentKind = if (advisor) "advisor" else agent ?: avatarKind(thread?.kind ?: "employee")
     val who = COUNTERPARTS[agentKind]
     val live = remember(code) { LiveReply() }
+    var resolve by remember { mutableStateOf<Message?>(null) }
     val list = rememberLazyListState()
     val items = q.data?.items.orEmpty()
     val lastRef = items.lastOrNull()?.ref
@@ -283,7 +315,7 @@ fun ChatScreen(code: String, advisor: Boolean = false, agent: String? = null, he
                 q.data == null && q.error == null -> items(3) { i -> Skeleton(Modifier.fillMaxWidth(if (i % 2 == 0) 0.75f else 0.6f).height(72.dp), radius = 16.dp) }
                 q.data == null -> item { ErrorBlock(q.error, { q.refresh() }) }
                 items.isEmpty() && live.state == LiveState.IDLE -> item { Empty("گفت‌وگو هنوز شروع نشده", icon = DivanIcon.MESSAGES, body = "هر پیام شناسه‌ی ثابت دارد و برای همیشه میماند؛ بعداً میتوانی به آن استناد کنی.") }
-                else -> items(items, key = { it.id }) { m -> Bubble(m, agentKind) }
+                else -> items(items, key = { it.id }) { m -> Bubble(m, agentKind) { resolve = it } }
             }
             if (live.state != LiveState.IDLE) item {
                 Row {
@@ -310,4 +342,5 @@ fun ChatScreen(code: String, advisor: Boolean = false, agent: String? = null, he
         }
         Composer(if (advisor) "از مشاور بپرس…" else who?.placeholder ?: "پیام…", { b, a -> send(b, a) }, Modifier.padding(12.dp), draftKey = "chat:$code")
     }
+    resolve?.let { m -> com.coinepro.hq.ui.owner.RecordResolutionSheet(m.ref, m.body) { resolve = null } }
 }

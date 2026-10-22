@@ -8,6 +8,7 @@ import { Avatar, Orb } from '@/components/brand/avatar';
 import { MessageMedia } from '@/components/media/attachments';
 import { Composer } from '@/components/media/composer';
 import { Md } from '@/components/ui/md';
+import { RecordResolution } from '@/components/v15/record-resolution';
 import { Empty, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, isMock, type Schemas } from '@/lib/api/client';
@@ -18,14 +19,14 @@ import { cx, jDateTime, jTime } from '@/lib/format';
 type Msg = Schemas['Message'];
 
 const LINKS: Record<string, (ref: string) => string> = {
-  decision: (r) => `/cartable?ref=${r}`, work: (r) => `/work/${r}`, resolution: () => '/audit',
+  decision: (r) => `/cartable?ref=${r}`, work: (r) => `/work/${r}`, resolution: () => '/resolutions',
   errand: () => '/assistant', teaching: () => '/academy', inquiry: () => '/advisor', finding: () => '/oversight', session: (r) => `/workshop/${r}`,
 };
 function linkHref(kind: string, ref: string) {
   return LINKS[kind]?.(ref) ?? '#';
 }
 
-function Bubble({ m, agentKind }: { m: Msg; agentKind: string }) {
+function Bubble({ m, agentKind, onResolve }: { m: Msg; agentKind: string; onResolve: (m: Msg) => void }) {
   const mine = m.author.kind === 'owner';
   const links = Object.entries((m.links ?? {}) as Record<string, string | null>).filter(([, v]) => v);
   // ⟨1.3⟩ attachments carry kind, variants and transcript; the generated FileRef is still the 1.2 shape.
@@ -48,6 +49,7 @@ function Bubble({ m, agentKind }: { m: Msg; agentKind: string }) {
           {links.map(([k, v]) => (
             <Link key={k} href={linkHref(k, v!)} className="fig rounded-full bg-tile px-2 py-0.5 text-gold-ink hover:bg-hover">{v}</Link>
           ))}
+          {m.body.trim() ? <button type="button" onClick={() => onResolve(m)} className="rounded-full px-2 py-0.5 text-sec hover:bg-hover hover:text-ink" title="این پیام را به‌عنوان مصوبه ثبت کن">مصوبه</button> : null}
         </div>
       </div>
     </div>
@@ -99,6 +101,7 @@ export function Chat({ code, agentKind, placeholder, suggestions }: { code: stri
   const { mutate: markRead } = useMarkRead(code);
   const toast = useToast();
   const { live, start } = useLiveReply(code);
+  const [resolve, setResolve] = useState<Msg | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const items = useMemo(() => q.data?.items ?? [], [q.data]);
   const last = items.at(-1)?.ref;
@@ -124,7 +127,7 @@ export function Chat({ code, agentKind, placeholder, suggestions }: { code: stri
           : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
           : !items.length && live.state === 'idle' ? (
             <Empty icon="messages" title="گفت‌وگو هنوز شروع نشده" body="هر پیام شناسه‌ی ثابت دارد و برای همیشه میماند؛ بعداً میتوانی به آن استناد کنی." />
-          ) : items.map((m) => <Bubble key={m.id} m={m} agentKind={agentKind} />)}
+          ) : items.map((m) => <Bubble key={m.id} m={m} agentKind={agentKind} onResolve={setResolve} />)}
         {live.state !== 'idle' ? (
           <div className="flex gap-3">
             <span className="mt-1">{agentKind === 'advisor' ? <Orb size={32} state={live.state === 'thinking' ? 'thinking' : 'speaking'} /> : <Avatar kind={agentKind} size={32} state="working" />}</span>
@@ -143,6 +146,7 @@ export function Chat({ code, agentKind, placeholder, suggestions }: { code: stri
         </div>
       ) : null}
       <Composer placeholder={placeholder} onSend={submit} sending={send.isPending} />
+      {resolve ? <RecordResolution source={{ ref: resolve.ref, body: resolve.body }} onClose={() => setResolve(null)} /> : null}
     </div>
   );
 }

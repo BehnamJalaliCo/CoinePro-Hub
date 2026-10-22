@@ -1,17 +1,20 @@
 """Holding service accounts at egress (prompt 07 §2.5).
 
 The secret reaches egress inside one call (from the api, through the gateway)
-and is put on the request at send time, for the account's own host only. It
-is never in a result: every outgoing value is scrubbed of it (as written,
-percent-encoded and base64), and a browser screenshot masks the fields it was
-typed into.
+and is put on the request at send time, for the account's own host only and
+over https only. It is never in a result: every outgoing value is scrubbed of
+it (as written, percent-encoded, base64 with or without padding, and the
+Basic pair `base64("user:secret")`) BEFORE any text is cut (7.1), a file that
+holds it is dropped, and a browser screenshot masks the fields it was typed
+into. An extra port of the account's policy opens for its own site only.
 """
 
 from __future__ import annotations
 
 import base64
+import posixpath
 from typing import Any, Literal
-from urllib.parse import quote, quote_plus
+from urllib.parse import quote, quote_plus, unquote, urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -38,6 +41,14 @@ class BrowseLogin(BaseModel):
     submit_selector: str | None = Field(default=None, max_length=200)
 
 
+class AllowRule(BaseModel):
+    """A call other than GET/HEAD the owner listed as non-committing."""
+
+    model_config = ConfigDict(extra="forbid")
+    methods: list[str] = Field(default_factory=list, max_length=5)
+    path_prefix: str = Field(default="", max_length=500)
+
+
 class Account(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]{1,40}$")
@@ -46,13 +57,53 @@ class Account(BaseModel):
     inject: Inject = Field(default_factory=Inject)
     browse: BrowseLogin | None = None
     ports: list[int] = Field(default_factory=list, max_length=5)
+    allow: list[AllowRule] = Field(default_factory=list, max_length=50)
 
     def covers(self, host: str) -> bool:
         site = self.site.lower().rstrip(".")
+        host = host.lower().rstrip(".")
         return host == site or host.endswith("." + site)
 
-    def headers_for(self, host: str, headers: dict[str, str]) -> dict[str, str]:
-        if not self.covers(host):
+    def ports_for(self, host: str) -> tuple[int, ...]:
+        """The policy's extra ports: for the account's own site only (7.1),
+        never for a host a redirect or a page sends the call to."""
+        return tuple(self.ports) if self.covers(host) else ()
+
+    def secrets(self) -> list[str]:
+        """What a result must never hold: the secret, and the `user:secret`
+        pair a Basic header carries (its base64 is a form of it, 7.1)."""
+        users = {self.browse.username if self.browse else None}
+        if self.inject.kind == "basic":
+            users.add(self.inject.username or "")
+        pairs = [f"{u}:{self.secret}" for u in sorted(u for u in users if u is not None)]
+        return [self.secret, *pairs]
+
+    def allows(self, method: str, url: str) -> bool:
+        """A GET/HEAD, or a call the owner listed (method, path prefix) on the
+        account's own site: what web.browse may send while signed in."""
+        method = method.upper()
+        if method in ("GET", "HEAD"):
+            return True
+        try:
+            parts = urlsplit(url)
+        except ValueError:
+            return False
+        if not self.covers((parts.hostname or "").lower().rstrip(".")):
+            return False
+        path = clean_path(parts.path or "/")
+        return path is not None and any(
+            method in (m.upper() for m in r.methods)
+            and r.path_prefix.startswith("/")
+            and path.startswith(r.path_prefix)
+            for r in self.allow
+        )
+
+    def headers_for(
+        self, host: str, headers: dict[str, str], scheme: str = "https"
+    ) -> dict[str, str]:
+        """`headers` with the credential: for the account's own host, over
+        https only (never in clear text, whatever the policy says; 7.1)."""
+        if scheme != "https" or not self.covers(host):
             return headers
         out = dict(headers)
         i = self.inject
@@ -68,23 +119,73 @@ class Account(BaseModel):
         return out
 
 
+def clean_path(raw: str) -> str | None:
+    """The path as the server will see it, or None when it can be read two
+    ways: a dot segment, an encoded dot, slash or backslash (at any depth of
+    percent-encoding), a backslash or an empty segment
+    (`/api/search/../../v1/charges` is sent as `/v1/charges`)."""
+    path = raw
+    for _ in range(5):
+        low = path.lower()
+        if any(x in low for x in ("%2e", "%2f", "%5c", "\\", "//")):
+            return None
+        if any(seg in (".", "..") for seg in path.split("/")):
+            return None
+        once = unquote(path)
+        if once == path:
+            break
+        path = once
+    else:
+        return None
+    if posixpath.normpath(path) not in (path, path.rstrip("/")):
+        return None
+    return unquote(raw)
+
+
 def variants(secret: str) -> list[str]:
-    """The forms a secret can take in a page or a header (longest first)."""
-    forms = {
-        secret,
-        quote(secret, safe=""),
-        quote_plus(secret),
-        base64.b64encode(secret.encode()).decode(),
-    }
+    """The forms a secret can take in a page or a header (longest first):
+    as written, percent-encoded, and base64 (standard and URL-safe, with and
+    without its padding)."""
+    raw = secret.encode()
+    b64 = base64.b64encode(raw).decode()
+    url64 = base64.urlsafe_b64encode(raw).decode()
+    forms = {secret, quote(secret, safe=""), quote_plus(secret), b64, b64.rstrip("="), url64,
+             url64.rstrip("=")}  # fmt: skip
     return sorted((f for f in forms if len(f) >= 4), key=len, reverse=True)
+
+
+def forms_of(secrets: list[str]) -> list[str]:
+    """Every form of every secret, longest first (a longer one may hold a shorter)."""
+    return sorted({f for s in secrets for f in variants(s)}, key=len, reverse=True)
+
+
+def margin(secrets: list[str]) -> int:
+    """How far past a cut a form of a secret can reach. Text is read this much
+    longer, scrubbed, and only then cut: a secret cut in half by the cut would
+    no longer match, and its first half would go out (7.1)."""
+    return max((len(f) for f in forms_of(secrets)), default=0)
 
 
 def scrub(value: Any, secrets: list[str]) -> Any:
     """`value` with every form of every secret replaced (deep, any JSON value)."""
     if not secrets:
         return value
-    forms = [f for s in secrets for f in variants(s)]
-    return _scrub(value, forms)
+    return _scrub(value, forms_of(secrets))
+
+
+def scrub_cut(text: str, secrets: list[str], limit: int) -> tuple[str, bool]:
+    """`text` scrubbed, THEN cut to `limit` characters; (text, cut)."""
+    clean = scrub(text, secrets)
+    return clean[:limit], len(clean) > limit
+
+
+def holds_secret(data: bytes, secrets: list[str]) -> bool:
+    """Whether a file's bytes hold a form of a secret (as UTF-8, or as the
+    UTF-16 an office file or a PDF may store text in): such a file is
+    dropped, never passed on (7.1)."""
+    if not secrets or not data:
+        return False
+    return any(f.encode() in data or f.encode("utf-16-le") in data for f in forms_of(secrets))
 
 
 def _scrub(value: Any, forms: list[str]) -> Any:

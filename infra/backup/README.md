@@ -5,17 +5,20 @@
   - `manifest.json` و `SHA256SUMS`
   - مقصد: `/home/Hub/backups/<زمان UTC>/`
 - `hourly.sh` (`make backup-hourly`، پرامپت ۷): backup ساعتی رمزنگاری‌شده با restic، با `coinepro-hq-backup-hourly.timer`:
-  - مجموعه‌ی dumpها، آرشیو WAL، فایل‌های api و لنگرها
+  - مجموعه‌ی dumpها (`pg_dump -Fc -Z0`؛ restic خودش فشرده میکند)، آرشیو WAL، فایل‌های api و لنگرها
   - مقصد: مخزن محلی، بعد Google Drive، و اگر روشن باشد Hetzner
-  - base backup روزانه‌ی WAL-G
-- `pitr.sh` (`make pitr-test at=...`): بازیابی تا یک لحظه، در یک Postgres موقت و بدون شبکه.
+  - base backup روزانه‌ی WAL-G (روز تقویمی UTC، ۹ عدد)، و علامت پایان PITR پیش از هر snapshot
+  - `status/hourly.json` برای worker، و `hq_backup.prom` برای dead-man's switch در Prometheus
+- `pitr.sh` (`make pitr-test at=...`): بازیابی تا یک لحظه، در یک Postgres موقت و بدون شبکه. شکست فقط وقتی replay بایستد (۱۲۰ ثانیه) یا از ۴۵ دقیقه بگذرد.
 - `restore-test.sh` (`make restore-test`): آخرین مجموعه را در یک Postgres موقت و بدون شبکه بازیابی و چک میکند، بعد کانتینر را پاک میکند.
 - `restore-weekly.sh` (`make restore-weekly`): تست هفتگی، یکشنبه ۰۶:۰۰ تهران:
   - آخرین snapshot بازیابی میشود.
   - همه‌ی بررسی‌های `restore-test.sh` روی آن اجرا میشود.
   - sha256 فایل‌ها چک میشود.
   - PITR به یک لحظه‌ی تصادفی در ۲۴ ساعت گذشته انجام میشود.
-- `gdrive-auth.sh` (`make gdrive-auth`) و `show-password.sh` (`make backup-password`): فقط در ترمینال خود مالک.
-- `restic-lib.sh`: بخش مشترک. رمزها فقط برای همان اجرا در یک پوشه‌ی tmpfs میمانند و هرگز در argv یا env نمیروند.
+  - یک اجرا در هر لحظه (`flock` پیش از trap)، `--retry-lock 30m`، و مقایسه‌ی اندازه‌ی بازیابی با جای دیسک.
+- `gdrive-auth.sh` (`make gdrive-auth`) و `show-password.sh` (`make backup-password`): فقط در ترمینال خود مالک. client اختصاصی مالک هم با scope ‏`drive.file`.
+- `restic-lib.sh`: بخش مشترک. رمزها فقط برای همان اجرا در `RuntimeDirectory=` همان unit (tmpfs) میمانند و هرگز در argv یا env نمیروند. فقط پاسخ 404 ‏OpenBao یعنی «پیکربندی نشده».
+- رمز restic را `infra/openbao/restic-password.sh` (از `make up`) فقط یک بار و با KV check-and-set میسازد.
 - `offsite.sh`: Hetzner حالا یک مخزن restic دوم است، به‌جای کپی خام. با `HQ_BACKUP_S3_ENABLED=true` روشن میشود.
 - جزئیات: `docs/ops/RUNBOOK.md` §۱۸.

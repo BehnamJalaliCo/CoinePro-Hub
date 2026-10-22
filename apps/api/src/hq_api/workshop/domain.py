@@ -13,10 +13,13 @@ outside any transaction).
               masked (rule 7); the full transcript goes to file storage
   approvals   push, PR and commands outside the allow-list wait for the owner
 
-Enforced here: a session only under a live grant and by its driver; the
-session's USD cap (rule 4); a kill switch or deploy freeze of the company
-pauses its sessions and refuses new ones (5); one writing session per area
-of a repository, the others wait (6); every change audited (7).
+Enforced here: a session only under a live grant and by its driver, an
+agent of the grant's own company (never the advisor for another company);
+the session's USD cap (rule 4); a kill switch or deploy freeze of the company
+pauses its sessions and refuses new ones (5), and a queued session never
+starts under one, nor after its grant expired (06.1 §2); one writing session
+per area of a repository, the others wait (6); one approval per runtime ask,
+however often the runtime reports it; every change audited (7).
 """
 
 from __future__ import annotations
@@ -50,10 +53,10 @@ ACTIVE = ("starting", "working", "waiting_approval", "idle")
 DATA_KEYS: dict[str, tuple[str, ...]] = {
     "message": ("chars", "attachments"),
     "progress": ("step",),
-    "command": ("cmd", "exit_code"),
+    "command": ("cmd", "exit_code", "duration_s"),
     "file_change": ("path", "added", "removed"),
     "approval_request": ("approval_id", "action", "detail"),
-    "approval_result": ("approval_id", "action", "allowed", "note"),
+    "approval_result": ("approval_id", "action", "allow", "note"),
     "state": ("state", "held", "reason"),
     "error": ("code", "cmd"),
 }
@@ -156,22 +159,30 @@ WORKSPACE_SQL = """
     SELECT w.*, c.code AS company
     FROM workshop.workspaces w JOIN core.companies c ON c.id = w.company_id
 """
+# An agent's display_fa is its employee title (06.1 §2), not null ("you").
 GRANT_SQL = """
-    SELECT g.*, w.code AS workspace, d.ref AS decision_ref
+    SELECT g.*, w.code AS workspace, d.ref AS decision_ref, de.title_fa AS driver_title_fa
     FROM workshop.grants g JOIN workshop.workspaces w ON w.id = g.workspace_id
     LEFT JOIN cartable.decisions d ON d.id = g.decision_id
+    LEFT JOIN core.employees de ON g.driver_kind = 'agent' AND de.code = g.driver_code
 """
 SESSION_SQL = """
     SELECT s.*, w.code AS workspace, w.repo, w.default_branch, w.policy, c.code AS company,
-           g.ref AS grant_ref, g.actions, g.budget_usd
+           g.ref AS grant_ref, g.actions, g.budget_usd, g.expires_at AS grant_expires_at,
+           g.revoked_at AS grant_revoked_at,
+           de.title_fa AS driver_title_fa, oe.title_fa AS opened_by_title_fa
     FROM workshop.sessions s JOIN workshop.workspaces w ON w.id = s.workspace_id
     JOIN workshop.grants g ON g.id = s.grant_id JOIN core.companies c ON c.id = s.company_id
+    LEFT JOIN core.employees de ON s.driver_kind = 'agent' AND de.code = s.driver_code
+    LEFT JOIN core.employees oe ON s.opened_by_kind = 'agent' AND oe.code = s.opened_by_code
 """
 
 
-def _actor(kind: str | None, code: str | None) -> Actor:
+def _actor(kind: str | None, code: str | None, title_fa: str | None = None) -> Actor:
     a = actor(kind, code)
     assert a is not None
+    if kind == "agent" and title_fa:
+        a.display_fa = title_fa
     return a
 
 
@@ -198,7 +209,11 @@ def render_grant(r: dict[str, Any]) -> Grant:
         ref=r["ref"],
         workspace=r["workspace"],
         actions=list(r["actions"]),
-        driver=actor(r["driver_kind"], r["driver_code"]),
+        driver=(
+            _actor(r["driver_kind"], r["driver_code"], r.get("driver_title_fa"))
+            if r["driver_kind"]
+            else None
+        ),
         budget_usd=float(r["budget_usd"]),
         expires_at=r["expires_at"],
         granted_by=_actor(r["granted_by_kind"], r["granted_by_code"]),
@@ -215,8 +230,8 @@ def render_session(r: dict[str, Any]) -> CodeSession:
         grant=r["grant_ref"],
         title=r["title"],
         brief=r["brief"],
-        opened_by=_actor(r["opened_by_kind"], r["opened_by_code"]),
-        driver=_actor(r["driver_kind"], r["driver_code"]),
+        opened_by=_actor(r["opened_by_kind"], r["opened_by_code"], r.get("opened_by_title_fa")),
+        driver=_actor(r["driver_kind"], r["driver_code"], r.get("driver_title_fa")),
         runtime=r["runtime"],
         model=r["model"],
         effort=r["effort"],
@@ -538,6 +553,8 @@ async def open_session(
     if who.is_agent:
         if g["driver_kind"] != "agent" or g["driver_code"] != who.code:
             raise ApiError(403, "policy_denied", "only the grant's driver opens a session under it")
+        if who.company_id != g["company_id"]:  # the advisor too: its own company only
+            raise ApiError(403, "policy_denied", "a session of another company")
         # A driver the overseer held opens nothing until the owner decides.
         await oversight.require_not_held(tx, "employee", who.code)
     elif not who.is_owner:
@@ -669,6 +686,16 @@ async def ingest(tx: Tx, session_id: UUID, items: list[RuntimeEvent]) -> dict[st
         return {"session": s, "interrupt": False, "finished": False}
     paused = s["held"] in ("company_locked", "budget")
     for ev in items:
+        if (
+            ev.approval is not None
+            and ev.approval.external_id
+            and await tx.scalar(
+                "SELECT 1 FROM workshop.approvals WHERE session_id = :s AND external_id = :x",
+                s=s["id"],
+                x=ev.approval.external_id,
+            )
+        ):
+            continue  # reported again (a replay after a lost cursor): one approval per ask
         sets: dict[str, Any] = {}
         if ev.usd is not None and Decimal(ev.usd) > Decimal(s["usd"]):
             sets["usd"] = Decimal(ev.usd)
@@ -789,13 +816,83 @@ async def next_in_line(tx: Tx, ws_id: UUID) -> list[dict[str, Any]]:
     )
     released = []
     for w in waiting:
-        if await lock_holder(tx, ws_id, w["area"], exclude=w["id"]) is None:
-            await tx.exec("UPDATE workshop.sessions SET held = NULL WHERE id = :id", id=w["id"])
-            s = await load(tx, w["id"])
-            await append(tx, s, "state", "نوبت این سشن رسید", {"state": "starting"})
-            await emit_state(tx, s)
-            released.append(s)
+        if await lock_holder(tx, ws_id, w["area"], exclude=w["id"]) is not None:
+            continue
+        if not session_grant_alive(w):
+            await finish(tx, w, "stopped", "grant_expired", GRANT_GONE_FA)
+            continue
+        if await tx.scalar("SELECT control.lock_state(:co)", co=w["company_id"]) is not None:
+            continue  # stays in line; it starts when the lock is lifted (resume_unlocked)
+        await tx.exec("UPDATE workshop.sessions SET held = NULL WHERE id = :id", id=w["id"])
+        s = await load(tx, w["id"])
+        await append(tx, s, "state", "نوبت این سشن رسید", {"state": "starting"})
+        await emit_state(tx, s)
+        released.append(s)
     return released
+
+
+GRANT_GONE_FA = "مجوز این سشن منقضی یا لغو شده است؛ سشن شروع نشد"
+
+
+def session_grant_alive(s: dict[str, Any]) -> bool:
+    expires: datetime = s["grant_expires_at"]
+    return s["grant_revoked_at"] is None and expires > datetime.now(UTC)
+
+
+async def may_start(tx: Tx, session_id: UUID) -> tuple[dict[str, Any], str | None]:
+    """Right before a session starts on its runtime (06.1 §2): (the session,
+    None) when it may; else why not, the record already changed: its grant
+    expired or was revoked (stopped), or its company is under a kill switch
+    or a deploy freeze (held company_locked until the lock is lifted)."""
+    s = await load(tx, session_id, lock=True)
+    if s["state"] != "starting" or s["held"]:
+        return s, "not_waiting"
+    if not session_grant_alive(s):
+        return await finish(tx, s, "stopped", "grant_expired", GRANT_GONE_FA), "grant_expired"
+    if await tx.scalar("SELECT control.lock_state(:co)", co=s["company_id"]) is not None:
+        await tx.exec(
+            "UPDATE workshop.sessions SET held = 'company_locked' WHERE id = :id", id=s["id"]
+        )
+        s = await load(tx, s["id"])
+        await append(
+            tx,
+            s,
+            "state",
+            "کلید توقف یا توقف deploy شرکت: سشن شروع نشد و منتظر میماند",
+            {"state": "starting", "held": "company_locked"},
+        )
+        await emit_state(tx, s)
+        return s, "company_locked"
+    return s, None
+
+
+async def resume_unlocked(tx: Tx) -> list[dict[str, Any]]:
+    """Sessions that never reached their runtime and wait for a company lock
+    that is now lifted: back to `starting` (the caller starts them); the
+    queued ones of a workspace whose area is free go too (next_in_line)."""
+    rows = await tx.all(
+        SESSION_SQL
+        + """ WHERE s.held = 'company_locked' AND s.external_id IS NULL
+              AND s.state <> ALL(:final) AND control.lock_state(s.company_id) IS NULL
+              ORDER BY s.created_at""",
+        final=list(FINAL),
+    )
+    out = []
+    for r in rows:
+        await tx.exec(
+            "UPDATE workshop.sessions SET held = NULL, state = 'starting' WHERE id = :id",
+            id=r["id"],
+        )
+        s = await load(tx, r["id"])
+        await append(tx, s, "state", "قفل شرکت برداشته شد؛ سشن شروع میشود", {"state": "starting"})
+        await emit_state(tx, s)
+        out.append(s)
+    for ws in await tx.all(
+        """SELECT DISTINCT workspace_id FROM workshop.sessions
+           WHERE held = 'work_lock' AND state = 'starting'"""
+    ):
+        out += await next_in_line(tx, ws["workspace_id"])
+    return out
 
 
 async def pause_locked(tx: Tx) -> list[dict[str, Any]]:
@@ -873,7 +970,7 @@ async def answer_approval(
         s,
         "approval_result",
         ("اجازه داده شد: " if allow else "رد شد: ") + ap["action"],
-        {"approval_id": ref, "action": ap["action"], "allowed": allow, "note": note},
+        {"approval_id": ref, "action": ap["action"], "allow": allow, "note": note},
         actor=(who.kind, who.code),
     )
     pending = await tx.scalar(

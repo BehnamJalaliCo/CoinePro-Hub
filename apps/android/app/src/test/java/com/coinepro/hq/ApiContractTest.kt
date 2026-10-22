@@ -327,4 +327,92 @@ class ApiContractTest {
         assertEquals(null, com.coinepro.hq.ui.settings.parseMillions("0"))
         assertEquals(null, com.coinepro.hq.ui.settings.parseMillions("x"))
     }
+
+    // ------------------------------------------------------------ ⟨1.4.4⟩ --
+    @Test
+    fun workEditCarriesIfMatchAndOnlyWhatChanged() = runTest {
+        server.enqueue(json(200, """{"id":"w0","ref":"W-000104","company":"FX","title":"t2","status":"in_progress","version":4}"""))
+        val w = com.coinepro.hq.core.net.Work(id = "w0", ref = "W-000104", company = "FX", title = "t", status = "in_progress", version = 3)
+        val out = api.patchWork(w, com.coinepro.hq.core.net.WorkPatch(title = "t2"))
+        val req = server.takeRequest()
+        assertEquals("PATCH", req.method)
+        assertEquals("/api/v1/work/w0", req.url.encodedPath)
+        assertEquals("\"3\"", req.headers["If-Match"])
+        assertEquals("""{"title":"t2"}""", req.body!!.utf8())
+        assertEquals(4, out.version)
+    }
+
+    @Test
+    fun completingWorkSendsEvidenceAndCancellingAReason() = runTest {
+        server.enqueue(json(200, """{"id":"w0","ref":"W-000104","company":"FX","title":"t","status":"done"}"""))
+        api.completeWork("w0", listOf(com.coinepro.hq.core.net.EvidenceIn("deliverable", "O-000031")))
+        val a = server.takeRequest()
+        assertEquals("/api/v1/work/w0/complete", a.url.encodedPath)
+        assertEquals("""{"evidence":[{"kind":"deliverable","ref":"O-000031"}]}""", a.body!!.utf8())
+        server.enqueue(json(200, """{"id":"w0","ref":"W-000104","company":"FX","title":"t","status":"cancelled"}"""))
+        api.cancelWork("w0", "دیگر لازم نیست")
+        assertEquals("""{"reason":"دیگر لازم نیست"}""", server.takeRequest().body!!.utf8())
+    }
+
+    @Test
+    fun dismissalIsSignedOnTheCodeAndCanTransferWork() = runTest {
+        val (a, t, req) = signed("""{"work_returned":2,"transfer_work":"W-000210"}""") { api.dismiss("TY-GROWTH-01", "کم‌کاری", "TY-GROWTH-MGR", it) }
+        assertEquals("employee.dismiss" to "TY-GROWTH-01", a to t)
+        assertEquals("""{"reason":"کم‌کاری","transfer_to":"TY-GROWTH-MGR"}""", req.body!!.utf8())
+    }
+
+    @Test
+    fun notificationSettingsReplaceTheMatrixWithIfMatch() = runTest {
+        server.enqueue(json(200, """{"matrix":{"*":{"report":{"push":false}}},"version":4}"""))
+        val s = com.coinepro.hq.core.net.NotificationSettings(mapOf("*" to mapOf("report" to com.coinepro.hq.core.net.LevelSettings(push = false))), version = 3)
+        assertEquals(4, api.saveNotificationSettings(s).version)
+        val req = server.takeRequest()
+        assertEquals("PUT", req.method)
+        assertEquals("\"3\"", req.headers["If-Match"])
+        assertEquals("""{"matrix":{"*":{"report":{"push":false}}}}""", req.body!!.utf8())
+    }
+
+    @Test
+    fun budgetsAndSitesAreSealedOnTheExactBody() = runTest {
+        server.enqueue(json(200, "[]"))
+        var target = ""
+        api.putBudgets(listOf(com.coinepro.hq.core.net.BudgetRowIn("HQ", "holding", "HQ", "month", 30_000_000L, "600.00"))) { target = it; "su" }
+        val b = server.takeRequest()
+        assertEquals("PUT", b.method)
+        assertEquals(Api.sha256(b.body!!.utf8()), target)
+        assertEquals("su", b.headers["X-Step-Up"])
+        assertEquals("""{"budgets":[{"company":"HQ","scope_type":"holding","scope_ref":"HQ","period":"month","token_limit":30000000,"usd_limit":"600.00"}]}""", b.body!!.utf8())
+        server.enqueue(json(200, "[]"))
+        api.putSites("TY", listOf(com.coinepro.hq.core.net.SiteIn("https://tradeyar.trade-future.ir"))) { target = it; "su2" }
+        val s = server.takeRequest()
+        assertEquals("/api/v1/ops/sites", s.url.encodedPath)
+        assertEquals(Api.sha256(s.body!!.utf8()), target)
+        assertEquals("su2", s.headers["X-Step-Up"])
+    }
+
+    @Test
+    fun connectionEditIsSignedOnItsIdWithIfMatchAndTheKeyIsWriteOnly() = runTest {
+        server.enqueue(json(200, """{"id":"c2","key":"anthropic-api","display_name":"x","kind":"api_key","status":"enabled","version":3}"""))
+        var signedOn = "" to ""
+        val c = com.coinepro.hq.core.net.Connection(id = "c2", key = "anthropic-api", displayName = "x", kind = "api_key", status = "disabled", version = 2)
+        api.patchConnection(c, com.coinepro.hq.core.net.ConnectionPatch(status = "enabled")) { a, t -> signedOn = a to t; "su" }
+        val p = server.takeRequest()
+        assertEquals("connection.update" to "c2", signedOn)
+        assertEquals("PATCH", p.method)
+        assertEquals("\"2\"", p.headers["If-Match"])
+        assertEquals("""{"status":"enabled"}""", p.body!!.utf8())
+        val (a, t, req) = signed("""{"connection":"anthropic-api","stored":true}""") { api.connectionSecret("c2", "sk-test", it) }
+        assertEquals("connection.secret" to "c2", a to t)
+        assertEquals("/api/v1/connections/c2/secret", req.url.encodedPath)
+    }
+
+    @Test
+    fun newCompanyIsSignedOnItsCodeAndFreezesTakeAnUntil() = runTest {
+        val (a, t, req) = signed("""{"id":"co-NW","code":"NW","kind":"company","status":"active","created_at":"2026-10-18T10:00:00Z"}""") { api.createCompany(com.coinepro.hq.core.net.CompanyIn("NW", "تازه", "New"), it) }
+        assertEquals("company.create" to "NW", a to t)
+        assertEquals("""{"code":"NW","name_fa":"تازه","name_en":"New"}""", req.body!!.utf8())
+        server.enqueue(json(200, """{"company":"FX","active":false,"until":"2026-10-18T09:00:00Z"}"""))
+        assertEquals(false, api.deployFreeze("FX", "2026-10-18T09:00:00Z", "برداشته شد").active)
+        assertEquals("/api/v1/control/deploy-freeze", server.takeRequest().url.encodedPath)
+    }
 }

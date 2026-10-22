@@ -87,8 +87,14 @@ fun CompaniesScreen() {
     val c = Divan.colors
     val q = rememberQuery("companies", "companies", maxAgeMs = 30_000) { companies() }
     val r = refresher(q)
+    var adding by rememberSaveable { mutableStateOf(false) }
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
-        item { PageHeader("شرکت‌ها", eyebrow = "هلدینگ و شرکت‌هایش") }
+        item {
+            PageHeader("شرکت‌ها", eyebrow = "هلدینگ و شرکت‌هایش") {
+                com.coinepro.hq.designsystem.HqButton("شرکت تازه", { adding = true }, size = com.coinepro.hq.designsystem.BtnSize.SM, icon = DivanIcon.ADD)
+                com.coinepro.hq.designsystem.HqButton("تأسیس از ریپو یا ایده", { nav.go("founding") }, size = com.coinepro.hq.designsystem.BtnSize.SM, variant = com.coinepro.hq.designsystem.BtnVariant.TEXT, icon = DivanIcon.FOUND)
+            }
+        }
         val list = q.data?.sortedBy { if (it.kind == "holding") 0 else 1 }
         when {
             list == null && q.error == null -> items(3) { Skeleton(Modifier.fillMaxWidth().height(120.dp), radius = 16.dp) }
@@ -96,6 +102,7 @@ fun CompaniesScreen() {
             else -> items(list, key = { it.code }) { co -> CompanyCard(co) { nav.go("companies/${co.code}") } }
         }
     }
+    if (adding) com.coinepro.hq.ui.owner.NewCompanySheet { adding = false }
 }
 
 @Composable
@@ -249,7 +256,8 @@ fun EmployeeScreen(code: String) {
     val nav = LocalNav.current
     val c = Divan.colors
     val q = rememberQuery("employee:$code", "employees") { employee(code) }
-    val r = refresher(q)
+    val runs = rememberQuery("runs:employee:$code", "runs", maxAgeMs = 15_000) { runs(employee = code, limit = 20) }
+    val r = refresher(q, runs)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
             Loadable(q) { e: Employee ->
@@ -261,10 +269,11 @@ fun EmployeeScreen(code: String) {
                             Text(buildAnnotatedString { fig(e.code); append(" · " + (EMPLOYEE_KIND[e.kind] ?: e.kind)) }, style = Divan.type.caption, color = c.textMuted)
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Pill(ACTIVITY[e.activity] ?: e.activity, if (e.activity == "working") Tone.GOLD else if (e.activity == "error") Tone.NEG else Tone.SILVER, live = e.activity == "working")
-                                if (e.status != "active") Pill(e.status, Tone.WARN)
+                                if (e.status != "active") Pill(com.coinepro.hq.ui.owner.EMPLOYEE_STATUS[e.status] ?: e.status, if (e.status == "dismissed") Tone.NEG else Tone.WARN)
                             }
                         }
                     }
+                    com.coinepro.hq.ui.owner.EmployeeActions(e) { q.refresh() }
                     e.activityNote?.let { Text("الان: $it", style = Divan.type.small, color = c.textSecondary) }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.weight(1f)) { com.coinepro.hq.designsystem.StatTile("نمره", e.score.value?.let { faDecimal(it) } ?: "—", figure = false, sub = e.score.rankInDepartment?.let { "رتبه‌ی $it در دپارتمان" }) }
@@ -281,6 +290,13 @@ fun EmployeeScreen(code: String) {
                     if (duties.isNotEmpty()) HqCard(Modifier.fillMaxWidth()) {
                         SectionTitle("وظیفه‌ها")
                         Md(duties.joinToString("\n") { "- $it" }, Modifier.padding(top = 6.dp))
+                    }
+                    com.coinepro.hq.ui.academy.TrainingCard(e.code)
+                    HqCard(Modifier.fillMaxWidth()) {
+                        SectionTitle("اجراهای اخیر", note = "قدم‌ها، ابزارها و مصرف هر اجرا")
+                        Column(Modifier.padding(top = 10.dp)) {
+                            Loadable(runs) { page -> com.coinepro.hq.ui.owner.RunList(page.items, "هنوز اجرایی ثبت نشده.", showEmployee = false) }
+                        }
                     }
                     if (e.recentRatings.isNotEmpty()) HqCard(Modifier.fillMaxWidth()) {
                         SectionTitle("امتیازهای اخیر تو")
@@ -306,7 +322,8 @@ fun WorkScreen(id: String) {
     val q = rememberQuery("work:$id", "work") { workOne(id) }
     val wid = q.data?.id
     val ev = if (wid != null) rememberQuery("work:events:$wid", "work") { workEvents(wid) } else null
-    val r = if (ev != null) refresher(q, ev) else refresher(q)
+    val runs = if (wid != null) rememberQuery("runs:work:$wid", "runs", "work", maxAgeMs = 15_000) { workRuns(wid) } else null
+    val r = refresher(*listOfNotNull(q, ev, runs).toTypedArray())
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
             Loadable(q) { w ->
@@ -324,6 +341,7 @@ fun WorkScreen(id: String) {
                             if (w.overdue) Pill("دیرکرد", Tone.NEG, icon = DivanIcon.URGENT)
                             w.dueAt?.let { Pill("موعد: ${jDateTime(it)}", Tone.NEUTRAL, icon = DivanIcon.TIME) }
                         }
+                        com.coinepro.hq.ui.owner.WorkActions(w) { q.set(it) }
                     }
                     w.progressPct?.let { p ->
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -354,6 +372,12 @@ fun WorkScreen(id: String) {
                                     Fig("${tokens(s.tokensUsed)} · ${usd(s.usdUsed)}", style = Divan.type.figureSmall, color = c.textMuted)
                                 }
                             }
+                        }
+                    }
+                    runs?.let { rq ->
+                        HqCard(Modifier.fillMaxWidth()) {
+                            SectionTitle("اجرای ایجنت‌ها روی این کار", note = "هر اجرا با قدم‌ها و ابزارهایش")
+                            Column(Modifier.padding(top = 10.dp)) { Loadable(rq) { list -> com.coinepro.hq.ui.owner.RunList(list, "هنوز ایجنتی روی این کار اجرا نشده.", withSteps = true) } }
                         }
                     }
                     val events = ev?.data?.items.orEmpty()

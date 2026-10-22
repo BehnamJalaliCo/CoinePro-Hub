@@ -14,7 +14,7 @@ from __future__ import annotations
 from hq_api.migration_sql import execute_script
 
 revision = "0018"
-down_revision = "0017"
+down_revision = "0017_6"
 branch_labels = None
 depends_on = None
 

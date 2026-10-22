@@ -36,6 +36,10 @@ class Wal(BaseModel):
     last_archived_at: str | None
     lag_s: int | None
     failed_count: int | None = None
+    # ⟨1.4.5⟩ 7.1 §1.1: the last failure is newer than the last success, or more
+    # than 5 segments wait; then the hourly run is not ok and the owner is told at once
+    failing: bool | None = None
+    ready_count: int | None = None
 
 
 class BaseBackup(BaseModel):

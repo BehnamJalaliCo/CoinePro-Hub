@@ -17,6 +17,15 @@ import kotlin.math.roundToLong
 
 const val OWNER_TZ = "Asia/Tehran"
 
+/** The app's clock for what it shows: the system's, or one fixed instant in the screenshot tests so the images are the
+ *  same on any day (the visual gate compares them in CI). The demo resolves its fixture times against it too. */
+object HqClock {
+    @Volatile var fixed: Instant? = null
+    fun now(): Instant = fixed ?: Instant.now()
+    fun millis(): Long = now().toEpochMilli()
+    fun today(zone: java.time.ZoneId = java.time.ZoneId.of(OWNER_TZ)): java.time.LocalDate = java.time.LocalDate.ofInstant(now(), zone)
+}
+
 private val FA = ULocale("fa_IR@calendar=persian;numbers=latn")
 private val TZ: TimeZone = TimeZone.getTimeZone(OWNER_TZ)
 
@@ -45,7 +54,7 @@ fun jDateTime(iso: String?): String = if (iso == null) "—" else "${jDate(iso)}
 fun ownerDay(iso: String?): String = instant(iso)?.atZone(java.time.ZoneId.of(OWNER_TZ))?.toLocalDate()?.toString() ?: "—"
 
 /** "5 دقیقه پیش" / "3 ساعت پیش" / date. */
-fun ago(iso: String?, now: Long = System.currentTimeMillis()): String {
+fun ago(iso: String?, now: Long = HqClock.millis()): String {
     val t = instant(iso) ?: return "—"
     val s = ((now - t.toEpochMilli()) / 1000).coerceAtLeast(0)
     if (s < 45) return "همین الان"
@@ -59,7 +68,7 @@ fun ago(iso: String?, now: Long = System.currentTimeMillis()): String {
 }
 
 /** Time left until an instant (expiries, freezes, quota resets). */
-fun until(iso: String?, now: Long = System.currentTimeMillis()): String {
+fun until(iso: String?, now: Long = HqClock.millis()): String {
     val t = instant(iso) ?: return "—"
     val m = ((t.toEpochMilli() - now) / 60000.0).roundToLong()
     if (m <= 0) return "گذشته"
@@ -69,7 +78,7 @@ fun until(iso: String?, now: Long = System.currentTimeMillis()): String {
     return "${(h / 24.0).roundToLong()} روز مانده"
 }
 
-fun hoursUntil(iso: String?, now: Long = System.currentTimeMillis()): Double? = instant(iso)?.let { (it.toEpochMilli() - now) / 3_600_000.0 }
+fun hoursUntil(iso: String?, now: Long = HqClock.millis()): Double? = instant(iso)?.let { (it.toEpochMilli() - now) / 3_600_000.0 }
 
 /** 160K, 6.2M — a figure (Latin). */
 fun tokens(n: Long?): String {

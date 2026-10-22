@@ -11,6 +11,7 @@
 #     --sql    a query whose single value is printed in the result (tests)
 # Prints one JSON line: {target, ok, base_backup, recovered_to, databases,
 # hq_tables, value, duration_s, error}. Exit 0 only when ok.
+# Env: HQ_PITR_STALL_S (120) and HQ_PITR_DEADLINE_S (2700): see the replay loop.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -91,15 +92,43 @@ docker run -d --name "$name" --network none --memory 768m -e PGDATA=/var/lib/pos
   -e WALG_FILE_PREFIX=/wal -v "$prefix:/wal:ro" -v "$vol:/var/lib/postgresql/data" "$image" postgres >/dev/null
 
 sql() { docker exec "$name" psql -U postgres -X -At -v ON_ERROR_STOP=1 "$@"; }
+# 7.1 §2.1: a day of WAL (~1440 segments) takes longer than any fixed limit
+# worth having, so the limit is progress: recovery fails only when replay
+# stands still for HQ_PITR_STALL_S (default 120 s), or after HQ_PITR_DEADLINE_S
+# (default 45 min) in all. Progress = pg_last_wal_replay_lsn() once the server
+# answers (hot standby), and before that the segments restored from the archive.
+deadline_s="${HQ_PITR_DEADLINE_S:-2700}"
+stall_s="${HQ_PITR_STALL_S:-120}"
 ready=false
-for _ in $(seq 1 120); do
+why="recovery did not finish"
+mark=""
+moved_s="$(date +%s)"
+while :; do
   if sql -c 'SELECT NOT pg_is_in_recovery()' 2>/dev/null | grep -qx t; then ready=true; break; fi
-  if [[ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" != true ]]; then break; fi
-  sleep 1
+  if [[ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" != true ]]; then
+    why="recovery stopped (postgres exited)"
+    break
+  fi
+  now_s="$(date +%s)"
+  progress="$(sql -c 'SELECT pg_last_wal_replay_lsn()' 2>/dev/null || true)/$(docker logs "$name" 2>&1 |
+    grep -c 'restored log file' || true)"
+  if [[ "$progress" != "$mark" ]]; then
+    mark="$progress"
+    moved_s="$now_s"
+  fi
+  if ((now_s - moved_s > stall_s)); then
+    why="recovery stalled: no WAL replayed for ${stall_s}s"
+    break
+  fi
+  if ((now_s - started_s > deadline_s)); then
+    why="recovery did not finish within ${deadline_s}s"
+    break
+  fi
+  sleep 2
 done
 if [[ "$ready" != true ]]; then
   docker logs --tail 8 "$name" 2>&1 | sed 's/^/pitr: postgres: /' >&2 || true
-  fail "recovery did not finish" "$(jq -cn --arg b "$backup" '{base_backup: $b}')"
+  fail "$why" "$(jq -cn --arg b "$backup" '{base_backup: $b}')"
 fi
 
 recovered="$(sql -c "SELECT coalesce(to_char(pg_last_xact_replay_timestamp() AT TIME ZONE 'UTC',

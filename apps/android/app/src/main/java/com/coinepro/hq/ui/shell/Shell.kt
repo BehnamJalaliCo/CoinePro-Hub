@@ -135,6 +135,9 @@ private val TOOLS = listOf(
     Tool("outputs", "خروجی‌ها", DivanIcon.DELIVERABLE),
     Tool("treasury", "خزانه‌ی توکن", DivanIcon.TREASURY),
     Tool("planner", "پلنر", DivanIcon.PLANNER),
+    Tool("resolutions", "دفتر مصوبات", DivanIcon.SEAL),
+    Tool("runs", "اجرای ایجنت‌ها", DivanIcon.AGENT),
+    Tool("sites", "پایش سایت‌ها", DivanIcon.SERVER),
     Tool("notifications", "اعلان‌ها", DivanIcon.BELL),
     Tool("control", "کنترل", DivanIcon.LOCK),
     Tool("audit", "دفتر Audit", DivanIcon.REPORT),
@@ -163,8 +166,10 @@ private class NavImpl(private val nav: NavHostController) : Nav {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Shell(graph: AppGraph) {
+fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit = {}) {
     val env = LocalEnv.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val offlineSince by env.offlineSince.collectAsStateWithLifecycle()
     val nav = rememberNavController()
     val navApi = remember(nav) { NavImpl(nav) }
     val entry by nav.currentBackStackEntryAsState()
@@ -187,6 +192,16 @@ fun Shell(graph: AppGraph) {
     var newSession by remember { mutableStateOf(false) }
     var grantFor by remember { mutableStateOf<String?>(null) }
     var granting by remember { mutableStateOf(false) }
+    // The quick-settings tile and the widget open the app on a place (voice order, cartable).
+    LaunchedEffect(launch) {
+        when (launch) { "voice" -> voice = true; "cartable" -> navApi.go("cartable") }
+        if (launch != null) onLaunchConsumed()
+    }
+    // The home-screen widget shows the last counts the app saw (M12); the demo never writes to it.
+    LaunchedEffect(inbox.data, env.demo) {
+        val i = inbox.data ?: return@LaunchedEffect
+        if (!env.demo) com.coinepro.hq.device.CartableWidget.update(ctx, i.decisionsPending, i.notifications["urgent"] ?: 0)
+    }
 
     CompositionLocalProvider(LocalNav provides navApi, LocalLive provides Live(streamState, last, feed.toList())) {
         Column(Modifier.fillMaxSize()) {
@@ -200,6 +215,12 @@ fun Shell(graph: AppGraph) {
                 onMore = { tools = true },
                 onVoice = { voice = true },
             )
+            offlineSince?.let { at ->
+                Row(Modifier.fillMaxWidth().background(Divan.colors.softWarning).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.coinepro.hq.designsystem.DIcon(DivanIcon.OFFLINE, size = 16.dp, tint = Divan.colors.warning)
+                    Text("آفلاین؛ آخرین وضعیت از ${com.coinepro.hq.core.format.jDateTime(at)}. هیچ اقدامی آفلاین انجام نمیشود.", style = Divan.type.caption, color = Divan.colors.textPrimary)
+                }
+            }
             Box(Modifier.weight(1f)) {
                 NavHost(nav, startDestination = "home", enterTransition = { fadeIn(tween(200)) }, exitTransition = { fadeOut(tween(120)) }) {
                     composable("home") { HomeScreen(onNewOrder = { order = true }, onVoiceOrder = { voice = true }) }
@@ -230,6 +251,9 @@ fun Shell(graph: AppGraph) {
                     composable("notifications") { NotificationsScreen() }
                     composable("control") { ControlScreen() }
                     composable("audit") { AuditScreen() }
+                    composable("resolutions") { com.coinepro.hq.ui.owner.ResolutionsScreen() }
+                    composable("runs") { com.coinepro.hq.ui.owner.RunsScreen() }
+                    composable("sites") { com.coinepro.hq.ui.owner.SitesScreen() }
                     composable("settings") { SettingsScreen(graph) }
                 }
             }

@@ -259,7 +259,7 @@ fun OversightScreen() {
                                     Text(p.titleFa, style = Divan.type.small, color = c.textPrimary, maxLines = 2)
                                     Text("${METHOD_FA[p.method] ?: p.method} · ${rruleFa(p.schedule)}", style = Divan.type.micro, color = c.textMuted)
                                 }
-                                ResultPill(p.lastRun?.result)
+                                if (p.status == "paused") Pill("متوقف") else ResultPill(p.lastRun?.result)
                             }
                         }
                     }
@@ -363,6 +363,11 @@ fun OversightScreen() {
             Text(p.checkMd, style = Divan.type.figureSmall.copy(textDirection = TextDirection.Ltr), color = c.textPrimary, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).padding(12.dp))
             Text("شاهد", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
             Text(p.evidenceMd, style = Divan.type.figureSmall.copy(textDirection = TextDirection.Ltr), color = c.textSecondary)
+            if (p.status == "paused") Text(
+                "متوقف است، چون قابلیتی که میسنجد هنوز ساخته نشده. با ساخته شدنش روشن میشود و تا آن موقع هیچ یافته‌ای نمیسازد.",
+                style = Divan.type.caption, color = c.textSecondary,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).padding(12.dp),
+            )
             Text(
                 "پاسخ‌گو: ${p.answerable} · نسخه‌ی ${p.version}" + (p.lastRun?.let { " · آخرین اجرا ${ago(it.at)}، ${it.findings} یافته" } ?: ""),
                 style = Divan.type.caption, color = c.textMuted,
@@ -386,6 +391,7 @@ private fun ResultPill(result: String?) = when (result) {
     "pass" -> Pill("قبول", Tone.POS, dot = true)
     "fail" -> Pill("رد", Tone.NEG, dot = true)
     "partial" -> Pill("نیمه", Tone.WARN, dot = true)
+    "deferred" -> Pill("به فردا")
     else -> Pill("هنوز نه")
 }
 

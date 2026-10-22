@@ -4,7 +4,11 @@
 # listing is then pinned on its first call, so the tool names below are what
 # we expect, to be checked against that listing before sealing.
 # Classes: A0 read, A1 draft, A2 internal and reversible, A3 = an external
-# commitment (always becomes the owner's decision, never runs).
+# commitment (always becomes the owner's decision; only its approval runs
+# that one call, once).
+# NOT RUNNABLE YET (7.1 §2.15): every proposal below is a `container` server,
+# and this build has neither the hq-mcp network nor the stdio->HTTP bridge.
+# Registering one is possible; its enable answers 409 not_ready.
 proposals:
   - key: github-read
     title_fa: GitHub (فقط خواندن)

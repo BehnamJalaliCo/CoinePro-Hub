@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -160,24 +161,30 @@ fun WorkshopScreen(onNewSession: () -> Unit, onGrant: (String?) -> Unit) {
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
             PageHeader("Claude Code برای شرکت‌ها", eyebrow = "کارگاه کد") {
-                HqButton("جلسه‌ی تازه", onNewSession, variant = BtnVariant.PRIMARY, icon = DivanIcon.ADD)
+                // Without an in-hub runtime a new session opens in Claude Code itself (claude.ai/code), on the same subscription.
+                val uri = LocalUriHandler.current
+                HqButton("جلسه‌ی تازه", { if (meta.data?.workshop?.runtime != null) onNewSession() else uri.openUri("https://claude.ai/code") }, variant = BtnVariant.PRIMARY, icon = DivanIcon.ADD)
             }
         }
         item {
             Text(
-                "مدیرها و مشاور کل با مجوز تو روی ریپوی هر شرکت کد میزنند. تو فقط مجوز میدهی، زنده تماشا میکنی و هر لحظه میتوانی متوقف کنی؛ هر push و PR اجازه‌ی تو را میخواهد و هیچ چیزی به production نمیرسد.",
+                if (meta.data?.workshop?.runtime != null) "مدیرها و مشاور کل با مجوز تو روی ریپوی هر شرکت کد میزنند. تو فقط مجوز میدهی، زنده تماشا میکنی و هر لحظه میتوانی متوقف کنی؛ هر push و PR اجازه‌ی تو را میخواهد و هیچ چیزی به production نمیرسد."
+                else "جلسه‌های Claude Code در اپ Claude اجرا میشوند. مجوزها و تاریخچه‌ی کارگاه اینجا میمانند.",
                 style = Divan.type.small, color = c.textSecondary,
             )
         }
         if (meta.data != null && meta.data?.workshop?.runtime == null) item {
-            HqCard(color = c.softWarning) {
+            // The owner's own Claude Code sessions live in claude.ai/code and the Claude app; there is no official API to show them here.
+            val uri = LocalUriHandler.current
+            HqCard(color = c.softGold) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    DIcon(DivanIcon.SERVER, tint = c.warning)
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("اجرای کارگاه هنوز روشن نیست", style = Divan.type.bodyStrong)
-                        Text("محل اجرا با توست: Claude Managed Agents با یک API key جدا و سقف ماهانه، یا میزبانی روی هاست جدا. تا آن موقع مجوز و تاریخچه کار میکند و جلسه‌ی تازه باز نمیشود.", style = Divan.type.caption, color = c.textSecondary)
+                    DIcon(DivanIcon.CODE, tint = c.goldInk)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("جلسه‌های Claude Code تو در اپ Claude هستند", style = Divan.type.bodyStrong)
+                        Text("همین گفت‌وگوها و نشست سرور، با همان اشتراک. اجرای کارگاه داخل هاب کنار گذاشته شد (تصمیم تو)؛ مجوزها و تاریخچه اینجا میمانند.", style = Divan.type.caption, color = c.textSecondary)
                     }
                 }
+                HqButton("باز کردن Claude Code", { uri.openUri("https://claude.ai/code") }, Modifier.fillMaxWidth().padding(top = 10.dp), variant = BtnVariant.PRIMARY, icon = DivanIcon.SHARE)
             }
         }
         item { SectionTitle("در جریان", note = "منتظرِ اجازه‌ها بالاتر") }

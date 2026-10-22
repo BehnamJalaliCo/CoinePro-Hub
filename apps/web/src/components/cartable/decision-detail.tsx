@@ -20,8 +20,11 @@ import { ACTOR_FA, DECISION_KIND, DECISION_STATUS, RISK } from '@/lib/labels';
 import { ago, cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
 
 type Decision = Schemas['Decision'];
-const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change']);
+// code_session: its seal creates a Code Workshop grant (contract §5.1 ⟨1.4.3⟩). The round-two kinds are sealed the same way, each card
+// bound to what it proposes (§18.13 ⟨1.4.5⟩); a server plan is sealed only on its own route, against its digest (§18.8).
+const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption']);
 export const needsStepUp = (d: Decision) => d.action_class === 'A3' || STEP_UP_KINDS.has(d.kind);
+const OWN_ROUTE: Record<string, { href: string; fa: string }> = { server_plan: { href: '/founding', fa: 'مُهر طرح سرور در تأسیس شرکت' } };
 
 function Fact({ label, children, mono }: { label: string; children: ReactNode; mono?: boolean }) {
   return (
@@ -72,6 +75,40 @@ function Payload({ d }: { d: Decision }) {
           <Fact label="تست‌ها" mono>{String(tests.passed ?? 0)} ✓ · {String(tests.failed ?? 0)} ✗</Fact>
         </div>
         {p.rollout ? <p className="text-[13px] text-sec">روش انتشار: <span className="fig text-ink">{String(p.rollout)}</span></p> : null}
+      </Section>
+    );
+  }
+  if (d.kind === 'tool_enable') {
+    const diff = (p.diff ?? {}) as Record<string, unknown>;
+    const rows: [string, string, string][] = [['added', 'تازه', 'text-warn'], ['changed', 'عوض‌شده', 'text-warn'], ['removed', 'حذف‌شده', 'text-muted']];
+    return (
+      <Section title="ابزارهای این سرور عوض شده‌اند">
+        <p className="text-[13px] leading-6 text-sec">سرور <span className="fig text-ink">{String(p.key ?? '—')}</span> خاموش است. با مُهر، دقیقاً با همین فهرست روشن میشود.</p>
+        {rows.map(([key, fa, tone]) => (list(diff[key]).length ? (
+          <div key={key} className="flex flex-wrap items-center gap-1.5">
+            <span className={cx('text-[12px] font-semibold', tone)}>{fa}</span>
+            {list(diff[key]).map((x) => <span key={x} className="fig rounded-[6px] bg-tile px-2 py-0.5 text-[11px] text-sec">{x}</span>)}
+          </div>
+        ) : null))}
+      </Section>
+    );
+  }
+  if (d.kind === 'a3_action' && p.action === 'mcp_call') {
+    const args = (p.args ?? {}) as Record<string, unknown>;
+    return (
+      <Section title="فراخوانی ابزار بیرونی">
+        <div className="grid grid-cols-2 gap-2">
+          <Fact label="سرور" mono>{String(p.server ?? '—')}</Fact>
+          <Fact label="ابزار" mono>{String(p.tool ?? '—')}</Fact>
+        </div>
+        {Object.keys(args).length ? (
+          <dl className="flex flex-col gap-1 rounded-[12px] bg-tile p-3 text-[13px]">
+            {Object.entries(args).map(([k, v]) => (
+              <div key={k} className="flex gap-2"><dt className="fig flex-none text-muted">{k}</dt><dd className="fig min-w-0 break-words text-ink">{typeof v === 'string' ? v : JSON.stringify(v)}</dd></div>
+            ))}
+          </dl>
+        ) : null}
+        <p className="text-[12px] text-muted">با مُهر، همین فراخوانی با همین ورودی فقط یک بار اجرا میشود.</p>
       </Section>
     );
   }
@@ -164,8 +201,12 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
 
       {pending ? (
         <div className="flex flex-col items-center gap-4 rounded-[18px] bg-card p-5">
-          <SealButton code={d.company} nameFa={co.nameFa} nameEn={co.nameEn} holding={co.holding} busy={busy} onSealed={seal} />
-          {needsStepUp(d) ? <p className="text-center text-[12px] text-muted">این تصمیم با اثر انگشت یا چهره تأیید میشود.</p> : null}
+          {OWN_ROUTE[d.kind] ? (
+            <Button variant="primary" icon="seal" onClick={() => router.push(OWN_ROUTE[d.kind]!.href)}>{OWN_ROUTE[d.kind]!.fa}</Button>
+          ) : (
+            <SealButton code={d.company} nameFa={co.nameFa} nameEn={co.nameEn} holding={co.holding} busy={busy} onSealed={seal} />
+          )}
+          {needsStepUp(d) || OWN_ROUTE[d.kind] ? <p className="text-center text-[12px] text-muted">این تصمیم با اثر انگشت یا چهره تأیید میشود.</p> : null}
           <div className="flex flex-wrap justify-center gap-2">
             <Button variant="secondary" icon="messages" loading={ask.isPending} onClick={async () => { try { const o = await ask.mutateAsync({ ref: d.ref, question: '' }); router.push(`/messages?thread=${encodeURIComponent(String((o as { thread?: string }).thread ?? d.thread ?? ''))}`); } catch (e) { fail(e); } }}>توی چت بپرس</Button>
             <Button variant="silver" icon="advisor" loading={review.isPending} onClick={async () => { try { await review.mutateAsync(d.ref); router.push('/advisor'); } catch (e) { fail(e); } }}>با مشاور بررسی کن</Button>

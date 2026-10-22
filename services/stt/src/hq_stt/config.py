@@ -13,6 +13,19 @@ def _int(name: str, default: int) -> int:
     return int(os.environ.get(name, default))
 
 
+WAV_BYTES_PER_S = 16000 * 2  # what the worker sends: 16 kHz mono, 16-bit
+
+
+def _max_bytes() -> int:
+    """STT_MAX_BYTES, else derived from the duration limit (06.1 §2): the
+    worker's WAV of the longest allowed audio plus the second it is cut at,
+    with room for a header; never under 29 MiB (15 min is 28.8 MB)."""
+    if os.environ.get("STT_MAX_BYTES"):
+        return _int("STT_MAX_BYTES", 0)
+    seconds = _int("STT_MAX_DURATION_S", 15 * 60) + 1
+    return max(29 * 1024 * 1024, seconds * WAV_BYTES_PER_S + 64 * 1024)
+
+
 @dataclass(frozen=True)
 class Settings:
     listen_port: int = field(default_factory=lambda: _int("PORT", 8000))
@@ -30,7 +43,7 @@ class Settings:
     idle_unload_s: int = field(default_factory=lambda: _int("STT_IDLE_UNLOAD_S", 300))
     # One transcription at a time; at most this many wait, the rest get 503 busy.
     max_waiting: int = field(default_factory=lambda: _int("STT_MAX_WAITING", 4))
-    max_bytes: int = field(default_factory=lambda: _int("STT_MAX_BYTES", 25 * 1024 * 1024))
+    max_bytes: int = field(default_factory=lambda: _max_bytes())
     max_duration_s: int = field(default_factory=lambda: _int("STT_MAX_DURATION_S", 15 * 60))
     # Fake engine only: JSON {"<sha256 of the audio>": "text", ...}.
     fake_fixtures: str = field(default_factory=lambda: os.environ.get("STT_FAKE_FIXTURES", ""))

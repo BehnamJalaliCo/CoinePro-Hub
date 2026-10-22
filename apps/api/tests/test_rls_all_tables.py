@@ -38,7 +38,11 @@ SCHEMAS = (
     "people",
     "knowledge",
     "academy",
+    "tools",  # 7.1 §2.12: tools.mcp_calls is a tenant table
 )
+# The tools schema's tables without a company (holding configuration, read by
+# the api only): every other table there must carry company_id under RLS.
+COMPANYLESS_TOOLS = {"accounts", "mcp_servers"}
 
 
 async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: str) -> None:
@@ -414,6 +418,16 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
         role,
         teaching,
     )
+    # Prompt 07 §3 (7.1 §2.12): one resolved MCP call of the company.
+    await su.execute(
+        """INSERT INTO tools.mcp_calls (company_id, run_id, actor_code, server_key, tool, class,
+               outcome, args_sha256)
+           VALUES ($1, $2, $3, 'crm', 'lookup', 'A0', 'resolved', $4)""",
+        co["id"],
+        run,
+        f"{co['code']}-CEO",
+        "a" * 64,
+    )
 
 
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
@@ -439,6 +453,15 @@ async def test_no_table_leaks_between_companies(
         list(SCHEMAS),
     )
     assert len(tables) >= 18
+    assert "tools.mcp_calls" in {f"{r['s']}.{r['t']}" for r in tables}
+    companyless = await su.fetch(
+        """SELECT x.table_name AS t FROM information_schema.tables x
+           WHERE x.table_schema = 'tools' AND x.table_type = 'BASE TABLE'
+             AND NOT EXISTS (SELECT 1 FROM information_schema.columns c
+                             WHERE c.table_schema = x.table_schema AND c.table_name = x.table_name
+                               AND c.column_name = 'company_id')"""
+    )
+    assert {r["t"] for r in companyless} == COMPANYLESS_TOOLS
     populated = []
     for row in tables:
         name = f"{row['s']}.{row['t']}"

@@ -4,11 +4,15 @@ import { useState } from 'react';
 import { CompanyMark } from '@/components/brand/marks';
 import { CumulativeChart, HBars, StackedBar } from '@/components/charts/charts';
 import { Avatar } from '@/components/brand/avatar';
+import { Button } from '@/components/ui/button';
+import { BudgetEditor, CallsCard, ConnectionEditor, QuotaCard, WhatIfCard } from '@/components/v15/treasury';
+import type { Connection } from '@/lib/api/v15';
 import { Bar, Card, ErrorState, PageHeader, Pill, SectionTitle, Segmented, Skeleton, StatTile, budgetTone } from '@/components/ui/primitives';
 import { useBreakdown, useCompanies, useConnections, useTreasury } from '@/lib/api/hooks';
 import { companyColor } from '@/lib/company';
 import { useScope } from '@/lib/scope';
-import { tokens, usd, cx, until, modelLabel } from '@/lib/format';
+import { tokens, usd, cx, until } from '@/lib/format';
+import { ModelMark, ModelName } from '@/components/brand/model-mark';
 
 const TOKEN_COLOR = { input: 'var(--hq-chart-1)', output: 'var(--hq-chart-2)', cache: 'var(--hq-chart-3)', write: 'var(--hq-chart-5)', thinking: 'var(--hq-chart-4)' };
 
@@ -29,6 +33,8 @@ export default function TreasuryPage() {
   const conns = useConnections();
   const { data: companies } = useCompanies();
   const t = sum.data?.totals;
+  const [editBudgets, setEditBudgets] = useState(false);
+  const [editConn, setEditConn] = useState<Connection | null>(null);
   const budget = sum.data?.budgets.find((b) => (company ? b.scope_type === 'company' && b.company === company : b.scope_type === 'holding'));
 
   const days = (byDay.data ?? []).filter((r) => r.key).sort((a, b) => String(a.key).localeCompare(String(b.key))).map((r) => ({
@@ -78,14 +84,15 @@ export default function TreasuryPage() {
             </Card>
             <Card className="flex flex-col gap-4 p-5">
               <SectionTitle title="مدل‌ها" />
-              {byModel.data ? <HBars rows={byModel.data.filter((r) => r.key).map((r) => ({ key: String(r.key), label: <span className="fig">{modelLabel(String(r.key))}</span>, value: Number(r.equiv_cost_usd), fmt: usd(r.equiv_cost_usd), sub: <span><span className="fig">{tokens(r.input_tokens + r.output_tokens)}</span>، {r.calls} فراخوانی</span> }))} /> : <Skeleton className="h-40" />}
+              {byModel.data ? <HBars rows={byModel.data.filter((r) => r.key).map((r) => ({ key: String(r.key), label: <ModelName model={String(r.key)} />, value: Number(r.equiv_cost_usd), fmt: usd(r.equiv_cost_usd), sub: <span><span className="fig">{tokens(r.input_tokens + r.output_tokens)}</span>، {r.calls} فراخوانی</span> }))} /> : <Skeleton className="h-40" />}
             </Card>
           </div>
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
+          <QuotaCard />
           <Card className="flex flex-col gap-3 p-5">
-            <SectionTitle title="بودجه‌ها" note="هشدار ۷۰٪ و ۹۰٪؛ در ۱۰۰٪ کارهای غیرفوری میایستند" />
+            <SectionTitle title="بودجه‌ها" note="هشدار ۷۰٪ و ۹۰٪؛ در ۱۰۰٪ کارهای غیرفوری میایستند" action={<Button variant="text" size="sm" icon="edit" onClick={() => setEditBudgets(true)}>ویرایش</Button>} />
             {(sum.data?.budgets ?? []).map((b) => (
               <div key={`${b.scope_type}-${b.scope_ref}-${b.period}`} className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-2 text-[12px]">
@@ -114,20 +121,28 @@ export default function TreasuryPage() {
             {(conns.data ?? []).map((c) => {
               const st = CONNECTION_STATUS[c.status] ?? { label: c.status, tone: 'neutral' as const };
               return (
-                <div key={c.id} className="flex items-center gap-3 rounded-[12px] bg-tile p-3">
+                <button type="button" key={c.id} onClick={() => setEditConn(c)} className="flex items-center gap-3 rounded-[12px] bg-tile p-3 text-start hover:bg-hover">
+                  <ModelMark model={c.default_model ?? c.models[0]} provider={c.provider} size={22} />
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="text-[13px] font-semibold">{c.display_name}</span>
-                    <span className="fig text-[11px] text-muted">{c.key} · {c.models.length} models</span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
+                      <span className="fig">{c.key}</span>
+                      {c.models.map((m) => <ModelName key={m} model={m} size={11} />)}
+                    </span>
                     {c.status === 'quota_exhausted' && c.quota_reset_at ? <span className="text-[11px] text-warn">ریست سهمیه {until(c.quota_reset_at)}</span> : null}
                     {c.status_reason ? <span className="text-[11px] text-muted">{c.status_reason}</span> : null}
                   </div>
                   <Pill tone={st.tone} dot>{st.label}</Pill>
-                </div>
+                </button>
               );
             })}
           </Card>
+          <WhatIfCard company={company} />
         </div>
       </div>
+      <CallsCard company={company} />
+      {editBudgets ? <BudgetEditor onClose={() => setEditBudgets(false)} /> : null}
+      {editConn ? <ConnectionEditor c={editConn as Connection} onClose={() => setEditConn(null)} /> : null}
     </>
   );
 }

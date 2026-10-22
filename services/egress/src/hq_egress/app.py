@@ -10,19 +10,24 @@ hq-egress-api; a client from anywhere else is refused).
 
 Every answer is {outcome: ok | blocked | error, code, data, entries}: the
 entries (one per request that left or was stopped) go to the egress log
-through the gateway. Web content is untrusted: `source: "web"`, the final URL,
-the time, and `suspected_injection`.
+through the gateway. Web content is untrusted: `source: "web"`,
+`untrusted: true`, the final URL, the time, and `suspected_injection`. A
+service account's secret is scrubbed from a text before it is cut (7.1); a
+GET that commits (rules.get_commitment) is `needs_owner` like any other.
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import codecs
 import contextlib
+import functools
 import ipaddress
 import json
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import urlsplit
@@ -33,13 +38,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from hq_common import untrusted
 from hq_egress import __version__
 from hq_egress import extract as X
-from hq_egress.accounts import Account, scrub
+from hq_egress.accounts import Account, margin, scrub, scrub_cut
 from hq_egress.config import Settings
 from hq_egress.guard import Blocked, Guard
-from hq_egress.net import Entry, Fetcher, FetchError
+from hq_egress.net import CALL_ENTRIES, Entry, Fetcher, FetchError, track
 from hq_egress.proxy import Buckets, entries_json
+from hq_egress.rules import get_commitment
 
 log = logging.getLogger("hq_egress")
 TEXT_TYPES = ("text/", "application/json", "application/xml", "application/javascript")
@@ -166,6 +173,38 @@ def build_app(state: State) -> FastAPI:
         title="egress", version=__version__, docs_url=None, redoc_url=None, openapi_url=None
     )
     app.state.egress = state
+    untrusted.set_slots(X.SLOTS)
+
+    def guarded(
+        fn: Callable[[Any], Awaitable[JSONResponse]],
+    ) -> Callable[[Any], Awaitable[JSONResponse]]:
+        """One call: within its deadline (below the gateway's), and whatever
+        a hostile server or parser does, an answer with the call's entries,
+        so every request that left reaches the egress log and the limits."""
+
+        @functools.wraps(fn)
+        async def call(a: Any) -> JSONResponse:
+            entries: list[Entry] = []
+            token = CALL_ENTRIES.set(entries)
+            secrets = _secrets(a)
+            start = time.monotonic()
+            code = "egress_failed"
+            try:
+                async with asyncio.timeout(state.settings.call_deadline_s):
+                    return await fn(a)
+            except TimeoutError:
+                code = "call_timeout"
+            except Exception as exc:  # noqa: BLE001 - the answer must still carry the entries
+                log.warning("%s failed: %s", fn.__name__, type(exc).__name__)
+            finally:
+                CALL_ENTRIES.reset(token)
+            ms = int((time.monotonic() - start) * 1000)
+            for e in entries:
+                if e.status is None and e.blocked_reason is None:
+                    e.blocked_reason, e.ms = code, e.ms or ms  # in flight when it stopped
+            return answer("error", None, entries, code, secrets)
+
+        return call
 
     @app.middleware("http")
     async def clients_only(request: Request, call_next: Any) -> Any:
@@ -187,6 +226,7 @@ def build_app(state: State) -> FastAPI:
         return {"ok": True, "version": __version__}
 
     @app.post("/v1/search")
+    @guarded
     async def search(a: SearchIn) -> JSONResponse:
         q = f"site:{a.site} {a.q}" if a.site else a.q
         params: dict[str, Any] = {"q": q, "format": "json", "pageno": 1, "safesearch": 0}
@@ -197,7 +237,7 @@ def build_app(state: State) -> FastAPI:
             params["time_range"] = (
                 "day" if d <= 1 else "week" if d <= 7 else "month" if d <= 31 else "year"
             )
-        entry = Entry("web.search", "GET", "searxng", kind="search", cls=a.ctx.cls)
+        entry = track(Entry("web.search", "GET", "searxng", kind="search", cls=a.ctx.cls))
         start = time.monotonic()
         try:
             resp = await state.internal.get(
@@ -230,6 +270,7 @@ def build_app(state: State) -> FastAPI:
             {
                 "results": results,
                 "source": "web",
+                "untrusted": True,
                 "fetched_at": _now(),
                 "suspected_injection": flags,
             },
@@ -237,8 +278,9 @@ def build_app(state: State) -> FastAPI:
         )
 
     @app.post("/v1/read")
+    @guarded
     async def read(a: ReadIn) -> JSONResponse:
-        secrets = [a.account.secret] if a.account else []
+        secrets = _secrets(a)
         try:
             got = await state.fetcher.fetch(
                 "GET",
@@ -246,28 +288,27 @@ def build_app(state: State) -> FastAPI:
                 tool="web.read",
                 cls=a.ctx.cls,
                 max_bytes=min(a.ctx.max_bytes, state.settings.max_call_bytes),
-                extra_ports=tuple(a.account.ports) if a.account else (),
-                inject=a.account.headers_for if a.account else None,
+                account=a.account,
+                check=_get_check,
             )
         except Blocked as b:
-            return answer("blocked", None, b.entries, b.reason, secrets)
+            return _blocked(b, secrets)
         except FetchError as e:
             return answer("error", None, e.entries, "fetch_failed", secrets)
         ctype = got.content_type
         if a.mode == "pdf" or ctype == "application/pdf" or got.body[:5] == b"%PDF-":
-            title, text, cut = X.pdf_text(got.body, a.max_chars)
+            title, text, cut = await X.read_text("pdf", got.body, a.max_chars, secrets)
             kind = "pdf"
         elif a.mode == "html":
-            text = got.body.decode(_charset(got.headers), "replace")
-            title, cut, kind = "", len(text) > a.max_chars, "html"
-            text = text[: a.max_chars]
+            text, cut = _text_of(got.body, got.headers, a.max_chars, secrets)
+            title, kind = "", "html"
         elif ctype.startswith("text/html") or ctype in ("application/xhtml+xml", ""):
-            title, text, cut = X.html_text(got.body, a.max_chars)
-            kind = "text"
+            head = got.body[: X.HTML_PARSE_BYTES]
+            title, text, cut = await X.read_text("html", head, a.max_chars, secrets)
+            cut, kind = cut or len(got.body) > len(head), "text"
         elif ctype.startswith(TEXT_TYPES):
-            text = got.body.decode(_charset(got.headers), "replace")
-            title, cut, kind = "", len(text) > a.max_chars, "text"
-            text = text[: a.max_chars]
+            text, cut = _text_of(got.body, got.headers, a.max_chars, secrets)
+            title, kind = "", "text"
         else:
             title, text, cut, kind = "", "", False, "binary"
         data = {
@@ -279,14 +320,16 @@ def build_app(state: State) -> FastAPI:
             "text": text,
             "truncated": cut or got.truncated,
             "source": "web",
+            "untrusted": True,
             "fetched_at": _now(),
             "suspected_injection": X.injection_flags(title, text),
         }
         return answer("ok", data, got.entries, None, secrets)
 
     @app.post("/v1/http")
+    @guarded
     async def http_request(a: HttpIn) -> JSONResponse:
-        secrets = [a.account.secret] if a.account else []
+        secrets = _secrets(a)
         headers = dict(a.headers)
         content: bytes | None = None
         if a.json_body is not None:
@@ -303,45 +346,61 @@ def build_app(state: State) -> FastAPI:
                 headers=headers,
                 content=content,
                 max_bytes=min(a.ctx.max_bytes, state.settings.max_call_bytes),
-                extra_ports=tuple(a.account.ports) if a.account else (),
-                inject=a.account.headers_for if a.account else None,
+                account=a.account,
+                check=_get_check,
             )
         except Blocked as b:
-            return answer("blocked", None, b.entries, b.reason, secrets)
+            return _blocked(b, secrets)
         except FetchError as e:
             return answer("error", None, e.entries, "fetch_failed", secrets)
         ctype = got.content_type
-        text = ""
+        text, cut = "", False
         if ctype.startswith(TEXT_TYPES) or ctype.endswith("+json"):
-            text = got.body.decode(_charset(got.headers), "replace")
+            text, cut = _text_of(got.body, got.headers, a.max_chars, secrets)
         data = {
             "status": got.status,
             "final_url": got.final_url,
             "headers": {k: v for k, v in got.headers.items() if k in KEEP_HEADERS},
-            "body": text[: a.max_chars],
+            "body": text,
             "bytes": len(got.body),
-            "truncated": got.truncated or len(text) > a.max_chars,
+            "truncated": got.truncated or cut,
             "source": "web",
+            "untrusted": True,
             "fetched_at": _now(),
-            "suspected_injection": X.injection_flags(text[: a.max_chars]),
+            "suspected_injection": X.injection_flags(text),
         }
         return answer("ok", data, got.entries, None, secrets)
 
     @app.post("/v1/browse")
+    @guarded
     async def browse(a: BrowseIn) -> JSONResponse:
-        for s in a.steps:
+        ports = a.account.ports_for if a.account else None
+        for i, s in enumerate(a.steps):
             if s.url:
                 try:
-                    state.guard.target(s.url)
+                    state.guard.target(s.url, extra_ports=ports)
                     if state.guard.is_hub(urlsplit(s.url).hostname or ""):
                         raise Blocked("hub_internal")
+                    why = get_commitment(s.url)  # a GET that commits (7.1)
+                    if why:
+                        raise Blocked("needs_owner", why)
                 except Blocked as b:
                     e = Entry("web.browse", "GOTO", _host(s.url), kind="browse", cls=a.ctx.cls,
                               blocked_reason=b.reason)  # fmt: skip
-                    return answer("blocked", None, [e], b.reason)
-        secrets = [a.account.secret] if a.account else []
-        key, password = state.buckets.open("web.browse", a.ctx.cls, a.ctx.max_bytes)
-        time_s = min(a.time_s, state.settings.browse_call_s)
+                    data = _needs_owner(b, step=i)
+                    return answer("blocked", data, [e], b.reason)
+        secrets = _secrets(a)
+        key, password = state.buckets.open(
+            "web.browse",
+            a.ctx.cls,
+            a.ctx.max_bytes,
+            site=a.account.site if a.account else None,
+            ports=tuple(a.account.ports) if a.account else (),
+        )
+        # The browser's own budget leaves room for its hard stop (time_s + 3)
+        # inside this call's deadline.
+        time_s = max(1.0, min(a.time_s, state.settings.browse_call_s,
+                              state.settings.call_deadline_s - 4))  # fmt: skip
         payload = {
             "steps": [s.model_dump(exclude_none=True) for s in a.steps],
             "proxy": {
@@ -352,22 +411,19 @@ def build_app(state: State) -> FastAPI:
             "account": a.account.model_dump() if a.account else None,
             "time_s": time_s,
             "max_download_bytes": min(a.ctx.max_bytes, state.settings.max_call_bytes),
+            # Every file of the call together (screenshots and downloads, 7.1).
+            "max_files_bytes": min(a.ctx.max_bytes, state.settings.browse_files_bytes),
         }
+        first = next((s.url for s in a.steps if s.url), None) or "about:blank"
+        session = track(Entry("web.browse", "BROWSE", _host(first), kind="browse", cls=a.ctx.cls))
         start = time.monotonic()
         try:
-            resp = await state.internal.post(
-                state.settings.browser_url.rstrip("/") + "/v1/run",
-                json=payload,
-                timeout=time_s + 10,
-            )
-            got = resp.json() if resp.status_code in (200, 503) else None
+            got = await _browser_run(state, payload, time_s + 10)
         except (httpx.HTTPError, ValueError):
             got = None
         finally:
-            entries = state.buckets.drain(key)
-        ms = int((time.monotonic() - start) * 1000)
-        first = next((s.url for s in a.steps if s.url), None) or "about:blank"
-        session = Entry("web.browse", "BROWSE", _host(first), kind="browse", cls=a.ctx.cls, ms=ms)
+            entries = [track(e) for e in state.buckets.drain(key)]
+            session.ms = int((time.monotonic() - start) * 1000)
         entries = [session, *entries]
         if not isinstance(got, dict):
             session.status = 502
@@ -376,6 +432,8 @@ def build_app(state: State) -> FastAPI:
             session.status = 503
             return answer("error", None, entries, "browser_busy", secrets)
         session.status = 200
+        if got.get("code") == "sign_in_failed":  # the account's own login, not the browser
+            return answer("error", None, entries, "sign_in_failed", secrets)
         texts = [str(st.get("text") or "") for st in got.get("steps") or [] if isinstance(st, dict)]
         files = [f for f in got.get("files") or [] if isinstance(f, dict)]
         data = {
@@ -384,8 +442,9 @@ def build_app(state: State) -> FastAPI:
             "steps": got.get("steps") or [],
             "blocked": got.get("blocked"),
             "source": "web",
+            "untrusted": True,
             "fetched_at": _now(),
-            "suspected_injection": X.injection_flags(*texts),
+            "suspected_injection": X.injection_flags(*scrub(texts, secrets)),
         }
         blocked = got.get("blocked")
         if isinstance(blocked, dict) and blocked.get("code") == "needs_owner":
@@ -400,15 +459,61 @@ def build_app(state: State) -> FastAPI:
     return app
 
 
+async def _browser_run(state: State, payload: dict[str, Any], timeout: float) -> Any:  # noqa: ASYNC109
+    """The browser's answer, parsed; its raw body (files in base64) is let go
+    on return, not held beside the parsed copy (7.1 §2.20, measured)."""
+    resp = await state.internal.post(
+        state.settings.browser_url.rstrip("/") + "/v1/run", json=payload, timeout=timeout
+    )
+    return resp.json() if resp.status_code in (200, 503) else None
+
+
+def _secrets(a: Any) -> list[str]:
+    account = getattr(a, "account", None)
+    return account.secrets() if isinstance(account, Account) else []
+
+
+def _get_check(method: str, url: str) -> str | None:
+    """A GET (or HEAD) that commits (rules.get_commitment); another method's
+    line is the api's (reserve: needs_owner unless the account lists it)."""
+    return get_commitment(url) if method in ("GET", "HEAD") else None
+
+
+def _needs_owner(b: Blocked, step: int | None = None) -> dict[str, Any] | None:
+    if b.reason != "needs_owner":
+        return None
+    return {"blocked": {"step": step, "code": "needs_owner", "reason": b.detail or "commitment"}}
+
+
+def _blocked(b: Blocked, secrets: list[str]) -> JSONResponse:
+    return answer("blocked", _needs_owner(b), b.entries, b.reason, secrets)
+
+
+def _text_of(
+    body: bytes | bytearray, headers: dict[str, str], limit: int, secrets: list[str]
+) -> tuple[str, bool]:
+    """(text, cut): the body as text, scrubbed of the secrets, THEN cut to
+    `limit` characters (7.1). Only what can reach the cut is decoded (no
+    codec takes more than 4 bytes a character), not a 20 MB body."""
+    want = (limit + margin(secrets)) * 4
+    head = body[:want]
+    text, cut = scrub_cut(head.decode(_charset(headers), "replace"), secrets, limit)
+    return text, cut or len(body) > len(head)
+
+
 def _charset(headers: dict[str, str]) -> str:
+    """The declared text encoding; a codec that is not one (hex, rot13,
+    base64, zlib: bytes-to-bytes) or an unknown name reads as UTF-8."""
     ctype = headers.get("content-type", "")
     for part in ctype.split(";")[1:]:
         k, _, v = part.strip().partition("=")
         if k.lower() == "charset" and v:
-            with contextlib.suppress(LookupError):
-                import codecs
-
-                return codecs.lookup(v.strip('"')).name
+            try:
+                info = codecs.lookup(v.strip("\"' "))
+            except (LookupError, ValueError):
+                continue
+            if getattr(info, "_is_text_encoding", True):
+                return info.name
     return "utf-8"
 
 

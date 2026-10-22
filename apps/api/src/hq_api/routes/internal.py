@@ -10,6 +10,7 @@ single insert after the policy allowed it.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import datetime
 from decimal import Decimal
@@ -19,7 +20,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
-from hq_api import idempotency, media, workflows_client
+from hq_api import idempotency, workflows_client
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
 from hq_api.domain import control, errands, hiring, inquiries, notify, org
@@ -1237,15 +1238,22 @@ async def upload_file(
     async with ctx.tx() as tx:  # a locked company writes nothing, not even bytes
         await ctx.ensure_unlocked(tx, ctx.who.company_id)
     limit = ctx.hub.settings.max_file_bytes
-    chunks: list[bytes] = []
-    size = 0
-    async for chunk in request.stream():  # the limit holds while reading, not after
-        size += len(chunk)
-        if size > limit:
-            raise ApiError(413, "validation_failed", "file too large")
-        chunks.append(chunk)
-    data = b"".join(chunks)
-    key, sha = await ctx.hub.storage.put(data)
+    scratch = ctx.hub.storage.scratch()
+    head = b""
+    try:  # to a scratch file, never whole in memory; the limit holds while reading
+        size = 0
+        with await asyncio.to_thread(open, scratch, "wb") as fh:
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > limit:
+                    raise ApiError(413, "validation_failed", "file too large")
+                if len(head) < 8:
+                    head += chunk[:8]
+                await asyncio.to_thread(fh.write, chunk)
+        key, sha, size = await ctx.hub.storage.commit(scratch)
+    finally:
+        await asyncio.to_thread(scratch.unlink, missing_ok=True)
+    pdf = mime == "application/pdf" and head.startswith(b"%PDF-")
     async with ctx.tx() as tx:
         await ctx.ensure_unlocked(tx, ctx.who.company_id)
         row = await tx.one(
@@ -1256,13 +1264,13 @@ async def upload_file(
             co=ctx.who.company_id,
             name=name,
             mime=mime,
-            size=len(data),
+            size=size,
             sha=sha,
             key=key,
             by=ctx.who.code,
         )
-        if mime == "application/pdf" and (text := await media.pdf_text(data)):
-            await F.document_text(tx, row["id"], ctx.who.company_id, text)
+        if pdf:  # its text after this commit, outside any transaction (prompt 07.1 §1.2)
+            await F.document_pending(tx, row["id"], ctx.who.company_id)
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,
@@ -1270,9 +1278,14 @@ async def upload_file(
             action_class="A1",
             target_kind="file",
             target_ref=str(row["id"]),
-            summary=f"{mime}, {len(data)} bytes",
+            summary=f"{mime}, {size} bytes",
         )
-    return FileRef(**row)
+    status = "ready"
+    if pdf:  # finished even if the caller goes away
+        status = await asyncio.shield(
+            F.extract_text(ctx.tx, row["id"], ctx.hub.storage.local_path(key))
+        )
+    return FileRef(**row, status=status)
 
 
 def advisory_key(purpose: str, company_id: UUID) -> int:

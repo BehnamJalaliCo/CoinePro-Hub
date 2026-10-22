@@ -53,6 +53,25 @@ Every library is free and open source and pinned to an exact version (`gradle/li
   - **Tools and internet** — egress totals and log, MCP servers enabled by the owner's seal, service accounts, the
     tool catalogue.
   - The **advisor** gains its formal inquiries; **home** gains the overseer's card; **control** gains backups.
+- **The owner's tools** ⟨1.4.4⟩ on APIs the hub already serves (`docs/GAP_ANALYSIS_v2.md` §5A):
+  - **Resolutions book** with search and Excel export; any message can be recorded as a resolution.
+  - **Agent runs**: every run, live, with its steps and tools, and a health board per employee; runs on each work
+    item and each employee.
+  - **Work**: edit (If-Match), complete with evidence, cancel with a reason. **Employees**: pause, resume, dismiss
+    with the passkey and a work transfer. **New company** straight from the companies list.
+  - **Site checks and incidents**, with the site list editor sealed on the body.
+  - **Treasury**: subscription quota, what-if per model, budget editor (holding, company month and day, dollars),
+    connection name, on/off and write-only key, the calls list with paging and Excel export.
+  - **Planner**: company and department scopes, a Persian month view. **Cartable** sorted by expiry or waiting time.
+  - **Control**: deploy freezes set and lifted. **Settings**: the per-company, per-level notification matrix.
+  - **Message search** on the messages screen; **Audit** export.
+- **On the phone** ⟨1.4.4⟩:
+  - **App lock** — with a secure lock screen on the phone, the app opens locked and locks again after a minute away;
+    fingerprint, face or the phone's PIN opens it (Settings switch). Recents never show its content.
+  - **Offline reading** — the last good answer of the screens the owner reads is kept encrypted (Keystore AES-GCM) and
+    shown with a banner when the network is gone; nothing is written offline. Cleared on sign-out.
+  - **Cartable widget** — pending seals and urgent items as the app last saw them (the widget never calls the hub), and
+    a **quick-settings tile** that opens the voice order sheet.
 - **Live** — one SSE connection to `/api/v1/stream` while the app is in the foreground; events refresh the
   screens that show the touched data (the same invalidation map as the web).
 
@@ -117,5 +136,5 @@ The app shows both values under **تنظیمات → این اپ** with copy but
 Until then the app installs and runs, the demo works in the debug build, and sign-in reports that the app is not
 yet linked to the domain.
 
-Push notifications (FCM) are not in this version: they need a Firebase project, which is the owner's decision.
+Push notifications through FCM are dropped (owner's decision, 2026-10-17: one user, the GitHub release is enough, no Firebase project). Notifications arrive in the app over the live stream.
 The in-app stream covers notifications while the app is open.

@@ -100,7 +100,12 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
-private val STEP_UP_KINDS = setOf("hire", "dismissal", "budget_change")
+// code_session: its seal creates a Code Workshop grant (contract §5.1 ⟨1.4.3⟩). The round-two kinds are sealed the same way, each card
+// bound to what it proposes (§18.13 ⟨1.4.5⟩); a server plan is sealed only on its own route, against its digest (§18.8).
+private val STEP_UP_KINDS = setOf(
+    "hire", "dismissal", "budget_change", "code_session", "protocol", "tool_enable", "errand_action", "company_found", "lesson_adoption",
+)
+private val OWN_ROUTE = mapOf("server_plan" to ("founding" to "مُهر طرح سرور در تأسیس شرکت"))
 
 /** A3 actions and hire, dismissal and budget changes are approved with a fresh passkey (contract §4). */
 fun needsStepUp(d: Decision) = d.actionClass == "A3" || d.kind in STEP_UP_KINDS
@@ -148,6 +153,8 @@ fun CartableScreen() {
     val companies = rememberCompanies()
     var tab by rememberSaveable { mutableStateOf("pending") }
     var riskF by rememberSaveable { mutableStateOf<String?>(null) }
+    // Cartable age (M8): what expires first, what has waited longest, or the newest.
+    var sort by rememberSaveable { mutableStateOf("expiry") }
     val q = rememberQuery("decisions:$tab", "decisions") { decisions(if (tab == "pending") "pending" else null, limit = 100) }
     val r = refresher(q)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
@@ -164,7 +171,18 @@ fun CartableScreen() {
                 }
             }
         }
-        val list = all.filter { riskF == null || it.risk == riskF }
+        if (tab == "pending") item {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((key, label) in listOf("expiry" to "زودتر منقضی", "oldest" to "بیشترین انتظار", "newest" to "تازه‌ترین")) FilterChip(label, sort == key, { sort = key })
+            }
+        }
+        val list = all.filter { riskF == null || it.risk == riskF }.let { xs ->
+            when (sort) {
+                "expiry" -> xs.sortedWith(compareBy({ it.expiresAt ?: "9999" }, { it.createdAt }))
+                "oldest" -> xs.sortedBy { it.createdAt }
+                else -> xs.sortedByDescending { it.createdAt }
+            }
+        }
         when {
             q.data == null && q.error == null -> items(4) { Skeleton(Modifier.fillMaxWidth().height(64.dp)) }
             q.data == null -> item { com.coinepro.hq.designsystem.ErrorBlock(q.error, { q.refresh() }) }
@@ -238,6 +256,26 @@ private fun Payload(d: Decision) {
                 Triple("تست‌ها", "${tests?.s("passed") ?: 0} ✓ · ${tests?.s("failed") ?: 0} ✗", true),
             )
             p.s("rollout")?.let { Text(buildAnnotatedString { append("روش انتشار: "); fig(it, c.textPrimary) }, style = Divan.type.small, color = c.textSecondary) }
+        }
+        "tool_enable" -> Section("ابزارهای این سرور عوض شده‌اند") {
+            val diff = p["diff"] as? JsonObject
+            Text(buildAnnotatedString { append("سرور "); fig(p.s("key") ?: "—", c.textPrimary); append(" خاموش است. با مُهر، دقیقاً با همین فهرست روشن میشود.") }, style = Divan.type.small, color = c.textSecondary)
+            listOf(Triple("added", "تازه", c.warning), Triple("changed", "عوض‌شده", c.warning), Triple("removed", "حذف‌شده", c.textMuted)).forEach { (key, fa, tone) ->
+                val names = diff?.list(key).orEmpty()
+                if (names.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(fa, style = Divan.type.caption, color = tone)
+                    names.forEach { Fig(it, Modifier.clip(RoundedCornerShape(6.dp)).background(c.tile).padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.figureSmall, color = c.textSecondary) }
+                }
+            }
+        }
+        "a3_action" -> if (p.s("action") == "mcp_call") Section("فراخوانی ابزار بیرونی") {
+            FactGrid(Triple("سرور", p.s("server") ?: "—", true), Triple("ابزار", p.s("tool") ?: "—", true))
+            (p["args"] as? JsonObject)?.takeIf { it.isNotEmpty() }?.let { args ->
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    args.forEach { (k, v) -> Text(buildAnnotatedString { fig(k, c.textMuted); append("  "); fig((v as? JsonPrimitive)?.contentOrNull ?: v.toString(), c.textPrimary) }, style = Divan.type.small) }
+                }
+            }
+            Text("با مُهر، همین فراخوانی با همین ورودی فقط یک بار اجرا میشود.", style = Divan.type.caption, color = c.textMuted)
         }
         "budget_change" -> Section("تغییر بودجه") {
             FactGrid(
@@ -323,7 +361,10 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
         if (pending) {
             HqCard(Modifier.fillMaxWidth(), radius = 18.dp) {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    SealButton(d.company, co.nameFa, co.nameEn, co.holding, busy = seal.busy) {
+                    val own = OWN_ROUTE[d.kind]
+                    if (own != null) {
+                        HqButton(own.second, { nav.go(own.first) }, icon = DivanIcon.SEAL)
+                    } else SealButton(d.company, co.nameFa, co.nameEn, co.holding, busy = seal.busy) {
                         seal.run {
                             val token = if (needsStepUp(d)) env.auth.stepUp(act, "decision.approve", d.ref) else null
                             val out = env.api.approve(d.ref, null, token)
@@ -331,7 +372,7 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                             toasts.ok("مُهر خورد. ${out.resolution?.let { "$it " } ?: ""}به ${actorFa(d.proposer)} خبر داده شد.")
                         }
                     }
-                    if (needsStepUp(d)) Text("این تصمیم با اثر انگشت یا چهره تأیید میشود.", style = Divan.type.caption, color = c.textMuted)
+                    if (needsStepUp(d) || own != null) Text("این تصمیم با اثر انگشت یا چهره تأیید میشود.", style = Divan.type.caption, color = c.textMuted)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         HqButton("توی چت بپرس", { other.run { val o = env.api.ask(d.ref, null); nav.go("messages/${o.thread}") } }, icon = DivanIcon.MESSAGES, loading = other.busy)
                         HqButton("با مشاور بررسی کن", { other.run { env.api.reviewWithAdvisor(d.ref); nav.go("advisor") } }, variant = BtnVariant.SILVER, icon = DivanIcon.ADVISOR)
