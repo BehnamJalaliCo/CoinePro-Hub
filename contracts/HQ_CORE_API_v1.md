@@ -1992,7 +1992,8 @@ allow-list). The CLIs' own tools are off: Gemini with no core tools, Codex in it
 checkout is mounted read-only as the working directory and the CLI may read it (Gemini: its read-only file tools; no shell, no write, no web).
 Its memory limit is measured and passes the memory gate, or it stays off.
 
-- **Agent tool** `substitute.call` (A0; advisor, overseer, assistant, CEOs; `code_review` also the CTO and QC): `{seat, player?, input_md,
+- **Agent tool** `substitute.call` (A0; advisor, overseer, assistant, CEOs; `code_review` also the CTO and QC; ⟨1.6⟩ `creative` also the media
+  director, motion designer, visual designer and UI designer, §22): `{seat, player?, input_md,
   file_ids?, repo?, head_sha?, kind?: "text"|"image"|"video", placement?, overlay?, duration_s?}` → `{text_md, source}`, `{findings, source}`
   or `{creative: "CR-…", state}`. Refusals: `channel_not_configured` (signed out or `off`),
   `rate_limited` (the seat's daily cap, or the player is `limited`), `policy_denied` (a seat the role may not use, or input the data guard refuses).
@@ -2042,7 +2043,7 @@ Series    { id, ref: "SR-0001", company, title_fa, kind: "reel"|"story"|"post"|"
             checks: ["brand", "red_lines", "risk_warning", "facts", "rights", "platform", "qc"],
             auto_publish: bool, max_per_day, status: "draft"|"proposed"|"sealed"|"paused"|"retired",
             digest, version, sealed_at|null }
-MediaItem { id, ref: "MI-0001", company, series: "SR-…"|null, kind, title_fa,
+MediaItem { id, ref: "MI-0001", company, series: "SR-…"|null, kind: "reel"|"story"|"post"|"carousel"|"design", title_fa,     // `design`: UI mockups, never published
             state: "scripting"|"directing"|"composing"|"voicing"|"rendering"|"checking"|"review"|"scheduled"|"published"|"waiting_owner"|"held"|"failed"|"rejected",
             script: {text_fa, sources: [{kind, ref|url, note}], by: Actor}|null,
             direction: {shots: [{n, duration_s, visual_fa, text_on_screen_fa|null, voice_fa|null}], by: Actor}|null,
@@ -2085,7 +2086,9 @@ Voice     { id, engine, name_fa, licence, licence_commercial: bool, rtf, mem_mb,
   deploy freeze, holds and watch mode stop publishing like any other act; the company's monthly token envelope pays for the models.
 - **UI redesign** (`ui_designer`): a design deliverable — the redesigned pages as HTML mockups rendered to screenshots by the same render
   worker, images from the substitutes, the brand of §18.14 — handed to the CTO; building it is Code Workshop work and its deploy a card.
-- Agent tools: `media.item` (A1, the item's current step for its role), `media.render` (A2, queue the item's render), `media.voice` (A2,
+- A `design` item (the UI designer's) has the steps brief and composition only, renders screenshots, never reaches the checks for
+  publishing, and ends as a deliverable.
+- Agent tools: `media.item` (A1, the item's current step for its role; `design` items: the UI designer), `media.render` (A2, queue the item's render), `media.voice` (A2,
   TTS for the item), `media.review` (A2, the media director only), `series.propose` (A1, a series card for the owner).
 - Stream: `media.item` on topic `media`. Decision kinds: `media_series` (🔏 on the series digest), `media_publish` (A3).
 
@@ -2125,11 +2128,13 @@ EmailDraft { case: "LC-…", from, to: [addr], cc: [addr], subject, body_md, att
   attachment hashes); approving it (🔏, the card bound to the message `digest`) sends exactly that once. Incoming replies to a case's
   messages (by `Message-ID`/`References`) are read by code, masked, added to the timeline, and wake the counsel; **nothing is ever sent
   automatically**. Attachments go through §17.1.
-- **Forms and portals** (an appeal form, a help-centre ticket): the counsel prepares the exact field values in a card; the owner submits it
-  (it usually needs the account's own sign-in) and the counsel records the outcome.
+- **Forms and portals** (an appeal form, a help-centre ticket): the counsel prepares the exact field values in a card of kind `a3_action`
+  with `action: "form_submit"`, the form's page as `target` and the field values as `preview`; the owner submits it (it usually needs the
+  account's own sign-in) and the counsel records the outcome.
 - The counsel works only through official channels and published policies (each cited with its date), never pretends to be the owner or
   anyone else, never threatens, and says plainly when a matter needs a human lawyer.
-- Agent tools: `case.open`, `case.note` (A1), `email.draft` (A1 → card), `mail.read` (A0, the counsel's own cases only).
+- Agent tools: `case.open`, `case.note` (A1; `deadline?: {at, what_fa}` adds to `deadlines`), `email.draft` (A1 → card), `mail.read` (A0,
+  the counsel's own cases only).
 - Stream: `legal.case` on topic `legal`. Decision kind: `email_send` (A3, 🔏 on the message digest).
 
 ### 22.5 Kinds, stream, step-up, codes ⟨1.6⟩
