@@ -10,6 +10,7 @@ import com.coinepro.hq.core.net.Skill
 import com.coinepro.hq.core.net.TokenSource
 import com.coinepro.hq.core.net.hireableRoles
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.put
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.junit.After
@@ -573,5 +574,273 @@ class ApiContractTest {
         server.enqueue(json(200, """{"items":[],"next_cursor":"c2"}"""))
         assertEquals("c2", api.conversations(company = "TY", state = "waiting_owner", q = "  ").nextCursor)
         assertEquals("company=TY&state=waiting_owner&limit=30", server.takeRequest().url.encodedQuery)
+    }
+
+    // ------------------------------------------------------------ ⟨1.5⟩ §20 --
+    private val charterJson = """{"scope":"FX","version":1,"status":"proposed","body_md":"# x","red_lines":[],"body_sha256":"9f2c","created_at":"2026-10-17T00:00:00Z"}"""
+
+    @Test
+    fun charterIsSealedOnTheHashTheServerSent() = runTest {
+        val c = Api.json.decodeFromString(com.coinepro.hq.core.net.Charter.serializer(), charterJson)
+        val (a, t, req) = signed(charterJson.replace("proposed", "sealed")) { api.sealCharter(c, it) }
+        // §20.12: the target is body_sha256 as the server sent it; the client never recomputes it.
+        assertEquals("charter.seal" to "9f2c", a to t)
+        assertEquals("/api/v1/charter/FX/versions/1/seal", req.url.encodedPath)
+        // A new version: the red lines go whole, a sampled one with an explicit null for its patterns.
+        server.enqueue(json(201, charterJson.replace("\"version\":1", "\"version\":2")))
+        api.proposeCharter("FX", com.coinepro.hq.core.net.CharterIn("# y", listOf(com.coinepro.hq.core.net.RedLine("fx_stop_loss", "حد ضرر", "sample", null))))
+        val put = server.takeRequest()
+        assertEquals("PUT" to "/api/v1/charter/FX", put.method to put.url.encodedPath)
+        assertEquals("""{"body_md":"# y","red_lines":[{"key":"fx_stop_loss","text_fa":"حد ضرر","check":"sample","patterns":null}]}""", put.body!!.utf8())
+    }
+
+    @Test
+    fun authorityAndMeetingSettingsAreSealedOnTheExactBody() = runTest {
+        server.enqueue(json(200, "[]"))
+        var signedOn: Pair<String, String>? = null
+        api.putAuthority(listOf(
+            com.coinepro.hq.core.net.AuthorityChange("hire.count_day", null, kotlinx.serialization.json.buildJsonObject { put("count_day", 7) }, 2),
+            com.coinepro.hq.core.net.AuthorityChange("batch.max_usd", "owner", kotlinx.serialization.json.buildJsonObject { put("usd", 1.5) }, 1),
+        )) { a, t -> signedOn = a to t; "su" }
+        val put = server.takeRequest()
+        val body = put.body!!.utf8()
+        assertEquals("""{"rules":[{"key":"hire.count_day","limit":{"count_day":7},"version":2},{"key":"batch.max_usd","actor":"owner","limit":{"usd":1.5},"version":1}]}""", body)
+        assertEquals("authority.update" to Api.sha256(body), signedOn)
+        assertEquals("PUT" to "su", put.method to put.headers["X-Step-Up"])
+        assertNull(put.headers["If-Match"])
+        // The meeting types go whole: a war room's missing cap is an explicit null, each row with its own version.
+        val war = com.coinepro.hq.core.net.MeetingType("war_room", "اتاق جنگ", null, com.coinepro.hq.core.net.MeetingMembers(listOf("ceo"), "concerned"), 3, 8, null, 6000, "live", true, 1)
+        server.enqueue(json(200, """{"types":[]}"""))
+        api.saveMeetingSettings(listOf(war)) { a, t -> signedOn = a to t; "su2" }
+        val settings = server.takeRequest()
+        val text = settings.body!!.utf8()
+        assertEquals("""{"types":[{"key":"war_room","title_fa":"اتاق جنگ","schedule":null,"members":{"roles":["ceo"],"companies":"concerned"},"max_rounds":3,"max_speakers":8,"budget_tokens":null,"turn_cap_tokens":6000,"owner_presence":"live","enabled":true,"version":1}]}""", text)
+        assertEquals("meetings.settings" to Api.sha256(text), signedOn)
+        assertEquals("PUT" to "/api/v1/meetings/settings", settings.method to settings.url.encodedPath)
+    }
+
+    @Test
+    fun batchIsSealedOnItsSortedSetAndRefusedWhole() = runTest {
+        var signedOn: Pair<String, String>? = null
+        server.enqueue(json(200, """{"batch":"B-0001","items":[{"ref":"D-000034","resolution":"M-0019"},{"ref":"D-000035","resolution":"M-0020"}]}"""))
+        val out = api.batchApprove(listOf(com.coinepro.hq.core.net.BatchItem("D-000035", 1), com.coinepro.hq.core.net.BatchItem("D-000034", 2)), "k-batch") { a, t -> signedOn = a to t; "su" }
+        val req = server.takeRequest()
+        val set = """[{"ref":"D-000034","version":2},{"ref":"D-000035","version":1}]"""
+        assertEquals("decision.batch" to Api.sha256(set), signedOn)
+        assertEquals("/api/v1/decisions/batch/approve", req.url.encodedPath)
+        assertEquals("""{"items":$set}""", req.body!!.utf8())
+        assertEquals("k-batch" to "su", req.headers["Idempotency-Key"] to req.headers["X-Step-Up"])
+        assertEquals("B-0001", out.batch)
+        assertEquals(listOf("M-0019", "M-0020"), out.items.map { it.resolution })
+        // All or nothing: each refused card and why, in Persian.
+        server.enqueue(json(422, """{"type":"about:blank","title":"batch_not_eligible","status":422,"code":"batch_not_eligible","message_fa":"رد شد.","fields":{"items":[{"ref":"D-000035","reason":"changed"}]}}"""))
+        try {
+            api.batchApprove(listOf(com.coinepro.hq.core.net.BatchItem("D-000035", 1)), "k2") { _, _ -> "su" }
+            fail("expected ApiException")
+        } catch (e: ApiException) {
+            assertEquals(listOf("D-000035" to "changed"), e.batchReasons)
+            assertEquals("کارت بعد از انتخاب عوض شد", com.coinepro.hq.core.net.BATCH_REASON_FA[e.batchReasons.single().second])
+            assertTrue(com.coinepro.hq.core.net.govError(e).contains("هیچ کارتی مُهر نشد"))
+        }
+    }
+
+    @Test
+    fun meetingsCarryIfMatchAndTheCallersKey() = runTest {
+        val mt = """{"ref":"MT-0013","type":"company","company":"TY","title_fa":"t","starts_at":"2026-10-18T05:00:00Z","state":"prep","version":2}"""
+        val m = Api.json.decodeFromString(com.coinepro.hq.core.net.Meeting.serializer(), mt)
+        server.enqueue(json(200, mt))
+        api.patchMeeting(m, items = listOf(com.coinepro.hq.core.net.ItemOrder("mi-13-2", 1, false), com.coinepro.hq.core.net.ItemOrder("mi-13-1", 2, true)), budgetCap = 30_000)
+        val patch = server.takeRequest()
+        assertEquals("PATCH" to "\"2\"", patch.method to patch.headers["If-Match"])
+        assertEquals("""{"items":[{"id":"mi-13-2","n":1,"skip":false},{"id":"mi-13-1","n":2,"skip":true}],"budget_cap":30000}""", patch.body!!.utf8())
+        server.enqueue(json(201, """{"id":"t1","meeting":"MT-0012","speaker":{"code":"owner","kind":"owner"},"kind":"owner","at":"2026-10-17T08:30:00Z"}"""))
+        assertEquals("owner", api.speak("MT-0012", "ساعت کم‌بار", null, "k-speak").kind)
+        val speak = server.takeRequest()
+        assertEquals("k-speak" to """{"text":"ساعت کم‌بار"}""", speak.headers["Idempotency-Key"] to speak.body!!.utf8())
+        server.enqueue(json(201, mt))
+        api.createMeeting("company", "TY", "2026-10-20T10:30:00Z", listOf(com.coinepro.hq.core.net.MeetingItemIn("گزارش", 10)), "k-new")
+        val create = server.takeRequest()
+        assertEquals("k-new" to """{"type":"company","company":"TY","starts_at":"2026-10-20T10:30:00Z","items":[{"title_fa":"گزارش","time_box_min":10}]}""", create.headers["Idempotency-Key"] to create.body!!.utf8())
+        server.enqueue(json(200, mt))
+        api.meetingControl("MT-0012", "raise_budget", 20_000)
+        assertEquals("""{"action":"raise_budget","tokens":20000}""", server.takeRequest().body!!.utf8())
+        server.enqueue(json(409, """{"code":"meeting_not_live","message_fa":"server","status":409}"""))
+        try {
+            api.speak("MT-0013", "x", null, "k3")
+            fail("expected ApiException")
+        } catch (e: ApiException) {
+            assertEquals("جلسه الان زنده نیست؛ ورود تو فقط در جلسه‌ی زنده ممکن است.", com.coinepro.hq.core.net.govError(e))
+        }
+    }
+
+    @Test
+    fun kpisRisksAndTheCalendarUseIfMatch() = runTest {
+        val set = com.coinepro.hq.core.net.KpiSet("TY", 3, emptyList())
+        server.enqueue(json(200, """{"company":"TY","version":4,"kpis":[]}"""))
+        assertEquals(4, api.putKpis(set, listOf(com.coinepro.hq.core.net.KpiPatch("min_balance_rate", null, true, "active", 30))).version)
+        val kpis = server.takeRequest()
+        assertEquals("PUT" to "\"3\"", kpis.method to kpis.headers["If-Match"])
+        // A cleared target is sent as an explicit null.
+        assertEquals("""{"kpis":[{"key":"min_balance_rate","target":null,"scorecard":true,"status":"active","freshness_hours":30}]}""", kpis.body!!.utf8())
+        val risk = Api.json.decodeFromString(com.coinepro.hq.core.net.Risk.serializer(), """{"ref":"RK-0002","company":"TY","title_fa":"t","category":"money","likelihood":3,"impact":5,"status":"open","version":2}""")
+        assertEquals(15, risk.score)
+        server.enqueue(json(200, """{"ref":"RK-0002","company":"TY","title_fa":"t","category":"money","likelihood":2,"impact":5,"score":10,"status":"mitigating","version":3}"""))
+        api.patchRisk(risk, kotlinx.serialization.json.buildJsonObject { put("likelihood", 2); put("mitigation_md", null as String?) })
+        val patch = server.takeRequest()
+        assertEquals("\"2\"" to """{"likelihood":2,"mitigation_md":null}""", patch.headers["If-Match"] to patch.body!!.utf8())
+        val ev = """{"ref":"CE-0005","company":"TY","kind":"campaign","title_fa":"t","starts_at":"2026-10-19T08:30:00Z","ends_at":"2026-10-26T08:30:00Z","version":1}"""
+        val e = Api.json.decodeFromString(com.coinepro.hq.core.net.CalendarEvent.serializer(), ev)
+        server.enqueue(json(200, ev))
+        api.patchEvent(e, "cancelled")
+        assertEquals("\"1\"" to """{"status":"cancelled"}""", server.takeRequest().let { it.headers["If-Match"] to it.body!!.utf8() })
+        // An event without a version (§20.9 lists none) goes without If-Match.
+        server.enqueue(json(200, ev))
+        api.patchEvent(e.copy(version = null), "done")
+        assertNull(server.takeRequest().headers["If-Match"])
+        // A hand-made event names its company, or null for every company.
+        server.enqueue(json(201, ev))
+        api.createEvent(com.coinepro.hq.core.net.CalendarIn(null, "freeze", "فریز", "2026-10-19T08:30:00Z", "2026-10-19T10:30:00Z", "medium"))
+        assertEquals("""{"company":null,"kind":"freeze","title_fa":"فریز","starts_at":"2026-10-19T08:30:00Z","ends_at":"2026-10-19T10:30:00Z","risk":"medium"}""", server.takeRequest().body!!.utf8())
+    }
+
+    @Test
+    fun section20ListsAreReadBarePagedOrWrapped() = runTest {
+        val t = """{"key":"board","title_fa":"هیئت","budget_tokens":120000,"version":3}"""
+        server.enqueue(json(200, """{"types":[$t]}"""))
+        server.enqueue(json(200, "[$t]"))
+        assertEquals(api.meetingSettings(), api.meetingSettings())
+        server.takeRequest(); server.takeRequest()
+        server.enqueue(json(200, """{"rules":[{"key":"a4.never","title_fa":"A4 هرگز","class":"A4","locked":true}]}"""))
+        assertEquals("A4", api.authority().single().actionClass)
+        server.takeRequest()
+        server.enqueue(json(200, """{"items":[{"ref":"MT-0012","type":"board","company":"HQ","title_fa":"t","starts_at":"2026-10-17T08:04:00Z","state":"live","budget":{"cap":null,"estimate":0,"reserved":0,"used":6000}}],"next_cursor":null}"""))
+        val ms = api.meetings(type = "war_room", company = "FX")
+        assertEquals(null, ms.single().budget.cap)
+        assertEquals("type=war_room&company=FX&limit=100", server.takeRequest().url.encodedQuery)
+        server.enqueue(json(200, """{"items":[],"next_cursor":null}"""))
+        api.outcomes(due = true, decision = "D-000004")
+        assertEquals("due=true&decision=D-000004&limit=100", server.takeRequest().url.encodedQuery)
+        server.enqueue(json(200, """{"scope":"TY","version":2,"against":1,"diff":"--- TY@1"}"""))
+        api.charterDiff("TY", 2, 1)
+        assertEquals("/api/v1/charter/TY/versions/2/diff?against=1", server.takeRequest().url.let { "${it.encodedPath}?${it.encodedQuery}" })
+    }
+    // ------------------------------------------------------------ ⟨1.5⟩ §21 --
+    private val sub = """{"player":"gpt","connection":"chatgpt-plus","runner":"codex_cli","status":"ready","version":3,"login":{"state":"signed_in"},"models":[{"id":"gpt-5.5"}],"capabilities":{},"web":{"account":"chatgpt-web","state":"signed_in"},"seats":[],"month":{"key":"1405-07"}}"""
+
+    @Test
+    fun aNewConnectionIsSealedOnItsExactBodyWithTheCallersKey() = runTest {
+        val body = com.coinepro.hq.core.net.ConnectionIn(
+            key = "openrouter-main", provider = "openai_compatible", kind = "api_key", displayName = "OpenRouter", baseUrl = "https://openrouter.ai/api/v1",
+            models = listOf("deepseek-v3.2"), pricing = mapOf("deepseek-v3.2" to com.coinepro.hq.core.net.Price("0.27", "1.10")), limits = com.coinepro.hq.core.net.ConnLimits(rpm = 60),
+        )
+        server.enqueue(json(201, """{"id":"c9","key":"openrouter-main","display_name":"OpenRouter","kind":"api_key","provider":"openai_compatible","status":"pending_secret","models":["deepseek-v3.2"],"version":1}"""))
+        var signedOn: Pair<String, String>? = null
+        val c = api.createConnection(body, "k-wizard") { a, t -> signedOn = a to t; "su" }
+        val req = server.takeRequest()
+        val text = req.body!!.utf8()
+        // pricing and limits are always written; a field left out is not sent as null.
+        assertEquals("""{"key":"openrouter-main","provider":"openai_compatible","kind":"api_key","display_name":"OpenRouter","base_url":"https://openrouter.ai/api/v1","models":["deepseek-v3.2"],"pricing":{"deepseek-v3.2":{"input_per_mtok":"0.27","output_per_mtok":"1.10"}},"limits":{"rpm":60}}""", text)
+        assertEquals("connection.create" to Api.sha256(text), signedOn)
+        assertEquals("k-wizard" to "su", req.headers["Idempotency-Key"] to req.headers["X-Step-Up"])
+        assertEquals("pending_secret", c.status)
+        assertTrue(com.coinepro.hq.core.net.CONNECTION_KEY.matches("openrouter-main") && !com.coinepro.hq.core.net.CONNECTION_KEY.matches("Open_Router"))
+        assertTrue(com.coinepro.hq.core.net.publicHttps("https://openrouter.ai/api/v1") && !com.coinepro.hq.core.net.publicHttps("https://192.168.1.4/v1") && !com.coinepro.hq.core.net.publicHttps("http://openrouter.ai"))
+    }
+
+    @Test
+    fun seatsAndSignInsAreSealedOnTheirTargets() = runTest {
+        val s = Api.json.decodeFromString(com.coinepro.hq.core.net.Substitute.serializer(), sub)
+        server.enqueue(json(200, sub))
+        var signedOn: Pair<String, String>? = null
+        api.putSeats(s, listOf(com.coinepro.hq.core.net.SeatIn("creative", "web", "gpt-5.5", true, 20), com.coinepro.hq.core.net.SeatIn("creative", "web", "gpt-5.5", true, 20, perDayVideo = 3))) { a, t -> signedOn = a to t; "su" }
+        val put = server.takeRequest()
+        val list = put.body!!.utf8()
+        assertEquals("""[{"seat":"creative","via":"web","model":"gpt-5.5","enabled":true,"per_day":20},{"seat":"creative","via":"web","model":"gpt-5.5","enabled":true,"per_day":20,"per_day_video":3}]""", list)
+        assertEquals("substitute.seats" to Api.sha256(list), signedOn)
+        assertEquals(Triple("PUT", "\"3\"", "/api/v1/substitutes/gpt/seats"), Triple(put.method, put.headers["If-Match"], put.url.encodedPath))
+        val (a1, t1, r1) = signed(sub) { api.webLogout("gpt", it) }
+        assertEquals(Triple("substitute.web_logout", "gpt", "/api/v1/substitutes/gpt/web/logout"), Triple(a1, t1, r1.url.encodedPath))
+        val (a2, t2, r2) = signed("""{"id":"lg1","connection":"chatgpt-plus","method":"device_code","verification_url":"https://auth.openai.com/codex/device","user_code":"AK7M-4TZP","expires_at":"2026-10-17T08:40:00Z","state":"waiting"}""") { api.connectionLogin("c6", it) }
+        assertEquals(Triple("connection.login", "c6", "/api/v1/connections/c6/login"), Triple(a2, t2, r2.url.encodedPath))
+        val (a3, t3, r3) = signed("""{"connection":"chatgpt-plus","signed_out":true}""") { api.connectionLogout("c6", it) }
+        assertEquals(Triple("connection.logout", "c6", "/api/v1/connections/c6/logout"), Triple(a3, t3, r3.url.encodedPath))
+        // The code of an auth-code sign-in is covered by the start's step-up.
+        server.enqueue(json(200, """{"id":"lg2","connection":"gemini-pro","method":"auth_code","verification_url":"https://accounts.google.com/x","state":"done"}"""))
+        api.connectionLoginCode("c7", "lg2", "4/0Ab-xyz")
+        val code = server.takeRequest()
+        assertEquals("/api/v1/connections/c7/login/lg2/code" to """{"code":"4/0Ab-xyz"}""", code.url.encodedPath to code.body!!.utf8())
+        assertNull(code.headers["X-Step-Up"])
+    }
+
+    @Test
+    fun section21WritesCarryIfMatchAndTheCallersKey() = runTest {
+        // The owner's settings: each changed block whole, with the version.
+        server.enqueue(json(200, """{"version":5}"""))
+        api.saveOwnerSettings(4, mapOf("digital_ceo" to Api.jsonBody.encodeToJsonElement(com.coinepro.hq.core.net.DceoSettings.serializer(), com.coinepro.hq.core.net.DceoSettings(reveal = "before"))))
+        val settings = server.takeRequest()
+        assertEquals(Triple("PUT", "\"4\"", """{"digital_ceo":{"enabled":true,"reveal":"before","model_predictions":true,"max_model_per_day":20}}"""), Triple(settings.method, settings.headers["If-Match"], settings.body!!.utf8()))
+        // An ask and a note carry the press's key; a memo names its mode.
+        server.enqueue(json(202, """{"ref":"AK-0004","q":"چرا؟","state":"queued"}"""))
+        assertTrue(api.askHub("چرا؟", listOf("FX"), "k-ask").live)
+        val ask = server.takeRequest()
+        assertEquals("k-ask" to """{"q":"چرا؟","scope":{"companies":["FX"]}}""", ask.headers["Idempotency-Key"] to ask.body!!.utf8())
+        server.enqueue(json(201, """{"ref":"NT-0007","text_md":"x","status":"open","version":1}"""))
+        api.createNote("x #خزانه", "text", null, com.coinepro.hq.core.net.tagsOf("خزانه"), "k-note")
+        val note = server.takeRequest()
+        assertEquals("k-note" to """{"text_md":"x #خزانه","source":"text","tags":["خزانه"]}""", note.headers["Idempotency-Key"] to note.body!!.utf8())
+        val n = Api.json.decodeFromString(com.coinepro.hq.core.net.OwnerNote.serializer(), """{"ref":"NT-0006","text_md":"x","status":"open","version":2}""")
+        server.enqueue(json(200, """{"ref":"NT-0006","text_md":"x","status":"archived","version":3}"""))
+        api.patchNote(n, archive = true)
+        assertEquals("\"2\"" to """{"status":"archived"}""", server.takeRequest().let { it.headers["If-Match"] to it.body!!.utf8() })
+        server.enqueue(json(200, """{"ref":"NT-0006","text_md":"x","status":"promoted","version":3}"""))
+        api.promoteNote("NT-0006", "work", "PC")
+        assertEquals("""{"to":"work","company":"PC"}""", server.takeRequest().body!!.utf8())
+        server.enqueue(json(202, """{"ref":"DM-0004","decision":"D-000040","mode":"devil","state":"writing"}"""))
+        api.requestMemo("D-000040", "devil")
+        assertEquals("/api/v1/decisions/D-000040/memo" to """{"mode":"devil"}""", server.takeRequest().let { it.url.encodedPath to it.body!!.utf8() })
+        // A memo or a review that does not exist yet is null, not an error.
+        server.enqueue(json(404, """{"code":"not_found","message_fa":"x","status":404}"""))
+        assertNull(api.memo("D-000040", "standard"))
+        assertEquals("mode=standard", server.takeRequest().url.encodedQuery)
+        val r = Api.json.decodeFromString(com.coinepro.hq.core.net.WeeklyReview.serializer(), """{"ref":"WR-0006","week":"2026-10-17","state":"in_progress","version":7}""")
+        server.enqueue(json(200, """{"ref":"WR-0006","week":"2026-10-17","state":"in_progress","version":8}"""))
+        api.reviewItem(r, 3, "deferred", "هفته‌ی بعد")
+        val item = server.takeRequest()
+        assertEquals(Triple("/api/v1/reviews/weekly/WR-0006/items/3", "\"7\"", """{"status":"deferred","owner_note":"هفته‌ی بعد"}"""), Triple(item.url.encodedPath, item.headers["If-Match"], item.body!!.utf8()))
+        val p = Api.json.decodeFromString(com.coinepro.hq.core.net.Principle.serializer(), """{"ref":"DP-001","text_fa":"x","status":"active","version":3}""")
+        server.enqueue(json(200, """{"ref":"DP-001","text_fa":"x","status":"retired","version":4}"""))
+        api.editPrinciple(p, "x", "retired")
+        assertEquals("\"3\"" to """{"text_fa":"x","status":"retired"}""", server.takeRequest().let { it.headers["If-Match"] to it.body!!.utf8() })
+        // A creative: the overlay as written, the press's key.
+        server.enqueue(json(201, """{"ref":"CR-0008","company":"FX","state":"queued","requested_by":{"code":"owner","kind":"owner"}}"""))
+        api.createCreative("FX", "image", "brief", "telegram_post", com.coinepro.hq.core.net.Overlay("عنوان", null, "ثبت‌نام", true), null, "gpt", "k-cr")
+        val cr = server.takeRequest()
+        assertEquals("k-cr" to """{"company":"FX","kind":"image","brief_md":"brief","placement":"telegram_post","overlay":{"title_fa":"عنوان","body_fa":null,"cta_fa":"ثبت‌نام","mark":true},"player":"gpt"}""", cr.headers["Idempotency-Key"] to cr.body!!.utf8())
+        // The devil's advocate is a mode of a message in thread A.
+        server.enqueue(json(201, """{"message":{},"reply":{"state":"queued"}}"""))
+        api.send("A", "قانعم کن", mode = "devil")
+        assertEquals("""{"body":"قانعم کن","mode":"devil"}""", server.takeRequest().body!!.utf8())
+    }
+
+    @Test
+    fun section21ReadsAndCodes() = runTest {
+        server.enqueue(json(200, "[]"))
+        api.wasteRange("2026-10-03", "2026-10-16", "PC")
+        assertEquals("from=2026-10-03&to=2026-10-16&company=PC", server.takeRequest().url.encodedQuery)
+        server.enqueue(json(200, """{"items":[{"by":"company","key":"TY","company":"TY","period":"month","cost_usd":"36.30","accepted":34}],"next_cursor":null}"""))
+        assertEquals("TY", api.roi("company", "month").single().key)
+        assertEquals("by=company&period=month", server.takeRequest().url.encodedQuery)
+        server.enqueue(json(200, """{"path":"src/chart/cache.ts","patch":"@@","truncated":false}"""))
+        api.diffFile("D-000017", "src/chart/cache.ts")
+        assertEquals("/api/v1/decisions/D-000017/diff?file=src%2Fchart%2Fcache.ts", server.takeRequest().url.let { "${it.encodedPath}?${it.encodedQuery}" })
+        // The §21.12 codes in the app's words; a rate limit says how long to wait.
+        fun err(code: Int, body: String, wait: String? = null): ApiException {
+            server.enqueue(MockResponse.Builder().code(code).addHeader("Content-Type", "application/json").apply { if (wait != null) addHeader("Retry-After", wait) }.body(body).build())
+            return try { kotlinx.coroutines.runBlocking { api.substitutes() }; fail("expected ApiException"); throw IllegalStateException() } catch (e: ApiException) { server.takeRequest(); e }
+        }
+        assertEquals("این کارت دیگر منتظر تصمیم نیست؛ یادداشت فقط برای کارت منتظر نوشته میشود.", com.coinepro.hq.core.net.mgmtError(err(409, """{"code":"decision_not_pending","message_fa":"server","status":409}""")))
+        assertEquals("تغییر مدل در پاکت ماهانه‌ی شرکت جا نمیشود؛ هیچ چیز عوض نشد.", com.coinepro.hq.core.net.mgmtError(err(409, """{"code":"envelope_exceeded","message_fa":"server","status":409}""")))
+        assertEquals("سقف پر شده؛ ۲ دقیقه‌ی دیگر.".replace("۲", "2"), com.coinepro.hq.core.net.mgmtError(err(429, """{"code":"rate_limited","message_fa":"سقف پر شده","status":429}""", "120")))
+        assertEquals("server", com.coinepro.hq.core.net.mgmtError(err(422, """{"code":"validation_failed","message_fa":"server","status":422}""")))
     }
 }

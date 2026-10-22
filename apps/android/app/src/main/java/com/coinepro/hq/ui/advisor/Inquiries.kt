@@ -50,7 +50,7 @@ fun InquiriesAction() {
 }
 
 @Composable
-private fun InquiriesSheet(onClose: () -> Unit) {
+fun InquiriesSheet(onClose: () -> Unit) {
     val c = Divan.colors
     val q = rememberQuery("inquiries:HQ-ADV", "inquiries") { inquiries(from = "HQ-ADV").items }
     HqSheet(onClose, "پرسش‌های رسمی مشاور", sub = "مشاور وقتی سوابق جواب نمیدهد، از خود مدیرها میپرسد؛ جواب با شاهد میاید.") {

@@ -19,7 +19,7 @@ import { cx } from '@/lib/format';
 import { VoiceOrder, VoiceOrderContext } from '@/components/work/voice-order';
 import { CommandPalette } from './command-palette';
 import { NotificationsSheet } from './notifications';
-import { NAV_MAIN, NAV_MOBILE, NAV_TOOLS, isActive } from './nav';
+import { NAV_ARCHIVE, NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_MEDIA, NAV_MOBILE, NAV_TOOLS, isActive } from './nav';
 import { ScopeSwitcher, Sidebar } from './sidebar';
 
 function LiveDot({ state }: { state: StreamState }) {
@@ -138,8 +138,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex flex-col gap-3">
           <ScopeSwitcher />
           <nav className="flex flex-col gap-1">
-            {/* Everything the bottom bar has no room for: the rest of the main pages, then the tools. */}
-            {[...NAV_MAIN.filter((n) => !NAV_MOBILE.some((m) => m.href === n.href)), ...NAV_TOOLS].map((n) => (
+            {/* Everything the bottom bar has no room for: the rest of the main pages, management tools, media and legal, the archive, governance, then the tools. */}
+            {[...NAV_MAIN.filter((n) => !NAV_MOBILE.some((m) => m.href === n.href)), ...NAV_MANAGEMENT, ...NAV_MEDIA, ...NAV_ARCHIVE, ...NAV_GOVERNANCE, ...NAV_TOOLS].map((n) => (
               <Link key={n.href} href={n.href} onClick={() => setMore(false)} className="flex h-12 items-center gap-3 rounded-[10px] px-3 text-[15px] text-ink hover:bg-hover">
                 <span className="text-sec"><Icon name={n.icon} size={20} /></span>{n.label}
               </Link>

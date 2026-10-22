@@ -9,6 +9,7 @@ import { Card, Empty, ErrorState, PageHeader, Pill, SectionTitle, Skeleton } fro
 import { EMPLOYEE_STATUS, EmployeeActions } from '@/components/v15/employee-actions';
 import { RunList } from '@/components/v15/runs';
 import { TrainingCard } from '@/components/v14/training';
+import { HrCard } from '@/components/v18/people';
 import { useEmployee } from '@/lib/api/hooks';
 import { useRuns } from '@/lib/api/v15';
 import { ACTIVITY, EMPLOYEE_KIND, WORK_STATUS } from '@/lib/labels';
@@ -71,6 +72,8 @@ export default function EmployeePage({ params }: { params: Promise<{ code: strin
           )) : <Empty icon="rate" title="هنوز امتیازی نگرفته" />}
         </Card>
       </div>
+      {/* ⟨1.5⟩ §21.5: this employee in the latest monthly HR round. */}
+      <HrCard code={e.code} company={e.company} />
       <TrainingCard code={e.code} />
       <Card className="flex flex-col gap-3 p-5">
         <SectionTitle title="اجراهای اخیر" note="قدم‌ها، ابزارها و مصرف هر اجرا؛ اجرای در جریان خودش تازه میشود" />

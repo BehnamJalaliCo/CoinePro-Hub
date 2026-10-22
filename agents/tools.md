@@ -11,12 +11,12 @@ Classes (OPERATING_MODEL §1.12): **A0** observe · **A1** propose/draft · **A2
 | `health.sites` | A0 | `{company?, since?}` | Latest results of the rule-based site checks (status, latency, TLS days left, consecutive failures) and open incidents. |
 | `health.hub` | A0 | `{}` | The hub's own state: services up/down and restarts, disk, memory, certificate days left, last backup age and restore-test result. |
 | `treasury.usage` | A0 | `{scope, period}` | Tokens and equivalent cost by company/department/role/model, budget use %, anomalies. |
-| `knowledge.search` | A0 | `{q, kinds?}` | Search what the role may read. `kinds`: `resolutions`, `deliverables`, `decisions`, `work`; `messages` for the advisor only. Returns refs + short snippets. |
+| `knowledge.search` | A0 | `{q, kinds?}` | Search what the role may read. `kinds`: `resolutions`, `deliverables`, `decisions`, `work`; `messages` for the advisor only. ⟨1.5⟩ `knowledge`: approved, unexpired entries of the four layers and the support articles (prompt 11). Returns refs + short snippets. |
 | `audit.recent` | A0 | `{company?, action?, since?}` | Recent audit rows (metadata only). Oversight roles and the advisor. |
 | `memory.read` | A0 | `{}` | The employee's own memory notes (latest first). |
 | `github.read` | A0 | `{repo, what: "commits"/"issues"/"pulls"/"file", path?}` | Read-only GitHub through the hub's own git access (owner decision 2026-10-17: no separate token; prompt 12). Until then, and for a repository the hub cannot read, `channel_not_configured`. |
 | `deliver` | A1 | `{work_ref, title_fa, body_md, evidence: [{kind, ref, note}]}` | Creates a deliverable (output card) for the owner or the requester. Evidence `kind` is exactly one of `deliverable` (an `O-…`), `link` (a URL or a work/decision ref), `metric` (a named measurement and its value) or `log` (an audit, run or check record); anything else is refused. |
-| `propose` | A1 | `{kind, title_fa, what_md, why_md, risk, reversible, quota_estimate, payload}` | Creates a decision card (contract §5.1 kinds). The only path to anything A3, to hiring, and to recurring work. The `payload` shape of each kind is the API's own model, which the runtime puts in the prompt; a `hire` payload names the charter `role` (an `employee` charter that fits the company and department, contract §16.6). While hiring is closed a `hire` answers `403 hiring_closed` and no card is made (§18.11). |
+| `propose` | A1 | `{kind, title_fa, what_md, why_md, risk, reversible, quota_estimate, payload}` | Creates a decision card (contract §5.1 kinds). The only path to anything A3, to hiring, and to recurring work. The `payload` shape of each kind is the API's own model, which the runtime puts in the prompt; a `hire` payload names the charter `role` (an `employee` charter that fits the company and department, contract §16.6). While hiring is closed a `hire` answers `403 hiring_closed` and no card is made (§18.11). ⟨1.5⟩ `expected: {metric_fa, kpi?, baseline, target, by_days}` is required for kind `proposal` and drives the 30/60/90-day outcome reviews (contract §20.6). |
 | `hire.decide` | A2 | `{ref, verdict: approve/reject/return, note}` | ⟨1.4.3⟩ CEO only, own company, only hire cards whose approver is this CEO (hiring `delegated`, contract §18.11). The system checks the charter, the model, the estimate and the envelope before an employee exists; a refusal (`envelope_exceeded`, `validation_failed`) is reported as refused. |
 | `story.post` | A1 | `{kind: post/milestone, title_fa, body_fa, figures, file_id, links}` | ⟨1.4.3⟩ CEOs and holding heads: a story for the owner (contract §18.12), at most three a day per company; every figure with a source, an image only from the company's own files, a milestone links its evidence. |
 | `message.owner` | A1 | `{body_md, links?}` | A message in the role's own thread with the owner. CEOs, managers and the advisor only. Subject to the CEO attention quota; non-urgent messages wait for the next digest. |
@@ -105,6 +105,30 @@ internal names and `/internal` are unreachable. Service-account credentials are 
 | `support.mystery` | A2 | `{company, question_fa}` | Overseer only (PR-043): a mystery-customer conversation that runs the whole pipeline but never reaches a customer channel. |
 
 No tool sends free text to a customer. Templates and lifecycle rules are proposed with `propose` and sealed by the owner.
+
+### Governance (v1.5, prompt 11; contract §20)
+| Tool | Class | Input | What it does |
+|---|---|---|---|
+| `meeting.statement` | A1 | `{meeting, item, statement_md, claims: [{text_fa, source}], draft_md?, stance?}` | A speaker's turn, only inside a meeting run. A claim without a readable source is marked unsourced and never reaches the minutes. |
+| `meeting.challenge` | A1 | `{meeting, item, claim?, statement_md, claims}` | The devil's advocate's challenge (oversight roles). |
+| `meeting.whisper` | A1 | `{meeting, item, text_md, sources}` | The advisor's note to the owner only, never shown to the meeting. |
+| `meeting.item` | A1 | `{type, company, title_fa, brief_md, sources}` | Propose an agenda item for the next meeting of a type. |
+| `meeting.minutes` | A1 | `{meeting, summary_md}` | The secretary's summary, written from sourced claims only. |
+| `knowledge.propose` | A1 | `{layer, company?, department?, kind, title_fa, body_md, sources, valid_until, ref?}` | A knowledge entry or a new version: at least one source and an expiry within the kind's limit. |
+| `knowledge.review` | A2 | `{ref, version, verdict, checks, notes_md}` | Review an entry before approval (overseer, AI safety). |
+| `knowledge.approve` | A2 | `{ref, version}` | A CEO approves a company or department entry of its own company after a passing review (an authority-matrix row the owner may take back). |
+| `kpi.record` | A2 | `{company, key, value, at, source: {kind, ref, note}}` | A value of a manual KPI, with its source (the CEO or a manager of that company). |
+| `okr.draft` | A1 | `{company, quarter, objectives: [{title_fa, why_md, key_results: [{title_fa, kpi?, metric_fa?, start, target, weight}]}]}` | The CEO's next-quarter OKRs, as a card for the owner. |
+| `okr.checkin` | A2 | `{key_result, confidence, note_md, evidence, current?}` | A key-result check-in (due at least every 14 days). |
+| `outcome.note` | A1 | `{ref, note_md, measured?: {value, at, source_ref}}` | The proposer's note on a 30/60/90-day outcome review. |
+| `risk.raise` | A1 | `{company, title_fa, body_md, category, likelihood, impact, links?}` | Add a risk to the register. |
+| `risk.update` | A2 | `{ref, version, likelihood?, impact?, mitigation_md?, status?, note}` | Update a risk; closing it is the keeper's (QC). |
+| `calendar.read` | A0 | `{company?, from, to, kind?}` | The change calendar and its conflicts. |
+| `calendar.add` | A2 | `{company, kind, title_fa, starts_at, ends_at, source, risk}` | Put a planned change on the calendar; the calendar never decides. |
+| `authority.read` | A0 | `{}` | The authority-matrix rows of the role's company. |
+| `governance.read` | A0 | `{what: "cards"/"okr"/"risks"/"charter"/"outcomes", company?}` | The company's cards, OKRs, risks, sealed charter and outcome reviews. |
+
+There is no tool that writes the charter or the authority matrix: agents propose (`charter_amendment`, `authority_change`) and the owner seals.
 
 ### Which role has what (v2)
 Role charters list their tools in frontmatter; the gateway enforces them. In short: the **overseer** has every read tool, the web,

@@ -9,7 +9,7 @@ import { CompanyMark, Monogram, Wordmark } from '@/components/brand/marks';
 import { useCompanies, useInbox, usePresence, useSetKhalvat } from '@/lib/api/hooks';
 import { useScope } from '@/lib/scope';
 import { cx } from '@/lib/format';
-import { NAV_MAIN, NAV_TOOLS, isActive, type NavItem } from './nav';
+import { NAV_ARCHIVE, NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_MEDIA, NAV_TOOLS, isActive, type NavItem } from './nav';
 
 function Badge({ n }: { n: number }) {
   if (!n) return null;
@@ -18,7 +18,8 @@ function Badge({ n }: { n: number }) {
 
 function Item({ item, counts }: { item: NavItem; counts: Record<string, number> }) {
   const pathname = usePathname();
-  const on = isActive(pathname, item.href);
+  // A record (/archive/AR-…) lights the archive's own entry, which is otherwise exact so its sub-pages light their own.
+  const on = isActive(pathname, item.href, item.exact) || (item.href === '/archive' && /^\/archive\/AR-/.test(pathname));
   return (
     <Link
       href={item.href}
@@ -85,6 +86,26 @@ export function Sidebar() {
       {/* The lists scroll on their own when they are taller than the window; the logo, scope and owner card stay put. */}
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-1">
         <nav aria-label="ناوبری اصلی" className="flex flex-col gap-0.5">{NAV_MAIN.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
+        <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
+        <nav aria-label="ابزار مدیریت" className="flex flex-col gap-0.5">
+          <span className="px-3 pb-1 text-[11px] text-muted">ابزار مدیریت</span>
+          {NAV_MANAGEMENT.map((i) => <Item key={i.href} item={i} counts={counts} />)}
+        </nav>
+        <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
+        <nav aria-label="رسانه و حقوقی" className="flex flex-col gap-0.5">
+          <span className="px-3 pb-1 text-[11px] text-muted">رسانه و حقوقی</span>
+          {NAV_MEDIA.map((i) => <Item key={i.href} item={i} counts={counts} />)}
+        </nav>
+        <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
+        <nav aria-label="بایگانی" className="flex flex-col gap-0.5">
+          <span className="px-3 pb-1 text-[11px] text-muted">بایگانی</span>
+          {NAV_ARCHIVE.map((i) => <Item key={i.href} item={i} counts={counts} />)}
+        </nav>
+        <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
+        <nav aria-label="حاکمیت" className="flex flex-col gap-0.5">
+          <span className="px-3 pb-1 text-[11px] text-muted">حاکمیت</span>
+          {NAV_GOVERNANCE.map((i) => <Item key={i.href} item={i} counts={counts} />)}
+        </nav>
         <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
         <nav aria-label="ابزارها" className="flex flex-col gap-0.5">{NAV_TOOLS.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
       </div>

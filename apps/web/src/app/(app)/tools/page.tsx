@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, PageHeader, Pill, SectionTitle, Skeleton, StatTile } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { IntakeCard } from '@/components/v16/intake';
+import { ConnectionsCard } from '@/components/v18/connection';
 import { ApiError } from '@/lib/api/client';
 import { useAccounts, useCatalog, useEgress, useEgressSummary, useMcp, useMcpAction } from '@/lib/api/v14';
 import { ago, cx, jTime } from '@/lib/format';
@@ -60,11 +61,15 @@ export default function ToolsPage() {
           )}
         </Card>
         <div className="flex min-w-0 flex-col gap-4">
+          {/* ⟨1.5⟩ §21.7: a new model connection, sealed on its body; its key by the app or the owner's terminal. */}
+          <ConnectionsCard />
           <Card className="flex flex-col gap-3 p-4">
             <SectionTitle title="سرورهای MCP" note="فقط با مُهر تو روشن میشوند؛ ابزار تازه‌ی هر سرور دوباره مُهر میخواهد" />
             {(mcp.data ?? []).map((m) => (
               <div key={m.key} className={cx('flex flex-col gap-2 rounded-[12px] p-3', m.status === 'pending' ? 'bg-gold-soft' : 'bg-tile')}>
                 <div className="flex items-center gap-2"><Icon name="server" size={16} className="text-sec" /><span className="min-w-0 flex-1 text-[13px] font-semibold">{m.title_fa}</span>
+                  {/* ⟨1.5⟩ §21.11: a server in its own container on hq-mcp (pinned digest, no route out). */}
+                  {m.transport === 'container' ? <Pill tone="silver" icon="server">کانتینر</Pill> : null}
                   <Pill tone={m.status === 'enabled' ? 'pos' : m.status === 'pending' ? 'gold' : 'neutral'} dot>{m.status === 'enabled' ? 'روشن' : m.status === 'pending' ? 'منتظر مُهر' : 'خاموش'}</Pill></div>
                 <div className="flex flex-wrap gap-1">{m.tools.map((t) => <span key={t.name} className="fig rounded-full bg-card px-2 py-0.5 text-[11px] text-sec">{t.name} · {t.class}</span>)}</div>
                 <div className="flex items-center gap-2 text-[11px] text-muted">

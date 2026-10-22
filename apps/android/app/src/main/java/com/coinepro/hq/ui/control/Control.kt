@@ -130,6 +130,20 @@ fun ControlScreen() {
             }
         }
         item { BackupsCard() }
+        // ⟨1.5⟩ §20.7: who may do what, and up to how much, lives in the authority matrix.
+        item {
+            val nav = com.coinepro.hq.ui.LocalNav.current
+            com.coinepro.hq.designsystem.HqCard(Modifier.fillMaxWidth(), onClick = { nav.go("authority") }) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
+                    com.coinepro.hq.ui.v17.IconTile(DivanIcon.LOCK, c.goldInk, size = 40.dp)
+                    androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                        Text("ماتریس اختیار", style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
+                        Text("سقف‌ها، سهمیه‌ها و این‌که چه کسی تأیید میکند؛ ثابت‌های قفل مستقل از داده‌اند.", style = Divan.type.caption, color = c.textMuted)
+                    }
+                    com.coinepro.hq.designsystem.DIcon(DivanIcon.NEXT, size = 18.dp, tint = c.textMuted)
+                }
+            }
+        }
     }
 
     fz?.let { (co, name, active) ->

@@ -9,6 +9,8 @@ import { DECISION_KIND, RISK } from '@/lib/labels';
 import { ago, cx, until } from '@/lib/format';
 
 type Row = { ref: string; title: string; kind: string; risk: string; company: string; created_at: string; status?: string; expires_at?: string | null; proposer?: { display_fa?: string | null; code: string } | null };
+/** ⟨1.5⟩ §21.8: how long a card has waited for the owner (hours), when the server says. */
+const waitingOf = (d: Row) => (d as Row & { waiting_h?: number | null }).waiting_h ?? null;
 
 /** One decision in a list: what, who, risk, time left. Selected = soft gold. */
 export function DecisionRow({ d, href, selected, onSelect }: { d: Row; href?: string; selected?: boolean; onSelect?: () => void }) {
@@ -33,7 +35,8 @@ export function DecisionRow({ d, href, selected, onSelect }: { d: Row; href?: st
       </div>
       <div className="flex flex-none flex-col items-end gap-1">
         <Pill tone={r.tone} dot>{r.fa}</Pill>
-        {d.expires_at && d.status === 'pending' ? <span className={cx('text-[11px]', soon ? 'text-warn' : 'text-muted')}>{until(d.expires_at)}</span> : null}
+        {d.expires_at && d.status === 'pending' ? <span className={cx('text-[11px]', soon ? 'text-warn' : 'text-muted')}>{until(d.expires_at)}</span>
+          : d.status === 'pending' && (waitingOf(d) ?? 0) >= 24 ? <span className={cx('text-[11px]', (waitingOf(d) ?? 0) >= 72 ? 'text-warn' : 'text-muted')}>منتظر {Math.round((waitingOf(d) ?? 0) / 24)} روز</span> : null}
       </div>
     </div>
   );

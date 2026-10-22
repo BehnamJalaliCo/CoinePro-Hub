@@ -110,10 +110,13 @@ import kotlinx.serialization.json.contentOrNull
 
 // code_session: its seal creates a Code Workshop grant (contract §5.1 ⟨1.4.3⟩). The round-two kinds are sealed the same way, each card
 // bound to what it proposes (§18.13 ⟨1.4.5⟩); a server plan is sealed only on its own route, against its digest (§18.8).
-// ⟨1.5⟩ the revenue-and-support cards (§19.9) are sealed the same way, each bound to its template, rule or shadow report.
+// ⟨1.5⟩ the revenue-and-support cards (§19.9) are sealed the same way, each bound to its template, rule or shadow report; so are the
+// governance kinds marked 🔏 in §20.11 (a charter amendment, a risk acceptance, an authority change), target = ref.
 private val STEP_UP_KINDS = setOf(
     "hire", "dismissal", "budget_change", "code_session", "protocol", "tool_enable", "errand_action", "company_found", "lesson_adoption",
-    "message_template", "lifecycle_rule", "support_go_live",
+    "message_template", "lifecycle_rule", "support_go_live", "charter_amendment", "risk_acceptance", "authority_change",
+    // ⟨1.5⟩ §21.12: the monthly HR round's `evaluation` (payload v2), target = ref.
+    "evaluation",
 )
 /** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8).
  *  The card carries {plan, company}; the plan page sends a founding's plan on to its founding (§18.16). */
@@ -152,9 +155,13 @@ fun DecisionRow(d: Decision, companies: List<Company>, onClick: () -> Unit) {
                 Box(Modifier.size(6.dp).clip(androidx.compose.foundation.shape.CircleShape).background(fg))
                 Text(r.fa, style = Divan.type.micro, color = fg)
             }
+            val waiting = d.waitingH ?: 0
             if (d.status == "pending" && d.expiresAt != null) {
                 val soon = (hoursUntil(d.expiresAt) ?: 99.0) < 12
                 Text(until(d.expiresAt), style = Divan.type.micro, color = if (soon) c.warning else c.textMuted)
+            } else if (d.status == "pending" && waiting >= 24) {
+                // ⟨1.5⟩ §21.8: how long a card without expiry has waited for the owner.
+                Text("منتظر ${(waiting + 12) / 24} روز", style = Divan.type.micro, color = if (waiting >= 72) c.warning else c.textMuted)
             } else Text(ago(d.createdAt), style = Divan.type.micro, color = c.textMuted)
         }
     }
@@ -190,6 +197,8 @@ fun CartableScreen() {
                 for ((key, label) in listOf("expiry" to "زودتر منقضی", "oldest" to "بیشترین انتظار", "newest" to "تازه‌ترین")) FilterChip(label, sort == key, { sort = key })
             }
         }
+        // ⟨1.5⟩ §20.10: low-risk A1 cards sealed together with one passkey.
+        if (tab == "pending") item { BatchSealButton() }
         val list = all.filter { riskF == null || it.risk == riskF }.let { xs ->
             when (sort) {
                 "expiry" -> xs.sortedWith(compareBy({ it.expiresAt ?: "9999" }, { it.createdAt }))
@@ -263,17 +272,10 @@ private fun Payload(d: Decision) {
                 perms.forEach { Fig(it, Modifier.clip(RoundedCornerShape(6.dp)).background(c.tile).padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.figureSmall, color = c.textSecondary) }
             }
         }
-        "deploy" -> Section("انتشار") {
-            val ci = p["ci"] as? JsonObject
-            val tests = p["tests"] as? JsonObject
-            FactGrid(
-                Triple("ریپو", p.s("repo") ?: "—", true),
-                Triple("تغییر", p.s("diff_stat") ?: "—", true),
-                Triple("CI", if (ci?.s("status") == "passed") "سبز" else ci?.s("status") ?: "—", false),
-                Triple("تست‌ها", "${tests?.s("passed") ?: 0} ✓ · ${tests?.s("failed") ?: 0} ✗", true),
-            )
-            p.s("rollout")?.let { Text(buildAnnotatedString { append("روش انتشار: "); fig(it, c.textPrimary) }, style = Divan.type.small, color = c.textSecondary) }
-        }
+        // ⟨1.5⟩ §21.6: one definition of the deploy payload, bound to head_sha, with the real diff and the substitute's second review.
+        "deploy" -> DeployPayloadBlock(d)
+        // ⟨1.5⟩ §21.5: the monthly HR round's evaluation, payload v2.
+        "evaluation" -> EvaluationBlock(d)
         "tool_enable" -> Section("ابزارهای این سرور عوض شده‌اند") {
             val diff = p["diff"] as? JsonObject
             Text(buildAnnotatedString { append("سرور "); fig(p.s("key") ?: "—", c.textPrimary); append(" خاموش است. با مُهر، دقیقاً با همین فهرست روشن میشود.") }, style = Divan.type.small, color = c.textSecondary)
@@ -354,6 +356,8 @@ private fun Payload(d: Decision) {
                 Triple("سقف دلار", p.s("usd_limit")?.let { usd(it) } ?: "—", true),
             )
         }
+        // ⟨1.5⟩ the governance kinds (§20.11)
+        else -> GovernancePayload(d)
     }
 }
 
@@ -393,7 +397,19 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
         when (d.kind) {
             "message_template", "lifecycle_rule" -> env.cache.invalidate("growth")
             "support_go_live" -> env.cache.invalidate("support")
+            // ⟨1.5⟩ §20: what each governance card changes once sealed.
+            "meeting_resolution" -> env.cache.invalidate("meetings")
+            "charter_amendment" -> env.cache.invalidate("charter")
+            "okr" -> env.cache.invalidate("okr")
+            "knowledge_entry" -> env.cache.invalidate("knowledge")
+            "risk_acceptance" -> env.cache.invalidate("risks")
+            "authority_change" -> env.cache.invalidate("authority")
+            // ⟨1.5⟩ §21.5: an evaluation changes the employee and closes its HR round.
+            "evaluation" -> env.cache.invalidate("hr", "employees", "employee")
         }
+        // ⟨1.5⟩ §21.1, §21.10: a decided card's memos go stale and its sealed prediction is revealed.
+        env.cache.invalidate("memos", "dceo", "reviews")
+        if (d.expected != null) env.cache.invalidate("outcomes")
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -420,9 +436,16 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                 if (pending && d.expiresAt != null) Text(until(d.expiresAt), style = Divan.type.caption, color = if ((hoursUntil(d.expiresAt) ?: 99.0) < 12) c.warning else c.textMuted)
             }
         }
+        // ⟨1.5⟩ §21.8: how long it has waited and which reminders went out.
+        WaitingLine(d)
         Section("چی") { Md(d.what) }
         Section("چرا") { Md(d.why) }
         Payload(d)
+        // ⟨1.5⟩ §20.6: what the card promises, and its 30/60/90-day reviews once sealed.
+        ExpectedBlock(d)
+        DecisionOutcomes(d)
+        // ⟨1.5⟩ §21.1: the advisor's memo, standard or devil's advocate, with the substitutes' second and third opinions.
+        MemoBlock(d)
         Section("مصرف و ریسک") {
             FactGrid(Triple("برآورد توکن", tokens(d.quotaEstimate.tokens), true), Triple("هزینه‌ی معادل", usd(d.quotaEstimate.usd), true))
             d.riskNote?.let {
@@ -483,6 +506,8 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                 }
             }
         }
+        // ⟨1.5⟩ §21.10: the digital CEO's sealed prediction, shown only once the owner has decided.
+        PredictionLine(d)
     }
 
     if (reject) AlertDialog(

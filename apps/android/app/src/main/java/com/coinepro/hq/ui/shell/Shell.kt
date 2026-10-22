@@ -69,7 +69,6 @@ import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.Nav
 import com.coinepro.hq.ui.academy.AcademyScreen
-import com.coinepro.hq.ui.advisor.InquiriesAction
 import com.coinepro.hq.ui.assistant.AssistantScreen
 import com.coinepro.hq.ui.audit.AuditScreen
 import com.coinepro.hq.ui.founding.FoundingScreen
@@ -131,6 +130,27 @@ private val ORG = listOf(
     Tool("tools", "ابزارها و اینترنت", DivanIcon.GLOBE),
 )
 
+/** ⟨1.5⟩ governance (§20): the meeting room, the charter, knowledge, the cards, OKRs, outcomes, risks, the change calendar and authority. */
+private val GOVERNANCE = listOf(
+    Tool("meetings", "اتاق جلسه", DivanIcon.MEETING),
+    Tool("charter", "اساسنامه", DivanIcon.REPORT),
+    Tool("knowledge", "دانشنامه", DivanIcon.KNOWLEDGE),
+    Tool("scorecard", "کارت‌ها و امتیاز", DivanIcon.CHART),
+    Tool("okr", "OKR", DivanIcon.PLANNER),
+    Tool("outcomes", "بازبینی نتیجه", DivanIcon.REFRESH),
+    Tool("risks", "دفتر ریسک", DivanIcon.URGENT),
+    Tool("calendar", "تقویم تغییرات", DivanIcon.TIME),
+    Tool("authority", "ماتریس اختیار", DivanIcon.LOCK),
+)
+
+/** ⟨1.5⟩ management tools (§21): quick notes, the spoken briefings and CEO letters, the substitute players, the digital CEO. */
+private val MANAGEMENT = listOf(
+    Tool("notes", "یادداشت‌ها", DivanIcon.EDIT),
+    Tool("letter", "گزارش صوتی و نامه‌ها", DivanIcon.MIC),
+    Tool("substitutes", "بازیکن‌های ذخیره", DivanIcon.AGENT),
+    Tool("digital-ceo", "مدیر کل دیجیتال", DivanIcon.HOLDING),
+)
+
 private val TOOLS = listOf(
     // ⟨1.5⟩ revenue and support (§19)
     Tool("revenue", "درآمد", DivanIcon.CHART),
@@ -150,7 +170,7 @@ private val TOOLS = listOf(
     Tool("settings", "تنظیمات", DivanIcon.SETTINGS),
 )
 
-private val TOP = TABS.map { it.route }.toSet() + ORG.map { it.route } + TOOLS.map { it.route }
+private val TOP = TABS.map { it.route }.toSet() + ORG.map { it.route } + MANAGEMENT.map { it.route } + GOVERNANCE.map { it.route } + TOOLS.map { it.route }
 
 private class NavImpl(private val nav: NavHostController) : Nav {
     override fun go(route: String) {
@@ -239,7 +259,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("cartable/{ref}") { DecisionScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("outputs") { OutputsScreen() }
                     composable("outputs/{ref}") { OutputScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("advisor") { ChatScreen("A", advisor = true, headerAction = { InquiriesAction() }) }
+                    composable("advisor") { com.coinepro.hq.ui.advisor.AdvisorScreen() }
                     composable("oversight") { OversightScreen() }
                     composable("oversight/chat") { ChatScreen("N", agent = "overseer") }
                     composable("assistant") { AssistantScreen() }
@@ -270,6 +290,27 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("support/{ref}") { com.coinepro.hq.ui.support.ConversationScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("growth") { com.coinepro.hq.ui.growth.GrowthScreen() }
                     composable("feedback") { com.coinepro.hq.ui.feedback.FeedbackScreen() }
+                    // ⟨1.5⟩ §20
+                    composable("meetings") { com.coinepro.hq.ui.meetings.MeetingsScreen() }
+                    composable("meetings/{ref}") { com.coinepro.hq.ui.meetings.MeetingScreen(it.arguments?.getString("ref").orEmpty()) }
+                    composable("charter") { com.coinepro.hq.ui.charter.CharterScreen() }
+                    composable("knowledge") { com.coinepro.hq.ui.knowledge.KnowledgeScreen() }
+                    composable("knowledge/{ref}") { com.coinepro.hq.ui.knowledge.KnowledgeScreen(open0 = it.arguments?.getString("ref")) }
+                    composable("scorecard") { com.coinepro.hq.ui.scorecard.ScorecardScreen() }
+                    composable("okr") { com.coinepro.hq.ui.okr.OkrScreen() }
+                    composable("outcomes") { com.coinepro.hq.ui.outcomes.OutcomesScreen() }
+                    composable("risks") { com.coinepro.hq.ui.risks.RisksScreen() }
+                    composable("risks/{ref}") { com.coinepro.hq.ui.risks.RisksScreen(hi = it.arguments?.getString("ref")) }
+                    composable("calendar") { com.coinepro.hq.ui.calendar.CalendarScreen() }
+                    composable("authority") { com.coinepro.hq.ui.authority.AuthorityScreen() }
+                    // ⟨1.5⟩ management tools (§21)
+                    composable("notes") { com.coinepro.hq.ui.notes.NotesScreen() }
+                    composable("notes/{ref}") { com.coinepro.hq.ui.notes.NotesScreen(highlight = it.arguments?.getString("ref")) }
+                    composable("letter") { com.coinepro.hq.ui.letter.LetterScreen() }
+                    composable("letter/{ref}") { com.coinepro.hq.ui.letter.LetterScreen(open0 = it.arguments?.getString("ref")) }
+                    composable("substitutes") { com.coinepro.hq.ui.substitutes.SubstitutesScreen() }
+                    composable("substitutes/{ref}") { com.coinepro.hq.ui.substitutes.SubstitutesScreen(creative0 = it.arguments?.getString("ref")) }
+                    composable("digital-ceo") { com.coinepro.hq.ui.dceo.DigitalCeoScreen() }
                 }
             }
             BottomBar(route, inbox.data?.decisionsPending ?: 0, inbox.data?.messagesUnread ?: 0) { navApi.go(it) }
@@ -364,6 +405,10 @@ private fun ToolsSheet(unrated: Int, go: (String) -> Unit) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("سازمان", style = Divan.type.h3, modifier = Modifier.padding(bottom = 8.dp))
         for (t in ORG) ToolRow(t, null, go)
+        Text("ابزار مدیریت", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+        for (t in MANAGEMENT) ToolRow(t, null, go)
+        Text("حاکمیت", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+        for (t in GOVERNANCE) ToolRow(t, null, go)
         Text("ابزارها", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
         for (t in TOOLS) ToolRow(t, if (t.route == "outputs" && unrated > 0) unrated else null, go)
     }

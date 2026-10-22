@@ -20,6 +20,21 @@ export const DECISION_KIND: Record<string, { fa: string; icon: IconName }> = {
   message_template: { fa: 'قالب پیام', icon: 'send' },
   lifecycle_rule: { fa: 'قاعده‌ی پیام', icon: 'time' },
   support_go_live: { fa: 'شروع پشتیبانی', icon: 'messages' },
+  // ⟨1.5⟩ §20.11
+  meeting_resolution: { fa: 'مصوبه‌ی جلسه', icon: 'meeting' },
+  charter_amendment: { fa: 'اصلاحیه‌ی اساسنامه', icon: 'report' },
+  okr: { fa: 'OKR فصل', icon: 'planner' },
+  knowledge_entry: { fa: 'ورودی دانشنامه', icon: 'knowledge' },
+  risk_acceptance: { fa: 'پذیرش ریسک', icon: 'urgent' },
+  authority_change: { fa: 'تغییر ماتریس اختیار', icon: 'lock' },
+  // ⟨1.6⟩ §22.6
+  media_series: { fa: 'برنامه‌ی انتشار', icon: 'send' },
+  media_publish: { fa: 'انتشار رسانه', icon: 'video' },
+  email_send: { fa: 'ارسال ایمیل حقوقی', icon: 'send' },
+  role_new: { fa: 'نقش تازه', icon: 'department' },
+  // ⟨1.7⟩ §23.11
+  archive_schema: { fa: 'تغییر طرح بایگانی', icon: 'settings' },
+  archive_disposal: { fa: 'امحای سندهای بایگانی', icon: 'report' },
 };
 
 export const DECISION_STATUS: Record<string, string> = {
@@ -82,10 +97,13 @@ export const ACTIVITY: Record<string, string> = {
 export const DEPT_ICON: Record<string, IconName> = {
   TECH: 'server', GROWTH: 'chart', SALES: 'messages', PRODUCT: 'deliverable', FIN: 'treasury',
   QUANT: 'budget', AIOPS: 'model', HR: 'department', OVS: 'search',
+  // ⟨1.6⟩ §22.1
+  MEDIA: 'video', LEGAL: 'decision',
 };
 
 export const DEPT_FA: Record<string, string> = {
   TECH: 'فنی', GROWTH: 'رشد', SALES: 'فروش', PRODUCT: 'محصول', FIN: 'مالی', QUANT: 'کوانت', AIOPS: 'عملیات AI', HR: 'منابع انسانی', OVS: 'نظارت',
+  MEDIA: 'رسانه و طراحی', LEGAL: 'حقوقی',
 };
 
 /** Charter role keys (agents/roles/*.md) as the owner reads them. */
@@ -94,6 +112,11 @@ export const ROLE_FA: Record<string, string> = {
   advisor: 'مشاور کل', overseer: 'ناظر کل', assistant: 'دستیار', inspector: 'بازرس کیفیت', fact_checker: 'راستی‌آزما', security_analyst: 'تحلیلگر امنیت',
   aiops_head: 'مدیر عملیات AI', ai_safety: 'ایمنی AI', hub_platform_sre: 'پایداری پلتفرم هاب',
   support_lead: 'سرپرست پشتیبانی', support_agent: 'کارشناس پشتیبانی', referral_rescue: 'متخصص نجات رفرال', revenue_analyst: 'تحلیلگر درآمد',
+  // ⟨1.6⟩ §22.1
+  media_director: 'مدیر رسانه و طراحی', scriptwriter: 'سناریست', video_director: 'کارگردان ویدیو', motion_designer: 'طراح موشن‌گرافیک',
+  voice_producer: 'تهیه‌کننده‌ی صدا', visual_designer: 'طراح گرافیک', ui_designer: 'طراح رابط کاربری', legal_counsel: 'مشاور حقوقی',
+  // ⟨1.7⟩ §23.11
+  archivist: 'بایگان',
 };
 
 export const ACTOR_FA =(a: { kind: string; code: string; display_fa?: string | null } | null | undefined): string =>

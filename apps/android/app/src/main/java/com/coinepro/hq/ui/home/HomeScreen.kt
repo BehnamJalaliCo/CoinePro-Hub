@@ -160,6 +160,8 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
             }
         }
         item { OverseerCard() }
+        // ⟨1.5⟩ §21.2: ask the hub, above the cartable.
+        item { com.coinepro.hq.ui.ask.AskBox() }
         item {
             HqCard(Modifier.fillMaxWidth()) {
                 SectionTitle("کارتابل", note = "فقط چیزهایی که مُهر تو را لازم دارند") {

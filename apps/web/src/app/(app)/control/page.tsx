@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Icon } from '@/components/icon';
 import { CompanyMark, Monogram } from '@/components/brand/marks';
@@ -94,6 +95,12 @@ export default function ControlPage() {
         </>
       )}
       <BackupsCard />
+      {/* ⟨1.5⟩ §20.7: who may do what, and up to how much, lives in the authority matrix. */}
+      <Link href="/authority" className="flex items-center gap-3 rounded-[16px] bg-card p-4 transition-colors hover:bg-hover">
+        <span className="flex size-10 items-center justify-center rounded-[12px] bg-tile text-gold-ink"><Icon name="lock" size={20} /></span>
+        <span className="flex min-w-0 flex-1 flex-col"><span className="text-[14px] font-semibold">ماتریس اختیار</span><span className="text-[12px] text-muted">سقف‌ها، سهمیه‌ها و این‌که چه کسی تأیید میکند؛ ثابت‌های قفل مستقل از داده‌اند.</span></span>
+        <Icon name="back" size={18} />
+      </Link>
       <Dialog open={!!fz} onOpenChange={(v) => !v && setFz(null)} title={fz?.active ? `برداشتن توقف deploy ${fz.name}` : `توقف deploy ${fz?.name}`} actions={<>
         <Button variant="primary" loading={freezeM.isPending} onClick={runFreeze}>{fz?.active ? 'بردار' : 'متوقف کن'}</Button>
         <Button variant="secondary" onClick={() => setFz(null)}>انصراف</Button>

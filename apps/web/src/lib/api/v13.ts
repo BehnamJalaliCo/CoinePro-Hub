@@ -59,7 +59,7 @@ async function problem(res: Response): Promise<never> {
 }
 
 /** One JSON call against /api/v1 with the contract's headers. */
-export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH', path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
   const h = new Headers(headers);
   h.set('Accept', 'application/json');
   if (method !== 'GET') {
@@ -83,6 +83,8 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH', path: st
 /** Where a file (or one of its variants) is served. Demo ids are already URLs. */
 export function fileUrl(id: string, variant: 'original' | 'thumb' | 'poster' = 'original'): string {
   if (id.startsWith('blob:') || id.startsWith('data:')) return id;
+  // ⟨1.6⟩ mock mode: the studio's demo renders and voice clips live in public/demo/; a video's poster sits beside it as `-poster.webp`.
+  if (isMock && id.startsWith('/demo/')) return variant === 'original' ? id : id.replace(/\.[a-z0-9]+$/i, '-poster.webp');
   return `/api/v1/files/${encodeURIComponent(id)}${variant === 'original' ? '' : `?variant=${variant}`}`;
 }
 
@@ -105,8 +107,9 @@ export function uploadFile(file: Blob, name: string, onProgress?: (pct: number) 
           clearInterval(t);
           const url = URL.createObjectURL(file);
           const ref: MediaRef = { id: url, name, mime: file.type, size: file.size, sha256: '', kind: kindOf(file.type), status: 'ready', variants: {} };
-          void import('@/lib/api/mock').then((m) => m.register(ref));
-          resolve(ref);
+          // The bytes travel with it: the CSP's connect-src does not allow fetching a blob: URL, and the archive's demo
+          // backend reads uploads for its secret scan and hashes (§23.12). Resolved once registered, so the next call finds it.
+          void import('@/lib/api/mock').then((m) => { m.register({ ...ref, blob: file }); resolve(ref); });
         }
       }, 120);
       signal?.addEventListener('abort', () => { clearInterval(t); reject(new ApiError(0, { code: 'aborted', message_fa: 'لغو شد.' })); });

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { DecisionRow } from '@/components/cartable/decision-row';
 import { DecisionDetail } from '@/components/cartable/decision-detail';
+import { BatchSeal } from '@/components/v17/cartable';
 import { Card, Empty, ErrorState, FilterChip, PageHeader, Segmented, Skeleton } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/overlay';
 import { useDecision, useDecisions } from '@/lib/api/hooks';
@@ -71,6 +72,8 @@ function CartableInner() {
           <div className="flex flex-wrap gap-2">
             {[['high', 'ریسک بالا'], ['medium', 'متوسط'], ['low', 'کم']].map(([v, l]) => <FilterChip key={v} selected={risk === v} onClick={() => setRisk(risk === v ? null : v!)}>{l}</FilterChip>)}
           </div>
+          {/* ⟨1.5⟩ §20.10: low-risk A1 cards sealed together with one passkey. */}
+          {tab === 'pending' ? <BatchSeal /> : null}
           {tab === 'pending' ? (
             <label className="flex items-center gap-2 text-[12px] text-sec">ترتیب
               <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="h-9 rounded-[10px] border border-strong bg-tile px-2 text-[13px] text-ink outline-none focus:border-gold-ink">

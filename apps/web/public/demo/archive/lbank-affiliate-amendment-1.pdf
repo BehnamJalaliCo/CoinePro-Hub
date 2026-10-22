@@ -1,0 +1,58 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 420 595] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Length 907 >>
+stream
+0.11 0.13 0.2 rg
+0 561 420 34 re f
+BT 1 1 1 rg /F2 10 Tf
+40 573 Td (LBank Exchange - Affiliate Program \(demo\)) Tj ET
+BT 0.85 0.75 0.45 rg /F1 7 Tf
+310 573 Td (DEMO - NO LEGAL VALUE) Tj ET
+0 0 0 rg
+BT /F2 12 Tf 40 537 Td (AMENDMENT No. 1 TO THE AFFILIATE AGREEMENT) Tj ET
+BT /F1 9 Tf 40 520 Td (Affiliate:  CoinePro FX \(demo\)) Tj ET
+BT /F1 9 Tf 40 506 Td (Effective:  2026-09-01) Tj ET
+0.75 0.75 0.75 RG 0.6 w
+40 496 m 380 496 l S
+BT /F1 9 Tf 40 482 Td (1. Commission rises from 40% to 45% of trading fees of referred users.) Tj ET
+BT /F1 9 Tf 40 468 Td (2. Sub-affiliate share: 5% of the sub-affiliate commission.) Tj ET
+BT /F1 9 Tf 40 454 Td (3. Every other term of the agreement stays as signed.) Tj ET
+BT /F1 9 Tf 40 432 Td (Signed electronically for both parties.) Tj ET
+BT 0.45 0.45 0.45 rg /F1 6.5 Tf
+40 26 Td (Demo document generated for the CoinePro HQ archive mock. Not a real amendment.) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Title (Amendment) /Producer (CoinePro HQ demo fixtures) /Creator (scripts/gen-demo-archive.mjs) >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000257 00000 n 
+0000000354 00000 n 
+0000000456 00000 n 
+0000001414 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 7 0 R >>
+startxref
+1532
+%%EOF

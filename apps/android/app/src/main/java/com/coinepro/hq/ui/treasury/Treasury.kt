@@ -66,6 +66,7 @@ import java.time.ZoneId
 @Composable
 fun TreasuryScreen() {
     val c = Divan.colors
+    val nav = com.coinepro.hq.ui.LocalNav.current
     val companies = rememberCompanies()
     var period by rememberSaveable { mutableStateOf("month") }
     val sum = rememberQuery("treasury:$period", "treasury") { treasury(period) }
@@ -134,6 +135,8 @@ fun TreasuryScreen() {
                 )
             }
         }
+        // ⟨1.5⟩ §21.7: yesterday's waste, by category, with the fourteen days before.
+        item { WasteCard() }
         item {
             HqCard(Modifier.fillMaxWidth()) {
                 SectionTitle("شرکت‌ها", note = "رنگ هر شرکت ثابت است، نه بر اساس رتبه")
@@ -204,11 +207,15 @@ fun TreasuryScreen() {
         }
         item {
             HqCard(Modifier.fillMaxWidth()) {
-                SectionTitle("اتصال‌ها", note = "کلیدها هرگز نمایش داده نمیشوند")
+                SectionTitle("اتصال‌ها", note = "کلیدها هرگز نمایش داده نمیشوند") {
+                    // ⟨1.5⟩ §21.7: a new connection is made on the tools page, sealed on its body.
+                    com.coinepro.hq.designsystem.HqButton("اتصال تازه", { nav.go("tools") }, size = com.coinepro.hq.designsystem.BtnSize.SM, variant = com.coinepro.hq.designsystem.BtnVariant.TEXT, icon = com.coinepro.hq.designsystem.generated.DivanIcon.ADD)
+                }
                 Loadable(conns) { list ->
                     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         list.forEach { x ->
-                            val (label, tone) = CONNECTION_STATUS[x.status] ?: (x.status to Tone.NEUTRAL)
+                            // ⟨1.5⟩ §21.7 adds pending_secret, verifying, ready and error.
+                            val (label, tone) = CONNECTION_STATUS[x.status] ?: com.coinepro.hq.ui.v18.CONN[x.status]?.let { it.fa to it.tone } ?: (x.status to Tone.NEUTRAL)
                             HqCard(Modifier.fillMaxWidth().clickable { editConn = x }, color = c.tile, radius = 12.dp, padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                     com.coinepro.hq.designsystem.ModelMark(x.defaultModel ?: x.models.firstOrNull(), provider = x.provider, size = 22.dp)
@@ -230,6 +237,8 @@ fun TreasuryScreen() {
             }
         }
         item { com.coinepro.hq.ui.owner.WhatIfCard() }
+        // ⟨1.5⟩ §21.7: ROI by company, department and employee.
+        item { RoiCard() }
         item { com.coinepro.hq.ui.owner.CallsCard() }
     }
     if (editBudgets) com.coinepro.hq.ui.owner.BudgetSheet { editBudgets = false }
