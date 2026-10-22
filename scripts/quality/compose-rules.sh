@@ -10,7 +10,8 @@
 # hq-agent and hq-edge have no route out of the host (internal).
 # Prompt 07 §2: egress is the agents' only route out (hq-egress, with SearXNG);
 # the gateway reaches it on hq-egress-api, the browser on hq-browser (both
-# internal); none of the three is on any other network.
+# internal); none of the three is on any other network. Prompt 10 §4.2: the
+# worker joins hq-egress-api for the support desk's sends (POST /v1/support/send).
 # Prompt 09 §4: the provisioner sits on hq-prov (api, OpenBao) and hq-prov-out
 # (egress) only; both internal.
 set -euo pipefail
@@ -36,7 +37,7 @@ MEMBERS='{
   "hq-stt":["worker","stt"],
   "hq-fetch":["stt-fetch"],
   "hq-egress":["egress","searxng"],
-  "hq-egress-api":["gateway","egress"],
+  "hq-egress-api":["gateway","egress","worker"],
   "hq-browser":["egress","browser"],
   "hq-prov":["provisioner","api","openbao"],
   "hq-prov-out":["provisioner","egress"]}'
