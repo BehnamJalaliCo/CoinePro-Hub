@@ -118,7 +118,8 @@ stt="${HQ_STT:-$(sed -n 's/^HQ_STT=//p' "$ENV_FILE" | tail -n1)}"
 export STT_URL=""
 if [[ "$stt" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
-  sum="$(compose "${profile_args[@]}" --profile stt config --format json |
+  # backup-tools (its own profile, run hourly by infra/backup) counts too.
+  sum="$(compose "${profile_args[@]}" --profile stt --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   budget=$((ref * 80 / 100))
   if ((sum <= budget)); then

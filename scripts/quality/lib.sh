@@ -27,10 +27,15 @@ ensure_env() {
 compose_json() {
   local profile="$1" extra=() p
   shift
-  for p in "$@"; do extra+=(--profile "$p"); done
+  for p in "${ALWAYS_COUNTED[@]}" "$@"; do extra+=(--profile "$p"); done
   # Opt-in profiles come from the arguments only (never from .env's HQ_STT).
   HQ_PROFILE="$profile" HQ_STT=off "$HQ" "${extra[@]}" config --format json
 }
+
+# Profiles of jobs that run outside `compose up` (backup-tools: the hourly
+# backup's `docker run`, 7.1 §3): in every model the gates check, so they are
+# always counted in the memory budget and follow the house rules.
+ALWAYS_COUNTED=(backup-tools)
 
 # Whether an opt-in profile is switched on on this server: HQ_<NAME>=on in the
 # environment or in .env (e.g. HQ_STT=on for "stt"). CI has none on.
@@ -43,10 +48,11 @@ opt_in_enabled() { # opt_in_enabled NAME
 }
 
 # Compose profiles an operator may add by hand (e.g. cadvisor): every profile
-# of compose.yaml but the memory profiles and "web" (hq.sh switches it on).
+# of compose.yaml but the memory profiles, "web" (hq.sh switches it on) and
+# the always-counted ones.
 opt_in_profiles() {
   HQ_PROFILE=lean HQ_STT=off "$HQ" config --profiles |
-    grep -vxE "$(IFS='|'; echo "${PROFILES[*]}")|web" || true
+    grep -vxE "$(IFS='|'; echo "${PROFILES[*]}")|web|$(IFS='|'; echo "${ALWAYS_COUNTED[*]}")" || true
 }
 
 # Tracked files plus new files that are not ignored.

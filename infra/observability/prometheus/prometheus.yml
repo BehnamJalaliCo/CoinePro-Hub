@@ -1,5 +1,6 @@
 # CoinePro HQ — Prometheus. Scrape jobs live in scrape/ (every profile) and
-# scrape-profile/<profile>/ (mounted per profile by compose).
+# scrape-profile/<profile>/ (mounted per profile by compose); alert rules in
+# rules/ (7.1 §2.4).
 global:
   scrape_interval: 30s
   evaluation_interval: 30s
@@ -9,3 +10,6 @@ global:
 scrape_config_files:
   - /etc/prometheus/scrape/*.yml
   - /etc/prometheus/scrape-profile/*.yml
+
+rule_files:
+  - /etc/prometheus/rules/*.rules.yml
