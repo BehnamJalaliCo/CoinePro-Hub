@@ -16,12 +16,14 @@ spelling "fixes", numbers kept exactly as spoken):
   - The verb prefixes «می» / «نمی» joined to their verb with ZWNJ (U+200C):
     "می خواهم" -> "می‌خواهم"; written attached ("میخواهم") only for a list of
     verb stems, never for words that merely start with «می» (میز، میوه، میدان،
-    میلیون، میگو، میمون ...).
+    میلیون، میگو، میمون ...), nor for their plurals (میدانها، میزهای).
   - The suffixes «ها»، «های»، «هایی»، «ترین»، «تر»، «ام»، «ای» joined with ZWNJ
     when Whisper wrote them as a separate word: "کتاب ها" -> "کتاب‌ها". «ام» and
     «ای» only after a word ending in a vowel letter (ه ی ا و), where they are
     the written suffix ("خسته ام" -> "خسته‌ام") and not the interjection
-    ("گفتم ای خدا" stays). «تر» not after a few nouns it often qualifies as
+    ("گفتم ای خدا" stays); and «ای» never when the word after it is one the
+    vocative «ای» calls ("بیا ای دوست"، "ای کاش"، "ای خدا" stay apart).
+    «تر» not after a few nouns it often qualifies as
     the adjective "wet" ("لباس تر"). Never inside a word: «تری»، «همایش»،
     «تنها» are untouched.
   - Persian punctuation: , ; ? -> ، ؛ ؟ next to Persian text (not inside
@@ -203,6 +205,18 @@ NOT_VERBS = frozenset(
     }
 )
 SUFFIXES = ("هایی", "هایم", "هایت", "هایش", "های", "ها", "ترین", "تر", "ام", "ای")
+# The plural endings a noun of NOT_VERBS may carry attached ("میدانها").
+PLURALS = ("هایشان", "هایتان", "هایمان", "هایی", "هایم", "هایت", "هایش", "های", "ها")
+# What the vocative «ای» calls: «ای» right before one of these is the
+# interjection, never a suffix of the word before it ("بیا ای دوست").
+VOCATIVE_NEXT = frozenset(
+    {
+        "خدا", "خدای", "خداوند", "خدایا", "پروردگار", "کاش", "وای", "بابا", "داد", "دوست",
+        "دوستان", "مردم", "جان", "عزیز", "عزیزم", "عزیزان", "آقا", "آقایان", "خانم", "یار",
+        "یاران", "رفیق", "رفقا", "برادر", "برادران", "خواهر", "خواهران", "پسر", "دختر", "دل",
+        "مادر", "پدر", "فرزند", "جوان", "جوانان", "ملت", "هموطنان",
+    }
+)  # fmt: skip
 # «تر» right after these is usually the adjective "wet", not the comparative.
 WET_NOUNS = frozenset(
     {"لباس", "دست", "چشم", "چشمان", "زمین", "علف", "خاک", "هوا", "مو", "موی", "پا"}
@@ -218,20 +232,34 @@ _PUNCT_RE = re.compile(r"\s*([,;?،؛؟])")
 _WORD_SPLIT = re.compile(rf"[^\w{ZWNJ}]+", re.UNICODE)
 
 
+def _not_verb(word: str) -> bool:
+    """A word of NOT_VERBS, alone or with a plural ending attached."""
+    return word in NOT_VERBS or any(
+        word.endswith(p) and word[: -len(p)] in NOT_VERBS for p in PLURALS
+    )
+
+
 def _attached_prefix(m: re.Match[str]) -> str:
     prefix, rest = m.group(1), m.group(2)
     whole = prefix + rest
-    if whole in NOT_VERBS or (prefix == "نمی" and "می" + rest in NOT_VERBS):
+    if _not_verb(whole) or (prefix == "نمی" and _not_verb("می" + rest)):
         return whole
     if any(rest.startswith(stem) for stem in VERB_STEMS):
         return prefix + ZWNJ + rest
     return whole
 
 
+_NEXT_WORD = re.compile(rf"[ \u00a0]*({_WORD})")
+
+
 def _suffix(m: re.Match[str]) -> str:
     word, suffix = m.group(1), m.group(2)
     if suffix in ("ام", "ای") and not word.endswith(_VOWEL_END):
         return m.group(0)
+    if suffix == "ای":
+        nxt = _NEXT_WORD.match(m.string, m.end())
+        if nxt and nxt.group(1).split(ZWNJ)[0] in VOCATIVE_NEXT:
+            return m.group(0)  # the vocative «ای», not a suffix
     if suffix == "تر" and word in WET_NOUNS:
         return m.group(0)
     return word + ZWNJ + suffix
