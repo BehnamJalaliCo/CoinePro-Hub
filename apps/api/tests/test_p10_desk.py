@@ -6,16 +6,13 @@ is locked."""
 
 from __future__ import annotations
 
-import hashlib
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
 from hq_api.domain import desk, gate
-from hq_api.domain import support as S
 from hq_api.hub import Hub
 from hq_api.principal import Principal
 from hq_api.worker.activities import _ScopedTx
@@ -216,9 +213,7 @@ async def test_a_shadow_channel_sends_nothing_to_telegram(
         )
         sent = await send_all(hub, co["id"], [row])
     assert sent[0]["failure"] == "channel_not_live" and not tg.calls
-    drafted = await su.fetchval(
-        "SELECT status FROM support.messages WHERE id = $1", out.message_id
-    )
+    drafted = await su.fetchval("SELECT status FROM support.messages WHERE id = $1", out.message_id)
     assert drafted == "draft"
 
 
@@ -340,17 +335,28 @@ async def test_patch_widening_needs_step_up_and_narrowing_does_not(
     bot = next(c for c in chans if c["kind"] == "telegram_bot")
     assert (bot["state"], bot["auto_send"]) == ("not_configured", "kb_verbatim")
     path = f"/api/v1/support/channels/{co['code']}/telegram_bot"
-    r = await client.patch(path, headers={**h, "If-Match": str(bot["version"])}, json={"state": "live"})
+    r = await client.patch(
+        path, headers={**h, "If-Match": str(bot["version"])}, json={"state": "live"}
+    )
     assert r.status_code == 409 and r.json()["code"] == "shadow_not_passed"
     r = await client.patch(
         path, headers={**h, "If-Match": str(bot["version"])}, json={"auto_send": "kb_grounded"}
     )
     assert r.status_code == 403 and r.json()["code"] == "step_up_required"
-    r = await client.patch(path, headers={**h, "If-Match": str(bot["version"])}, json={"auto_send": "off"})
+    r = await client.patch(
+        path, headers={**h, "If-Match": str(bot["version"])}, json={"auto_send": "off"}
+    )
     assert r.status_code == 200 and r.json()["auto_send"] == "off"
     v = r.json()["version"]
-    su_h = await step_up(hub, owner_session["session_id"], "support.channel", f"{co['code']}/telegram_bot@kb_grounded")
-    r = await client.patch(path, headers={**h, **su_h, "If-Match": str(v)}, json={"auto_send": "kb_grounded"})
+    su_h = await step_up(
+        hub,
+        owner_session["session_id"],
+        "support.channel",
+        f"{co['code']}/telegram_bot@kb_grounded",
+    )
+    r = await client.patch(
+        path, headers={**h, **su_h, "If-Match": str(v)}, json={"auto_send": "kb_grounded"}
+    )
     assert r.status_code == 200 and r.json()["auto_send"] == "kb_grounded"
     # A paused channel that already went live comes back only with step-up.
     await make_live(su, co["id"])
@@ -359,7 +365,12 @@ async def test_patch_widening_needs_step_up_and_narrowing_does_not(
     v = r.json()["version"]
     r = await client.patch(path, headers={**h, "If-Match": str(v)}, json={"state": "live"})
     assert r.status_code == 403
-    su_h = await step_up(hub, owner_session["session_id"], "support.channel", f"{co['code']}/telegram_bot@kb_verbatim")
+    su_h = await step_up(
+        hub,
+        owner_session["session_id"],
+        "support.channel",
+        f"{co['code']}/telegram_bot@kb_verbatim",
+    )
     r = await client.patch(path, headers={**h, **su_h, "If-Match": str(v)}, json={"state": "live"})
     assert r.status_code == 200 and r.json()["state"] == "live"
 
@@ -375,8 +386,12 @@ async def test_the_same_reply_key_sends_one_message_and_the_guard_binds_the_owne
     h = owner_session["headers"]
     key = idem()
     body = {"body": "سلام، بررسی میکنم و خبر میدهم."}
-    r1 = await client.post(f"/api/v1/support/conversations/{ref}/reply", headers={**h, **key}, json=body)
-    r2 = await client.post(f"/api/v1/support/conversations/{ref}/reply", headers={**h, **key}, json=body)
+    r1 = await client.post(
+        f"/api/v1/support/conversations/{ref}/reply", headers={**h, **key}, json=body
+    )
+    r2 = await client.post(
+        f"/api/v1/support/conversations/{ref}/reply", headers={**h, **key}, json=body
+    )
     assert r1.status_code == r2.status_code == 200 and r1.json()["id"] == r2.json()["id"]
     n = await su.fetchval(
         "SELECT count(*) FROM support.messages WHERE conversation_id = $1 AND author = 'owner'",
@@ -385,7 +400,8 @@ async def test_the_same_reply_key_sends_one_message_and_the_guard_binds_the_owne
     assert n == 1
     # A raw proposal from the owner's answer (no support lead): masked, source owner_answer.
     src = await su.fetchval(
-        "SELECT source FROM support.kb_articles WHERE company_id = $1 AND status = 'proposed'", co["id"]
+        "SELECT source FROM support.kb_articles WHERE company_id = $1 AND status = 'proposed'",
+        co["id"],
     )
     assert '"owner_answer"' in str(src) and ref in str(src)
     # «لطفاً کد تأیید پیامک را بفرستید»: refused even from the owner, and kept as blocked.
@@ -418,10 +434,15 @@ async def test_the_mystery_customer_never_reaches_telegram_or_the_statistics(
         deferred = await desk.mystery(tx, hub, co["id"], MIN_Q, by="test")
     assert deferred["result"] == "deferred"  # no live channel: not a failure
     await make_live(su, co["id"])
-    funnel_before = await su.fetchval("SELECT count(*) FROM growth.funnel_days WHERE company_id = $1", co["id"])
-    async with holding_switch(su, "released"), fake_telegram() as tg:
-        async with hub.db.tx([co["id"], holding.id]) as tx:
-            out = await desk.mystery(tx, hub, co["id"], MIN_Q, by="test")
+    funnel_before = await su.fetchval(
+        "SELECT count(*) FROM growth.funnel_days WHERE company_id = $1", co["id"]
+    )
+    async with (
+        holding_switch(su, "released"),
+        fake_telegram() as tg,
+        hub.db.tx([co["id"], holding.id]) as tx,
+    ):
+        out = await desk.mystery(tx, hub, co["id"], MIN_Q, by="test")
     assert out["result"] == "verbatim" and not tg.calls
     row = await su.fetchrow(
         "SELECT mystery, channel FROM support.conversations WHERE ref = $1", out["conversation"]
@@ -433,11 +454,16 @@ async def test_the_mystery_customer_never_reaches_telegram_or_the_statistics(
         out["conversation"],
     )
     assert sent == 1  # recorded as sent on the mystery channel; nothing left the hub
-    listed = (await client.get(f"/api/v1/support/conversations?company={co['code']}", headers=owner)).json()
+    listed = (
+        await client.get(f"/api/v1/support/conversations?company={co['code']}", headers=owner)
+    ).json()
     assert out["conversation"] not in {c["ref"] for c in listed["items"]}
     queue = (await client.get(f"/api/v1/support/queue?company={co['code']}", headers=owner)).json()
     assert out["conversation"] not in {q["conversation"] for q in queue}
-    assert await su.fetchval("SELECT count(*) FROM growth.funnel_days WHERE company_id = $1", co["id"]) == funnel_before
+    assert (
+        await su.fetchval("SELECT count(*) FROM growth.funnel_days WHERE company_id = $1", co["id"])
+        == funnel_before
+    )
     async with hub.db.tx([co["id"]]) as tx:
         assert await desk.outbound_today(tx, co["id"]) == 0  # not counted
 
@@ -495,4 +521,3 @@ async def test_support_draft_and_handoff_through_the_internal_api(
         json={"body_md": MIN_A, "kb_refs": [], "confidence": 0.5},
     )  # fmt: skip
     assert r.status_code == 404
-

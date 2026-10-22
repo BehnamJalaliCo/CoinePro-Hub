@@ -27,9 +27,13 @@ class FakeTelegram:
         self, hub: Any, *, company: str, channel: dict[str, Any], conv: dict[str, Any], text: str
     ) -> desk.SendResult:
         self.calls.append({"company": company, "channel": channel["kind"], "text": text})
-        return desk.SendResult(
-            self.answer.ok, self.answer.code, external_id=str(len(self.calls))
-        )
+        return desk.SendResult(self.answer.ok, self.answer.code, external_id=str(len(self.calls)))
+
+    async def set_webhook(
+        self, hub: Any, *, company: str, channel: str, url: str
+    ) -> desk.SendResult:
+        self.calls.append({"company": company, "channel": channel, "webhook": url})
+        return desk.SendResult(True)
 
 
 @contextlib.asynccontextmanager
@@ -51,7 +55,9 @@ async def holding_switch(su: Any, state: str) -> AsyncIterator[None]:
            JOIN core.companies c ON c.id = k.company_id WHERE c.kind = 'holding'"""
     )
     await su.execute(
-        "UPDATE control.kill_switches SET state = $2 WHERE company_id = $1", row["company_id"], state
+        "UPDATE control.kill_switches SET state = $2 WHERE company_id = $1",
+        row["company_id"],
+        state,
     )
     try:
         yield
