@@ -38,6 +38,12 @@ uv $S/egress/browser.requirements.in -c $S/requirements-test.lock -o $S/egress/b
 # the test image (the tests use its fake engine); its shared packages still
 # follow the test lock.
 uv $S/stt/requirements.in -c $S/requirements-test.lock -o $S/stt/requirements.lock
+# The MCP container servers (prompt 12 §14): their own images, not in the test
+# image, each venv resolved on its own (mcp-proxy needs mcp 1.x, the newer
+# mcp-server-time releases mcp>=2.3); CodeCortex is an alpha, named exactly.
+uv infra/mcp/time/proxy.in -o infra/mcp/time/proxy.lock
+uv infra/mcp/time/server.in -o infra/mcp/time/server.lock
+uv --prerelease=explicit infra/mcp/codecortex/server.in -o infra/mcp/codecortex/server.lock
 uv apps/api/requirements.in apps/api/requirements-dev.in -c $S/requirements-test.lock -o apps/api/requirements-test.lock
 uv apps/api/requirements.in -c apps/api/requirements-test.lock -o apps/api/requirements.lock
 echo "lock: services (test, llm-router, claude-runtime, gateway, egress, provisioner, browser, stt) and apps/api (test, runtime)"

@@ -1,0 +1,4 @@
+# CodeCortex (prompt 12 §14.6; the owner's own project, Apache-2.0,
+# github.com/BehnamJalaliCo/CodeCortex, PyPI codecortex-context-engine).
+# No `semantic` extra: torch does not fit the hub's memory.
+codecortex-context-engine==0.1.0a10
