@@ -195,7 +195,7 @@
         "type": "object"
       },
       "AgentFileRef": {
-        "description": "files.read: an owner file attached in the agent's own company (§17.1),\nplus the key frames of a video; the model sees images as vision input.\n`agent`: the image copy a model sees (long edge <= 1568, no EXIF);\n`text`: a PDF's text (prompt 07 §3), masked.",
+        "description": "files.read: an owner file attached in the agent's own company (§17.1),\nplus the key frames of a video; the model sees images as vision input.\n`frames`: [{id, at_s}] in time order; `agent`: the image copy a model sees\n(long edge <= 1568, no EXIF); `text`: a PDF's text (prompt 07 §3), masked.",
         "properties": {
           "agent": {
             "anyOf": [
@@ -222,8 +222,7 @@
           },
           "frames": {
             "items": {
-              "format": "uuid",
-              "type": "string"
+              "$ref": "#/components/schemas/Frame"
             },
             "title": "Frames",
             "type": "array"
@@ -5218,6 +5217,32 @@
           }
         },
         "title": "FileVariants",
+        "type": "object"
+      },
+      "Frame": {
+        "description": "A key frame of a video (contract §17.8): its file and where it is (s).",
+        "properties": {
+          "at_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At S"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Frame",
         "type": "object"
       },
       "Freeze": {
@@ -26178,6 +26203,17 @@
             },
             "description": "Problem"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -29618,7 +29654,7 @@
     },
     "/api/v1/workshop/sessions/{ref}/live": {
       "get": {
-        "description": "SSE of `SessionEvent` (`event:` = its type, `id:` = its seq); resumes after\n`Last-Event-ID`. Ends after the session's last event once it is finished; a\ncomment line every 15 s keeps the connection open meanwhile.",
+        "description": "SSE of `SessionEvent` (`event:` = its type, `id:` = its seq); resumes after\n`Last-Event-ID`, or after `?after` (a seq, like the events list) when the\nclient cannot set that header (06.1 §3); the header wins when both come.\nEnds after the session's last event once it is finished; a comment line\nevery 15 s keeps the connection open meanwhile.",
         "operationId": "session_live",
         "parameters": [
           {
@@ -29628,6 +29664,24 @@
             "schema": {
               "title": "Ref",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2147483647,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
             }
           },
           {
@@ -32495,7 +32549,10 @@
                   "agent": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "duration_s": 1.0,
                   "frames": [
-                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    {
+                      "at_s": 1.0,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    }
                   ],
                   "height": 1,
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -35600,7 +35657,7 @@
     },
     "/internal/v1/workshop/sessions": {
       "get": {
-        "description": "An agent's company's sessions (`mine`: the ones it drives), newest first, 50.",
+        "description": "An agent's company's sessions (`mine`: the ones it drives), newest first, 50;\nnever another company's, whatever the agent's charter scope.",
         "operationId": "agent_list_sessions",
         "parameters": [
           {
