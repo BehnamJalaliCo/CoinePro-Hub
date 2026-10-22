@@ -70,7 +70,7 @@ class RedLine(Model):
                 raise ValueError("a pattern is 1..300 characters")
             try:
                 re.compile(p)
-            except re.error as exc:
+            except (re.error, OverflowError, RecursionError) as exc:
                 raise ValueError(f"not a regular expression: {exc}") from exc
         return v
 
@@ -484,7 +484,7 @@ def rule_patterns(lines: list[dict[str, Any]]) -> tuple[str, ...]:
 def _compile(pattern: str) -> re.Pattern[str]:
     try:
         return re.compile(pattern, re.IGNORECASE)
-    except re.error:
+    except (re.error, OverflowError, RecursionError):
         return re.compile(re.escape(pattern), re.IGNORECASE)
 
 

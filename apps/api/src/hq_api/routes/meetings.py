@@ -16,7 +16,7 @@ Agents (/internal/v1, only inside their own pending turn):
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -139,13 +139,14 @@ async def create_meeting(
             raise ApiError(422, "validation_failed", fields={"company": "an operating company"})
     else:
         co = await ctx.hub.companies.holding()
+    starts_at = body.starts_at if body.starts_at.tzinfo else body.starts_at.replace(tzinfo=UTC)
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
         t = await MT.type_row(tx, body.type)
         m = await MT.create(
-            tx, t=t, company={"id": co.id, "code": co.code}, starts_at=body.starts_at, origin="owner",
+            tx, t=t, company={"id": co.id, "code": co.code}, starts_at=starts_at, origin="owner",
             by_kind="owner", by_code=ctx.who.code,
         )  # fmt: skip
         assert m is not None
