@@ -67,6 +67,7 @@ async def propose_hire(hub: Hub, co: dict[str, Any], *, expires_at: datetime | N
             "model": "claude-sonnet-5-5",
             "effort": "high",
             "permissions": [],
+            "quota_estimate_month": {"tokens": 1500000},  # every approval needs it (v1.4.3)
         },
     )
     async with hub.db.tx(await _all(hub)) as tx:
@@ -633,7 +634,10 @@ async def test_score_job_and_maintenance(hub: Hub, wk: dict[str, Any], owner_db:
         "purge",
         "requeue_runs",
         "backups_ingest",
+        "inquiries_late",
+        "oversight_tick",
     }
+    assert res["inquiries_late"] == {"late": 0}
     assert res["purge"]["idempotency_keys"] >= 1
     assert "error" not in res["backups_ingest"]  # no status files here: nothing to read, no failure
     async with owner_db.raw() as tx:

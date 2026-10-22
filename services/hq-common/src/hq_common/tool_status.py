@@ -39,6 +39,36 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "web.browse",
         "http.request",
         "egress.recent",
+        # prompt 08 §3, §5: inquiries, errands, the owner's planner, workshop.read
+        "inquiry.ask",
+        "inquiry.answer",
+        "errand.step",
+        "errand.finish",
+        "planner.add",
+        "workshop.read",
+        # prompt 08 §4, §8, §9: stars, lessons, stories, the CEOs' hire decisions
+        "star.rubric",
+        "star.give",
+        "star.audit",
+        "lesson.write",
+        "story.post",
+        "hire.decide",
+        # prompt 09 §3: the agents' server plan
+        "server.plan",
+        # the skill library and the academy (prompt 08 §6-§7)
+        "skill.review",
+        "eval.run",
+        "teach.draft",
+        # the Chief Overseer (prompt 08 §2)
+        "finding.raise",
+        "finding.update",
+        "protocol.result",
+        "challenge.issue",
+        "challenge.submit",
+        "challenge.score",
+        "hold",
+        "kill_switch.engage",
+        "deploy.freeze",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

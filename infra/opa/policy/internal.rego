@@ -28,7 +28,37 @@ ops := {
 	"mcp.call",
 	# prompt 07: the agents' internet (a request out, its log; the egress log)
 	"egress.use", "egress.read",
+	# prompt 08: formal inquiries; the assistant's errands and the owner's planner
+	"inquiry.ask", "inquiry.answer", "errand.write", "planner.add",
+	# prompt 08 §4, §8, §9: stars, lessons, stories, hire decisions (people.rego)
+	"star.rubric", "star.give", "star.audit", "lesson.write", "story.post", "hire.decide",
+	# prompt 08 §6-§7: a skill's or a teaching's review, the academy's eval runs and drafts
+	"skill.review", "academy.eval", "academy.teach",
+	# prompt 08 §2: the Chief Overseer's powers (contract §18.1)
+	"oversight.finding_raise", "oversight.finding_update", "oversight.protocol_result",
+	"oversight.challenge_issue", "oversight.challenge_submit", "oversight.challenge_score",
+	"oversight.hold",
+	# prompt 09: an agent's server plan (server.plan); the provisioner's runs
+	"provisioning.plan", "provisioning.run",
 }
+
+# The oversight roles of the holding: the overseer, QC (the inspector) and
+# the specialists of the oversight department (fact-checker, AI safety,
+# security analyst).
+oversight_role if {
+	agent
+	holding_reader
+	p.role in {"overseer", "inspector"}
+}
+
+oversight_role if {
+	agent
+	holding_reader
+	p.department == "OVS"
+}
+
+# What the answerable of a finding may set; verified and closed are the overseer's.
+answerer_statuses := {"acknowledged", "fixing", "fixed", "disputed"}
 
 # Reads of the gateway's tools: an agent reads its own company; a holding-scope
 # role (charter scope "holding": oversight, AI operations, the advisor) may
@@ -52,11 +82,16 @@ propose_kinds := {
 	"ceo": {
 		"hire", "dismissal", "recurring_approval", "deploy",
 		"a3_action", "proposal", "budget_change", "evaluation", "code_session",
+		"lesson_adoption",
 	},
-	"manager": {"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session"},
+	"manager": {"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session", "company_found"},
 	"employee": {"a3_action", "deploy", "recurring_approval", "code_session"},
 	"advisor": {"proposal", "code_session"},
 	"inspector": {"proposal", "hire"},
+	# ⟨1.4⟩ prompt 08: a new or changed protocol is the owner's seal (§2); an
+	# errand's external commitment is the owner's decision (§5)
+	"overseer": {"proposal", "protocol"},
+	"assistant": {"proposal", "errand_action"},
 }
 
 # Data, not code (data.json). Without it nothing that depends on it is allowed.
@@ -154,6 +189,30 @@ grant if {
 	service
 }
 
+# prompt 09: a server plan for the agent's own company (a CTO), or by a
+# holding-scope role (the platform SRE) for any company or a founding.
+# Review 9.2 §2.4: a plan of a founding is a holding role's only; a company's
+# CTO never writes one (it would be the holding's server).
+grant if {
+	op == "provisioning.plan"
+	agent
+	same_company(tv("company"))
+	tv("founding") == null
+}
+
+grant if {
+	op == "provisioning.plan"
+	agent
+	holding_reader
+}
+
+# prompt 09: the provisioner (code, a service) and nobody else drives runs.
+grant if {
+	op == "provisioning.run"
+	service
+	p.code == "provisioner"
+}
+
 grant if {
 	op == "notification.raise"
 	agent
@@ -177,6 +236,61 @@ grant if {
 	own_switch
 	tv("state") == "released"
 	engaged_by_own_agent
+}
+
+# The overseer engages any company's switch (contract §18.1); never releases.
+grant if {
+	op == "kill_switch.set"
+	agent
+	p.role == "overseer"
+	tv("state") == "engaged"
+	startswith(tv("scope"), "company:")
+}
+
+# The overseer freezes any company's deploys; lifting stays with the owner.
+grant if {
+	op == "deploy_freeze.set"
+	not lifting
+	agent
+	p.role == "overseer"
+}
+
+# ------------------------------------------------- oversight (prompt 08) --
+grant if {
+	op in {"oversight.finding_raise", "oversight.hold"}
+	oversight_role
+}
+
+grant if {
+	op == "oversight.finding_update"
+	agent
+	p.role == "overseer"
+}
+
+grant if {
+	op == "oversight.finding_update"
+	agent
+	same_company(tv("company"))
+	tv("status") in answerer_statuses
+}
+
+grant if {
+	op in {"oversight.protocol_result", "oversight.challenge_score"}
+	agent
+	p.role in {"overseer", "inspector"}
+}
+
+grant if {
+	op == "oversight.challenge_issue"
+	agent
+	p.role == "overseer"
+}
+
+grant if {
+	op == "oversight.challenge_submit"
+	agent
+	p.role == "ceo"
+	same_company(tv("company"))
 }
 
 # Releasing a switch that is already released changes nothing (idempotent).
@@ -258,6 +372,22 @@ grant if {
 	holding_reader
 }
 
+# The skill library and the academy (prompt 08 §6-§7; 8.1 §4: not every
+# holding agent): the oversight roles review (the overseer, QC, AI Safety of
+# the OVS department); the holding's AI Ops department runs evals and drafts
+# teachings. Their charters still decide which tool each one has.
+grant if {
+	op == "skill.review"
+	oversight_role
+}
+
+grant if {
+	op in {"academy.eval", "academy.teach"}
+	agent
+	holding_reader
+	p.department == "AIOPS"
+}
+
 # A file of the agent's own company only (prompt 06 §2: files.read), never
 # another company's, whatever the agent's charter scope.
 grant if {
@@ -298,6 +428,46 @@ grant if {
 grant if {
 	op == "workshop.read"
 	agent
+	same_company(tv("company"))
+}
+
+# ⟨1.4⟩ the advisor and the overseer read everything (contract §18.0): any
+# company's sessions, never steering one.
+grant if {
+	op == "workshop.read"
+	agent
+	holding_reader
+	is_string(tv("company"))
+}
+
+# ⟨1.4⟩ formal inquiries (contract §18.2): the overseer and the advisor ask
+# anyone; a CEO asks inside its own company; only the asked one answers.
+grant if {
+	op == "inquiry.ask"
+	agent
+	p.role in {"overseer", "advisor"}
+	is_string(tv("company"))
+}
+
+grant if {
+	op == "inquiry.ask"
+	agent
+	p.role == "ceo"
+	same_company(tv("company"))
+}
+
+grant if {
+	op == "inquiry.answer"
+	agent
+	tv("to") == p.code
+	same_company(tv("company"))
+}
+
+# ⟨1.4⟩ the personal assistant's errands and the owner's planner (§18.3).
+grant if {
+	op in {"errand.write", "planner.add"}
+	agent
+	p.role == "assistant"
 	same_company(tv("company"))
 }
 
@@ -392,7 +562,10 @@ department_ok(kind) if not propose_department[p.role][kind]
 department_ok(kind) if propose_department[p.role][kind] == p.department
 
 # budget_change: the scope lies inside the proposer's own company.
-scope_ok(kind) if kind != "budget_change"
+scope_ok(kind) if not kind in {"budget_change", "company_found"}
+
+# company_found (prompt 09): a holding-scope role proposes a new company.
+scope_ok("company_found") if holding_reader
 
 scope_ok("budget_change") if scope_inside_company
 
@@ -465,6 +638,12 @@ message_ok if {
 	tv("thread_kind") == "advisor"
 }
 
+# ⟨1.4⟩ the overseer's thread N and the assistant's thread P: only their own agent
+message_ok if {
+	p.role in {"overseer", "assistant"}
+	tv("thread_kind") == p.role
+}
+
 message_ok if {
 	p.role == "ceo"
 	tv("thread_kind") == "ceo"
@@ -504,6 +683,12 @@ deny_reasons contains "other_company" if {
 	agent
 	op in own_company_ops
 	not same_company(tv("company"))
+	not holding_workshop_read
+}
+
+holding_workshop_read if {
+	op == "workshop.read"
+	holding_reader
 }
 
 deny_reasons contains "not_assignee" if {

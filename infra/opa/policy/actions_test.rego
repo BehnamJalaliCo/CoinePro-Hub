@@ -132,6 +132,16 @@ test_mcp_call_by_sealed_class if {
 	reasons(f.ty_ceo, named("A3", "mcp.call", "TY"), open) == {"a3_requires_decision"}
 }
 
+# prompt 08 §5: the personal assistant's own A2 work (the errand trail, the
+# owner's planner); nobody else's, and never an A3 commitment.
+test_the_assistants_a2 if {
+	every name in {"errand.step", "errand.finish", "errand.write", "planner.add"} {
+		allowed(f.hq_pa, named("A2", name, "HQ"), open)
+		reasons(f.hq_adv, named("A2", name, "HQ"), open) == {"a2_needs_role_or_escrow"}
+	}
+	reasons(f.hq_pa, named("A3", "web.browse", "HQ"), open) == {"a3_requires_decision"}
+}
+
 # 7.1 §2.10: the one call an approved A3 card allows (the api consumed the
 # card for it) runs; a locked company or another company still refuses it,
 # and anything that is not a decision ref is no approval.

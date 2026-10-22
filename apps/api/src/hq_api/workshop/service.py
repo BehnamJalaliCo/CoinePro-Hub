@@ -20,6 +20,7 @@ from uuid import UUID
 
 import httpx
 
+from hq_api.domain import oversight
 from hq_api.errors import ApiError
 from hq_api.workshop import domain as D
 from hq_api.workshop.runtime import FakeRuntime, ManagedRuntime, Runtime, configured
@@ -122,6 +123,9 @@ async def start(hub: Any, session_id: UUID) -> dict[str, Any]:
         s = await D.load(tx, session_id)
         if s["state"] != "starting" or s["held"] or s["runtime"] != rt.name:
             return s
+        # The overseer's hold (prompt 08 §2): it does not start until the owner decides.
+        if await oversight.held(tx, "session", s["ref"]):
+            return s
         s, why = await D.may_start(tx, session_id)
     if why == "grant_expired":
         await after_finish(hub, s)
@@ -148,6 +152,7 @@ async def steer(hub: Any, session_id: UUID, text: str) -> dict[str, Any]:
     rt = runtime(hub)
     async with await _tx(hub) as tx:
         s = await D.load(tx, session_id)
+        await oversight.require_not_held(tx, "session", s["ref"])
     if s["runtime"] != rt.name:
         return s
     try:
@@ -244,6 +249,22 @@ async def paused(hub: Any) -> None:
         )
     await interrupt(hub, rows)
     await resume(hub)
+
+
+async def overseer_held(hub: Any, s: dict[str, Any] | None) -> None:
+    """The overseer held a session (contract §18.15): interrupted at once on
+    its runtime (the record is already held)."""
+    if s is not None:
+        await interrupt(hub, [s])
+
+
+async def overseer_released(hub: Any, s: dict[str, Any] | None) -> None:
+    """The owner released the hold: a session that never reached its runtime
+    starts now (one that had started takes messages and is followed again)."""
+    if s is None or getattr(hub, "workshop", None) is None:
+        return
+    if s["state"] == "starting" and not s["external_id"] and s["held"] is None:
+        await start(hub, s["id"])
 
 
 async def resume(hub: Any) -> int:

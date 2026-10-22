@@ -34,6 +34,12 @@ SCHEMAS = (
     "workshop",
     "backup",
     "egress",
+    "oversight",
+    "people",
+    "knowledge",
+    "academy",
+    "provisioning",
+    "infra",
     "tools",  # 7.1 §2.12: tools.mcp_calls is a tenant table
 )
 # The tools schema's tables without a company (holding configuration, read by
@@ -60,6 +66,7 @@ async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: 
                 "reason": "r",
                 "model": "claude-sonnet-5-5",
                 "effort": "medium",
+                "quota_estimate_month": {"tokens": 1500000},
             },
         },
     )
@@ -148,6 +155,42 @@ async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: 
 async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     """Prompt 05's tables: rows of `co` the runtime and the checker would write
     (superuser, test setup only)."""
+    # Prompt 09: a founding, its plan, a run and its event, a server, a listing
+    # (the holding's in production; any company's here, to prove the isolation).
+    founding = await su.fetchval(
+        """INSERT INTO core.foundings (company_id, source, created_by_kind, created_by_code)
+           VALUES ($1, '{"kind": "idea", "brief_md": "b"}', 'owner', 'owner') RETURNING id""",
+        co["id"],
+    )
+    plan = await su.fetchval(
+        """INSERT INTO provisioning.plans (company_id, company_code, founding_id, name, type, location,
+               work_user, digest, created_by_kind, created_by_code)
+           VALUES ($1, $2, $3, 'x-1', 'cpx22', 'fsn1', 'ops', repeat('a', 64), 'agent', 'x') RETURNING id""",
+        co["id"],
+        co["code"],
+        founding,
+    )
+    prun = await su.fetchval(
+        """INSERT INTO provisioning.runs (plan_id, company_id, sealed_digest)
+           VALUES ($1, $2, repeat('a', 64)) RETURNING id""",
+        plan,
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO provisioning.run_events (run_id, company_id, seq, key, state)
+           VALUES ($1, $2, 1, 'ssh-key', 'running')""",
+        prun,
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO infra.servers (company_id, plan_id, run_id, hetzner_id, name)
+           VALUES ($1, $2, $3, $4, 'x-1')""",
+        co["id"],
+        plan,
+        prun,
+        abs(hash(co["code"])) % 1_000_000_000 + 1,
+    )
+    await su.execute("INSERT INTO infra.inventory (company_id, ok) VALUES ($1, true)", co["id"])
     # Prompt 07: the backup's status, runs, snapshots and restore tests (the
     # holding's in production; any company's here, to prove the isolation).
     await su.execute(
@@ -163,6 +206,123 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     )
     await su.execute(
         "INSERT INTO backup.restore_tests (company_id, at, ok) VALUES ($1, now(), true)", co["id"]
+    )
+    # Prompt 08 §3, §5: an inquiry to the CEO, an errand and a planner item
+    # (the holding's in production; any company's here, to prove the isolation).
+    ceo_id = await su.fetchval("SELECT id FROM core.employees WHERE code = $1", f"{co['code']}-CEO")
+    await su.execute(
+        """INSERT INTO oversight.inquiries (company_id, from_kind, from_code, to_employee_id, to_code,
+               question_md, due_at, thread_code)
+           VALUES ($1, 'agent', 'HQ-ADV', $2, $3, 'q', now() + interval '1 day', 'A')""",
+        co["id"],
+        ceo_id,
+        f"{co['code']}-CEO",
+    )
+    errand = await su.fetchval(
+        """INSERT INTO owner.errands (company_id, title_fa, brief_md, source)
+           VALUES ($1, 't', 'b', 'text') RETURNING id""",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO owner.planner_items (company_id, title_fa, at, errand_id, created_by_kind,
+               created_by_code)
+           VALUES ($1, 't', now(), $2, 'agent', 'HQ-PA')""",
+        co["id"],
+        errand,
+    )
+    # Prompt 08 §4, §9: a rubric, a star, a roll-up, a lesson and its adoption, a story.
+    await su.execute(
+        """INSERT INTO people.star_rubrics (company_id, version, criteria, by_kind, by_code)
+           VALUES ($1, 1, '[{"key": "efficiency", "weight": 100}]', 'agent', $2)""",
+        co["id"],
+        f"{co['code']}-CEO",
+    )
+    await su.execute(
+        """INSERT INTO people.stars (company_id, employee_id, week, stars, counted, by_kind, by_code)
+           SELECT $1, id, DATE '2026-10-10', 4, true, 'agent', $2 FROM core.employees WHERE code = $3""",
+        co["id"],
+        f"{co['code']}-CEO",
+        f"{co['code']}-TECH-MGR",
+    )
+    await su.execute(
+        """INSERT INTO people.star_rollups (company_id, period, key, starts_on, ends_on, data)
+           VALUES ($1, 'week', $2, DATE '2026-10-10', DATE '2026-10-17', '{}')""",
+        co["id"],
+        f"2026-{abs(hash(co['code'])) % 12 + 1:02d}-{abs(hash(co['id'])) % 28 + 1:02d}",
+    )
+    lesson = await su.fetchrow(
+        """INSERT INTO knowledge.lessons (company_id, period, title_fa, body_md, by_kind, by_code)
+           VALUES ($1, 'week:2026-10-10', 'درس', 'متن', 'agent', 'HQ-OVR') RETURNING id, ref""",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO knowledge.lesson_adoptions (lesson_id, lesson_ref, company_id)
+           VALUES ($1, $2, $3)""",
+        lesson["id"],
+        lesson["ref"],
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO owner.stories (company_id, kind, author_kind, author_code, title_fa)
+           VALUES ($1, 'post', 'agent', $2, 'استوری')""",
+        co["id"],
+        f"{co['code']}-CEO",
+    )
+    # Prompt 08 §2: the overseer's records about this company.
+    prot = await su.fetchrow("SELECT id, ref FROM oversight.protocols ORDER BY ref LIMIT 1")
+    if prot is None:  # a migration round-trip test ran before: one protocol row is enough
+        prot = await su.fetchrow(
+            """INSERT INTO oversight.protocols (company_id, ref, version, title_fa, area, check_md, method,
+                   schedule, scope, severity, answerable, status, source, created_by_kind, created_by_code)
+               SELECT id, 'PR-001', 1, 't', 'truth', 'c', 'rule', 'FREQ=DAILY', 'company', 'low', 'ceo',
+                      'active', 'seed', 'service', 'seed' FROM core.companies WHERE kind = 'holding'
+               RETURNING id, ref"""
+        )
+    run = await su.fetchval(
+        """INSERT INTO oversight.protocol_runs (company_id, protocol_id, protocol_ref, version, method, by_kind,
+               by_code) VALUES ($1, $2, $3, 1, 'rule', 'system', 'test') RETURNING id""",
+        co["id"],
+        prot["id"],
+        prot["ref"],
+    )
+    finding = await su.fetchval(
+        """INSERT INTO oversight.findings (company_id, run_id, severity, title_fa, answerable_kind,
+               answerable_code, raised_by_kind, raised_by_code, due_at)
+           VALUES ($1, $2, 'low', 'f', 'owner', 'owner', 'system', 'test', now()) RETURNING id""",
+        co["id"],
+        run,
+    )
+    await su.execute(
+        """INSERT INTO oversight.finding_history (finding_id, company_id, by_kind, by_code, status)
+           VALUES ($1, $2, 'system', 'test', 'open')""",
+        finding,
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO oversight.challenges (company_id, period, period_key, title_fa, due_at, judge_kind,
+               judge_code, issued_by_code)
+           VALUES ($1, 'week', current_date, 'c', now() + interval '1 day', 'agent', 'HQ-OVR', 'HQ-OVR')""",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO oversight.orders (company_id, text_md, source, applies_to, created_by_kind,
+               created_by_code) VALUES ($1, 'o', 'text', 'overseer', 'owner', 'owner')""",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO oversight.holds (company_id, target_kind, target_ref, reason_md, held_by_kind,
+               held_by_code) VALUES ($1, 'employee', $2, 'r', 'agent', 'HQ-OVR')""",
+        co["id"],
+        f"{co['code']}-RLS-HOLD",
+    )
+    await su.execute(
+        "INSERT INTO oversight.compliance (company_id, day, score) VALUES ($1, current_date, 90)",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO oversight.watch (company_id, reason, since, until)
+           VALUES ($1, 'owner', now() - interval '1 hour', now())""",
+        co["id"],
     )
     # Prompt 07: one request of an agent's web tool.
     await su.execute(
@@ -244,6 +404,59 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     )
     await su.execute(
         "INSERT INTO owner.orders (company_id, text, source) VALUES ($1, 'o', 'text')", co["id"]
+    )
+    # Prompt 08 §6-§7: the skill library and the academy (the holding's in
+    # production; any company's here, to prove the isolation).
+    n = int(co["code"].encode().hex(), 16) % 900000 + 100000
+    skill = await su.fetchval(
+        """INSERT INTO knowledge.skills (company_id, ref, name_fa, summary_fa, scope, source,
+               created_by_kind, created_by_code)
+           VALUES ($1, $2, 'm', 's', '{}', 'text', 'owner', 'owner') RETURNING id""",
+        co["id"],
+        f"SK-{n}",
+    )
+    sv = await su.fetchval(
+        """INSERT INTO knowledge.skill_versions (skill_id, company_id, version, body_md, name_fa,
+               summary_fa, scope, text_sha256, source, precheck, created_by_kind, created_by_code)
+           VALUES ($1, $2, 1, 'b', 'm', 's', '{}', repeat('0', 64), 'text', '{}', 'owner', 'owner')
+           RETURNING id""",
+        skill,
+        co["id"],
+    )
+    role = f"r{n}"
+    await su.execute(
+        "INSERT INTO academy.curricula (company_id, role, version, modules) VALUES ($1, $2, 1, '[]')",
+        co["id"],
+        role,
+    )
+    await su.execute(
+        """INSERT INTO academy.eval_suites (company_id, ref, role, title_fa, cases)
+           VALUES ($1, $2, $3, 't', '[]')""",
+        co["id"],
+        f"EV-{n}",
+        role,
+    )
+    teaching = await su.fetchval(
+        """INSERT INTO academy.teachings (company_id, target, source, text_md, created_by_kind,
+               created_by_code)
+           VALUES ($1, '{}', 'text', 't', 'owner', 'owner') RETURNING id""",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO academy.eval_runs (company_id, suite_ref, subject, purpose, skill_version_id,
+               requested_by_kind, requested_by_code)
+           VALUES ($1, $2, '{"kind": "skill", "ref": "SK-999", "version": 1}', 'manual', $3,
+                   'owner', 'owner')""",
+        co["id"],
+        f"EV-{n}",
+        sv,
+    )
+    await su.execute(
+        """INSERT INTO academy.addenda (company_id, role, version, text_md, teaching_id)
+           VALUES ($1, $2, 1, 'a', $3)""",
+        co["id"],
+        role,
+        teaching,
     )
     # Prompt 07 §3 (7.1 §2.12): one resolved MCP call of the company.
     await su.execute(

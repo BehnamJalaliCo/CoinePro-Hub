@@ -22,6 +22,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 PROBE_IMAGE="busybox:1.38.0-musl"
+CURL_IMAGE="curlimages/curl:8.17.0"  # an HTTPS request through a proxy
 PG="coinepro-hq-postgres-1"
 WEB="coinepro-hq-web-1"
 GATEWAY="coinepro-hq-gateway-1"
@@ -127,6 +128,31 @@ if running "$EGRESS"; then
   ok "$before" "the browser reaches only egress's proxy; SearXNG reaches no service of the hub"
 else
   fail "egress is not running"
+fi
+
+# ------------------------------------------------------------- 09 §4 ----
+# The provisioner (opt-in profile "provisioning"): it reaches the api's
+# internal endpoints, OpenBao (its AppRole) and egress's provisioner listener,
+# which tunnels to api.hetzner.cloud:443 only; no data service, no internet of
+# its own, nothing else through egress.
+PROVISIONER="coinepro-hq-provisioner-1"
+if running "$PROVISIONER"; then
+  before=$failures
+  probe_from "$PROVISIONER" api 8000 || fail "positive control: the provisioner cannot reach api:8000"
+  probe_from "$PROVISIONER" egress 3130 || fail "positive control: the provisioner cannot reach egress:3130"
+  if probe_from "$PROVISIONER" 1.1.1.1 443; then fail "the provisioner reaches the internet directly"; fi
+  unreachable_from "$PROVISIONER" provisioner postgres:5432 valkey:6379 nats:4222 llm-router:8000 \
+    gateway:8080 opa:8181 temporal:7233
+  for port in 3128 3129 8090; do
+    if probe_from "$PROVISIONER" egress "$port"; then fail "the provisioner reaches egress:$port"; fi
+  done
+  hz="$(docker run --rm --network "container:$PROVISIONER" "$CURL_IMAGE" -s -o /dev/null \
+    -w '%{http_code}' -x http://egress:3130 https://api.hetzner.cloud/v1/locations || true)"
+  [[ "$hz" == 401 ]] || fail "positive control: api.hetzner.cloud through egress answered $hz (want 401 without a token)"
+  other="$(docker run --rm --network "container:$PROVISIONER" "$CURL_IMAGE" -s -o /dev/null \
+    -w '%{http_code}' -x http://egress:3130 https://example.com/ || true)"
+  [[ "$other" != 200 ]] || fail "the provisioner reaches another host through egress"
+  ok "$before" "the provisioner reaches the api, OpenBao and api.hetzner.cloud (through egress) only"
 fi
 
 # ------------------------------------------------------------ 7.1 §2.19 ----

@@ -44,13 +44,17 @@ from hq_api import audit, events
 from hq_api.agents import protocol as P
 from hq_api.agents.clients import Gateway, LivePush, ModelCall, Router
 from hq_api.db import Tx
+from hq_api.domain import academy as AC
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
+from hq_api.domain import oversight as O
+from hq_api.domain import skills as SK
 from hq_api.errors import sqlstate_of
 from hq_api.hub import Hub
 from hq_api.routes.messages import LINK_TABLES
 from hq_api.security import agent_tokens
 from hq_api.worker.jalali import jalali_long
+from hq_common import oversight_share
 from hq_common.charters import Charter
 from hq_common.redact import redact_async, scrub, scrub_async
 
@@ -133,6 +137,18 @@ class RunCtx:
     delivered: bool = False
     replied: str | None = None  # the message ref of a reply in the trigger thread
     summaries: list[str] = field(default_factory=list)
+    skills: list[str] = field(default_factory=list)  # "SK-001@3": in the system prompt
+    addenda: list[str] = field(default_factory=list)  # sealed teachings ("TE-0001")
+    # An oversight protocol run's ref and severity (prompt 08 §2.3): llm-router
+    # lets a `critical` one go on once the oversight share is spent.
+    oversight: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def token_cap(self) -> int:
+        """The run's token cap, never above its charter's tokens_per_run
+        (overseer v2 and advisor v3: 200K), whatever the claim recorded."""
+        cap = self.charter.limits.tokens_per_run
+        return min(int(self.run["token_cap"] or cap), cap)
 
 
 class Runner:
@@ -181,8 +197,9 @@ class Runner:
                 if lock is not None:  # kill switch (holding or company) or a deploy freeze
                     refuse = "locked"
                 elif (
-                    self.s.agent_daily_token_cap
-                    and await self._spent_today(tx) >= self.s.agent_daily_token_cap
+                    # 0 (or less) means nothing at all, not "no cap" (prompt 08.1)
+                    self.s.agent_daily_token_cap <= 0
+                    or await self._spent_today(tx) >= self.s.agent_daily_token_cap
                 ):
                     refuse = "daily_cap"
                 elif run["work_id"] is not None:
@@ -382,13 +399,32 @@ class Runner:
             max_actions=self.s.agent_actions_per_step,
             answer_phase=charter.kind == "advisor" and run["trigger"] == "message",
             payloads=D.PAYLOADS,
+            after_charter=await self._skills(rc),
         )
+        # The owner's sealed standing orders (prompt 08 §2.7): the overseer's own
+        # and those for every role, after the charter; a proposed one never.
+        async with await self._tx() as tx:
+            orders = O.orders_section(await O.sealed_orders(tx, charter.kind))
+            if charter.role in oversight_share.ROLES and run["work_id"] is not None:
+                proto = await tx.first(
+                    """SELECT r.protocol_ref, p.severity FROM oversight.protocol_runs r
+                       JOIN oversight.protocols p ON p.id = r.protocol_id
+                       WHERE r.work_id = :w ORDER BY r.started_at DESC LIMIT 1""",
+                    w=run["work_id"],
+                )
+                if proto is not None:
+                    rc.oversight = {
+                        "protocol": proto["protocol_ref"],
+                        "severity": proto["severity"],
+                    }
+        if orders:
+            system += "\n\n" + orders
         text, image_ids = await self._context(rc)
         rc.messages = [{"role": "user", "content": await self._with_images(rc, text, image_ids)}]
         live_thread = await self._reply_thread(rc)
         advisor = charter.kind == "advisor"
         steps_cap = int(run["steps_cap"] or charter.limits.steps_per_run)
-        token_cap = int(run["token_cap"] or charter.limits.tokens_per_run)
+        token_cap = rc.token_cap
         per_step = charter.limits.tokens_per_step
         # The advisor's streamed answer is a step too: it counts inside the cap.
         research_steps = steps_cap - 1 if advisor and live_thread else steps_cap
@@ -493,8 +529,8 @@ class Runner:
     async def _daily_cap_reached(self) -> bool:
         """The hub's daily agent token cap, checked before EVERY model call
         (prompt 5.1 §2.6), not only when a run is claimed."""
-        if not self.s.agent_daily_token_cap:
-            return False
+        if self.s.agent_daily_token_cap <= 0:  # 0 = nothing at all (prompt 08.1)
+            return True
         async with await self._tx() as tx:  # every company's runs (RLS)
             return await self._spent_today(tx) >= self.s.agent_daily_token_cap
 
@@ -520,6 +556,9 @@ class Runner:
                 "run_id": str(run["id"]),
                 "step": n,
                 "trigger": run["trigger"],
+                "skills": rc.skills,
+                "addenda": rc.addenda,
+                **rc.oversight,
             },
         }
         if max_output:
@@ -578,7 +617,7 @@ class Runner:
         checked before it, and its output is capped like a step's."""
         system = system + "\n\n" + P.ANSWER_PHASE
         messages = [*rc.messages, {"role": "user", "content": "Write the answer to the owner now."}]
-        left = int(rc.run["token_cap"] or rc.charter.limits.tokens_per_run) - rc.used_tokens
+        left = rc.token_cap - rc.used_tokens
         room = min(rc.charter.limits.tokens_per_step, left - prompt_tokens(system, messages))
         stop: tuple[str, str | None, str | None] | None = None
         if await self._locked(rc.run["company_id"]):
@@ -627,6 +666,8 @@ class Runner:
                     "step": n,
                     "trigger": rc.run["trigger"],
                     "purpose": "answer",
+                    "skills": rc.skills,
+                    "addenda": rc.addenda,
                 },
             }
             if rc.run["model"]:
@@ -693,6 +734,27 @@ class Runner:
         return "failed", "limit_reached", None
 
     # ------------------------------------------------------------- context --
+    async def _skills(self, rc: RunCtx) -> str:
+        """The role's active skills and the owner's sealed rules for the role
+        and for this employee, after the charter (prompt 08 §6-§7). Only what
+        really went into the prompt is kept on the run and named on each model
+        call (8.1 §2.12-§2.13: the section is bounded, at most 30 of each)."""
+        async with await self._tx() as tx:
+            active = await SK.active_for(
+                tx, rc.charter.role, rc.emp["company"], rc.emp["department"]
+            )
+            addenda = await AC.addenda_for(tx, rc.charter.role, rc.emp["code"])
+            sec = SK.prompt_section(active, addenda)
+            rc.skills = sec.skills
+            rc.addenda = [str(a["ref"]) for a in sec.addenda]  # teaching refs (llm meta)
+            await tx.exec(
+                "UPDATE agents.runs SET skills = :s, addenda = :a WHERE id = :id",
+                s=rc.skills,
+                a=[a["id"] for a in sec.addenda],
+                id=rc.run["id"],
+            )
+        return sec.text
+
     async def _values(self, emp: dict[str, Any]) -> dict[str, str]:
         holding = await self.hub.companies.holding()
         async with await self._tx() as tx:
@@ -788,6 +850,35 @@ class Runner:
                     )
                     if d:
                         parts.append("# Decision card to review\n" + await masked_json(d))
+                errand = next(
+                    (
+                        m["links"]["errand"]
+                        for m in msgs
+                        if ("errand", (m["links"] or {}).get("errand")) in seen
+                    ),
+                    None,
+                )
+                if errand:  # ⟨1.4⟩ the owner's errand this conversation is about (§18.3)
+                    e = await tx.first(
+                        """SELECT e.ref, e.title_fa, e.brief_md, e.status, e.due_at, e.steps,
+                                  (SELECT d.ref FROM cartable.decisions d WHERE d.id = e.decision_id)
+                                      AS decision
+                           FROM owner.errands e WHERE e.ref = :r AND e.company_id = ANY(:scope)""",
+                        r=errand,
+                        scope=scope,
+                    )
+                    if e:
+                        steps = list(e.pop("steps") or [])
+                        e["brief_md"] = (e["brief_md"] or "")[:4000]
+                        e["steps_done"] = len(steps)
+                        e["last_steps"] = [
+                            {"kind": s.get("kind"), "summary_fa": str(s.get("summary_fa"))[:300]}
+                            for s in steps[-5:]
+                        ]
+                        parts.append(
+                            "# Errand (record its steps with errand.step, end with errand.finish)\n"
+                            + await masked_json(e)
+                        )
             notes = await tx.all(
                 "SELECT note FROM core.employee_memory WHERE employee_id = :e ORDER BY id DESC LIMIT 5",
                 e=emp["id"],
@@ -984,7 +1075,7 @@ class Runner:
                 log.warning(
                     "work spending refused (budget used up)", extra={"run_id": str(rc.run["id"])}
                 )
-                rc.used_tokens = max(rc.used_tokens, int(rc.run["token_cap"] or 0))
+                rc.used_tokens = max(rc.used_tokens, rc.token_cap)
 
     async def _record_step(
         self, rc: RunCtx, n: int, summary: str, results: list[dict[str, Any]], call: ModelCall

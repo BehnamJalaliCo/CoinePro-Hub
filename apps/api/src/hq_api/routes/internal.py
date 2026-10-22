@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, workflows_client
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
-from hq_api.domain import control, hiring, notify, org
+from hq_api.domain import control, errands, founding, hiring, inquiries, notify, org
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
 from hq_api.domain import work as W
@@ -210,8 +210,15 @@ OP_CLASS: dict[str, str] = {
     "run.record": "A0",
     "thread.live": "A1",
     "file.read": "A0",
+    # prompt 09: an agent's server plan (server.plan); the provisioner's runs (service)
+    "provisioning.plan": "A1",
+    "provisioning.run": "A0",
     # prompt 07: backups.status (the overseer, the platform SRE)
     "backup.read": "A0",
+    # prompt 08 §6-§7: the skill library and the academy
+    "skill.review": "A2",
+    "academy.eval": "A2",
+    "academy.teach": "A1",
     # prompt 06: the Code Workshop (the grant's driver)
     "workshop.read": "A0",
     "workshop.session": "A1",
@@ -222,6 +229,26 @@ OP_CLASS: dict[str, str] = {
     # prompt 07: the agents' internet (reserve + log a request; the egress log)
     "egress.use": "A0",
     "egress.read": "A0",
+    # prompt 08: formal inquiries; the assistant's errands and the owner's planner
+    "inquiry.ask": "A1",
+    "inquiry.answer": "A1",
+    "errand.write": "A2",
+    "planner.add": "A2",
+    # prompt 08 §4, §8, §9: stars, lessons, stories, the CEOs' hire decisions
+    "star.rubric": "A2",
+    "star.give": "A2",
+    "star.audit": "A2",
+    "lesson.write": "A1",
+    "story.post": "A1",
+    "hire.decide": "A2",
+    # prompt 08 §2: the Chief Overseer (agents/tools.md classes)
+    "oversight.finding_raise": "A1",
+    "oversight.finding_update": "A2",
+    "oversight.protocol_result": "A2",
+    "oversight.challenge_issue": "A2",
+    "oversight.challenge_submit": "A1",
+    "oversight.challenge_score": "A2",
+    "oversight.hold": "A2",
 }
 
 
@@ -567,6 +594,10 @@ async def deliver_work(
             tx, w, "delivered", ctx.who, {"deliverable": dl["ref"], "closed_children": closed}
         )
         await _audit_work(ctx, tx, w, "work.deliver", f"deliverable {dl['ref']}")
+        # ⟨1.4⟩ a founding's audit (prompt 09 §2): the report goes to the founding
+        await founding.on_delivered(
+            tx, w, dl["ref"], body.body or "", [e.model_dump(mode="json") for e in body.evidence]
+        )
         await ctx.emit(
             tx,
             w["company"],
@@ -602,6 +633,11 @@ async def fail_work(id: UUID, body: Fail, ctx: Ctx = Depends(internal_ctx)) -> W
         w = await work_for(ctx, tx, id, "work.fail")
         if w["status"] in W.CLOSED:
             raise ApiError(409, "validation_failed", f"work is {w['status']}")
+        if inquiry := await inquiries.must_be_answered(tx, w["id"]):
+            # ⟨1.4⟩ an inquiry from rank 2 must be answered (contract §18.0)
+            raise ApiError(
+                409, "validation_failed", f"{inquiry} comes from rank 2: answer it (inquiry.answer)"
+            )
         status = "cancelled" if body.decline else "failed"
         await W.set_status(
             tx, w, status, close_reason=body.reason, closed_at=datetime.now().astimezone()
@@ -774,12 +810,18 @@ async def propose_decision(
             company_id=ctx.who.company_id,
             company_code=ctx.who.company,
             body=body,
-            thread_code=ctx.who.code
-            if await tx.scalar("SELECT 1 FROM msg.threads WHERE code = :c", c=ctx.who.code)
-            else None,
+            thread_code=await tx.scalar(
+                """SELECT code FROM msg.threads WHERE code = :c
+                     OR (employee_id = :e AND kind IN ('advisor', 'overseer', 'assistant'))
+                   ORDER BY code = :c DESC LIMIT 1""",
+                c=ctx.who.code,
+                e=ctx.who.employee_id,
+            ),
             charters=ctx.hub.charters,
             company_kind=(await ctx.hub.companies.by_id(ctx.who.company_id)).kind,
         )
+        if body.kind == "errand_action":  # ⟨1.4⟩ the errand waits for the owner
+            await errands.on_proposed(tx, payload["errand"], d["id"])
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,
@@ -837,7 +879,10 @@ async def agent_approve_decision(
     ref: str, body: AgentDecide, request: Request, ctx: Ctx = Depends(internal_ctx)
 ) -> Any:
     """A CEO approves within its authority (OPA hq.decisions): recurring work of
-    its own company inside the company's monthly budget. Requires `Idempotency-Key`."""
+    its own company inside the company's monthly budget. Requires `Idempotency-Key`.
+    The Chief Overseer holds and stops, it never approves (contract §18.1)."""
+    if ctx.who.is_agent and ctx.who.role == "overseer":
+        raise ApiError(403, "policy_denied", "the overseer never approves")
     return await _agent_decide(ctx, request, ref, "approved", body)
 
 

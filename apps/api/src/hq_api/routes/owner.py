@@ -3,6 +3,7 @@ record of their own interactions (contract §6, §1.8)."""
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import re
 from datetime import UTC, datetime, time, timedelta
@@ -19,6 +20,7 @@ from hq_api.domain import hiring, notify
 from hq_api.errors import ApiError, responses
 from hq_api.routes.notifications import if_match, time_cursor
 from hq_api.security import stepup
+from hq_common import provisioning
 
 log = logging.getLogger("hq_api.routes.owner")
 router = APIRouter(tags=["owner"])
@@ -120,6 +122,11 @@ class OwnerSettings(BaseModel):
     ceo_daily_attention: int
     learning_daily_cap: int
     calendars: list[Literal["jalali", "gregorian"]]
+    # ⟨1.4⟩ hours without the owner before the Chief Overseer keeps watch (§18.1)
+    watch_after_hours: int = 6
+    # ⟨1.4⟩ prompt 09: the owner's addresses SSH may come from on a new server
+    # (a server plan never opens SSH to the whole internet)
+    provision_ssh_sources: list[str] = Field(default_factory=list)
     version: int
 
 
@@ -134,6 +141,27 @@ class OwnerSettingsIn(BaseModel):
     calendars: list[Literal["jalali", "gregorian"]] | None = Field(
         default=None, min_length=1, max_length=2
     )
+    watch_after_hours: int | None = Field(default=None, ge=1, le=72)
+    provision_ssh_sources: list[str] | None = Field(default=None, max_length=20)
+
+    @field_validator("provision_ssh_sources")
+    @classmethod
+    def _cidrs(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        out = []
+        for s in v:
+            try:
+                net = ipaddress.ip_network(s.strip(), strict=True)
+            except ValueError as exc:
+                raise ValueError(f"{s[:50]!r} is not a CIDR") from exc
+            if net.prefixlen == 0:
+                raise ValueError("not the whole internet: name your own addresses")
+            out.append(str(net))
+        # Review 9.2 §2.1: nor the whole internet in pieces (0.0.0.0/1 + 128.0.0.0/1).
+        if provisioning.covers_everything([ipaddress.ip_network(s) for s in out]):
+            raise ValueError("not the whole internet: name your own addresses")
+        return list(dict.fromkeys(out))
 
     @field_validator("timezone")
     @classmethod
@@ -272,13 +300,15 @@ def _settings_out(row: dict[str, Any]) -> OwnerSettings:
         ceo_daily_attention=row["ceo_daily_attention"],
         learning_daily_cap=row["learning_daily_cap"],
         calendars=row["calendars"],
+        watch_after_hours=row["watch_after_hours"],
+        provision_ssh_sources=list(row["provision_ssh_sources"] or []),
         version=row["version"],
     )
 
 
 SETTINGS_COLS = (
     "timezone, morning_report_at, digest_minutes, ceo_daily_attention, learning_daily_cap, "
-    "calendars, version"
+    "calendars, watch_after_hours, provision_ssh_sources, version"
 )
 
 
@@ -309,7 +339,9 @@ async def put_owner_settings(
                    digest_minutes = COALESCE(:dm, digest_minutes),
                    ceo_daily_attention = COALESCE(:cda, ceo_daily_attention),
                    learning_daily_cap = COALESCE(:ldc, learning_daily_cap),
-                   calendars = COALESCE(CAST(:cal AS text[]), calendars)
+                   calendars = COALESCE(CAST(:cal AS text[]), calendars),
+                   watch_after_hours = COALESCE(:wah, watch_after_hours),
+                   provision_ssh_sources = COALESCE(CAST(:pss AS text[]), provision_ssh_sources)
                WHERE id = 1 AND version = :v RETURNING {SETTINGS_COLS}""",  # noqa: S608 - constant column list, values are bound
             tz=body.timezone,
             mra=time.fromisoformat(body.morning_report_at) if body.morning_report_at else None,
@@ -317,6 +349,8 @@ async def put_owner_settings(
             cda=body.ceo_daily_attention,
             ldc=body.learning_daily_cap,
             cal=list(dict.fromkeys(body.calendars)) if body.calendars else None,
+            wah=body.watch_after_hours,
+            pss=body.provision_ssh_sources,
             v=version,
         )
         if row is None:
@@ -411,16 +445,18 @@ async def start_hiring(body: HiringStart, request: Request, ctx: Ctx = Depends(o
     """🔏 (`hiring.start`, target `holding`). `proposals`: hiring opens to agents,
     the owner decides every card, and each CEO (and each holding head with a
     hiring duty) gets one work item "propose your first month's team" (a second
-    start adds none). `delegated` (each CEO hires inside its monthly envelope)
-    answers `409 not_ready` until prompt 8, before any step-up is consumed and
-    without changing anything. Honours `Idempotency-Key` (a retry after a lost
-    answer gets the same answer, not a spent step-up)."""
-    hiring.require_mode(body.mode)
+    start adds none). `delegated`: each CEO hires inside its company's monthly
+    envelope and decides the company's hire cards; every active operating
+    company needs an envelope (`/budgets`, company, month) or `422
+    envelope_required` names the ones without, before any step-up is consumed.
+    Honours `Idempotency-Key` (a retry after a lost answer gets the same
+    answer, not a spent step-up)."""
     holding = await ctx.hub.companies.holding()
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who)
         if idem and idem.replay:
             return idem.replay
+        await hiring.require_envelopes(tx, body.mode)
         await stepup.consume(tx, request, ctx.who, "hiring.start", "holding")
         out = await hiring.start(
             tx,

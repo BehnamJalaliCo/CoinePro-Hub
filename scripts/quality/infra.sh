@@ -67,8 +67,8 @@ chmod 600 "$S/openbao-init.json"
 # Every file already installed but the KV empty: the path where a run without
 # sudo used to rotate the tokens in KV, then stop at the file install.
 for f in llm-router/approle.json claude-runtime/approle.json hq-api/approle.json \
-  hq-worker/approle.json prometheus/llm-metrics.token prometheus/node-exporter.password \
-  node-exporter/web.yml gateway/worker-token.sha256; do
+  hq-worker/approle.json provisioner/approle.json prometheus/llm-metrics.token \
+  prometheus/node-exporter.password node-exporter/web.yml gateway/worker-token.sha256; do
   echo "$S/services/$f"
 done >"$S/.provisioned"
 chmod 600 "$S/.provisioned"
@@ -149,7 +149,8 @@ else
 fi
 
 # ------------------------------------------------------------ owner-only ----
-for script in infra/backup/gdrive-auth.sh infra/backup/show-password.sh infra/openbao/snapshot-token.sh; do
+for script in infra/backup/gdrive-auth.sh infra/backup/show-password.sh infra/openbao/snapshot-token.sh \
+  infra/openbao/hetzner-token.sh infra/openbao/owner-ssh-key.sh; do
   : >"$T/calls.log"
   if PATH="$SAFE_PATH" HQ_COMPOSE_CMD="$T/bin/hq-ok" HQ_BACKUP_DIR="$B" HQ_SECRETS_DIR="$T/no-secrets" \
     "$REPO_DIR/$script" </dev/null >/dev/null 2>&1; then

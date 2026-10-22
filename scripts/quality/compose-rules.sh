@@ -11,6 +11,8 @@
 # Prompt 07 §2: egress is the agents' only route out (hq-egress, with SearXNG);
 # the gateway reaches it on hq-egress-api, the browser on hq-browser (both
 # internal); none of the three is on any other network.
+# Prompt 09 §4: the provisioner sits on hq-prov (api, OpenBao) and hq-prov-out
+# (egress) only; both internal.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -19,12 +21,13 @@ ensure_env
 JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch",
   "backup-tools"]'
 HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch",
-  "backup-tools","egress","searxng","browser"]'
-NOT_INTERNAL='["temporal","opa","gateway","web","stt","egress","searxng","browser"]'
+  "backup-tools","egress","searxng","browser","provisioner"]'
+NOT_INTERNAL='["temporal","opa","gateway","web","stt","egress","searxng","browser","provisioner"]'
 # Services whose networks are exactly these.
 ONLY_ON='{"gateway":["hq-agent","hq-egress-api"],"opa":["hq-agent"],"web":["hq-edge"],"claude-runtime":["hq-llm"],
   "stt":["hq-stt"],"stt-fetch":["hq-fetch"],
-  "egress":["hq-browser","hq-egress","hq-egress-api"],"searxng":["hq-egress"],"browser":["hq-browser"]}'
+  "egress":["hq-browser","hq-egress","hq-egress-api","hq-prov-out"],"searxng":["hq-egress"],"browser":["hq-browser"],
+  "provisioner":["hq-prov","hq-prov-out"]}'
 # Allow-list of every restricted network.
 MEMBERS='{
   "hq-core":["temporal","temporal-namespace","temporal-ui","api","worker","postgres","prometheus"],
@@ -34,8 +37,10 @@ MEMBERS='{
   "hq-fetch":["stt-fetch"],
   "hq-egress":["egress","searxng"],
   "hq-egress-api":["gateway","egress"],
-  "hq-browser":["egress","browser"]}'
-INTERNAL_NETS='["hq-agent","hq-edge","hq-stt","hq-egress-api","hq-browser"]'
+  "hq-browser":["egress","browser"],
+  "hq-prov":["provisioner","api","openbao"],
+  "hq-prov-out":["provisioner","egress"]}'
+INTERNAL_NETS='["hq-agent","hq-edge","hq-stt","hq-egress-api","hq-browser","hq-prov","hq-prov-out"]'
 # The opt-in profiles' services (cadvisor, stt) follow the same rules.
 mapfile -t OPT_IN < <(opt_in_profiles)
 failed=0

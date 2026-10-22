@@ -22,6 +22,7 @@ from hq_api.errors import ApiError, problem_response
 from hq_api.hub import Hub
 from hq_api.openapi_examples import add_examples
 from hq_api.routes import (
+    academy,
     agent_tools,
     audit_control,
     auth,
@@ -29,16 +30,22 @@ from hq_api.routes import (
     decisions,
     deliverables,
     egress,
+    errands,
     files,
+    founding,
     inbox,
+    inquiries,
     internal,
     messages,
     meta,
     notifications,
     orders,
     org,
+    oversight,
     owner,
+    people,
     runs,
+    skills,
     stream,
     tools,
     treasury,
@@ -140,16 +147,30 @@ def create_app(
         runs,
         workshop,
         orders,
+        oversight,
         backups,
         tools,
         egress,
+        inquiries,
+        errands,
+        people,
+        skills,
+        academy,
+        founding,
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
     app.include_router(agent_tools.router, prefix="/internal/v1")
     app.include_router(workshop.internal_router, prefix="/internal/v1")
+    app.include_router(oversight.internal_router, prefix="/internal/v1")
     app.include_router(tools.internal_router, prefix="/internal/v1")
     app.include_router(egress.internal_router, prefix="/internal/v1")
+    app.include_router(inquiries.internal_router, prefix="/internal/v1")
+    app.include_router(errands.internal_router, prefix="/internal/v1")
+    app.include_router(people.internal_router, prefix="/internal/v1")
+    app.include_router(skills.internal_router, prefix="/internal/v1")
+    app.include_router(academy.internal_router, prefix="/internal/v1")
+    app.include_router(founding.internal_router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

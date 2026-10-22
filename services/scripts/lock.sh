@@ -25,11 +25,12 @@ uv() {
 
 S=services
 uv $S/llm-router/requirements.in $S/claude-runtime/requirements.in $S/gateway/requirements.in \
-  $S/egress/requirements.in $S/requirements-dev.in -o $S/requirements-test.lock
+  $S/egress/requirements.in $S/provisioner/requirements.in $S/requirements-dev.in -o $S/requirements-test.lock
 uv $S/llm-router/requirements.in -c $S/requirements-test.lock -o $S/llm-router/requirements.lock
 uv $S/claude-runtime/requirements.in -c $S/requirements-test.lock -o $S/claude-runtime/requirements.lock
 uv $S/gateway/requirements.in -c $S/requirements-test.lock -o $S/gateway/requirements.lock
 uv $S/egress/requirements.in -c $S/requirements-test.lock -o $S/egress/requirements.lock
+uv $S/provisioner/requirements.in -c $S/requirements-test.lock -o $S/provisioner/requirements.lock
 # The browser service (Playwright, matching its image's Chromium) is not in the
 # test image either (the tests use a fake browser); shared packages follow it.
 uv $S/egress/browser.requirements.in -c $S/requirements-test.lock -o $S/egress/browser.requirements.lock
@@ -39,4 +40,4 @@ uv $S/egress/browser.requirements.in -c $S/requirements-test.lock -o $S/egress/b
 uv $S/stt/requirements.in -c $S/requirements-test.lock -o $S/stt/requirements.lock
 uv apps/api/requirements.in apps/api/requirements-dev.in -c $S/requirements-test.lock -o apps/api/requirements-test.lock
 uv apps/api/requirements.in -c apps/api/requirements-test.lock -o apps/api/requirements.lock
-echo "lock: services (test, llm-router, claude-runtime, gateway, egress, browser, stt) and apps/api (test, runtime)"
+echo "lock: services (test, llm-router, claude-runtime, gateway, egress, provisioner, browser, stt) and apps/api (test, runtime)"

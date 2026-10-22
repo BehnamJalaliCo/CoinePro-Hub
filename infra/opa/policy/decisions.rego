@@ -14,6 +14,12 @@ import rego.v1
 kinds := {
 	"hire", "dismissal", "recurring_approval", "deploy",
 	"a3_action", "proposal", "budget_change", "evaluation", "code_session",
+	"errand_action",
+	"lesson_adoption",
+	"protocol",
+	# prompt 09: founding a company, and the server plan's seal (on its digest)
+	"company_found", "server_plan",
+	# 7.1 §18.13: an MCP server re-enabled with its new listing
 	"tool_enable",
 }
 

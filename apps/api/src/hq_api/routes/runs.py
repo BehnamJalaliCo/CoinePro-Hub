@@ -129,6 +129,10 @@ class Run(BaseModel):
     charter: str | None
     partial: bool
     error_code: str | None
+    # Contract §18.15: what was really in the run's system prompt after its
+    # charter: the sealed skill versions and the sealed addenda (their ids).
+    skills: list[str] = Field(default_factory=list)
+    addenda: list[UUID] = Field(default_factory=list)
 
 
 class RunDetail(Run):
@@ -176,6 +180,8 @@ def render_run(r: dict[str, Any]) -> Run:
         charter=r["charter_role"],
         partial=r["partial"],
         error_code=r["error_code"],
+        skills=list(r.get("skills") or []),
+        addenda=list(r.get("addenda") or []),
     )
 
 

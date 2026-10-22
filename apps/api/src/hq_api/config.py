@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
+from hq_common import oversight_share
+
 
 def _int(name: str, default: int) -> int:
     return int(os.environ.get(name, default))
@@ -57,6 +59,21 @@ class Settings:
     )
     # How long POST /transcribe waits for the worker (a 15-minute recording on CPU).
     transcribe_wait_s: int = field(default_factory=lambda: _int("HQ_TRANSCRIBE_WAIT_S", 600))
+    # The academy (prompt 08 §7): the judge of eval answers (a lighter model;
+    # QC's for a case marked sensitive) and the monthly cap, a share of the
+    # holding's budget (every company's monthly envelope), else a fixed default.
+    academy_judge_model: str = field(
+        default_factory=lambda: _env("ACADEMY_JUDGE_MODEL", "claude-haiku-5-5")
+    )
+    academy_qc_model: str = field(
+        default_factory=lambda: _env("ACADEMY_QC_MODEL", "claude-sonnet-5-5")
+    )
+    academy_budget_share: float = field(
+        default_factory=lambda: float(_env("ACADEMY_BUDGET_SHARE", "0.05"))
+    )
+    academy_monthly_tokens: int = field(
+        default_factory=lambda: _int("ACADEMY_MONTHLY_TOKENS", 1_000_000)
+    )
     # MCP calls (prompt 07 §3): per run and per company per owner day.
     mcp_calls_per_run: int = field(default_factory=lambda: _int("HQ_MCP_CALLS_PER_RUN", 20))
     mcp_calls_per_company_day: int = field(
@@ -99,8 +116,28 @@ class Settings:
         default_factory=lambda: _env("PROMETHEUS_URL", "http://prometheus:9090")
     )
     hub_status_dir: str = field(default_factory=lambda: _env("HQ_HUB_STATUS_DIR", "/hub-status"))
-    # Real-model spend of all agent runs per UTC day (input + output tokens); a
-    # run is refused once the day's total reaches it (0 = no cap).
+    # The Chief Overseer (prompt 08 §2): protocol runs handed to a model per
+    # owner day (the rest are code, skipped or deferred), and each run's token
+    # budget, never above the assignee's charter (overseer v2: 200K a run).
+    oversight_model_runs_per_day: int = field(
+        default_factory=lambda: _int("HQ_OVERSIGHT_MODEL_RUNS_PER_DAY", 3)
+    )
+    oversight_run_tokens: int = field(
+        default_factory=lambda: _int("HQ_OVERSIGHT_RUN_TOKENS", 60_000)
+    )
+    # The oversight share (prompt 08 §2.3, contract §18.1 v1.4.4): the overseer
+    # and QC together use at most this share of AGENT_DAILY_TOKEN_CAP (llm-router
+    # enforces it; once spent, only critical protocols run, the rest are deferred).
+    oversight_daily_share: float = field(
+        default_factory=lambda: oversight_share.parse_share(_env("OVERSIGHT_DAILY_SHARE"))
+    )
+    # Off: the protocols' schedules exist but stay paused (tests).
+    oversight_schedules: bool = field(
+        default_factory=lambda: _env("HQ_OVERSIGHT_SCHEDULES", "on") == "on"
+    )
+    # Real-model spend of all agent runs per UTC day (input + output + cache
+    # tokens); a run is refused once the day's total reaches it. 0 means nothing:
+    # every run is refused (prompt 08.1; never "no cap").
     agent_daily_token_cap: int = field(
         default_factory=lambda: _int("AGENT_DAILY_TOKEN_CAP", 2_000_000)
     )
@@ -135,6 +172,14 @@ class Settings:
     # The Code Workshop's runtime (contract §17.3): "" until the owner chooses
     # (managed | self_hosted); the model and effort a session gets by default.
     workshop_runtime: str = field(default_factory=lambda: _env("WORKSHOP_RUNTIME", ""))
+    # Prompt 09: the provisioner's small API (pricing, the project's servers,
+    # wake); empty while its opt-in profile is off (hq.sh sets it).
+    provisioner_url: str = field(default_factory=lambda: _env("PROVISIONER_URL", ""))
+    # Review 9.2 §2.3: a running build the provisioner said nothing about for
+    # this long is failed (its callback wait of 60 minutes plus a margin).
+    provision_quiet_s: float = field(
+        default_factory=lambda: float(_env("HQ_PROVISION_QUIET_S", "4500"))
+    )
     workshop_model: str = field(default_factory=lambda: _env("WORKSHOP_MODEL", "claude-opus-5-5"))
     workshop_effort: str = field(default_factory=lambda: _env("WORKSHOP_EFFORT", "high"))
 

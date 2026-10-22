@@ -10,6 +10,40 @@ reasons(p, op, t) := r if {
 
 allowed(p, op, t) if policy.allow with input as {"principal": p, "op": op, "target": t}
 
+# ------------------------------------- founding and provisioning (prompt 09) --
+hq_aiops := {"kind": "agent", "code": "HQ-AIOPS-MGR", "role": "manager", "company": "HQ", "department": "AIOPS", "scope": "holding"}
+
+provisioner := {"kind": "service", "code": "provisioner", "role": "service", "company": null, "department": null}
+
+test_a_holding_manager_proposes_a_company if {
+	allowed(hq_aiops, "decision.propose", {"company": "HQ", "kind": "company_found"})
+	not allowed(f.ty_growth_mgr, "decision.propose", {"company": "TY", "kind": "company_found"})
+	not allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "company_found"})
+}
+
+test_server_plans_for_the_own_company_or_by_a_holding_role if {
+	allowed(f.ty_growth_mgr, "provisioning.plan", {"company": "TY"})
+	not allowed(f.ty_growth_mgr, "provisioning.plan", {"company": "FX"})
+	allowed(f.hq_ovs, "provisioning.plan", {"company": "FX"})
+	not allowed(f.svc, "provisioning.plan", {"company": "TY"})
+}
+
+# Review 9.2 §2.4: a founding's plan is a holding role's only.
+test_a_company_role_never_plans_a_founding if {
+	allowed(f.ty_growth_mgr, "provisioning.plan", {"company": "TY", "founding": null})
+	not allowed(f.ty_growth_mgr, "provisioning.plan", {"company": "TY", "founding": "C-0001"})
+	not allowed(f.ty_ceo, "provisioning.plan", {"company": "TY", "founding": "C-0001"})
+	allowed(hq_aiops, "provisioning.plan", {"company": "NX", "founding": "C-0001"})
+	allowed(f.hq_ovs, "provisioning.plan", {"company": "TY", "founding": "C-0001"})
+}
+
+test_only_the_provisioner_drives_runs if {
+	allowed(provisioner, "provisioning.run", {})
+	not allowed(f.svc, "provisioning.run", {})
+	not allowed(f.ty_ceo, "provisioning.run", {})
+	not allowed(f.owner, "provisioning.run", {})
+}
+
 work(assignee) := {"assignee": assignee, "company": "TY"}
 
 # ------------------------------------------------------- context / activity --
@@ -188,6 +222,45 @@ test_advisor_and_ceo_threads if {
 	allowed(f.ty_ceo, "message.post", {"thread_code": "TY-CEO-2", "thread_kind": "ceo", "thread_company": "TY"})
 	not allowed(f.fx_ceo, "message.post", {"thread_code": "TY-CEO", "thread_kind": "ceo", "thread_company": "TY"})
 	not allowed(f.svc, "message.post", {"thread_code": "A", "thread_kind": "advisor"})
+
+	# ⟨1.4⟩ N is the overseer's, P the assistant's; no one else posts there
+	allowed(f.hq_ovr, "message.post", {"thread_code": "N", "thread_kind": "overseer"})
+	allowed(f.hq_pa, "message.post", {"thread_code": "P", "thread_kind": "assistant"})
+	not allowed(f.hq_pa, "message.post", {"thread_code": "N", "thread_kind": "overseer"})
+	not allowed(f.hq_ovr, "message.post", {"thread_code": "P", "thread_kind": "assistant"})
+	not allowed(f.hq_adv, "message.post", {"thread_code": "N", "thread_kind": "overseer"})
+	not allowed(f.hq_ovs, "message.post", {"thread_code": "N", "thread_kind": "overseer"})
+}
+
+test_inquiries if {
+	# the overseer and the advisor ask anyone; a CEO inside its own company only
+	allowed(f.hq_ovr, "inquiry.ask", {"company": "FX", "to": "FX-CEO"})
+	allowed(f.hq_adv, "inquiry.ask", {"company": "TY", "to": "TY-TECH-MGR"})
+	allowed(f.ty_ceo, "inquiry.ask", {"company": "TY", "to": "TY-TECH-MGR"})
+	not allowed(f.ty_ceo, "inquiry.ask", {"company": "FX", "to": "FX-CEO"})
+	not allowed(f.ty_growth_mgr, "inquiry.ask", {"company": "TY", "to": "TY-GROWTH-01"})
+	not allowed(f.hq_adv, "inquiry.ask", {"company": null, "to": "XX-CEO"})
+	not allowed(f.svc, "inquiry.ask", {"company": "TY", "to": "TY-CEO"})
+
+	# only the asked one answers, in its own company
+	allowed(f.ty_ceo, "inquiry.answer", {"to": "TY-CEO", "company": "TY"})
+	not allowed(f.ty_growth_mgr, "inquiry.answer", {"to": "TY-CEO", "company": "TY"})
+	not allowed(f.fx_ceo, "inquiry.answer", {"to": "TY-CEO", "company": "TY"})
+}
+
+test_errands_are_the_assistants if {
+	allowed(f.hq_pa, "errand.write", {"company": "HQ"})
+	allowed(f.hq_pa, "planner.add", {"company": "HQ"})
+	not allowed(f.hq_adv, "errand.write", {"company": "HQ"})
+	not allowed(f.ty_ceo, "planner.add", {"company": "TY"})
+	allowed(f.hq_pa, "decision.propose", {"company": "HQ", "kind": "errand_action"})
+	not allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "errand_action"})
+}
+
+test_holding_readers_read_any_workshop if {
+	allowed(f.hq_adv, "workshop.read", {"company": "TY"})
+	allowed(f.hq_ovr, "workshop.read", {"company": "FX"})
+	reasons(f.ty_growth_01, "workshop.read", {"company": "FX"}) == {"other_company", "workshop.read_not_permitted"}
 }
 
 # ----------------------------------------------------- notification.raise --
@@ -413,4 +486,66 @@ test_code_session_proposals if {
 	}
 	not allowed(f.hq_ovs, "decision.propose", {"company": "HQ", "kind": "code_session"})
 	not allowed(f.ty_ceo, "decision.propose", {"company": "FX", "kind": "code_session"})
+}
+
+test_skills_and_academy_are_holding_roles_only if {
+	every op in ["skill.review", "academy.eval", "academy.teach"] {
+		reasons(f.ty_ceo, op, {"company": "TY"}) == {concat("", [op, "_not_permitted"])}
+		not allowed(f.ty_growth_01, op, {"company": "TY"})
+		not allowed(f.svc, op, {"company": "HQ"})
+
+		# 8.1 §4: not every holding agent (the advisor, the assistant)
+		not allowed(f.hq_adv, op, {"company": "HQ"})
+		not allowed(f.hq_pa, op, {"company": "HQ"})
+	}
+
+	# The oversight roles review; the AI Ops department runs evals and drafts.
+	allowed(f.hq_ovr, "skill.review", {"company": "HQ"})
+	allowed(f.hq_ovs, "skill.review", {"company": "HQ"})
+	allowed(f.hq_ovs_01, "skill.review", {"company": "HQ"})
+	not allowed(f.hq_ovr, "academy.eval", {"company": "HQ"})
+	aiops := {"kind": "agent", "code": "HQ-AIOPS-MGR", "role": "manager", "company": "HQ", "department": "AIOPS", "scope": "holding"}
+	allowed(aiops, "academy.eval", {"company": "HQ"})
+	allowed(aiops, "academy.teach", {"company": "HQ"})
+	not allowed(aiops, "skill.review", {"company": "HQ"})
+	ty_aiops := {"kind": "agent", "code": "TY-AIOPS-MGR", "role": "manager", "company": "TY", "department": "AIOPS", "scope": "company"}
+	not allowed(ty_aiops, "academy.eval", {"company": "TY"})
+}
+
+# ----------------------------------------------- oversight (prompt 08 §2) --
+test_the_overseer_raises_and_holds_anywhere if {
+	allowed(f.hq_ovr, "oversight.finding_raise", {"company": "TY", "severity": "high"})
+	allowed(f.hq_ovr, "oversight.hold", {"kind": "decision"})
+	allowed(f.hq_ovs, "oversight.finding_raise", {"company": "FX", "severity": "low"})
+	allowed(f.hq_ovs_01, "oversight.hold", {"kind": "session"})
+	not allowed(f.ty_ceo, "oversight.finding_raise", {"company": "TY", "severity": "low"})
+	not allowed(f.hq_adv, "oversight.hold", {"kind": "decision"})
+	not allowed(f.ty_growth_01, "oversight.hold", {"kind": "employee"})
+}
+
+test_findings_are_answered_in_their_company_and_verified_by_the_overseer if {
+	allowed(f.ty_ceo, "oversight.finding_update", {"company": "TY", "status": "fixed"})
+	not allowed(f.ty_ceo, "oversight.finding_update", {"company": "TY", "status": "verified"})
+	not allowed(f.fx_ceo, "oversight.finding_update", {"company": "TY", "status": "acknowledged"})
+	allowed(f.hq_ovr, "oversight.finding_update", {"company": "TY", "status": "verified"})
+}
+
+test_challenges_and_results if {
+	allowed(f.hq_ovr, "oversight.challenge_issue", {"company": "TY"})
+	not allowed(f.ty_ceo, "oversight.challenge_issue", {"company": "TY"})
+	allowed(f.ty_ceo, "oversight.challenge_submit", {"company": "TY"})
+	not allowed(f.fx_ceo, "oversight.challenge_submit", {"company": "TY"})
+	allowed(f.hq_ovs, "oversight.challenge_score", {"challenge": "CH-0001"})
+	allowed(f.hq_ovr, "oversight.protocol_result", {"protocol": "PR-001"})
+	not allowed(f.ty_ceo, "oversight.protocol_result", {"protocol": "PR-001"})
+}
+
+test_the_overseer_engages_and_freezes_never_releases if {
+	allowed(f.hq_ovr, "kill_switch.set", {"scope": "company:FX", "state": "engaged", "current": {}})
+	not allowed(f.hq_ovr, "kill_switch.set", {"scope": "company:FX", "state": "released", "current": {"changed_by_kind": "agent", "changed_by_company": "HQ"}})
+	not allowed(f.hq_ovr, "kill_switch.set", {"scope": "holding", "state": "engaged", "current": {}})
+	allowed(f.hq_ovr, "deploy_freeze.set", {"company": "TY", "lift": false, "freeze": null})
+	not allowed(f.hq_ovr, "deploy_freeze.set", {"company": "TY", "lift": true, "freeze": {"created_by_kind": "agent", "created_by_code": "HQ-OVR"}})
+	allowed(f.hq_ovr, "decision.propose", {"company": "HQ", "kind": "protocol"})
+	not allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "protocol"})
 }

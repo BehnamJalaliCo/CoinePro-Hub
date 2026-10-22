@@ -116,6 +116,8 @@ async def test_acceptance_scenario(acc: Any, hub: Hub, wk: dict[str, Any], su: A
                         "model": "claude-sonnet-5-5",
                         "effort": "high",
                         "permissions": ["A0", "A1"],
+                        # ⟨1.4.3⟩ every approval needs it, >= the charter's tokens_per_run
+                        "quota_estimate_month": {"tokens": 1500000},
                     },
                 },
             )

@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import hiring, mcp, notify, org, recurring
+from hq_api.domain import errands, hiring, mcp, notify, org, oversight, recurring, stars
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -35,6 +35,11 @@ KINDS = (
     "budget_change",
     "evaluation",
     "code_session",
+    "errand_action",
+    "lesson_adoption",
+    "protocol",
+    "company_found",
+    "server_plan",
     "tool_enable",
 )
 ACTION_CLASS = {
@@ -47,14 +52,42 @@ ACTION_CLASS = {
     "budget_change": "A2",
     "evaluation": "A1",
     "code_session": "A1",
+    # ⟨1.4⟩ an errand's external commitment (contract §18.3): the owner's seal
+    "errand_action": "A3",
+    "lesson_adoption": "A1",
+    "protocol": "A1",
+    # ⟨1.4⟩ prompt 09 (contract §18.8): founding a company is the owner's seal;
+    # a server plan spends money (the A3 seal, on the plan's digest).
+    "company_found": "A2",
+    "server_plan": "A3",
     "tool_enable": "A2",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
+# protocol (prompt 08 §2): a new or changed oversight protocol is the owner's seal.
 # tool_enable: the seal re-enables an MCP server with its new listing (§18.13).
-STEP_UP_KINDS = ("hire", "dismissal", "budget_change", "code_session", "tool_enable")
-EFFECT_KINDS = ("hire", "dismissal", "recurring_approval", "budget_change", "code_session")
-FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal")
+# lesson_adoption: every new kind of §18.10 is sealed with step-up (§18.15).
+STEP_UP_KINDS = (
+    "hire",
+    "dismissal",
+    "budget_change",
+    "code_session",
+    "protocol",
+    "company_found",
+    "tool_enable",
+    "lesson_adoption",
+)
+EFFECT_KINDS = (
+    "hire",
+    "dismissal",
+    "recurring_approval",
+    "budget_change",
+    "code_session",
+    "lesson_adoption",
+    "protocol",
+    "company_found",
+)
+FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
 
@@ -183,6 +216,88 @@ class CodeSessionPayload(Model):
     area: str = Field(default="", max_length=300)
 
 
+class ErrandActionPayload(Model):
+    """⟨1.4⟩ The external commitment of an errand (contract §18.3), prepared to
+    the last click: exactly what will happen, what it costs and how it is
+    undone. Approved or not, no agent makes it (the owner takes the step)."""
+
+    errand: str = Field(pattern=r"^E-[0-9]{4,}$")
+    action: Literal["pay", "buy", "book", "sign_up", "send", "security_change", "other"]
+    target: str = Field(min_length=1, max_length=300)  # the site, shop or recipient
+    details_md: str = Field(min_length=1, max_length=20000)
+    cost: str = Field(default="", max_length=300)  # as shown, e.g. "2,400,000 تومان"
+    amount: Decimal | None = Field(default=None, ge=0, max_digits=16, decimal_places=2)
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    undo_md: str = Field(min_length=1, max_length=5000)  # the way back
+    deadline: datetime | None = None
+
+
+class LessonAdoptionPayload(Model):
+    """A CEO's answer to a lesson of the best company (contract §18.4): adopt
+    it with a plan, or not with the reason; the owner decides."""
+
+    lesson: str = Field(pattern=r"^L-[0-9]{4,}$")
+    adopt: bool = True
+    plan_md: str = Field(default="", max_length=10000)
+
+
+class KpiTarget(Model):
+    name_fa: str = Field(min_length=1, max_length=200)
+    target: str = Field(min_length=1, max_length=200)
+
+
+class TeamMember(Model):
+    role: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    model: str = Field(min_length=3, max_length=100)
+    monthly_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+    department: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,11}$")
+    title_fa: str | None = Field(default=None, max_length=200)
+
+
+class CompanyFoundPayload(Model):
+    """⟨1.4⟩ The proposal of a founding (contract §18.8 Founding.proposal): the
+    company as data, its team and roadmap; its server plan is sealed apart."""
+
+    founding: str = Field(pattern=r"^C-[0-9]{4,}$")
+    code: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+    name_fa: str = Field(min_length=1, max_length=200)
+    name_en: str = Field(min_length=1, max_length=200)
+    departments: list[str] = Field(min_length=1, max_length=20)
+    kpis: list[KpiTarget] = Field(default_factory=list, max_length=30)
+    team: list[TeamMember] = Field(default_factory=list, max_length=30)
+    roadmap_md: str = Field(default="", max_length=20000)
+    monthly_usd: Decimal = Field(default=Decimal(0), ge=0, max_digits=12, decimal_places=2)
+    plan: str | None = Field(default=None, pattern=r"^PV-[0-9]{4,}$")
+
+
+class ServerPlanPayload(Model):
+    """⟨1.4⟩ A server plan to seal (contract §18.8): the seal is bound to its
+    digest at /provisioning/plans/{ref}/seal, never through the cartable."""
+
+    plan: str = Field(pattern=r"^PV-[0-9]{4,}$")
+    company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+
+
+class ProtocolPayload(Model):
+    """An oversight protocol (contract §18.1) the overseer proposes: a new one
+    (ref empty) or a new version of one (an edit, a pause, a resume)."""
+
+    ref: str | None = Field(default=None, pattern=r"^PR-[0-9]{3,}$")
+    title_fa: str = Field(min_length=1, max_length=300)
+    area: Literal[
+        "truth", "authority", "money", "safety", "quality", "delivery", "security", "data",
+        "people", "product", "owner",
+    ]  # fmt: skip
+    check_md: str = Field(min_length=1, max_length=20000)
+    method: Literal["rule", "sample", "llm", "reconcile", "blind_test", "mystery", "drill"]
+    schedule: str = Field(min_length=6, max_length=200)
+    scope: Literal["holding", "company", "department"]
+    evidence_md: str = Field(default="", max_length=5000)
+    severity: Literal["info", "low", "medium", "high", "critical"]
+    answerable: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    status: Literal["active", "paused", "draft"] = "active"
+
+
 PAYLOADS: dict[str, type[Model]] = {
     "hire": HirePayload,
     "dismissal": DismissalPayload,
@@ -193,6 +308,11 @@ PAYLOADS: dict[str, type[Model]] = {
     "budget_change": BudgetChangePayload,
     "evaluation": EvaluationPayload,
     "code_session": CodeSessionPayload,
+    "errand_action": ErrandActionPayload,
+    "lesson_adoption": LessonAdoptionPayload,
+    "protocol": ProtocolPayload,
+    "company_found": CompanyFoundPayload,
+    "server_plan": ServerPlanPayload,
     "tool_enable": ToolEnablePayload,
 }
 
@@ -208,6 +328,11 @@ class DecisionIn(Model):
         "budget_change",
         "evaluation",
         "code_session",
+        "errand_action",
+        "lesson_adoption",
+        "protocol",
+        "company_found",
+        "server_plan",
         "tool_enable",
     ]
     title: str = Field(min_length=1, max_length=300)
@@ -476,19 +601,54 @@ async def propose(
                 "validation_failed",
                 fields={"payload.driver": "an active employee of this company"},
             )
+    if body.kind == "server_plan" and who.kind != "service":
+        # A plan's card is the system's (server.plan or a founding makes it);
+        # its seal is bound to the plan's digest (contract §18.8).
+        raise ApiError(
+            422, "validation_failed", fields={"kind": "a server plan comes from server.plan"}
+        )
+    if body.kind == "company_found":
+        from hq_api.domain import founding
+
+        await founding.check_proposal(tx, payload, company_id)
+    # Still open: no card yet, or its card came back without an answer
+    # (returned, expired, withdrawn), so the lesson may be proposed again.
+    if body.kind == "lesson_adoption" and not await tx.scalar(
+        """SELECT 1 FROM knowledge.lesson_adoptions a
+           WHERE a.lesson_ref = :ref AND a.company_id = :co AND a.status = 'proposed'
+             AND (a.decision_ref IS NULL OR EXISTS (
+                  SELECT 1 FROM cartable.decisions x WHERE x.ref = a.decision_ref
+                     AND x.status IN ('returned', 'expired', 'withdrawn')))""",
+        ref=payload["lesson"],
+        co=company_id,
+    ):
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"payload.lesson": "a lesson offered to this company and still open"},
+        )
     if body.work_id and not await tx.scalar(
         "SELECT 1 FROM work.work WHERE id = :id AND company_id = :co",
         id=body.work_id,
         co=company_id,
     ):
         raise ApiError(422, "validation_failed", fields={"work_id": "unknown work of this company"})
+    # ⟨1.4.3⟩ delegated hiring: an operating company's agent hire card is its
+    # CEO's to decide (contract §18.11); the owner's own cards stay the owner's.
+    approver = (
+        await hiring.approver_for(tx, company_id, company_kind)
+        if body.kind == "hire" and who.is_agent
+        else None
+    )
     row = await tx.one(
         """INSERT INTO cartable.decisions (company_id, kind, action_class, title, what, why,
                proposer_kind, proposer_code, work_id, quota_tokens, quota_usd, risk, risk_note,
-               reversible, payload, expires_at, thread_code)
+               reversible, payload, expires_at, thread_code, approver_kind, approver_code)
            VALUES (:co, :kind, :cls, :title, :what, :why, :pk, :pc, :work, :qt, :qu, :risk, :rn, :rev,
-                   CAST(:payload AS jsonb), :exp, :thread)
+                   CAST(:payload AS jsonb), :exp, :thread, :ak, :ac)
            RETURNING ref""",
+        ak="agent" if approver else None,
+        ac=approver,
         co=company_id,
         kind=body.kind,
         cls=ACTION_CLASS[body.kind],
@@ -520,8 +680,42 @@ async def propose(
             "action_class": d["action_class"],
         },
     )
+    if body.kind == "company_found":
+        from hq_api.domain import founding
+
+        await founding.proposed(tx, d, payload)
+    if body.kind == "lesson_adoption":  # one answer per lesson and company
+        await tx.exec(
+            """UPDATE knowledge.lesson_adoptions SET decision_ref = :d, updated_at = now()
+               WHERE lesson_ref = :ref AND company_id = :co""",
+            d=d["ref"],
+            ref=payload["lesson"],
+            co=company_id,
+        )
+    if approver:
+        # The CEO is woken by a work item for the card (contract §18.11); the
+        # owner hears of the hire through its story and the digest.
+        await W.create(
+            tx,
+            Principal(kind="service", code="hiring", role="service"),
+            company_id=company_id,
+            company_code=company_code,
+            title=f"تصمیم درباره‌ی {d['ref']}: {d['title']}"[:300],
+            brief=(
+                f"کارت استخدام {d['ref']} ({who.code}) با تو است. با hire.decide "
+                "(approve / reject / return) و یک یادداشت تصمیم بگیر؛ پاکت ماهانه‌ی شرکت، "
+                "برآورد ماهانه و مدل انتخاب‌شده را بسنج (مدل قوی‌تر از نیاز کار، کارایی را کم میکند)."
+            ),
+            kind="one_off",
+            priority="P2",
+            assignee_code=approver,
+        )
+        # Watch mode holds a card a CEO decides as well (contract §18.15).
+        await oversight.hold_if_watching(tx, d)
+        return d
     if not notify_owner:  # the owner wrote it (a direct hire): nothing to tell them
         return d
+    await oversight.hold_if_watching(tx, d)
     await notify.raise_notification(
         tx,
         company_id=company_id,
@@ -615,9 +809,33 @@ async def decide(
     reason_code: str | None = None,
     amendments: dict[str, Any] | None = None,
     step_up_id: UUID | None = None,
+    charters: Any = None,
 ) -> dict[str, Any]:
     if d["status"] != "pending":
         raise ApiError(409, "decision_not_pending", f"{d['ref']} is {d['status']}")
+    if verdict == "approved":
+        # A hold (the overseer's, or watch mode's) stops the approval until the
+        # owner releases it; rejecting or returning stays possible.
+        await oversight.require_not_held(tx, "decision", d["ref"])
+    if verdict == "approved" and d["kind"] == "hire":
+        # Every approval, whoever approves (contract §18.11): refused with a
+        # stable code before anything changes, so no employee is made.
+        await hiring.check_approval(
+            tx, d, amended("hire", d["payload"], amendments), charters, by_ceo=who.is_agent
+        )
+    if verdict in ("rejected", "returned") and d["kind"] == "company_found":
+        from hq_api.domain import founding
+
+        await founding.proposal_declined(tx, d, verdict)
+    if verdict == "rejected" and d["kind"] == "lesson_adoption":
+        await stars.adoption_decided(
+            tx, d["payload"]["lesson"], d["company_id"], "rejected", d["ref"]
+        )
+    if verdict == "returned" and d["kind"] == "lesson_adoption":
+        await stars.adoption_reopened(tx, d["payload"]["lesson"], d["company_id"], d["ref"])
+    if d["kind"] == "hire" and d.get("approver_code") and who.code != d["approver_code"]:
+        # The owner decided a CEO's card first: the CEO's «decide D-…» item closes.
+        await hiring.close_decide_items(tx, [d["ref"]], f"{d['ref']}: مالک خودش تصمیم گرفت")
     effect = "pending" if verdict == "approved" and d["kind"] in EFFECT_KINDS else "none"
     server = None
     sealed_as_is = d["kind"] == "tool_enable" or (
@@ -683,6 +901,8 @@ async def decide(
         body = f"تصمیم {d['ref']} با یادداشت برگشت خورد"
     if note:
         body += f"\n\n{note}"
+    if d["kind"] == "errand_action":  # the errand goes on, whatever the verdict
+        await errands.on_decided(tx, d, verdict)
     links = {"decision": d["ref"]}
     if resolution:
         links["resolution"] = resolution["ref"]
@@ -794,7 +1014,12 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
             emp["code"],
             {"change": "hired", "decision": d["ref"]},
         )
+        await hiring.after_hire(tx, d, emp["code"], p)
         result = {"employee": emp["code"]}
+    elif d["kind"] == "lesson_adoption":
+        status = "adopted" if p.get("adopt", True) else "rejected"
+        await stars.adoption_decided(tx, p["lesson"], d["company_id"], status, d["ref"])
+        result = {"lesson": p["lesson"], "adoption": status}
     elif d["kind"] == "recurring_approval":
         tpl = await W.load(tx, p["work_id"])
         run = await recurring.activate(tx, tpl, actor_principal(d), decision_id=d["id"])
@@ -832,6 +1057,31 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
         result = {
             "budget": f"{scope.get('scope_type', 'company')}:{scope.get('scope_ref', d['company'])}"
         }
+    elif d["kind"] == "protocol":
+        # The seal is the new version; the decision id is on it, so a retried
+        # effect never adds a second one.
+        done = await tx.first(
+            "SELECT ref, version FROM oversight.protocols WHERE decision_id = :d", d=d["id"]
+        )
+        if done is None:
+            fields = {k: v for k, v in p.items() if k != "ref"}
+            holding_id = await tx.scalar("SELECT id FROM core.companies WHERE kind = 'holding'")
+            proto = await oversight.new_version(
+                tx,
+                actor_principal(d),
+                holding_id,
+                fields,
+                ref=p.get("ref"),
+                source="decision",
+                step_up_id=d["seal_step_up_id"],
+                decision_id=d["id"],
+            )
+            done = {"ref": proto["ref"], "version": proto["version"]}
+        result = {"protocol": f"{done['ref']}@{done['version']}"}
+    elif d["kind"] == "company_found":
+        from hq_api.domain import founding
+
+        result = await founding.found_company(tx, d, p)
     elif d["kind"] == "code_session":
         # The seal is the grant; the decision's id is unique on the grant, so a
         # retried effect never makes a second one.

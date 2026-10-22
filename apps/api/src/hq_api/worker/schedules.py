@@ -9,6 +9,8 @@ Schedule ids:
     hq-score-job              daily 03:00 (owner's zone)  ScoreJob
     hq-site-checks            every 5 min   SiteChecks (rule-based checks + the hub's snapshot)
     hq-ceo-daily              daily 07:30 (owner's zone)  CeoDaily, paused unless HQ_CEO_DAILY_REPORTS=on
+    hq-stars-reminder         Friday 18:00 (owner's zone)  StarsReminder (prompt 08 §4)
+    hq-stars-rollup           daily 08:00 (owner's zone)  StarsRollup: Saturday's week, a Jalali 1st's month
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -47,7 +49,19 @@ AUDIT = "hq-audit-verify"
 SCORE = "hq-score-job"
 SITE_CHECKS = "hq-site-checks"
 CEO_DAILY = "hq-ceo-daily"
-FIXED = (MAINTENANCE, DIGEST, MORNING, AUDIT, SCORE, SITE_CHECKS, CEO_DAILY)
+STARS_REMINDER = "hq-stars-reminder"
+STARS_ROLLUP = "hq-stars-rollup"
+FIXED = (
+    MAINTENANCE,
+    DIGEST,
+    MORNING,
+    AUDIT,
+    SCORE,
+    SITE_CHECKS,
+    CEO_DAILY,
+    STARS_REMINDER,
+    STARS_ROLLUP,
+)
 
 
 @dataclass(frozen=True)
@@ -110,6 +124,21 @@ def daily_at(at: time, tz: str) -> ScheduleSpec:
     )
 
 
+def weekly_at(day_of_week: int, at: time, tz: str) -> ScheduleSpec:
+    """Once a week (Temporal's day_of_week: 0 = Sunday, 5 = Friday)."""
+    return ScheduleSpec(
+        calendars=[
+            ScheduleCalendarSpec(
+                second=[ScheduleRange(start=0, end=0)],
+                minute=[ScheduleRange(start=at.minute, end=at.minute)],
+                hour=[ScheduleRange(start=at.hour, end=at.hour)],
+                day_of_week=[ScheduleRange(start=day_of_week, end=day_of_week)],
+            )
+        ],
+        time_zone_name=tz,
+    )
+
+
 def every(minutes: int) -> ScheduleSpec:
     return ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=minutes))])
 
@@ -152,6 +181,22 @@ def fixed(morning_at: time, tz: str, *, ceo_daily: bool = False) -> list[Desired
         ),
         Desired(
             SCORE, "ScoreJob", (), daily_at(time(3, 0), tz), timedelta(hours=12), timedelta(hours=1)
+        ),
+        Desired(
+            STARS_REMINDER,
+            "StarsReminder",
+            (),
+            weekly_at(5, time(18, 0), tz),
+            timedelta(hours=6),
+            timedelta(minutes=15),
+        ),
+        Desired(
+            STARS_ROLLUP,
+            "StarsRollup",
+            (),
+            daily_at(time(8, 0), tz),
+            timedelta(hours=12),
+            timedelta(minutes=45),
         ),
     ]
 

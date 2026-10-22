@@ -1,5 +1,6 @@
 """`python -m hq_egress`: the API on :8090 (the gateway's network), the
-browser's proxy on :3128 and the gateway's proxy on :3129, in one process."""
+browser's proxy on :3128, the gateway's proxy on :3129 and the provisioner's
+on :3130 (prompt 09: CONNECT to api.hetzner.cloud only), in one process."""
 
 from __future__ import annotations
 
@@ -21,9 +22,17 @@ async def serve(s: Settings) -> None:
     state = State(s, guard, buckets)
     browser = Proxy(guard, buckets, mode="browser", clients=s.browser_proxy_clients)
     gateway = Proxy(guard, buckets, mode="gateway", clients=s.gateway_proxy_clients)
+    provisioner = Proxy(
+        guard,
+        buckets,
+        mode="provisioner",
+        clients=s.provisioner_proxy_clients,
+        allowed_hosts=s.provisioner_hosts,
+    )
     servers = [
         await browser.serve("0.0.0.0", s.browser_proxy_port),
         await gateway.serve("0.0.0.0", s.gateway_proxy_port),
+        await provisioner.serve("0.0.0.0", s.provisioner_proxy_port),
     ]
     api = uvicorn.Server(
         uvicorn.Config(

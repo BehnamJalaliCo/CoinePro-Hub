@@ -347,7 +347,13 @@ async def test_owner_hires_directly_with_a_body_bound_step_up(
 ) -> None:
     h, sid = owner_session["headers"], owner_session["session_id"]
     co = (await new_company())["code"]
-    body = {"company": co, "department": "TECH", "role": "sre", "title_fa": "کارشناس پایداری"}
+    body = {
+        "company": co,
+        "department": "TECH",
+        "role": "sre",
+        "title_fa": "کارشناس پایداری",
+        "quota_estimate_month": {"tokens": 150000},  # >= the charter's tokens_per_run (v1.4.3)
+    }
     content = body_bytes(body)
     target = hashlib.sha256(content).hexdigest()
 
@@ -412,7 +418,7 @@ async def test_direct_hire_reports_to_and_validation(
         "reason": "آزمایش",
         "duties": ["پایش"],
         "reports_to": f"{co}-CEO",
-        "quota_estimate_month": {"tokens": 100000},
+        "quota_estimate_month": {"tokens": 150000},
     }
     content = body_bytes(body)
     su_h = await step_up(hub, sid, "hire.direct", hashlib.sha256(content).hexdigest())
@@ -424,7 +430,7 @@ async def test_direct_hire_reports_to_and_validation(
     assert r.status_code == 201, r.text
     e = r.json()["employee"]
     assert e["reports_to"]["code"] == f"{co}-CEO" and e["model"]["effort"] == "medium"
-    assert r.json()["decision"]["quota_estimate"]["tokens"] == 100000
+    assert r.json()["decision"]["quota_estimate"]["tokens"] == 150000
     bad = body_bytes({**body, "reports_to": f"{co}-NOPE-01"})
     su_h = await step_up(hub, sid, "hire.direct", hashlib.sha256(bad).hexdigest())
     r = await client.post(
@@ -434,15 +440,28 @@ async def test_direct_hire_reports_to_and_validation(
 
 
 # ---------------------------------------------------------- v1.4.3 shape --
-async def test_delegated_is_not_ready_and_spends_no_step_up(
-    client: httpx.AsyncClient, hub: Any, owner_session: dict[str, Any]
+async def test_delegated_without_envelopes_spends_no_step_up(
+    client: httpx.AsyncClient,
+    hub: Any,
+    su: Any,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
 ) -> None:
+    """Prompt 8 §8: `delegated` needs every active operating company's monthly
+    envelope; without one: 422 envelope_required naming it, nothing spent."""
     h, sid = owner_session["headers"], owner_session["session_id"]
+    co = (await new_company())["code"]
+    await su.execute(
+        """DELETE FROM llm.budgets b USING core.companies c
+           WHERE c.id = b.company_id AND c.code = $1 AND b.scope_type = 'company'""",
+        co,
+    )
     su_h = await step_up(hub, sid, "hiring.start", "holding")
     r = await client.post(
         "/api/v1/owner/hiring/start", headers={**h, **su_h}, json={"mode": "delegated"}
     )
-    assert (r.status_code, r.json()["code"]) == (409, "not_ready")
+    assert (r.status_code, r.json()["code"]) == (422, "envelope_required")
+    assert co in r.json()["fields"]["envelopes"]
     assert (await client.get("/api/v1/owner/hiring", headers=h)).json()["state"] == "closed"
     r = await client.post(
         "/api/v1/owner/hiring/start", headers={**h, **su_h}, json={"mode": "self"}

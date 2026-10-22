@@ -88,9 +88,14 @@ class DecisionLifecycle:
                 result = await _act(
                     "decision_apply_effect", ref, limit=timedelta(minutes=2), retry=EFFECT_RETRY
                 )
+                if result.get("effect") == "cancelled":  # the owner cancelled its hold
+                    return {"ref": ref, **result, "result": "cancelled"}
                 return {"ref": ref, "result": "applied", **result}
             except ActivityError as err:
                 if _cause_type(err) == "HoldingLocked":
+                    # A company switch or a hold: wait like the holding lock,
+                    # never spin (prompt 08.1 §2.4).
+                    await workflow.sleep(timedelta(seconds=lock["retry_in_s"]))
                     continue
                 cause = err.cause
                 message = str(cause.message if isinstance(cause, ApplicationError) else err)
@@ -127,6 +132,8 @@ class Maintenance:
             "requeue_runs",
             "purge",
             "backups_ingest",
+            "inquiries_late",
+            "oversight_tick",
         ):
             try:
                 out[name] = await _act(name, limit=LONG, retry=RetryPolicy(maximum_attempts=3))
@@ -166,6 +173,27 @@ class AuditVerify:
     @workflow.run
     async def run(self) -> dict[str, Any]:
         result: dict[str, Any] = await _act("audit_verify", limit=timedelta(minutes=30))
+        return result
+
+
+@workflow.defn(name="StarsReminder")
+class StarsReminder:
+    """Friday 18:00 (owner zone): the CEOs' "this week's stars" (prompt 08 §4)."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("stars_reminder", limit=timedelta(minutes=10))
+        return result
+
+
+@workflow.defn(name="StarsRollup")
+class StarsRollup:
+    """Daily 08:00 (owner zone): Saturday's weekly roll-up, the Jalali month's
+    on its 1st (prompt 08 §4); idempotent per period."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("stars_rollup", limit=timedelta(minutes=30))
         return result
 
 
@@ -233,6 +261,29 @@ class SiteChecks:
         return out
 
 
+@workflow.defn(name="ProtocolRun")
+class ProtocolRun:
+    """One scheduled run of an oversight protocol (prompt 08 §2): code checks
+    it, or it becomes the overseer's work."""
+
+    @workflow.run
+    async def run(self, ref: str) -> dict[str, Any]:
+        result: dict[str, Any] = await _act(
+            "protocol_run", ref, limit=LONG, retry=RetryPolicy(maximum_attempts=2)
+        )
+        return result
+
+
+@workflow.defn(name="OversightWeekly")
+class OversightWeekly:
+    """Saturday: the week's challenges for every company without one."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("oversight_weekly", limit=LONG)
+        return result
+
+
 @workflow.defn(name="CeoDaily")
 class CeoDaily:
     """The CEOs' daily report runs (prompt 05 §6): built, switched off by default."""
@@ -244,6 +295,30 @@ class CeoDaily:
 
 
 MEDIA_LIMIT = timedelta(minutes=30)  # a 10-minute video: frames, sound track, Whisper on CPU
+EVAL_LIMIT = timedelta(minutes=90)  # a suite: two model calls per case
+
+
+@workflow.defn(name="EvalRun")
+class EvalRun:
+    """One academy eval run (prompt 08 §7): each case answered by the role
+    under test and scored by the judge; tried once (every call costs tokens)."""
+
+    @workflow.run
+    async def run(self, run_id: str) -> dict[str, Any]:
+        try:
+            result: dict[str, Any] = await workflow.execute_activity(
+                "academy_eval_run",
+                args=[run_id],
+                start_to_close_timeout=EVAL_LIMIT,
+                heartbeat_timeout=timedelta(minutes=3),
+                retry_policy=RetryPolicy(maximum_attempts=1),
+            )
+        except ActivityError as err:
+            # A crash or a timeout (8.1 §2.11): the run is failed, never left
+            # `running` holding the academy's monthly cap.
+            await _act("academy_eval_failed", run_id, str(err.cause or err)[:200])
+            return {"run": run_id, "failed": True}
+        return result
 
 
 @workflow.defn(name="FileProcess")
@@ -303,6 +378,9 @@ class OrderRouting:
 
 
 WORKFLOWS = [
+    EvalRun,
+    ProtocolRun,
+    OversightWeekly,
     FileProcess,
     Transcribe,
     AgentRun,
@@ -317,4 +395,6 @@ WORKFLOWS = [
     MorningReport,
     AuditVerify,
     ScoreJob,
+    StarsReminder,
+    StarsRollup,
 ]

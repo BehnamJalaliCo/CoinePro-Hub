@@ -49,12 +49,24 @@ def leadership_roles(company_code: str, key: str) -> dict[str, str | None]:
     return roles
 
 
-async def apply(tx: Tx, company_id: UUID, company_code: str, key: str) -> dict[str, int]:
+async def apply(
+    tx: Tx,
+    company_id: UUID,
+    company_code: str,
+    key: str,
+    departments: list[str] | None = None,
+) -> dict[str, int]:
     """Create the template's departments, leadership positions, their threads
-    and the company's kill-switch row (released). Returns what was added."""
+    and the company's kill-switch row (released). Returns what was added.
+    `departments`: only these of the template's (a founding's proposal)."""
     t = template(key)
     if t is None:
         raise ValueError(f"unknown template {key}")
+    if departments is not None:
+        t = {
+            **t,
+            "departments": [d for d in t.get("departments") or [] if d["code"] in departments],
+        }
     added = {"departments": 0, "employees": 0, "threads": 0}
 
     for d in t.get("departments") or []:
@@ -127,10 +139,17 @@ async def apply(tx: Tx, company_id: UUID, company_code: str, key: str) -> dict[s
 
     for x in lead.get("extra") or []:
         code = f"{company_code}-{x['code_suffix']}"
+        x_dept = None
+        if x.get("department"):
+            x_dept = await tx.scalar(
+                "SELECT id FROM core.departments WHERE company_id = :co AND code = :code",
+                co=company_id,
+                code=x["department"],
+            )
         emp_id = await _position(
             tx,
             company_id,
-            None,
+            x_dept,
             code,
             x["kind"],
             x["title_fa"],
@@ -150,6 +169,18 @@ async def apply(tx: Tx, company_id: UUID, company_code: str, key: str) -> dict[s
                 x["thread_title_fa"],
                 added,
             )
+
+    if lead.get("managers"):
+        for d in t.get("departments") or []:
+            if d.get("head_reports_to"):
+                await tx.exec(
+                    """UPDATE core.employees SET reports_to =
+                           (SELECT id FROM core.employees WHERE code = :boss AND company_id = :co)
+                       WHERE code = :code AND company_id = :co AND reports_to IS NULL""",
+                    boss=f"{company_code}-{d['head_reports_to']}",
+                    code=f"{company_code}-{d['code']}-MGR",
+                    co=company_id,
+                )
 
     await tx.exec(
         "INSERT INTO control.kill_switches (company_id) VALUES (:co) ON CONFLICT DO NOTHING",

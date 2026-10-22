@@ -16,4 +16,7 @@ task_classes:
   # prompt 6 §3: the light model's punctuation of the owner's own transcribed
   # voice (A0, P1); never on another provider (it is the owner's speech).
   - {key: stt_punctuation, transferable: false, description: Punctuation of a Persian voice transcript}
+  # prompt 08 §7: the academy's golden evals (the role's answer, the judge's score)
+  - {key: academy_eval, transferable: false, description: An academy eval case answered by the role under test}
+  - {key: academy_judge, transferable: false, description: The judge's score of an academy eval answer}
   - {key: order_routing, transferable: false, description: "Where an order of the owner goes (prompt 06 §5; the owner's words stay on Claude)"}

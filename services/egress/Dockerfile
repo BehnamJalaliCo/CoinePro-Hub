@@ -24,5 +24,5 @@ COPY egress/src /app/egress/src
 
 USER 10001
 WORKDIR /app/egress
-EXPOSE 8090 3128 3129
+EXPOSE 8090 3128 3129 3130
 CMD ["python", "-m", "hq_egress"]

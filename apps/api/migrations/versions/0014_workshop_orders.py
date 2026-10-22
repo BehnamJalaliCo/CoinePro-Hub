@@ -278,7 +278,7 @@ def upgrade() -> None:
         -- ------------------------------------------- decision kind code_session
         ALTER TABLE cartable.decisions DROP CONSTRAINT decisions_kind_check;
         ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check
-            CHECK (kind IN ({KINDS}, 'code_session'));
+            CHECK (kind IN ({KINDS}, 'code_session')) NOT VALID;  -- the head validates
         """
     )
 
@@ -287,7 +287,7 @@ def downgrade() -> None:
     execute_script(
         f"""
         ALTER TABLE cartable.decisions DROP CONSTRAINT decisions_kind_check;
-        ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check CHECK (kind IN ({KINDS}));
+        ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check CHECK (kind IN ({KINDS})) NOT VALID;
         DROP TABLE owner.orders;
         DROP SEQUENCE owner.order_ref_seq;
         DROP SCHEMA workshop CASCADE;

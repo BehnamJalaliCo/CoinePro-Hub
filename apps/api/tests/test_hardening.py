@@ -353,6 +353,7 @@ async def test_1_7_owner_amendments_are_applied(
                 "reason": "r",
                 "model": "claude-sonnet-5-5",
                 "effort": "medium",
+                "quota_estimate_month": {"tokens": 1500000},
             },
         },
     )

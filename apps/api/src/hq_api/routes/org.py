@@ -532,7 +532,10 @@ async def _render_many(ctx: Ctx, tx: Tx, rows: list[dict[str, Any]]) -> list[org
 async def list_employees(
     company: list[str] | None = Query(default=None),
     department: str | None = Query(default=None, pattern=DEPT_CODE),
-    kind: Literal["ceo", "manager", "employee", "advisor", "inspector", "system"] | None = None,
+    kind: Literal[
+        "ceo", "manager", "employee", "advisor", "inspector", "overseer", "assistant", "system"
+    ]
+    | None = None,
     status: Literal["active", "paused", "dismissed"] | None = None,
     activity: Literal["sleeping", "working", "waiting", "error"] | None = None,
     q: str | None = Query(default=None, max_length=100),
@@ -846,7 +849,9 @@ async def direct_hire(body: DirectHireIn, request: Request, ctx: Ctx = Depends(o
             company_kind=co.kind,
             notify_owner=False,
         )
-        d = await D.decide(tx, ctx.who, d, "approved", note=None, step_up_id=su)
+        d = await D.decide(
+            tx, ctx.who, d, "approved", note=None, step_up_id=su, charters=ctx.hub.charters
+        )
         out = await D.apply_effect(tx, d["ref"], ctx.who)
         await ctx.audit(
             tx,

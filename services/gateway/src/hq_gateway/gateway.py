@@ -40,9 +40,15 @@ import httpx
 
 from hq_common.charters import IMPLICIT_TOOLS, Library
 from hq_common.redact import fit_async, mask_secrets
+from hq_gateway import (
+    founding,  # noqa: F401 - registers server.plan (prompt 09)
+    inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
+    oversight,  # noqa: F401 - registers the overseer's tools (prompt 08)
+    people,  # noqa: F401 - registers stars, lessons, stories, hire.decide
+    web,  # registers the internet tools (web.*, http.request)
+)
 from hq_gateway import mcp as M
 from hq_gateway import tools as T
-from hq_gateway import web  # registers the internet tools (web.*, http.request)
 
 log = logging.getLogger("hq_gateway")
 TOOL_NAME = re.compile(r"[a-z][a-z_]*(?:\.[a-z_]+)?")  # always fullmatch: "work.get\n" is no tool
@@ -212,6 +218,14 @@ class Gateway:
             return Outcome("denied", catalog.cls, code, None, None, {})
         if name not in self.lib.allowed(gate.get("role")):
             return Outcome("denied", catalog.cls, "tool_not_in_charter", None, None, {})
+        # The overseer's holds (prompt 08 §2): a held employee or work item only
+        # reads; a held tool does not run at all. Only the owner releases.
+        held = [str(h) for h in gate.get("held") or []]
+        whole = [h for h in held if not h.startswith("tool:")]
+        if (whole and catalog.cls != "A0") or f"tool:{name}" in held:
+            return Outcome(
+                "denied", catalog.cls, "held", None, None, {"holds": ",".join(whole)[:200]}
+            )
         if catalog.per_tool:
             return await self._mcp(token, gate, step, index, name, args)
         cls = catalog.cls

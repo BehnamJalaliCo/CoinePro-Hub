@@ -89,6 +89,24 @@ CODES: dict[str, tuple[int, str, str]] = {
         "Runtime not configured",
         "کارگاه کد هنوز روشن نیست: محل اجرای سشن‌ها را مدیر کل باید انتخاب کند.",
     ),
+    # prompt 08 §2: an action the Chief Overseer (or watch mode) held for the owner
+    "held": (
+        423,
+        "Held",
+        "این کار را ناظر کل تا تصمیم مدیر کل نگه داشته است؛ فقط مدیر کل آزادش میکند.",
+    ),
+    # prompt 09 (contract §18.8): server plans and their seal
+    "seal_mismatch": (
+        409,
+        "Seal mismatch",
+        "طرح بعد از دیدن تو عوض شده است: طرح تازه را دوباره ببین و مُهر کن.",
+    ),
+    "plan_invalid": (422, "Plan invalid", "طرح سرور کامل یا درست نیست؛ ایرادهایش را ببین."),
+    "price_unknown": (
+        409,
+        "Price unknown",
+        "هزینه‌ی ماهانه‌ی این سرور هنوز معلوم نیست (provisioner خاموش است)؛ بدون هزینه مُهر نمیشود.",
+    ),
     # prompt 07 §2: the agents' internet (egress)
     "needs_owner": (
         403,
@@ -101,11 +119,29 @@ CODES: dict[str, tuple[int, str, str]] = {
         "داده‌ی داخلی (کد کارمند، ارجاع، ایمیل، تلفن یا رمز) نباید از هاب بیرون برود؛ بدون آن تکرار کن.",
     ),
     "egress_limit": (429, "Egress limit", "سقف اینترنت این اجرا یا امروز شرکت پر شده است."),
+    # prompt 08 §7: the academy's monthly cap is used up
+    "academy_budget": (
+        409,
+        "Academy budget used up",
+        "سقف ماهانه‌ی توکن آکادمی پر شده است؛ آزمون تازه تا ماه بعد اجرا نمیشود.",
+    ),
     "account_not_configured": (
         409,
         "Account not configured",
         "این حساب سرویس هنوز رمز ندارد؛ مالک باید آن را روی سرور بگذارد.",
     ),
+    # ⟨1.4.3⟩ delegated hiring and stories (contract §18.11, §18.12; prompt 08)
+    "envelope_required": (
+        422,
+        "Envelope required",
+        "هر شرکت عملیاتی پیش از استخدام با مدیرعامل‌ها پاکت ماهانه‌ی توکن میخواهد.",
+    ),
+    "envelope_exceeded": (
+        409,
+        "Envelope exceeded",
+        "برآورد این استخدام در پاکت ماهانه‌ی شرکت جا نمیشود.",
+    ),
+    "story_limit": (429, "Story limit", "امروز سه استوری این شرکت گذاشته شده است."),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 

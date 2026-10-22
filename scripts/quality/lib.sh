@@ -29,7 +29,7 @@ compose_json() {
   shift
   for p in "${ALWAYS_COUNTED[@]}" "$@"; do extra+=(--profile "$p"); done
   # Opt-in profiles come from the arguments only (never from .env's HQ_STT).
-  HQ_PROFILE="$profile" HQ_STT=off "$HQ" "${extra[@]}" config --format json
+  HQ_PROFILE="$profile" HQ_STT=off HQ_PROVISIONING=off "$HQ" "${extra[@]}" config --format json
 }
 
 # Profiles of jobs that run outside `compose up` (backup-tools: the hourly
@@ -51,7 +51,7 @@ opt_in_enabled() { # opt_in_enabled NAME
 # of compose.yaml but the memory profiles, "web" (hq.sh switches it on) and
 # the always-counted ones.
 opt_in_profiles() {
-  HQ_PROFILE=lean HQ_STT=off "$HQ" config --profiles |
+  HQ_PROFILE=lean HQ_STT=off HQ_PROVISIONING=off "$HQ" config --profiles |
     grep -vxE "$(IFS='|'; echo "${PROFILES[*]}")|web|$(IFS='|'; echo "${ALWAYS_COUNTED[*]}")" || true
 }
 

@@ -10,7 +10,12 @@ gitleaks() {
   docker run --rm --user "$(id -u):$(id -g)" "$@"
 }
 
-gitleaks -v "$REPO_DIR:/repo:ro" \
+# In a git worktree .git is a file naming the main repository's git dir by its
+# absolute path: mount that dir at the same path, or there is no history to scan.
+common="$(cd "$REPO_DIR" && cd "$(git rev-parse --git-common-dir)" && pwd)"
+mounts=(-v "$REPO_DIR:/repo:ro")
+[[ "$common" == "$REPO_DIR/.git" ]] || mounts+=(-v "$common:$common:ro")
+gitleaks "${mounts[@]}" \
   -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo \
   "$GITLEAKS_IMAGE" git --no-banner --redact --verbose --exit-code 1 --log-level warn /repo
 echo "gitleaks: git history clean"

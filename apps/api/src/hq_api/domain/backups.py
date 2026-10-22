@@ -74,8 +74,29 @@ def wal_failing(wal: dict[str, Any]) -> bool:
 
 
 async def oversight_finding(tx: Tx, kind: str, data: dict[str, Any]) -> None:
-    """PR-070 (prompt 08): the overseer's finding for a backup problem. The
-    oversight schema does not exist yet; prompt 8 replaces this body."""
+    """PR-070 (prompt 08 §2): the overseer's finding for a backup problem, once
+    per open problem (the same key while it is still open)."""
+    from hq_api.domain import oversight
+
+    holding = await tx.first("SELECT id, code FROM core.companies WHERE kind = 'holding'")
+    # A paused PR-070 raises nothing (contract §18.15: every path refuses it).
+    protocol = await oversight.protocol_in_force(tx, "PR-070")
+    if holding is None or protocol is None:
+        return
+    since = data.get("last_ok_at") or "never"
+    await oversight.raise_finding(
+        tx,
+        company_id=holding["id"],
+        company_code=holding["code"],
+        severity="critical",
+        title_fa="backup ساعتی سالم یا تازه نیست",
+        body_md=f"Backup problem `{kind}`: last good hourly backup {since}.",
+        evidence=[{"kind": "metric", "ref": "backups.status", "note": f"{kind}: {since}"}],
+        protocol=protocol,
+        by_kind="system",
+        by_code="PR-070",
+        dedupe_key="PR-070:backup-hourly",
+    )
     log.info("backup problem for PR-070", extra={"kind": kind, "data": data})
 
 

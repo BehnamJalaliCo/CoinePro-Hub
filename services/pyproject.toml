@@ -4,7 +4,7 @@
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["hq-common/src", "llm-router/src", "claude-runtime/src", "gateway/src", "stt/src", "egress/src"]
+src = ["hq-common/src", "llm-router/src", "claude-runtime/src", "gateway/src", "stt/src", "egress/src", "provisioner/src"]
 extend-exclude = ["llm-router/migrations/versions"]
 
 [tool.ruff.lint]
@@ -24,16 +24,18 @@ ignore = [
 # Persian words and invisible spaces are what the egress rules look for.
 "egress/src/hq_egress/rules.py" = ["RUF001"]
 "egress/src/hq_egress/extract.py" = ["RUF001"]
+# The steps' Persian titles (contract §18.8 ProvisionRun.steps.title_fa).
+"provisioner/src/hq_provisioner/runner.py" = ["RUF001"]
 "hq-common/src/hq_common/injection.py" = ["RUF001"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["hq_common", "llm_router", "claude_runtime", "hq_gateway", "hq_stt", "hq_egress"]
+known-first-party = ["hq_common", "llm_router", "claude_runtime", "hq_gateway", "hq_stt", "hq_egress", "hq_provisioner"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 warn_unreachable = true
-mypy_path = "hq-common/src:llm-router/src:claude-runtime/src:gateway/src:stt/src:egress/src"
+mypy_path = "hq-common/src:llm-router/src:claude-runtime/src:gateway/src:stt/src:egress/src:provisioner/src"
 explicit_package_bases = true
 cache_dir = "/tmp/mypy-cache"
 

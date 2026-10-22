@@ -49,6 +49,21 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "orders": ("order.",),
     # ⟨1.4⟩ the hourly backup: backup.done, backup.failed (contract §18.10)
     "backups": ("backup.",),
+    # ⟨1.4⟩ formal inquiries (inquiry.answered, inquiry.late) and the assistant's
+    # errands (errand.updated), contract §18.10
+    "inquiries": ("inquiry.",),
+    "errands": ("errand.",),
+    # ⟨1.4⟩ prompt 08: stars.rollup (stars), story.created (stories), contract §18.10
+    "stars": ("stars.",),
+    "stories": ("story.",),
+    # ⟨1.4⟩ the skill library and the academy (contract §18.10): skill.updated;
+    # academy.eval (and academy.teaching)
+    "skills": ("skill.",),
+    "academy": ("academy.",),
+    # ⟨1.4⟩ the Chief Overseer: oversight.finding, oversight.hold, oversight.watch
+    "oversight": ("oversight.",),
+    # ⟨1.4⟩ prompt 09: founding.updated, provision.step (contract §18.10)
+    "founding": ("founding.", "provision."),
 }
 
 

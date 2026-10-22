@@ -63,7 +63,7 @@ def upgrade() -> None:
 
         ALTER TABLE cartable.decisions DROP CONSTRAINT decisions_kind_check;
         ALTER TABLE cartable.decisions ADD CONSTRAINT decisions_kind_check
-            CHECK (kind IN ({KINDS}, 'tool_enable'));
+            CHECK (kind IN ({KINDS}, 'tool_enable')) NOT VALID;  -- the head validates (0023)
         CREATE INDEX decisions_mcp_call ON cartable.decisions
             (company_id, (payload ->> 'args_sha256'), created_at DESC)
             WHERE kind = 'a3_action' AND payload ->> 'action' = 'mcp_call';

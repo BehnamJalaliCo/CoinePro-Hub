@@ -5,7 +5,7 @@ set -uo pipefail
 QUALITY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 GATES=(gitleaks compose-config ports compose-rules memory-budget shellcheck yamllint hadolint opa infra
-  backup "python lint" "python test" "python audit" live)
+  backup provisioning "python lint" "python test" "python audit" live)
 failed=()
 for gate in "${GATES[@]}"; do
   echo "--- $gate"

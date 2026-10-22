@@ -32,7 +32,8 @@
 | خروجی هر قدم | `min(limits.tokens_per_step, باقیمانده منهای prompt)` به router میرود (`max_output_tokens`، حداکثر `LLM_MAX_OUTPUT_TOKENS` = ۳۲٬۰۰۰). CLI با `CLAUDE_CODE_MAX_OUTPUT_TOKENS` همان‌جا میایستد |
 | اقدام در هر قدم / ابزار در هر اجرا | `AGENT_ACTIONS_PER_STEP` (۸) و `AGENT_TOOL_CALLS_PER_RUN` (۴۸)، در SQL اعمال میشوند؛ بیشتر ← `429 rate_limited` با `Retry-After` |
 | زمان | `AGENT_MAX_RUN_S` (۳۰۰۰)، هر قدم `AGENT_STEP_TIMEOUT_S` (۳۰۰) |
-| مصرف روزانه‌ی همه‌ی اجراها | `AGENT_DAILY_TOKEN_CAP` (روی هاب `600000`، تصمیم مالک؛ پیش‌فرض کد ۲٬۰۰۰٬۰۰۰ در روز UTC؛ `0` یعنی بی‌سقف). ورودی + خروجی + cache. در `claim` و **پیش از هر فراخوانی مدل** بررسی میشود ← `refused` / `failed` با `daily_cap` |
+| مصرف روزانه‌ی همه‌ی اجراها | `AGENT_DAILY_TOKEN_CAP` (روی هاب `600000`، تصمیم مالک؛ پیش‌فرض کد ۲٬۰۰۰٬۰۰۰ در روز UTC؛ `0` یعنی «هیچ»: هر اجرا `refused` با `daily_cap`، نه «بی‌سقف»، پرامپت ۸.۱). ورودی + خروجی + cache. در `claim` و **پیش از هر فراخوانی مدل** بررسی میشود ← `refused` / `failed` با `daily_cap` |
+| سهم نظارت (پرامپت ۸ §۲.۳) | `OVERSIGHT_DAILY_SHARE` (پیش‌فرض `0.2`) از همان سقف روزانه برای ناظر و QC روی هم. LLM Router بعد از پر شدن، هر فراخوانی آن‌ها را رد میکند (`429 budget_exhausted`، دفتر: `oversight_share`)، جز اجرای پروتکل `critical`. اجرای پروتکل‌های دیگر `deferred` میشود و فردا اول صف است |
 | کار حادثه | `AGENT_INCIDENT_BUDGET_TOKENS` (۶۰٬۰۰۰)، بودجه‌ی کاری که پایش سایت میسازد |
 | درخواست ایجنت به ایجنت (`work.request`) | کار ریشه‌ی تازه به کار درخواست‌کننده بسته است (پیش‌فرض: کار همان اجرا). بودجه‌اش باقیمانده‌ی آن کار است، حداکثر `AGENT_REQUEST_BUDGET_TOKENS` (۶۰٬۰۰۰)، و هرگز بیشتر از آنچه خواسته شده. زنجیره‌ی درخواست‌ها حداکثر `AGENT_REQUEST_CHAIN_MAX` (۲) حلقه است؛ بیشتر ← `409 delegation_depth_exceeded` |
 
@@ -139,10 +140,10 @@ worker ──(توکن سرویس)──► gateway ──(توکن hqa1 هما�
   - `GET /owner/hiring`
   - `POST /owner/hiring/start` 🔏 (`hiring.start`، target ‏`holding`):
     - `proposals`: استخدام باز میشود. هر مدیرعامل و هر رئیس هلدینگی که وظیفه‌ی استخدام دارد یک کار «تیمت را پیشنهاد بده» میگیرد (`seed/bootstrap/hiring_proposals.yaml`، با اولویت منشورش). شروع دوباره کار دوم نمیسازد.
-    - `delegated` (قرارداد v1.4.3: هر مدیرعامل در پاکت ماهانه‌ی شرکت تصمیم میگیرد): تا پرامپت ۸ جواب `409 not_ready` میدهد. این پیش از مصرف step-up است و هیچ چیزی را عوض نمیکند.
+    - `delegated` (قرارداد v1.4.3، پرامپت ۸ §۸): هر مدیرعامل در پاکت ماهانه‌ی شرکت تصمیم میگیرد. هر شرکت عملیاتی فعال باید پاکت داشته باشد، وگرنه `422 envelope_required` پیش از مصرف step-up. جزئیات در RUNBOOK §۲۱.
     - `GET /owner/hiring` برای هر شرکت عملیاتی `envelopes` دارد: بودجه‌ی ماهانه از `llm.budgets`، تعهد کارمندهای فعال، مصرف ماه شمسی و تعداد استخدام ماه.
     - `start` و `/org/hires` به `Idempotency-Key` احترام میگذارند. اگر پاسخ گم شود، تکرار همان پاسخ را میگیرد، نه step-up مصرف‌شده.
-    - `Decision.approver` (null یعنی مالک) و `Employee.probation_until` از پرامپت ۸ پر میشوند.
+    - `Decision.approver` (null یعنی مالک) و `Employee.probation_until` در استخدام `delegated` پر میشوند (پرامپت ۸).
   - `POST /owner/hiring/close` (بدون step-up): کارت‌های در انتظار `withdrawn` میشوند.
   - `POST /org/hires` 🔏 (`hire.direct`، target = SHA-256 بدنه): کارت `hire` را که مالک هم پیشنهاد و هم مُهر کرده در یک تراکنش مینویسد، و بعد کارمند را میسازد.
 - **پس گرفتن کارت:** `cartable.withdraw_pending_hires(note)` کارت را `withdrawn` میکند، با `decided_by` سیستم، یادداشت مالک، پیام سیستم در thread، `decision.updated`، audit ‏`decision.withdraw` و ref در `withdrawn`. **هیچ چیزی حذف نمیشود.** migration ‏0010 همین را یک بار اجرا کرد (D-000001 تا D-000007) و کارهای ماه ۱ را که هنوز باز بودند با همان یادداشت لغو کرد. Maintenance هر `DecisionLifecycle` را که هنوز منتظر کارتِ دیگر در انتظار نیست بیدار میکند تا با همان نتیجه تمام شود.
@@ -165,6 +166,7 @@ worker ──(توکن سرویس)──► gateway ──(توکن hqa1 هما�
 | اجرایی شروع نمیشود | `GET /api/v1/runs?state=queued`؛ لاگ `make logs s=worker` (Dispatcher)؛ Temporal UI، workflow ‏`agent-run-<id>` |
 | `refused` با `runtime_not_configured` | `kv/hq-agents/runtime` در OpenBao نیست: `make llm-provision` |
 | `refused` یا `failed` با `daily_cap` | مصرف امروز به `AGENT_DAILY_TOKEN_CAP` رسیده؛ فردا (UTC) خودکار باز میشود |
+| `failed` با `budget_exhausted` برای ناظر یا QC | سهم نظارت امروز پر شده (`OVERSIGHT_DAILY_SHARE`)؛ فردا (UTC) باز میشود و پروتکل‌های deferred اول اجرا میشوند |
 | `refused` با `work_closed` | کار پیش از شروع اجرا بسته یا لغو شد؛ کاری برای انجام نیست |
 | پیشنهاد استخدام `403 hiring_closed` | استخدام بسته است (`GET /api/v1/owner/hiring`)؛ فقط مالک باز میکند |
 | همه‌ی اقدام‌ها `policy_denied` | قفل یا کلید توقف (`GET /api/v1/control/state`) |

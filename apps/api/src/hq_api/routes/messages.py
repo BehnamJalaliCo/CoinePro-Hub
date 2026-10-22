@@ -21,6 +21,7 @@ from hq_api import idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import decisions as D
+from hq_api.domain import errands
 from hq_api.domain import files as F
 from hq_api.errors import ApiError, responses
 from hq_api.routes.deliverables import files_of
@@ -29,7 +30,7 @@ from hq_api.schemas import Actor, FileRef, Model, Page, actor
 router = APIRouter(tags=["messages"])
 E = responses(401, 403, 404, 409, 422)
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
-THREAD = r"^(A|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
+THREAD = r"^(A|N|P|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
 
 
 class Thread(BaseModel):
@@ -54,6 +55,9 @@ class Links(Model):
     work: str | None = Field(default=None, max_length=20)
     resolution: str | None = Field(default=None, max_length=20)
     corrects: str | None = Field(default=None, max_length=40)
+    # ⟨1.4⟩ a formal inquiry's answer (§18.2) and an errand of thread P (§18.3)
+    inquiry: str | None = Field(default=None, pattern=r"^Q-[0-9]{4,}$")
+    errand: str | None = Field(default=None, pattern=r"^E-[0-9]{4,}$")
 
 
 class Citation(Model):
@@ -219,7 +223,8 @@ async def render_messages(tx: Tx, rows: list[dict[str, Any]]) -> list[Message]:
 
 @router.get("/threads", response_model=list[Thread], responses=E)
 async def list_threads(
-    kind: Literal["advisor", "ceo", "manager", "department", "employee"] | None = None,
+    kind: Literal["advisor", "overseer", "assistant", "ceo", "manager", "department", "employee"]
+    | None = None,
     company: list[str] | None = Query(default=None),
     ctx: Ctx = Depends(owner_ctx),
 ) -> list[Thread]:
@@ -300,6 +305,8 @@ LINK_TABLES = {
     "decision": "cartable.decisions",
     "work": "work.work",
     "resolution": "cartable.resolutions",
+    "inquiry": "oversight.inquiries",
+    "errand": "owner.errands",
 }
 
 
@@ -380,7 +387,10 @@ async def post_message(
     *,
     citations: list[Citation] | None = None,
     meta: dict[str, Any] | None = None,
+    checked: tuple[str, ...] = (),
 ) -> dict[str, Any]:
+    """`checked`: link kinds the caller already verified in this same
+    transaction (a record it just made is not visible to check_links yet)."""
     t = await tx.one("SELECT id, company_id FROM msg.threads WHERE code = :c", c=thread_code)
     if links.get("corrects") and not await tx.scalar(
         "SELECT 1 FROM msg.messages WHERE ref = :r AND thread_id = :t",
@@ -390,7 +400,9 @@ async def post_message(
         raise ApiError(
             422, "validation_failed", fields={"links.corrects": "a message of this thread"}
         )
-    await check_links(ctx, tx, t["company_id"], links)
+    await check_links(
+        ctx, tx, t["company_id"], {k: v for k, v in links.items() if k not in checked}
+    )
     kind = "text"
     if attachments:
         attachments, kind = await _attachments(ctx, tx, t["company_id"], attachments)
@@ -436,6 +448,19 @@ async def post_message(
     return m
 
 
+async def _is_voice(tx: Tx, attachments: list[UUID]) -> bool:
+    """An owner message that attaches its own transcribed voice (§17.2)."""
+    if not attachments:
+        return False
+    return bool(
+        await tx.scalar(
+            """SELECT 1 FROM files.processing WHERE file_id = ANY(:ids) AND stt->>'purpose' = 'message'
+               LIMIT 1""",
+            ids=list(attachments),
+        )
+    )
+
+
 @router.post("/threads/{code}/messages", response_model=Sent, status_code=201, responses=E)
 async def send_message(
     code: str, body: MessageIn, request: Request, ctx: Ctx = Depends(owner_ctx)
@@ -449,7 +474,19 @@ async def send_message(
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
-        m = await post_message(ctx, tx, code, body.body, links, body.attachments)
+        if code == errands.THREAD:
+            # ⟨1.4⟩ every owner message to the assistant is an errand: a new one,
+            # or the open one it names (contract §18.3).
+            holding = await ctx.hub.companies.holding()
+            voice = await _is_voice(tx, body.attachments)
+            links["errand"] = await errands.for_message(
+                tx, holding.id, links, body.body, body.attachments, voice
+            )
+        m = await post_message(
+            ctx, tx, code, body.body, links, body.attachments, checked=("errand",)
+        )
+        if code == errands.THREAD:
+            await errands.opened_by(tx, links["errand"], m["ref"])
         await ctx.interaction(
             tx,
             company_id=m["company_id"],

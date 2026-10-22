@@ -14,7 +14,7 @@ from hq_api import idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import files as F
-from hq_api.domain import org, scoring
+from hq_api.domain import org, scoring, stories
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import EmployeeRef, FileRef, Model, Page, employee_ref
 
@@ -222,6 +222,18 @@ async def rate_deliverable(
                 "producer": dl["p_code"],
             },
         )
+        if body.score >= 9:  # ⟨1.4.3⟩ a 9 or a 10 is the company's story (§18.12), once
+            await stories.system(
+                tx,
+                company_id=dl["company_id"],
+                company_code=dl["company"],
+                kind="deliverable",
+                title_fa=f"خروجی {body.score} از ۱۰: {dl['title']}",
+                body_fa=f"{dl['p_code']} · {dl['work_ref']}",
+                figures=[{"label_fa": "امتیاز مالک", "value": str(body.score)}],
+                links={"deliverable": ref, "employee": dl["p_code"], "work": dl["work_ref"]},
+                event_key=f"deliverable:{ref}",
+            )
         await ctx.emit(
             tx, dl["company"], "deliverable.rated", ref, {"score": body.score, "version": version}
         )

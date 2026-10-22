@@ -1,0 +1,18 @@
+#!/bin/bash
+# Test bench shim. Online (/bench/online): the real apt-get. Offline: every
+# call is recorded and an install marks its packages installed (docker-ce
+# also makes the docker group, as its package does).
+if [[ -e /bench/online ]]; then exec /usr/bin/apt-get "$@"; fi
+printf '%s\n' "$*" >>/bench/log/apt-get
+install=0
+for a in "$@"; do
+  case "$a" in
+    install) install=1 ;;
+    -*|update|full-upgrade|autoremove) ;;
+    *) if ((install)); then
+         touch "/bench/installed/$a"
+         [[ "$a" == docker-ce ]] && groupadd -f docker
+       fi ;;
+  esac
+done
+exit 0

@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 from hq_api import audit, idempotency
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
-from hq_api.domain import backups, hiring
+from hq_api.domain import backups, hiring, oversight
 from hq_api.domain import files as F
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
@@ -738,6 +738,9 @@ class Gate(BaseModel):
     step: int
     step_tool_calls: int
     step_tool_calls_cap: int
+    # ⟨1.4⟩ the overseer's open holds on this run (its employee, its work, or
+    # `tool:<name>` for one tool): the gateway refuses every action but reads.
+    held: list[str] = Field(default_factory=list)
 
 
 @router.post("/runs/self/reserve", response_model=Gate, responses=E)
@@ -774,9 +777,12 @@ async def run_reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> Gate
         lock = await tx.scalar("SELECT control.lock_state(:co)", co=ctx.who.company_id)
         thread = await tx.scalar(
             """SELECT code FROM msg.threads WHERE employee_id = :e
-                 AND kind IN ('advisor', 'ceo', 'manager', 'employee') ORDER BY kind = 'advisor' DESC LIMIT 1""",
+                 AND kind IN ('advisor', 'overseer', 'assistant', 'ceo', 'manager', 'employee')
+               ORDER BY kind IN ('advisor', 'overseer', 'assistant') DESC LIMIT 1""",
             e=ctx.who.employee_id,
         )
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as all_tx:
+        held = await oversight.holds_for_run(all_tx, ctx.who.code, w["ref"] if w else None)
     assert ctx.who.company is not None
     return Gate(
         run_id=row["id"],
@@ -799,6 +805,7 @@ async def run_reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> Gate
         step=row["current_step"],
         step_tool_calls=row["step_tool_calls"],
         step_tool_calls_cap=row["step_tool_calls_cap"],
+        held=held,
     )
 
 
