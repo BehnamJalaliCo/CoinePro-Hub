@@ -57,59 +57,59 @@ ChannelKind = Literal["telegram_business", "telegram_bot", "chatwoot", "product_
 
 
 # ------------------------------------------------------------------ models --
-class ConversationDetail(BaseModel):
+class SupportConversationDetail(BaseModel):
     conversation: desk.Conversation
     messages: list[desk.SupportMessage]
 
 
-class ChannelPatch(Model):
+class SupportChannelPatch(Model):
     auto_send: Literal["kb_verbatim", "kb_grounded", "off"] | None = None
     state: Literal["live"] | None = None
 
 
-class PauseIn(Model):
+class SupportPauseIn(Model):
     reason: str | None = Field(default=None, max_length=300)
 
 
-class ReplyIn(Model):
+class SupportReplyIn(Model):
     body: str = Field(min_length=1, max_length=4000)
 
 
-class TeachIn(Model):
+class SupportTeachIn(Model):
     message_id: UUID | None = None
     answer_md: str = Field(min_length=1, max_length=4000)
     generalise: bool = True
 
 
-class TeachOut(BaseModel):
+class SupportTeachOut(BaseModel):
     message: desk.SupportMessage | None
     article: kb.KbArticle
 
 
-class KbIn(Model):
+class KbArticleIn(Model):
     company: str = Field(pattern=CODE)
     kind: Literal["faq", "policy", "procedure", "referral", "official_link", "safety"]
     key: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{1,60}$")
     question_fa: str = Field(min_length=1, max_length=1000)
     variants: list[str] = Field(default_factory=list, max_length=50)
     answer_md: str = Field(min_length=1, max_length=8000)
-    variables: list[kb.Variable] = Field(default_factory=list, max_length=20)
-    links: list[kb.Link] = Field(default_factory=list, max_length=20)
-    codes: list[kb.Code] = Field(default_factory=list, max_length=20)
+    variables: list[kb.KbVariable] = Field(default_factory=list, max_length=20)
+    links: list[kb.KbLink] = Field(default_factory=list, max_length=20)
+    codes: list[kb.KbCode] = Field(default_factory=list, max_length=20)
     ref: str | None = Field(default=None, pattern=KB_REF)
     expiry_days: int = Field(default=180, ge=1, le=3650)
 
 
-class ApproveIn(Model):
+class KbApproveIn(Model):
     version: int | None = Field(default=None, ge=1)
 
 
-class HistoryIn(Model):
+class SupportHistoryIn(Model):
     company: str = Field(pattern=CODE)
     file_id: UUID
 
 
-class HistoryOut(BaseModel):
+class SupportHistoryOut(BaseModel):
     id: UUID
     company: str
     state: Literal["queued", "parsing", "done", "failed"]
@@ -164,7 +164,7 @@ async def list_channels(
     responses=E,
 )
 async def pause_channel(
-    company: str, kind: ChannelKind, body: PauseIn, ctx: Ctx = Depends(owner_ctx)
+    company: str, kind: ChannelKind, body: SupportPauseIn, ctx: Ctx = Depends(owner_ctx)
 ) -> desk.SupportChannel:
     """Stops automatic answers on the channel at once (no step-up: stopping
     is always safe). Going live again is a widening (🔏)."""
@@ -192,7 +192,7 @@ async def pause_channel(
 async def patch_channel(
     company: str,
     kind: ChannelKind,
-    body: ChannelPatch,
+    body: SupportChannelPatch,
     request: Request,
     ctx: Ctx = Depends(owner_ctx),
 ) -> desk.SupportChannel:
@@ -285,20 +285,22 @@ async def list_conversations(
     return Page(items=[await _conv_out(ctx, r) for r in items], next_cursor=nxt)
 
 
-@router.get("/support/conversations/{ref}", response_model=ConversationDetail, responses=E)
-async def get_conversation(ref: str, ctx: Ctx = Depends(owner_ctx)) -> ConversationDetail:
+@router.get("/support/conversations/{ref}", response_model=SupportConversationDetail, responses=E)
+async def get_conversation(ref: str, ctx: Ctx = Depends(owner_ctx)) -> SupportConversationDetail:
     """One conversation with its messages, oldest first (bodies masked)."""
     async with ctx.tx() as tx:
         conv = await desk.conversation(tx, ref)
         msgs = await desk.messages(tx, conv["id"])
-    return ConversationDetail(
+    return SupportConversationDetail(
         conversation=await _conv_out(ctx, conv),
         messages=[desk.render_message(m, ref) for m in msgs],
     )
 
 
 @router.post("/support/conversations/{ref}/reply", response_model=desk.SupportMessage, responses=E)
-async def reply(ref: str, body: ReplyIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def reply(
+    ref: str, body: SupportReplyIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """The owner's answer, sent at once through the outbound guard like any
     other (no exception for asks_secret, profit_promise or red_line): 422
     send_blocked with `fields.blocked_reasons`, and the refused text is kept
@@ -332,8 +334,10 @@ async def reply(ref: str, body: ReplyIn, request: Request, ctx: Ctx = Depends(ow
     return out
 
 
-@router.post("/support/conversations/{ref}/teach", response_model=TeachOut, responses=E)
-async def teach(ref: str, body: TeachIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+@router.post("/support/conversations/{ref}/teach", response_model=SupportTeachOut, responses=E)
+async def teach_conversation(
+    ref: str, body: SupportTeachIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """Teaching mode: the owner's answer (or correction of the agent's draft)
     is sent when the conversation still waits, and becomes a proposed
     article (source owner_answer); with a support lead and `generalise`, the
@@ -365,7 +369,7 @@ async def teach(ref: str, body: TeachIn, request: Request, ctx: Ctx = Depends(ow
                     await idem.store(tx, 422, {"code": "send_blocked", "fields": err.fields})
         if refused is None:
             article = await _taught(ctx, tx, conv, body.answer_md, generalise=body.generalise)
-            out = TeachOut(
+            out = SupportTeachOut(
                 message=await _message_out(tx, sent) if sent else None,
                 article=kb.render(article, await ctx.hub.companies.code_of(conv["company_id"])),
             )
@@ -525,7 +529,7 @@ async def list_kb(
 
 
 @router.post("/support/kb", response_model=kb.KbArticle, status_code=201, responses=E)
-async def propose_kb(body: KbIn, ctx: Ctx = Depends(owner_ctx)) -> kb.KbArticle:
+async def propose_kb(body: KbArticleIn, ctx: Ctx = Depends(owner_ctx)) -> kb.KbArticle:
     """The owner's article (or a new version of `ref`) -> proposed. Only the
     owner writes referral codes and links. Approving it is 🔏."""
     co = await _company(ctx, body.company)
@@ -547,7 +551,7 @@ async def propose_kb(body: KbIn, ctx: Ctx = Depends(owner_ctx)) -> kb.KbArticle:
 
 @router.post("/support/kb/{ref}/approve", response_model=kb.KbArticle, responses=E)
 async def approve_kb(
-    ref: str, body: ApproveIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+    ref: str, body: KbApproveIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> kb.KbArticle:
     """🔏 `support.kb`, target `ref@version` (the latest proposed version
     when none is given): an approved article is what may reach a customer
@@ -589,8 +593,10 @@ async def retire_kb(ref: str, ctx: Ctx = Depends(owner_ctx)) -> kb.KbArticle:
 
 
 # ------------------------------------------------------------------ shadow --
-@router.post("/support/history", response_model=HistoryOut, status_code=201, responses=E)
-async def import_history(body: HistoryIn, ctx: Ctx = Depends(owner_ctx)) -> HistoryOut:
+@router.post("/support/history", response_model=SupportHistoryOut, status_code=201, responses=E)
+async def import_history(
+    body: SupportHistoryIn, ctx: Ctx = Depends(owner_ctx)
+) -> SupportHistoryOut:
     """The owner's real history (Telegram Desktop result.json, or a CSV of
     question,answer) -> up to 100 masked cases across topics -> the
     company's private suite support-shadow-<CO> (never leaves the company).
@@ -605,7 +611,7 @@ async def import_history(body: HistoryIn, ctx: Ctx = Depends(owner_ctx)) -> Hist
             target_kind="shadow_suite", target_ref=shadow.suite_ref(co.code),
             summary=f"{row['state']}: {row['cases_kept'] or 0} cases",
         )  # fmt: skip
-    return HistoryOut(
+    return SupportHistoryOut(
         id=row["id"], company=co.code, state=row["state"], format=row["format"],
         pairs_found=row["pairs_found"], cases_kept=row["cases_kept"],
         topics=dict(row["topics"] or {}),
@@ -660,7 +666,7 @@ async def run_shadow(company: str, request: Request, ctx: Ctx = Depends(owner_ct
 
 
 # ---------------------------------------------------------------- internal --
-class KbSearchOut(BaseModel):
+class KbSearchHit(BaseModel):
     ref: str
     version: int
     kind: str
@@ -672,30 +678,30 @@ class KbSearchOut(BaseModel):
     expires_at: datetime
 
 
-class AgentKbIn(Model):
+class KbProposalIn(Model):
     company: str | None = Field(default=None, pattern=CODE)
     kind: Literal["faq", "policy", "procedure", "referral", "official_link", "safety"]
     question_fa: str = Field(min_length=1, max_length=1000)
     answer_md: str = Field(min_length=1, max_length=8000)
-    variables: list[kb.Variable] = Field(default_factory=list, max_length=20)
+    variables: list[kb.KbVariable] = Field(default_factory=list, max_length=20)
     source_ref: str = Field(min_length=1, max_length=200)
     ref: str | None = Field(default=None, pattern=KB_REF)
     key: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{1,60}$")
     variants: list[str] = Field(default_factory=list, max_length=50)
 
 
-class DraftIn(Model):
+class SupportDraftIn(Model):
     body_md: str = Field(min_length=1, max_length=4000)
     kb_refs: list[str] = Field(default_factory=list, max_length=10)
     confidence: float = Field(ge=0, le=1)
 
 
-class HandoffIn(Model):
+class SupportHandoffIn(Model):
     reason: Literal["no_kb", "low_confidence", "asked_for_human", "complaint", "security"]
     note_fa: str = Field(default="", max_length=1000)
 
 
-class MysteryIn(Model):
+class SupportMysteryIn(Model):
     company: str = Field(pattern=CODE)
     question_fa: str | None = Field(default=None, min_length=1, max_length=2000)
     conversation: str | None = Field(default=None, pattern=CONV_REF)
@@ -706,14 +712,14 @@ def _agent_company(ctx: Ctx, code: str | None) -> str:
     return code or ctx.who.company
 
 
-@internal_router.get("/support/kb", response_model=list[KbSearchOut], responses=E)
+@internal_router.get("/support/kb", response_model=list[KbSearchHit], responses=E)
 async def kb_search(
     q: str = Query(min_length=2, max_length=200),
     company: str | None = Query(default=None, pattern=CODE),
     kind: Literal["faq", "policy", "procedure", "referral", "official_link", "safety"]
     | None = None,
     ctx: Ctx = Depends(internal_ctx),
-) -> list[KbSearchOut]:
+) -> list[KbSearchHit]:
     """kb.search: the company's approved articles; the support people see
     proposed ones too. Another company's base: 403 (OPA kb.read)."""
     if not ctx.who.is_agent:
@@ -733,7 +739,7 @@ async def kb_search(
             tx, co.id, q, kinds=[kind] if kind else None, include_proposed=proposed, limit=10
         )
     return [
-        KbSearchOut(
+        KbSearchHit(
             ref=r["ref"],
             version=r["version"],
             kind=r["kind"],
@@ -749,7 +755,7 @@ async def kb_search(
 
 
 @internal_router.post("/support/kb", response_model=kb.KbArticle, status_code=201, responses=E)
-async def kb_propose(body: AgentKbIn, ctx: Ctx = Depends(internal_ctx)) -> kb.KbArticle:
+async def kb_propose(body: KbProposalIn, ctx: Ctx = Depends(internal_ctx)) -> kb.KbArticle:
     """kb.propose: a proposed article (or version) of the agent's own
     company; never a link or a code (only the owner writes them)."""
     if not ctx.who.is_agent:
@@ -773,15 +779,17 @@ async def kb_propose(body: AgentKbIn, ctx: Ctx = Depends(internal_ctx)) -> kb.Kb
     return kb.render(row, co.code)
 
 
-class DraftOut(BaseModel):
+class SupportDraftOut(BaseModel):
     decision: Literal["queued", "waiting_owner", "blocked"]
     message: desk.SupportMessage
     problems: list[str]
 
 
-@internal_router.post("/support/conversations/{ref}/draft", response_model=DraftOut, responses=E)
+@internal_router.post(
+    "/support/conversations/{ref}/draft", response_model=SupportDraftOut, responses=E
+)
 async def support_draft(
-    ref: str, body: DraftIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+    ref: str, body: SupportDraftIn, request: Request, ctx: Ctx = Depends(internal_ctx)
 ) -> Any:
     """support.draft: the code decides (grounded, the guard, the channel's
     auto_send): queued for the customer, waiting for the owner, or blocked.
@@ -804,7 +812,7 @@ async def support_draft(
             target_kind="support_conversation", target_ref=ref,
             summary=f"{out['decision']}: {','.join(out['problems'])[:200]}",
         )  # fmt: skip
-        result = DraftOut(
+        result = SupportDraftOut(
             decision=out["decision"],
             message=desk.render_message(out["message"], ref),
             problems=[str(p) for p in out["problems"] if p],
@@ -820,7 +828,7 @@ async def support_draft(
     "/support/conversations/{ref}/handoff", response_model=desk.Conversation, responses=E
 )
 async def support_handoff(
-    ref: str, body: HandoffIn, ctx: Ctx = Depends(internal_ctx)
+    ref: str, body: SupportHandoffIn, ctx: Ctx = Depends(internal_ctx)
 ) -> desk.Conversation:
     """support.handoff: the conversation waits for the owner; the customer
     gets the sealed holding reply."""
@@ -846,7 +854,9 @@ async def support_handoff(
 
 
 @internal_router.post("/support/mystery", responses=E)
-async def support_mystery(body: MysteryIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str, Any]:
+async def support_mystery(
+    body: SupportMysteryIn, ctx: Ctx = Depends(internal_ctx)
+) -> dict[str, Any]:
     """support.mystery (the overseer only, PR-043): a mystery customer's
     question through the whole path on the `mystery` channel, which never
     reaches Telegram or Chatwoot and is left out of every statistic; a

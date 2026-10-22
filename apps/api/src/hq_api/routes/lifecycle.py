@@ -36,7 +36,7 @@ RuleKind = Literal["welcome", "reactivation", "rescue", "nps", "csat"]
 ChannelKind = Literal["telegram_business", "telegram_bot", "chatwoot", "product_bot"]
 
 
-class TemplateIn(Model):
+class MessageTemplateIn(Model):
     company: str = Field(pattern=CODE)
     purpose: Purpose
     body_fa: str = Field(min_length=1, max_length=4000)
@@ -44,11 +44,11 @@ class TemplateIn(Model):
     ref: str | None = Field(default=None, pattern=TM_REF)
 
 
-class SealIn(Model):
+class GrowthSealIn(Model):
     version: int | None = Field(default=None, ge=1)
 
 
-class Trigger(Model):
+class LifecycleTrigger(Model):
     event: Literal["signup", "referral_failed", "conversation_closed"] | None = None
     after_hours: int | None = Field(default=None, ge=0, le=24 * 90)
     inactive_days: int | None = Field(default=None, ge=1, le=3650)
@@ -56,13 +56,13 @@ class Trigger(Model):
     sample: int | None = Field(default=None, ge=1, le=10000)
 
 
-class RuleIn(Model):
+class LifecycleRuleIn(Model):
     company: str = Field(pattern=CODE)
     kind: RuleKind
     template: str = Field(pattern=r"^TM-[0-9]{4,6}@[0-9]+$")
     channel: ChannelKind = "telegram_bot"
-    trigger: Trigger = Field(default_factory=Trigger)
-    limits: L.Limits = Field(default_factory=L.Limits)
+    trigger: LifecycleTrigger = Field(default_factory=LifecycleTrigger)
+    limits: L.LifecycleLimits = Field(default_factory=L.LifecycleLimits)
     ref: str | None = Field(default=None, pattern=LR_REF)
 
 
@@ -79,13 +79,13 @@ async def _companies(ctx: Ctx, code: str | None) -> list[Any]:
     return [c for c in await ctx.hub.companies.all() if c.kind != "holding"]
 
 
-@router.get("/growth/templates", response_model=list[L.Template], responses=E)
-async def list_templates(
+@router.get("/growth/templates", response_model=list[L.MessageTemplate], responses=E)
+async def list_message_templates(
     company: str | None = Query(default=None, pattern=CODE), ctx: Ctx = Depends(owner_ctx)
-) -> list[L.Template]:
+) -> list[L.MessageTemplate]:
     """Every version of each company's templates (the first holding_reply,
     safety, csat and nps drafts are made on first use, proposed)."""
-    out: list[L.Template] = []
+    out: list[L.MessageTemplate] = []
     async with ctx.tx() as tx:
         for co in await _companies(ctx, company):
             await L.ensure_seed(tx, co.id)
@@ -97,8 +97,10 @@ async def list_templates(
     return out
 
 
-@router.post("/growth/templates", response_model=L.Template, status_code=201, responses=E)
-async def propose_template(body: TemplateIn, ctx: Ctx = Depends(owner_ctx)) -> L.Template:
+@router.post("/growth/templates", response_model=L.MessageTemplate, status_code=201, responses=E)
+async def propose_template(
+    body: MessageTemplateIn, ctx: Ctx = Depends(owner_ctx)
+) -> L.MessageTemplate:
     """The owner's template (or a new version of `ref`; a new version pauses
     every active rule on it until a rule version on the new one is sealed)."""
     co = await _company(ctx, body.company)
@@ -114,10 +116,10 @@ async def propose_template(body: TemplateIn, ctx: Ctx = Depends(owner_ctx)) -> L
     return L.render_template(row, co.code)
 
 
-@router.post("/growth/templates/{ref}/seal", response_model=L.Template, responses=E)
+@router.post("/growth/templates/{ref}/seal", response_model=L.MessageTemplate, responses=E)
 async def seal_template(
-    ref: str, body: SealIn, request: Request, ctx: Ctx = Depends(owner_ctx)
-) -> L.Template:
+    ref: str, body: GrowthSealIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> L.MessageTemplate:
     """🔏 `growth.template`, target `ref@version:sha256` (the body's SHA-256:
     a seal for one company's template never fits another's with the same
     text, whose ref differs). The latest proposed version when none is given."""
@@ -152,7 +154,7 @@ async def list_rules(
 
 
 @router.post("/growth/rules", response_model=L.LifecycleRule, status_code=201, responses=E)
-async def create_rule(body: RuleIn, ctx: Ctx = Depends(owner_ctx)) -> L.LifecycleRule:
+async def create_rule(body: LifecycleRuleIn, ctx: Ctx = Depends(owner_ctx)) -> L.LifecycleRule:
     """The owner's own rule (or a new version of `ref`) -> proposed; it runs
     only once sealed (🔏) on a sealed template version."""
     co = await _company(ctx, body.company)
@@ -189,7 +191,7 @@ async def _activate(
 
 @router.post("/growth/rules/{ref}/seal", response_model=L.LifecycleRule, responses=E)
 async def seal_rule(
-    ref: str, body: SealIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+    ref: str, body: GrowthSealIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> L.LifecycleRule:
     """🔏 `growth.rule`, target `ref@version` -> active (the owner's A3
     approval in advance); 409 template_not_sealed when its template version
@@ -212,7 +214,7 @@ async def pause_rule(ref: str, ctx: Ctx = Depends(owner_ctx)) -> L.LifecycleRule
 
 @router.post("/growth/rules/{ref}/resume", response_model=L.LifecycleRule, responses=E)
 async def resume_rule(
-    ref: str, body: SealIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+    ref: str, body: GrowthSealIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> L.LifecycleRule:
     """🔏 `growth.rule`, target `ref@version`: a paused rule runs again (its
     template version still sealed and current)."""
@@ -223,6 +225,8 @@ async def resume_rule(
 async def list_nps(
     company: str | None = Query(default=None, pattern=CODE), ctx: Ctx = Depends(owner_ctx)
 ) -> list[L.NpsWave]:
+    """The quarterly NPS waves (NP-<year>Q<q>-<CO>), newest first: sample,
+    sent, responses, promoters/passives/detractors and the score once closed."""
     out: list[L.NpsWave] = []
     async with ctx.tx() as tx:
         for co in await _companies(ctx, company):

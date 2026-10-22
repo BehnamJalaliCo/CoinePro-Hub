@@ -134,22 +134,22 @@ STOP = frozenset(
 )
 
 
-class Variable(BaseModel):
+class KbVariable(BaseModel):
     name: str = Field(pattern=r"^[a-z][a-z0-9_]{0,40}$")
     source: Literal["customer", "policy"] = "customer"
 
 
-class Link(BaseModel):
+class KbLink(BaseModel):
     url: str = Field(min_length=4, max_length=2000)
     label_fa: str = Field(default="", max_length=200)
 
 
-class Code(BaseModel):
+class KbCode(BaseModel):
     exchange: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,30}$")
     code: str = Field(pattern=r"^[A-Za-z0-9_-]{3,40}$")
 
 
-class Source(BaseModel):
+class KbSource(BaseModel):
     kind: Literal["owner_answer", "owner", "doc", "agent"]
     ref: str | None = Field(default=None, max_length=200)
 
@@ -164,11 +164,11 @@ class KbArticle(BaseModel):
     question_fa: str
     variants: list[str]
     answer_md: str
-    variables: list[Variable]
-    links: list[Link]
-    codes: list[Code]
+    variables: list[KbVariable]
+    links: list[KbLink]
+    codes: list[KbCode]
     status: Literal["proposed", "approved", "expired", "retired"]
-    source: Source
+    source: KbSource
     approved_at: datetime | None
     expires_at: datetime
     uses_30d: int
@@ -244,11 +244,11 @@ def render(r: dict[str, Any], company: str) -> KbArticle:
         question_fa=r["question_fa"],
         variants=list(r["variants"] or []),
         answer_md=r["answer_md"],
-        variables=[Variable(**v) for v in _j(r["variables"]) or []],
-        links=[Link(**x) for x in _j(r["links"]) or []],
-        codes=[Code(**x) for x in _j(r["codes"]) or []],
+        variables=[KbVariable(**v) for v in _j(r["variables"]) or []],
+        links=[KbLink(**x) for x in _j(r["links"]) or []],
+        codes=[KbCode(**x) for x in _j(r["codes"]) or []],
         status=status_of(r),
-        source=Source(**(_j(r["source"]) or {"kind": "owner"})),
+        source=KbSource(**(_j(r["source"]) or {"kind": "owner"})),
         approved_at=r["approved_at"],
         expires_at=r["expires_at"],
         uses_30d=int(r.get("uses_30d") or 0),

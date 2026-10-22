@@ -70,7 +70,7 @@ Applier = Callable[[Tx, Hub, UUID, dict[str, Any]], Awaitable[str | None]]
 APPLIERS: dict[str, Applier] = {}
 
 
-class SourceIn(Model):
+class IntakeSourceIn(Model):
     company: str = Field(pattern=CODE)
     kind: SourceKind
     channel: ChannelKind | None = None
@@ -153,7 +153,7 @@ async def list_sources(ctx: Ctx = Depends(owner_ctx)) -> list[IntakeSource]:
 
 
 @router.post("/intake/sources", response_model=IntakeSource, status_code=201, responses=E)
-async def put_source(body: SourceIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def put_source(body: IntakeSourceIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """🔏 `intake.source`, target = the SHA-256 of the exact body: registers
     or changes one source (allowed IPs, event kinds). Requires `Idempotency-Key`."""
     channel = body.channel
@@ -225,6 +225,7 @@ class Refused(Exception):
         self.status = status
         self.reason = reason
         self.source_id = source_id
+        self.company_id: UUID | None = None  # set once the company is known (the count's row)
 
 
 CODES = {401: "unauthenticated", 403: "forbidden", 409: "validation_failed", 413: "validation_failed",
@@ -277,6 +278,17 @@ async def _source(
     co = await hub.companies.find(company) if company.isalnum() else None
     if co is None:
         raise Refused(401, "unknown_source")
+    try:
+        src, body = await _checked(hub, request, co, kind, channel)
+    except Refused as err:
+        err.company_id = co.id
+        raise
+    return co, src, body
+
+
+async def _checked(
+    hub: Hub, request: Request, co: Any, kind: str, channel: str | None
+) -> tuple[dict[str, Any], bytes]:
     length = request.headers.get("content-length")
     if length is not None and length.isdigit() and int(length) > hub.settings.intake_max_body:
         raise Refused(413, "too_large")
@@ -303,7 +315,7 @@ async def _source(
         deps.client_ip(request), list(src["allowed_ips"] or []), telegram=kind == "telegram"
     ):
         raise Refused(403, "ip_not_allowed", src["id"])
-    return co, src, body
+    return src, body
 
 
 def _signed(secret: str, ts: str, body: bytes, given: str, skew: int) -> str | None:
@@ -372,7 +384,7 @@ async def _event(
 
 @webhook_router.post("/telegram/{company}/{channel}", include_in_schema=True, responses=E)
 async def telegram_webhook(
-    company: str, channel: ChannelKind, request: Request, hub: Hub = Depends(get_hub)
+    company: str, channel: str, request: Request, hub: Hub = Depends(get_hub)
 ) -> Any:
     """Telegram's webhook for a support channel (the bot API's update)."""
     co_id: UUID | None = None
@@ -397,9 +409,9 @@ async def telegram_webhook(
             queued = await _telegram_update(tx, hub, co.id, src, channel, update_id, update)
     except Refused as err:
         if err.reason == "duplicate":
-            await _refuse(hub, request, co_id, "telegram", err)
+            await _refuse(hub, request, co_id or err.company_id, "telegram", err)
             return {"ok": True, "duplicate": True}  # Telegram stops retrying on 200
-        return await _refuse(hub, request, co_id, "telegram", err)
+        return await _refuse(hub, request, co_id or err.company_id, "telegram", err)
     for mid in queued:
         await workflows_client.support(hub, "SupportInbound", mid)
     return {"ok": True}
@@ -490,9 +502,9 @@ async def chatwoot_webhook(company: str, request: Request, hub: Hub = Depends(ge
             queued = await _chatwoot_event(tx, hub, co.id, src, event_id, event)
     except Refused as err:
         if err.reason == "duplicate":
-            await _refuse(hub, request, co_id, "chatwoot", err)
+            await _refuse(hub, request, co_id or err.company_id, "chatwoot", err)
             return {"ok": True, "duplicate": True}
-        return await _refuse(hub, request, co_id, "chatwoot", err)
+        return await _refuse(hub, request, co_id or err.company_id, "chatwoot", err)
     for mid in queued:
         await workflows_client.support(hub, "SupportInbound", mid)
     return {"ok": True}
@@ -581,9 +593,9 @@ async def product_webhook(company: str, request: Request, hub: Hub = Depends(get
                 raise Refused(409, "duplicate", src["id"])
     except Refused as err:
         if err.reason == "duplicate":
-            await _refuse(hub, request, co_id, "product", err)
+            await _refuse(hub, request, co_id or err.company_id, "product", err)
             return {"accepted": 0, "duplicates": "all", "ignored": 0}
-        return await _refuse(hub, request, co_id, "product", err)
+        return await _refuse(hub, request, co_id or err.company_id, "product", err)
     for mid in queued:
         await workflows_client.support(hub, "SupportInbound", mid)
     return counts
@@ -595,7 +607,7 @@ async def _product_event(
     """Stored masked, the UID as its pseudonym (uid:<exchange>); a
     support_message enters the support desk on product_bot (CR-011)."""
     exchange = str(ev.data.get("exchange") or "").lower()
-    channel = f"uid:{exchange}" if exchange.isalnum() else "product"
+    channel = f"uid:{exchange}" if exchange.isalnum() else "product_bot"
     try:
         subject = pseudonym.subject(
             hub.secrets.support_pseudonym_key, str(company_id), channel, ev.subject

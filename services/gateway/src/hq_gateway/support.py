@@ -162,7 +162,7 @@ async def support_mystery(api: T.Api, call: T.Call, a: MysteryIn) -> T.Result:
         body["question_fa"] = await T._text(a.question_fa)
     if a.conversation is not None:
         body["conversation"] = a.conversation
-    r = T.from_response(
+    return T.from_response(
         await api.request(
             "POST",
             "/internal/v1/support/mystery",
@@ -172,7 +172,6 @@ async def support_mystery(api: T.Api, call: T.Call, a: MysteryIn) -> T.Result:
         ),
         "conversation",
     )
-    return r
 
 
 TOOLS: dict[str, tuple[type[T.In], T.Handler]] = {

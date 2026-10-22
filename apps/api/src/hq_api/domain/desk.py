@@ -112,13 +112,13 @@ class SupportChannel(BaseModel):
     version: int
 
 
-class Customer(BaseModel):
+class SupportCustomer(BaseModel):
     display_name: str | None
     handle_masked: str | None
     lang: str
 
 
-class Handoff(BaseModel):
+class SupportHandoff(BaseModel):
     reason: str
     at: datetime
 
@@ -128,11 +128,11 @@ class Conversation(BaseModel):
     ref: str
     company: str
     channel: str
-    customer: Customer
+    customer: SupportCustomer
     state: Literal["open", "waiting_owner", "answered", "closed"]
     opened_at: datetime
     last_message_at: datetime
-    handoff: Handoff | None
+    handoff: SupportHandoff | None
     tags: list[str]
     rescue: str | None
     csat: int | None
@@ -140,7 +140,7 @@ class Conversation(BaseModel):
     version: int
 
 
-class Checks(BaseModel):
+class SupportChecks(BaseModel):
     guard: Literal["pass", "fail"] | None = None
     grounded: Literal["pass", "fail"] | None = None
 
@@ -156,7 +156,7 @@ class SupportMessage(BaseModel):
     failure: str | None
     kb_refs: list[str]
     confidence: float | None
-    checks: Checks
+    checks: SupportChecks
     blocked_reasons: list[str]
     template: str | None
 
@@ -202,13 +202,13 @@ def render_conversation(r: dict[str, Any], company: str) -> Conversation:
         ref=r["ref"],
         company=company,
         channel=r["channel"],
-        customer=Customer(
+        customer=SupportCustomer(
             display_name=r["display_name"], handle_masked=mask_handle(r["handle"]), lang=r["lang"]
         ),
         state=r["state"],
         opened_at=r["opened_at"],
         last_message_at=r["last_message_at"],
-        handoff=Handoff(reason=r["handoff_reason"], at=r["handoff_at"])
+        handoff=SupportHandoff(reason=r["handoff_reason"], at=r["handoff_at"])
         if r["handoff_reason"] and r["handoff_at"]
         else None,
         tags=list(r["tags"] or []),
@@ -232,7 +232,7 @@ def render_message(r: dict[str, Any], conversation_ref: str) -> SupportMessage:
         failure=r["failure"],
         kb_refs=list(r["kb_refs"] or []),
         confidence=float(r["confidence"]) if r["confidence"] is not None else None,
-        checks=Checks(guard=checks.get("guard"), grounded=checks.get("grounded")),
+        checks=SupportChecks(guard=checks.get("guard"), grounded=checks.get("grounded")),
         blocked_reasons=list(r["blocked_reasons"] or []),
         template=r["template"],
     )
@@ -1030,6 +1030,10 @@ class Sender(Protocol):
         self, hub: Any, *, company: str, channel: dict[str, Any], conv: dict[str, Any], text: str
     ) -> SendResult: ...
 
+    async def set_webhook(
+        self, hub: Any, *, company: str, channel: str, url: str
+    ) -> SendResult: ...
+
 
 class EgressSender:
     """Production: through the egress service's support connector (prompt 10
@@ -1080,6 +1084,31 @@ class EgressSender:
             return SendResult(False, "no_channel")  # product_bot: through CR-011 only
         if not token:
             return SendResult(False, "no_channel")
+        return await self._post(hub, body)
+
+    async def set_webhook(self, hub: Any, *, company: str, channel: str, url: str) -> SendResult:
+        """Telegram's setWebhook, once per channel, with the channel's secret
+        token (Telegram sends it back on every update)."""
+        path = f"support/telegram/{company}/{channel}"
+        token = await self._secret(hub, path, "bot_token")
+        secret = await self._secret(hub, path, "webhook_secret")
+        if not token or not secret:
+            return SendResult(False, "no_channel")
+        updates = (
+            ["business_message", "business_connection"]
+            if channel == "telegram_business"
+            else ["message"]
+        )
+        return await self._post(
+            hub,
+            {
+                "channel": "telegram", "method": "setWebhook", "token": token,
+                "payload": {"url": url, "secret_token": secret, "allowed_updates": updates,
+                            "drop_pending_updates": True},
+            },
+        )  # fmt: skip
+
+    async def _post(self, hub: Any, body: dict[str, Any]) -> SendResult:
         url = hub.settings.support_egress_url.rstrip("/") + "/v1/support/send"
         try:
             async with httpx.AsyncClient(transport=self._transport, timeout=25) as http:
@@ -1109,6 +1138,35 @@ OVERRIDE: Sender | None = None
 
 def sender() -> Sender:
     return OVERRIDE or EgressSender()
+
+
+async def set_webhooks(tx: Tx, hub: Any) -> list[str]:
+    """Telegram channels with a registered source and no webhook yet get
+    theirs once, through egress, with the secret token (the sweep runs it,
+    only while the hub is not locked). The channel's state does not change."""
+    rows = await tx.all(
+        """SELECT s.company_id, s.channel FROM intake.sources s
+           JOIN support.channels ch ON ch.company_id = s.company_id AND ch.kind = s.channel
+           WHERE s.kind = 'telegram' AND s.enabled AND NOT (ch.config ? 'webhook_set_at')"""
+    )
+    done: list[str] = []
+    origin = str(hub.settings.public_origin or "").rstrip("/")
+    if not origin.startswith("https://"):
+        return done  # a webhook needs the domain over HTTPS
+    for r in rows:
+        company = await hub.companies.code_of(r["company_id"])
+        url = f"{origin}/intake/v1/telegram/{company}/{r['channel']}"
+        out = await sender().set_webhook(hub, company=company, channel=r["channel"], url=url)
+        if out.ok:
+            await tx.exec(
+                """UPDATE support.channels
+                   SET config = config || jsonb_build_object('webhook_set_at', now()::text)
+                   WHERE company_id = :co AND kind = :k""",
+                co=r["company_id"],
+                k=r["channel"],
+            )
+            done.append(f"{company}/{r['channel']}")
+    return done
 
 
 def telegram_allows(
@@ -1152,6 +1210,19 @@ async def send(tx: Tx, hub: Any, message_id: UUID | str) -> dict[str, Any]:
             s=status,
             f=failure,
             e=ext,
+            id=m["id"],
+        )
+        # A rule's send follows its message (lifecycle statistics, the daily cap).
+        await tx.exec(
+            """UPDATE growth.sends SET
+                   status = CASE WHEN :s = 'sent' THEN 'sent'
+                                 WHEN :f IN ('no_channel', 'channel_not_live') THEN 'no_channel'
+                                 ELSE 'failed' END,
+                   reason = CASE WHEN :s = 'sent' THEN reason ELSE :f END,
+                   sent_at = CASE WHEN :s = 'sent' THEN now() ELSE sent_at END
+               WHERE message_id = :id AND status = 'queued'""",
+            s=status,
+            f=failure,
             id=m["id"],
         )
         await _emit(tx, company, "support.message", await _ref_of(tx, conv["id"]),

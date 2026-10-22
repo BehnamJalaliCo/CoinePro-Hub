@@ -126,6 +126,7 @@ class DeskActivities:
                     await lifecycle.ensure_seed(tx, co.id)
             out["retried"] = await lifecycle.retry_queued(tx, self.hub)
             out["nps_opened"] = await lifecycle.nps_due(tx, self.hub)
+            out["webhooks"] = await desk.set_webhooks(tx, self.hub)
             pending = await tx.all(
                 """SELECT m.id FROM support.messages m
                    WHERE m.direction = 'out' AND m.status = 'queued' AND m.at < now() - interval '1 minute'

@@ -71,7 +71,7 @@ RUBRIC = (
 )
 
 
-class Disagreement(BaseModel):
+class ShadowDisagreement(BaseModel):
     case: str
     verdict: Literal["correct", "partial", "wrong"]
     note_fa: str
@@ -90,7 +90,7 @@ class ShadowReport(BaseModel):
     wrong_codes: int
     pass_: bool
     threshold: float
-    disagreements: list[Disagreement]
+    disagreements: list[ShadowDisagreement]
     state: str
     proposed_auto_send: str | None = None
     proposed_verbatim_threshold: float | None = None
@@ -377,7 +377,7 @@ def thresholds(results: list[dict[str, Any]]) -> tuple[float, float]:
         good = sorted(s for s, ok in points if ok and (top_bad is None or s > top_bad))
         if not good:
             return 1.0
-        return min(1.0, max(0.5, math.ceil(good[0] * 100) / 100))
+        return min(1.0, max(0.5, math.ceil(round(good[0] * 100, 6)) / 100))
 
     verbatim = [
         (float(r["score"]), r["verdict"] == "correct")
@@ -468,7 +468,7 @@ def render_report(r: dict[str, Any], company: str) -> ShadowReport:
         wrong_codes=int(r["wrong_codes"] or 0),
         pass_=bool(r["pass"]),
         threshold=float(r["threshold"]),
-        disagreements=[Disagreement(**d) for d in (r["disagreements"] or [])],
+        disagreements=[ShadowDisagreement(**d) for d in (r["disagreements"] or [])],
         state=r["state"],
         proposed_auto_send=r["proposed_auto_send"],
         proposed_verbatim_threshold=float(r["proposed_verbatim_threshold"])
@@ -575,6 +575,7 @@ async def apply_go_live(tx: Tx, d: dict[str, Any], step_up_id: UUID | None) -> d
     for purpose in ("holding_reply", "safety"):
         if await desk.sealed_template(tx, d["company_id"], purpose) is None:
             raise ApiError(409, "template_not_sealed", f"seal the {purpose} template first")
+    await S.settings(tx, d["company_id"])  # the row, made on first use
     await tx.exec(
         """UPDATE support.settings SET verbatim_threshold = :vt, grounded_threshold = :gt,
                thresholds_decision_id = :d, updated_at = now() WHERE company_id = :co""",

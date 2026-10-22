@@ -83,7 +83,7 @@ NO_SOURCE_YET = {
 
 
 # ------------------------------------------------------------------ shapes --
-class Template(BaseModel):
+class MessageTemplate(BaseModel):
     id: UUID
     ref: str
     company: str
@@ -97,7 +97,7 @@ class Template(BaseModel):
     seal_target: str = Field(description="the step-up target of POST …/seal: ref@version:sha256")
 
 
-class Limits(BaseModel):
+class LifecycleLimits(BaseModel):
     per_customer_days: int = Field(default=30, ge=1, le=3650)
     daily_cap: int = Field(default=50, ge=1, le=100000)
     quiet_hours: list[str] = Field(
@@ -149,8 +149,8 @@ def seal_target(t: dict[str, Any]) -> str:
     return f"{t['ref']}@{t['version']}:{t['sha256']}"
 
 
-def render_template(r: dict[str, Any], company: str) -> Template:
-    return Template(
+def render_template(r: dict[str, Any], company: str) -> MessageTemplate:
+    return MessageTemplate(
         id=r["id"], ref=r["ref"], company=company, version=r["version"], purpose=r["purpose"],
         body_fa=r["body_fa"], variables=list(r["variables"] or []), status=r["status"],
         sealed_at=r["sealed_at"], sha256=r["sha256"], seal_target=seal_target(r),
@@ -324,7 +324,7 @@ async def current_sealed(tx: Tx, ref: str, version: int) -> bool:
 # ------------------------------------------------------------------- rules --
 def validate_limits(limits: dict[str, Any] | None) -> dict[str, Any]:
     merged = {**DEFAULT_LIMITS, **(limits or {})}
-    out = Limits(**merged).model_dump()
+    out = LifecycleLimits(**merged).model_dump()
     for hhmm in out["quiet_hours"]:
         if not re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", hhmm):
             raise ApiError(422, "validation_failed", fields={"limits.quiet_hours": "HH:MM, Tehran"})
@@ -685,7 +685,8 @@ async def send_template(
     if await tx.scalar(
         """SELECT 1 FROM growth.sends WHERE company_id = :co AND rule_id IN
                (SELECT id FROM growth.rules WHERE ref = :ref) AND subject = :s AND status = 'sent'
-             AND at > :now - make_interval(days => :d) AND dedupe_key <> :k LIMIT 1""",
+             AND at > CAST(:now AS timestamptz) - make_interval(days => :d) AND dedupe_key <> :k
+           LIMIT 1""",
         co=company_id,
         ref=r["ref"],
         s=customer["subject"],
@@ -807,7 +808,8 @@ async def nps_due(tx: Tx, hub: Any, now: datetime | None = None) -> list[str]:
         sample = await tx.all(
             """SELECT DISTINCT ON (k.subject) c.id AS conversation_id, k.subject
                FROM support.conversations c JOIN support.customers k ON k.id = c.customer_id
-               WHERE c.company_id = :co AND NOT c.mystery AND c.last_message_at > :now - interval '90 days'
+               WHERE c.company_id = :co AND NOT c.mystery
+                 AND c.last_message_at > CAST(:now AS timestamptz) - interval '90 days'
                  AND NOT EXISTS (SELECT 1 FROM growth.opt_outs o WHERE o.company_id = c.company_id
                                    AND o.subject = k.subject)
                ORDER BY k.subject, c.last_message_at DESC""",
