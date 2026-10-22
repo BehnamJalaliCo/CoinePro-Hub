@@ -14,6 +14,7 @@
 | `hadolint.sh` | همه‌ی Dockerfileها |
 | `opa.sh` | تست policyهای OPA با پوشش کامل |
 | `infra.sh` | رفتار اسکریپت‌های زیرساخت روی پوشه و کانتینر موقت: `provision.sh` بی sudo پیش از هر نوشتن در KV میایستد، backup ناموفق `ok:false` ثبت میکند، پوشه‌ی backup با `0700` ساخته میشود، `audit-reanchor.sh` فقط در ترمینال، `/__canary` و هدرها و سقف بدنه در Caddy، و sandbox واحد systemd متریک کانتینرها |
+| `backup.sh` | backup ساعتی، PITR و تست هفتگی روی کانتینرهای موقت، با یک OpenBao واقعی (همان image و `config.hcl`) و بدون هیچ bypass؛ سناریوها در سر فایل (۷.۱: `due`، OAuth با `drive.file`، قاعده‌های Prometheus، check-and-set رمز، Drive پیکربندی‌نشده و ناپدیدشده، 503 ‏OpenBao، قفل‌ها، دیسک، هدف تصادفی PITR، شکست forget و check) |
 | `python.sh` | lint، type، تست و pip-audit سرویس‌های Python و `apps/api` |
 | `live.sh` | روی stack در حال اجرا (`make verify-live`): جدا بودن شبکه‌ها از دید یک کانتینر موقت و از داخل خود `web` و `gateway`، و نبودن پارامتر کوئری در لاگ Postgres؛ جایی که stack نیست رد میشود |
 

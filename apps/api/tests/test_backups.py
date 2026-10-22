@@ -226,3 +226,70 @@ async def test_failing_wal_archiving_is_one_urgent_alert_at_once(
     # A queue alone (> 5 waiting, no failure yet) is failing too.
     assert backups.wal_failing({"failing": False, "ready_count": 6})
     assert not backups.wal_failing({"failing": False, "ready_count": 5})
+
+
+async def test_a_failed_restic_check_is_one_urgent_alert(
+    whub: Hub, su: Any, status_dir: Path
+) -> None:
+    """7.1 §2.4: `restic check` failing (hourly.json check.ok false) is urgent
+    at once, one per check (backup:check:{at}); the run itself was ok."""
+    now = datetime.now(UTC).replace(microsecond=0) + timedelta(days=random.randint(601, 4000))
+    run = hourly(now, ok=True, last_ok=now)
+    run["check"] = {"last_at": iso(now), "ok": False}
+    write(status_dir, "hourly", run)
+    out = await backups.ingest(whub, now=now + timedelta(minutes=1))
+    notes = await _notes(su, f"backup:check:{iso(now)}")
+    assert [n["level"] for n in notes] == ["urgent"] and "restic check" in notes[0]["title_fa"]
+    assert out["alerts"] == 1
+    assert (await backups.ingest(whub, now=now + timedelta(minutes=6)))["alerts"] == 0
+
+
+async def test_a_missing_hourly_json_while_runs_exist_is_urgent(
+    whub: Hub, su: Any, status_dir: Path
+) -> None:
+    """7.1 §2.4: backup.runs has rows but hourly.json is gone (the script, its
+    directory or the worker's mount broke): urgent, once per last run."""
+    # Later than every other test's runs, so this run is the newest one.
+    at = (datetime.now(UTC) + timedelta(days=5000)).replace(microsecond=0)
+    write(status_dir, "hourly", hourly(at, ok=True, last_ok=at))
+    assert (await backups.ingest(whub, now=at))["alerts"] == 0
+    (status_dir / "hourly.json").unlink()
+    out = await backups.ingest(whub, now=at + timedelta(minutes=5))
+    notes = await _notes(su, f"backup:missing:{iso(at)}")
+    assert [n["level"] for n in notes] == ["urgent"] and "hourly.json" in notes[0]["title_fa"]
+    assert out["alerts"] == 1
+    assert (await backups.ingest(whub, now=at + timedelta(minutes=10)))["alerts"] == 0
+
+
+async def test_openbao_snapshot_and_retention_failures_are_decisions(
+    whub: Hub, su: Any, status_dir: Path
+) -> None:
+    """7.1 §2.2: the OpenBao snapshot configured but not ok (token lapsed or not
+    renewable); 7.1 §3: a destination's forget/prune failing. Each a decision,
+    once per episode; the same fields healthy raise nothing."""
+    now = datetime.now(UTC).replace(microsecond=0) + timedelta(days=random.randint(601, 4000))
+    snap_at = iso(now - timedelta(days=33))
+    ret_at = iso(now - timedelta(hours=5))
+    run = hourly(now, ok=True, last_ok=now)
+    run["openbao_snapshot"] = {"configured": True, "last_at": snap_at, "ok": False,
+                               "error": "the raft snapshot failed (token expired or revoked?)"}  # fmt: skip
+    run["destinations"][0] |= {
+        "retention_ok": True,
+        "retention_error": None,
+        "retention_last_ok_at": iso(now),
+    }
+    run["destinations"][1] |= {"retention_ok": False, "retention_error": "forget failed (kept everything)",
+                               "retention_last_ok_at": ret_at}  # fmt: skip
+    write(status_dir, "hourly", run)
+    out = await backups.ingest(whub, now=now + timedelta(minutes=1))
+    bao = await _notes(su, f"backup:openbao:{snap_at}")
+    ret = await _notes(su, f"backup:forget:gdrive:{ret_at}")
+    assert [n["level"] for n in bao] == ["decision"] and "OpenBao" in bao[0]["title_fa"]
+    assert [n["level"] for n in ret] == ["decision"] and "gdrive" in ret[0]["title_fa"]
+    assert await _notes(su, f"backup:forget:local:{iso(now)}") == []
+    assert out["alerts"] == 2
+    assert (await backups.ingest(whub, now=now + timedelta(minutes=6)))["alerts"] == 0
+    healthy = hourly(now + timedelta(hours=1), ok=True, last_ok=now + timedelta(hours=1))
+    healthy["openbao_snapshot"] = {"configured": True, "last_at": iso(now), "ok": True}
+    write(status_dir, "hourly", healthy)
+    assert (await backups.ingest(whub, now=now + timedelta(hours=1, minutes=1)))["alerts"] == 0

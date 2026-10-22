@@ -11,7 +11,8 @@ Two listeners, each accepting only its own network's clients:
   `POST /v1/proxy/drain {call_id}` after the call.
 A tunnel's TLS is not opened: its host, port, size and time are logged. The
 hub's own names are refused for tunnels altogether (their paths cannot be
-seen inside TLS, and /internal must stay unreachable).
+seen inside TLS, and /internal must stay unreachable). A browse session's
+service account opens its extra ports for its own site only (7.1).
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlsplit
 
 from hq_egress.guard import Blocked, Guard
 from hq_egress.net import Entry
@@ -54,6 +56,15 @@ class Bucket:
     bytes_left: int
     expires: float
     entries: list[Entry] = field(default_factory=list)
+    site: str | None = None  # a browse session's service account: its site
+    ports: tuple[int, ...] = ()  # and the extra ports its policy lists
+
+    def ports_for(self, host: str) -> tuple[int, ...]:
+        """The account's extra ports, for its own site only (7.1)."""
+        if not self.site or not self.ports:
+            return ()
+        site, host = self.site.lower().rstrip("."), host.lower().rstrip(".")
+        return self.ports if host == site or host.endswith("." + site) else ()
 
 
 class Buckets:
@@ -61,12 +72,24 @@ class Buckets:
         self._items: dict[str, tuple[str, Bucket]] = {}
         self.ttl_s = ttl_s
 
-    def open(self, tool: str, cls: str, bytes_left: int, key: str | None = None) -> tuple[str, str]:
+    def open(
+        self,
+        tool: str,
+        cls: str,
+        bytes_left: int,
+        key: str | None = None,
+        *,
+        site: str | None = None,
+        ports: tuple[int, ...] = (),
+    ) -> tuple[str, str]:
         """(key, secret) of a new bucket (a browse session's proxy login)."""
         self._sweep()
         key = key or "s" + secrets.token_hex(12)
         secret = secrets.token_urlsafe(24)
-        self._items[key] = (secret, Bucket(tool, cls, bytes_left, time.monotonic() + self.ttl_s))
+        bucket = Bucket(
+            tool, cls, bytes_left, time.monotonic() + self.ttl_s, site=site, ports=ports
+        )
+        self._items[key] = (secret, bucket)
         return key, secret
 
     def get(self, key: str, secret: str | None = None) -> Bucket | None:
@@ -111,7 +134,13 @@ class Proxy:
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
             await asyncio.wait_for(self._handle(reader, writer), timeout=LIFETIME_S)
-        except (TimeoutError, ConnectionError, asyncio.IncompleteReadError, ValueError):
+        except (
+            TimeoutError,
+            ConnectionError,
+            asyncio.IncompleteReadError,
+            asyncio.LimitOverrunError,
+            ValueError,
+        ):
             pass
         finally:
             with contextlib.suppress(Exception):
@@ -128,7 +157,11 @@ class Proxy:
     async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         if not self._client_ok(writer):
             return
-        head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), timeout=10)
+        try:
+            head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), timeout=10)
+        except asyncio.LimitOverrunError:  # a request head beyond HEAD_MAX (7.1)
+            await _answer(writer, 431, "Request Header Fields Too Large")
+            return
         lines = head.decode("latin-1").split("\r\n")
         try:
             method, target, version = lines[0].split(" ", 2)
@@ -184,7 +217,7 @@ class Proxy:
             if self.guard.is_hub(host):
                 raise Blocked("hub_internal")
             self.guard.check_name(host)
-            if port not in self.guard.ports_for(host):
+            if port not in self.guard.ports_for(host, bucket.ports_for(host)):
                 raise Blocked("port_not_allowed")
             addrs = await self.guard.addresses(host, port)
         except Blocked as b:
@@ -237,7 +270,7 @@ class Proxy:
         writer: asyncio.StreamWriter,
     ) -> None:
         try:
-            t = self.guard.target(url)
+            t = self.guard.target(url, extra_ports=bucket.ports_for)
         except Blocked as b:
             entry = Entry(
                 bucket.tool, method, "?", kind="request", cls=bucket.cls, blocked_reason=b.reason
@@ -251,8 +284,7 @@ class Proxy:
         if up is None:
             return
         bucket.entries.append(entry)
-        path = url.split("/", 3)[3] if url.count("/") >= 3 else ""
-        out = [f"{method} /{path} {version}"]
+        out = [f"{method} {_origin_form(url)} {version}"]
         out += [f"{k}: {v}" for k, v in headers if k.lower() not in DROP_HEADERS]
         out.append("Connection: close")
         up[1].write(("\r\n".join(out) + "\r\n\r\n").encode("latin-1"))
@@ -313,6 +345,15 @@ async def _pipe_both(
             t.cancel()
         with contextlib.suppress(Exception):
             up_w.close()
+
+
+def _origin_form(url: str) -> str:
+    """The request target as the origin server takes it: the path (`/` when
+    there is none) and the query. `http://host?q=1` is `/?q=1`, and a slash
+    inside the query (`http://host?next=/a/b`) stays in the query (7.1)."""
+    parts = urlsplit(url)
+    path = parts.path or "/"
+    return f"{path}?{parts.query}" if parts.query else path
 
 
 async def _answer(

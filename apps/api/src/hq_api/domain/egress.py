@@ -43,19 +43,29 @@ MAX_TEXT = 300_000
 # was logged counts once. An aggregated row counts its `requests`.
 SETTLED = """(l.call_id = l.id AND EXISTS (SELECT 1 FROM egress.log s
                                             WHERE s.call_id = l.id AND s.id <> l.id))"""
+# "This run": its own rows; a call with no run (none should come: an agent's
+# token names its run) counts the actor's run-less rows of the day as one
+# run, so an empty run_id never switches the per-run caps off (7.1).
+THIS_RUN = """(l.run_id IS NOT DISTINCT FROM CAST(:run AS uuid)
+               AND (CAST(:run AS uuid) IS NOT NULL OR l.actor = :actor))"""
 USAGE_SQL = f"""
     WITH day AS (
-        SELECT (date_trunc('day', now() AT TIME ZONE tz) AT TIME ZONE tz) AS start
+        SELECT (date_trunc('day', now() AT TIME ZONE tz) AT TIME ZONE tz) AS start,
+               ((date_trunc('day', now() AT TIME ZONE tz) + interval '1 day') AT TIME ZONE tz) AS next
         FROM (SELECT COALESCE((SELECT timezone FROM owner.settings WHERE id = 1), 'Asia/Tehran') AS tz) t
     )
-    SELECT COALESCE(sum(l.requests) FILTER (WHERE l.run_id = CAST(:run AS uuid)), 0) AS run_requests,
-           COALESCE(sum(l.bytes_in + l.bytes_out) FILTER (WHERE l.run_id = CAST(:run AS uuid)), 0) AS run_bytes,
-           COALESCE(sum(l.ms) FILTER (WHERE l.run_id = CAST(:run AS uuid) AND l.kind = 'browse'), 0) AS run_browse_ms,
+    SELECT COALESCE(sum(l.requests) FILTER (WHERE {THIS_RUN}), 0) AS run_requests,
+           COALESCE(sum(l.bytes_in + l.bytes_out) FILTER (WHERE {THIS_RUN}), 0) AS run_bytes,
+           COALESCE(sum(l.ms) FILTER (WHERE {THIS_RUN} AND l.kind = 'browse'), 0) AS run_browse_ms,
            COALESCE(sum(l.requests), 0) AS day_requests,
-           COALESCE(sum(l.bytes_in + l.bytes_out), 0) AS day_bytes
+           COALESCE(sum(l.bytes_in + l.bytes_out), 0) AS day_bytes,
+           (SELECT ceil(extract(epoch FROM d.next - now()))::int FROM day d) AS day_reset_s
     FROM egress.log l, day
     WHERE l.company_id = :co AND l.at >= day.start AND NOT {SETTLED}
 """  # noqa: S608 - composed from module constants; values are bound
+# Retry-After of `egress_limit` (7.1): the company's day comes back at the
+# owner's midnight; a run's own caps never do (an agent token lives an hour).
+RUN_RETRY_AFTER_S = 3600
 KINDS = {"web.search": "search", "web.browse": "browse"}
 # Where an outgoing value can hide its data (contract §18.13, 7.1):
 # percent-encoding (any depth), compatibility forms (full-width), other
@@ -149,6 +159,16 @@ def limits_left(settings: Any, u: dict[str, Any]) -> dict[str, int]:
         ),
         "browser_s": settings.egress_run_browser_s - int(u["run_browse_ms"]) // 1000,
     }
+
+
+def retry_after(settings: Any, u: dict[str, Any]) -> int:
+    """Seconds until a refused call could go: the owner's next day when the
+    company's day caps are spent, else (a run's own caps) an agent token's hour."""
+    day_spent = (
+        int(u["day_requests"]) >= settings.egress_day_requests
+        or int(u["day_bytes"]) >= settings.egress_day_bytes
+    )
+    return max(1, int(u.get("day_reset_s") or 1)) if day_spent else RUN_RETRY_AFTER_S
 
 
 def covers(site: str, host: str) -> bool:

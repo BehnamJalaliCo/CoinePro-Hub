@@ -16,3 +16,6 @@
 # prompt 5.1: an internal service URL the site checker must refuse (test data), not a key
 127dd2c89e66ec0a2d17ea014c390c6f42a49445:apps/api/tests/test_agents_more.py:generic-api-key:422
 dfbfc729e5c1d1abf16e6c6a0f23bb7cade6a9d2:apps/api/tests/test_agents_more.py:generic-api-key:422
+# prompt 9 (other branches, seen by the history scan): a stub OPENSSH PRIVATE KEY block in a test that proves private keys are refused
+45efa18068312993552ca586929d366920afa93e:services/provisioner/tests/test_app_vault.py:private-key:66
+f86f63045b68a1737d15e998046cd2a088813603:services/provisioner/tests/test_app_vault.py:private-key:66

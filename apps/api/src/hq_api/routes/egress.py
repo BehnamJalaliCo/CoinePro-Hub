@@ -4,7 +4,8 @@ Owner:
     GET  /egress              the egress log (?company&since&blocked), newest first
     GET  /egress/summary      per day and company (?period=day: today)
     GET  /tools/accounts      the holding's service accounts (metadata only)
-    POST /tools/accounts      add or change one (the secret: `make account-secret`)
+    POST /tools/accounts      add or change one 🔏 (`account.put`, the body's SHA-256;
+                              the secret: `make account-secret`)
 Gateway (the run's agent token):
     POST /internal/v1/egress/reserve   before a request leaves: data guard, limits, account
     POST /internal/v1/egress/log       its log entries afterwards
@@ -26,6 +27,7 @@ from hq_api.domain import egress as G
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow
 from hq_api.schemas import CODE, Model, Page
+from hq_api.security import stepup
 
 router = APIRouter(tags=["egress"])
 internal_router = APIRouter(tags=["internal"])
@@ -293,9 +295,11 @@ async def list_accounts(ctx: Ctx = Depends(owner_ctx)) -> list[ServiceAccount]:
 
 @router.post("/tools/accounts", response_model=ServiceAccount, status_code=201, responses=E)
 async def put_account(body: AccountIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
-    """Adds an account, or changes one with the same key. Metadata and policy
-    only: the owner writes the secret on the server (`make account-secret`).
-    Requires `Idempotency-Key`."""
+    """🔏 (`account.put`, target = SHA-256 of the exact body; 7.1 §2.14): a new
+    site, allow rule or port widens what a stored secret can do. Adds an
+    account, or changes one with the same key. Metadata and policy only: the
+    owner writes the secret on the server (`make account-secret`). Requires
+    `Idempotency-Key` (claimed before the seal: a replay answers the same)."""
     companies = None if body.companies == "all" else sorted(set(body.companies))
     if companies is not None:
         known = {c.code for c in await ctx.hub.companies.all()}
@@ -306,6 +310,9 @@ async def put_account(body: AccountIn, request: Request, ctx: Ctx = Depends(owne
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
+        step_up_id = await stepup.consume(
+            tx, request, ctx.who, "account.put", await stepup.body_target(request)
+        )
         row = await tx.one(
             """INSERT INTO tools.accounts (key, site, title_fa, companies, policy)
                VALUES (:k, :site, :t, CAST(:co AS text[]), CAST(:p AS jsonb))
@@ -327,6 +334,7 @@ async def put_account(body: AccountIn, request: Request, ctx: Ctx = Depends(owne
             target_kind="service_account",
             target_ref=body.key,
             summary=f"{body.site}; companies: {','.join(companies or ['all'])}",
+            step_up=step_up_id is not None,
         )
         out = await _account_out(ctx, row)
         if idem:
@@ -354,6 +362,7 @@ async def reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str
     host = G.host_of(body.url)
 
     async def refuse(reason: str, err: ApiError) -> NoReturn:
+        """A refused call: its row in the egress log and in the audit log (7.1)."""
         async with ctx.hub.db.tx([company_id]) as tx:
             await G.record(
                 tx,
@@ -363,23 +372,38 @@ async def reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str
                 entries=[{"tool": body.tool, "kind": "request", "class": body.cls,
                           "method": body.method[:10], "host": host, "blocked_reason": reason}],
             )  # fmt: skip
+            await ctx.audit(
+                tx,
+                company_id=company_id,
+                action="egress.refused",
+                action_class=body.cls,
+                target_kind="host",
+                target_ref=host[:200],  # the audit's limit (a host may have 255)
+                summary=f"{body.tool} {body.method[:10]} refused: {reason}",
+            )
         raise err
 
     reason = G.internal_data([*body.strings, body.url or ""], codes, employees)
     if reason:
         await refuse("internal_data", ApiError(403, "internal_data", reason))
-    async with ctx.tx() as tx:
-        usage = await tx.one(G.USAGE_SQL, run=who.run_id, co=company_id)
-        left = G.limits_left(ctx.hub.settings, usage)
-        acct = None
-        if body.account:
-            acct = await G.account(tx, ctx.hub.bao, body.account, who.company)
+    try:
+        async with ctx.tx() as tx:
+            usage = await tx.one(G.USAGE_SQL, run=who.run_id, co=company_id, actor=who.code[:60])
+            left = G.limits_left(ctx.hub.settings, usage)
+            acct = None
+            if body.account:
+                acct = await G.account(tx, ctx.hub.bao, body.account, who.company)
+    except ApiError as err:  # the account: unknown, not this company's, no secret yet
+        await refuse(err.code, err)
     if (
         left["requests"] <= 0
         or left["bytes"] <= 0
         or (body.tool == "web.browse" and left["browser_s"] <= 0)
     ):
-        await refuse("egress_limit", ApiError(429, "egress_limit"))
+        retry = G.retry_after(ctx.hub.settings, usage)
+        await refuse(
+            "egress_limit", ApiError(429, "egress_limit", headers={"Retry-After": str(retry)})
+        )
     if body.tool == "http.request" and body.method not in G.READ_METHODS:
         policy = acct.get("_policy") if acct else None
         if not acct or not G.non_committing(policy or {}, acct["site"], body.method, body.url):
@@ -440,7 +464,7 @@ async def log_entries(body: LogIn, ctx: Ctx = Depends(internal_ctx)) -> None:
                 action="egress.request",
                 action_class=e.cls,
                 target_kind="host",
-                target_ref=e.host,
+                target_ref=e.host[:200],
                 summary=f"{e.tool} {e.method} {e.status or '-'}"
                 + (f" x{e.requests}" if e.requests > 1 else "")
                 + (f" blocked: {e.blocked_reason}" if e.blocked_reason else "")

@@ -462,7 +462,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - اگر متن ماسک‌شدنی داشته باشد (رمزی بلند خوانده شده)، گذر مدل اصلاً انجام نمیشود.
   - پیامی که فایل صدای `purpose=message` را پیوست دارد `kind: voice_transcript` است.
   - وقتی پروفایل `stt` خاموش است: `503 channel_not_configured`.
-- **ffmpeg** نسخه‌ی `7:7.1.5-0+deb13u1` (Debian trixie) است. **Pillow** ‏12.3.0 (MIT-CMU) و **pillow-heif** ‏1.8.0 (BSD-3) در image مشترک api و worker هستند.
+- **ffmpeg** نسخه‌ی `7:7.1.5-0+deb13u1` (Debian trixie) است. **Pillow** ‏13.0.0 (MIT-CMU) و **pillow-heif** ‏1.8.0 (BSD-3) در image مشترک api و worker هستند.
 ## ۱۶. گفتار به متن فارسی، STT (پرامپت ۶ §۳، قرارداد §۱۷.۲)
 - **سرویس `stt`** (`services/stt`):
   - faster-whisper ‏1.2.1 روی CTranslate2 ‏4.8.2، با int8 روی CPU، زبان `fa`، beam 5 و VAD ‏Silero.
@@ -519,6 +519,23 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - `model=…` مدل را عوض میکند. `write=1` گزارش را در `docs/ops/reports/stt-eval-<تاریخ>.md` مینویسد.
   - اجرا بدون شبکه است (`--network none`).
 
+### بازبینی ۷.۱ §۰.۲ (۲۰۲۶-۱۰-۲۲): جا برای STT
+- **کارهای انجام‌شده:**
+  - **الف) مرورگر:** در full هم یک session دارد. سقفش 768m است، چون یک session اوج ۳۸۰ مگ دارد و قاعده‌ی دو برابر ۷۶۰ میخواهد (۶۴۰ کمتر از قاعده بود).
+  - **ب) claude-runtime:** ۴ اجرای هم‌زمان (`RUNTIME_MAX_CONCURRENCY` و `LLM_MAX_CONCURRENCY` ۴) و سقف 1856m.
+  - **ج) Tempo و otel-collector:** به پروفایل اختیاری `tracing` رفتند. پیش‌فرض خاموش‌اند؛ `make tracing-on` و `make tracing-off`. Prometheus فقط وقتی روشن‌اند آن‌ها را scrape میکند.
+- **قاعده‌ی «سقف دست‌کم دو برابر بیشترین مصرف اندازه‌گیری‌شده»:** سه سقف زیر قاعده بودند و بالا رفتند:
+  - alloy: ۱۸۰ ← 384m
+  - grafana: ۲۷۵ ← 576m
+  - openbao: ۱۵۳ ← 320m
+  - otel-collector: ۲۳۱ ← 512m (در `tracing`)
+- **نتیجه:** full برابر 10896 از 11673 مگ است، و full+tracing برابر 11664 از 12288 که جا میشود. egress در full یک پردازش هم‌زمان دارد و سقفش 512m است (اوج ۲۳۵ ضرب در ۲).
+- **کمبود STT:** full+stt برابر 13072 از 12288 مگ است، یعنی **۷۸۴ مگ کمبود** با سقف فعلی STT (2048m، یعنی اوج ۱۶۴۴ به‌علاوه‌ی ۲۵٪).
+  - با قاعده‌ی دو برابر روی خود STT (3328m)، کمبود **۲۰۶۴ مگ** است.
+  - مدل کوچک انتخاب نشد (دستور بازبینی). **STT خاموش میماند تا مالک تصمیم بگیرد.**
+- **lean:** قاعده‌ی دو برابر را برای مرورگر (448m با اوج ۳۸۰) و چند سرویس دیگر برآورده نمیکند. پروفایل فعال full است؛ lean پشتیبان سرور کوچک‌تر است.
+- **پاک شد (اجازه‌ی صریح مالک، §۰.۳):** volume ‏`stt-measure-models` و image ‏`coinepro-hq/stt:measure`.
+
 ### تصمیم حافظه (با مالک)
 `full` + stt برابر **13392 MiB** است، **1104 MiB** بیشتر از بودجه‌ی 12288 MiB (۸۰٪ از 15360). `lean` + stt برابر 7968 است، 1772 بیشتر از 6196. تا مالک تصمیم نگیرد stt خاموش میماند. سه راه:
 
@@ -566,7 +583,9 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - مقصد: `/home/Hub/backups/wal`، با مالک uid 999 (postgres) و دسترسی `0700`.
   - فشرده‌سازی zstd. اندازه‌گیری روی همین سرور: حدود ۲۰۰ KB در دقیقه، یعنی حدود ۳ GB در ۷ روز.
 - **ساخت و چک پوشه‌ها:** پوشه‌ی WAL و مخزن محلی restic (`/home/Hub/backups/restic`، مالک root، `0700`) را `make bootstrap` میسازد. `make up` فقط چک میکند. بدون این پوشه‌ها `make up` جلو نمیرود، چون اگر Docker پوشه را خودش بسازد، آرشیو شکست میخورد و `pg_wal` بزرگ میشود.
-- **base backup روزانه:** در اجرای ساعتی، وقتی آخرینش بیش از ۲۳ ساعت قبل باشد. **۸ base backup نگه داشته میشود:** PITR تا هر دقیقه‌ی ۷ روز گذشته (`HQ_WAL_KEEP_FULL`).
+- **base backup روزانه:** در اولین اجرای ساعتیِ هر **روز تقویمی UTC** (۷.۱ §۲.۶؛ قاعده‌ی قبلی «بیش از ۲۳ ساعت» هر روز جلوتر میافتاد). **۹ base backup نگه داشته میشود:** PITR تا هر دقیقه‌ی ۷ روز کامل گذشته (`HQ_WAL_KEEP_FULL`). `prune` و `restic check` هم با همین روز تقویمی‌اند.
+- **علامت پایان PITR:** هر اجرای ساعتی پیش از snapshot یک commit و یک `pg_switch_wal()` میزند و صبر میکند تا آرشیو شود. پس آرشیو هر snapshot تا همان لحظه میرسد، و هر هدف PITR پیش از آن یک commit بعد از خودش دارد (بازیابی تا یک زمان روی اولین commit بعد از هدف میایستد؛ بدون آن شکست میخورد).
+- **مهلت PITR:** دیگر عدد ثابت ۱۲۰ ثانیه نیست (۷.۱ §۲.۱). replay یک روز WAL (حدود ۱۴۴۰ segment) طول میکشد. شکست فقط وقتی است که `pg_last_wal_replay_lsn()` (و پیش از آن، شمار segmentهای بازیابی‌شده) `HQ_PITR_STALL_S` (۱۲۰ ثانیه) جلو نرود، یا کل کار از `HQ_PITR_DEADLINE_S` (۴۵ دقیقه) بگذرد.
 - **تمرین PITR** (هرگز روی production نیست):
   ```bash
   make pitr-test at="2026-10-18 09:41"    # UTC، مگر منطقه‌ی زمانی بنویسی
@@ -577,7 +596,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 ### backup ساعتی (`coinepro-hq-backup-hourly.timer`)
 - **زمان:** هر ساعت، با تأخیر تصادفی تا ۳ دقیقه. اجرای دستی: `make backup-hourly`.
 - **مجموعه‌ی هر ساعت:**
-  - `pg_dump -Fc` هر دیتابیس، به‌علاوه‌ی `globals.sql`
+  - `pg_dump -Fc -Z0` هر دیتابیس (بدون فشرده‌سازی: restic خودش با zstd فشرده میکند و dedup فقط روی dump فشرده‌نشده کار میکند؛ ۷.۱ §۲.۷)، به‌علاوه‌ی `globals.sql`
   - کپی لنگرهای Audit
   - sha256 همه‌ی فایل‌های api
   - snapshot ‏OpenBao، فقط با توکن مالک (پایین)
@@ -590,16 +609,22 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - Drive و Hetzner: `--keep-hourly 168 --keep-daily 90 --keep-weekly 52 --keep-monthly 36 --keep-yearly 10`
   - محلی: ۴۸ ساعتی و ۷ روزانه
   - روزی یک بار: `prune` و `restic check --read-data-subset 5%`
+  - شکست `forget` یا `prune` هر مقصد (از جمله Drive) دیگر فقط لاگ نیست: `retention_ok: false` در وضعیت آن مقصد، و اعلان `decision`.
+  - وقتی تست بازیابی هفتگی در حال خواندن یک مخزن است، `forget`، `prune` و `check` (قفل انحصاری restic میخواهند) به ساعت بعد میروند، تا هشدار دروغ نیاید.
 - **رمزها:**
-  - رمز restic در `kv/backup/restic` است. `make up` آن را یک بار میسازد و هیچ‌وقت عوض نمیکند.
-  - اسکریپت با AppRole ‏`hq-backup` (فقط خواندن `kv/backup/*`؛ `~/.secrets/backup/approle.json`، ‏600) فقط برای همان اجرا رمزها را در یک پوشه‌ی tmpfs (`/dev/shm`، ‏0700) میگذارد.
-  - container ‏restic آن را فقط‌خواندنی mount میکند.
-  - **هیچ رمزی در argv، env کانتینر، لاگ یا فایل وضعیت نیست.** gate ‏`backup` همین را اسکن میکند.
+  - رمز restic در `kv/backup/restic` است. `make up` آن را یک بار میسازد و هیچ‌وقت عوض نمیکند (`infra/openbao/restic-password.sh`): فقط پاسخ 404 یعنی «نیست»، و نوشتن با KV check-and-set (`{"options":{"cas":0}}`) است. پس اگر رمز باشد، خود OpenBao نوشتن را رد میکند، هر چه خواندن قبلی جواب داده باشد (۷.۱ §۲.۹).
+  - اسکریپت با AppRole ‏`hq-backup` (فقط خواندن `kv/backup/*`؛ `~/.secrets/backup/approle.json`، ‏600) فقط برای همان اجرا رمزها را در یک پوشه‌ی tmpfs و 0700 میگذارد: `RuntimeDirectory=` همان unit (`/run/coinepro-hq-backup-hourly`، `/run/coinepro-hq-restore-weekly`). systemd آن را بعد از اجرا، هر طور تمام شود، پاک میکند. اجرای دستی از `$XDG_RUNTIME_DIR` استفاده میکند.
+  - container ‏restic فقط زیرپوشه‌ی رمز restic را فقط‌خواندنی mount میکند. config ‏rclone در زیرپوشه‌ی جدایی است و نوشتنی است، تا توکن تازه‌شده‌ی Drive برای فراخوانی‌های بعدی همان اجرا بماند.
+  - **هیچ رمزی در argv، env کانتینر، لاگ یا فایل وضعیت نیست.** رمزها فقط از stdin به jq میرسند. gate ‏`backup` همین را اسکن میکند.
+- **OpenBao فقط با 404 یعنی «پیکربندی نشده»** (۷.۱ §۲.۳). هر پاسخ دیگر (503، sealed، 403) برای Drive یعنی خطای همان مقصد و `ok:false` برای اجرا. نسخه‌ی محلی باز هم گرفته میشود. اجرا هیچ‌وقت بی‌صدا به «فقط محلی» نمیافتد.
+  - اولین اجرایی که توکن Drive را میبیند، `gdrive_configured_at` را در `hourly/state.json` ثبت میکند. اگر آن توکن بعداً از OpenBao ناپدید شود، backup ساعتی و تست هفتگی هر دو خطا میدهند.
+  - قطع عمدی Drive (فقط با تصمیم مالک): بعد از پاک کردن `kv/backup/gdrive`، کلید `gdrive_configured_at` را از `/home/Hub/backups/hourly/state.json` بردارید.
 - **container:** `coinepro-hq/backup:0.1.0`، یعنی rclone ‏1.75.2 (digest) به‌علاوه‌ی restic ‏0.19.1 (sha256).
   - چرا root: ورودی‌ها مال چند uid هستند (WAL مال 999، فایل‌های api مال 10001، dumpها مال Hub).
-  - ولی محدود است: فقط capabilityهای فایل (`DAC_READ_SEARCH`، `DAC_OVERRIDE`، `CHOWN`، `FOWNER`)، rootfs فقط‌خواندنی، `no-new-privileges`.
+  - ولی محدود است: فقط `DAC_READ_SEARCH` (خواندن)، rootfs فقط‌خواندنی، `no-new-privileges`. فقط `restore` تست هفتگی `DAC_OVERRIDE`، `CHOWN` و `FOWNER` هم میگیرد (۷.۱ §۳).
   - شبکه فقط وقتی مقصد بیرونی دارد.
-  - سقف حافظه `MEM_BACKUP`: ‏384m در full و 192m در lean. ‏restic با ۴۰۰ MB ورودی در 192m بی‌خطا تمام شد.
+  - سقف حافظه `MEM_BACKUP`: ‏256m در full و 192m در lean (`profiles/*.env`). ‏restic با ۴۰۰ MB ورودی در 192m بی‌خطا تمام شد.
+  - **profile جدا (`backup-tools`):** هیچ سرویسی به آن وابسته نیست (worker دیگر به آن depends_on ندارد) و `up --wait` آن را اجرا نمیکند. `make up` بعد از بالا آمدن stack آن را میسازد و `restic version` را چک میکند. gateهای کیفیت آن را همیشه در بودجه‌ی حافظه میشمارند (`scripts/quality/lib.sh`، `ALWAYS_COUNTED`)، و `hq.sh` هم در حساب stt.
 - **وضعیت:**
   - فایل‌های `status/hourly.json`، `status/snapshots.json` و `status/restore-weekly.json` فقط فراداده دارند.
   - worker هر ۵ دقیقه (Maintenance) آن‌ها را در `backup.*` میخواند.
@@ -610,25 +635,36 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - مقصد بیرونی شکست بخورد ← اعلان `decision`
   - **آخرین backup موفق قدیمی‌تر از ۲ ساعت** ← **فوری** (از دست رفتن داده)
   - **شکست تست بازیابی** ← **فوری**
+  - **شکست `restic check`** ← **فوری** (`backup:check:{at}`)
+  - **نبودن `status/hourly.json` در حالی که `backup.runs` ردیف دارد** ← **فوری** (اسکریپت، پوشه یا mount ‏worker خراب است)
+  - snapshot ‏OpenBao پیکربندی شده ولی `ok` نیست (توکن باطل شده یا تمدید نمیشود) ← `decision`
+  - شکست `forget`/`prune` یک مقصد ← `decision`
   - یافته‌ی ناظر (`PR-070`) در پرامپت ۸ به `oversight_finding()` در `domain/backups.py` وصل میشود.
+- **dead-man's switch در Prometheus** (۷.۱ §۲.۴)، بسته به worker و Temporal نیست:
+  - هر اجرای ساعتی، موفق یا ناموفق، `hq_backup.prom` را در پوشه‌ی textfile ‏node-exporter (`/var/lib/coinepro-hq/textfile`) مینویسد: `hq_backup_last_success_timestamp_seconds`، `hq_backup_last_run_ok`، `hq_backup_destination_ok{destination}`، `hq_backup_check_ok`، `hq_backup_wal_failing` و `hq_backup_openbao_snapshot_ok`.
+  - قاعده‌ها در `infra/observability/prometheus/rules/backup.rules.yml`: `HqBackupDeadMansSwitch` (آخرین موفقیت بیش از ۲ ساعت پیش)، `HqBackupMetricsMissing` (۲ ساعت بی‌گزارش)، `HqBackupCheckFailed`، `HqWalArchivingFailing` و `HqOpenBaoSnapshotFailing`.
+  - دیدن: Grafana (فهرست alertها) یا `curl -s 127.0.0.1:9090/api/v1/alerts`. Alertmanager نداریم؛ اعلان مالک همچنان از worker است و این خط دوم مستقل است.
 - **مقصد دوم، Hetzner Object Storage (اختیاری، خاموش):** با `HQ_BACKUP_S3_ENABLED=true` و `HQ_BACKUP_S3_*` در `.env` روشن میشود. یک مخزن restic دوم است با همان رمز. `offsite.sh` دیگر کپی خام شبانه نمیفرستد.
 
 ### تست بازیابی هفتگی (`coinepro-hq-restore-weekly.timer`)
 - **زمان:** یکشنبه ۰۶:۰۰ تهران (۰۲:۳۰ UTC). اجرای دستی: `make restore-weekly`.
 - **روند:**
-  1. آخرین snapshot از Drive (اگر وصل نیست، از مخزن محلی) در پوشه‌ای موقت بازیابی میشود.
+  1. آخرین snapshot از Drive (اگر هیچ‌وقت وصل نشده، از مخزن محلی؛ Drive که یک بار وصل بوده و حالا نیست، شکست است) در پوشه‌ای موقت بازیابی میشود.
   2. همه‌ی بررسی‌های `restore-test.sh` روی مجموعه‌اش اجرا میشود.
   3. sha256 همه‌ی فایل‌ها چک میشود.
   4. **PITR به یک لحظه‌ی تصادفی ۲۴ ساعت گذشته** از آرشیو WAL بازیابی‌شده انجام میشود.
+- **قفل‌ها (۷.۱ §۲.۵):** اول `flock` گرفته میشود، بعد trap. اجرای دومی که قفل را گرفته میبیند بی‌صدا خارج میشود و نتیجه‌ی اولی را خراب نمیکند. همه‌ی فراخوانی‌های restic در این مسیر `--retry-lock 30m` دارند.
+- **جای دیسک (۷.۱ §۲.۷):** پیش از بازیابی، `restic stats --mode restore-size` با `df` مقایسه میشود. باید اندازه‌ی snapshot به‌علاوه‌ی `HQ_RESTORE_MIN_FREE_BYTES` (پیش‌فرض ۵ GiB) جا باشد؛ وگرنه با یادداشت روشن رد میشود و هیچ چیزی بازیابی نمیشود.
 - **نتیجه:** در `backup.restore_tests` ثبت میشود. شکست ← اعلان فوری.
 
 ### کارهای مالک (به ترتیب، در ترمینال SSH خودش)
-1. **`make gdrive-auth`:**
-   - توضیح فارسی چاپ میکند.
-   - مالک روی کامپیوتر خودش این را اجرا میکند (scope ‏`drive.file`: rclone فقط فایل‌های خودش را میبیند):
-     `rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"`
-   - JSON را بی‌نمایش میچسباند ← `kv/backup/gdrive`. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro-HQ/restic` را میسازد.
-   - **پیشنهاد (اختیاری):** یک OAuth client ID اختصاصی (نوع Desktop) در Google Cloud خود مالک، برای سهمیه‌ی جدا از client عمومی rclone. در این صورت: `rclone authorize "drive" "<client_id>" "<client_secret>"` و همان client ID در پرسش اسکریپت.
+1. **`make gdrive-auth`** (لینک و کد؛ درخواست مالک ۲۰۲۶-۱۰-۲۲، چیزی نصب نمیشود):
+   - اسکریپت یک لینک Google چاپ میکند. مالک آن را روی گوشی یا کامپیوتر خودش باز میکند، وارد میشود و «Allow» میزند.
+   - مرورگر به `127.0.0.1:53682/?state=…&code=…` میرود که باز نمیشود (درست است). مالک همه‌ی آن آدرس را کپی میکند و بی‌نمایش در پرسش اسکریپت میچسباند.
+   - پشت صحنه: `rclone authorize` با client عمومی rclone و scope ‏`drive.file` در یک کانتینر موقت backup-tools ‏(`hq-gdrive-auth`، بدون root، root filesystem فقط‌خواندنی) منتظر است. آدرس فقط به صفحه‌ی محلی همان کانتینر داده میشود و rclone کد یک‌بارمصرف را همان‌جا با توکن عوض میکند. توکن مستقیم به `kv/backup/gdrive` میرود و هیچ‌جا چاپ نمیشود. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro-HQ/restic` را میسازد.
+   - **دو مرحله‌ای:** `make gdrive-auth step=link` فقط لینک را میدهد و ورود ۳۰ دقیقه منتظر میماند (`HQ_GDRIVE_AUTH_WAIT_S`). بعد `make gdrive-auth step=code` آدرس را میگیرد: بی‌نمایش در ترمینال، یا از stdin وقتی مالک آدرس را به Claude سرور میدهد. کد درون آدرس فقط یک بار و فقط چند دقیقه معتبر است و بعد از مصرف بی‌ارزش است.
+   - **client اختصاصی مالک (اختیاری):** `make gdrive-auth own=1`. برای سهمیه‌ی جدا از client عمومی rclone، یک OAuth client ID (نوع Desktop) در Google Cloud خود مالک. مالک client ID و client secret را میدهد، اسکریپت فرمان را میسازد (`rclone authorize "drive" "<base64>"`) و مالک آن را روی کامپیوتر خودش اجرا میکند و JSON را بی‌نمایش میچسباند. رشته‌ی base64 یک JSON با `client_id`، `client_secret` و `"scope":"drive.file"` است، بدون padding (۷.۱ §۲.۸). شکل دو-آرگومانی (`"<client_id>" "<client_secret>"`) دسترسی **کل** Drive را میخواست و دیگر استفاده نمیشود.
+   - **کار مالک، فقط با `own=1`: consent screen آن پروژه در Google Cloud باید «In production» باشد.** در حالت «Testing»، گوگل refresh token را بعد از ۷ روز باطل میکند و backup بیرونی بی‌خبر میایستد. برای client عمومی rclone لازم نیست.
    - تا این کار نشده، backup ساعتی فقط محلی است و وضعیت Drive «پیکربندی نشده» است.
 2. **نسخه‌ی کاغذی رمز restic:** `make backup-password`.
    - فقط در ترمینال خود مالک، با تایپ `show`. بعد از Enter صفحه پاک میشود.
@@ -638,9 +674,10 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
    - بعد `make openbao-snapshot-token` و چسباندن بی‌نمایش.
    - اسکریپت چک میکند توکن **فقط** همین policy را داشته باشد.
    - تا آن موقع، این بخش از backup «منتظر مالک» است.
+   - **تمدید خودکار (۷.۱ §۲.۲):** بعد از هر snapshot موفق، backup ساعتی `auth/token/renew-self` میزند (policy همین را اجازه میدهد). پس توکن periodic تا وقتی backup کار میکند منقضی نمیشود. اگر snapshot شکست بخورد، یا تمدید نشود، یا توکن کمتر از ۷ روز عمر بیشتر بگیرد (توکن غیر periodic)، `openbao_snapshot.ok` برابر `false` میشود و اعلان `decision` میآید.
 
 ### راه‌اندازی بعد از merge (Claude سرور)
-`make bootstrap` (پوشه‌های wal و restic، با sudo)، بعد `make up` (image تازه‌ی Postgres؛ **ری‌استارت Postgres** برای `archive_mode`؛ AppRole ‏`hq-backup` و رمز restic)، بعد `make install-systemd` (دو timer تازه).
+`make bootstrap` (پوشه‌های wal و restic، با sudo)، بعد `make up` (image تازه‌ی Postgres؛ **ری‌استارت Postgres** برای `archive_mode`؛ AppRole ‏`hq-backup` و رمز restic؛ ساخت image ‏`backup-tools`)، بعد `make install-systemd` (unitها و timerها، با `RuntimeDirectory=`). از ۷.۱: `make install-systemd` دوباره (unitهای hourly و weekly عوض شدند) و `make up` (policy ‏`backup-snapshot` و mount قاعده‌های Prometheus).
 ## ۱۹. اینترنت ایجنت‌ها: egress، SearXNG و مرورگر (پرامپت ۷ §۲، قرارداد §۱۸.۷)
 - **اصل:** ایجنت‌ها همچنان shell و شبکه‌ی مستقیم ندارند. اینترنت فقط از ابزار میرسد. این ابزارها در Tool Gateway هستند و از سرویس `egress` بیرون میروند:
   - `web.search`: SearXNG خود هلدینگ
@@ -692,7 +729,9 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - همزمانی: `BROWSER_MAX_SESSIONS` (full ‏۲، lean ‏۱).
   - سقف زمان هر فراخوانی ۱۵ ثانیه است (`EGRESS_BROWSE_S`؛ egress حداکثر ۲۰)، تا زیر مهلت ۳۰ ثانیه‌ی gateway بماند. کار بلندتر چند فراخوانی میشود.
   - اسکرین‌شات و دانلود فایل‌های شرکت خود ایجنت میشوند (`files.read`).
-  - `--no-sandbox` درون یک کانتینر بدون capability، فقط‌خواندنی و غیر root اجرا میشود. برای sandbox خود Chromium هیچ capability‌ای اضافه نشده است.
+  - **sandbox خود Chromium روشن است (۷.۱ §۲.۲۰):** کاربر غیر root، فقط‌خواندنی، `cap_drop: ALL`، `no-new-privileges` و پروفایل seccomp خود Playwright (`infra/browser/seccomp_profile.json`، نسخه‌ی v1.63.0، hash آن در `compose-rules` pin شده). فقط `SYS_CHROOT` به bounding set اضافه شده، تا آن پروفایل chroot را درون user namespace خود Chromium اجازه دهد. uid 10001 بیرون از آن هرگز این capability را ندارد. اگر روزی `BROWSER_SANDBOX=0` شود، هر فراخوانی process مرورگر خودش را دارد. **هیچ process ‏`--no-sandbox` بین فراخوانی‌ها، و پس بین شرکت‌ها، مشترک نیست.**
+  - heap جاوااسکریپت هر renderer سقف دارد (`BROWSER_JS_HEAP_MB`، ۱۹۲). WebRTC هیچ UDP بیرون از proxy نمیفرستد.
+  - فایل‌های یک فراخوانی (اسکرین‌شات و دانلود) روی هم سقف دارند (`EGRESS_BROWSE_FILES_BYTES`، ۱۶ MiB). دانلود بزرگ‌تر از سقف `download_too_large` میگیرد و بی‌صدا بریده نمیشود. ورود ناموفق حساب `sign_in_failed` میگیرد.
 - **SearXNG:** موتورهای عمومی پیش‌فرض، بدون لاگ query، بدون metrics، limiter خاموش (تنها مشتری egress است). `server.secret_key` از `SEARXNG_PASSWORD` در `.env` میاید (`make env` آن را میسازد).
 - **سقف‌ها** (env سرویس api):
 
@@ -706,10 +745,16 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   | هر فراخوانی | `EGRESS_CALL_BYTES` | 20 MB |
 
 - **حساب‌های سرویس:**
-  - متادیتا و policy تزریق در اپ ثبت میشوند (`POST /api/v1/tools/accounts`). policy تزریق یکی از این‌هاست: `bearer`، `header`، `basic` یا `cookie`، به‌علاوه‌ی روش ورود مرورگر و فهرست `allow` مسیرهای بی‌تعهد.
+  - متادیتا و policy تزریق در اپ ثبت میشوند (`POST /api/v1/tools/accounts`، با 🔏 `account.put` روی sha256 بدنه و `Idempotency-Key`؛ 7.1: site، قاعده‌ی allow یا port تازه کار رمز ذخیره‌شده را گسترش میدهد). policy تزریق یکی از این‌هاست: `bearer`، `header`، `basic` یا `cookie`، به‌علاوه‌ی روش ورود مرورگر و فهرست `allow` مسیرهای بی‌تعهد.
   - **رمز را فقط مالک، در ترمینال خودش، میگذارد:** `make account-secret KEY=<key>`. ورودی بی‌نمایش است و مستقیم در `kv/tools/accounts/<key>` میرود.
   - رمز برای هر فراخوانی یک بار از OpenBao خوانده میشود و از api به gateway و egress میرسد. **در لحظه‌ی خروج** و **فقط برای host خود آن حساب** گذاشته میشود.
-  - رمز در هیچ نتیجه‌ای به مدل نمیرسد: همه‌ی نتیجه‌ها از هر شکل رمز (خام، percent-encoded و base64) پاک میشوند. در اسکرین‌شات هم فیلدهای رمز ماسک میشوند. در لاگ هم نیست.
+  - رمز در هیچ نتیجه‌ای به مدل نمیرسد: همه‌ی نتیجه‌ها از هر شکل رمز (خام، percent-encoded، base64 با و بی padding، و `base64("user:secret")` سربرگ Basic) پاک میشوند، **پیش از** بریدن متن (۷.۱). فایلی که رمز را دارد دور انداخته میشود. در اسکرین‌شات هم فیلدهای رمز ماسک میشوند، و صفحه‌ای که خود رمز را نشان میدهد اسکرین‌شات نمیگیرد (`secret_on_page`). در لاگ هم نیست.
+  - رمز **فقط روی https** گذاشته میشود. پورت‌های policy حساب فقط برای سایت خود حساب باز میشوند، نه برای جایی که redirect میفرستد.
+- **تعهد با GET (۷.۱ §۲.۲۱):** پاسخ Google Form ‏(`formResponse`)، trigger وب‌هوک و اتوماسیون (IFTTT، Zapier، Make، n8n، Pipedream، Slack، Discord) و فراخوانی ارسال bot ‏(`/bot<token>/send…`) هم `needs_owner` میگیرند: در `http.request` و `web.read` (هر hop) و در `goto`، دانلود و هر درخواست مرورگر. «Submit»، «Continue»، «Confirm»، «Share»، «Delete»، «Promote»، «ثبت» و «تایید» هم برچسب تعهدند؛ «ي» و «ك» عربی نرمال میشوند؛ `select`ی که `onchange` آن فرم را میفرستد مثل submit سنجیده میشود.
+- **متن پنهان** (`hidden`، `aria-hidden="true"`، style پنهان‌کننده) از صفحه‌ی خوانده‌شده حذف میشود. هر نتیجه‌ی وب `untrusted: true` دارد، مثل MCP.
+- **`429 egress_limit`** سربرگ `Retry-After` دارد: تا روز بعد مالک وقتی سقف روزانه‌ی شرکت پر است، و ۳۶۰۰ ثانیه برای سقف خود اجرا. هر رزرو ردشده یک ردیف audit ‏(`egress.refused`) هم مینویسد.
+- **هاب با IP خودش هم هاب است:** `hq.sh` آدرس‌های global میزبان و جواب DNS دامنه را در `HQ_HUB_ADDRESSES` میگذارد. `/internal` با آن‌ها هم رد میشود، و هر نامی که به آن‌ها resolve شود هم.
+- **شکاف شبکه (۷.۱ §۲.۱۹، فقط دیده میشود):** `make verify-live` از داخل egress و SearXNG، همسایه‌ها (`10.10.1.1-3`)، metadata و آدرس‌های خود میزبان را با IP روی 80 و 443 میآزماید. محافظ egress همه را برای درخواست ایجنت رد میکند، ولی خود شبکه نه. هر چه جواب دهد یک خط `live: GAP ...` است، نه شکست. بستنش با قانون `DOCKER-USER` مالک است (کار اختیاری مالک). از یک کانتینر موقت روی bridge پیش‌فرض (۲۰۲۶-۱۰-۲۲): هر سه همسایه روی 80 و 443 و metadata روی 80 جواب دادند.
 - **دیدن:**
   - `GET /api/v1/egress` با پارامترهای `company`، `since` و `blocked`.
   - `GET /api/v1/egress/summary` با `period=day`، `week` یا `month`.
@@ -727,12 +772,13 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   | پروفایل | egress | searxng | browser |
   |---|---|---|---|
   | full | 256m | 256m | 896m |
-  | lean | 128m | 160m | 480m، یک نشست |
+  | lean | 256m (۷.۱) | 160m | 480m، یک نشست |
 
   - برای جا شدنشان چند سقف دیگر، از روی مصرف زنده، پایین آمد (عددها در `profiles/*.env`):
     - full: postgres ‏1536←1024، prometheus ‏768←512، loki ‏512←384، tempo ‏384←256، nats ‏256←192. این همان جایی است که گزارش ۶ برای STT نام برده بود.
     - lean: postgres، valkey، nats، temporal، caddy، prometheus، loki، web، temporal-ui، node-exporter، llm-router، api، opa و gateway.
   - نتیجه: full ‏11536 از 11673، lean ‏5872 از 5886.
+  - **egress در lean (۷.۱ §۲.۲۰):** با یک بدنه‌ی ۲۰ مگی و درخت lxml دوباره اندازه گرفته شد (کانتینر موقت سرویس واقعی، `memory.peak` cgroup، یعنی سرویس و childهای parse با هم؛ در lean یک child در هر لحظه، `EGRESS_PARSE_SLOTS=1`): بیکار ۵۵، صفحه‌ی ۲۰ مگی ۱۴۹ (child فقط ۴ MiB اول را parse میکند، `EGRESS_HTML_PARSE_BYTES`)، PDF بمب ۲۰۹، بدنه‌ی ۲۰ مگی http ‏۶۰، browse با ۱۶ MiB فایل ۱۲۲، و بدترین جفت هم‌زمان ۲۳۵ MiB. پس 128m ← 256m. جایش از llm-router ‏(192←128)، worker ‏(256←224) و web ‏(192←160) آمد. بیش از دو فراخوانی سنگین هم‌زمان (۲۵۸) را kernel با کشتن child parse جواب میدهد، نه خود سرویس. در full ‏(256m، دو child): دو صفحه‌ی ۲۰ مگی هم‌زمان ۲۶۱ و دو PDF بمب ۳۸۲ MiB؛ همان‌جا هم child کشته میشود و سرویس میماند (برای نگه داشتن هر دو، 384m یا `EGRESS_PARSE_SLOTS=1` لازم است؛ تصمیم بودجه‌ی full با پرامپت ۷.۱ §۰.۲ است).
   - full+stt حالا 1424 MiB بیشتر از بودجه است.
 
 ## ۲۰. پل MCP و کاتالوگ ابزار (پرامپت ۷ §۳، قرارداد §۱۸.۷)
@@ -747,28 +793,35 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
      - `companies`: `"all"` یا فهرست کد شرکت‌ها
      - `auth_header` (اختیاری)
 
-     ثبت دوباره‌ی همان `key` یک نسخه‌ی تازه است و وضعیتش دوباره `pending` میشود.
+     ثبت دوباره‌ی همان `key` با بدنه‌ی دیگر یک نسخه‌ی تازه است و وضعیتش دوباره `pending` میشود. ثبت دوباره‌ی **همان بدنه** هیچ چیز را عوض نمیکند (سرور روشن، روشن میماند). اگر host عوض شود، رمز قبلی دیگر فرستاده نمیشود (`has_secret: false`) تا مالک دوباره `make mcp-secret` بزند (7.1). URL سرور `http` فقط روی پورت 443 است و نقطه‌ی آخر نام میزبان برداشته میشود.
   2. **رمز سرور، اگر دارد:** مالک خودش در ترمینال میزند `make mcp-secret KEY=<key>` (ورودی بی‌نمایش). رمز در OpenBao در `kv/hq-api/tools/mcp/<key>` میرود. API فقط `has_secret` را نشان میدهد، هیچ‌وقت خود مقدار را.
-  3. **روشن کردن** با `POST /api/v1/tools/mcp/<key>/enable` و 🔏 `mcp.enable` روی `key`.
+     - **کلید JSON چندخطی** (مثل service account گوگل): `make mcp-secret KEY=<key> FILE=<path>`. اسکریپت بررسی میکند که فایل یک شیء JSON است، متن آن را همان‌طور ذخیره میکند و بعد پیشنهاد میدهد فایل پاک شود (`shred -u`). خود اسکریپت چیزی پاک نمیکند.
+  3. **روشن کردن** با `POST /api/v1/tools/mcp/<key>/enable` و 🔏 `mcp.enable` روی `key`. سرور `container` **هنوز اجراشدنی نیست** (شبکه‌ی `hq-mcp` و پل stdio→HTTP ساخته نشده‌اند): جواب `409 not_ready` است و `status_reason` همین را میگوید.
   4. **خاموش کردن** با `POST /api/v1/tools/mcp/<key>/disable`. فوری است و step-up نمیخواهد.
-- **سنجاق فهرست ابزارها:** اولین بار که Gateway بعد از enable سرور را صدا میزند، فهرست ابزارهای آن را با نام، توضیح و schema ورودی ثبت و سنجاق میکند (`listing_sha256`).
-  - اگر بعداً فهرست فرق کند (مثلاً سرور آپدیت شده)، سرور با دلیل `tools changed` **خاموش** میشود و یک اعلان `report` برای مالک میرود. تا ثبت و مُهر دوباره، هیچ ایجنتی از آن استفاده نمیکند.
+
+  هر سه POST `Idempotency-Key` میخواهند. کلید پیش از مصرف step-up گرفته میشود، پس تکرار همان درخواست همان جواب را با `Idempotent-Replay` میدهد.
+- **سنجاق فهرست ابزارها:** اولین بار که Gateway بعد از enable سرور را صدا میزند، فهرست ابزارهای آن را ثبت و سنجاق میکند (`listing_sha256`). فهرست همه‌ی صفحه‌های `tools/list` است، بدون cache، و برای هر ابزار نام، `title`، توضیح، schema ورودی و خروجی و `annotations` را میگیرد؛ هر ابزار digest خودش را هم دارد.
+  - اگر بعداً فهرست فرق کند (مثلاً سرور آپدیت شده)، سرور با دلیل `tools changed` **خاموش** میشود و یک کارت `tool_enable` در کارتابل هلدینگ میآید: `{key, listing_sha256, diff: {added, removed, changed}}`. مُهر این کارت (🔏 `decision.approve` روی ref) سرور را **دقیقاً با همان فهرست** روشن میکند. اگر فهرست پیش از مُهر دوباره عوض شود، کارت کنار میرود (`withdrawn`؛ تأییدش `409 decision_not_pending`) و کارت تازه میآید. ثبت دوباره، enable یا disable مالک هم کارت باز را کنار میگذارد.
+  - اگر Gateway نتواند فهرست تازه را به api بگوید، فراخوانی اجرا نمیشود ولی آن را «فهرست عوض شده» گزارش نمیکند.
   - ابزاری که در ثبت مُهرشده نیست، یا `enabled: false` است، **همیشه** رد میشود.
 - **`mcp.call` در Gateway:** ورودی `{server, tool, args}`.
   1. Gateway از api میپرسد (`POST /internal/v1/tools/mcp/resolve`): آیا سرور روشن است، برای شرکت همین ایجنت است، ابزار مُهر شده است، و سقف‌ها جا دارد. جواب api کلاس مُهرشده‌ی ابزار است.
   2. سیاست `hq.actions` روی **همان کلاس** تصمیم میگیرد. A2 فقط برای `ceo` و `manager` مجاز است (`a2_grants` در `infra/opa/policy/data.json`).
-  3. **ابزار A3 هرگز اجرا نمیشود.** api یک تصمیم `a3_action` میسازد: `action: mcp_call`، `target: <server>/<tool>`، ورودی ماسک‌شده و sha256 آن. هر اجرا با ورودی یکسان فقط یک کارت میسازد. پس از تأیید، طبق قاعده‌ی فعلی `a3_action` یک کار پیگیری برای ایجنت ساخته میشود، ولی خود فراخوانی را هنوز چیزی اجرا نمیکند (Contract notes).
-  4. خروجی سرور برچسب `source: "mcp"` و `untrusted: true` میگیرد و مثل همه‌ی خروجی‌ها ماسک میشود. فقط متن به مدل میرسد؛ عکس یا resource فقط نام میبرد (`omitted`).
+  3. **ابزار A3 بدون کارت تأییدشده اجرا نمیشود.** api یک تصمیم `a3_action` میسازد: `action: mcp_call`، `server`، `tool`، `args` و `preview` (فقط رمزها پوشانده میشوند؛ گیرنده و مبلغ دیده میشوند)، `args_sha256` و `registration_sha256`. تا کارت باز است، همان فراخوانی همان کارت را میگیرد.
+     - **تأیید = دقیقاً یک اجرا (7.1):** کار پیگیری ساخته میشود؛ اولین فراخوانی یکسان (همان شرکت، سرور، ابزار، `args_sha256` و ثبت)، از هر run، تا ۲۴ ساعت بعد از مُهر، کارت را به‌صورت اتمی مصرف میکند (یک ردیف `approved` در `tools.mcp_calls` با `decision_id` یکتا) و اجرا میشود. `hq.actions` آن را با `approved_decision` میپذیرد؛ قفل شرکت همچنان جلویش را میگیرد. فراخوانی بعدی کارت تازه میخواهد.
+     - کارت ردشده (یا برگشت‌خورده) در ۲۴ ساعت بعد ← `denied` (`policy_denied`)، بدون کارت تازه.
+  4. خروجی سرور برچسب `source: "mcp"`، `untrusted: true` و `suspected_injection` (همان الگوهای وب) میگیرد و مثل همه‌ی خروجی‌ها ماسک میشود. فقط متن به مدل میرسد؛ عکس یا resource فقط نام میبرد (`omitted`).
   5. هر فراخوانی یک ردیف Audit دارد (`mcp.call`، کلاس واقعی، `ref: mcp:<server>/<tool>`) و یک ردیف `tools.mcp_calls`.
 - **سقف‌ها:**
   - `HQ_MCP_CALLS_PER_RUN`، پیش‌فرض ۲۰
   - `HQ_MCP_CALLS_PER_COMPANY_DAY`، پیش‌فرض ۳۰۰ در هر روز مالک
 
-  عبور از سقف ← `429 rate_limited`. ترافیک `http` از سقف‌های egress هم رد میشود.
+  عبور از سقف ← `429 rate_limited` با `Retry-After`. شمارش برای هر شرکت قفل میشود (دو فراخوانی هم‌زمان از آخرین جا رد نمیشوند) و A3 هم سقف دارد.
+  - **سرور `http` پیش از هر اتصال از `egress/reserve` رد میشود** (ابزار `mcp.call`، host سرور و همه‌ی رشته‌های args): کد کارمند یا داده‌ی داخلی ← `internal_data` بدون CONNECT؛ سقف egress تمام‌شده ← `egress_limit`. entryهای پراکسی همان رزرو را تسویه میکنند.
 - **transport:**
   - **`http`:** فقط URL با https و نام میزبان عمومی؛ نه IP، نه نام داخلی، نه `hq.coinepro.com`، و بدون اعتبار داخل URL. Gateway آن را **فقط از پراکسی egress** میزند (`EGRESS_PROXY_URL` در env سرویس gateway). محافظ SSRF همان‌جا IP نهایی را چک میکند. بدون پراکسی، جواب `channel_not_configured` است و هرگز اتصال مستقیم برقرار نمیشود.
   - **`container`:** آدرس `http://mcp-<name>:<port>/...`. یک سرویس compose جدا روی شبکه‌ی internal ‏`hq-mcp`، که فقط با gateway مشترک است. سرورهای stdio پشت یک پل stdio→HTTP بازبینی‌شده اجرا میشوند. هیچ‌جا docker socket نیست.
-  - این سرویس و شبکه **وقتی مالک اولین سرور container را مُهر کند** اضافه میشوند (با قاعده‌های `compose-rules`). الان هیچ‌کدام وجود ندارد.
+  - این سرویس و شبکه **وقتی مالک اولین سرور container را مُهر کند** اضافه میشوند (با قاعده‌های `compose-rules`). الان هیچ‌کدام وجود ندارد: سرور `container` ثبت میشود ولی **هنوز اجراشدنی نیست** (enable ← `409 not_ready`؛ در کاتالوگ `channel_not_configured` با «هنوز اجراشدنی نیست»).
 - **سرورهای پیشنهادی** (`apps/api/seed/mcp_proposals.yaml`؛ فقط پیشنهاد، هیچ‌کدام ثبت نشده):
 
   | key | سرور | ابزارها |
@@ -789,4 +842,4 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   فهرست ابزارهای ساخته‌شده‌ی Gateway در `hq_common.tool_status` است. تست Gateway آن را با جدول خودش یکی نگه میدارد.
 - **`files.read`** (`agents/tools.md` v2): `variant` اختیاری است: `original`، `thumb` یا `poster`.
   - عکس: نسخه‌ی `agent` آن (≤ ۱۵۶۸ پیکسل، بدون EXIF) به مدل میرسد.
-  - PDF: متنش هنگام آپلود با pypdf 6.19.0 (BSD-3) استخراج میشود؛ تا ۲۰۰ صفحه، ۲۰۰ هزار نویسه و ۳۰ ثانیه. متن در `files.processing.text` میماند و در meta ایجنت ماسک‌شده برمیگردد. PDF اسکن‌شده، رمزدار یا خراب متن ندارد و آپلودش هم شکست نمیخورد.
+  - PDF: متنش هنگام آپلود با pypdf 6.21.1 (BSD-3) استخراج میشود؛ تا ۲۰۰ صفحه، ۲۰۰ هزار نویسه و ۳۰ ثانیه. متن در `files.processing.text` میماند و در meta ایجنت ماسک‌شده برمیگردد. PDF اسکن‌شده، رمزدار یا خراب متن ندارد و آپلودش هم شکست نمیخورد.

@@ -66,10 +66,14 @@ services:
           memory: ${MEM_HQ_TOOLS:?}
 
   backup-tools:
-    # The one-shot backup image (restic + rclone, prompt 07 §1): built and
-    # counted in the memory budget here; infra/backup/hourly.sh runs it with
+    # The one-shot backup image (restic + rclone, prompt 07 §1), defined here
+    # for its build and its limit; infra/backup/hourly.sh runs it with
     # `docker run` and this limit (and a network only when a remote is set).
+    # Its own profile (7.1 §3): no service depends on it, so `up --wait`
+    # never starts it (`make up` builds and checks it); the quality gates
+    # always count it in the memory budget (scripts/quality/lib.sh).
     <<: *job
+    profiles: [backup-tools]
     image: coinepro-hq/backup:0.1.0
     build: ../backup
     network_mode: none
@@ -613,11 +617,6 @@ services:
         condition: service_healthy
       temporal-namespace:
         condition: service_completed_successfully
-      # The backup image is built and checked (`restic version`) with the
-      # stack; the worker ingests its status. A one-shot needs a dependant,
-      # or `up --wait` counts its exit as a failure.
-      backup-tools:
-        condition: service_completed_successfully
     command: ["python", "-m", "hq_api.worker"]
     environment:
       <<: *api-env
@@ -726,7 +725,11 @@ services:
       EGRESS_SEARXNG_URL: http://searxng:8080
       EGRESS_BROWSER_URL: http://browser:8095
       EGRESS_BROWSER_PROXY_URL: http://egress:3128
-      EGRESS_HUB_HOSTS: ${HQ_WEBAUTHN_RP_ID:-hq.coinepro.com}
+      # The hub's name and its own addresses (hq.sh: the host's global
+      # addresses and what the domain resolves to; prompt 7.1).
+      EGRESS_HUB_HOSTS: ${HQ_WEBAUTHN_RP_ID:-hq.coinepro.com},${HQ_HUB_ADDRESSES:-}
+      # Parse children at once (each up to 192 MiB, inside MEM_EGRESS).
+      EGRESS_PARSE_SLOTS: ${EGRESS_PARSE_SLOTS:-2}
       # The fixed subnets below: the gateway's network and the browser's.
       EGRESS_API_CLIENTS: 172.30.8.0/24
       EGRESS_GATEWAY_PROXY_CLIENTS: 172.30.8.0/24
@@ -779,9 +782,13 @@ services:
   browser:
     # Headless Chromium (Playwright) for web.browse (prompt 07 §2.1): a fresh
     # context per call, at most BROWSER_MAX_SESSIONS at a time; hq-browser is
-    # internal, so its only way out is egress's proxy. --no-sandbox inside a
-    # cap_drop ALL, read-only, non-root container: no capability is added for
-    # Chromium's own sandbox (the container is the sandbox).
+    # internal, so its only way out is egress's proxy. Chromium's own sandbox
+    # is ON (prompt 7.1): non-root, read-only, every capability dropped, and
+    # Playwright's seccomp profile (infra/browser/seccomp_profile.json,
+    # microsoft/playwright v1.63.0 utils/docker, sha256 cc3e61ca...7849), which
+    # lets Chromium create its user namespaces. SYS_CHROOT is added to the
+    # bounding set only so that the profile allows chroot inside them: uid
+    # 10001 never holds it, and no-new-privileges stays on.
     <<: *service
     image: coinepro-hq/browser:0.1.0
     build:
@@ -790,11 +797,15 @@ services:
     networks: [hq-browser]
     environment:
       BROWSER_MAX_SESSIONS: ${BROWSER_MAX_SESSIONS:-2}
+      BROWSER_SANDBOX: "1"
+      BROWSER_JS_HEAP_MB: ${BROWSER_JS_HEAP_MB:-192}
     user: "10001:10001"
     read_only: true
     # Chromium's profile, cache and downloads (counted inside the memory limit).
     tmpfs: ["/tmp:size=${BROWSER_TMPFS:-192m},mode=1777"]
+    security_opt: ["no-new-privileges:true", "seccomp=../browser/seccomp_profile.json"]
     cap_drop: [ALL]
+    cap_add: [SYS_CHROOT]
     healthcheck:
       test: ["CMD", "python3", "-m", "hq_common.heartbeat"]
       interval: 15s
@@ -902,6 +913,10 @@ services:
       - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ../observability/prometheus/scrape:/etc/prometheus/scrape:ro
       - ../observability/prometheus/scrape-profile/${HQ_PROFILE:?use hq.sh}:/etc/prometheus/scrape-profile:ro
+      # Tempo's and the collector's jobs only while tracing is on (hq.sh).
+      - ../observability/prometheus/scrape-tracing/${HQ_TRACING_SCRAPE:-off}:/etc/prometheus/scrape-tracing:ro
+      # Alert rules (7.1 §2.4: the backup's dead-man's switch, independent of the worker).
+      - ../observability/prometheus/rules:/etc/prometheus/rules:ro
       # Bearer token for the llm-router / claude-runtime /metrics endpoints.
       - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/prometheus:/etc/prometheus/secrets:ro
       - prometheus-data:/prometheus
@@ -1045,10 +1060,12 @@ services:
         limits:
           memory: ${MEM_NODE_EXPORTER:?}
 
-  # -------------------------------------------------- full profile only --
+  # ------------------------------- opt-in profile "tracing" (review 7.1) --
+  # Tempo and the collector are off by default (no service sends traces yet);
+  # `make tracing-on` switches them on (HQ_TRACING=on), in either profile.
   tempo:
     <<: *service
-    profiles: [full]
+    profiles: [tracing]
     image: grafana/tempo:3.1.0
     depends_on:
       hq-tools:
@@ -1073,7 +1090,7 @@ services:
 
   otel-collector:
     <<: *service
-    profiles: [full]
+    profiles: [tracing]
     image: otel/opentelemetry-collector-contrib:0.162.0
     depends_on:
       hq-tools:

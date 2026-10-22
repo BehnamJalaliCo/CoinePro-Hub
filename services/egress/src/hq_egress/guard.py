@@ -8,9 +8,12 @@ Blocked: loopback, link-local (and so the cloud metadata address
 169.254.169.254), RFC 1918 (the hub's private network 10.10.1.0/24 and its
 production neighbours among them), CGNAT, IPv6 private/ULA/link-local, IPv4
 embedded in IPv6 (mapped, 6to4, Teredo, NAT64) when the embedded address is
-not public, every other non-global range; single-label and internal names
-(Docker's service names); the hub's own /internal; ports other than 80 and
-443 unless a service account's policy lists the port for its own host.
+not public (and IPv4-compatible `::a.b.c.d` and the local-use NAT64 prefix
+64:ff9b:1::/48 always), every other non-global range; single-label and
+internal names (Docker's service names); the hub's own /internal, by its
+name, by its own public addresses (`hub_hosts` holds both, 7.1), and a name
+that resolves to one of them; ports other than 80 and 443 unless a service
+account's policy lists the port, for that account's own site only.
 """
 
 from __future__ import annotations
@@ -45,6 +48,11 @@ INTERNAL_SUFFIXES = (
 METADATA = ipaddress.ip_address("169.254.169.254")
 CGNAT = ipaddress.ip_network("100.64.0.0/10")
 NAT64 = ipaddress.ip_network("64:ff9b::/96")
+# RFC 8215 local-use NAT64: where the IPv4 address sits is the operator's choice.
+NAT64_LOCAL = ipaddress.ip_network("64:ff9b:1::/48")
+# Deprecated IPv4-compatible addresses (::a.b.c.d), beyond :: and ::1.
+V4_COMPAT = ipaddress.ip_network("::/96")
+Ports = Callable[[str], Iterable[int]]
 
 
 class Blocked(Exception):
@@ -60,9 +68,18 @@ class Blocked(Exception):
 def classify(ip: IP) -> str | None:
     """None for a public address; else why it is blocked."""
     if isinstance(ip, ipaddress.IPv6Address):
+        if ip in NAT64_LOCAL:
+            return "reserved_address"
+        if ip in V4_COMPAT and int(ip) > 1:  # ::a.b.c.d (never routed as such)
+            inner = classify(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+            return f"embedded_{inner}" if inner else "reserved_address"
+        if ip.teredo:  # both the server and the (obfuscated) client must be public
+            for part in ip.teredo:
+                inner = classify(part)
+                if inner:
+                    return f"embedded_{inner}"
+            return None
         embedded = ip.ipv4_mapped or (ip.sixtofour if ip.sixtofour else None)
-        if embedded is None and ip.teredo:
-            embedded = ip.teredo[1]
         if embedded is None and ip in NAT64:
             embedded = ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
         if embedded is not None:
@@ -104,20 +121,30 @@ class Target:
 
 @dataclass
 class Guard:
-    """`hub_hosts`: the hub's own names (its /internal is never reachable; the
-    browser may not open them at all). `allow`: test-only exceptions (never set
-    from the environment)."""
+    """`hub_hosts`: the hub's own names and public addresses (its /internal is
+    never reachable; the browser may not open them at all; a name that
+    resolves to one of the addresses is the hub too). `allow` and
+    `extra_ports`: test-only exceptions (never set from the environment)."""
 
     hub_hosts: frozenset[str] = frozenset()
     resolver: Resolver = system_resolver
     allow: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = ()
     extra_ports: dict[str, frozenset[int]] = field(default_factory=dict)
+    hub_ips: frozenset[IP] = field(init=False, default=frozenset())
+
+    def __post_init__(self) -> None:
+        names = {h.strip().lower().rstrip(".") for h in self.hub_hosts if h.strip()}
+        ips = {lit for h in names if (lit := _literal(h)) is not None}
+        self.hub_ips = frozenset(ips)
+        self.hub_hosts = frozenset(names | {str(ip) for ip in ips})
 
     def ports_for(self, host: str, extra: Iterable[int] = ()) -> frozenset[int]:
         return DEFAULT_PORTS | self.extra_ports.get(host, frozenset()) | frozenset(extra)
 
-    def target(self, url: str, *, extra_ports: Iterable[int] = ()) -> Target:
-        """Scheme, name, port and path rules of one URL (no DNS yet)."""
+    def target(self, url: str, *, extra_ports: Ports | None = None) -> Target:
+        """Scheme, name, port and path rules of one URL (no DNS yet).
+        `extra_ports(host)`: a service account's ports for that host (its own
+        site's only, Account.ports_for)."""
         try:
             parts = urlsplit(url)
             port = parts.port
@@ -132,14 +159,18 @@ class Guard:
         port = port or (443 if scheme == "https" else 80)
         t = Target(scheme, host, port, parts.path or "/")
         self.check_name(t.host)
-        if port not in self.ports_for(host, extra_ports):
+        if port not in self.ports_for(host, extra_ports(host) if extra_ports else ()):
             raise Blocked("port_not_allowed", str(port))
         if self.is_hub(host) and _internal_path(t.path):
             raise Blocked("hub_internal")
         return t
 
     def is_hub(self, host: str) -> bool:
-        return host in self.hub_hosts
+        host = host.lower().rstrip(".")
+        if host in self.hub_hosts:
+            return True
+        literal = _literal(host)
+        return literal is not None and literal in self.hub_ips
 
     def check_name(self, host: str) -> None:
         literal = _literal(host)
@@ -171,6 +202,10 @@ class Guard:
             reason = classify(ip)
             if reason and not self._allowed(ip):
                 raise Blocked(reason, host)
+            # Another name for the hub's own address: its paths were not
+            # checked as the hub's (the hub's own names were, in target()).
+            if ip in self.hub_ips and not self.is_hub(host):
+                raise Blocked("hub_internal", host)
         return found
 
     def _allowed(self, ip: IP) -> bool:

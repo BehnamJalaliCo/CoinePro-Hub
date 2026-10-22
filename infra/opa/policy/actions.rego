@@ -2,7 +2,9 @@
 #   owner:   everything, A0..A4, never locked out
 #   agent:   own company only; A0 and A1; A2 when the role's grant table (data
 #            hq.config.a2_grants) lists the action, or inside its escrow; A3
-#            only through a decision; A4 never
+#            only through a decision: the one call an approved card allows
+#            (context.approved_decision, the card the api consumed for it:
+#            an MCP tool sealed A3, 7.1 §2.10); A4 never
 #   service: A0..A2; A3 and A4 never
 #   company_locked (kill switch or deploy freeze): every non-owner action >= A1,
 #   except an agent's 🔴 incident notification (context.incident; hq.internal
@@ -28,6 +30,13 @@ company := object.get(action, "company", null)
 name := object.get(action, "name", "")
 
 escrow := object.get(ctx, "escrow_classes", [])
+
+# The approved decision card this one A3 call carries out (its ref), if any.
+approved_decision if {
+	ref := object.get(ctx, "approved_decision", "")
+	is_string(ref)
+	regex.match(`^D-[0-9]{6,}$`, ref)
+}
 
 # Internal A2 actions each role may take without an escrow (data, not code).
 role_a2 := object.get(object.get(data.hq.config, "a2_grants", {}), p.role, [])
@@ -79,6 +88,12 @@ grant if {
 }
 
 grant if {
+	p.kind == "agent"
+	class == "A3"
+	approved_decision
+}
+
+grant if {
 	p.kind == "service"
 	class in {"A0", "A1", "A2"}
 }
@@ -95,6 +110,7 @@ deny_reasons contains "a4_forbidden_for_ai" if {
 deny_reasons contains "a3_requires_decision" if {
 	class == "A3"
 	p.kind == "agent"
+	not approved_decision
 }
 
 deny_reasons contains "a3_not_for_services" if {

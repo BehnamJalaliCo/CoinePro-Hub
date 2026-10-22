@@ -18,6 +18,7 @@ may be, and the image work done at upload. No model is involved anywhere.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import io
 import json
 import logging
@@ -133,19 +134,47 @@ def check_type(content_type: str | None, head: bytes) -> tuple[str, Kind] | str:
     return mime, kind
 
 
+# ffmpeg and ffprobe read untrusted bytes (06.1 §2): only a local file, given as
+# `file:<path>` (a name never selects a protocol), and only these demuxers,
+# whatever the bytes claim to be (an ID3 tag in front of an ffconcat script
+# would otherwise open the concat demuxer, which reads other files).
+FORMATS = "mov,mp4,matroska,webm,ogg,mp3,aac,wav"
+FF_THREADS = "2"  # each of the api's and the worker's ffmpeg runs: two threads at most
+PROBE_LIMIT_S = 30.0
+
+
+def ff_input(path: str | Path) -> list[str]:
+    """The input options every ffmpeg/ffprobe call here uses for one file."""
+    return ["-protocol_whitelist", "file", "-format_whitelist", FORMATS, "-i", f"file:{path}"]
+
+
+async def run_tool(*argv: str, limit_s: float) -> tuple[int, bytes, bytes]:
+    """A media tool with a time limit; killed on the timeout and when the
+    caller is cancelled (an activity stopped, a request gone), never left running."""
+    proc = await asyncio.create_subprocess_exec(
+        *argv,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        out, err = await asyncio.wait_for(proc.communicate(), limit_s)
+    except BaseException:
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+        with contextlib.suppress(BaseException):
+            await asyncio.wait_for(proc.wait(), 5)
+        raise
+    return proc.returncode or 0, out, err
+
+
 async def probe(path: str) -> dict[str, Any]:
     """ffprobe: duration (s), width, height and whether there is sound."""
-    proc = await asyncio.create_subprocess_exec(
-        "ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", path,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.DEVNULL,
+    code, out, _ = await run_tool(
+        "ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams",
+        *ff_input(path), limit_s=PROBE_LIMIT_S,
     )  # fmt: skip
-    try:
-        out, _ = await asyncio.wait_for(proc.communicate(), 30)
-    except TimeoutError:
-        proc.kill()
-        raise
-    if proc.returncode != 0:
+    if code != 0:
         raise ValueError("ffprobe could not read the file")
     data = json.loads(out or b"{}")
     streams = data.get("streams") or []
@@ -224,15 +253,30 @@ def clean_image_job(src: str, mime: str, original: str, agent: str, thumb: str) 
     scale = min(1.0, AGENT_PX / max(img.size))
     # A JPEG decodes at 1/2 to 1/8 of its size when that is still >= the variant.
     img.draft(None, (max(1, int(img.width * scale)), max(1, int(img.height * scale))))
+    icc = img.info.get("icc_profile")
     img.thumbnail((AGENT_PX, AGENT_PX), reducing_gap=None)  # decodes here
     ImageOps.exif_transpose(img, in_place=True)
     img.info = {}
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
-    img.save(agent, format="JPEG", quality=85)
+    # The colour profile (a P3 photo's) stays with the variants too (06.1 §3),
+    # when it describes the pixels saved: RGB for RGB, grey for L.
+    keep = icc_for(icc, img.mode)
+    img.save(agent, format="JPEG", quality=85, **keep)
     img.thumbnail((THUMB_PX, THUMB_PX))
-    img.save(thumb, format="WEBP", quality=80)
+    img.save(thumb, format="WEBP", quality=80, **keep)
     return {"width": width, "height": height}
+
+
+MAX_ICC_BYTES = 1024 * 1024
+_ICC_SPACE = {"RGB": b"RGB ", "L": b"GRAY"}
+
+
+def icc_for(icc: Any, mode: str) -> dict[str, bytes]:
+    """{"icc_profile": ...} for Image.save when the profile fits the mode."""
+    if not isinstance(icc, bytes) or not 128 <= len(icc) <= MAX_ICC_BYTES:
+        return {}
+    return {"icc_profile": icc} if icc[16:20] == _ICC_SPACE.get(mode) else {}
 
 
 async def clean_image(src: Path, mime: str, scratch: Callable[[], Path]) -> Image:

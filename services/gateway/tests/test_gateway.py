@@ -1011,7 +1011,7 @@ async def test_files_read_shows_a_file_and_the_pictures_to_attach(mock: respx.Mo
                 "status": "ready",
                 "duration_s": 31.5,
                 "variants": {"poster": frames[0]},
-                "frames": frames,
+                "frames": [{"id": f, "at_s": 2.5 * i} for i, f in enumerate(frames)],
                 "transcript": f"شماره‌ی من {secret_phone} است",
             },
         )
@@ -1022,6 +1022,7 @@ async def test_files_read_shows_a_file_and_the_pictures_to_attach(mock: respx.Mo
     assert "name" not in r and "sha256" not in r  # no file name or hash for the model
     assert secret_phone not in json.dumps(r, ensure_ascii=False)  # the transcript is masked
     assert r["view"] == {"variant": "original", "image_file_ids": frames[:13]}
+    assert r["frames_at_s"] == [2.5 * i for i in range(13)]  # where each one is (s)
     assert s.records[-1]["tool"] == "files.read" and s.records[-1]["outcome"] == "ok"
     # An image: its agent copy (<= 1568 px, no EXIF; the original is never
     # loaded); still processing: nothing yet; no frames: the poster; a PDF: its text.

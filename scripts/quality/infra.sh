@@ -12,6 +12,7 @@
 #   reanchor    audit-reanchor.sh needs a terminal, even with HQ_REANCHOR_CONFIRM
 #   owner-only  make gdrive-auth, backup-password and openbao-snapshot-token
 #               refuse without a terminal before touching anything (prompt 07)
+#   mcp-secret  a JSON key file is stored as it is; not-JSON never reaches KV
 #   canary      hq.sh derives HQ_CANARY from the sites seed
 #   caddy       /__canary: 404 off, 503 on; the web never sees
 #               X-Middleware-Subrequest; web request bodies are capped
@@ -160,6 +161,38 @@ for script in infra/backup/gdrive-auth.sh infra/backup/show-password.sh infra/op
   fi
 done
 
+# ------------------------------------------------------------ mcp-secret ----
+# make mcp-secret FILE= (7.1 §2.15): a JSON key file is stored exactly as it
+# is; a file that is not a JSON object is refused before OpenBao is written.
+# A pty (script) stands in for the owner's terminal; the dev OpenBao above.
+MS="$T/mcp-secrets"
+mkdir -p "$MS" && chmod 700 "$MS"
+(umask 077 && jq -r .root_token "$S/openbao-init.json" >"$MS/openbao-admin.token")
+bao_h="$T/bao.header"
+(umask 077 && printf 'X-Vault-Token: %s\n' "$(cat "$MS/openbao-admin.token")" >"$bao_h")
+curl -s -o /dev/null -H @"$bao_h" -d '{"type":"kv","options":{"version":"2"}}' "$bao/v1/sys/mounts/kv" || true
+printf '{\n  "type": "service_account",\n  "client_email": "x@y.iam.example"\n}\n' >"$T/sa.json"
+printf '{"type": "service_account",\n' >"$T/not-json.json"
+mcp_secret() {
+  HQ_SECRETS_DIR="$MS" HQ_BAO_ADDR="$bao" script -qec \
+    "$(printf '%q ' "$REPO_DIR/infra/openbao/mcp-secret.sh" "$1" "$2")" /dev/null </dev/null >"$T/mcp.out" 2>&1
+}
+mcp_stored() { curl -s -H @"$bao_h" "$bao/v1/kv/data/hq-api/tools/mcp/$1"; }
+if ! mcp_secret mcp-gate "$T/sa.json"; then
+  fail "mcp-secret: a JSON key file was refused ($(tail -n1 "$T/mcp.out"))"
+elif ! mcp_stored mcp-gate | jq -e --rawfile f "$T/sa.json" '.data.data.token == $f' >/dev/null; then
+  fail "mcp-secret: the JSON key file was not stored as it is"
+elif ! grep -q 'Delete it' "$T/mcp.out"; then
+  fail "mcp-secret: no advice to delete the key file"
+elif mcp_secret mcp-gate-bad "$T/not-json.json"; then
+  fail "mcp-secret: a file that is not JSON was stored"
+elif [[ "$(mcp_stored mcp-gate-bad | jq -r '.data.data.token // "none"')" != none ]]; then
+  fail "mcp-secret: a refused file still reached OpenBao"
+else
+  pass "mcp-secret: a JSON key file is stored as it is (then: delete it); not-JSON is refused"
+fi
+rm -f "$bao_h"
+
 # ---------------------------------------------------------------- canary ----
 seed_on="$T/sites-on.yaml"
 sed 's/canary: true, enabled: false/canary: true/' "$REPO_DIR/apps/api/seed/sites.yaml" >"$seed_on"
@@ -233,7 +266,7 @@ fi
 over_budget() { # over_budget PROFILE -> 0 if PROFILE + stt is over 80% of its reference
   local ref sum
   ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$REPO_DIR/infra/compose/profiles/$1.env")"
-  sum="$(HQ_PROFILE="$1" HQ_STT=off "$HQ" --profile stt config --format json |
+  sum="$(HQ_PROFILE="$1" HQ_STT=off "$HQ" --profile stt --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   ((sum > ref * 80 / 100))
 }
@@ -271,6 +304,22 @@ if [[ -n "$off_url" ]]; then
   fail "stt: STT_URL is '$off_url' while stt is off"
 else
   pass "stt: STT_URL empty while stt is off"
+fi
+
+# ---------------------------------------------- tracing (review 7.1 §0.2) --
+# Tempo and the collector are an opt-in profile: off by default (not rendered,
+# Prometheus mounts the empty scrape dir), on with HQ_TRACING=on.
+off_services="$(HQ_PROFILE=full HQ_TRACING=off "$HQ" config --services)"
+on_json="$(HQ_PROFILE=full HQ_TRACING=on "$HQ" config --format json)"
+off_scrape="$(HQ_PROFILE=full HQ_TRACING=off "$HQ" config --format json |
+  jq -r '.services.prometheus.volumes[] | select(.target == "/etc/prometheus/scrape-tracing") | .source')"
+if grep -qxE 'tempo|otel-collector' <<<"$off_services" || [[ "$off_scrape" != */scrape-tracing/off ]]; then
+  fail "tracing: on by default (services or the scrape dir $off_scrape)"
+elif [[ "$(jq -r '.services | has("tempo") and has("otel-collector")' <<<"$on_json")" != true ]] ||
+  [[ "$(jq -r '.services.prometheus.volumes[] | select(.target == "/etc/prometheus/scrape-tracing") | .source' <<<"$on_json")" != */scrape-tracing/on ]]; then
+  fail "tracing: HQ_TRACING=on does not start Tempo and the collector, or Prometheus does not scrape them"
+else
+  pass "tracing: off by default; HQ_TRACING=on adds Tempo, the collector and their scrape jobs"
 fi
 
 exit "$failed"

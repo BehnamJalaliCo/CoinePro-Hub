@@ -12,6 +12,10 @@ agent reads is masked first (hq_common.redact).
 kinds: work -> the owner's new-order path (the CEO, or a manager directly:
 the shortcut, depth 1); code -> the workshop; question -> the advisor;
 meeting -> a work item for the company's CEO (until the meeting room exists).
+A role named outright beats a question word (06.1 §2): «به مدیر فنی FX بگو
+چطور ...» goes to FX-TECH-MGR, not to the advisor. A work item an order makes
+is due on a day (the words of seed rules `due`, else `due.default_days`), so
+it is in the owner's planner.
 """
 
 from __future__ import annotations
@@ -195,6 +199,26 @@ def roles_named(norm: str) -> list[str]:
     return [r for _, r in hits]
 
 
+def is_title(phrase: str) -> bool:
+    """A role word that names a person outright (مدیر فنی، مدیرعامل، CTO), not
+    a topic the order is about (فروش، فنی)."""
+    p = normalise(phrase)
+    return "مدیر" in p or (p.isascii() and p.isalpha())
+
+
+def roles_addressed(norm: str) -> list[str]:
+    """The roles named by a title (is_title), longest phrase first."""
+    hits: list[tuple[int, str]] = []
+    for role, words in (rules().get("roles") or {}).items():
+        best = max(
+            (len(normalise(w)) for w in words or [] if is_title(w) and has(norm, w)), default=0
+        )
+        if best:
+            hits.append((best, str(role)))
+    hits.sort(reverse=True)
+    return [r for _, r in hits]
+
+
 def by_rules(text: str, d: dict[str, Any], hint: str | None) -> list[Route] | None:
     """Routes the rules are sure of, or None (ambiguous: the model next)."""
     norm = normalise(text)
@@ -204,8 +228,14 @@ def by_rules(text: str, d: dict[str, Any], hint: str | None) -> list[Route] | No
     if not named and hint in d["companies"]:
         named = [str(hint)]
     adv = d.get("advisor")
+    role = roles[0] if roles else None
+    # A role of one named company, named by its title, is who receives it, even
+    # when the order is phrased as a question ("ask the CTO of FX how ...").
+    titled = roles_addressed(norm)
+    if kind == "question" and len(named) == 1 and titled and titled[0] != "advisor":
+        kind, role = "work", titled[0]
     # Questions, and whatever is said to the advisor, go to the advisor's thread.
-    if (kind == "question" or roles[:1] == ["advisor"]) and adv:
+    if (kind == "question" or role == "advisor") and adv:
         company = named[0] if len(named) == 1 else adv["company"]
         return [Route(company, adv["code"], "question")]
     if len(named) != 1:
@@ -218,7 +248,6 @@ def by_rules(text: str, d: dict[str, Any], hint: str | None) -> list[Route] | No
         return [Route(co["code"], ws, "code", workspace=ws)]
     if kind == "meeting":
         return [Route(co["code"], co["ceo"], "meeting")] if co["ceo"] else None
-    role = roles[0] if roles else None
     if role in (None, "ceo"):
         # A company named and nobody in it: its CEO receives it (the default path).
         return [Route(co["code"], co["ceo"], "work")] if co["ceo"] else None
@@ -289,6 +318,28 @@ def check_model(out: Any, d: dict[str, Any]) -> list[Route]:
             dept = next(k for k, v in co["managers"].items() if v == to)
             routes.append(Route(co["code"], to, kind, summary, department=dept))
     return routes
+
+
+def rule_confirms_code(text: str) -> bool:
+    """A code route the light model found opens or steers a session on its own
+    only when the rules agree it is code work (a code word of seed rules
+    `kinds.code`) (06.1 §3); else it waits for the owner's seal."""
+    return kind_of(normalise(text), text) == "code"
+
+
+def due_days(text: str) -> int:
+    """In how many days a work item of this order is due: the longest due
+    word of the rules found in the text, else the default."""
+    due = rules().get("due") or {}
+    norm = normalise(text)
+    hits = [
+        (len(normalise(str(w))), int(n))
+        for w, n in (due.get("words") or {}).items()
+        if has(norm, str(w))
+    ]
+    if hits:
+        return max(hits)[1]
+    return int(due.get("default_days", 3))
 
 
 def summary_of(text: str, routes: list[Route]) -> str:

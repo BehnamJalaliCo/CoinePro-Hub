@@ -188,6 +188,9 @@ async def _reserve(
     if r.outcome != "ok":
         if r.code == "needs_owner":
             r.hint_fa = r.hint_fa or NEEDS_OWNER_FA
+        retry = resp.headers.get("retry-after", "")
+        if resp.status_code == 429 and retry.isdigit():  # egress_limit: when it could go (7.1)
+            r.data = {"retry_after_s": int(retry)}
         return None, r
     if not isinstance(r.data, dict):
         return None, T.Result("error", code="api_bad_answer")

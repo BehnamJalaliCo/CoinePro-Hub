@@ -11,3 +11,7 @@ ExecStart=/home/Hub/CoinePro-Hub/infra/backup/hourly.sh
 TimeoutStartSec=50min
 Nice=10
 IOSchedulingClass=idle
+# The run's secrets live here only (tmpfs under /run, 0700, Hub's); systemd
+# removes the directory when the run ends, however it ends (7.1 §3).
+RuntimeDirectory=coinepro-hq-backup-hourly
+RuntimeDirectoryMode=0700
