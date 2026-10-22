@@ -1,6 +1,7 @@
 // Development-only fixtures for contract v1.4 (§18), used by mock.ts. Never bundled in production (next.config aliases the
 // fixtures module away). The Android debug build reads the same data through scripts/dump_demo_fixtures.mjs.
 
+import { brandOf } from './mock-brand';
 import { DEMO_PROTOCOLS } from './mock-protocols';
 
 const now = Date.now();
@@ -275,6 +276,8 @@ const foundings: any[] = [
     audit: null, proposal: { departments: ['TECH', 'GROWTH', 'PRODUCT', 'SALES'], kpis: [{ name_fa: 'دانشجوی فعال', target: '300 در 90 روز' }], team: [{ role: 'ceo', model: 'claude-sonnet-5-5', monthly_usd: 18 }, { role: 'cto', model: 'claude-sonnet-5-5', monthly_usd: 20 }], roadmap_md: '', monthly_usd: 38 },
     decision_ref: 'D-000023', plan: 'PV-0001', company: 'AC', created_at: iso(60 * 30), updated_at: iso(60 * 3) },
 ].map((f, i) => ({ id: `fo${i}`, ...f }));
+/** ⟨1.4.6⟩ the step «مُهر شرکت»: the brand of the founding's company, as it is now. */
+const withBrand = (f: any) => ({ ...f, brand: brandOf(f.company) });
 
 // -------------------------------------------------------------- backups --
 const backups = {
@@ -344,8 +347,8 @@ export async function handle14(req: Request, p: string, u: URL): Promise<Respons
     if (p === '/tools/mcp') return json(mcp);
     if (p === '/tools/accounts') return json(accounts);
     if (p === '/tools/catalog') return json(catalog);
-    if (p === '/foundings') return json(page(foundings));
-    const fo = /^\/foundings\/(C-\d+)$/.exec(p); if (fo) return json(foundings.find((f) => f.ref === fo[1]) ?? {}, foundings.some((f) => f.ref === fo[1]) ? 200 : 404);
+    if (p === '/foundings') return json(page(foundings.map(withBrand)));
+    const fo = /^\/foundings\/(C-\d+)$/.exec(p); if (fo) { const f = foundings.find((x) => x.ref === fo[1]); return json(f ? withBrand(f) : {}, f ? 200 : 404); }
     const pl = /^\/provisioning\/plans\/(PV-\d+)$/.exec(p); if (pl) return json(plans[pl[1]!] ?? {}, plans[pl[1]!] ? 200 : 404);
     const rn = /^\/provisioning\/runs\/([^/]+)$/.exec(p);
     if (rn) {
@@ -411,10 +414,17 @@ export async function handle14(req: Request, p: string, u: URL): Promise<Respons
     const b = await body<{ source: { kind: 'repo' | 'idea'; repo: string | null; brief_md: string } }>();
     const f = { id: `fo${foundings.length}`, ref: `C-${String(foundings.length + 1).padStart(4, '0')}`, name_fa: b.source.repo?.split('/')[1] ?? 'شرکت تازه', name_en: '', code: '', source: b.source, state: 'auditing', audit: null, proposal: null, decision_ref: null, plan: null, company: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
     foundings.unshift(f);
-    return json(f, 201);
+    return json(withBrand(f), 201);
   }
   const fa = /^\/foundings\/(C-\d+)\/(activate|cancel)$/.exec(p);
-  if (fa) { const f = foundings.find((x) => x.ref === fa[1]); if (!f) return json({}, 404); f.state = fa[2] === 'activate' ? 'active' : 'cancelled'; f.updated_at = new Date().toISOString(); return json(f); }
+  if (fa) {
+    const f = foundings.find((x) => x.ref === fa[1]); if (!f) return json({}, 404);
+    // ⟨1.4.6⟩ §18.8: no active brand → 409 not_ready, unless the owner activates without it.
+    if (fa[2] === 'activate' && brandOf(f.company).state !== 'active' && !(await body<{ skip_brand?: boolean }>()).skip_brand) {
+      return json({ code: 'not_ready', message_fa: 'شرکت هنوز مُهر ندارد؛ نشانش را از لوگوی PNG بساز یا بدون مُهر فعال کن.', missing: ['brand'], status: 409, title: 'Not ready', type: 'about:blank' }, 409);
+    }
+    f.state = fa[2] === 'activate' ? 'active' : 'cancelled'; f.updated_at = new Date().toISOString(); return json(withBrand(f));
+  }
   const ps = /^\/provisioning\/plans\/(PV-\d+)\/seal$/.exec(p);
   if (ps) {
     const pl = plans[ps[1]!];

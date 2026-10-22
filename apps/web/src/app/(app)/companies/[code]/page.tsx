@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { use, useState } from 'react';
 import { Icon } from '@/components/icon';
 import { Avatar } from '@/components/brand/avatar';
+import { BrandBlock } from '@/components/brand/brand-block';
 import { Seal } from '@/components/brand/seal';
 import { Card, Empty, ErrorState, PageHeader, Pill, Segmented, Skeleton } from '@/components/ui/primitives';
 import { useCompany, useDepartments, useEmployees, useOrgChart, useWorkList } from '@/lib/api/hooks';
@@ -37,7 +38,7 @@ export default function CompanyPage({ params }: { params: Promise<{ code: string
   const chart = useOrgChart(code);
   const emps = useEmployees({ company: [code] });
   const work = useWorkList({ company: [code] });
-  const [tab, setTab] = useState<'overview' | 'people' | 'work'>('overview');
+  const [tab, setTab] = useState<'overview' | 'people' | 'work' | 'brand'>('overview');
   const c = company.data;
   if (company.error) return <ErrorState error={company.error} onRetry={() => company.refetch()} />;
   return (
@@ -54,7 +55,8 @@ export default function CompanyPage({ params }: { params: Promise<{ code: string
         </div>
         <Link href="/control" className="text-[13px] text-sec hover:text-ink"><span className="inline-flex items-center gap-1.5"><Icon name="lock" size={16} />کنترل</span></Link>
       </div>
-      <div className="max-w-md"><Segmented label="بخش" value={tab} onChange={setTab} options={[{ value: 'overview', label: 'دپارتمان‌ها' }, { value: 'people', label: 'کارمندها' }, { value: 'work', label: 'کارها' }]} /></div>
+      {/* ⟨1.4.6⟩ the company's brand and seal are data (§18.14); the holding's own seal is fixed and is not. */}
+      <div className="max-w-xl"><Segmented label="بخش" value={tab} onChange={setTab} options={[{ value: 'overview', label: 'دپارتمان‌ها' }, { value: 'people', label: 'کارمندها' }, { value: 'work', label: 'کارها' }, ...(c && c.kind !== 'holding' ? [{ value: 'brand' as const, label: 'نشان و مُهر' }] : [])]} /></div>
 
       {tab === 'overview' ? (
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -80,6 +82,8 @@ export default function CompanyPage({ params }: { params: Promise<{ code: string
             {chart.isLoading ? <Skeleton className="h-64" /> : chart.data?.roots.length ? <ul className="flex flex-col gap-1">{chart.data.roots.map((n) => <OrgNode key={n.code} n={n} />)}</ul> : <Empty icon="department" title="هنوز کسی نیست" />}
           </Card>
         </div>
+      ) : tab === 'brand' && c ? (
+        <Card className="p-4"><BrandBlock code={c.code} nameFa={c.name_fa ?? c.code} nameEn={c.name_en ?? c.code} /></Card>
       ) : tab === 'people' ? (
         <Card className="overflow-x-auto p-2">
           <table className="w-full min-w-[640px] border-collapse text-[13px]">

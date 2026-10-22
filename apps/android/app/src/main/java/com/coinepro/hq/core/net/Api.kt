@@ -40,6 +40,8 @@ class ApiException(
     val code: String,
     val messageFa: String,
     val requestId: String? = null,
+    /** ⟨1.4.6⟩ `409 not_ready`: what is still missing (§18.8, e.g. ["brand"]). */
+    val missing: List<String> = emptyList(),
 ) : Exception("HTTP $status $code") {
     val isAuth: Boolean get() = status == 401
     val isOffline: Boolean get() = status == 0
@@ -325,7 +327,9 @@ class Api(
     suspend fun founding(ref: String): Founding = get("/foundings/${seg(ref)}")
     suspend fun startFounding(kind: String, repo: String?, brief: String): Founding =
         post("/foundings", buildJsonObject { put("source", buildJsonObject { put("kind", kind); put("repo", repo); put("brief_md", brief) }) })
-    suspend fun activateFounding(ref: String, stepUp: StepUp): Founding = post("/foundings/${seg(ref)}/activate", JsonObject(emptyMap()), stepUp("founding.activate", ref))
+    /** ⟨1.4.6⟩ Without an active brand the hub answers `409 not_ready` (missing ["brand"]) unless [skipBrand]. */
+    suspend fun activateFounding(ref: String, stepUp: StepUp, skipBrand: Boolean = false): Founding =
+        post("/foundings/${seg(ref)}/activate", if (skipBrand) buildJsonObject { put("skip_brand", true) } else JsonObject(emptyMap()), stepUp("founding.activate", ref))
     suspend fun cancelFounding(ref: String): Founding = post("/foundings/${seg(ref)}/cancel", JsonObject(emptyMap()))
     suspend fun plan(ref: String): ServerPlan = get("/provisioning/plans/${seg(ref)}")
     suspend fun run(id: String): ProvisionRun = get("/provisioning/runs/${seg(id)}")
@@ -413,6 +417,26 @@ class Api(
     suspend fun createCompany(body: CompanyIn, stepUp: StepUp): Company =
         post("/companies", json.encodeToJsonElement(CompanyIn.serializer(), body), stepUp("company.create", body.code))
 
+    // ------------------------------------------- brand and seal ⟨1.4.6⟩ --
+    /** Every active brand (§18.14); marks and seals draw from it. OkHttp has no cache here, so the app keeps it in its query cache. */
+    suspend fun brands(): Brands = get("/brands")
+    suspend fun companyBrand(code: String): CompanyBrandView = get("/companies/${seg(code)}/brand")
+    /** Every version, newest first; the screen follows the one being traced. A list or a page, as the hub serves it. */
+    suspend fun brandVersions(code: String): List<CompanyBrand> = when (val e = get<JsonElement>("/companies/${seg(code)}/brand/versions")) {
+        is JsonArray -> json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(CompanyBrand.serializer()), e)
+        else -> json.decodeFromJsonElement(Page.serializer(CompanyBrand.serializer()), e).items
+    }
+    /** A new version from the owner's logo ([fileId] from POST /files); the other part is carried over from the active one. */
+    suspend fun uploadBrand(code: String, fileId: String, part: String, options: BrandOptions): CompanyBrand =
+        post("/companies/${seg(code)}/brand", buildJsonObject { put("file_id", fileId); put("part", part); put("options", optionsOf(options)) })
+    suspend fun retraceBrand(code: String, version: Int, options: BrandOptions): CompanyBrand =
+        post("/companies/${seg(code)}/brand/$version/retrace", buildJsonObject { put("options", optionsOf(options)) })
+    /** The seal is bound to the version the owner saw: its digest, which the server recomputes. */
+    suspend fun activateBrand(b: CompanyBrand, stepUp: StepUp): CompanyBrand =
+        post("/companies/${seg(b.company)}/brand/${b.version}/activate", JsonObject(emptyMap()), stepUp("company.brand", b.digest))
+
+    private fun optionsOf(o: BrandOptions) = buildJsonObject { o.colors?.let { put("colors", it) }; put("detail", o.detail) }
+
     // --------------------------------------------------- backups ⟨1.4⟩ --
     suspend fun backups(): BackupStatus = get("/backups/status")
 
@@ -468,7 +492,7 @@ class Api(
         if (r.code == 401) tokens.clear()
         val p = runCatching { json.decodeFromString(Problem.serializer(), r.body.string()) }.getOrNull()
         if (p?.messageFa == null) throw ApiException.unexpected(r.code)
-        throw ApiException(r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"))
+        throw ApiException(r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"), p.missing)
     }
 
     private suspend fun execute(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->

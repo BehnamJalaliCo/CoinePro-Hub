@@ -159,6 +159,51 @@ class FixturesDecodeTest {
         assertTrue(roll.companies.all { it.parts.efficiency > 0 } && roll.employees.all { it.efficiency != null })
     }
 
+    // ------------------------------------------------------------ ⟨1.4.6⟩ --
+    @Test
+    fun brandsAndSealsDecode() {
+        // §18.14: every built-in company has an active seed version 1 in /brands, with the same layers its versions carry.
+        val brands = decode("/brands", com.coinepro.hq.core.net.Brands.serializer())
+        assertEquals(setOf("FX", "PC", "TY"), brands.companies.keys)
+        assertTrue(brands.companies.values.all { b -> b.version == 1 && b.mark.layers.isNotEmpty() && b.mark.layers.all { it.d.isNotBlank() && it.role in setOf("ink", "accent") } })
+        assertTrue(brands.companies.values.all { b -> (b.accent != null) == b.mark.layers.any { it.role == "accent" } })
+        for (code in brands.companies.keys) {
+            val view = decode("/companies/$code/brand", com.coinepro.hq.core.net.CompanyBrandView.serializer())
+            val active = requireNotNull(view.active)
+            assertTrue(active.state == "active" && active.source.kind == "seed" && active.digest.length == 64 && view.proposed == null)
+            assertEquals(brands.companies.getValue(code).mark, active.mark)
+            assertTrue(active.checks!!.warnings.isEmpty() && active.checks!!.minFeaturePx16 > 0)
+            assertEquals(listOf(active), list("/companies/$code/brand/versions", com.coinepro.hq.core.net.CompanyBrand.serializer()))
+        }
+        // A founded company with no brand yet: nothing to draw, so it shows its code, and the founding's step says so.
+        assertEquals(com.coinepro.hq.core.net.CompanyBrandView(), decode("/companies/AC/brand", com.coinepro.hq.core.net.CompanyBrandView.serializer()))
+        assertTrue(list("/companies/AC/brand/versions", com.coinepro.hq.core.net.CompanyBrand.serializer()).isEmpty())
+        val f = decode("/foundings/C-0001", Founding.serializer())
+        assertTrue(f.company == "AC" && f.brand.state == "missing" && f.brand.version == null)
+        assertTrue(page("/foundings", Founding.serializer()).all { it.company != null || it.brand.state == "missing" })
+        val companies = list("/companies", com.coinepro.hq.core.net.Company.serializer())
+        assertTrue(companies.all { c -> c.brandVersion == brands.companies[c.code]?.version })
+    }
+
+    @Test
+    fun brandVersionsAsTheContractDescribesThem() {
+        // A proposal from an upload, and a failed one: mark null, the reason stable.
+        val v = Api.json.decodeFromString(
+            com.coinepro.hq.core.net.CompanyBrand.serializer(),
+            """{"company":"AC","version":2,"state":"proposed","source":{"kind":"upload","file_id":"f1","path":null,"sha256":"ab","width":1200,"height":800,"has_alpha":true},
+               "mark":{"vb":"0 0 120 80","layers":[{"role":"ink","color":"#111216","d":"M0 0L1 1Z"},{"role":"accent","color":"#0FB5AE","d":"M2 2L3 3Z"}]},"wordmark":null,
+               "ink":"#111216","accent":"#0FB5AE","accent_night":null,"accent_day":"#08756F","palette":[{"hex":"#111216","share":0.7},{"hex":"#0FB5AE","share":0.3}],
+               "options":{"colors":2,"detail":3},"checks":{"paths_bytes":20,"min_feature_px_16":0.8,"iou":0.93,"contrast_night":7.6,"contrast_day":2.2,
+               "warnings":["در اندازه‌ی کوچک جزئیات گم میشود"]},"digest":"d1","status_reason":null,"created_at":"2026-10-22T08:00:00Z","activated_at":null}""",
+        )
+        assertTrue(v.checks!!.minFeaturePx16 < 1 && v.accentDay == "#08756F" && v.accentNight == null && v.options.colors == 2 && v.source.hasAlpha)
+        val failed = Api.json.decodeFromString(com.coinepro.hq.core.net.CompanyBrand.serializer(), """{"company":"AC","version":3,"state":"failed","mark":null,"checks":null,"status_reason":"no_background"}""")
+        assertTrue(failed.mark == null && failed.statusReason == "no_background")
+        // 409 not_ready names what is missing (§18.8).
+        val p = Api.json.decodeFromString(com.coinepro.hq.core.net.Problem.serializer(), """{"code":"not_ready","message_fa":"…","missing":["brand"],"status":409}""")
+        assertEquals(listOf("brand"), p.missing)
+    }
+
     // ------------------------------------------------------------ ⟨1.4.4⟩ --
     @Test
     fun ownerToolsDecode() {

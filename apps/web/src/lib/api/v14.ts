@@ -197,6 +197,8 @@ export type Founding = {
   audit: { session_ref: string; report_md: string; scores: Record<'architecture' | 'quality' | 'security' | 'tests' | 'debt', number> } | null;
   proposal: { departments: string[]; kpis: Array<{ name_fa: string; target: string }>; team: Array<{ role: string; model: string; monthly_usd: number }>; roadmap_md: string; monthly_usd: number } | null;
   decision_ref: string | null; plan: string | null; company: string | null; created_at: string; updated_at: string;
+  // ⟨1.4.6⟩ the step «مُهر شرکت» (§18.14), open once the company exists; a server before 1.4.6 sends none.
+  brand?: { state: 'missing' | 'proposed' | 'active'; version: number | null };
 };
 export type ServerPlan = {
   id: string; ref: string; founding: string | null; company: string; name: string; type: string; location: string; image: string; private_network: boolean;
@@ -219,7 +221,12 @@ export function useFoundingAction() {
     start: useMutation({ mutationFn: (source: Founding['source']) => call<Founding>('POST', '/foundings', { source }), onSuccess: done }),
     // The seal is bound to the exact plan the owner saw: its digest, which the server recomputes.
     sealPlan: useMutation({ mutationFn: async (plan: ServerPlan) => call<ServerPlan>('POST', `/provisioning/plans/${plan.ref}/seal`, {}, { 'X-Step-Up': await stepUp('provision.seal', plan.digest) }), onSuccess: done }),
-    activate: useMutation({ mutationFn: async (ref: string) => call<Founding>('POST', `/foundings/${ref}/activate`, {}, { 'X-Step-Up': await stepUp('founding.activate', ref) }), onSuccess: done }),
+    // ⟨1.4.6⟩ without an active brand the hub answers 409 not_ready (missing ["brand"]) unless the owner skips it.
+    activate: useMutation({
+      mutationFn: async (v: { ref: string; skipBrand?: boolean }) =>
+        call<Founding>('POST', `/foundings/${v.ref}/activate`, v.skipBrand ? { skip_brand: true } : {}, { 'X-Step-Up': await stepUp('founding.activate', v.ref) }),
+      onSuccess: () => Promise.all([done(), qc.invalidateQueries({ queryKey: ['companies'] })]),
+    }),
     cancel: useMutation({ mutationFn: (ref: string) => call<Founding>('POST', `/foundings/${ref}/cancel`, {}), onSuccess: done }),
   };
 }

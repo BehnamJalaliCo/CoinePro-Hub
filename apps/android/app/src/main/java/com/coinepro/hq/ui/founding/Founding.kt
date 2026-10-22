@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.format.DEPT_FA
+import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.format.jTime
 import com.coinepro.hq.core.format.modelLabel
@@ -73,6 +74,7 @@ import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
 import com.coinepro.hq.ui.Page
 import com.coinepro.hq.ui.activity
+import com.coinepro.hq.ui.companies.BrandBlock
 import com.coinepro.hq.ui.refresher
 import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberQuery
@@ -87,6 +89,11 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 
 private val STAGES = listOf("auditing" to "ممیزی", "proposed" to "پیشنهاد", "sealed" to "مُهر", "provisioning" to "ساخت سرور", "ready_for_login" to "ورود تو", "active" to "فعال")
+/** ⟨1.4.6⟩ the step «مُهر شرکت» (§18.8, §18.14): open once the company exists, i.e. from the seal of `company_found` on. */
+private val BRAND_OPEN = setOf("sealed", "provisioning", "ready_for_login", "active")
+private val BRAND_STATE = mapOf(
+    "missing" to ("هنوز نشان ندارد" to Tone.WARN), "proposed" to ("نشان آماده، منتظر مُهر تو" to Tone.GOLD), "active" to ("مُهر شد" to Tone.POS),
+)
 private val AUDIT_FA = mapOf("architecture" to "معماری", "quality" to "کیفیت", "security" to "امنیت", "tests" to "تست‌ها", "debt" to "بدهی فنی")
 private val SOFTWARE_FA = mapOf(
     "system-upgrade" to "به‌روزرسانی و ارتقای کامل سیستم", "unattended-upgrades" to "به‌روزرسانی خودکار امنیتی", "work-user" to "کاربر کاری",
@@ -212,6 +219,16 @@ fun FoundingScreen(ref: String) {
     val run = runId?.let { id -> rememberQuery("founding:run:$id", "founding", maxAgeMs = 2_000) { run(id) } }
     val action = rememberAction()
     var cancel by remember { mutableStateOf(false) }
+    var noBrand by remember { mutableStateOf(false) }
+    // §18.8: without an active brand the hub asks first; the owner may still go on and seal the brand later.
+    fun activate(skipBrand: Boolean) = action.run(onError = { e ->
+        if (e.status == 409 && e.code == "not_ready" && "brand" in e.missing) noBrand = true else toasts.error(e.messageFa)
+    }) {
+        env.api.activateFounding(ref, { a, t -> env.auth.stepUp(act, a, t) }, skipBrand)
+        noBrand = false
+        env.cache.invalidate("founding", "companies")
+        toasts.ok("شرکت فعال شد؛ مدیرعامل شروع به کار کرد.")
+    }
     // Live while something moves: the audit, the build (every 2 s), until the server is ready.
     LaunchedEffect(f?.state, run?.data?.state) {
         while (f?.state in setOf("auditing", "sealed", "provisioning") || run?.data?.state == "running") {
@@ -238,14 +255,16 @@ fun FoundingScreen(ref: String) {
                             Text("۲. Claude Code را باز کن و با حساب خودت وارد شو", style = Divan.type.small, color = c.textSecondary)
                             for (cmd in login.then) CopyLine(cmd)
                             Text("۳. وقتی وارد شدی، شرکت را فعال کن تا مدیرعامل شروع کند.", style = Divan.type.small, color = c.textSecondary)
-                            HqButton("وارد شدم؛ شرکت را فعال کن", {
-                                action.run {
-                                    env.api.activateFounding(f.ref) { a, t -> env.auth.stepUp(act, a, t) }
-                                    env.cache.invalidate("founding", "companies")
-                                    toasts.ok("شرکت فعال شد؛ مدیرعامل شروع به کار کرد.")
-                                }
-                            }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, loading = action.busy)
+                            HqButton("وارد شدم؛ شرکت را فعال کن", { activate(skipBrand = false) }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, loading = action.busy)
                         }
+                    }
+                }
+                val co = f.company
+                if (co != null && f.state in BRAND_OPEN) item {
+                    HqCard(Modifier.fillMaxWidth()) {
+                        BrandBlock(co, f.nameFa, f.nameEn.ifBlank { co }, title = "مُهر شرکت", badge = {
+                            BRAND_STATE[f.brand.state]?.let { (fa, tone) -> Pill(fa, tone, dot = true) }
+                        })
                     }
                 }
                 f.audit?.let { a ->
@@ -350,6 +369,14 @@ fun FoundingScreen(ref: String) {
             }
         }
     }
+    if (noBrand) AlertDialog(
+        onDismissRequest = { noBrand = false },
+        containerColor = c.overlay,
+        title = { Text("شرکت هنوز مُهر ندارد", style = Divan.type.h3) },
+        text = { Text("نشان و مُهر شرکت از لوگوی PNG آن ساخته میشود. اگر بدون مُهر فعال کنی، شرکت تا وقتی نشانش را مُهر کنی با کدش دیده میشود؛ این کار از صفحه‌ی شرکت هم شدنی است.", style = Divan.type.small, color = c.textSecondary) },
+        confirmButton = { HqButton("بدون مُهر فعال کن", { activate(skipBrand = true) }, variant = BtnVariant.GHOST, loading = action.busy) },
+        dismissButton = { HqButton("اول مُهر را بساز", { noBrand = false }) },
+    )
     if (cancel && f != null) AlertDialog(
         onDismissRequest = { cancel = false },
         containerColor = c.overlay,

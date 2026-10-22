@@ -1,5 +1,6 @@
 package com.coinepro.hq.core.net
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -486,6 +487,8 @@ data class Founding(
     val company: String? = null,
     val createdAt: String,
     val updatedAt: String,
+    /** ⟨1.4.6⟩ the step «مُهر شرکت» (§18.14), open once the company exists. */
+    val brand: FoundingBrand = FoundingBrand(),
 )
 
 @Serializable
@@ -688,3 +691,77 @@ data class CompanyBudgetIn(val company: String, val scopeType: String, val scope
 @Serializable
 data class BudgetsPut(val budgets: List<CompanyBudgetIn>)
 
+// ------------------------------------------------- brand and seal ⟨1.4.6⟩ --
+// Contract §18.14: a company's mark and seal are data, traced (code, no model) from the owner's PNG logo and sealed by the owner.
+@Serializable
+data class BrandLayer(val role: String = "ink", val color: String = "#111216", val d: String)
+
+/** A vector mark: viewBox "minX minY width height" and its layers, the shape the built-in marks have (BrandData). */
+@Serializable
+data class BrandMark(val vb: String, val layers: List<BrandLayer> = emptyList())
+
+@Serializable
+data class BrandSource(val kind: String = "upload", val fileId: String? = null, val path: String? = null, val sha256: String = "", val width: Int = 0, val height: Int = 0, val hasAlpha: Boolean = false)
+
+/** [colors] 1..4 (null: as many as the logo has, at most 4), [detail] 1..5. */
+@Serializable
+data class BrandOptions(val colors: Int? = null, val detail: Int = 3)
+
+@Serializable
+data class BrandChecks(
+    val pathsBytes: Int = 0,
+    @SerialName("min_feature_px_16") val minFeaturePx16: Double = 0.0,
+    val iou: Double = 0.0,
+    val contrastNight: Double? = null,
+    val contrastDay: Double? = null,
+    val warnings: List<String> = emptyList(),
+)
+
+@Serializable
+data class PaletteShare(val hex: String, val share: Double = 0.0)
+
+/** One version of a company's brand: `processing` → `proposed` (or `failed`, [statusReason]) → `active` → `retired`. [mark] is
+ *  null until it is traced. [accentNight] / [accentDay] are set only where the accent fails 3:1 on that theme's page. */
+@Serializable
+data class CompanyBrand(
+    val company: String,
+    val version: Int,
+    val state: String,
+    val source: BrandSource = BrandSource(),
+    val mark: BrandMark? = null,
+    val wordmark: BrandMark? = null,
+    val ink: String = "#111216",
+    val accent: String? = null,
+    val accentNight: String? = null,
+    val accentDay: String? = null,
+    val palette: List<PaletteShare> = emptyList(),
+    val options: BrandOptions = BrandOptions(),
+    val checks: BrandChecks? = null,
+    val digest: String = "",
+    val statusReason: String? = null,
+    val createdAt: String = "",
+    val activatedAt: String? = null,
+)
+
+/** `GET /companies/{code}/brand`: the active version and, if any, the newest proposed one. */
+@Serializable
+data class CompanyBrandView(val active: CompanyBrand? = null, val proposed: CompanyBrand? = null)
+
+/** One company's active brand in `GET /brands`. */
+@Serializable
+data class ActiveBrand(
+    val version: Int,
+    val mark: BrandMark,
+    val wordmark: BrandMark? = null,
+    val ink: String = "#111216",
+    val accent: String? = null,
+    val accentNight: String? = null,
+    val accentDay: String? = null,
+)
+
+/** Every active brand in one response; marks and seals are drawn from it. */
+@Serializable
+data class Brands(val etag: String = "", val companies: Map<String, ActiveBrand> = emptyMap())
+
+@Serializable
+data class FoundingBrand(val state: String = "missing", val version: Int? = null)

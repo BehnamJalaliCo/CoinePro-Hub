@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { use, useState } from 'react';
+import { BrandBlock } from '@/components/brand/brand-block';
 import { Icon } from '@/components/icon';
 import { Button, Spinner } from '@/components/ui/button';
 import { Md } from '@/components/ui/md';
@@ -21,6 +22,11 @@ const SOFTWARE_FA: Record<string, string> = {
   'hetzner-firewall': 'فایروال هتزنر', 'node-exporter': 'پایش (فقط روی IP خصوصی)',
 };
 const AUDIT_FA: Record<string, string> = { architecture: 'معماری', quality: 'کیفیت', security: 'امنیت', tests: 'تست‌ها', debt: 'بدهی فنی' };
+/** ⟨1.4.6⟩ the step «مُهر شرکت» (§18.8, §18.14): open once the company exists, i.e. from the seal of `company_found` on. */
+const BRAND_OPEN = new Set(['sealed', 'provisioning', 'ready_for_login', 'active']);
+const BRAND_STATE: Record<'missing' | 'proposed' | 'active', { fa: string; tone: 'warn' | 'gold' | 'pos' }> = {
+  missing: { fa: 'هنوز نشان ندارد', tone: 'warn' }, proposed: { fa: 'نشان آماده، منتظر مُهر تو', tone: 'gold' }, active: { fa: 'مُهر شد', tone: 'pos' },
+};
 
 function Copy({ text }: { text: string }) {
   const [done, setDone] = useState(false);
@@ -111,11 +117,20 @@ export default function FoundingDetail({ params }: { params: Promise<{ ref: stri
   const act = useFoundingAction();
   const toast = useToast();
   const [cancel, setCancel] = useState(false);
+  const [noBrand, setNoBrand] = useState(false);
   if (q.isLoading) return <Skeleton className="h-64" />;
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const f = q.data;
   const st = FOUNDING_STATE[f.state];
   const login = run.data?.login;
+  const activated = () => toast({ tone: 'ok', text: 'شرکت فعال شد؛ مدیرعامل شروع به کار کرد.' });
+  const activate = (skipBrand = false) => act.activate.mutateAsync({ ref: f.ref, skipBrand })
+    .then(() => { setNoBrand(false); activated(); })
+    .catch((e) => {
+      // §18.8: without an active brand the hub asks first; the owner may still go on and seal the brand later.
+      if (e instanceof ApiError && e.status === 409 && e.code === 'not_ready' && e.missing?.includes('brand')) setNoBrand(true);
+      else toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'فعال نشد.' });
+    });
   return (
     <>
       <Link href="/founding" className="inline-flex items-center gap-1 self-start text-[13px] text-sec hover:text-ink"><Icon name="back" size={16} mirror />تأسیس شرکت</Link>
@@ -142,7 +157,20 @@ export default function FoundingDetail({ params }: { params: Promise<{ ref: stri
             <li className="flex flex-col gap-1"><span className="text-sec">۲. Claude Code را باز کن و با حساب خودت وارد شو</span>{login.then.map((c) => <Copy key={c} text={c} />)}</li>
             <li className="text-sec">۳. وقتی وارد شدی، شرکت را فعال کن تا مدیرعامل شروع کند.</li>
           </ol>
-          <Button variant="primary" icon="seal" loading={act.activate.isPending} onClick={() => act.activate.mutateAsync(f.ref).then(() => toast({ tone: 'ok', text: 'شرکت فعال شد؛ مدیرعامل شروع به کار کرد.' })).catch((e) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'فعال نشد.' }))}>وارد شدم؛ شرکت را فعال کن</Button>
+          <Button variant="primary" icon="seal" loading={act.activate.isPending} onClick={() => activate()}>وارد شدم؛ شرکت را فعال کن</Button>
+        </Card>
+      ) : null}
+      <Dialog open={noBrand} onOpenChange={setNoBrand} title="شرکت هنوز مُهر ندارد"
+        actions={<>
+          <Button variant="secondary" onClick={() => { setNoBrand(false); document.getElementById('brand-step')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>اول مُهر را بساز</Button>
+          <Button variant="ghost" loading={act.activate.isPending} onClick={() => activate(true)}>بدون مُهر فعال کن</Button>
+        </>}>
+        <p className="text-[13px] leading-7 text-sec">نشان و مُهر شرکت از لوگوی PNG آن ساخته میشود. اگر بدون مُهر فعال کنی، شرکت تا وقتی نشانش را مُهر کنی با کدش دیده میشود؛ این کار از صفحه‌ی شرکت هم شدنی است.</p>
+      </Dialog>
+      {f.company && BRAND_OPEN.has(f.state) ? (
+        <Card id="brand-step" className="scroll-mt-20 p-4">
+          <BrandBlock code={f.company} nameFa={f.name_fa} nameEn={f.name_en || f.company} title="مُهر شرکت"
+            badge={f.brand ? <Pill tone={BRAND_STATE[f.brand.state].tone} dot>{BRAND_STATE[f.brand.state].fa}</Pill> : undefined} />
         </Card>
       ) : null}
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">

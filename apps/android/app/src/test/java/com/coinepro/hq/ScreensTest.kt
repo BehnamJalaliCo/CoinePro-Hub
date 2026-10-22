@@ -119,6 +119,8 @@ class ScreensTest(private val name: String, private val night: Boolean) {
             "runs" to { _ -> com.coinepro.hq.ui.owner.RunsScreen() },
             "sites" to { _ -> com.coinepro.hq.ui.owner.SitesScreen() },
             "employee-manager" to { _ -> EmployeeScreen("FX-TECH-MGR") },
+            // ⟨1.4.6⟩ a company's brand and seal: the active version in every size, both themes, the seal ready and sealed
+            "company-brand" to { _ -> CompanyScreen("FX", tab0 = "brand") },
         )
     }
 
