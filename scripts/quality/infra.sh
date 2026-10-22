@@ -69,7 +69,7 @@ chmod 600 "$S/openbao-init.json"
 # Every file already installed but the KV empty: the path where a run without
 # sudo used to rotate the tokens in KV, then stop at the file install.
 for f in llm-router/approle.json claude-runtime/approle.json hq-api/approle.json \
-  hq-worker/approle.json provisioner/approle.json prometheus/llm-metrics.token \
+  hq-worker/approle.json provisioner/approle.json tts/approle.json prometheus/llm-metrics.token \
   prometheus/node-exporter.password node-exporter/web.yml gateway/worker-token.sha256; do
   echo "$S/services/$f"
 done >"$S/.provisioned"
