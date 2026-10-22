@@ -85,6 +85,34 @@ Every library is free and open source and pinned to an exact version (`gradle/li
     resumed), NPS waves. **Feedback** — the inbox, most frequent first, with state and a link to work (If-Match).
   - **Intake** on the tools screen, and the three new cards (`message_template`, `lifecycle_rule`,
     `support_go_live`) sealed with the passkey in the cartable.
+- **Governance** ⟨1.5⟩ (contract §20), the «حاکمیت» group of the tools sheet, the same data and words as the web:
+  - **Meeting room** — meetings before they start (agenda reordered or skipped, a lower budget, the owner's presence;
+    If-Match), live (the round table compact for the phone, the queue, claims and tokens, the advisor's whisper, the
+    transcript with unsourced claims flagged, the owner's voice or text jumping the queue, next round, skip, raise the
+    budget, end), the minutes with their draft resolutions, the war room; the meeting types sealed on the exact body.
+  - **Charter** — the holding charter and each company's addendum, versions and the server's diff, a new version with
+    its red lines, and the seal bound to the `body_sha256` the server sent. **Knowledge** — four layers, sources and
+    expiry, review checks, versions; the employee layer and the support articles read-only.
+  - **Cards and scorecard** (a KPI without a source is a dash, never zero; targets with If-Match), **OKR**,
+    **outcomes** at 30/60/90 days with prediction accuracy, the **risk register** with its 5 × 5 matrix, the
+    **change calendar** with its conflicts, the **authority matrix** (sealed on the body; locked invariants shown).
+  - In the cartable: the **batch seal** (several low-risk A1 cards, one passkey on the sorted `[{ref, version}]`, all or
+    nothing) and the six new kinds with their payloads, a proposal's measurable promise and its reviews.
+- **Management tools** ⟨1.5⟩ (contract §21), the «ابزار مدیریت» group of the tools sheet and inside the screens the owner
+  already uses, the same data and words as the web:
+  - **Advisor** — the devil's-advocate switch (thread A only), the weekly review (agenda items done, deferred or noted;
+    If-Match; the minutes as a deliverable), memos and proactive notes. **Ask the hub** on the home: a question of ≤ 500
+    characters, optionally limited to companies, answered with its sources (code with path, lines and commit).
+  - In the cartable: a pending card says how long it has waited and its reminders; the **deploy card** shows its diff file
+    by file (a cut file opens whole), CI, tests, the window and the second review; the **evaluation** card of the HR round
+    (passkey); each card's **memo** in standard and devil mode with the substitutes' second and third opinions; and the
+    digital CEO's prediction once the owner has decided.
+  - **Notes** (no delete: archive; promote to work, an order or an errand), the **morning briefing and the CEOs' weekly
+    letters** with their voice, **department rank and the HR round** on the company and employee pages, **waste and ROI**
+    in the treasury, the **connection wizard** in the tools (sealed on the exact body with the wizard's key), **run
+    health and claims**, the **digital CEO** (accuracy, calibration, principles), the **substitute players** (seats and
+    daily caps, the $20-equivalent usage, CLI sign-in and sign-out with the passkey, the browser profile, creatives with
+    placement and overlay, accepted or rejected) and the **management settings**.
 - **Live** — one SSE connection to `/api/v1/stream` while the app is in the foreground; events refresh the
   screens that show the touched data (the same invalidation map as the web).
 
@@ -92,7 +120,7 @@ Every library is free and open source and pinned to an exact version (`gradle/li
 
 ```
 app/src/main/java/com/coinepro/hq/
-  core/net/        Api (contract v1.5; every 🔏 write names its step-up action and target), Models, Models14, Models15, Models16
+  core/net/        Api (contract v1.5; every 🔏 write names its step-up action and target), Models, Models14 … Models18
   core/auth/       Auth (sign-in, enrolment, step-up), Passkeys, TokenVault
   core/data/       QueryCache (shared cached queries), HoldingStream (SSE)
   core/format/     Jalali dates, figures, Persian labels

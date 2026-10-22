@@ -46,6 +46,8 @@ class ApiException(
     val blockedReasons: List<String> = emptyList(),
     /** A `429` (`rate_limited`, `send_limit`, …): seconds from `Retry-After`, when the server sent one. */
     val retryAfter: Int? = null,
+    /** ⟨1.5⟩ `422 batch_not_eligible`: each refused card and why (§20.12 `fields.items`); nothing was sealed. */
+    val batchReasons: List<Pair<String, String>> = emptyList(),
 ) : Exception("HTTP $status $code") {
     val isAuth: Boolean get() = status == 401
     val isOffline: Boolean get() = status == 0
@@ -169,8 +171,11 @@ class Api(
     // ----------------------------------------------------------- messages --
     suspend fun threads(): List<Thread> = get("/threads")
     suspend fun messages(code: String, limit: Int = 100): Page<Message> = get("/threads/${seg(code)}/messages", mapOf("limit" to limit))
-    suspend fun send(code: String, body: String, attachments: List<String> = emptyList()): JsonObject =
-        post("/threads/${seg(code)}/messages", buildJsonObject { put("body", body); if (attachments.isNotEmpty()) put("attachments", ids(attachments)) })
+    /** ⟨1.5⟩ [mode] `"devil"`: the advisor argues why not; thread A only (§21.1), elsewhere `422 validation_failed`. */
+    suspend fun send(code: String, body: String, attachments: List<String> = emptyList(), mode: String? = null): JsonObject =
+        post("/threads/${seg(code)}/messages", buildJsonObject {
+            put("body", body); if (attachments.isNotEmpty()) put("attachments", ids(attachments)); if (mode != null) put("mode", mode)
+        })
     suspend fun markRead(code: String, upToRef: String): Thread = post("/threads/${seg(code)}/read", buildJsonObject { put("up_to_ref", upToRef) })
 
     // ------------------------------------------------------ notifications --
@@ -547,6 +552,272 @@ class Api(
         }
     }
 
+    // ---------------------------------------------------- governance ⟨1.5⟩ --
+    // Contract §20, in the shapes §20.12 ⟨1.5.1⟩ fixes. Every 🔏 write names its action and exact target here (§20.11): the charter
+    // seal on the body_sha256 the server sent, the authority matrix and the meeting settings on the SHA-256 of the exact body, the
+    // batch on the SHA-256 of its sorted [{ref, version}]. PATCH carries If-Match; POST /meetings, speak and the batch carry the
+    // caller's Idempotency-Key, kept across retries of one press.
+    suspend fun meetings(type: String? = null, company: String? = null, state: String? = null, from: String? = null, to: String? = null): List<Meeting> =
+        listAny("/meetings", mapOf("type" to type, "company" to company, "state" to state, "from" to from, "to" to to, "limit" to 100), Meeting.serializer())
+    /** With its items, budget estimate, `trimmed_fa` and drafts. */
+    suspend fun meeting(ref: String): Meeting = get("/meetings/${seg(ref)}")
+    /** The owner's page carries the advisor's whispers too. */
+    suspend fun turns(ref: String): TurnsPage = get("/meetings/${seg(ref)}/turns", mapOf("limit" to 200))
+    /** An ad-hoc meeting: same speaker rule, budget and daily share as a scheduled one. */
+    suspend fun createMeeting(type: String, company: String?, startsAt: String, items: List<MeetingItemIn>, key: String): Meeting =
+        call(write("POST", "/meetings", buildJsonObject {
+            put("type", type); if (company != null) put("company", company); put("starts_at", startsAt)
+            put("items", json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(MeetingItemIn.serializer()), items))
+        }, null, key), serializer())
+    /** Before or during a meeting: the items in their new order (each may be skipped), a lower cap, the owner's presence. */
+    suspend fun patchMeeting(m: Meeting, items: List<ItemOrder>? = null, budgetCap: Long? = null, ownerPresence: String? = null): Meeting =
+        send("PATCH", "/meetings/${seg(m.ref)}", json.encodeToString(JsonElement.serializer(), buildJsonObject {
+            if (items != null) put("items", json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(ItemOrder.serializer()), items))
+            if (budgetCap != null) put("budget_cap", budgetCap)
+            if (ownerPresence != null) put("owner_presence", ownerPresence)
+        }), ifMatch = m.version)
+    /** The owner jumps the queue; `409 meeting_not_live` otherwise. A voice file goes through §17.2 first. */
+    suspend fun speak(ref: String, text: String?, fileId: String?, key: String): Turn =
+        call(write("POST", "/meetings/${seg(ref)}/speak", buildJsonObject {
+            if (!text.isNullOrBlank()) put("text", text)
+            if (fileId != null) put("file_id", fileId)
+        }, null, key), serializer())
+    /** next_round · skip_item · end · raise_budget (with [tokens]); only the owner raises a budget. */
+    suspend fun meetingControl(ref: String, action: String, tokens: Long? = null): Meeting =
+        post("/meetings/${seg(ref)}/control", buildJsonObject { put("action", action); if (tokens != null) put("tokens", tokens) })
+    suspend fun meetingSettings(): List<MeetingType> = listAny("/meetings/settings", emptyMap(), MeetingType.serializer(), wrap = "types")
+    /** The whole list `{types}`, no If-Match (each row carries its version), sealed on the SHA-256 of the exact body. */
+    suspend fun saveMeetingSettings(types: List<MeetingType>, stepUp: StepUp): List<MeetingType> {
+        val text = jsonBody.encodeToString(JsonElement.serializer(), buildJsonObject {
+            put("types", jsonBody.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(MeetingType.serializer()), types))
+        })
+        val e: JsonElement = send("PUT", "/meetings/settings", text, stepUp = stepUp("meetings.settings", sha256(text)))
+        return decodeList(e, MeetingType.serializer(), "types")
+    }
+
+    /** The sealed holding charter and every addendum the principal may read. */
+    suspend fun charter(): List<CharterScope> = listAny("/charter", emptyMap(), CharterScope.serializer(), wrap = "scopes")
+    suspend fun charterVersions(scope: String): List<Charter> = listAny("/charter/${seg(scope)}/versions", emptyMap(), Charter.serializer())
+    suspend fun charterVersion(scope: String, version: Int): Charter = get("/charter/${seg(scope)}/versions/$version")
+    /** A unified diff computed on the server. */
+    suspend fun charterDiff(scope: String, version: Int, against: Int): CharterDiff = get("/charter/${seg(scope)}/versions/$version/diff", mapOf("against" to against))
+    /** A new `proposed` version; nothing reaches an agent until it is sealed. */
+    suspend fun proposeCharter(scope: String, body: CharterIn): Charter = send("PUT", "/charter/${seg(scope)}", jsonBody.encodeToString(CharterIn.serializer(), body))
+    /** Sealed on the version's body_sha256, which the server recomputes: a token for one text cannot seal another or weaker red lines. */
+    suspend fun sealCharter(c: Charter, stepUp: StepUp): Charter =
+        post("/charter/${seg(c.scope)}/versions/${c.version}/seal", JsonObject(emptyMap()), stepUp("charter.seal", c.bodySha256))
+
+    suspend fun knowledge(layer: String? = null, company: String? = null, department: String? = null, kind: String? = null, status: String? = null, q: String? = null, includeExpired: Boolean = false, cursor: String? = null): Page<KnowledgeEntry> =
+        get("/knowledge", mapOf(
+            "layer" to layer, "company" to company, "department" to department, "kind" to kind, "status" to status, "q" to q?.trim()?.ifEmpty { null },
+            "include_expired" to (if (includeExpired) true else null), "limit" to 50, "cursor" to cursor,
+        ))
+    suspend fun knowledgeEntry(ref: String): KnowledgeEntry = get("/knowledge/${seg(ref)}")
+    suspend fun knowledgeVersions(ref: String): List<KnowledgeEntry> = listAny("/knowledge/${seg(ref)}/versions", emptyMap(), KnowledgeEntry.serializer())
+    /** What the owner writes is approved by that act. */
+    suspend fun createKnowledge(body: KnowledgeIn): KnowledgeEntry = post("/knowledge", json.encodeToJsonElement(KnowledgeIn.serializer(), body))
+    suspend fun updateKnowledge(ref: String, body: KnowledgeIn): KnowledgeEntry = send("PUT", "/knowledge/${seg(ref)}", json.encodeToString(KnowledgeIn.serializer(), body))
+    suspend fun retireKnowledge(ref: String): KnowledgeEntry = post("/knowledge/${seg(ref)}/retire", JsonObject(emptyMap()))
+
+    /** The three cards; [company] null = the holding (the server's default). */
+    suspend fun cards(company: String? = null): List<KpiCard> = listAny("/cards", mapOf("company" to company), KpiCard.serializer())
+    suspend fun scorecards(q: String? = null, cursor: String? = null): Page<ScorecardRow> =
+        get("/scorecards", mapOf("q" to q?.trim()?.ifEmpty { null }, "limit" to 50, "cursor" to cursor))
+    suspend fun kpis(company: String): KpiSet = get("/kpis/${seg(company)}")
+    suspend fun kpiValues(company: String, key: String, from: String, to: String): List<KpiValue> =
+        listAny("/kpis/${seg(company)}/${seg(key)}/values", mapOf("from" to from, "to" to to), KpiValue.serializer())
+    /** Targets, scorecard membership, status and freshness; If-Match on the company's set. */
+    suspend fun putKpis(set: KpiSet, kpis: List<KpiPatch>): KpiSet =
+        send("PUT", "/kpis/${seg(set.company)}", jsonBody.encodeToString(JsonElement.serializer(), buildJsonObject {
+            put("kpis", jsonBody.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(KpiPatch.serializer()), kpis))
+        }), ifMatch = set.version)
+
+    suspend fun okr(company: String? = null, quarter: String? = null, status: String? = null): List<Objective> =
+        listAny("/okr", mapOf("company" to company, "quarter" to quarter, "status" to status), Objective.serializer())
+    suspend fun objective(ref: String): Objective = get("/okr/${seg(ref)}")
+    /** [due]: due now or overdue (⟨1.5.1⟩). */
+    suspend fun outcomes(company: String? = null, verdict: String? = null, due: Boolean = false, decision: String? = null, cursor: String? = null): Page<OutcomeReview> =
+        get("/outcomes", mapOf("company" to company, "verdict" to verdict, "due" to (if (due) true else null), "decision" to decision, "limit" to 100, "cursor" to cursor))
+
+    /** The whole matrix with its locked rows. */
+    suspend fun authority(): List<AuthorityRule> = listAny("/authority", emptyMap(), AuthorityRule.serializer(), wrap = "rules")
+    /** Unlocked rows only, inside their bounds (`422` otherwise); sealed on the SHA-256 of the exact body `{rules}`. */
+    suspend fun putAuthority(changes: List<AuthorityChange>, stepUp: StepUp) {
+        val text = json.encodeToString(JsonElement.serializer(), buildJsonObject {
+            put("rules", JsonArray(changes.map { c ->
+                buildJsonObject { put("key", c.key); if (c.actor != null) put("actor", c.actor); put("limit", c.limit ?: JsonNull); put("version", c.version) }
+            }))
+        })
+        execute(Request.Builder().url(url("/authority")).put(text.toRequestBody(JSON)).header("X-Step-Up", stepUp("authority.update", sha256(text))).build()).use { check(it) }
+    }
+
+    suspend fun risks(company: String? = null, status: String? = null, category: String? = null, minScore: Int? = null, cursor: String? = null): Page<Risk> =
+        get("/risks", mapOf("company" to company, "status" to status, "category" to category, "min_score" to minScore, "limit" to 100, "cursor" to cursor))
+    suspend fun risk(ref: String): Risk = get("/risks/${seg(ref)}")
+    suspend fun riskMatrix(company: String? = null): RiskMatrix = get("/risks/matrix", mapOf("company" to company))
+    suspend fun createRisk(body: RiskIn): Risk = post("/risks", json.encodeToJsonElement(RiskIn.serializer(), body))
+    /** If-Match the risk's version; [patch] holds only what changed (a null clears it). */
+    suspend fun patchRisk(r: Risk, patch: JsonObject): Risk = send("PATCH", "/risks/${seg(r.ref)}", json.encodeToString(JsonElement.serializer(), patch), ifMatch = r.version)
+
+    /** Events and their conflicts in the range. */
+    suspend fun calendar(company: String? = null, from: String? = null, to: String? = null, kind: String? = null): CalendarView =
+        get("/calendar", mapOf("company" to company, "from" to from, "to" to to, "kind" to kind))
+    suspend fun createEvent(body: CalendarIn): CalendarEvent = post("/calendar", jsonBody.encodeToJsonElement(CalendarIn.serializer(), body))
+    /** If-Match when the server gave the event a version (⟨1.5.1⟩). */
+    suspend fun patchEvent(e: CalendarEvent, status: String): CalendarEvent =
+        send("PATCH", "/calendar/${seg(e.ref)}", json.encodeToString(JsonElement.serializer(), buildJsonObject { put("status", status) }), ifMatch = e.version)
+
+    /** The pending cards that may be sealed together. */
+    suspend fun batchable(): List<Batchable> = listAny("/decisions/batchable", emptyMap(), Batchable.serializer())
+    /** All or nothing (`422 batch_not_eligible` with each card's reason). The passkey is bound to the SHA-256 of the sorted
+     *  `[{ref, version}]`; [key] is the press's, kept for a retry of the same set. */
+    suspend fun batchApprove(items: List<BatchItem>, key: String, stepUp: StepUp): BatchOut {
+        val set = batchItems(items)
+        val list = json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(BatchItem.serializer()), set)
+        val token = stepUp("decision.batch", sha256(json.encodeToString(JsonElement.serializer(), list)))
+        return call(write("POST", "/decisions/batch/approve", buildJsonObject { put("items", list) }, token, key), serializer())
+    }
+
+    /** A list read bare, paged, or wrapped in [wrap] (`{types}`, `{scopes}`, `{rules}`): §20 names a cursor only where it says Page. */
+    private suspend fun <T> listAny(path: String, query: Map<String, Any?>, s: KSerializer<T>, wrap: String? = null): List<T> =
+        decodeList(get<JsonElement>(path, query), s, wrap)
+
+    private fun <T> decodeList(e: JsonElement, s: KSerializer<T>, wrap: String? = null): List<T> = try {
+        val items = when {
+            e is JsonArray -> e
+            e is JsonObject && wrap != null && e[wrap] is JsonArray -> e[wrap]!!
+            e is JsonObject -> e["items"] ?: JsonArray(emptyList())
+            else -> JsonArray(emptyList())
+        }
+        json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(s), items)
+    } catch (x: IllegalArgumentException) {
+        throw ApiException(200, "contract_mismatch", "پاسخ سرور با قرارداد نمیخواند؛ نسخه‌ی اپ را به‌روز کن.")
+    }
+
+    // ----------------------------------------------- management tools ⟨1.5⟩ --
+    // Contract §21, in the shapes §21.14 ⟨1.5.1⟩ fixes. Every 🔏 write names its action and exact target here (§21.12): a new connection
+    // and the seats on the SHA-256 of the exact body, a CLI sign-in and sign-out on the connection id, a browser profile on the player.
+    // PATCH and PUT carry If-Match; an ask, a note, a creative and a new connection carry the caller's Idempotency-Key, kept across
+    // retries of one press. A thing that does not exist yet (a memo, the current review, a briefing) answers 404: null here.
+    /** The latest memo of a card in one mode, or null while none was asked for. */
+    suspend fun memo(ref: String, mode: String): DecisionMemo? = orNull { get("/decisions/${seg(ref)}/memo", mapOf("mode" to mode)) }
+    /** Idempotent per card, mode and card version; a decided card is `409 decision_not_pending`. */
+    suspend fun requestMemo(ref: String, mode: String): DecisionMemo = post("/decisions/${seg(ref)}/memo", buildJsonObject { put("mode", mode) })
+    suspend fun memos(decision: String? = null, cursor: String? = null): Page<DecisionMemo> = get("/advisor/memos", mapOf("decision" to decision, "limit" to 30, "cursor" to cursor))
+    suspend fun advisorTriggers(since: String? = null, kind: String? = null): List<AdvisorTrigger> = listAny("/advisor/triggers", mapOf("since" to since, "kind" to kind), AdvisorTrigger.serializer())
+
+    /** Owner only, ≤ 500 characters; [key] is the press's. */
+    suspend fun askHub(q: String, companies: List<String>, key: String): Ask =
+        call(write("POST", "/ask", buildJsonObject { put("q", q); if (companies.isNotEmpty()) put("scope", buildJsonObject { put("companies", ids(companies)) }) }, null, key), serializer())
+    suspend fun asked(ref: String): Ask = get("/ask/${seg(ref)}")
+    suspend fun asks(cursor: String? = null): Page<Ask> = get("/ask", mapOf("limit" to 20, "cursor" to cursor))
+
+    suspend fun weeklyReviews(): List<WeeklyReview> = listAny("/reviews/weekly", emptyMap(), WeeklyReview.serializer())
+    suspend fun currentReview(): WeeklyReview? = orNull { get("/reviews/weekly/current") }
+    suspend fun startReview(ref: String): WeeklyReview = post("/reviews/weekly/${seg(ref)}/start", JsonObject(emptyMap()))
+    /** Writes the minutes as a deliverable O-… by HQ-ADV. */
+    suspend fun finishReview(ref: String): WeeklyReview = post("/reviews/weekly/${seg(ref)}/finish", JsonObject(emptyMap()))
+    suspend fun reviewItem(r: WeeklyReview, n: Int, status: String, ownerNote: String? = null): WeeklyReview =
+        send("PATCH", "/reviews/weekly/${seg(r.ref)}/items/$n", json.encodeToString(JsonElement.serializer(), buildJsonObject {
+            put("status", status); if (ownerNote != null) put("owner_note", ownerNote)
+        }), ifMatch = r.version)
+
+    suspend fun briefings(kind: String? = null, company: String? = null, cursor: String? = null): Page<Briefing> =
+        get("/briefings", mapOf("kind" to kind, "company" to company, "limit" to 30, "cursor" to cursor))
+    suspend fun latestBriefing(kind: String, company: String? = null): Briefing? = orNull { get("/briefings/latest", mapOf("kind" to kind, "company" to company)) }
+    suspend fun briefing(ref: String): Briefing = get("/briefings/${seg(ref)}")
+
+    suspend fun departmentRanks(period: String, company: String? = null, key: String? = null): List<DepartmentRank> =
+        listAny("/rankings/departments", mapOf("period" to period, "key" to key, "company" to company), DepartmentRank.serializer())
+    suspend fun hrRounds(company: String? = null, month: String? = null): List<HrRound> = listAny("/hr/rounds", mapOf("company" to company, "month" to month), HrRound.serializer())
+    suspend fun hrRound(ref: String): HrRound = get("/hr/rounds/${seg(ref)}")
+
+    /** ⟨1.5.1⟩ one file of a deploy card's diff with its whole patch (≤ 2000 lines, masked the same way), `truncated: false`. */
+    suspend fun diffFile(ref: String, path: String): DiffFile = get("/decisions/${seg(ref)}/diff", mapOf("file" to path))
+
+    suspend fun wasteDay(day: String? = null, company: String? = null): WasteDay = get("/treasury/waste", mapOf("day" to day, "company" to company))
+    suspend fun wasteRange(from: String, to: String, company: String? = null): List<WasteDay> =
+        listAny("/treasury/waste", mapOf("from" to from, "to" to to, "company" to company), WasteDay.serializer())
+    suspend fun roi(by: String, period: String, company: String? = null, key: String? = null): List<RoiRow> =
+        listAny("/treasury/roi", mapOf("by" to by, "period" to period, "key" to key, "company" to company), RoiRow.serializer())
+    /** 🔏 `connection.create`, sealed on the SHA-256 of the exact body; the Idempotency-Key is required ([key], one per wizard). The
+     *  result is `pending_secret`: its key goes through [connectionSecret] or the owner's own terminal. */
+    suspend fun createConnection(body: ConnectionIn, key: String, stepUp: StepUp): Connection {
+        val text = json.encodeToString(ConnectionIn.serializer(), body)
+        val req = Request.Builder().url(url("/connections")).post(text.toRequestBody(JSON))
+            .header("Idempotency-Key", key).header("X-Step-Up", stepUp("connection.create", sha256(text))).build()
+        return call(req, serializer())
+    }
+
+    suspend fun notes(status: String? = null, q: String? = null, cursor: String? = null): Page<OwnerNote> =
+        get("/notes", mapOf("status" to status, "q" to q?.trim()?.ifEmpty { null }, "limit" to 50, "cursor" to cursor))
+    suspend fun createNote(text: String, source: String, fileId: String?, tags: List<String>, key: String): OwnerNote =
+        call(write("POST", "/notes", buildJsonObject {
+            put("text_md", text); put("source", source); if (fileId != null) put("file_id", fileId); if (tags.isNotEmpty()) put("tags", ids(tags))
+        }, null, key), serializer())
+    /** No delete: archiving ([archive]) is the end of a note. If-Match the note's version. */
+    suspend fun patchNote(n: OwnerNote, text: String? = null, tags: List<String>? = null, archive: Boolean = false): OwnerNote =
+        send("PATCH", "/notes/${seg(n.ref)}", json.encodeToString(JsonElement.serializer(), buildJsonObject {
+            if (text != null) put("text_md", text); if (tags != null) put("tags", ids(tags)); if (archive) put("status", "archived")
+        }), ifMatch = n.version)
+    /** ⟨1.5.1⟩ `{to, company?, title?}`; `company` is required for work. */
+    suspend fun promoteNote(ref: String, to: String, company: String? = null, title: String? = null): OwnerNote =
+        post("/notes/${seg(ref)}/promote", buildJsonObject { put("to", to); if (company != null) put("company", company); if (title != null) put("title", title) })
+
+    suspend fun claims(company: String? = null, employee: String? = null, verdict: String? = null, cursor: String? = null): Page<CheckedClaim> =
+        get("/claims", mapOf("company" to company, "employee" to employee, "verdict" to verdict, "limit" to 30, "cursor" to cursor))
+    suspend fun runsHealth(period: String, company: String? = null, cursor: String? = null): Page<AgentHealth> =
+        get("/runs/health", mapOf("company" to company, "period" to period, "limit" to 100, "cursor" to cursor))
+
+    suspend fun digitalCeo(): DceoView = get("/digital-ceo")
+    suspend fun predictions(correct: Boolean? = null, kind: String? = null, cursor: String? = null): Page<Prediction> =
+        get("/digital-ceo/predictions", mapOf("correct" to correct, "kind" to kind, "limit" to 50, "cursor" to cursor))
+    suspend fun principles(): List<Principle> = listAny("/digital-ceo/principles", emptyMap(), Principle.serializer())
+    /** The owner's own principle is active at once. */
+    suspend fun addPrinciple(text: String): Principle = post("/digital-ceo/principles", buildJsonObject { put("text_fa", text) })
+    /** ⟨1.5.1⟩ an edit or a retirement is a new version: `{text_fa, status}` with If-Match. */
+    suspend fun editPrinciple(p: Principle, text: String, status: String): Principle =
+        send("PUT", "/digital-ceo/principles/${seg(p.ref)}", json.encodeToString(JsonElement.serializer(), buildJsonObject { put("text_fa", text); put("status", status) }), ifMatch = p.version)
+    suspend fun acceptPrinciple(ref: String): Principle = post("/digital-ceo/principles/${seg(ref)}/accept", JsonObject(emptyMap()))
+
+    /** ⟨1.5.1⟩ each changed §21.12 block whole ([blocks], from [ManagementSettings.changedFrom]), If-Match the settings' version. */
+    suspend fun saveOwnerSettings(version: Int, blocks: Map<String, JsonElement>): OwnerSettings =
+        send("PUT", "/owner/settings", json.encodeToString(JsonElement.serializer(), JsonObject(blocks)), ifMatch = version)
+
+    suspend fun substitutes(): List<Substitute> = listAny("/substitutes", emptyMap(), Substitute.serializer())
+    /** 🔏 `substitute.seats`, sealed on the SHA-256 of the exact list, with the player's version. */
+    suspend fun putSeats(s: Substitute, seats: List<SeatIn>, stepUp: StepUp): Substitute {
+        val text = json.encodeToString(kotlinx.serialization.builtins.ListSerializer(SeatIn.serializer()), seats)
+        return send("PUT", "/substitutes/${seg(s.player)}/seats", text, ifMatch = s.version, stepUp = stepUp("substitute.seats", sha256(text)))
+    }
+    /** 🔏 `substitute.web_logout` on the player: wipes the signed-in browser profile; signing in again is the owner's terminal. */
+    suspend fun webLogout(player: String, stepUp: StepUp): Substitute = post("/substitutes/${seg(player)}/web/logout", JsonObject(emptyMap()), stepUp("substitute.web_logout", player))
+    /** 🔏 `connection.login` on the id: the CLI's own headless sign-in; `409 not_ready` when it has none (the app shows the command). */
+    suspend fun connectionLogin(id: String, stepUp: StepUp): SubstituteLogin = post("/connections/${seg(id)}/login", JsonObject(emptyMap()), stepUp("connection.login", id))
+    suspend fun connectionLoginState(id: String, loginId: String): SubstituteLogin = get("/connections/${seg(id)}/login/${seg(loginId)}")
+    /** Write-only, `auth_code` logins only, while waiting; covered by the start's step-up (≤ 10 minutes). */
+    suspend fun connectionLoginCode(id: String, loginId: String, code: String): SubstituteLogin =
+        post("/connections/${seg(id)}/login/${seg(loginId)}/code", buildJsonObject { put("code", code) })
+    /** ⟨1.5.1⟩ 🔏 `connection.logout` on the id: removes the stored sign-in. */
+    suspend fun connectionLogout(id: String, stepUp: StepUp) = postUnit("/connections/${seg(id)}/logout", JsonObject(emptyMap()), stepUp("connection.logout", id))
+
+    suspend fun creatives(company: String? = null, state: String? = null, kind: String? = null, cursor: String? = null): Page<Creative> =
+        get("/creatives", mapOf("company" to company, "state" to state, "kind" to kind, "limit" to 30, "cursor" to cursor))
+    suspend fun creative(ref: String): Creative = get("/creatives/${seg(ref)}")
+    /** The owner's brief; the Claude agent in charge writes the prompt. A video is Gemini's and ≤ 10 s. [key] is the press's. */
+    suspend fun createCreative(company: String, kind: String, brief: String, placement: String, overlay: Overlay?, durationS: Int?, player: String?, key: String): Creative =
+        call(write("POST", "/creatives", buildJsonObject {
+            put("company", company); put("kind", kind); put("brief_md", brief); put("placement", placement)
+            if (overlay != null) put("overlay", jsonBody.encodeToJsonElement(Overlay.serializer(), overlay))
+            if (durationS != null) put("duration_s", durationS)
+            if (player != null) put("player", player)
+        }, null, key), serializer())
+    suspend fun acceptCreative(ref: String, note: String? = null): Creative = post("/creatives/${seg(ref)}/accept", buildJsonObject { if (!note.isNullOrBlank()) put("note", note) })
+    suspend fun rejectCreative(ref: String, note: String? = null): Creative = post("/creatives/${seg(ref)}/reject", buildJsonObject { if (!note.isNullOrBlank()) put("note", note) })
+
+    /** A GET that answers 404 when the thing does not exist yet: null, not an error. */
+    private inline fun <T> orNull(block: () -> T): T? = try { block() } catch (e: ApiException) { if (e.status == 404) null else throw e }
+
     // --------------------------------------------------- backups ⟨1.4⟩ --
     suspend fun backups(): BackupStatus = get("/backups/status")
 
@@ -604,7 +875,7 @@ class Api(
         val p = runCatching { json.decodeFromString(Problem.serializer(), r.body.string()) }.getOrNull()
         if (p?.messageFa == null) throw ApiException.unexpected(r.code)
         val wait = r.header("Retry-After")?.trim()?.toIntOrNull()?.takeIf { it > 0 }
-        throw ApiException(r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"), p.missing, p.blockedReasons, wait)
+        throw ApiException(r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"), p.missing, p.blockedReasons, wait, batchReasons(p))
     }
 
     private suspend fun execute(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->
@@ -625,6 +896,14 @@ class Api(
         private val JSON = "application/json".toMediaType()
         private val LOCAL = listOf("data:", "file:", "content:")
 
+        /** `fields.items: [{ref, reason}]` of a refused batch. */
+        private fun batchReasons(p: Problem): List<Pair<String, String>> =
+            (p.fields?.get("items") as? JsonArray)?.mapNotNull { x ->
+                val o = x as? JsonObject ?: return@mapNotNull null
+                val ref = (o["ref"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@mapNotNull null
+                ref to ((o["reason"] as? JsonPrimitive)?.content ?: "")
+            }.orEmpty()
+
         fun sha256(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 
         @OptIn(ExperimentalSerializationApi::class)
@@ -634,6 +913,11 @@ class Api(
             coerceInputValues = true
             namingStrategy = JsonNamingStrategy.SnakeCase
         }
+
+        /** ⟨1.5⟩ Bodies sent whole, where a null or a usual value is meaningful (a war room's `budget_tokens`, a cleared KPI target,
+         *  a sampled red line's `patterns: null`, an enabled meeting type): the same wire format, every field written. */
+        @OptIn(ExperimentalSerializationApi::class)
+        val jsonBody = Json(json) { explicitNulls = true; encodeDefaults = true }
     }
 }
 

@@ -178,6 +178,8 @@ const kbArticles: any[] = [
   id: `kb${i}`, variables: [], sha256: '', ...a,
   expires_at: a.approved_at ? new Date(new Date(a.approved_at).getTime() + 180 * DAY).toISOString() : ahead(60 * 24 * 180),
 }));
+/** ⟨§20.3⟩ The support articles as the knowledge view reads them (kind `support`, read-only): the same rows, never a copy. */
+export const supportArticles = (): any[] => kbArticles;
 const norm = (u: string) => u.trim().replace(/[.,،؛)»]+$/, '').replace(/\/+$/, '').toLowerCase();
 /** The outbound guard (§19.6), as far as the demo needs it: links must be exactly approved; no profit promise; never ask for a seed. */
 function guard(company: string, text: string): string[] {

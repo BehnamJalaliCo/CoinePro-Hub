@@ -46,6 +46,9 @@ fun jDate(iso: String?, withYear: Boolean = false): String = fmt(if (withYear) "
 
 fun jWeekday(iso: String?): String = fmt("EEEE d MMMM", iso)
 
+/** ⟨1.5⟩ The day of the Jalali month in the owner's zone (§21.13: a substitute behind on the 15th). */
+fun jDayOfMonth(millis: Long = HqClock.millis()): Int = pattern("d").format(Date(millis)).toIntOrNull() ?: 1
+
 fun jTime(iso: String?): String = fmt("HH:mm", iso)
 
 fun jDateTime(iso: String?): String = if (iso == null) "—" else "${jDate(iso)}، ${jTime(iso)}"

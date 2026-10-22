@@ -14,6 +14,7 @@ import { useAway, useCompanies, useDecisions, useInbox, usePlanner, usePresence,
 import { useGrants, useSessions, useWorkspaces } from '@/lib/api/v13';
 import { useOversight } from '@/lib/api/v14';
 import { StoriesBar } from '@/components/v14/stories';
+import { AskBox } from '@/components/v18/ask';
 import { Sentinel } from '@/components/brand/avatar';
 import { MdInline } from '@/components/ui/md';
 import { useLive } from '@/lib/live';
@@ -210,7 +211,8 @@ export default function CommandCenter() {
       <AwayBanner />
       <Stats />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col gap-4"><Cartable /><Live /></div>
+        {/* ⟨1.5⟩ §21.2: ask the hub, above the cartable. */}
+        <div className="flex min-w-0 flex-col gap-4"><AskBox /><Cartable /><Live /></div>
         <div className="flex min-w-0 flex-col gap-4"><Overseer /><Workshop /><Today /><Budgets /></div>
       </div>
     </>

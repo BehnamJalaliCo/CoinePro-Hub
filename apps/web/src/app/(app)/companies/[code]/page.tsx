@@ -1,13 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { use, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, use, useState } from 'react';
 import { Icon } from '@/components/icon';
 import { Avatar } from '@/components/brand/avatar';
 import { BrandBlock } from '@/components/brand/brand-block';
 import { Seal } from '@/components/brand/seal';
 import { Card, Empty, ErrorState, PageHeader, Pill, Segmented, Skeleton } from '@/components/ui/primitives';
-import { useCompany, useDepartments, useEmployees, useOrgChart, useWorkList } from '@/lib/api/hooks';
+import { DepartmentRanks, HrRoundLine } from '@/components/v18/people';
+import { DepartmentSheet, RoleDraftSheet, RolesOnDemand } from '@/components/v19/org';
+import { useCompany, useEmployees, useOrgChart, useWorkList } from '@/lib/api/hooks';
+import { useDepartments19 } from '@/lib/api/v19';
 import { ACTIVITY, DEPT_ICON, WORK_STATUS } from '@/lib/labels';
 import { ago, cx, jDate, modelLabel } from '@/lib/format';
 import type { Schemas } from '@/lib/api/client';
@@ -31,14 +35,26 @@ function OrgNode({ n, depth = 0 }: { n: Node; depth?: number }) {
   );
 }
 
-export default function CompanyPage({ params }: { params: Promise<{ code: string }> }) {
-  const { code } = use(params);
+function CompanyInner({ code }: { code: string }) {
+  const router = useRouter();
+  const search = useSearchParams();
   const company = useCompany(code);
-  const deps = useDepartments(code);
+  // ⟨1.6⟩ §22.1: each department with its mandate, identity and starting team.
+  const deps = useDepartments19(code);
   const chart = useOrgChart(code);
   const emps = useEmployees({ company: [code] });
   const work = useWorkList({ company: [code] });
-  const [tab, setTab] = useState<'overview' | 'people' | 'work' | 'brand'>('overview');
+  const [tab, setTab] = useState<'overview' | 'people' | 'work' | 'brand'>(search.get('role') ? 'people' : 'overview');
+  const dept = search.get('dept');
+  const role = search.get('role');
+  const go = (q: { dept?: string | null; role?: string | null }) => {
+    const next = new URLSearchParams();
+    const d = q.dept === undefined ? dept : q.dept;
+    const r = q.role === undefined ? role : q.role;
+    if (d) next.set('dept', d);
+    if (r) next.set('role', r);
+    router.replace(`/companies/${code}${next.size ? `?${next}` : ''}`, { scroll: false });
+  };
   const c = company.data;
   if (company.error) return <ErrorState error={company.error} onRetry={() => company.refetch()} />;
   return (
@@ -66,25 +82,36 @@ export default function CompanyPage({ params }: { params: Promise<{ code: string
                 const staff = (emps.data?.items ?? []).filter((e) => e.department === d.code);
                 const active = staff.filter((e) => e.activity === 'working').length;
                 return (
-                  <Card key={d.code} className="flex items-center gap-3 p-4">
-                    <span className="flex size-11 flex-none items-center justify-center rounded-[12px] bg-tile text-silver-ink"><Icon name={DEPT_ICON[d.code] ?? 'department'} size={22} /></span>
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="text-[14px] font-semibold">{d.name_fa}</span>
-                      <span className="text-[12px] text-muted">{d.manager_title_fa}، {staff.length} نفر{active ? `، ${active} در حال کار` : ''}</span>
-                    </div>
-                    {active ? <span className="size-2 rounded-full bg-pos" style={{ animation: 'hq-live 1.4s infinite' }} /> : null}
-                  </Card>
+                  <button key={d.code} type="button" onClick={() => go({ dept: d.code })} aria-label={`${d.name_fa}: مأموریت، شخصیت و نقش‌ها`} className="group min-w-0 text-start">
+                    <Card className="flex h-full items-center gap-3 p-4 transition-colors group-hover:bg-tile">
+                      <span className="flex size-11 flex-none items-center justify-center rounded-[12px] bg-tile text-silver-ink"><Icon name={DEPT_ICON[d.code] ?? 'department'} size={22} /></span>
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-[14px] font-semibold">{d.name_fa}</span>
+                        <span className="text-[12px] text-muted">{d.manager_title_fa}، {staff.length} نفر{active ? `، ${active} در حال کار` : ''}</span>
+                        {d.mandate ? <span className="truncate text-[11px] text-muted" title={d.mandate.to_fa}>مقصد: {d.mandate.to_fa}</span> : null}
+                      </div>
+                      {active ? <span className="size-2 rounded-full bg-pos" style={{ animation: 'hq-live 1.4s infinite' }} /> : null}
+                    </Card>
+                  </button>
                 );
               })}
           </div>
-          <Card className="p-4">
-            <h2 className="pb-2 text-[14px] font-semibold">چارت سازمانی</h2>
-            {chart.isLoading ? <Skeleton className="h-64" /> : chart.data?.roots.length ? <ul className="flex flex-col gap-1">{chart.data.roots.map((n) => <OrgNode key={n.code} n={n} />)}</ul> : <Empty icon="department" title="هنوز کسی نیست" />}
-          </Card>
+          <div className="flex min-w-0 flex-col gap-4">
+            {/* ⟨1.5⟩ §21.5: the departments' rank and the latest monthly HR round. */}
+            <DepartmentRanks company={code} />
+            <HrRoundLine company={code} />
+            <Card className="p-4">
+              <h2 className="pb-2 text-[14px] font-semibold">چارت سازمانی</h2>
+              {chart.isLoading ? <Skeleton className="h-64" /> : chart.data?.roots.length ? <ul className="flex flex-col gap-1">{chart.data.roots.map((n) => <OrgNode key={n.code} n={n} />)}</ul> : <Empty icon="department" title="هنوز کسی نیست" />}
+            </Card>
+          </div>
         </div>
       ) : tab === 'brand' && c ? (
         <Card className="p-4"><BrandBlock code={c.code} nameFa={c.name_fa ?? c.code} nameEn={c.name_en ?? c.code} /></Card>
       ) : tab === 'people' ? (
+        <>
+        {/* ⟨1.6⟩ §22.5: roles a department's manager wrote beyond the template. */}
+        <RolesOnDemand company={code} onOpen={(r) => go({ role: r })} />
         <Card className="overflow-x-auto p-2">
           <table className="w-full min-w-[640px] border-collapse text-[13px]">
             <thead><tr className="text-right text-[11px] text-muted">{['کارمند', 'دپارتمان', 'وضعیت', 'مدل', 'نمره'].map((h) => <th key={h} className="px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
@@ -101,6 +128,7 @@ export default function CompanyPage({ params }: { params: Promise<{ code: string
             </tbody>
           </table>
         </Card>
+        </>
       ) : (
         <Card className="flex flex-col gap-1 p-2">
           {(work.data?.items ?? []).length ? (work.data?.items ?? []).map((w) => (
@@ -114,6 +142,13 @@ export default function CompanyPage({ params }: { params: Promise<{ code: string
           )) : <Empty icon="task" title="کار بازی نیست" />}
         </Card>
       )}
+      {dept ? <DepartmentSheet company={code} code={dept} onClose={() => go({ dept: null })} onRole={(r) => go({ role: r })} /> : null}
+      {role ? <RoleDraftSheet refId={role} onClose={() => go({ role: null })} /> : null}
     </>
   );
+}
+
+export default function CompanyPage({ params }: { params: Promise<{ code: string }> }) {
+  const { code } = use(params);
+  return <Suspense><CompanyInner code={code} /></Suspense>;
 }

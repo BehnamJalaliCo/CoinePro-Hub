@@ -1,0 +1,64 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 420 595] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Length 1255 >>
+stream
+0.11 0.13 0.2 rg
+0 561 420 34 re f
+BT 1 1 1 rg /F2 10 Tf
+40 573 Td (Hetzner Online GmbH \(demo\)) Tj ET
+BT 0.85 0.75 0.45 rg /F1 7 Tf
+310 573 Td (DEMO - NO LEGAL VALUE) Tj ET
+0 0 0 rg
+BT /F2 16 Tf 40 537 Td (INVOICE) Tj ET
+BT /F1 9 Tf 40 516 Td (Invoice number:  R0018120587) Tj ET
+BT /F1 9 Tf 40 502 Td (Invoice date:  2018-12-01) Tj ET
+BT /F1 9 Tf 40 488 Td (Customer:  CoinePro Holding \(demo\)) Tj ET
+BT /F1 9 Tf 40 474 Td (Billing period:  2018-11-01 to 2018-11-30) Tj ET
+0.75 0.75 0.75 RG 0.6 w
+40 464 m 380 464 l S
+BT /F2 9 Tf 40 450 Td (Item                                               Qty      Amount) Tj ET
+BT /F1 9 Tf 40 436 Td (Cloud server CPX42 \(8 vCPU, 16 GB RAM\)       1      EUR 7.30) Tj ET
+BT /F1 9 Tf 40 422 Td (Primary IPv4                                              1      EUR 0.60) Tj ET
+BT /F1 9 Tf 40 408 Td (Backups \(20%\)                                           1      EUR 4.00) Tj ET
+0.75 0.75 0.75 RG 0.6 w
+40 398 m 380 398 l S
+BT /F2 9 Tf 40 384 Td (Total \(VAT reverse charge\)                                EUR 11.90) Tj ET
+BT /F1 9 Tf 40 364 Td (Paid by card on the invoice date.) Tj ET
+BT 0.45 0.45 0.45 rg /F1 6.5 Tf
+40 26 Td (Demo document generated for the CoinePro HQ archive mock. Not a real invoice.) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Title (Invoice) /Producer (CoinePro HQ demo fixtures) /Creator (scripts/gen-demo-archive.mjs) >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000257 00000 n 
+0000000354 00000 n 
+0000000456 00000 n 
+0000001763 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 7 0 R >>
+startxref
+1879
+%%EOF

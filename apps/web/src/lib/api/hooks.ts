@@ -43,7 +43,8 @@ export function useDecide() {
       if (v.verdict === 'reject') return ok(api.POST('/api/v1/decisions/{ref}/reject', { params: { path }, body: { reason: v.note ?? null, reason_code: (v.reasonCode ?? null) as never } }));
       return ok(api.POST('/api/v1/decisions/{ref}/return', { params: { path }, body: { note: v.note ?? '' } }));
     },
-    onSuccess: () => { for (const k of ['decisions', 'inbox', 'away', 'resolutions']) void qc.invalidateQueries({ queryKey: [k] }); },
+    // ⟨1.7⟩ 'archive': sealing an archive_schema or archive_disposal card changes the schema or the records (§23.11).
+    onSuccess: () => { for (const k of ['decisions', 'inbox', 'away', 'resolutions', 'archive']) void qc.invalidateQueries({ queryKey: [k] }); },
   });
 }
 export function useAskAboutDecision() {
@@ -97,9 +98,10 @@ export const useMessages = (code: string | null) =>
 export function useSend(code: string) {
   const qc = useQueryClient();
   return useMutation({
-    // ⟨1.3⟩ attachments: owner file ids (contract §17.1); the generated types catch up when the server regenerates them.
-    mutationFn: (v: { body: string; attachments?: string[] }) =>
-      ok(api.POST('/api/v1/threads/{code}/messages', { params: { path: { code } }, body: (v.attachments?.length ? v : { body: v.body }) as Schemas['MessageIn'] })),
+    // ⟨1.3⟩ attachments: owner file ids (contract §17.1); ⟨1.5⟩ `mode: "devil"`, thread A only (§21.1). The generated types catch up
+    // when the server regenerates them.
+    mutationFn: (v: { body: string; attachments?: string[]; mode?: 'devil' | null }) =>
+      ok(api.POST('/api/v1/threads/{code}/messages', { params: { path: { code } }, body: { body: v.body, ...(v.attachments?.length ? { attachments: v.attachments } : {}), ...(v.mode ? { mode: v.mode } : {}) } as Schemas['MessageIn'] })),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['messages', code] }); void qc.invalidateQueries({ queryKey: ['threads'] }); },
   });
 }

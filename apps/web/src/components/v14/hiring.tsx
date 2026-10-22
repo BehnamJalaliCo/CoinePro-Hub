@@ -195,7 +195,7 @@ export function HireSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
   const [reason, setReason] = useState('');
   const depts = useDepartments(company ?? '');
   const co = companies?.find((c) => c.code === company);
-  const fitting = useMemo(() => (co && department ? hireableRoles(roles ?? [], co.kind, department) : []), [roles, co, department]);
+  const fitting = useMemo(() => (co && department ? hireableRoles(roles ?? [], co.kind, department, co.code) : []), [roles, co, department]);
   const models = useMemo(() => {
     const offered = new Set((connections ?? []).filter((c) => c.status === 'enabled').flatMap((c) => c.models));
     return MODELS.filter((m) => !offered.size || offered.has(m));
@@ -244,13 +244,13 @@ export function HireSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
         {department ? (
           <fieldset className="flex flex-col gap-2">
             <legend className="pb-2 text-[13px] text-sec">کدام نقش</legend>
-            {!fitting.length ? <p className="rounded-[12px] bg-tile px-3 py-3 text-[13px] leading-6 text-muted">برای این دپارتمان هنوز منشور کارمندی نیست. منشور تازه را Claude سشن مشورت مینویسد؛ بگو چه نقشی میخواهی.</p> : (
+            {!fitting.length ? <p className="rounded-[12px] bg-tile px-3 py-3 text-[13px] leading-6 text-muted">برای این دپارتمان هنوز منشور کارمندی نیست. مدیر همین دپارتمان هر نقشی که کار لازم دارد مینویسد؛ از صفحه‌ی شرکت، روی دپارتمان بزن و «نقش تازه بخواه».</p> : (
               <div className="flex flex-col gap-1.5">
                 {fitting.map((r) => (
                   <button key={r.role} type="button" aria-pressed={role?.role === r.role} onClick={() => pickRole(r)}
                     className={cx('flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-start transition-colors', role?.role === r.role ? 'bg-gold-soft ring-1 ring-[var(--hq-gold-ink)]' : 'bg-tile hover:bg-hover')}>
                     <span className="text-sec"><Icon name="hire" size={20} /></span>
-                    <span className="flex min-w-0 flex-1 flex-col"><span className="text-[14px] text-ink">{r.title_fa}</span><span className="fig truncate text-[11px] text-muted">{r.title_en}, {modelLabel(r.model)}, {r.effort}</span></span>
+                    <span className="flex min-w-0 flex-1 flex-col"><span className="flex items-center gap-2 text-[14px] text-ink">{r.title_fa}{r.source === 'draft' ? <span className="rounded-full bg-lapis-soft px-2 py-px text-[10px] font-semibold text-lapis">نوشته‌ی مدیر دپارتمان{r.draft ? <> · <span className="fig">{r.draft}</span></> : null}</span> : null}</span><span className="fig truncate text-[11px] text-muted">{r.title_en}, {modelLabel(r.model)}, {r.effort}</span></span>
                     <span className="flex flex-col items-end text-[11px] text-muted"><span className="fig">{tokens(r.limits.tokens_per_run)}</span><span>سقف هر اجرا</span></span>
                   </button>
                 ))}

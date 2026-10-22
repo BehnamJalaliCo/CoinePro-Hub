@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -45,9 +43,7 @@ import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.ErrorBlock
 import com.coinepro.hq.designsystem.Fig
 import com.coinepro.hq.designsystem.FilterChip
-import com.coinepro.hq.designsystem.HqCard
 import com.coinepro.hq.designsystem.PageHeader
-import com.coinepro.hq.designsystem.SectionTitle
 import com.coinepro.hq.designsystem.Skeleton
 import com.coinepro.hq.designsystem.StatTile
 import com.coinepro.hq.designsystem.fig
@@ -126,9 +122,7 @@ fun RunList(runs: List<Run>, empty: String, showEmployee: Boolean = true, withSt
     else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { runs.forEach { RunRow(it, showEmployee, withSteps) } }
 }
 
-private data class Health(val code: String, val runs: Int, val failed: Int, val refused: Int, val retries: Int, val tokens: Long, val usd: Double)
-
-/** Every agent run, live (§16.2), and a health board per employee (M16): failures, refusals, retries, cost. */
+/** Every agent run, live (§16.2); ⟨1.5⟩ the claims checked and the health board of §21.9 (refuted claims, failures, loops). */
 @Composable
 fun RunsScreen() {
     val c = Divan.colors
@@ -138,9 +132,6 @@ fun RunsScreen() {
     val list = rememberQuery("runs:${tab ?: "all"}", "runs", maxAgeMs = 15_000) { runs(state = tab, limit = 100) }
     val r = refresher(all, list)
     val items = all.data?.items.orEmpty()
-    val board = items.groupBy { it.employee }.map { (code, rs) ->
-        Health(code, rs.size, rs.count { it.state == "failed" }, rs.count { it.state == "refused" }, rs.count { it.trigger == "retry" }, rs.sumOf { it.tokens.input + it.tokens.output }, rs.sumOf { it.equivCostUsd.toDoubleOrNull() ?: 0.0 })
-    }.sortedWith(compareByDescending<Health> { (it.failed + it.refused).toDouble() / it.runs }.thenByDescending { it.runs })
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item { PageHeader("اجرای ایجنت‌ها", eyebrow = "هر اجرای هر ایجنت، با قدم‌ها و ابزارها و مصرف") }
         item {
@@ -162,31 +153,8 @@ fun RunsScreen() {
             rows.isEmpty() -> item { Text("اجرایی با این وضعیت نیست.", style = Divan.type.caption, color = c.textMuted) }
             else -> items(rows, key = { it.id }) { RunRow(it) }
         }
-        if (board.isNotEmpty()) item {
-            HqCard(Modifier.fillMaxWidth()) {
-                SectionTitle("سلامت کارمندها", note = "از اجراهای اخیر؛ بدترین بالا")
-                Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp)) {
-                    Text("کارمند", style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f))
-                    listOf("اجرا", "شکست", "رد", "تکرار").forEach { Text(it, style = Divan.type.micro, color = c.textMuted, modifier = Modifier.width(40.dp)) }
-                }
-                board.forEach { h ->
-                    HorizontalDivider(color = c.lineDivider)
-                    Row(Modifier.fillMaxWidth().clickable { nav.go("employees/${h.code}") }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Fig(h.code, style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-                            Fig("${tokens(h.tokens)} · ${usd(h.usd)}", style = Divan.type.figureSmall, color = c.textMuted)
-                        }
-                        Cell(h.runs, c.textSecondary)
-                        Cell(h.failed, if (h.failed > 0) c.negative else c.textMuted)
-                        Cell(h.refused, if (h.refused > 0) c.warning else c.textMuted)
-                        Cell(h.retries, if (h.retries > 0) c.warning else c.textMuted)
-                    }
-                }
-                Text("شکست یعنی اجرا نتیجه نداد؛ رد یعنی سیاست یا بودجه جلویش را گرفت. ناظر کل همین الگوها را در پروتکل‌هایش میسنجد.", style = Divan.type.micro, color = c.textMuted, modifier = Modifier.padding(top = 8.dp))
-            }
-        }
+        // ⟨1.5⟩ §21.9: claims checked and the health board by rule.
+        item { ClaimsCard() }
+        item { HealthBoard() }
     }
 }
-
-@Composable
-private fun Cell(n: Int, color: Color) = Fig("$n", style = Divan.type.figureSmall, color = color, modifier = Modifier.width(40.dp))

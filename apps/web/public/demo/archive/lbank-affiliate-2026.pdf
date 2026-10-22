@@ -1,0 +1,63 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 420 595] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Length 1269 >>
+stream
+0.11 0.13 0.2 rg
+0 561 420 34 re f
+BT 1 1 1 rg /F2 10 Tf
+40 573 Td (LBank Exchange - Affiliate Program \(demo\)) Tj ET
+BT 0.85 0.75 0.45 rg /F1 7 Tf
+310 573 Td (DEMO - NO LEGAL VALUE) Tj ET
+0 0 0 rg
+BT /F2 15 Tf 40 537 Td (AFFILIATE AGREEMENT) Tj ET
+BT /F1 9 Tf 40 517 Td (Affiliate:  CoinePro FX \(demo\)) Tj ET
+BT /F1 9 Tf 40 503 Td (Programme:  Partner tier) Tj ET
+BT /F1 9 Tf 40 489 Td (Commission:  40% of trading fees of referred users) Tj ET
+BT /F1 9 Tf 40 475 Td (Start:  2026-04-01) Tj ET
+BT /F1 9 Tf 40 461 Td (Term:  12 months, review every 6 months) Tj ET
+BT /F1 9 Tf 40 447 Td (Next review:  see the archive record) Tj ET
+0.75 0.75 0.75 RG 0.6 w
+40 437 m 380 437 l S
+BT /F1 9 Tf 40 423 Td (1. Referral links are issued per channel and must not be shortened.) Tj ET
+BT /F1 9 Tf 40 409 Td (2. No profit promises; every promotion carries a risk warning.) Tj ET
+BT /F1 9 Tf 40 395 Td (3. Commission is paid monthly in USDT to the affiliate wallet on file.) Tj ET
+BT /F1 9 Tf 40 381 Td (4. Either party may end the agreement with 30 days notice.) Tj ET
+BT /F1 9 Tf 40 359 Td (Signed electronically for both parties.) Tj ET
+BT 0.45 0.45 0.45 rg /F1 6.5 Tf
+40 26 Td (Demo document generated for the CoinePro HQ archive mock. Not a real affiliate agreement.) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Title (Affiliate agreement) /Producer (CoinePro HQ demo fixtures) /Creator (scripts/gen-demo-archive.mjs) >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000257 00000 n 
+0000000354 00000 n 
+0000000456 00000 n 
+0000001777 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 7 0 R >>
+startxref
+1905
+%%EOF

@@ -19,7 +19,8 @@ function MessagesInner() {
   const params = useSearchParams();
   const { company } = useScope();
   const q = useThreads();
-  const threads = (q.data ?? []).filter((t) => !company || t.company === company || ['advisor', 'overseer', 'assistant'].includes(t.kind));
+  // The holding's own threads (the advisor, the overseer, the assistant, ⟨1.6⟩ the legal counsel's L) stay in every scope.
+  const threads = (q.data ?? []).filter((t) => !company || t.company === company || ['advisor', 'overseer', 'assistant', 'legal'].includes(t.kind));
   const sel = params.get('thread');
   const current = threads.find((t) => t.code === sel);
   const agentKind = (k: string) => (['advisor', 'overseer', 'assistant', 'ceo', 'manager'].includes(k) ? k : 'employee');
@@ -32,8 +33,9 @@ function MessagesInner() {
   return (
     <>
       <PageHeader eyebrow="گفت‌وگوی مستقیم، بدون منشی" title="پیام‌ها" />
-      <div className="grid min-h-[60dvh] gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
-        <Card className={cx('flex flex-col gap-1 p-2', sel && 'hidden lg:flex')}>
+      {/* One column of minmax(0, 1fr) on a phone: an implicit column grows to the chat's widest line (3px past 390). */}
+      <div className="grid min-h-[60dvh] grid-cols-1 gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <Card className={cx('flex min-w-0 flex-col gap-1 p-2', sel && 'hidden lg:flex')}>
           <label className="m-1 flex h-10 items-center gap-2 rounded-[10px] border border-strong bg-tile px-3 text-sec focus-within:border-gold-ink">
             <Icon name="search" size={16} />
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="جستجو در همه‌ی پیام‌ها" aria-label="جستجو در پیام‌ها" className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none" />
@@ -63,7 +65,7 @@ function MessagesInner() {
               </button>
             ))}
         </Card>
-        <Card className={cx('flex min-h-[70dvh] flex-col p-4', !sel && 'hidden lg:flex')}>
+        <Card className={cx('flex min-h-[70dvh] min-w-0 flex-col p-4', !sel && 'hidden lg:flex')}>
           {current ? (
             <>
               <div className="flex items-center gap-3 border-b border-div pb-3">

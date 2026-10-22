@@ -118,6 +118,7 @@ fun SettingsScreen(graph: AppGraph) {
             }
         }
         item { HiringCard() }
+        item { ManagementSettingsCard() }
         item {
             HqCard(Modifier.fillMaxWidth()) {
                 SectionTitle("نما")

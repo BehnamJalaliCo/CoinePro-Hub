@@ -439,6 +439,7 @@ protocols:
     severity: medium
     answerable: manager
     status: paused  # the monthly HR review arrives in prompt 12, which also moves it to the 3rd of the Jalali month
+    calendar: jalali
     title_fa: "ارزیابی ماهانه با شاهد انجام شد"
     check: "Monthly HR evaluations were made for every employee with evidence and a proposal where needed."
     evidence: "HR deliverables, D-…"

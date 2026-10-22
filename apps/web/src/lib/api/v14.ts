@@ -269,6 +269,8 @@ export type Hiring = { state: 'closed' | 'open'; mode: 'delegated' | 'proposals'
 export type RoleInfo = {
   role: string; title_fa: string; title_en: string; kind: string; scope: 'company' | 'holding' | string; department: string | null;
   model: string; effort: string; priority: string; tools: string[]; limits: { steps_per_run: number; tokens_per_step: number; tokens_per_run: number }; version: number;
+  // ⟨1.6⟩ §22.5: GET /roles lists file charters and active drafts; a draft is scoped to its company and department.
+  source?: 'file' | 'draft'; company?: string | null; draft?: string | null;
 };
 export type HireIn = { company: string; department: string; role: string; title_fa: string; title_en?: string; model?: string; effort?: string; reason?: string; duties?: string[] };
 export type HireOut = { employee: { code: string; company: string; department: string | null; title_fa: string; status: string }; decision: { ref: string; status: string; resolution: string | null } };
@@ -277,10 +279,13 @@ export type HireOut = { employee: { code: string; company: string; department: s
 export const useHiring = () => useQuery({ queryKey: ['hiring'], queryFn: async () => { const h = await call<Hiring>('GET', '/owner/hiring'); return { ...h, envelopes: h.envelopes ?? [], withdrawn: h.withdrawn ?? [] }; }, staleTime: 30_000 });
 export const useRoles = () => useQuery({ queryKey: ['roles'], queryFn: () => call<RoleInfo[]>('GET', '/roles'), staleTime: 300_000 });
 
-/** The roles the owner can hire into a department: `employee` charters whose scope fits the company and whose department (if any) is this one. */
-export function hireableRoles(roles: RoleInfo[], companyKind: string, department: string | null): RoleInfo[] {
+/** The roles the owner can hire into a department: `employee` charters whose scope fits the company and whose department (if any) is this one.
+ *  ⟨1.6⟩ A role written on demand (§22.5) is hireable only in its own company and department. */
+export function hireableRoles(roles: RoleInfo[], companyKind: string, department: string | null, company?: string | null): RoleInfo[] {
   const scope = companyKind === 'holding' ? 'holding' : 'company';
-  return roles.filter((r) => r.kind === 'employee' && r.scope === scope && (!r.department || r.department === department));
+  return roles.filter((r) => r.kind === 'employee' && (r.source === 'draft'
+    ? r.company === company && r.department === department
+    : r.scope === scope && (!r.department || r.department === department)));
 }
 
 export function useHiringAction() {
@@ -307,11 +312,12 @@ export function useHiringAction() {
 
 // ------------------------------------------------------------- stories --
 // Contract §18.12 (v1.4.3): designed cards per company, system and CEO posts, 24 hours, pulled and never pushed.
-export type StoryKind = 'hire' | 'deliverable' | 'stars' | 'milestone' | 'post';
+// ⟨1.6⟩ `role`: a role written on demand became active (§22.5), «نقش تازه در …»; the owner can retire it from the story.
+export type StoryKind = 'hire' | 'deliverable' | 'stars' | 'milestone' | 'post' | 'role';
 export type Story = {
   id: string; ref: string; company: string; kind: StoryKind; author: Actor; title_fa: string; body_fa: string;
   figures: Array<{ label_fa: string; value: string }>; media: MediaRef | null;
-  links: { employee?: string; deliverable?: string; decision?: string; work?: string; period?: string };
+  links: { employee?: string; deliverable?: string; decision?: string; work?: string; period?: string; role_draft?: string };
   created_at: string; expires_at: string; seen: boolean; welcomed: boolean;
 };
 export type StoryRing = { company: string; unseen: number; latest_at: string; items: Story[] };

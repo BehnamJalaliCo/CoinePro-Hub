@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Icon } from '@/components/icon';
 import { HiringCard } from '@/components/v14/hiring';
 import { NotificationMatrix } from '@/components/v15/notification-matrix';
+import { ManagementSettingsCard } from '@/components/v18/settings';
 import { Button } from '@/components/ui/button';
 import { Card, PageHeader, Pill, SectionTitle, Segmented, Skeleton, Switch } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
@@ -70,6 +71,8 @@ export default function SettingsPage() {
             </div>
           </Card>
           <HiringCard />
+          {/* ⟨1.5⟩ §21.12: the management tools' switches. */}
+          <ManagementSettingsCard />
         </div>
         <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-4 p-5">

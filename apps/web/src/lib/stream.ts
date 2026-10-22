@@ -22,11 +22,21 @@ const EVENT_TYPES = [
   'brand.updated',
   // ⟨1.5⟩ §19.9
   'revenue.day', 'revenue.alert', 'support.message', 'support.queue', 'support.channel', 'rescue.updated', 'lifecycle.sent', 'nps.closed', 'feedback.item',
+  // ⟨1.5⟩ §20.11
+  'meeting.scheduled', 'meeting.started', 'meeting.turn', 'meeting.claim', 'meeting.whisper', 'meeting.ended',
+  'charter.sealed', 'kpi.stale', 'okr.updated', 'outcome.due', 'risk.updated', 'calendar.conflict', 'knowledge.updated', 'knowledge.expiring',
+  // ⟨1.5⟩ §21.12
+  'memo.ready', 'advisor.proactive', 'ask.answered', 'review.updated', 'briefing.ready', 'rankings.updated', 'hr.round', 'note.created',
+  'decision.reminded', 'claim.verdict', 'dceo.scored', 'substitute.updated', 'creative.updated',
+  // ⟨1.6⟩ §22.6
+  'media.item', 'legal.case', 'role.updated',
+  // ⟨1.7⟩ §23.11
+  'record.filed', 'record.updated', 'record.sealed', 'reminder.due', 'hold.changed', 'fixity.failed', 'schema.changed',
 ] as const;
 
 const CORE_TOPICS = 'work,decisions,deliverables,messages,notifications,activity,llm,control';
 // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback`;
+const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives,media,legal,archive`;
 
 // Event type prefix -> query keys to refresh (contract §7, §16).
 const INVALIDATE: Array<[string, string[]]> = [
@@ -65,6 +75,42 @@ const INVALIDATE: Array<[string, string[]]> = [
   ['lifecycle.', ['growth']],
   ['nps.', ['growth', 'feedback']],
   ['feedback.', ['feedback']],
+  // ⟨1.5⟩ §20.11: a meeting's turns, claims and whispers (the room and the planner); a sealed charter; a stale KPI (cards and the
+  // scorecard); OKR and outcome updates; risks; calendar conflicts (the deploy cards carry them too); knowledge and its expiry.
+  ['meeting.', ['meetings', 'planner']],
+  ['charter.', ['charter']],
+  ['kpi.', ['cards', 'scorecards', 'kpis']],
+  ['okr.', ['okr']],
+  ['outcome.', ['outcomes']],
+  ['risk.', ['risks']],
+  ['calendar.', ['calendar', 'planner', 'decisions']],
+  ['knowledge.', ['knowledge']],
+  // ⟨1.5⟩ §21.12: a memo is ready (the card shows it), a proactive note (thread A), an answer, the weekly review, a briefing, ranks and
+  // the HR round (its cards), a note, a claim's verdict (the health board), a scored prediction, a substitute's state, a creative.
+  // `decision.reminded` is covered by `decision.`.
+  ['memo.', ['memos', 'decisions']],
+  ['advisor.', ['advisor', 'messages', 'threads']],
+  ['ask.', ['ask']],
+  ['review.', ['reviews']],
+  ['briefing.', ['briefings']],
+  ['rankings.', ['rankings']],
+  ['hr.', ['hr', 'decisions']],
+  ['note.', ['notes']],
+  ['claim.', ['claims', 'runs-health']],
+  ['dceo.', ['dceo', 'decisions']],
+  ['substitute.', ['substitutes', 'treasury']],
+  ['creative.', ['creatives']],
+  // ⟨1.6⟩ §22.6: an item moved in the pipeline (the board, its series, the cards it raised); a case changed (its thread L and its email
+  // cards); a role written on demand changed state (the department's roles, GET /roles for hiring, the story it makes).
+  ['media.', ['media', 'decisions']],
+  ['legal.', ['legal', 'threads', 'decisions']],
+  ['role.', ['roles', 'stories', 'decisions']],
+  // ⟨1.7⟩ §23.11: a record filed, changed or sealed; a reminder due; a hold placed or released (its case too); a fixity failure; a schema change.
+  ['record.', ['archive']],
+  ['reminder.', ['archive']],
+  ['hold.', ['archive', 'legal']],
+  ['fixity.', ['archive']],
+  ['schema.', ['archive', 'decisions']],
 ];
 
 export type StreamState = 'connecting' | 'live' | 'offline';

@@ -144,7 +144,7 @@ private fun OutputDetail(d: Deliverable, onChanged: (Deliverable) -> Unit) {
                     Text(d.producer.titleFa, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
                     Text(buildAnnotatedString { fig(d.producer.code); append("، " + jDateTime(d.createdAt)) }, style = Divan.type.micro, color = c.textMuted)
                 }
-                HqButton(null, { nav.go("work/${d.workId}") }, variant = BtnVariant.GHOST, icon = DivanIcon.TASK, label = "کار مربوط")
+                d.workId?.let { w -> HqButton(null, { nav.go("work/$w") }, variant = BtnVariant.GHOST, icon = DivanIcon.TASK, label = "کار مربوط") }
             }
         }
         HqCard(Modifier.fillMaxWidth(), color = c.softGold) {

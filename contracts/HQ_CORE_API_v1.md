@@ -9,6 +9,8 @@
 >
 > **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.4.7 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۸ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۵)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_08_1_FIXES.md`. **v1.4.8 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۹ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_09_2_FIXES.md`. **v1.6 (۲۰۲۶-۱۰-۲۲):** دپارتمان رسانه و طراحی در هر شرکت با برنامه‌ی انتشار مُهرشده، صدای متن‌باز روی هاب، و مشاور حقوقی هلدینگ با مکاتبه‌ی ایمیلی (§۲۲، پرامپت ۱۳). **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
 
+> **v1.7 (۲۰۲۶-۱۰-۲۲):** بایگانی رسمی هلدینگ و هر شرکت (§۲۳، پرامپت ۱۴): سند، نسخه و مُهر، طرح بایگانی، سطح محرمانگی و مجوز دیدن، نگهداری و امحا با مُهر مالک، توقیف قانونی، یادآور سررسید، OCR فارسی روی هاب؛ «لایه‌ی باز»: نوع سند، فیلد، پوشه، سطح، قاعده، یادآور و اتوماسیون، همه داده و از اپ قابل گسترش.
+
 ---
 
 ## 0. Scope
@@ -1122,7 +1124,11 @@ ProvisionRun { …§18.8, state: "queued"|"running"|"done"|"failed",
   unrun plan to `proposed`, cancels its audit and proposal work and stops its workshop session. Nothing of a cancelled founding is ever
   sealed, created or built. A failed run returns the founding to `sealed` (resume or cancel).
 - **SSH is never open to the world:** any tcp range that contains 22 is SSH, and its sources must lie inside
-  `owner_settings.provision_ssh_sources`; a source set that covers the whole address space is refused except on 80 and 443.
+  `owner_settings.provision_ssh_sources`; a source set that covers the whole address space is refused except on 80 and 443 (ICMP to the
+  whole internet is refused too).
+- **`price.network`** is `"0.00"` while the private network is free at Hetzner; it stays in the shape so a priced network needs no change.
+- **The reaper** fails a run that stopped answering: its error code is `callback_timeout` when the server never called back from cloud-init,
+  otherwise `error`.
 - **The work user** is created by the build and never reuses an existing account; a name of Ubuntu's base system is refused; the default is
   `<code>-ops`. `ssh-hardening`, `unattended-upgrades` and `work-user` are always in a plan.
 - **A step fails when any command in it fails**; a failed step stops the run and is resumable.
@@ -1606,6 +1612,44 @@ Conflict      { a: "CE-…", b: "CE-…", rule, severity: "medium"|"high", note_
   `risk.update`, `calendar.read`, `calendar.add`, `authority.read`, `governance.read`; `knowledge.search` gains kind `knowledge`;
   `propose` accepts `expected`.
 
+### 20.12 Shapes as the apps read them ⟨1.5.1⟩
+Written with the web and Android screens (2026-10-22). Where §20.1–§20.11 leave a shape open, this is the contract.
+- **Meetings:**
+  - `GET /meetings/{ref}/turns` → `{items: [Turn], whispers?: [Whisper], next_cursor}`. `GET /meetings/{ref}` carries `drafts?: [Draft]`.
+  - `budget.cap` is `number|null` (null for a war room); `incident` is an `I-…` ref.
+  - `PATCH /meetings/{ref}` (If-Match) `{items?: [{id, n, skip?}], budget_cap?, owner_presence?}`. `POST …/speak` → `Turn`; `POST …/control` and `POST /meetings` → `Meeting`.
+  - `GET /meetings/settings` → `[MeetingType]`; `PUT` `{types}` without If-Match; each row carries its own `version`.
+- **Charter:**
+  - `GET /charter` → `[{scope, sealed, proposed, versions: [{version, status, created_by, created_at, sealed_at}]}]`; `GET …/diff` → `{scope, version, against, diff}`.
+  - `PUT /charter/{scope}` `{body_md, red_lines}`.
+  - The seal's target is the `body_sha256` the server sends: SHA-256 of the UTF-8 body as stored (no JSON wrapping, no escaping). Clients never recompute it.
+- **Knowledge:**
+  - Create and update body `{layer, company, department?, kind, title_fa, body_md, sources, valid_until}`.
+  - `review.checks` values: true = passed. Support articles keep their `KB-` refs in the knowledge view.
+- **Cards:**
+  - `trend: [number|null]` (a day with no value is null, never zero).
+  - `Card` gains `direction: "up"|"down"|"range"`.
+  - A scorecard row is `{company, kpis: [CardKpi + {card, direction}]}`.
+  - `GET /kpis/{company}` → `{company, version, kpis}`; `PUT` (If-Match on that version) `{kpis: [{key, target, scorecard, status, freshness_hours}]}`.
+- **OKR, outcomes:** an OKR check-in's `evidence` is `[Source]`; `GET /outcomes?due=true` = due now or overdue.
+- **Authority:**
+  - `PUT /authority` (🔏 body hash) `{rules: [{key, actor?, limit, version}]}`; `actor: "owner"` takes a row back.
+  - The batch-seal item limit is the rule key `batch.max_items` with `limit.items`.
+- **Risks:** `GET /risks/matrix` → `{company, counts: [[int ×5] ×5]}` indexed `[likelihood−1][impact−1]`; the create body has `owner?`, `mitigation_md?`, `review_at?`.
+- **Calendar:**
+  - `GET /calendar` → `{events, conflicts}`. `CalendarEvent` gains `version` (for If-Match).
+  - A single-event rule (a deploy on a blackout day) has `a = b`.
+- **Batch seal:**
+  - `GET /decisions/batchable` items `{ref, version, kind, company, title, quota_estimate, proposer, risk?, created_at?, expires_at?}`.
+  - The approve response is `{batch, items: [{ref, resolution}]}`.
+  - Refusal reasons in `fields.items`: `changed`, `not_pending`, `kind`, `action_class`, `risk`, `irreversible`, `amended`, `over_max_usd`, `over_max_items`, `held`.
+- **Decision payloads:**
+  - `meeting_resolution` `{meeting, item, text_md, votes, claims}`
+  - `okr` `{objective: "OB-…"|Objective, quarter}`
+  - `knowledge_entry` `{entry}`
+  - `risk_acceptance` `{risk, until, score?}`
+  - `authority_change` `{changes: [{key, from, to}]}`
+
 ## 21. v1.5 — management tools (prompt 12)
 
 > **v1.5 (2026-10-18).** The owner's everyday tools (`docs/GAP_ANALYSIS_v2.md` §5د): the premium advisor (decision memo, devil's advocate,
@@ -2040,6 +2084,37 @@ Its memory limit is measured and passes the memory gate, or it stays off.
 - **Step-up targets:** `connection.login` (id), `substitute.seats` (body hash), `substitute.web_logout` (player). **Stream:** `substitute.updated` on topic `treasury`,
   `creative.updated` on topic `creatives`. **Settings:** `owner_settings.substitutes: {behind_ratio, creative_default_image: "gpt"|"gemini"}`.
 
+### 21.14 Shapes as the apps read them ⟨1.5.1⟩
+Written with the web and Android screens (2026-10-22). Where §21.1–§21.13 leave a shape open, this is the contract.
+- **Empty states:** when there is nothing yet, these answer `404 not_found`: a decision with no memo, no current weekly review, no briefing yet.
+- **Memos and messages:**
+  - `DecisionMemo.third_opinion` is optional.
+  - Advisor messages carry `meta: {mode?: "devil", proactive?: {kind, key}, review?}`; the owner's own devil-mode message stores `meta.mode` too.
+- **Weekly review:** `POST …/start`, `…/finish` and `PATCH …/items/{n}` each return the whole `WeeklyReview`.
+- **Deploy card:**
+  - `GET /decisions/{ref}/diff?file=` returns one `files[]` row with its whole patch and `truncated: false`.
+  - `deploy.second_review.verified` is `bool|int`; each finding may carry `verified: true|false|null`.
+- **Waste and ROI:**
+  - `WasteDay.vs_7d` is the relative change against the 7-day average.
+  - `RoiRow.trend` is ROI for companies, and cost per accepted deliverable for departments and employees.
+- **New connection:**
+  - Providers: `anthropic`, `openai`, `google`, `deepseek`, `mistral`, `openai_compatible`.
+  - `pricing` is `{<model>: {input_per_mtok, output_per_mtok}}`; `limits` is `{rpm?, tpm?, daily_usd?}`.
+  - `status` gains `verifying` between created and ready.
+  - The substitute accounts (`chatgpt-plus`, `gemini-pro`, `deepseek-free`) are listed in `/connections` with `kind: "subscription"`; sign-in goes by connection id.
+- **Notes:** `POST /notes/{ref}/promote` `{to, company?, title?}` (`company` required when `to` is `work`).
+- **Digital chief:**
+  - `Prediction` also carries the card's `kind` and `title`.
+  - `GET /digital-ceo` → `{stats: [3 windows], settings, hidden}`.
+  - Editing or retiring a principle sends `{text_fa, status}`.
+- **Creative:**
+  - Seats show `per_day_video` and `used_today_video` beside the image cap.
+  - A failed creative carries its reason in `review_md`.
+  - Aspect hints by placement: `telegram_post` 16:9, `telegram_story` 9:16, `instagram_post` 4:5, `instagram_story` 9:16, `banner` 16:9, other 1:1.
+- **CLI sign-out:** 🔏 action `connection.logout`, target = the connection id.
+- **HR:** `HrRound.month` is the Jalali month the round runs in; the round shows `due_at`.
+- **Owner settings:** `PUT /owner/settings` (If-Match) sends each changed §21.12 block whole.
+
 ## 22. v1.6 — the media studio and the legal counsel (prompt 13)
 
 > **v1.6 (2026-10-22).** The owner's decisions of 2026-10-22: every company gets a **media department** that makes its posts, stories and
@@ -2234,3 +2309,262 @@ RoleDraft { id, ref: "RD-0001", company, department, role (snake_case, unique in
 - **`Thread.kind`** gains `legal` (code `L`).
 - **Error codes:** `series_not_sealed` (409, an item asked to auto-publish outside a sealed series), `platform_limit` (429 with
   `Retry-After`, the platform's own publishing limit).
+
+### 22.7 Shapes as the apps read them ⟨1.6.1⟩
+Written with the web and Android screens (2026-10-22). Where §22.0–§22.6 leave a shape open, this is the contract.
+- **Departments:**
+  - `PUT /companies/{code}/departments/{dept}/mandate` (🔏 body hash) uses `Department.version` for If-Match and returns the Department.
+- **Role drafts:**
+  - `RoleDraft` gains `brief_md`, `requested_by`, `written_by`, `compared[]`, `originality {ok, closest, note_fa}`, `hires`, `retired_at`
+    and `state_note_fa`.
+  - `GET /roles` rows gain `source`, `company` and `draft`.
+  - The `role_new` payload is `{draft, company, department, role, title_fa, model, effort, limits, tools_count, review, eval_score, sha256}`.
+  - The role story is `Story.kind: "role"` with `links.role_draft`; retiring from the story needs no step-up.
+- **Series:**
+  - `MediaSeries` gains `proposed_by`, `decision_ref`, `next_at[]` (computed by the server from the RRULE in the owner's time zone),
+    `today {made, published}`, `items_total`, `created_at`, `updated_at` and `status_note_fa`.
+  - `POST …/seal` takes `{digest}`; a changed series answers `409 version_conflict`.
+  - Sealing a paused series resumes it and decides any pending `media_series` card. A `media_series` card is sealed on the series page,
+    never by the cartable's approve (`409 validation_failed`, like `server_plan`).
+- **Media items:**
+  - `MediaItem` gains `brief_md`, `topic_fa`, `deliverable_ref`, `state_note_fa` and `pages[]`. `FileRef` carries `width`, `height` and
+    `duration_s`; a video's poster is `?variant=poster` (§17.1). A `design` item is never published.
+  - **Publishing outside a sealed series has one path:** its `media_publish` card (🔏 `decision.approve`). There is no publish route an
+    app calls.
+  - `media_publish` payload: `{item, series, kind, title_fa, why, placements: [{channel, placement, account, via: "api"|"manual", blocked}],
+    render, checks}`. `PublishRow.error` ∈ `no_api`, `account_not_configured`, `removed`, `remove_by_hand`, `platform_limit`.
+    `external_id: "manual"` means the owner posted it from the card. After an unpublish the item becomes `rejected` with a note.
+- **Platform limits:** `GET /media/limits` → `[{account, channel, company, per_24h|null, used_24h, resets_at, note_fa}]`. Publishing
+  accounts are `/tools/accounts` keys `telegram-<co>`, `instagram-<co>` and `mail`.
+- **Voice:**
+  - `Voice` gains `speaker` (`model`|`owner`), `clones`, `samples: [{script, title_fa, text_fa, file}]`, `note_fa` and `measured_at`; each
+    engine-and-speaker pair is its own row.
+  - `GET /media/voices/reference` → 404 when none, else `{file, duration_s, created_at, state, reason_fa}`.
+  - `POST /media/voices/{id}/activate` 🔏 `voice.activate` (target = id); a non-commercial voice needs `{accept_non_commercial: true}`
+    (422 without it); an unmeasured voice answers `409 not_ready`.
+- **Legal:**
+  - `LegalCase` gains `brief_md`; `GET` one adds `emails[]` (an `EmailDraft` plus `{id, direction, state:
+    "waiting_seal"|"sent"|"received"|"superseded"|"rejected", decision_ref, message_id, at}`).
+  - An email's `digest` is SHA-256 of the canonical `{from, to, cc, subject, body_md, attachment sha256s, lang}`.
+  - Rejecting or returning an email reopens the case; closing a case while an email waits for its seal answers 409.
+  - Messages may link `case`, `media_item` or `series`.
+
+## 23. v1.7 — the archive (prompt 14)
+
+> **v1.7 (2026-10-22).** The owner's decision: the holding and every company get an **archive of record** («بایگانی»), "فوق تخصصی و لایه‌باز":
+> what the hub needs today is built in properly, and **everything that describes the archive is data the owner can extend from the app**
+> (classes of record, their fields, the file plan, levels, retention, reminders, parties, link kinds, automations) without a deploy.
+> Everything above still holds. Rules first, models last: filing, OCR, search, retention, reminders and integrity are code; a model only
+> *suggests* a class and metadata, and a person confirms.
+
+### 23.0 Principles ⟨1.7⟩
+- **A record is evidence.** It is filed once, versioned, and, once sealed, never changed: a correction is a new version that supersedes.
+  Every file carries its SHA-256; a daily fixity job re-hashes what is stored.
+- **The schema is data (the open layer).** Classes, fields, folders, levels, retention and reminder rules, party kinds, link kinds,
+  automations and system sources are versioned rows. The owner changes them in the app with step-up; an agent may only propose a change
+  (`archive_schema` card). What needs code is only the **closed vocabulary** they are built from: field types (§23.2), automation events
+  and actions (§23.7), and system sources (§23.8). Adding to those lists is a prompt; using them is not.
+- **Clearance decides who sees what.** Every record has a level; every reader has a clearance per scope. Metadata of a record above a
+  reader's clearance is never returned, not even its title; search counts never leak it. Secret material is encrypted at rest and every
+  view is logged.
+- **No secret ever enters the archive.** Passwords, private keys, seed phrases, API keys and 2FA codes are refused at upload by the same
+  patterns as gitleaks and the outbound guard (§19.6). Customer personal data stays in the support desk (§19.3), never in the archive.
+- **Nothing is deleted except by the owner's seal at the end of retention** (rule 3 of §0 has this one exception): a `archive_disposal`
+  card lists the records; sealed by the owner, their files are destroyed and a tombstone stays (ref, class, title, dates, hashes, the
+  decision). A record under a legal hold can never be disposed.
+- **Scopes are data:** the holding (`HQ`) and every company; no fixed number of companies.
+
+### 23.1 Records, versions, files ⟨1.7⟩
+```
+Record   { id, ref: "AR-000123", scope: "HQ"|<company code>, class: "contract", class_version, title_fa,
+           folder: "FP-…"|null, level: <level key>, state: "draft"|"filed"|"sealed"|"superseded"|"disposed",
+           metadata: {<field key>: value},                       // validated against the class version's fields (§23.2)
+           parties: [{party: "PT-…", role_fa}], links: [{kind: <link kind>, to: {kind, ref}}],
+           holds: ["LH-…"], retention: {rule: "RR-…", trigger_at|null, review_at|null, disposable: bool},
+           reminders: [{field, at, lead_days, state: "pending"|"sent"|"done"}],
+           current_version, versions: [RecordVersion], source: {kind: "owner"|"agent"|"system", ref|null},
+           created_by: Actor, created_at, filed_at|null, sealed_at|null, version }      // `version` is the row version for If-Match
+RecordVersion { n, files: [{file_id, name, mime, size_bytes, sha256, pages|null, text_state: "none"|"text_layer"|"ocr"|"failed",
+                ocr_confidence|null}], manifest_sha256,                   // SHA-256 of the sorted "sha256  name" lines
+                note_fa|null, created_by, created_at, sealed: bool }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/archive/records` | `?scope&class&folder&level&state&party&q&from&to&expiring_within_days&held&cursor` — only what the reader's clearance allows |
+| GET | `/archive/records/{ref}` | the record with its versions, links, holds and reminders |
+| POST | `/archive/records` | `{scope, class, title_fa, metadata, level?, folder?, file_ids, parties?, links?, file: bool}` · `Idempotency-Key` (required). The owner may file at once (`file: true` → `filed`); an agent's call makes a `draft` |
+| PATCH | `/archive/records/{ref}` | `If-Match` · `title_fa`, `metadata`, `folder`, `parties`, `level` (raise only; lowering is §23.4). A sealed record answers `409 sealed_record`, except a PATCH whose only field is `level`: the level is access metadata outside the sealed manifest, so it can be raised, or lowered with `archive.declassify`, without touching the seal ⟨1.7.1⟩ |
+| POST | `/archive/records/{ref}/versions` | `{file_ids, note_fa}` → a new version; on a sealed record the old one becomes `superseded`, the record goes back to `filed` |
+| POST | `/archive/records/{ref}/seal` 🔏 | target = the current version's `manifest_sha256` |
+| POST · DELETE | `/archive/records/{ref}/links` | add or remove one link (not on a sealed version's links) |
+| GET | `/archive/records/{ref}/files/{file_id}` | the file; levels with `watermark` are served watermarked (viewer, time, ref); levels with `step_up_to_view` need 🔏 `archive.view` (target = ref). Every call is an access-log row |
+| GET | `/archive/records/{ref}/access` | owner only · who viewed or downloaded what, when |
+| POST | `/archive/import` | owner · `{scope, file_ids, class?}` → one `draft` per file for the archivist to classify |
+
+### 23.2 Classes and fields (the open layer) ⟨1.7⟩
+```
+RecordClass { key, title_fa, parent: key|null, scopes: "all"|[scope], icon, default_level, default_folder: "FP-…"|null,
+              fields: [Field], required_files: int, allowed_mime: [mime], ocr: bool, retention: "RR-…"|null,
+              reminder_fields: [field key], auto_link: [{field, link_kind}], version, status: "active"|"retired" }
+Field       { key, title_fa, type, required: bool, searchable: bool, sensitive: bool,        // sensitive → masked below `confidential`
+              options?: [{key, title_fa}],                                                    // enum, multi_enum
+              ref_kinds?: [kind], currency?: "USD"|"USDT"|"EUR"|"IRR"|…, help_fa?, status: "active"|"retired" }
+```
+- **Field types (closed vocabulary, v1):** `text`, `long_text`, `number`, `money` (decimal string + currency), `percent`, `date`
+  (stored ISO, shown Jalali), `date_range`, `enum`, `multi_enum`, `boolean`, `party`, `company`, `ref` (`decision`, `resolution`, `case`,
+  `work`, `record`, `employee`, `revenue_account`), `url` (http/https), `email`, `phone`, `id_code` (masked to the last 4), `iban`
+  (masked to the last 4).
+- **Changing a class** makes a new class version. Records keep the version they were filed under; the app shows how many records would
+  miss a new required field before the seal, and the archivist gets one work item to fill them. **A field is never deleted**, only
+  `retired`: its values stay on old records and in search.
+- **Seed classes** (the owner edits or retires any of them): `company_registration` (ثبت شرکت), `contract` (قرارداد), `affiliate_agreement`
+  (توافق افیلیت), `license` (مجوز), `invoice` (فاکتور و رسید), `domain` (دامنه), `legal_correspondence` (مکاتبه‌ی حقوقی), `sealed_policy`
+  (اساسنامه و سیاست مُهرشده), `brand_asset` (نشان و مُهر), `resolution_bundle` (مصوبه‌های ماه), `other` (سایر). Their fields and defaults
+  are in `infra/seed/archive/*.yaml` on the server, not in code.
+
+### 23.3 File plan, parties, link kinds ⟨1.7⟩
+```
+FolderNode { ref: "FP-…", scope, parent: "FP-…"|null, title_fa, classes: [class key], default_level|null, order, status }
+Party      { ref: "PT-…", kind: <party kind>, name_fa, name_en|null, identifiers: {<key>: value}, scopes: [scope], status }
+PartyKind  { key, title_fa, identifier_fields: [Field] }               // seeds: exchange, provider, government, bank, person, other
+LinkKind   { key, title_fa, inverse_fa, to_kinds: [kind] }             // seeds: supersedes, amends, renews, evidence_for, attached_to, about
+```
+
+### 23.4 Levels and clearance ⟨1.7⟩
+```
+Level     { key, title_fa, rank: int, color_index, watermark: bool, encrypt: bool, step_up_to_view: bool, agents_max: bool }
+Clearance { subject: {kind: "role"|"employee", ref}, scope: <scope>|"all", level: <level key> }
+```
+- **Seeds:** `public` (عمومی, 0), `internal` (داخلی, 10, default), `confidential` (محرمانه, 20, watermark), `secret` (سری, 30, watermark,
+  encrypt, step-up to view, never above `agents_max`). The owner may add levels between them; a level's rank never changes once used.
+- **Clearance seeds:** every agent role `internal` in its own company's scope; the legal counsel `confidential` in `all`; the archivist
+  `confidential` for content and every level for **metadata it files**; the owner everything. The owner changes clearance with 🔏
+  `archive.clearance` (body hash).
+- **Lowering a record's level** (declassification) is the owner's alone: 🔏 `archive.declassify`, target `ref@version:level`.
+- `secret` files are encrypted with the OpenBao transit key `archive-secret` before they reach the file store; the key never leaves OpenBao.
+
+### 23.5 Retention, disposal, legal holds ⟨1.7⟩
+```
+RetentionRule { ref: "RR-…", title_fa, trigger: "filed"|"field:<key>"|"case_closed"|"superseded", keep: {years?, months?}|"permanent",
+                then: "review"|"dispose_card", version, status }
+LegalHold     { ref: "LH-…", title_fa, case: "LC-…"|null, reason_md, scope: {records?, folders?, classes?, parties?, from?, to?},
+                state: "active"|"released", placed_by: Actor, placed_at, released_at|null }
+```
+- When a record's retention ends, `then: review` makes one work item for the archivist; `dispose_card` makes (weekly, batched) one
+  `archive_disposal` card for the owner listing the records. Nothing is destroyed without that card's seal. A held record is skipped.
+- **Seed rules** (defaults the owner edits; not legal advice): contracts and agreements 7 years after `field:end`; invoices 7 years
+  after `field:date`; licenses and domains 2 years after `field:expires_at`; legal correspondence 10 years after `case_closed`; registration,
+  sealed policy, brand and resolutions `permanent`; other `review` after 3 years.
+- **Holds:** the legal counsel places one with `archive.hold` (A2, with its case); the owner too. Releasing is the owner's: 🔏
+  `archive.hold.release` (target = ref). A held record answers `423 held` to any change except a new version.
+
+### 23.6 Reminders ⟨1.7⟩
+```
+ReminderRule { ref: "RM-…", class, field, lead_days: [int], to: "owner"|{role}|{company_ceo: true}, channel: "cartable"|"digest",
+               version, status }
+```
+- Seeds: contract `end` 60/30/7 days, license and domain `expires_at` 90/30/7, affiliate agreement `review_at` 30/7. A due reminder is a
+  cartable reminder (§21.8) or a digest line; marking the underlying action done closes it.
+
+### 23.7 Automations (the open layer, closed vocabulary) ⟨1.7⟩
+```
+Automation { ref: "AU-…", title_fa, on: "filed"|"sealed"|"reminder_due"|"retention_due"|"hold_set"|"version_added",
+             when: {class?, scope?, level_min?, field?: {key, op: "eq"|"lt"|"gt"|"contains", value}},
+             do: [{action: "notify"|"work_item"|"link"|"move_to_folder"|"raise_level"|"add_reminder", args}], version, status }
+```
+- Rules only, never a model. A new automation is the owner's (🔏 `archive.schema`). `work_item` names a role, never a person outside the
+  hub; `notify` follows §6 (never `urgent` except the fixity alarm).
+
+### 23.8 System sources: what the hub files by itself ⟨1.7⟩
+`GET · PUT /archive/sources` (owner) switches each on or off: `charter_sealed` (§20.2, every sealed version), `resolution_month`
+(the month's sealed resolutions as one PDF), `brand_sealed` (§18.14), `founding_registration` (§18.8, the sealed proposal), `legal_email`
+(§22.4, every sent email and its case), `case_closed`, `server_plan_sealed` (§18.8), `backup_restore_test` (§18.9, the monthly result).
+Each lands as a `filed` record of its seed class with `source.kind: "system"`.
+
+### 23.9 Search, OCR, "ask the hub" ⟨1.7⟩
+- **Text:** a PDF's own text layer first; scanned PDFs and images go to **OCR on the hub** (Tesseract 5, `fas` + `eng`, Apache-2.0; pinned
+  traineddata with SHA-256; a sandboxed service with no network), then the deterministic Persian normaliser (`hq_common.persian`).
+- **Search:** Persian-normalised full text over title, searchable fields and file text, plus metadata filters; `GET /archive/search`
+  `?q&scope&class&level&from&to&cursor` → `{items: [{ref, title_fa, class, snippet_fa, score}], next_cursor}`, clearance-filtered before
+  ranking.
+- **Ask the hub** (§21.2) includes records within the asker's clearance; `knowledge.search` gains kind `records` for agents, within theirs.
+- **Suggestions:** rules first (dates, amounts, IBAN/ID patterns, known parties from the registry); while the kill switch is released, the
+  archivist may also suggest a class and metadata. A suggestion is never filed by itself.
+
+### 23.10 Schema API (the open layer) ⟨1.7⟩
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/archive/schema` | everything that describes the archive: classes, field types (closed list), folders, levels, clearance, retention, reminders, parties and kinds, link kinds, automations, sources |
+| PUT | `/archive/schema/{part}/{key}` 🔏 | owner · `part` ∈ `classes`, `folders`, `levels`, `clearance`, `retention`, `reminders`, `party_kinds`, `link_kinds`, `automations` · `If-Match` · target `archive.schema` (body hash). Validates against the closed vocabulary (`422 schema_invalid` with `fields`); answers the new version and `impact: {records, missing_required}` |
+| POST | `/archive/schema/{part}/{key}/retire` 🔏 | the same target; nothing that uses it is deleted |
+| GET · POST | `/archive/parties` | the parties registry; `PATCH /archive/parties/{ref}` with `If-Match` |
+| GET · POST | `/archive/holds` | `POST /archive/holds/{ref}/release` 🔏 |
+| GET | `/archive/reminders` · `/archive/retention/due` · `/archive/fixity` | due reminders; records whose retention ended; the last fixity run `{at, checked, failed: [ref]}` |
+
+### 23.11 Kinds, tools, stream, step-up, codes ⟨1.7⟩
+- **Decision kinds:** `archive_schema` (an agent's proposed schema change; payload = the exact `PUT` body), `archive_disposal` (payload
+  `{records: [{ref, class, title_fa, retention_rule, trigger_at}]}`), both sealed with step-up (§5.1).
+- **Step-up targets:** `archive.seal` (manifest sha256), `archive.view` (ref), `archive.declassify` (`ref@version:level`), `archive.schema`
+  (body hash), `archive.clearance` (body hash), `archive.hold.release` (ref).
+- **Agent tools:** `archive.search` (A0) and `archive.read` (A0; metadata and text within clearance), `archive.file` (A1; a `draft` from
+  file ids with a proposed class and metadata), `archive.link` (A1), `archive.hold` (A2; the legal counsel, with a case).
+- **Roles:** the **archivist** (`HQ-ARC`, «بایگان», a system role of the holding): classifies drafts, completes metadata, links, reports gaps
+  weekly; never seals, declassifies, releases a hold or disposes.
+- **Stream topic** `archive`: `record.filed`, `record.updated`, `record.sealed`, `reminder.due`, `hold.changed`, `fixity.failed`,
+  `schema.changed`.
+- **Codes (§14):** `clearance` (403, the record is above the reader's clearance; returned only where the reader already knows the ref),
+  `sealed_record` (409), `schema_invalid` (422 with `fields`), `secret_in_document` (422, a secret pattern was found; the file is not
+  stored), `held` (423, §18.15). A fixity failure is a data-loss alarm (`urgent`, category data loss), not a Problem code.
+
+### 23.12 Shapes both apps read ⟨1.7.1⟩
+Recorded from the web client's data layer (`apps/web/src/lib/api/v20.ts`, 2026-10-22), so the server builds to what the apps already read.
+Where §23.1–§23.11 is silent, this list is the contract.
+```
+Level        { key, title_fa, rank, … }                    // seeded 0, 10, 20, 30: a new level fits between two; a used level's rank is fixed (422 schema_invalid, fields.rank)
+             owner_settings: agents_max = the highest level any agent may be cleared for (seeded on "confidential")
+Clearance    { subject: "role:<role>"|"employee:<code>", grants: [{scope: "own"|<company code>|"holding", level}], metadata_level, version }
+             // saved one subject at a time: PUT /archive/schema/clearance/<subject>; "own" = the subject's own company;
+             // metadata_level lets the archivist see the metadata of what it files at every level
+Schema rows  carry usage counts: records (classes, folders, levels, retention, link kinds), parties (party kinds)
+GET /archive/schema  also returns vocab: {events, actions, ops, ref_kinds, currencies, mimes} and parties
+Values       money {amount: decimal string, currency} · date "YYYY-MM-DD" · date_range {from, to} · enum key · multi_enum [key]
+             party "PT-…" · company <code> · ref {kind, ref}
+Record       { …§23.1, doc_date|null,                     // what from/to filter on
+               masked: [field key], class|null,            // null on a draft from import
+               suggestion: {class, title_fa, metadata, parties, by: "rules"|"archivist", note_fa}|null,   // drafts only
+               tombstone: {decision, at, hashes}|null }    // after disposal
+Version      { …§23.1, state: "current"|"superseded" }
+Link         { kind, to_kind, to_ref, title_fa, at, by, sealed, inverse }          // a sealed link is never removed
+AccessRow    { at, actor, action: "view"|"download"|"metadata"|"level", file_id, version, step_up, watermarked, level_from?, level_to? }   // "level": a raise or declassification
+DueReminder  { id, record, title_fa, scope, class, field, at, lead_days, days_left, state, rule, to, channel }
+RetentionDue { ref, title_fa, scope, class, rule, trigger_at, due_at, then, holds, decision_ref|null }
+Fixity       { at, checked, failed: [ref], next_at }
+Hold         { …§23.5, records: n, record_refs: [ref] }   // scope: records is an explicit list; the other facets (folders, classes, parties, from/to) must all match
+Source       { key, title_fa, class, enabled, filed, last_at, note_fa }
+Automation   { …§23.7, runs_30d, last_run_at|null }
+             action args: notify {to, level: "info"|"report"|"decision", text_fa} · work_item {role, title_fa} · link {kind, to}
+                          move_to_folder {folder} · raise_level {level} · add_reminder {field, lead_days}
+```
+| Method | Path | Notes |
+|---|---|---|
+| PUT | `/archive/schema/{part}/{key}?dry_run=1` | the impact only, nothing applied, no passkey; answers `{part, key, version, impact, row, dry_run: true}` |
+| PUT | `/archive/schema/{part}/{key}` 🔏 | answers `{part, key, version, impact, row}`. A new key sends `If-None-Match: *`; parts keyed by ref (folders, retention, reminders, automations) are created with key `new` and the server assigns the ref |
+| POST | `/archive/schema/{part}/{key}/retire` 🔏 | body `{part, key, version}`; its hash is the step-up target |
+| PUT | `/archive/sources` | owner · `{<key>: on}` for the switches that change |
+| POST | `/archive/intake` | `{file_ids}` → `{files, suggestion}`: the secret scan, hashes and text extraction run here (`422 secret_in_document`) |
+| POST | `/archive/records/{ref}/file` | `If-Match` · a completed draft becomes `filed` |
+| DELETE | `/archive/records/{ref}/links?kind&to_kind&to_ref` | removes an unsealed link |
+| POST | `/archive/reminders/{id}/done` | closes a reminder |
+- **Declassify** is the record's `PATCH` with a lower `level` and `X-Step-Up` target `archive.declassify`. **Seal** posts
+  `{manifest_sha256}`; the server recomputes it and refuses a mismatch.
+- **A class's default folder:** the first folder in the record's scope whose `classes` include the class; otherwise the class's
+  `default_folder` if it lies in that scope.
+- **Cards:** the `archive_schema` payload is `{part, key, base_version, body, impact}`; the card is void if that schema row changed since.
+  Both archive cards are approved with the usual `decision.approve` step-up, target the card's ref.
+  A card with `base_version: null` (a new key) is void once that key exists.
+- **A draft** takes `class` in its `PATCH` (an imported draft has none); a filed record does not. Intake fills the form from the
+  `suggestion`, and the draft is created with `POST /archive/records` (`file: false`).
+- **`tombstone.hashes`** is `[{name, sha256}]`, one per destroyed file. **`notify.to`** is `owner` or a role key.
+- **Clearance rows** may be served one per grant or grouped per subject as above; both apps read either.
+- **Files:** images show inline; a PDF opens in a new tab or downloads (the page's security policy does not frame `blob:` URLs). Date
+  inputs take the Gregorian date and show the Jalali one beside it.

@@ -240,7 +240,9 @@ private fun Bubble(m: Message, agentKind: String, onResolve: (Message) -> Unit) 
                     Md(m.body, color = c.textPrimary)
                 }
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                // ⟨1.5⟩ §21.1, §21.3: the advisor's devil's-advocate replies, proactive notes and the weekly review brief carry `meta`.
+                m.meta?.let { MetaTags(it) }
                 if (voice) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     DIcon(DivanIcon.MIC, size = 12.dp, tint = c.textMuted)
                     Text("ویس", style = Divan.type.micro, color = c.textMuted)
@@ -261,10 +263,39 @@ private fun Bubble(m: Message, agentKind: String, onResolve: (Message) -> Unit) 
     }
 }
 
-/** One conversation. The advisor's (thread `A`), the overseer's (`N`) and the assistant's (`P`) open with suggestions;
- *  replies stream in live. [headerAction] sits at the end of the header (the advisor's inquiries, the assistant's errands). */
+/** The labels a message of thread A carries (§21.1, §21.3): the devil's advocate, a proactive note and its kind, the weekly review. */
 @Composable
-fun ChatScreen(code: String, advisor: Boolean = false, agent: String? = null, headerAction: (@Composable () -> Unit)? = null) {
+private fun MetaTags(meta: com.coinepro.hq.core.net.AdvisorMeta) {
+    val c = Divan.colors
+    if (meta.mode == "devil") Text("مخالف‌خوان", Modifier.clip(CircleShape).background(c.softNegative).padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.negative)
+    meta.proactive?.let { p ->
+        val k = com.coinepro.hq.ui.v18.TRIGGER[p.kind]
+        Row(Modifier.clip(CircleShape).background(c.softLapis).padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            DIcon(k?.icon ?: DivanIcon.BELL, size = 12.dp, tint = c.lapis)
+            Text("گزارش فعال · ${k?.fa ?: p.kind}", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.lapis)
+        }
+    }
+    meta.review?.let { r ->
+        Row(Modifier.clip(CircleShape).background(c.softGold).padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("مرور هفتگی", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+            Fig(r, style = Divan.type.figureSmall, color = c.goldInk)
+        }
+    }
+}
+
+/** One conversation. The advisor's (thread `A`), the overseer's (`N`) and the assistant's (`P`) open with suggestions;
+ *  replies stream in live. [headerAction] sits at the end of the header (the assistant's errands); [subHeader] under it (the advisor's
+ *  tools, ⟨1.5⟩ §21). [mode] `"devil"` sends in the devil's-advocate mode (thread A only, §21.1), with its own [placeholder]. */
+@Composable
+fun ChatScreen(
+    code: String,
+    advisor: Boolean = false,
+    agent: String? = null,
+    headerAction: (@Composable () -> Unit)? = null,
+    subHeader: (@Composable () -> Unit)? = null,
+    mode: String? = null,
+    placeholder: String? = null,
+) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val c = Divan.colors
@@ -290,7 +321,7 @@ fun ChatScreen(code: String, advisor: Boolean = false, agent: String? = null, he
 
     suspend fun send(body: String, attachments: List<String>) {
         try {
-            env.api.send(code, body, attachments)
+            env.api.send(code, body, attachments, mode)
             env.cache.invalidate("messages", "threads")
             scope.launch { startLive(scope, env, code, live) }
         } catch (e: com.coinepro.hq.core.net.ApiException) {
@@ -301,7 +332,7 @@ fun ChatScreen(code: String, advisor: Boolean = false, agent: String? = null, he
 
     Column(Modifier.fillMaxSize().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (advisor) Orb(40.dp, state = when (live.state) { LiveState.THINKING -> "thinking"; LiveState.WRITING -> "speaking"; else -> "rest" })
+            if (advisor) Orb(40.dp, state = when (live.state) { LiveState.THINKING -> "thinking"; LiveState.WRITING -> "speaking"; else -> if (mode == "devil") "thinking" else "rest" })
             else Avatar(agentKind, size = 40.dp, state = if (live.state != LiveState.IDLE) "working" else "idle")
             Column(Modifier.weight(1f)) {
                 Text(if (advisor) "مشاور کل" else who?.title ?: thread?.titleFa ?: code, style = Divan.type.h3)
@@ -309,6 +340,7 @@ fun ChatScreen(code: String, advisor: Boolean = false, agent: String? = null, he
             }
             headerAction?.invoke()
         }
+        subHeader?.invoke()
         HorizontalDivider(color = c.lineDivider)
         LazyColumn(Modifier.weight(1f), state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when {
@@ -340,7 +372,7 @@ fun ChatScreen(code: String, advisor: Boolean = false, agent: String? = null, he
                 }
             }
         }
-        Composer(if (advisor) "از مشاور بپرس…" else who?.placeholder ?: "پیام…", { b, a -> send(b, a) }, Modifier.padding(12.dp), draftKey = "chat:$code")
+        Composer(placeholder ?: if (advisor) "از مشاور بپرس…" else who?.placeholder ?: "پیام…", { b, a -> send(b, a) }, Modifier.padding(12.dp), draftKey = "chat:$code")
     }
     resolve?.let { m -> com.coinepro.hq.ui.owner.RecordResolutionSheet(m.ref, m.body) { resolve = null } }
 }

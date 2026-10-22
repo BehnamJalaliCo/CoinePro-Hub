@@ -29,6 +29,13 @@ val DECISION_KIND = mapOf(
     "message_template" to Kind("قالب پیام", DivanIcon.SEND),
     "lifecycle_rule" to Kind("قاعده‌ی پیام", DivanIcon.TIME),
     "support_go_live" to Kind("شروع پشتیبانی", DivanIcon.MESSAGES),
+    // ⟨1.5⟩ §20.11
+    "meeting_resolution" to Kind("مصوبه‌ی جلسه", DivanIcon.MEETING),
+    "charter_amendment" to Kind("اصلاحیه‌ی اساسنامه", DivanIcon.REPORT),
+    "okr" to Kind("OKR فصل", DivanIcon.PLANNER),
+    "knowledge_entry" to Kind("ورودی دانشنامه", DivanIcon.KNOWLEDGE),
+    "risk_acceptance" to Kind("پذیرش ریسک", DivanIcon.URGENT),
+    "authority_change" to Kind("تغییر ماتریس اختیار", DivanIcon.LOCK),
 )
 
 fun decisionKind(k: String) = DECISION_KIND[k] ?: Kind(k, DivanIcon.DECISION)

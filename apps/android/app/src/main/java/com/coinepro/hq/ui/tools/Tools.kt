@@ -114,6 +114,8 @@ fun ToolsScreen() {
                 }
             }
         }
+        // ⟨1.5⟩ §21.7: a new model connection, sealed on its body; its key by the app or the owner's terminal.
+        item { ConnectionsCard() }
         item { SectionTitle("سرورهای MCP", note = "فقط با مُهر تو روشن میشوند؛ ابزار تازه‌ی هر سرور دوباره مُهر میخواهد") }
         val servers = mcp.data
         if (servers == null) item { Skeleton(Modifier.fillMaxWidth().height(160.dp), radius = 14.dp) }
@@ -124,6 +126,8 @@ fun ToolsScreen() {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DIcon(DivanIcon.SERVER, size = 16.dp, tint = c.textSecondary)
                     Text(m.titleFa, style = Divan.type.bodyStrong, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // ⟨1.5⟩ §21.11: a server in its own container on hq-mcp (pinned digest, no route out).
+                    if (m.transport == "container") Pill("کانتینر", Tone.SILVER, icon = DivanIcon.SERVER)
                     when (m.status) {
                         "enabled" -> Pill("روشن", Tone.POS, dot = true)
                         "pending" -> Pill("منتظر مُهر", Tone.GOLD, dot = true)
