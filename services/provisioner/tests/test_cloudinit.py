@@ -65,15 +65,15 @@ def test_a_step_fails_when_any_command_in_it_fails(tmp_path: Path) -> None:
     script = (
         "set -euo pipefail\nshopt -s inherit_errexit\n"
         f"STATE={tmp_path}\nLOG=/dev/null\nREBOOT_RC=100\n"
-        "log() { :; }\nresult() { echo \"$*\" >>\"$STATE/results\"; }\n"
-        "systemctl() { echo \"$*\" >>\"$STATE/systemctl\"; }\n"
+        'log() { :; }\nresult() { echo "$*" >>"$STATE/results"; }\n'
+        'systemctl() { echo "$*" >>"$STATE/systemctl"; }\n'
         + run_step
-        + "step_mid() { false; touch \"$STATE/after-mid\"; }\n"  # fails in the middle
-        "step_pipe() { false | cat; touch \"$STATE/after-pipe\"; }\n"
+        + 'step_mid() { false; touch "$STATE/after-mid"; }\n'  # fails in the middle
+        'step_pipe() { false | cat; touch "$STATE/after-pipe"; }\n'
         "step_ok() { true; }\n"
-        "step_boot() { return \"$REBOOT_RC\"; }\n"
-        "for k in $KEYS; do run_step \"$k\"; [[ ! -e \"$STATE/failed\" ]] || break; done\n"
-        "touch \"$STATE/end\"\n"
+        'step_boot() { return "$REBOOT_RC"; }\n'
+        'for k in $KEYS; do run_step "$k"; [[ ! -e "$STATE/failed" ]] || break; done\n'
+        'touch "$STATE/end"\n'
     )
     (tmp_path / "s.sh").write_text(script)
 

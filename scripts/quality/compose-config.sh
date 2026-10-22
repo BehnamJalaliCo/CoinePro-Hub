@@ -15,3 +15,22 @@ for profile in "${PROFILES[@]}"; do
   HQ_PROFILE="$profile" "$HQ" config -q
   echo "compose-config: $profile ok"
 done
+
+# Review 9.2: HQ_PROVISIONING stays off by default. With a fresh secrets
+# file (gen-env.sh, as a new server gets it) and nothing in the environment,
+# the provisioner (the only reader of the Hetzner token) is not in the model
+# and the api has no PROVISIONER_URL (nothing priced, listed or built).
+default_env="$(mktemp)"
+"$REPO_DIR/infra/compose/gen-env.sh" --output "$default_env" >/dev/null
+for profile in "${PROFILES[@]}"; do
+  off="$(env -u HQ_PROVISIONING HQ_ENV_FILE="$default_env" HQ_PROFILE="$profile" HQ_STT=off \
+    "$HQ" config --format json | jq -r '[(.services | has("provisioner")),
+      (.services.api.environment.PROVISIONER_URL // "")] | @tsv')"
+  if [[ "$off" != $'false\t' ]]; then
+    rm -f "$default_env"
+    echo "compose-config: $profile: the provisioner is on by default ($off)" >&2
+    exit 1
+  fi
+done
+rm -f "$default_env"
+echo "compose-config: the provisioner is off by default"

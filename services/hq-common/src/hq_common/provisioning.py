@@ -151,7 +151,7 @@ def covers_everything(nets: list[Net]) -> bool:
     """Whether the networks together are the whole IPv4 or the whole IPv6 space."""
     for whole in _WHOLE:
         fam = [n for n in nets if n.version == whole.version]
-        if fam and list(ipaddress.collapse_addresses(fam)) == [whole]:  # type: ignore[arg-type]
+        if fam and list(ipaddress.collapse_addresses(fam)) == [whole]:  # type: ignore[type-var]
             return True
     return False
 

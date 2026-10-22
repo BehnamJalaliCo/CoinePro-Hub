@@ -84,11 +84,14 @@ def test_nothing_but_80_and_443_is_open_to_the_world(
 
 
 def test_80_and_443_may_be_open_to_the_world() -> None:
-    plan = make_plan(
-        firewall=[OWNER_SSH, rule("80", "0.0.0.0/0", "::/0"), rule("443", "0.0.0.0/0", "::/0"),
-                  rule("443", "::/0", proto="udp")]  # fmt: skip
-    )
-    assert P.problems(plan) == []
+    world = ("0.0.0.0/0", "::/0")
+    firewall = [
+        OWNER_SSH,
+        rule("80", *world),
+        rule("443", *world),
+        rule("443", "::/0", proto="udp"),
+    ]
+    assert P.problems(make_plan(firewall=firewall)) == []
 
 
 def test_ssh_comes_only_from_the_owners_addresses() -> None:
@@ -103,7 +106,9 @@ def test_ssh_comes_only_from_the_owners_addresses() -> None:
     ):
         problems = P.problems(make_plan(firewall=fw), ssh_sources=owner)
         assert any("outside the owner's addresses" in p for p in problems), (fw, problems)
-    assert P.problems(make_plan(firewall=[rule("22", "2001:db8:7:1::/64")]), ssh_sources=owner) == []
+    assert (
+        P.problems(make_plan(firewall=[rule("22", "2001:db8:7:1::/64")]), ssh_sources=owner) == []
+    )
     # No owner's address yet: no SSH at all can be sealed.
     problems = P.problems(make_plan(), ssh_sources=[])
     assert any("needs the owner's addresses first" in p for p in problems)
