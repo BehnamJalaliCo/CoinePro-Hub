@@ -69,6 +69,12 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "hold",
         "kill_switch.engage",
         "deploy.freeze",
+        # prompt 10 §2, §3, §8 (contract §19.10): the radar, the funnel, rescue, feedback
+        "revenue.read",
+        "funnel.read",
+        "rescue.update",
+        "feedback.tag",
+        "referral.check",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).
