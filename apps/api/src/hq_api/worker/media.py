@@ -44,6 +44,7 @@ _SCALE = f"scale='if(gt(iw,ih),min({AGENT_PX},iw),-2)':'if(gt(iw,ih),-2,min({AGE
 FALLBACK_TOTAL_S = 120.0  # all the evenly spaced frames together
 WAV_BYTES_PER_S = 16000 * 2  # 16 kHz mono, 16-bit
 WAV_HEADER = 44
+LENGTH_SLACK_S = 0.5  # what a 15:00 upload may decode to beyond 900 s
 
 
 def cap_s(kind: str) -> int:
@@ -130,7 +131,7 @@ async def sound_track(src: Path, dst: Path, kind: str = "audio") -> bool:
     size = await asyncio.to_thread(lambda: dst.stat().st_size if dst.exists() else 0)
     if code != 0 or size <= WAV_HEADER:  # a WAV header alone is 44 bytes
         return False
-    if (size - WAV_HEADER) / WAV_BYTES_PER_S > cap - 1:
+    if (size - WAV_HEADER) / WAV_BYTES_PER_S > cap - 1 + LENGTH_SLACK_S:
         raise ValueError(f"longer than {(cap - 1) // 60} min")
     return True
 
