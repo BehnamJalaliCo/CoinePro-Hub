@@ -46,6 +46,9 @@ ops := {
 	"egress.connector", "referral.check", "rescue.update", "feedback.tag",
 	# prompt 10 §12: the support desk's writes (support_desk.rego)
 	"kb.propose", "support.draft", "support.handoff", "support.mystery",
+	# prompt 11 §4-§10: cards, OKRs, outcomes, risks, the calendar, the matrix (governance.rego)
+	"kpi.record", "okr.draft", "okr.checkin", "outcome.note", "risk.raise", "risk.update",
+	"calendar.read", "calendar.add", "authority.read", "governance.read",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and
@@ -91,17 +94,20 @@ propose_kinds := {
 		"lesson_adoption",
 		# ⟨1.5⟩ prompt 10 §7: a template or a lifecycle rule for the owner's seal
 		"message_template", "lifecycle_rule",
+		# ⟨1.5⟩ prompt 11 §7, §8: a change of the authority matrix, a risk's acceptance
+		"authority_change", "risk_acceptance",
 	},
 	"manager": {
 		"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session", "company_found",
 		"message_template", "lifecycle_rule",
+		"proposal", "risk_acceptance",
 	},
 	"employee": {"a3_action", "deploy", "recurring_approval", "code_session", "message_template", "lifecycle_rule"},
 	"advisor": {"proposal", "code_session"},
 	"inspector": {"proposal", "hire"},
 	# ⟨1.4⟩ prompt 08: a new or changed protocol is the owner's seal (§2); an
 	# errand's external commitment is the owner's decision (§5)
-	"overseer": {"proposal", "protocol"},
+	"overseer": {"proposal", "protocol", "authority_change"},
 	"assistant": {"proposal", "errand_action"},
 }
 
