@@ -159,6 +159,15 @@ private val MEDIA = listOf(
     Tool("legal", "مشاور حقوقی", DivanIcon.DECISION),
 )
 
+/** ⟨1.7⟩ the archive of record (§23): search and intake, legal holds, reminders, the end of retention, and the open layer. */
+private val ARCHIVE = listOf(
+    Tool("archive", "بایگانی", DivanIcon.DELIVERABLE),
+    Tool("archive-holds", "توقیف‌ها", DivanIcon.LOCK),
+    Tool("archive-reminders", "یادآورها", DivanIcon.TIME),
+    Tool("archive-retention", "پایان نگهداری", DivanIcon.MEMORY),
+    Tool("archive-settings", "طرح بایگانی", DivanIcon.SETTINGS),
+)
+
 private val TOOLS = listOf(
     // ⟨1.5⟩ revenue and support (§19)
     Tool("revenue", "درآمد", DivanIcon.CHART),
@@ -178,7 +187,8 @@ private val TOOLS = listOf(
     Tool("settings", "تنظیمات", DivanIcon.SETTINGS),
 )
 
-private val TOP = TABS.map { it.route }.toSet() + ORG.map { it.route } + MANAGEMENT.map { it.route } + MEDIA.map { it.route } + GOVERNANCE.map { it.route } + TOOLS.map { it.route }
+private val TOP = TABS.map { it.route }.toSet() + ORG.map { it.route } + MANAGEMENT.map { it.route } + MEDIA.map { it.route } + ARCHIVE.map { it.route } +
+    GOVERNANCE.map { it.route } + TOOLS.map { it.route }
 
 private class NavImpl(private val nav: NavHostController) : Nav {
     override fun go(route: String) {
@@ -328,6 +338,22 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("legal") { com.coinepro.hq.ui.legal.LegalScreen() }
                     composable("legal/{ref}") { com.coinepro.hq.ui.legal.CaseScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("roles/{ref}") { com.coinepro.hq.ui.org.RoleDraftScreen(it.arguments?.getString("ref").orEmpty()) }
+                    // ⟨1.7⟩ the archive (§23)
+                    composable("archive") { com.coinepro.hq.ui.archive.ArchiveScreen() }
+                    composable("archive-in/{key}/{value}") { e ->
+                        val k = e.arguments?.getString("key").orEmpty()
+                        val v = e.arguments?.getString("value")
+                        com.coinepro.hq.ui.archive.ArchiveScreen(party0 = v.takeIf { k == "party" }, folder0 = v.takeIf { k == "folder" })
+                    }
+                    composable("archive/{ref}") { com.coinepro.hq.ui.archive.RecordScreen(it.arguments?.getString("ref").orEmpty()) }
+                    composable("archive-holds") { com.coinepro.hq.ui.archive.HoldsScreen() }
+                    composable("archive-holds/{ref}") { com.coinepro.hq.ui.archive.HoldsScreen(focus0 = it.arguments?.getString("ref")) }
+                    composable("archive-holds-new/{case}") { com.coinepro.hq.ui.archive.HoldsScreen(newFor = it.arguments?.getString("case")) }
+                    composable("archive-reminders") { com.coinepro.hq.ui.archive.RemindersScreen() }
+                    composable("archive-retention") { com.coinepro.hq.ui.archive.RetentionScreen() }
+                    composable("archive-settings") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen() }
+                    composable("archive-settings/{tab}") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen(tab0 = it.arguments?.getString("tab")) }
+                    composable("archive-settings/{tab}/{ref}") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen(tab0 = it.arguments?.getString("tab"), open0 = it.arguments?.getString("ref")) }
                 }
             }
             BottomBar(route, inbox.data?.decisionsPending ?: 0, inbox.data?.messagesUnread ?: 0) { navApi.go(it) }
@@ -426,6 +452,8 @@ private fun ToolsSheet(unrated: Int, go: (String) -> Unit) {
         for (t in MANAGEMENT) ToolRow(t, null, go)
         Text("رسانه و حقوقی", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
         for (t in MEDIA) ToolRow(t, null, go)
+        Text("بایگانی", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+        for (t in ARCHIVE) ToolRow(t, null, go)
         Text("حاکمیت", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
         for (t in GOVERNANCE) ToolRow(t, null, go)
         Text("ابزارها", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))

@@ -2,7 +2,7 @@
 // demo on both clients shows the same holding. Instants become offsets from "now" ("@-42m"), which the
 // Android demo resolves at load time, so relative times ("5 minutes ago") stay true.
 // Usage: node --experimental-strip-types scripts/dump_demo_fixtures.mjs (from apps/android)
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { register } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +24,16 @@ globalThis.Date = class extends RealDate {
 };
 
 const here = dirname(fileURLToPath(import.meta.url));
+// ⟨1.7⟩ The archive's mock (mock-v20) reads its demo documents from the web's public folder to hash them, as a browser would: the page's
+// origin and a fetch of `/demo/…` are served here from apps/web/public, so every SHA-256 and manifest is that of the real file.
+const PUBLIC = join(here, '../../web/public');
+globalThis.window = { location: { origin: 'http://demo' } };
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (input, init) => {
+  const u = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+  if (u.origin === 'http://demo' && u.pathname.startsWith('/demo/')) return new Response(readFileSync(join(PUBLIC, decodeURIComponent(u.pathname))));
+  return realFetch(input, init);
+};
 const { handle } = await import(join(here, '../../web/src/lib/api/mock.ts'));
 const t0 = Date.now();
 const getJson = async (p) => (await handle(new Request(`http://demo/api/v1${p}`))).json();
@@ -54,6 +64,9 @@ const allCompanies = listOf(await getJson('/companies')).map((c) => c.code);
 // ⟨1.6⟩ the media studio and the legal counsel (§22): every case (each with its email thread) and the cards §22 makes.
 const caseRefs = listOf(await getJson('/legal/cases')).map((c) => c.ref);
 const cards19 = listOf(await getJson('/decisions?status=all')).filter((d) => ['media_series', 'media_publish', 'email_send', 'role_new'].includes(d.kind)).map((d) => d.ref);
+// ⟨1.7⟩ the archive (§23): the two cards §23 makes, and the query the archive's search screenshot types.
+const cards20 = listOf(await getJson('/decisions?status=all')).filter((d) => ['archive_schema', 'archive_disposal'].includes(d.kind)).map((d) => d.ref);
+const ARCHIVE_Q = 'هتزنر';
 
 const paths = [
   '/auth/session', '/meta', '/inbox/summary', '/owner/presence', '/owner/away-summary', '/owner/settings',
@@ -134,6 +147,12 @@ const paths = [
   // already carry what §22 adds to them.
   '/media/series', '/media/items', '/media/voices', '/media/voices/reference', '/media/limits', '/roles/drafts',
   '/legal/cases', ...caseRefs.map((r) => `/legal/cases/${r}`), '/threads/L/messages', ...cards19.map((r) => `/decisions/${r}`),
+  // ⟨1.7⟩ the archive (§23). Whole lists the demo filters and changes itself (every record as the hub serves it, with its versions, links,
+  // holds, retention and reminders; holds; due reminders; ended retention; parties; sources) and the schema whole (the open layer, its
+  // vocabulary and usage counts); one search as the hub ranks it (its snippets from the files' text); the two §23 cards.
+  '/archive/schema', '/archive/records', '/archive/holds', '/archive/reminders', '/archive/retention/due', '/archive/fixity', '/archive/sources', '/archive/parties',
+  [`/archive/search?q=${ARCHIVE_Q}`, `/archive/search?q=${encodeURIComponent(ARCHIVE_Q)}`], [`/archive/records?q=${ARCHIVE_Q}`, `/archive/records?q=${encodeURIComponent(ARCHIVE_Q)}`],
+  ...cards20.map((r) => `/decisions/${r}`),
 ];
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;

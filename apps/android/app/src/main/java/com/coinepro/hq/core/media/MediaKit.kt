@@ -76,6 +76,8 @@ fun videoSeconds(context: Context, uri: Uri): Double? = runCatching {
 private val MIME_BY_EXT = mapOf(
     "jpg" to "image/jpeg", "jpeg" to "image/jpeg", "png" to "image/png", "webp" to "image/webp", "heic" to "image/heic", "heif" to "image/heif",
     "mp4" to "video/mp4", "webm" to "video/webm", "mov" to "video/quicktime", "m4a" to "audio/mp4", "pdf" to "application/pdf",
+    // ⟨1.7⟩ the archive's other document types (§23.2 allowed_mime).
+    "txt" to "text/plain", "eml" to "message/rfc822", "docx" to "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 )
 
 fun kindOf(mime: String): String = when {

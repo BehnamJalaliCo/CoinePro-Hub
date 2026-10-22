@@ -243,6 +243,14 @@ fun refRoute(ref: String): String? = when {
     Regex("^LC-\\d+$").matches(ref) -> "legal/$ref"
     Regex("^RD-\\d+$").matches(ref) -> "roles/$ref"
     Regex("^L-\\d+$").matches(ref) -> "messages/L"
+    // ⟨1.7⟩ §23: a record, a hold, a party (its records), a folder (its records), and the open layer's rows (their editor).
+    Regex("^AR-\\d+$").matches(ref) -> "archive/$ref"
+    Regex("^LH-\\d+$").matches(ref) -> "archive-holds/$ref"
+    Regex("^PT-\\d+$").matches(ref) -> "archive-in/party/$ref"
+    Regex("^FP-\\d+$").matches(ref) -> "archive-in/folder/$ref"
+    Regex("^RR-\\d+$").matches(ref) -> "archive-settings/retention/$ref"
+    Regex("^RM-\\d+$").matches(ref) -> "archive-settings/reminders/$ref"
+    Regex("^AU-\\d+$").matches(ref) -> "archive-settings/automations/$ref"
     else -> null
 }
 

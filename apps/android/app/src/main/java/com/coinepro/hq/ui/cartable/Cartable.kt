@@ -364,6 +364,8 @@ private fun Payload(d: Decision) {
         }
         // ⟨1.6⟩ the media studio and the legal counsel (§22.6)
         in com.coinepro.hq.core.net.MEDIA_KINDS -> MediaDecisionPayload(d)
+        // ⟨1.7⟩ the archive (§23.11): a schema change read against the current row, and the week's disposal batch
+        in com.coinepro.hq.core.net.ARCHIVE_KINDS -> ArchiveDecisionPayload(d)
         // ⟨1.5⟩ the governance kinds (§20.11)
         else -> GovernancePayload(d)
     }
@@ -418,6 +420,8 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
             "media_publish", "media_series" -> env.cache.invalidate("media")
             "email_send" -> env.cache.invalidate("legal", "threads", "messages")
             "role_new" -> env.cache.invalidate("roles", "stories", "companies")
+            // ⟨1.7⟩ §23.11: a sealed schema change or disposal batch changes the schema or the records.
+            "archive_schema", "archive_disposal" -> env.cache.invalidate("archive")
         }
         // ⟨1.5⟩ §21.1, §21.10: a decided card's memos go stale and its sealed prediction is revealed.
         env.cache.invalidate("memos", "dceo", "reviews")
@@ -471,17 +475,23 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
             HqCard(Modifier.fillMaxWidth(), radius = 18.dp) {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     val own = OWN_ROUTE[d.kind]
-                    if (own != null) {
-                        HqButton(own.second, { nav.go(own.first(d)) }, icon = DivanIcon.SEAL)
-                    } else SealButton(d.company, co.nameFa, co.nameEn, co.holding, busy = seal.busy) {
-                        seal.run {
-                            // ⟨1.6⟩ §22.6: an `email_send` card is sealed on the message digest, every other on its ref.
-                            val token = if (needsStepUp(d)) env.auth.stepUp(act, "decision.approve", com.coinepro.hq.core.net.sealTarget(d)) else null
-                            val out = env.api.approve(d.ref, null, token)
-                            decided(out)
-                            toasts.ok("مُهر خورد. ${out.resolution?.let { "$it " } ?: ""}به ${actorFa(d.proposer)} خبر داده شد.")
+                    val sealButton: @Composable () -> Unit = {
+                        SealButton(d.company, co.nameFa, co.nameEn, co.holding, busy = seal.busy) {
+                            seal.run(onError = { e -> toasts.error(if (d.kind in com.coinepro.hq.core.net.ARCHIVE_KINDS) com.coinepro.hq.core.net.archiveError(e) else e.messageFa) }) {
+                                // ⟨1.6⟩ §22.6: an `email_send` card is sealed on the message digest, every other on its ref.
+                                val token = if (needsStepUp(d)) env.auth.stepUp(act, "decision.approve", com.coinepro.hq.core.net.sealTarget(d)) else null
+                                val out = env.api.approve(d.ref, null, token)
+                                decided(out)
+                                toasts.ok("مُهر خورد. ${out.resolution?.let { "$it " } ?: ""}به ${actorFa(d.proposer)} خبر داده شد.")
+                            }
                         }
                     }
+                    if (own != null) {
+                        HqButton(own.second, { nav.go(own.first(d)) }, icon = DivanIcon.SEAL)
+                    } else if (d.kind == "archive_schema") {
+                        // ⟨1.7⟩ §23.12: a card written against a schema row that has changed since is void and is never sealed.
+                        SchemaSealGate(d) { sealButton() }
+                    } else sealButton()
                     if (needsStepUp(d) || own != null) Text("این تصمیم با اثر انگشت یا چهره تأیید میشود.", style = Divan.type.caption, color = c.textMuted)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         HqButton("توی چت بپرس", { other.run { val o = env.api.ask(d.ref, null); nav.go("messages/${o.thread}") } }, icon = DivanIcon.MESSAGES, loading = other.busy)

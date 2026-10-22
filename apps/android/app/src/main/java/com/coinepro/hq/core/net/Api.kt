@@ -50,6 +50,8 @@ class ApiException(
     val batchReasons: List<Pair<String, String>> = emptyList(),
     /** ⟨1.6⟩ the fields a `422 validation_failed` names (`fields`), so the app can say which (§22.7). */
     val fieldKeys: List<String> = emptyList(),
+    /** ⟨1.7⟩ `422 schema_invalid` and `validation_failed`: each named field with the server's sentence (§23.10), shown next to it. */
+    val fields: Map<String, String> = emptyMap(),
 ) : Exception("HTTP $status $code") {
     val isAuth: Boolean get() = status == 401
     val isOffline: Boolean get() = status == 0
@@ -69,7 +71,7 @@ interface TokenSource {
 /** Signs one 🔏 action: the API supplies the contract's action name and target, the caller returns a step-up token. */
 typealias StepUp = suspend (action: String, target: String) -> String
 
-/** The hub's public API (contract v1.6) as the Android client sees it: Bearer session, JSON, Problem errors. */
+/** The hub's public API (contract v1.7) as the Android client sees it: Bearer session, JSON, Problem errors. */
 class Api(
     origin: String,
     private val tokens: TokenSource,
@@ -886,6 +888,131 @@ class Api(
     /** Owner; `409` while an email waits for its seal. */
     suspend fun closeCase(ref: String): LegalCase = post("/legal/cases/${seg(ref)}/close", JsonObject(emptyMap()))
 
+    // ------------------------------------------------------------------- the archive ⟨1.7⟩ --
+    // Contract §23, in the shapes §23.12 ⟨1.7.1⟩ fixes. Every 🔏 write names its action and exact target here (§23.11): a schema change on the
+    // SHA-256 of the exact body (`archive.schema`, or `archive.clearance` for the clearance part), its retirement on the hash of
+    // `{part, key, version}`, a seal on the current version's manifest, a declassification on `ref@version:level`, a file of a level that
+    // needs it on the ref (`archive.view`), a hold's release on its ref. PATCH, a draft's filing and a schema save carry If-Match (a new key
+    // `If-None-Match: *`); a new record, party and hold carry the caller's Idempotency-Key, kept across retries of one press.
+    suspend fun archiveSchema(): ArchiveSchema = try {
+        ArchiveSchema(get<JsonObject>("/archive/schema"))
+    } catch (x: IllegalArgumentException) {
+        throw ApiException(200, "contract_mismatch", "پاسخ سرور با قرارداد نمیخواند؛ نسخه‌ی اپ را به‌روز کن.")
+    }
+
+    /** The impact (and the server's validation, `422 schema_invalid` with `fields`) before the passkey: nothing is applied. */
+    suspend fun schemaPreview(part: String, key: String, body: JsonObject, version: Int?): SchemaResult =
+        schemaPut(part, key, json.encodeToString(JsonElement.serializer(), body), version, dryRun = true, stepUp = null)
+
+    /** 🔏 `archive.schema` (or `archive.clearance`) on the SHA-256 of the exact body; If-Match the row, `If-None-Match: *` for a new key. */
+    suspend fun schemaSave(part: String, key: String, body: JsonObject, version: Int?, stepUp: StepUp): SchemaResult {
+        val text = json.encodeToString(JsonElement.serializer(), body)
+        return schemaPut(part, key, text, version, dryRun = false, stepUp = stepUp(schemaAction(part), sha256(text)))
+    }
+
+    private suspend fun schemaPut(part: String, key: String, text: String, version: Int?, dryRun: Boolean, stepUp: String?): SchemaResult {
+        val req = Request.Builder().url(url("/archive/schema/${seg(part)}/${seg(key)}", mapOf("dry_run" to if (dryRun) 1 else null))).put(text.toRequestBody(JSON))
+            .apply {
+                if (version != null && version > 0) header("If-Match", "\"$version\"") else header("If-None-Match", "*")
+                if (stepUp != null) header("X-Step-Up", stepUp)
+            }.build()
+        return call(req, serializer())
+    }
+
+    suspend fun schemaRetirePreview(part: String, key: String, version: Int): SchemaResult =
+        call(write("POST", "/archive/schema/${seg(part)}/${seg(key)}/retire", retireBody(part, key, version), null, query = mapOf("dry_run" to 1)), serializer())
+
+    /** Nothing that uses it is deleted; the same action as a save, on the hash of `{part, key, version}`. */
+    suspend fun schemaRetire(part: String, key: String, version: Int, stepUp: StepUp): SchemaResult {
+        val text = json.encodeToString(JsonElement.serializer(), retireBody(part, key, version))
+        val req = Request.Builder().url(url("/archive/schema/${seg(part)}/${seg(key)}/retire")).post(text.toRequestBody(JSON))
+            .header("Idempotency-Key", UUID.randomUUID().toString()).header("X-Step-Up", stepUp(schemaAction(part), sha256(text))).build()
+        return call(req, serializer())
+    }
+
+    private fun retireBody(part: String, key: String, version: Int) = buildJsonObject { put("part", part); put("key", key); put("version", version) }
+    private fun schemaAction(part: String) = if (part == "clearance") "archive.clearance" else "archive.schema"
+
+    suspend fun archiveSources(): List<SourceSwitch> = listAny("/archive/sources", emptyMap(), SourceSwitch.serializer())
+    /** Owner: `{key: on}` for the switches that change. */
+    suspend fun setSources(changes: Map<String, Boolean>): List<SourceSwitch> =
+        decodeList(send<JsonElement>("PUT", "/archive/sources", json.encodeToString(JsonElement.serializer(), JsonObject(changes.mapValues { JsonPrimitive(it.value) }))), SourceSwitch.serializer())
+
+    /** Only what the reader's clearance allows. */
+    suspend fun records(f: RecordFilters, cursor: String? = null): Page<ArchiveRecord> = get("/archive/records", f.query() + mapOf("limit" to 50, "cursor" to cursor))
+    /** Persian-normalised full text over the title, searchable fields and file text; clearance-filtered before ranking. */
+    suspend fun archiveSearch(q: String, scope: String? = null, cls: String? = null, level: String? = null, from: String? = null, to: String? = null): List<ArchiveHit> =
+        listAny("/archive/search", mapOf("q" to q.trim(), "scope" to scope, "class" to cls, "level" to level, "from" to from, "to" to to), ArchiveHit.serializer())
+    /** With its versions, links, holds and reminders; `403 clearance` where the reader knows the ref but may not see it. */
+    suspend fun record(ref: String): ArchiveRecord = get("/archive/records/${seg(ref)}")
+    /** Owner only: who viewed or downloaded what, and every level change. */
+    suspend fun accessLog(ref: String): List<AccessRow> = listAny("/archive/records/${seg(ref)}/access", emptyMap(), AccessRow.serializer())
+
+    /** The owner may file at once (`file: true`); otherwise a draft. The Idempotency-Key is required: [key] is the press's. */
+    suspend fun createRecord(body: RecordIn, key: String): ArchiveRecord =
+        call(write("POST", "/archive/records", json.encodeToJsonElement(RecordIn.serializer(), body), null, key), serializer())
+    /** If-Match the row; a sealed record answers `409 sealed_record` unless [body] is only `level`, a held one `423 held`. The level only goes up here. */
+    suspend fun patchRecord(r: ArchiveRecord, body: JsonObject): ArchiveRecord =
+        send("PATCH", "/archive/records/${seg(r.ref)}", json.encodeToString(JsonElement.serializer(), body), ifMatch = r.version)
+    /** Lowering the level is the owner's alone: 🔏 `archive.declassify` on `ref@version:level`, the same PATCH with `level` its only field.
+     *  A sealed record takes it too: the level lies outside the sealed manifest (§23.1 ⟨1.7.1⟩). */
+    suspend fun declassify(r: ArchiveRecord, level: String, stepUp: StepUp): ArchiveRecord =
+        send("PATCH", "/archive/records/${seg(r.ref)}", json.encodeToString(JsonElement.serializer(), buildJsonObject { put("level", level) }), ifMatch = r.version,
+            stepUp = stepUp("archive.declassify", "${r.ref}@${r.version}:$level"))
+    /** A completed draft becomes `filed`; If-Match the row. */
+    suspend fun fileDraft(r: ArchiveRecord): ArchiveRecord =
+        call(Request.Builder().url(url("/archive/records/${seg(r.ref)}/file")).post("{}".toRequestBody(JSON))
+            .header("Idempotency-Key", UUID.randomUUID().toString()).header("If-Match", "\"${r.version}\"").build(), serializer())
+    /** A correction is a new version; on a sealed record the old one is superseded and the record goes back to `filed`. */
+    suspend fun addVersion(ref: String, fileIds: List<String>, noteFa: String): ArchiveRecord =
+        post("/archive/records/${seg(ref)}/versions", buildJsonObject { put("file_ids", ids(fileIds)); put("note_fa", noteFa) })
+    /** 🔏 `archive.seal` on the current version's manifest, which the body names too: the server recomputes it and refuses a mismatch. */
+    suspend fun sealRecord(r: ArchiveRecord, stepUp: StepUp): ArchiveRecord {
+        val manifest = r.current?.manifestSha256.orEmpty()
+        return post("/archive/records/${seg(r.ref)}/seal", buildJsonObject { put("manifest_sha256", manifest) }, stepUp("archive.seal", manifest))
+    }
+    suspend fun link(ref: String, kind: String, to: LinkTarget): ArchiveRecord =
+        post("/archive/records/${seg(ref)}/links", buildJsonObject { put("kind", kind); put("to", buildJsonObject { put("kind", to.kind); put("ref", to.ref) }) })
+    /** Removes an unsealed link, named in the query. */
+    suspend fun unlink(ref: String, kind: String, to: LinkTarget): ArchiveRecord =
+        call(Request.Builder().url(url("/archive/records/${seg(ref)}/links", mapOf("kind" to kind, "to_kind" to to.kind, "to_ref" to to.ref))).delete().build(), serializer())
+    /** Owner: one draft per file for the archivist to classify. */
+    suspend fun importFiles(scope: String, fileIds: List<String>, cls: String? = null): List<ArchiveRecord> =
+        decodeList(post<JsonElement>("/archive/import", buildJsonObject { put("scope", scope); put("file_ids", ids(fileIds)); if (cls != null) put("class", cls) }), ArchiveRecord.serializer())
+    /** The secret scan first (`422 secret_in_document`, naming the file in `fields`; nothing is stored), then hashes, text and the suggestion. */
+    suspend fun intake(fileIds: List<String>): Intake = post("/archive/intake", buildJsonObject { put("file_ids", ids(fileIds)) })
+
+    /** One file of a record. A level with `step_up_to_view` needs 🔏 `archive.view` on the ref ([stepUp] non-null); every call is a row of
+     *  the access log, and a watermarked level is served watermarked. */
+    suspend fun recordFile(ref: String, fileId: String, stepUp: StepUp?): FileBytes {
+        val token = stepUp?.invoke("archive.view", ref)
+        val req = Request.Builder().url(url("/archive/records/${seg(ref)}/files/${seg(fileId)}")).get().header("Accept", "*/*")
+            .apply { if (token != null) header("X-Step-Up", token) }.build()
+        return execute(req).use { r ->
+            check(r)
+            FileBytes(r.body.bytes(), r.body.contentType()?.let { "${it.type}/${it.subtype}" } ?: "application/octet-stream")
+        }
+    }
+
+    suspend fun parties(kind: String? = null, scope: String? = null, q: String? = null): List<Party> =
+        listAny("/archive/parties", mapOf("kind" to kind, "scope" to scope, "q" to q?.trim()?.ifEmpty { null }), Party.serializer())
+    suspend fun createParty(body: PartyIn, key: String): Party = call(write("POST", "/archive/parties", jsonBody.encodeToJsonElement(PartyIn.serializer(), body), null, key), serializer())
+    /** If-Match the party's version; retired, never deleted. */
+    suspend fun patchParty(p: Party, body: JsonObject): Party =
+        send("PATCH", "/archive/parties/${seg(p.ref)}", json.encodeToString(JsonElement.serializer(), body), ifMatch = p.version ?: 1)
+
+    suspend fun legalHolds(state: String? = null, case: String? = null): List<LegalHold> = listAny("/archive/holds", mapOf("state" to state, "case" to case), LegalHold.serializer())
+    /** The owner places one (the legal counsel too, with its case); [key] is the press's. */
+    suspend fun placeHold(body: HoldIn, key: String): LegalHold = call(write("POST", "/archive/holds", jsonBody.encodeToJsonElement(HoldIn.serializer(), body), null, key), serializer())
+    /** The owner's alone: 🔏 `archive.hold.release` on the ref. */
+    suspend fun releaseLegalHold(ref: String, stepUp: StepUp): LegalHold = post("/archive/holds/${seg(ref)}/release", JsonObject(emptyMap()), stepUp("archive.hold.release", ref))
+
+    suspend fun dueReminders(): List<DueReminder> = listAny("/archive/reminders", emptyMap(), DueReminder.serializer())
+    /** The underlying action is done (renewed, reviewed): the reminder closes everywhere. */
+    suspend fun reminderDone(id: String) { postUnit("/archive/reminders/${seg(id)}/done", JsonObject(emptyMap())) }
+    suspend fun retentionDue(): List<RetentionDue> = listAny("/archive/retention/due", emptyMap(), RetentionDue.serializer())
+    suspend fun fixity(): Fixity = get("/archive/fixity")
+
     /** A GET that answers 404 when the thing does not exist yet: null, not an error. */
     private inline fun <T> orNull(block: () -> T): T? = try { block() } catch (e: ApiException) { if (e.status == 404) null else throw e }
 
@@ -946,7 +1073,10 @@ class Api(
         val p = runCatching { json.decodeFromString(Problem.serializer(), r.body.string()) }.getOrNull()
         if (p?.messageFa == null) throw ApiException.unexpected(r.code)
         val wait = r.header("Retry-After")?.trim()?.toIntOrNull()?.takeIf { it > 0 }
-        throw ApiException(r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"), p.missing, p.blockedReasons, wait, batchReasons(p), p.fields?.keys?.filter { it != "items" }.orEmpty())
+        throw ApiException(
+            r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"), p.missing, p.blockedReasons, wait, batchReasons(p), p.fields?.keys?.filter { it != "items" }.orEmpty(),
+            p.fields?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { k to it } }?.toMap().orEmpty(),
+        )
     }
 
     private suspend fun execute(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->

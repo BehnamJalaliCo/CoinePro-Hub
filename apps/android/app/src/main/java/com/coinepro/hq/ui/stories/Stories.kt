@@ -206,7 +206,11 @@ fun StoryPlayer(live: List<StoryRing>, start: Int, onClose: () -> Unit, autoplay
                 Column(Modifier.weight(1f)) {
                     Text(name, style = Divan.type.bodyStrong, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        figs((if (story.author.kind == "system") "سیستم" else "مدیرعامل، ${story.author.code}") + "، " + ago(story.createdAt)),
+                        // The author's code is a figure; the relative time is prose, so its count keeps Persian digits (as ago() does everywhere).
+                        buildAnnotatedString {
+                            if (story.author.kind == "system") append("سیستم") else { append("مدیرعامل، "); fig(story.author.code) }
+                            append("، " + ago(story.createdAt))
+                        },
                         style = Divan.type.micro, color = c.textMuted, maxLines = 1,
                     )
                 }

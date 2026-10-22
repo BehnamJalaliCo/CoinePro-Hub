@@ -21,11 +21,11 @@ import androidx.compose.ui.unit.dp
 // paragraphs, #-headings, - and 1. lists, **bold**, `code`, and refs (D-…, M-…, O-…, W-…, A-…, and ⟨1.3⟩ F-…, S-…,
 // G-…, AP-…; ⟨1.4⟩ FI-…, PR-…, CH-…, SO-…, H-…, Q-…, E-…, SK-…, EV-…, TE-…, L-…, C-…, PV-…, N-…, P-…; ⟨1.5⟩ MT-…, K-…, KB-…,
 // OB-…, KR-…, OR-…, RK-…, CE-…, B-…; §21 DM-…, AK-…, WR-…, BR-…, HR-…, NT-…, CL-…, DP-…, CR-…; ⟨1.6⟩ SR-…, MI-…, LC-…, RD-…,
-// HQ-LGL) as Latin figures in
+// HQ-LGL; ⟨1.7⟩ AR-…, FP-…, PT-…, RR-…, LH-…, RM-…, AU-…, HQ-ARC) as Latin figures in
 // gold; a ref inside a path (hq/S-0004) stays part of the path. Latin tokens with
 // digits (hashes, versions, model names, money, ⟨1.5⟩ a ref at its version "TM-0008@1") keep Latin digits.
 
-private val REF = Regex("(?<![/\\w-])([DMOWIFSGNPHQELCKB]-\\d{3,6}|A-\\d{4}|(?:AP|FI|PR|CH|SO|SK|EV|TE|PV|MT|KB|OB|KR|OR|RK|CE|DM|AK|WR|BR|HR|NT|CL|DP|CR|SR|MI|LC|RD)-\\d{3,4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\\d{2,3}|MGR|CEO|ADV|OVR|PA|LGL|SYS)(?:-\\d{4})?)\\b")
+private val REF = Regex("(?<![/\\w-])([DMOWIFSGNPHQELCKB]-\\d{3,6}|A-\\d{4}|AR-\\d{6}|(?:AP|FI|PR|CH|SO|SK|EV|TE|PV|MT|KB|OB|KR|OR|RK|CE|DM|AK|WR|BR|HR|NT|CL|DP|CR|SR|MI|LC|RD|FP|PT|RR|LH|RM|AU)-\\d{3,4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\\d{2,3}|MGR|CEO|ADV|OVR|PA|LGL|ARC|SYS)(?:-\\d{4})?)\\b")
 private val LATIN = Regex("((?:Opus|Sonnet|Haiku|Fable|Claude|GPT|Gemini) \\d+(?:\\.\\d+)*|(?:\\$|[A-Za-z])[A-Za-z0-9._%$/@-]*\\d[A-Za-z0-9._%/@-]*|\\d+(?:[.,]\\d+)*[A-Za-z][A-Za-z0-9._-]*)")
 private val INLINE = Regex("(\\*\\*[^*]+\\*\\*|`[^`]+`)")
 

@@ -982,6 +982,176 @@ class ApiContractTest {
         assertEquals("server", com.coinepro.hq.core.net.mediaError(err(409, """{"code":"other","message_fa":"server","status":409}""")))
     }
 
+    // ------------------------------------------------------------ ⟨1.7⟩ §23 --
+    private val schemaResult = """{"part":"classes","key":"contract","version":4,"impact":{"records":3,"missing_required":1},"row":null,"dry_run":true}"""
+    private val record23 = """{"id":"ar-120","ref":"AR-000120","scope":"HQ","class":"invoice","title_fa":"فاکتور","level":"confidential","state":"filed","version":4,"current_version":2,
+        "versions":[{"n":1,"manifest_sha256":"${"a".repeat(64)}","files":[],"state":"superseded"},{"n":2,"manifest_sha256":"${"b".repeat(64)}","files":[],"state":"current"}]}"""
+
+    @Test
+    fun archiveSchemaChangesAreSealedOnTheExactBody() = runTest {
+        val seen = mutableListOf<Pair<String, String>>()
+        val stepUp: com.coinepro.hq.core.net.StepUp = { action, target -> seen += action to target; "su-${seen.size}" }
+        val body = kotlinx.serialization.json.buildJsonObject { put("title_fa", "قرارداد"); put("required_files", 1) }
+        val text = """{"title_fa":"قرارداد","required_files":1}"""
+        // The dry run: the same PUT with ?dry_run=1, If-Match the row, no passkey; the impact comes back.
+        server.enqueue(json(200, schemaResult))
+        val impact = api.schemaPreview("classes", "contract", body, 3).impact
+        val dry = server.takeRequest()
+        assertEquals(Triple("PUT", "/api/v1/archive/schema/classes/contract", "dry_run=1"), Triple(dry.method, dry.url.encodedPath, dry.url.encodedQuery))
+        assertEquals("\"3\"" to null, dry.headers["If-Match"] to dry.headers["X-Step-Up"])
+        assertEquals(text to (3 to 1), dry.body!!.utf8() to (impact.records to impact.missingRequired))
+        assertTrue(seen.isEmpty())
+        // The save: 🔏 archive.schema on the SHA-256 of exactly the bytes sent.
+        server.enqueue(json(200, schemaResult))
+        api.schemaSave("classes", "contract", body, 3, stepUp)
+        val save = server.takeRequest()
+        assertEquals("archive.schema" to Api.sha256(text), seen.single())
+        assertEquals(Triple(text, "\"3\"", "su-1"), Triple(save.body!!.utf8(), save.headers["If-Match"], save.headers["X-Step-Up"]))
+        assertNull(save.url.encodedQuery)
+        // A new key: If-None-Match: *, no If-Match.
+        server.enqueue(json(200, schemaResult))
+        api.schemaSave("folders", "new", body, null, stepUp)
+        val created = server.takeRequest()
+        assertEquals("*" to null, created.headers["If-None-Match"] to created.headers["If-Match"])
+        // Clearance is its own action; the subject travels as one path segment.
+        server.enqueue(json(200, schemaResult))
+        api.schemaSave("clearance", "role:legal_counsel", body, 1, stepUp)
+        val cl = server.takeRequest()
+        assertEquals("role:legal_counsel", cl.url.pathSegments.last())
+        assertEquals("archive.clearance", seen.last().first)
+        // Retire, never delete: its preview without a passkey, then the same action on the hash of {part, key, version}.
+        val retire = """{"part":"levels","key":"public","version":2}"""
+        server.enqueue(json(200, schemaResult))
+        api.schemaRetirePreview("levels", "public", 2)
+        val rp = server.takeRequest()
+        assertEquals(Triple("/api/v1/archive/schema/levels/public/retire", "dry_run=1", retire), Triple(rp.url.encodedPath, rp.url.encodedQuery, rp.body!!.utf8()))
+        assertNull(rp.headers["X-Step-Up"])
+        server.enqueue(json(200, schemaResult))
+        api.schemaRetire("levels", "public", 2, stepUp)
+        val rt = server.takeRequest()
+        assertEquals("archive.schema" to Api.sha256(retire), seen.last())
+        assertEquals(retire to "su-${seen.size}", rt.body!!.utf8() to rt.headers["X-Step-Up"])
+        // Sources: one PUT of the switches that change.
+        server.enqueue(json(200, """[{"key":"legal_email","title_fa":"t","class":"legal_correspondence","enabled":false,"filed":2}]"""))
+        assertEquals(false, api.setSources(mapOf("legal_email" to false)).single().enabled)
+        assertEquals("PUT" to """{"legal_email":false}""", server.takeRequest().let { it.method to it.body!!.utf8() })
+    }
+
+    @Test
+    fun archiveRecordWritesNameTheirTarget() = runTest {
+        val seen = mutableListOf<Pair<String, String>>()
+        val stepUp: com.coinepro.hq.core.net.StepUp = { action, target -> seen += action to target; "su" }
+        val r = Api.json.decodeFromString(com.coinepro.hq.core.net.ArchiveRecord.serializer(), record23)
+        // A new record carries the press's key; nulls are left out.
+        server.enqueue(json(201, record23))
+        api.createRecord(
+            com.coinepro.hq.core.net.RecordIn(
+                "HQ", "invoice", "فاکتور", mapOf("total" to kotlinx.serialization.json.buildJsonObject { put("amount", "12.50"); put("currency", "EUR") }),
+                fileIds = listOf("f1"), parties = listOf(com.coinepro.hq.core.net.PartyRole("PT-0002", "فروشنده")), file = true,
+            ),
+            "k-rec",
+        )
+        val create = server.takeRequest()
+        assertEquals("k-rec", create.headers["Idempotency-Key"])
+        assertEquals("""{"scope":"HQ","class":"invoice","title_fa":"فاکتور","metadata":{"total":{"amount":"12.50","currency":"EUR"}},"file_ids":["f1"],"parties":[{"party":"PT-0002","role_fa":"فروشنده"}],"file":true}""", create.body!!.utf8())
+        // PATCH (raising a level too) carries If-Match and no passkey; lowering it is 🔏 archive.declassify on ref@version:level.
+        server.enqueue(json(200, record23))
+        api.patchRecord(r, kotlinx.serialization.json.buildJsonObject { put("level", "secret") })
+        val patch = server.takeRequest()
+        assertEquals(Triple("PATCH", "\"4\"", null), Triple(patch.method, patch.headers["If-Match"], patch.headers["X-Step-Up"]))
+        server.enqueue(json(200, record23))
+        api.declassify(r, "internal", stepUp)
+        val down = server.takeRequest()
+        assertEquals("archive.declassify" to "AR-000120@4:internal", seen.last())
+        assertEquals(Triple("""{"level":"internal"}""", "\"4\"", "su"), Triple(down.body!!.utf8(), down.headers["If-Match"], down.headers["X-Step-Up"]))
+        // Filing a draft: If-Match. The seal: 🔏 archive.seal on the current version's manifest, which the body names.
+        server.enqueue(json(200, record23))
+        api.fileDraft(r)
+        val file = server.takeRequest()
+        assertEquals("/api/v1/archive/records/AR-000120/file" to "\"4\"", file.url.encodedPath to file.headers["If-Match"])
+        server.enqueue(json(200, record23))
+        api.sealRecord(r, stepUp)
+        val seal = server.takeRequest()
+        assertEquals("archive.seal" to "b".repeat(64), seen.last())
+        assertEquals("""{"manifest_sha256":"${"b".repeat(64)}"}""", seal.body!!.utf8())
+        // A new version and a link need no passkey; a link is removed by DELETE with the link in the query.
+        server.enqueue(json(201, record23))
+        api.addVersion("AR-000120", listOf("f2"), "اصلاح")
+        assertEquals("""{"file_ids":["f2"],"note_fa":"اصلاح"}""", server.takeRequest().body!!.utf8())
+        val to = com.coinepro.hq.core.net.LinkTarget("record", "AR-000121")
+        server.enqueue(json(200, record23))
+        api.link("AR-000120", "supersedes", to)
+        assertEquals("""{"kind":"supersedes","to":{"kind":"record","ref":"AR-000121"}}""", server.takeRequest().body!!.utf8())
+        server.enqueue(json(200, record23))
+        api.unlink("AR-000120", "supersedes", to)
+        val unlink = server.takeRequest()
+        assertEquals(Triple("DELETE", "/api/v1/archive/records/AR-000120/links", "kind=supersedes&to_kind=record&to_ref=AR-000121"), Triple(unlink.method, unlink.url.encodedPath, unlink.url.encodedQuery))
+        // A file of a level that asks for it: 🔏 archive.view on the ref; the bytes come back with their type.
+        server.enqueue(MockResponse.Builder().code(200).addHeader("Content-Type", "application/pdf").body("%PDF-1.4").build())
+        val bytes = api.recordFile("AR-000180", "arf-x", stepUp)
+        val view = server.takeRequest()
+        assertEquals("archive.view" to "AR-000180", seen.last())
+        assertEquals(Triple("/api/v1/archive/records/AR-000180/files/arf-x", "su", "application/pdf"), Triple(view.url.encodedPath, view.headers["X-Step-Up"], bytes.mime))
+        server.enqueue(MockResponse.Builder().code(200).addHeader("Content-Type", "image/webp").body("x").build())
+        api.recordFile("AR-000170", "arf-y", null)
+        assertNull(server.takeRequest().headers["X-Step-Up"])
+        // A hold: placed with the press's key and written whole; released with 🔏 archive.hold.release on its ref.
+        val hold = """{"ref":"LH-0003","title_fa":"t","reason_md":"r","scope":{"records":["AR-000092"]},"state":"active","placed_at":"2026-10-17T08:30:00Z"}"""
+        server.enqueue(json(201, hold))
+        api.placeHold(com.coinepro.hq.core.net.HoldIn("t", null, "r", kotlinx.serialization.json.buildJsonObject { put("records", kotlinx.serialization.json.JsonArray(listOf(kotlinx.serialization.json.JsonPrimitive("AR-000092")))) }), "k-hold")
+        val placed = server.takeRequest()
+        assertEquals("k-hold" to """{"title_fa":"t","case":null,"reason_md":"r","scope":{"records":["AR-000092"]}}""", placed.headers["Idempotency-Key"] to placed.body!!.utf8())
+        server.enqueue(json(200, hold))
+        api.releaseLegalHold("LH-0003", stepUp)
+        assertEquals("/api/v1/archive/holds/LH-0003/release" to "su", server.takeRequest().let { it.url.encodedPath to it.headers["X-Step-Up"] })
+        assertEquals("archive.hold.release" to "LH-0003", seen.last())
+        // A party with the press's key; a reminder marked done by its id.
+        server.enqueue(json(201, """{"ref":"PT-0009","kind":"provider","name_fa":"هتزنر"}"""))
+        api.createParty(com.coinepro.hq.core.net.PartyIn("provider", "هتزنر", null, emptyMap(), listOf("HQ")), "k-pt")
+        val party = server.takeRequest()
+        assertEquals("k-pt" to """{"kind":"provider","name_fa":"هتزنر","name_en":null,"identifiers":{},"scopes":["HQ"]}""", party.headers["Idempotency-Key"] to party.body!!.utf8())
+        server.enqueue(json(200, """{"field":"expires_at","at":"2026-11-11","lead_days":30,"state":"done"}"""))
+        api.reminderDone("AR-000130:expires_at")
+        assertEquals(listOf("archive", "reminders", "AR-000130:expires_at", "done"), server.takeRequest().url.pathSegments.drop(2))
+    }
+
+    @Test
+    fun archiveReadsAndCodes() = runTest {
+        // The list's filters, its paging; search read bare or paged; holds of a case.
+        server.enqueue(json(200, """{"items":[$record23],"next_cursor":null}"""))
+        val page = api.records(com.coinepro.hq.core.net.RecordFilters(scope = "HQ", cls = "invoice", q = " هتزنر ", held = true))
+        val list = server.takeRequest().url
+        assertEquals(listOf("HQ", "invoice", "هتزنر", "true", "50"), listOf("scope", "class", "q", "held", "limit").map { list.queryParameter(it) })
+        assertNull(list.queryParameter("level"))
+        assertEquals(2, page.items.single().current!!.n)
+        server.enqueue(json(200, """[{"ref":"AR-000120","title_fa":"فاکتور","class":"invoice","snippet_fa":"Hetzner","score":5}]"""))
+        server.enqueue(json(200, """{"items":[{"ref":"AR-000120","title_fa":"فاکتور","class":"invoice","snippet_fa":"Hetzner","score":5}],"next_cursor":null}"""))
+        assertEquals(api.archiveSearch("هتزنر"), api.archiveSearch("هتزنر", scope = "HQ"))
+        assertEquals("هتزنر" to "HQ", server.takeRequest().url.queryParameter("q") to server.takeRequest().url.queryParameter("scope"))
+        server.enqueue(json(200, """{"items":[],"next_cursor":null}"""))
+        api.legalHolds(case = "LC-0001")
+        assertEquals("case=LC-0001", server.takeRequest().url.encodedQuery)
+        // A level change is a row of the access log with both levels.
+        server.enqueue(json(200, """{"items":[{"at":"2026-10-17T08:30:00Z","action":"level","level_from":"confidential","level_to":"internal","step_up":true}],"next_cursor":null}"""))
+        val row = api.accessLog("AR-000120").single()
+        server.takeRequest()
+        assertEquals(Triple("level", "confidential", "internal"), Triple(row.action, row.levelFrom, row.levelTo))
+        // The §23 codes in the app's words; a refused schema change keeps the server's sentence and names its fields.
+        fun fails(code: Int, body: String): ApiException {
+            server.enqueue(json(code, body))
+            return try { kotlinx.coroutines.runBlocking { api.fixity() }; fail("expected ApiException"); throw IllegalStateException() } catch (e: ApiException) { server.takeRequest(); e }
+        }
+        assertEquals("این سند بالاتر از مجوز دیدن است.", com.coinepro.hq.core.net.archiveError(fails(403, """{"code":"clearance","message_fa":"server","status":403}""")))
+        assertEquals("این سند مُهر خورده و دیگر عوض نمیشود؛ اصلاح یعنی نسخه‌ی تازه.", com.coinepro.hq.core.net.archiveError(fails(409, """{"code":"sealed_record","message_fa":"server","status":409}""")))
+        assertEquals("این سند توقیف قانونی دارد؛ جز نسخه‌ی تازه هیچ تغییری نمیپذیرد.", com.coinepro.hq.core.net.archiveError(fails(423, """{"code":"held","message_fa":"server","status":423}""")))
+        val secret = fails(422, """{"code":"secret_in_document","message_fa":"server","status":422,"fields":{"wallet.txt":"secret_pattern"}}""")
+        assertTrue(com.coinepro.hq.core.net.archiveError(secret).startsWith("در این فایل الگوی رمز") && secret.fields.keys == setOf("wallet.txt"))
+        val invalid = fails(422, """{"code":"schema_invalid","message_fa":"با واژگان بسته نمیخواند: نوع فیلد عوض نمیشود","status":422,"fields":{"fields.amount.type":"نوع فیلد عوض نمیشود"}}""")
+        assertEquals("با واژگان بسته نمیخواند: نوع فیلد عوض نمیشود", com.coinepro.hq.core.net.archiveError(invalid))
+        assertEquals(mapOf("fields.amount.type" to "نوع فیلد عوض نمیشود"), invalid.fields)
+        assertEquals("server", com.coinepro.hq.core.net.archiveError(fails(409, """{"code":"other","message_fa":"server","status":409}""")))
+    }
+
     @Test
     fun theRulesOfAPlacementAreTheWebs() {
         fun fits(kind: String, aspect: String, placement: String) = com.coinepro.hq.core.net.placementFits(kind, aspect, placement)

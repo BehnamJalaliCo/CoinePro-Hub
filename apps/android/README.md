@@ -135,6 +135,29 @@ Every library is free and open source and pinned to an exact version (`gradle/li
   - In the cartable: `media_publish` (render, placements, checks), `media_series` (sealed on the series page),
     `email_send` and `role_new`; refs `SR-`, `MI-`, `LC-`, `RD-` and thread `L` open their pages; stream topics `media`
     and `legal`; the §22.6 codes (a platform's limit says how long to wait) in Persian.
+- **The archive** ⟨1.7⟩ (contract §23), the «بایگانی» group of the tools sheet, the same data, calls and words as the web:
+  - **Home** — Persian-normalised search with snippets from the files' own text; filters by scope, class, folder, level,
+    party and the document's dates; drafts with their suggestion; what expires soonest; the last fixity run; a party's
+    records. **سند تازه**: files from the system picker are uploaded, then `POST /archive/intake` scans them for secrets
+    (a refused file is named, never what it held), hashes and reads them and suggests a class and metadata; the owner
+    makes a draft, files at once, or sends one draft per file to the archivist.
+  - **A record** — metadata typed by its class (money with its currency, Jalali dates, parties, ref links, sensitive
+    fields masked to their last four), files and versions with their SHA-256 and manifest (a level that asks for it is
+    viewed with the passkey on the ref; images and PDF pages drawn on the phone, or opened in another app), links (added,
+    removed unless sealed), holds, the seal on the current manifest, raising the level and declassifying it with the
+    passkey on `ref@version:level` (a sealed record too), retention and reminders, the access log (a level change is a
+    row); a draft is completed and filed (If-Match); a disposed record shows only its tombstone.
+  - **Legal holds** (placed with the caller's key, released with the passkey on the ref; also on a legal case's page),
+    **reminders** (marked done) and **the end of retention** (its disposal card).
+  - **The open layer** — one tab per part of the schema (classes and their fields, folders, levels, clearance,
+    retention, reminders, party kinds, link kinds, automations, and any part the hub adds), the parties registry and the
+    system sources; every form is drawn from `GET /archive/schema` and its closed vocabulary. A save is a dry run first
+    (its impact), then the passkey on the SHA-256 of the exact body and a PUT with If-Match (`If-None-Match: *` for a new
+    key); nothing is deleted, only retired; `schema_invalid` errors stand next to their fields.
+  - In the cartable: `archive_schema` (the change against the current row, its impact; void when the row moved on) and
+    `archive_disposal` (its records; a held one is skipped); refs `AR-`, `LH-`, `PT-`, `FP-`, `RR-`, `RM-`, `AU-` open
+    their pages; stream topic `archive`; the §23 codes (`clearance`, `sealed_record`, `schema_invalid`,
+    `secret_in_document`, `held`) in Persian.
 - **Live** — one SSE connection to `/api/v1/stream` while the app is in the foreground; events refresh the
   screens that show the touched data (the same invalidation map as the web).
 
@@ -142,7 +165,7 @@ Every library is free and open source and pinned to an exact version (`gradle/li
 
 ```
 app/src/main/java/com/coinepro/hq/
-  core/net/        Api (contract v1.6; every 🔏 write names its step-up action and target), Models, Models14 … Models19
+  core/net/        Api (contract v1.7; every 🔏 write names its step-up action and target), Models, Models14 … Models20
   core/auth/       Auth (sign-in, enrolment, step-up), Passkeys, TokenVault
   core/data/       QueryCache (shared cached queries), HoldingStream (SSE)
   core/format/     Jalali dates, figures, Persian labels

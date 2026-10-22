@@ -56,6 +56,7 @@ import com.coinepro.hq.ui.workshop.WorkshopScreen
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import android.os.Looper
+import kotlinx.serialization.json.put
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -71,7 +72,7 @@ import org.robolectric.Shadows.shadowOf
 abstract class ScreensTest(private val name: String, private val night: Boolean) {
 
     companion object {
-        const val SHARDS = 4
+        const val SHARDS = 5
 
         /** The screens of shard [i], night and day, in the order they are listed. */
         fun shard(i: Int): List<Array<Any>> =
@@ -243,7 +244,106 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "company-roles" to { _ -> CompanyScreen("FX", tab0 = "people") },
             "story-role" to { _ -> StoryPreview("FX", "role") },
             "chat-legal" to { _ -> ChatScreen("L") },
+            // ⟨1.7⟩ the archive (§23): its home, the list under the search, a search with snippets from the files' text and a party's
+            // records; a new document (two files: one refused by name for a secret pattern, the other read, with the rules' suggestion);
+            // a record filed with two versions (its files, links and seal, retention and the access log further down), a held one, a
+            // sealed «سری» one (its seal and declassification further down), a draft with its suggestion and a tombstone; a file shown
+            // and one behind the passkey; the holds and a new hold for a case; reminders; the end of retention; the open layer's tabs,
+            // a class, an automation and a retention rule (with its dry run's impact) in the editor, a new level the hub refused (the
+            // errors beside their fields) and a party; the two cards; a case's holds on the legal page.
+            "archive" to { _ -> com.coinepro.hq.ui.archive.ArchiveScreen() },
+            "archive-list" to { _ -> com.coinepro.hq.ui.archive.ArchiveScreen() },
+            "archive-search" to { _ -> com.coinepro.hq.ui.archive.ArchiveScreen(q0 = "هتزنر") },
+            "archive-party" to { _ -> com.coinepro.hq.ui.archive.ArchiveScreen(party0 = "PT-0002") },
+            "archive-intake" to { _ -> Sheetlike { com.coinepro.hq.ui.archive.IntakeContent("HQ", {}, pickedFiles()) } },
+            "archive-record" to { _ -> com.coinepro.hq.ui.archive.RecordScreen("AR-000110") },
+            "archive-record-files" to { _ -> com.coinepro.hq.ui.archive.RecordScreen("AR-000110") },
+            "archive-record-links" to { _ -> com.coinepro.hq.ui.archive.RecordScreen("AR-000110") },
+            "archive-record-access" to { _ -> com.coinepro.hq.ui.archive.RecordScreen("AR-000110") },
+            "archive-record-held" to { _ -> com.coinepro.hq.ui.archive.RecordScreen("AR-000151") },
+            "archive-record-sealed" to { _ -> com.coinepro.hq.ui.archive.RecordScreen("AR-000180") },
+            "archive-record-seal" to { _ -> com.coinepro.hq.ui.archive.RecordScreen("AR-000180") },
+            "archive-record-draft" to { _ -> com.coinepro.hq.ui.archive.RecordScreen("AR-000170") },
+            "archive-record-disposed" to { _ ->
+                Cardlike {
+                    WithRecord("AR-000090") { r, m ->
+                        val hashes = r.versions.flatMap { it.files }.map { com.coinepro.hq.core.net.HashRow(it.name, it.sha256) }
+                        com.coinepro.hq.ui.archive.TombstoneView(r.copy(state = "disposed", tombstone = com.coinepro.hq.core.net.Tombstone("D-000093", "2026-10-17T08:00:00Z", hashes)), m)
+                    }
+                }
+            },
+            "archive-file" to { _ -> Sheetlike { WithRecord("AR-000170") { r, m -> com.coinepro.hq.ui.archive.FileViewer(r, r.current!!.files.first(), m) } } },
+            "archive-file-locked" to { _ -> Sheetlike { WithRecord("AR-000180") { r, m -> com.coinepro.hq.ui.archive.FileViewer(r, r.current!!.files.first(), m) } } },
+            "archive-holds" to { _ -> com.coinepro.hq.ui.archive.HoldsScreen() },
+            "archive-hold-new" to { _ -> Sheetlike { com.coinepro.hq.ui.archive.NewHoldContent("LC-0001", {}, {}) } },
+            "archive-reminders" to { _ -> com.coinepro.hq.ui.archive.RemindersScreen() },
+            "archive-retention" to { _ -> com.coinepro.hq.ui.archive.RetentionScreen() },
+            "archive-settings" to { _ -> com.coinepro.hq.ui.archive.ArchiveSettingsScreen() },
+            "archive-settings-folders" to { _ -> com.coinepro.hq.ui.archive.ArchiveSettingsScreen("folders") },
+            "archive-settings-levels" to { _ -> com.coinepro.hq.ui.archive.ArchiveSettingsScreen("levels") },
+            "archive-settings-clearance" to { _ -> com.coinepro.hq.ui.archive.ArchiveSettingsScreen("clearance") },
+            "archive-settings-retention" to { _ -> com.coinepro.hq.ui.archive.ArchiveSettingsScreen("retention") },
+            "archive-settings-automations" to { _ -> com.coinepro.hq.ui.archive.ArchiveSettingsScreen("automations") },
+            "archive-settings-parties" to { _ -> com.coinepro.hq.ui.archive.ArchiveSettingsScreen("parties") },
+            "archive-settings-sources" to { _ -> com.coinepro.hq.ui.archive.ArchiveSettingsScreen("sources") },
+            "archive-class-editor" to { _ -> Sheetlike { WithRow("classes", "invoice") { ui, row -> com.coinepro.hq.ui.archive.RowEditorContent("classes", ui, row, {}) } } },
+            "archive-automation-editor" to { _ -> Sheetlike { WithRow("automations", "AU-0002") { ui, row -> com.coinepro.hq.ui.archive.RowEditorContent("automations", ui, row, {}) } } },
+            "archive-retention-editor" to { _ -> Sheetlike { WithRow("retention", "RR-0002") { ui, row -> com.coinepro.hq.ui.archive.RowEditorContent("retention", ui, row, {}, preview0 = true) } } },
+            "archive-level-invalid" to { _ ->
+                Sheetlike {
+                    WithRow("levels", null) { ui, _ ->
+                        val blank = kotlinx.serialization.json.buildJsonObject {
+                            put("key", "top_secret"); put("title_fa", "فوق سری"); put("rank", 30); put("color_index", 5)
+                            put("watermark", true); put("encrypt", true); put("step_up_to_view", true); put("agents_max", true)
+                        }
+                        com.coinepro.hq.ui.archive.RowEditorContent("levels", ui, null, {}, preview0 = true, blank0 = blank)
+                    }
+                }
+            },
+            "archive-party-editor" to { _ -> Sheetlike { WithParty("PT-0006") { p, m -> com.coinepro.hq.ui.archive.PartyContent(p, m) {} } } },
+            "decision-archive-schema" to { _ -> DecisionScreen("D-000092") },
+            "decision-archive-disposal" to { _ -> DecisionScreen("D-000093") },
+            "legal-case-holds" to { _ -> Cardlike { com.coinepro.hq.ui.archive.CaseHolds("LC-0001") } },
         )
+
+        /** A record of the archive and the schema's maps, as the demo serves them. */
+        @Composable
+        private fun WithRecord(ref: String, content: @Composable (com.coinepro.hq.core.net.ArchiveRecord, com.coinepro.hq.ui.archive.ArchiveMaps) -> Unit) {
+            val q = com.coinepro.hq.ui.rememberQuery("archive:record:$ref", "archive") { record(ref) }
+            val a = com.coinepro.hq.ui.archive.rememberArchive()
+            val r = q.data
+            if (r != null && a.q.data != null) content(r, a.m)
+        }
+
+        /** One row of a part of the archive's schema (none: a new one) with the part's editor description. */
+        @Composable
+        private fun WithRow(part: String, key: String?, content: @Composable (com.coinepro.hq.ui.archive.PartUI, kotlinx.serialization.json.JsonObject?) -> Unit) {
+            val a = com.coinepro.hq.ui.archive.rememberArchive()
+            val rows = a.q.data?.rows(part) ?: return
+            val ui = com.coinepro.hq.ui.archive.partUI(part, rows)
+            content(ui, key?.let { k -> rows.first { com.coinepro.hq.ui.archive.rowKey(ui, it) == k } })
+        }
+
+        /** A party of the archive's registry. */
+        @Composable
+        private fun WithParty(ref: String, content: @Composable (com.coinepro.hq.core.net.Party, com.coinepro.hq.ui.archive.ArchiveMaps) -> Unit) {
+            val q = com.coinepro.hq.ui.rememberQuery("archive:parties", "archive") { parties() }
+            val a = com.coinepro.hq.ui.archive.rememberArchive()
+            val p = q.data?.firstOrNull { it.ref == ref }
+            if (p != null && a.q.data != null) content(p, a.m)
+        }
+
+        /** Two files as the system picker hands them over: an invoice from the demo's archive and a text file named like a wallet seed. */
+        @Composable
+        private fun pickedFiles(): List<android.net.Uri> {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            return androidx.compose.runtime.remember {
+                val dir = java.io.File(ctx.cacheDir, "picked").apply { mkdirs() }
+                val pdf = java.io.File(dir, "hetzner-R2026-10.pdf").apply { writeBytes(ctx.assets.open("demo/archive/hetzner-R2026-10.pdf").use { it.readBytes() }) }
+                val seed = java.io.File(dir, "wallet-seed.txt").apply { writeText("demo: twelve words of an old wallet") }
+                listOf(android.net.Uri.fromFile(pdf), android.net.Uri.fromFile(seed))
+            }
+        }
 
         /** A publishing series as the demo serves it. */
         @Composable
@@ -309,6 +409,11 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             // channels' week (after the header, scopes, statuses and one card per series); the voice registry (after the header,
             // intro, the active voice and the blind test).
             "studio-board" to 7, "series-week" to 3 + fixtureSize("/media/series"), "voice-registry" to 4,
+            // ⟨1.7⟩ §23: the archive's list under the search card (after the header, fixity and links, what expires and the drafts), a
+            // party's card above its records; a record's files, its links and seal, retention and the access log (after the header and
+            // the metadata), the held record's holds and the sealed one's seal.
+            "archive-list" to 4, "archive-search" to 4, "archive-party" to 5,
+            "archive-record-files" to 2, "archive-record-links" to 3, "archive-record-access" to 5, "archive-record-held" to 5, "archive-record-seal" to 4,
         )
 
         /** The number of rows the demo serves at [path], bare or paged. */
@@ -422,5 +527,16 @@ class ScreensShard4Test(name: String, night: Boolean) : ScreensTest(name, night)
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
         fun params(): List<Array<Any>> = ScreensTest.shard(3)
+    }
+}
+
+@RunWith(ParameterizedRobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "w400dp-h880dp-xxhdpi")
+class ScreensShard5Test(name: String, night: Boolean) : ScreensTest(name, night) {
+    companion object {
+        @JvmStatic
+        @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
+        fun params(): List<Array<Any>> = ScreensTest.shard(4)
     }
 }

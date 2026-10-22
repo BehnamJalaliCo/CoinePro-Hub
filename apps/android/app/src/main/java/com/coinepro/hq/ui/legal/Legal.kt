@@ -277,6 +277,8 @@ private fun CaseDetail(x: LegalCase, refresh: () -> Unit) {
             }
         }
         if (thread.isNotEmpty()) Block("رشته‌ی ایمیل") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { for (e in thread) EmailItem(e) } }
+        // ⟨1.7⟩ §23.5: the case's legal holds in the archive; a new one is placed tied to this case.
+        com.coinepro.hq.ui.archive.CaseHolds(x.ref)
         HorizontalDivider(color = c.lineDivider)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             HqButton("در رشته‌ی L بپرس", { nav.go("messages/L") }, icon = DivanIcon.MESSAGES)

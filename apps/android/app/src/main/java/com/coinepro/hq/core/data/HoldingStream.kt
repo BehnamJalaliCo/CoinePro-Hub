@@ -118,7 +118,7 @@ class HoldingStream(
         const val CORE_TOPICS = "work,decisions,deliverables,messages,notifications,activity,llm,control"
 
         // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives,media,legal"
+        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives,media,legal,archive"
 
         // Event type prefix -> query tags to refresh (mirrors apps/web/src/lib/stream.ts).
         val INVALIDATE: List<Pair<String, Array<String>>> = listOf(
@@ -188,6 +188,13 @@ class HoldingStream(
             "media." to arrayOf("media", "decisions"),
             "legal." to arrayOf("legal", "threads", "decisions"),
             "role." to arrayOf("roles", "stories", "decisions"),
+            // ⟨1.7⟩ §23.11: a record filed, changed or sealed; a reminder due; a hold placed or released (its case too); a fixity failure;
+            // a schema change (and the archivist's cards it may void).
+            "record." to arrayOf("archive"),
+            "reminder." to arrayOf("archive"),
+            "hold." to arrayOf("archive", "legal"),
+            "fixity." to arrayOf("archive"),
+            "schema." to arrayOf("archive", "decisions"),
         )
     }
 }

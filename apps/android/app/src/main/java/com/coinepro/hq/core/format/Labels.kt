@@ -149,6 +149,8 @@ val ROLE_FA = mapOf(
     // ⟨1.6⟩ §22.1
     "media_director" to "مدیر رسانه و طراحی", "scriptwriter" to "سناریست", "video_director" to "کارگردان ویدیو", "motion_designer" to "طراح موشن‌گرافیک",
     "voice_producer" to "تهیه‌کننده‌ی صدا", "visual_designer" to "طراح گرافیک", "ui_designer" to "طراح رابط کاربری", "legal_counsel" to "مشاور حقوقی",
+    // ⟨1.7⟩ §23.11
+    "archivist" to "بایگان",
 )
 
 fun roleFa(r: String): String = if (r == "all") "همه" else ROLE_FA[r] ?: r

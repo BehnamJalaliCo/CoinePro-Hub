@@ -93555,6 +93555,4768 @@
    }
   }
  },
+ "/archive/schema": {
+  "status": 200,
+  "body": {
+   "classes": [
+    {
+     "parent": null,
+     "scopes": "all",
+     "default_folder": null,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+     ],
+     "auto_link": [],
+     "version": 1,
+     "status": "active",
+     "key": "company_registration",
+     "title_fa": "ثبت شرکت",
+     "icon": "found",
+     "default_level": "internal",
+     "retention": "RR-0005",
+     "reminder_fields": [],
+     "required_files": 1,
+     "ocr": true,
+     "fields": [
+      {
+       "key": "reg_no",
+       "title_fa": "شماره‌ی ثبت",
+       "type": "id_code",
+       "required": true,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "national_id",
+       "title_fa": "شناسه‌ی ملی",
+       "type": "id_code",
+       "required": false,
+       "searchable": true,
+       "sensitive": true,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "reg_date",
+       "title_fa": "تاریخ ثبت",
+       "type": "date",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "registry",
+       "title_fa": "مرجع ثبت",
+       "type": "party",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "company",
+       "title_fa": "شرکت",
+       "type": "company",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "subject_fa",
+       "title_fa": "موضوع فعالیت",
+       "type": "long_text",
+       "required": false,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "capital",
+       "title_fa": "سرمایه‌ی ثبتی",
+       "type": "money",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "currency": "IRR"
+      }
+     ],
+     "records": 4
+    },
+    {
+     "parent": null,
+     "scopes": "all",
+     "default_folder": null,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+     ],
+     "auto_link": [],
+     "version": 1,
+     "status": "active",
+     "key": "contract",
+     "title_fa": "قرارداد",
+     "icon": "report",
+     "default_level": "confidential",
+     "retention": "RR-0001",
+     "reminder_fields": [
+      "end"
+     ],
+     "required_files": 1,
+     "ocr": true,
+     "fields": [
+      {
+       "key": "counterparty",
+       "title_fa": "طرف قرارداد",
+       "type": "party",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "subject",
+       "title_fa": "موضوع",
+       "type": "text",
+       "required": true,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "start",
+       "title_fa": "شروع",
+       "type": "date",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "end",
+       "title_fa": "پایان",
+       "type": "date",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "value",
+       "title_fa": "مبلغ قرارداد",
+       "type": "money",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "currency": "USD"
+      },
+      {
+       "key": "auto_renew",
+       "title_fa": "تمدید خودکار",
+       "type": "boolean",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "notice_days",
+       "title_fa": "مهلت فسخ (روز)",
+       "type": "number",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      }
+     ],
+     "records": 1
+    },
+    {
+     "parent": "contract",
+     "scopes": "all",
+     "default_folder": null,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+     ],
+     "auto_link": [],
+     "version": 1,
+     "status": "active",
+     "key": "affiliate_agreement",
+     "title_fa": "توافق افیلیت",
+     "icon": "share",
+     "default_level": "confidential",
+     "retention": "RR-0001",
+     "reminder_fields": [
+      "review_at"
+     ],
+     "required_files": 1,
+     "ocr": false,
+     "fields": [
+      {
+       "key": "exchange",
+       "title_fa": "صرافی",
+       "type": "party",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "commission",
+       "title_fa": "سهم کمیسیون",
+       "type": "percent",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "start",
+       "title_fa": "شروع",
+       "type": "date",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "end",
+       "title_fa": "پایان",
+       "type": "date",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "review_at",
+       "title_fa": "بازبینی بعدی",
+       "type": "date",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "referral_link",
+       "title_fa": "لینک رفرال",
+       "type": "url",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "account_id",
+       "title_fa": "شناسه‌ی حساب افیلیت",
+       "type": "id_code",
+       "required": false,
+       "searchable": false,
+       "sensitive": true,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "tier",
+       "title_fa": "سطح همکاری",
+       "type": "enum",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "options": [
+        {
+         "key": "standard",
+         "title_fa": "عادی"
+        },
+        {
+         "key": "vip",
+         "title_fa": "VIP"
+        },
+        {
+         "key": "partner",
+         "title_fa": "شریک"
+        }
+       ]
+      }
+     ],
+     "records": 1
+    },
+    {
+     "parent": null,
+     "scopes": "all",
+     "default_folder": null,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+     ],
+     "auto_link": [],
+     "version": 1,
+     "status": "active",
+     "key": "license",
+     "title_fa": "مجوز",
+     "icon": "lock",
+     "default_level": "internal",
+     "retention": "RR-0003",
+     "reminder_fields": [
+      "expires_at"
+     ],
+     "required_files": 1,
+     "ocr": false,
+     "fields": [
+      {
+       "key": "issuer",
+       "title_fa": "صادرکننده",
+       "type": "party",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "license_no",
+       "title_fa": "شماره‌ی مجوز",
+       "type": "id_code",
+       "required": false,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "issued_at",
+       "title_fa": "تاریخ صدور",
+       "type": "date",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "expires_at",
+       "title_fa": "انقضا",
+       "type": "date",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "scope_fa",
+       "title_fa": "دامنه‌ی مجوز",
+       "type": "long_text",
+       "required": false,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "cost",
+       "title_fa": "هزینه‌ی سالانه",
+       "type": "money",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "currency": "USD"
+      }
+     ],
+     "records": 1
+    },
+    {
+     "parent": null,
+     "scopes": "all",
+     "default_folder": null,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+     ],
+     "auto_link": [],
+     "version": 1,
+     "status": "active",
+     "key": "invoice",
+     "title_fa": "فاکتور و رسید",
+     "icon": "budget",
+     "default_level": "internal",
+     "retention": "RR-0002",
+     "reminder_fields": [],
+     "required_files": 1,
+     "ocr": true,
+     "fields": [
+      {
+       "key": "vendor",
+       "title_fa": "فروشنده",
+       "type": "party",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "number",
+       "title_fa": "شماره‌ی فاکتور",
+       "type": "text",
+       "required": true,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "date",
+       "title_fa": "تاریخ فاکتور",
+       "type": "date",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "amount",
+       "title_fa": "مبلغ",
+       "type": "money",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "currency": "EUR"
+      },
+      {
+       "key": "period",
+       "title_fa": "دوره",
+       "type": "date_range",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "paid",
+       "title_fa": "پرداخت‌شده",
+       "type": "boolean",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "category",
+       "title_fa": "دسته",
+       "type": "enum",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "options": [
+        {
+         "key": "hosting",
+         "title_fa": "میزبانی"
+        },
+        {
+         "key": "domain",
+         "title_fa": "دامنه"
+        },
+        {
+         "key": "software",
+         "title_fa": "نرم‌افزار"
+        },
+        {
+         "key": "service",
+         "title_fa": "خدمت"
+        },
+        {
+         "key": "other",
+         "title_fa": "دیگر"
+        }
+       ]
+      }
+     ],
+     "records": 6
+    },
+    {
+     "parent": null,
+     "scopes": "all",
+     "default_folder": null,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+     ],
+     "auto_link": [],
+     "version": 1,
+     "status": "active",
+     "key": "domain",
+     "title_fa": "دامنه",
+     "icon": "globe",
+     "default_level": "internal",
+     "retention": "RR-0003",
+     "reminder_fields": [
+      "expires_at"
+     ],
+     "required_files": 0,
+     "ocr": false,
+     "fields": [
+      {
+       "key": "domain",
+       "title_fa": "نام دامنه",
+       "type": "text",
+       "required": true,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "registrar",
+       "title_fa": "ثبت‌کننده",
+       "type": "party",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "expires_at",
+       "title_fa": "انقضا",
+       "type": "date",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "auto_renew",
+       "title_fa": "تمدید خودکار",
+       "type": "boolean",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "dns_provider",
+       "title_fa": "DNS",
+       "type": "text",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      }
+     ],
+     "records": 1
+    },
+    {
+     "parent": null,
+     "scopes": "all",
+     "default_folder": null,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "message/rfc822"
+     ],
+     "auto_link": [
+      {
+       "field": "case",
+       "link_kind": "about"
+      }
+     ],
+     "version": 1,
+     "status": "active",
+     "key": "legal_correspondence",
+     "title_fa": "مکاتبه‌ی حقوقی",
+     "icon": "send",
+     "default_level": "confidential",
+     "retention": "RR-0004",
+     "reminder_fields": [],
+     "required_files": 1,
+     "ocr": false,
+     "fields": [
+      {
+       "key": "case",
+       "title_fa": "پرونده",
+       "type": "ref",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "ref_kinds": [
+        "case"
+       ]
+      },
+      {
+       "key": "direction",
+       "title_fa": "جهت",
+       "type": "enum",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "options": [
+        {
+         "key": "out",
+         "title_fa": "رفت"
+        },
+        {
+         "key": "in",
+         "title_fa": "آمد"
+        }
+       ]
+      },
+      {
+       "key": "counterpart",
+       "title_fa": "طرف مقابل",
+       "type": "party",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "date",
+       "title_fa": "تاریخ",
+       "type": "date",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "subject_en",
+       "title_fa": "موضوع ایمیل",
+       "type": "text",
+       "required": false,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "decision",
+       "title_fa": "کارت مُهر",
+       "type": "ref",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "ref_kinds": [
+        "decision"
+       ]
+      }
+     ],
+     "records": 2
+    },
+    {
+     "parent": null,
+     "scopes": "all",
+     "default_folder": null,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+     ],
+     "auto_link": [],
+     "version": 1,
+     "status": "active",
+     "key": "sealed_policy",
+     "title_fa": "اساسنامه و سیاست مُهرشده",
+     "icon": "seal",
+     "default_level": "internal",
+     "retention": "RR-0005",
+     "reminder_fields": [],
+     "required_files": 1,
+     "ocr": false,
+     "fields": [
+      {
+       "key": "policy_ref",
+       "title_fa": "نسخه‌ی سند",
+       "type": "text",
+       "required": true,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "version",
+       "title_fa": "شماره‌ی نسخه",
+       "type": "number",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "sealed_on",
+       "title_fa": "تاریخ مُهر",
+       "type": "date",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "decision",
+       "title_fa": "کارت",
+       "type": "ref",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "ref_kinds": [
+        "decision",
+        "resolution"
+       ]
+      }
+     ],
+     "records": 1
+    },
+    {
+     "parent": null,
+     "scopes": "all",
+     "default_folder": null,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+     ],
+     "auto_link": [],
+     "version": 1,
+     "status": "active",
+     "key": "brand_asset",
+     "title_fa": "نشان و مُهر",
+     "icon": "image",
+     "default_level": "internal",
+     "retention": "RR-0005",
+     "reminder_fields": [],
+     "required_files": 1,
+     "ocr": false,
+     "fields": [
+      {
+       "key": "company",
+       "title_fa": "شرکت",
+       "type": "company",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "version",
+       "title_fa": "نسخه",
+       "type": "number",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "sealed_on",
+       "title_fa": "تاریخ مُهر",
+       "type": "date",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      }
+     ],
+     "records": 0
+    },
+    {
+     "parent": null,
+     "scopes": "all",
+     "default_folder": null,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+     ],
+     "auto_link": [],
+     "version": 1,
+     "status": "active",
+     "key": "resolution_bundle",
+     "title_fa": "مصوبه‌های ماه",
+     "icon": "meeting",
+     "default_level": "internal",
+     "retention": "RR-0005",
+     "reminder_fields": [],
+     "required_files": 1,
+     "ocr": false,
+     "fields": [
+      {
+       "key": "month",
+       "title_fa": "ماه",
+       "type": "text",
+       "required": true,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "count",
+       "title_fa": "تعداد مصوبه",
+       "type": "number",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      }
+     ],
+     "records": 0
+    },
+    {
+     "parent": null,
+     "scopes": "all",
+     "default_folder": null,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "text/plain"
+     ],
+     "auto_link": [],
+     "version": 1,
+     "status": "active",
+     "key": "other",
+     "title_fa": "سایر",
+     "icon": "attach",
+     "default_level": "internal",
+     "retention": "RR-0006",
+     "reminder_fields": [],
+     "required_files": 0,
+     "ocr": true,
+     "fields": [
+      {
+       "key": "description",
+       "title_fa": "شرح",
+       "type": "long_text",
+       "required": false,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      }
+     ],
+     "records": 0
+    }
+   ],
+   "field_types": [
+    {
+     "key": "text",
+     "title_fa": "متن کوتاه"
+    },
+    {
+     "key": "long_text",
+     "title_fa": "متن بلند"
+    },
+    {
+     "key": "number",
+     "title_fa": "عدد"
+    },
+    {
+     "key": "money",
+     "title_fa": "مبلغ"
+    },
+    {
+     "key": "percent",
+     "title_fa": "درصد"
+    },
+    {
+     "key": "date",
+     "title_fa": "تاریخ"
+    },
+    {
+     "key": "date_range",
+     "title_fa": "بازه‌ی تاریخ"
+    },
+    {
+     "key": "enum",
+     "title_fa": "یک گزینه"
+    },
+    {
+     "key": "multi_enum",
+     "title_fa": "چند گزینه"
+    },
+    {
+     "key": "boolean",
+     "title_fa": "بله یا نه"
+    },
+    {
+     "key": "party",
+     "title_fa": "طرف حساب"
+    },
+    {
+     "key": "company",
+     "title_fa": "شرکت"
+    },
+    {
+     "key": "ref",
+     "title_fa": "ارجاع"
+    },
+    {
+     "key": "url",
+     "title_fa": "نشانی وب"
+    },
+    {
+     "key": "email",
+     "title_fa": "ایمیل"
+    },
+    {
+     "key": "phone",
+     "title_fa": "تلفن"
+    },
+    {
+     "key": "id_code",
+     "title_fa": "شناسه"
+    },
+    {
+     "key": "iban",
+     "title_fa": "شبا / IBAN"
+    }
+   ],
+   "folders": [
+    {
+     "ref": "FP-0001",
+     "scope": "HQ",
+     "parent": null,
+     "title_fa": "حقوقی و ثبتی",
+     "classes": [],
+     "default_level": null,
+     "order": 0,
+     "status": "active",
+     "version": 1,
+     "records": 3
+    },
+    {
+     "ref": "FP-0002",
+     "scope": "HQ",
+     "parent": "FP-0001",
+     "title_fa": "ثبت و اساسنامه",
+     "classes": [
+      "company_registration",
+      "sealed_policy"
+     ],
+     "default_level": null,
+     "order": 1,
+     "status": "active",
+     "version": 1,
+     "records": 2
+    },
+    {
+     "ref": "FP-0003",
+     "scope": "HQ",
+     "parent": "FP-0001",
+     "title_fa": "قراردادها",
+     "classes": [
+      "contract"
+     ],
+     "default_level": "confidential",
+     "order": 2,
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "FP-0004",
+     "scope": "HQ",
+     "parent": null,
+     "title_fa": "مالی",
+     "classes": [],
+     "default_level": null,
+     "order": 3,
+     "status": "active",
+     "version": 1,
+     "records": 6
+    },
+    {
+     "ref": "FP-0005",
+     "scope": "HQ",
+     "parent": "FP-0004",
+     "title_fa": "فاکتورها و رسیدها",
+     "classes": [
+      "invoice"
+     ],
+     "default_level": null,
+     "order": 4,
+     "status": "active",
+     "version": 1,
+     "records": 6
+    },
+    {
+     "ref": "FP-0006",
+     "scope": "HQ",
+     "parent": null,
+     "title_fa": "فنی و زیرساخت",
+     "classes": [],
+     "default_level": null,
+     "order": 5,
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "FP-0007",
+     "scope": "HQ",
+     "parent": "FP-0006",
+     "title_fa": "دامنه‌ها و مجوزها",
+     "classes": [
+      "domain",
+      "license"
+     ],
+     "default_level": null,
+     "order": 6,
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "FP-0008",
+     "scope": "HQ",
+     "parent": null,
+     "title_fa": "نشان و مصوبه‌ها",
+     "classes": [
+      "brand_asset",
+      "resolution_bundle"
+     ],
+     "default_level": null,
+     "order": 7,
+     "status": "active",
+     "version": 1,
+     "records": 0
+    },
+    {
+     "ref": "FP-0011",
+     "scope": "TY",
+     "parent": null,
+     "title_fa": "ثبتی",
+     "classes": [
+      "company_registration"
+     ],
+     "default_level": null,
+     "order": 8,
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "FP-0012",
+     "scope": "TY",
+     "parent": null,
+     "title_fa": "قراردادها",
+     "classes": [
+      "contract",
+      "affiliate_agreement"
+     ],
+     "default_level": "confidential",
+     "order": 9,
+     "status": "active",
+     "version": 1,
+     "records": 0
+    },
+    {
+     "ref": "FP-0013",
+     "scope": "TY",
+     "parent": null,
+     "title_fa": "مالی",
+     "classes": [
+      "invoice"
+     ],
+     "default_level": null,
+     "order": 10,
+     "status": "active",
+     "version": 1,
+     "records": 0
+    },
+    {
+     "ref": "FP-0021",
+     "scope": "FX",
+     "parent": null,
+     "title_fa": "ثبتی",
+     "classes": [
+      "company_registration"
+     ],
+     "default_level": null,
+     "order": 11,
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "FP-0022",
+     "scope": "FX",
+     "parent": null,
+     "title_fa": "قراردادها و افیلیت",
+     "classes": [
+      "contract",
+      "affiliate_agreement"
+     ],
+     "default_level": "confidential",
+     "order": 12,
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "FP-0023",
+     "scope": "FX",
+     "parent": null,
+     "title_fa": "مکاتبات حقوقی",
+     "classes": [
+      "legal_correspondence"
+     ],
+     "default_level": "confidential",
+     "order": 13,
+     "status": "active",
+     "version": 1,
+     "records": 2
+    },
+    {
+     "ref": "FP-0031",
+     "scope": "PC",
+     "parent": null,
+     "title_fa": "ثبتی",
+     "classes": [
+      "company_registration"
+     ],
+     "default_level": null,
+     "order": 14,
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "FP-0032",
+     "scope": "PC",
+     "parent": null,
+     "title_fa": "مجوزها",
+     "classes": [
+      "license"
+     ],
+     "default_level": null,
+     "order": 15,
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "FP-0033",
+     "scope": "PC",
+     "parent": null,
+     "title_fa": "قراردادها",
+     "classes": [
+      "contract"
+     ],
+     "default_level": "confidential",
+     "order": 16,
+     "status": "active",
+     "version": 1,
+     "records": 0
+    }
+   ],
+   "levels": [
+    {
+     "key": "public",
+     "title_fa": "عمومی",
+     "rank": 0,
+     "color_index": 0,
+     "watermark": false,
+     "encrypt": false,
+     "step_up_to_view": false,
+     "agents_max": false,
+     "version": 1,
+     "status": "active",
+     "records": 0
+    },
+    {
+     "key": "internal",
+     "title_fa": "داخلی",
+     "rank": 10,
+     "color_index": 1,
+     "watermark": false,
+     "encrypt": false,
+     "step_up_to_view": false,
+     "agents_max": false,
+     "version": 1,
+     "status": "active",
+     "records": 14
+    },
+    {
+     "key": "confidential",
+     "title_fa": "محرمانه",
+     "rank": 20,
+     "color_index": 2,
+     "watermark": true,
+     "encrypt": false,
+     "step_up_to_view": false,
+     "agents_max": true,
+     "version": 1,
+     "status": "active",
+     "records": 3
+    },
+    {
+     "key": "secret",
+     "title_fa": "سری",
+     "rank": 30,
+     "color_index": 3,
+     "watermark": true,
+     "encrypt": true,
+     "step_up_to_view": true,
+     "agents_max": false,
+     "version": 1,
+     "status": "active",
+     "records": 1
+    }
+   ],
+   "clearance": [
+    {
+     "subject": {
+      "kind": "role",
+      "ref": "*"
+     },
+     "scope": "own",
+     "level": "internal",
+     "metadata_level": null,
+     "version": 1
+    },
+    {
+     "subject": {
+      "kind": "role",
+      "ref": "legal_counsel"
+     },
+     "scope": "all",
+     "level": "confidential",
+     "metadata_level": null,
+     "version": 1
+    },
+    {
+     "subject": {
+      "kind": "role",
+      "ref": "archivist"
+     },
+     "scope": "all",
+     "level": "confidential",
+     "metadata_level": "secret",
+     "version": 1
+    }
+   ],
+   "retention": [
+    {
+     "ref": "RR-0001",
+     "title_fa": "قرارداد و توافق: ۷ سال پس از پایان",
+     "trigger": "field:end",
+     "keep": {
+      "years": 7
+     },
+     "then": "dispose_card",
+     "version": 1,
+     "status": "active",
+     "records": 2
+    },
+    {
+     "ref": "RR-0002",
+     "title_fa": "فاکتور: ۷ سال پس از تاریخ فاکتور",
+     "trigger": "field:date",
+     "keep": {
+      "years": 7
+     },
+     "then": "dispose_card",
+     "version": 1,
+     "status": "active",
+     "records": 6
+    },
+    {
+     "ref": "RR-0003",
+     "title_fa": "مجوز و دامنه: ۲ سال پس از انقضا",
+     "trigger": "field:expires_at",
+     "keep": {
+      "years": 2
+     },
+     "then": "dispose_card",
+     "version": 1,
+     "status": "active",
+     "records": 2
+    },
+    {
+     "ref": "RR-0004",
+     "title_fa": "مکاتبه‌ی حقوقی: ۱۰ سال پس از بسته شدن پرونده",
+     "trigger": "case_closed",
+     "keep": {
+      "years": 10
+     },
+     "then": "review",
+     "version": 1,
+     "status": "active",
+     "records": 2
+    },
+    {
+     "ref": "RR-0005",
+     "title_fa": "دائمی: ثبت، اساسنامه، نشان، مصوبه",
+     "trigger": "filed",
+     "keep": "permanent",
+     "then": "review",
+     "version": 1,
+     "status": "active",
+     "records": 5
+    },
+    {
+     "ref": "RR-0006",
+     "title_fa": "سایر: بازبینی پس از ۳ سال",
+     "trigger": "filed",
+     "keep": {
+      "years": 3
+     },
+     "then": "review",
+     "version": 1,
+     "status": "active",
+     "records": 0
+    }
+   ],
+   "reminders": [
+    {
+     "ref": "RM-0001",
+     "class": "contract",
+     "field": "end",
+     "lead_days": [
+      60,
+      30,
+      7
+     ],
+     "to": "owner",
+     "channel": "cartable",
+     "version": 1,
+     "status": "active"
+    },
+    {
+     "ref": "RM-0002",
+     "class": "license",
+     "field": "expires_at",
+     "lead_days": [
+      90,
+      30,
+      7
+     ],
+     "to": "owner",
+     "channel": "cartable",
+     "version": 1,
+     "status": "active"
+    },
+    {
+     "ref": "RM-0003",
+     "class": "domain",
+     "field": "expires_at",
+     "lead_days": [
+      90,
+      30,
+      7
+     ],
+     "to": "owner",
+     "channel": "cartable",
+     "version": 1,
+     "status": "active"
+    },
+    {
+     "ref": "RM-0004",
+     "class": "affiliate_agreement",
+     "field": "review_at",
+     "lead_days": [
+      30,
+      7
+     ],
+     "to": {
+      "company_ceo": true
+     },
+     "channel": "cartable",
+     "version": 1,
+     "status": "active"
+    }
+   ],
+   "party_kinds": [
+    {
+     "key": "exchange",
+     "title_fa": "صرافی",
+     "identifier_fields": [
+      {
+       "key": "website",
+       "title_fa": "وب‌سایت",
+       "type": "url",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "account",
+       "title_fa": "شناسه‌ی حساب",
+       "type": "id_code",
+       "required": false,
+       "searchable": false,
+       "sensitive": true,
+       "help_fa": null,
+       "status": "active"
+      }
+     ],
+     "version": 1,
+     "status": "active",
+     "parties": 1
+    },
+    {
+     "key": "provider",
+     "title_fa": "تأمین‌کننده",
+     "identifier_fields": [
+      {
+       "key": "website",
+       "title_fa": "وب‌سایت",
+       "type": "url",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "vat_id",
+       "title_fa": "شناسه‌ی مالیاتی",
+       "type": "id_code",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "email",
+       "title_fa": "ایمیل",
+       "type": "email",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      }
+     ],
+     "version": 1,
+     "status": "active",
+     "parties": 4
+    },
+    {
+     "key": "government",
+     "title_fa": "نهاد دولتی",
+     "identifier_fields": [
+      {
+       "key": "website",
+       "title_fa": "وب‌سایت",
+       "type": "url",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "phone",
+       "title_fa": "تلفن",
+       "type": "phone",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      }
+     ],
+     "version": 1,
+     "status": "active",
+     "parties": 1
+    },
+    {
+     "key": "bank",
+     "title_fa": "بانک",
+     "identifier_fields": [
+      {
+       "key": "iban",
+       "title_fa": "شبا",
+       "type": "iban",
+       "required": false,
+       "searchable": false,
+       "sensitive": true,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "swift",
+       "title_fa": "SWIFT",
+       "type": "id_code",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      }
+     ],
+     "version": 1,
+     "status": "active",
+     "parties": 1
+    },
+    {
+     "key": "person",
+     "title_fa": "شخص",
+     "identifier_fields": [
+      {
+       "key": "national_id",
+       "title_fa": "کد ملی",
+       "type": "id_code",
+       "required": false,
+       "searchable": false,
+       "sensitive": true,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "email",
+       "title_fa": "ایمیل",
+       "type": "email",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "phone",
+       "title_fa": "تلفن",
+       "type": "phone",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      }
+     ],
+     "version": 1,
+     "status": "active",
+     "parties": 1
+    },
+    {
+     "key": "other",
+     "title_fa": "دیگر",
+     "identifier_fields": [
+      {
+       "key": "note",
+       "title_fa": "یادداشت",
+       "type": "text",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      }
+     ],
+     "version": 1,
+     "status": "active",
+     "parties": 0
+    }
+   ],
+   "parties": [
+    {
+     "ref": "PT-0001",
+     "kind": "exchange",
+     "name_fa": "صرافی ال‌بنک",
+     "name_en": "LBank",
+     "identifiers": {
+      "website": "https://www.lbank.com",
+      "account": "88412907"
+     },
+     "scopes": [
+      "FX",
+      "TY"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "PT-0002",
+     "kind": "provider",
+     "name_fa": "هتزنر",
+     "name_en": "Hetzner Online GmbH",
+     "identifiers": {
+      "website": "https://www.hetzner.com",
+      "vat_id": "DE812871812"
+     },
+     "scopes": [
+      "HQ"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 6
+    },
+    {
+     "ref": "PT-0003",
+     "kind": "provider",
+     "name_fa": "ثبت‌کننده‌ی دامنه",
+     "name_en": "Domain registrar (demo)",
+     "identifiers": {
+      "website": "https://registrar.example"
+     },
+     "scopes": [
+      "HQ"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "PT-0004",
+     "kind": "government",
+     "name_fa": "اداره‌ی ثبت شرکت‌ها",
+     "name_en": null,
+     "identifiers": {
+      "website": "https://registry.example"
+     },
+     "scopes": [
+      "HQ",
+      "TY",
+      "FX",
+      "PC"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 4
+    },
+    {
+     "ref": "PT-0005",
+     "kind": "provider",
+     "name_fa": "اینستاگرام (Meta)",
+     "name_en": "Instagram (Meta)",
+     "identifiers": {
+      "email": "appeals@platform-support.example"
+     },
+     "scopes": [
+      "FX"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 2
+    },
+    {
+     "ref": "PT-0006",
+     "kind": "bank",
+     "name_fa": "بانک نمونه",
+     "name_en": "Demo Bank",
+     "identifiers": {
+      "iban": "IR820540102680020817909002",
+      "swift": "DEMOIRTH"
+     },
+     "scopes": [
+      "HQ"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 0
+    },
+    {
+     "ref": "PT-0007",
+     "kind": "provider",
+     "name_fa": "فروشنده‌ی کتابخانه‌ی نمودار",
+     "name_en": "Charting library vendor (demo)",
+     "identifiers": {
+      "website": "https://charts.example"
+     },
+     "scopes": [
+      "PC"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "PT-0008",
+     "kind": "person",
+     "name_fa": "بنیان‌گذار (نمونه)",
+     "name_en": null,
+     "identifiers": {
+      "national_id": "0012345678"
+     },
+     "scopes": [
+      "HQ"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 1
+    }
+   ],
+   "link_kinds": [
+    {
+     "key": "supersedes",
+     "title_fa": "جایگزین میکند",
+     "inverse_fa": "جایگزین شده با",
+     "to_kinds": [
+      "record"
+     ],
+     "version": 1,
+     "status": "active",
+     "records": 0
+    },
+    {
+     "key": "amends",
+     "title_fa": "اصلاح میکند",
+     "inverse_fa": "اصلاح شده با",
+     "to_kinds": [
+      "record"
+     ],
+     "version": 1,
+     "status": "active",
+     "records": 0
+    },
+    {
+     "key": "renews",
+     "title_fa": "تمدید میکند",
+     "inverse_fa": "تمدید شده با",
+     "to_kinds": [
+      "record"
+     ],
+     "version": 1,
+     "status": "active",
+     "records": 0
+    },
+    {
+     "key": "evidence_for",
+     "title_fa": "شاهد است برای",
+     "inverse_fa": "شاهدش",
+     "to_kinds": [
+      "decision",
+      "resolution",
+      "case",
+      "work",
+      "record"
+     ],
+     "version": 1,
+     "status": "active",
+     "records": 1
+    },
+    {
+     "key": "attached_to",
+     "title_fa": "پیوست",
+     "inverse_fa": "پیوست‌ها",
+     "to_kinds": [
+      "record",
+      "decision",
+      "work"
+     ],
+     "version": 1,
+     "status": "active",
+     "records": 0
+    },
+    {
+     "key": "about",
+     "title_fa": "درباره‌ی",
+     "inverse_fa": "سندهای مرتبط",
+     "to_kinds": [
+      "case",
+      "decision",
+      "resolution",
+      "work",
+      "employee",
+      "revenue_account",
+      "record"
+     ],
+     "version": 1,
+     "status": "active",
+     "records": 2
+    }
+   ],
+   "automations": [
+    {
+     "ref": "AU-0001",
+     "title_fa": "مکاتبه‌ی حقوقی به پوشه‌ی مکاتبات و دست‌کم محرمانه",
+     "on": "filed",
+     "when": {
+      "class": "legal_correspondence"
+     },
+     "do": [
+      {
+       "action": "raise_level",
+       "args": {
+        "level": "confidential"
+       }
+      },
+      {
+       "action": "move_to_folder",
+       "args": {
+        "folder": "FP-0023"
+       }
+      }
+     ],
+     "runs_30d": 2,
+     "last_run_at": "@-3000m",
+     "version": 1,
+     "status": "active"
+    },
+    {
+     "ref": "AU-0002",
+     "title_fa": "فاکتور بالای ۵۰۰ یورو: گزارش به مدیر کل",
+     "on": "filed",
+     "when": {
+      "class": "invoice",
+      "field": {
+       "key": "amount",
+       "op": "gt",
+       "value": 500
+      }
+     },
+     "do": [
+      {
+       "action": "notify",
+       "args": {
+        "to": "owner",
+        "level": "report",
+        "text_fa": "فاکتور بزرگ بایگانی شد"
+       }
+      }
+     ],
+     "runs_30d": 0,
+     "last_run_at": null,
+     "version": 1,
+     "status": "active"
+    },
+    {
+     "ref": "AU-0003",
+     "title_fa": "توقیف تازه: بایگان پوشش را بررسی کند",
+     "on": "hold_set",
+     "when": {},
+     "do": [
+      {
+       "action": "work_item",
+       "args": {
+        "role": "archivist",
+        "title_fa": "بررسی پوشش توقیف تازه"
+       }
+      }
+     ],
+     "runs_30d": 2,
+     "last_run_at": "@-300m",
+     "version": 1,
+     "status": "active"
+    }
+   ],
+   "sources": [
+    {
+     "key": "charter_sealed",
+     "title_fa": "هر نسخه‌ی مُهرشده‌ی اساسنامه",
+     "class": "sealed_policy",
+     "enabled": true,
+     "filed": 1,
+     "last_at": "@-2760m",
+     "note_fa": null
+    },
+    {
+     "key": "resolution_month",
+     "title_fa": "PDF مصوبه‌های مُهرشده‌ی هر ماه",
+     "class": "resolution_bundle",
+     "enabled": true,
+     "filed": 0,
+     "last_at": null,
+     "note_fa": null
+    },
+    {
+     "key": "brand_sealed",
+     "title_fa": "نشان و مُهر مُهرشده",
+     "class": "brand_asset",
+     "enabled": true,
+     "filed": 0,
+     "last_at": null,
+     "note_fa": null
+    },
+    {
+     "key": "founding_registration",
+     "title_fa": "پیشنهاد مُهرشده‌ی تأسیس شرکت",
+     "class": "company_registration",
+     "enabled": true,
+     "filed": 0,
+     "last_at": null,
+     "note_fa": null
+    },
+    {
+     "key": "legal_email",
+     "title_fa": "هر ایمیل فرستاده‌ی مشاور حقوقی و پرونده‌اش",
+     "class": "legal_correspondence",
+     "enabled": true,
+     "filed": 2,
+     "last_at": "@-3000m",
+     "note_fa": null
+    },
+    {
+     "key": "case_closed",
+     "title_fa": "بسته شدن پرونده‌ی حقوقی",
+     "class": "legal_correspondence",
+     "enabled": true,
+     "filed": 0,
+     "last_at": null,
+     "note_fa": null
+    },
+    {
+     "key": "server_plan_sealed",
+     "title_fa": "طرح سرور مُهرشده",
+     "class": "other",
+     "enabled": false,
+     "filed": 0,
+     "last_at": null,
+     "note_fa": "خاموش به خواست مالک؛ طرح سرور در صفحه‌ی تأسیس میماند."
+    },
+    {
+     "key": "backup_restore_test",
+     "title_fa": "نتیجه‌ی ماهانه‌ی آزمون بازگردانی پشتیبان",
+     "class": "other",
+     "enabled": true,
+     "filed": 0,
+     "last_at": null,
+     "note_fa": null
+    }
+   ],
+   "vocab": {
+    "events": [
+     "filed",
+     "sealed",
+     "reminder_due",
+     "retention_due",
+     "hold_set",
+     "version_added"
+    ],
+    "actions": [
+     "notify",
+     "work_item",
+     "link",
+     "move_to_folder",
+     "raise_level",
+     "add_reminder"
+    ],
+    "ops": [
+     "eq",
+     "lt",
+     "gt",
+     "contains"
+    ],
+    "ref_kinds": [
+     "decision",
+     "resolution",
+     "case",
+     "work",
+     "record",
+     "employee",
+     "revenue_account"
+    ],
+    "currencies": [
+     "USD",
+     "USDT",
+     "EUR",
+     "IRR",
+     "AED",
+     "TRY",
+     "GBP"
+    ],
+    "mimes": [
+     "application/pdf",
+     "image/jpeg",
+     "image/png",
+     "image/webp",
+     "text/plain",
+     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+     "message/rfc822"
+    ]
+   }
+  }
+ },
+ "/archive/records": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "current_version": 1,
+     "id": "ar-AR-000170",
+     "folder": null,
+     "level": "internal",
+     "state": "draft",
+     "parties": [],
+     "links": [],
+     "metadata": {},
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": null,
+     "sealed_at": null,
+     "version": 1,
+     "class_version": null,
+     "suggestion": {
+      "class": "contract",
+      "title_fa": "اجاره‌نامه‌ی دفتر تهران",
+      "metadata": {
+       "subject": "اجاره‌ی دفتر تهران",
+       "start": "@-24d",
+       "end": "@340d",
+       "value": {
+        "amount": "180000000",
+        "currency": "IRR"
+       }
+      },
+      "parties": [],
+      "by": "rules",
+      "note_fa": "از تاریخ‌ها و مبلغ‌های متن OCR پیدا شد؛ موجر در رجیستری طرف‌ها نیست و واحد مبلغ با فیلد قرارداد (USD) نمیخواند."
+     },
+     "created_at": "@-420m",
+     "ref": "AR-000170",
+     "scope": "HQ",
+     "class": null,
+     "title_fa": "اسکن: اجاره‌نامه‌ی دفتر تهران",
+     "at": 420,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-scan-office-lease",
+         "name": "scan-office-lease.webp",
+         "mime": "image/webp",
+         "size_bytes": 8372,
+         "sha256": "6bb1fa60d401d9946ff2330b918eb843f9dfa90d8ff01c91b6947680aef4ab50",
+         "pages": null,
+         "text_state": "ocr",
+         "ocr_confidence": 0.78
+        }
+       ],
+       "manifest_sha256": "aab71180f61ac1c748e46f1fa7136293cb6b8c8bd5fc98e99c66adcc0510448d",
+       "note_fa": "ورود دسته‌ای مالک",
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-420m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@0d",
+     "masked": [],
+     "retention": {
+      "rule": null,
+      "trigger_at": null,
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000160",
+     "folder": "FP-0002",
+     "level": "internal",
+     "state": "filed",
+     "parties": [],
+     "links": [],
+     "metadata": {
+      "policy_ref": "holding@3",
+      "version": 3,
+      "sealed_on": "@-2d"
+     },
+     "source": {
+      "kind": "system",
+      "ref": "charter_sealed"
+     },
+     "created_by": {
+      "kind": "system",
+      "code": "system",
+      "display_fa": "سیستم"
+     },
+     "filed_at": "@-2759m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-2760m",
+     "ref": "AR-000160",
+     "scope": "HQ",
+     "class": "sealed_policy",
+     "title_fa": "اساسنامه‌ی هلدینگ، نسخه‌ی ۳",
+     "at": 2760,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hq-charter-v3",
+         "name": "hq-charter-v3.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 5899,
+         "sha256": "5bf8e651cbb98c838ec3ec657d171dfe9ab0d668dd21b23a74c2bdd9d0790725",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "5dad393cee80f0caf4e81a677e4161a1bf4ecf1aad187253037953b25b5cbe18",
+       "note_fa": null,
+       "created_by": {
+        "kind": "system",
+        "code": "system",
+        "display_fa": "سیستم"
+       },
+       "created_at": "@-2760m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-2d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0005",
+      "trigger_at": "@-2d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000151",
+     "folder": "FP-0023",
+     "level": "confidential",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0005",
+       "role_fa": "فرستنده"
+      }
+     ],
+     "links": [
+      {
+       "kind": "about",
+       "to": {
+        "kind": "case",
+        "ref": "LC-0001"
+       },
+       "at": "@-2998m",
+       "by": {
+        "kind": "system",
+        "code": "system",
+        "display_fa": "سیستم"
+       },
+       "title_fa": null
+      }
+     ],
+     "metadata": {
+      "case": {
+       "kind": "case",
+       "ref": "LC-0001"
+      },
+      "direction": "in",
+      "counterpart": "PT-0005",
+      "date": "@-2d",
+      "subject_en": "Re: Instagram business account cannot reply to messages — CoinePro FX"
+     },
+     "source": {
+      "kind": "system",
+      "ref": "legal_email"
+     },
+     "created_by": {
+      "kind": "system",
+      "code": "system",
+      "display_fa": "سیستم"
+     },
+     "filed_at": "@-2997m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-2998m",
+     "ref": "AR-000151",
+     "scope": "FX",
+     "class": "legal_correspondence",
+     "title_fa": "جواب خودکار پشتیبانی: پرونده‌ی 4471-DEMO",
+     "at": 2998,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-lc-0001-email-in-1",
+         "name": "lc-0001-email-in-1.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 1734,
+         "sha256": "7c742905890a2a389e5d3fdf5ee3d85e3e1f4fd0cbaf9fa0d6750a51e47306a3",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "9cfe8ce0428dc96e88c6aed9e73c48f220aa2dad0d52811be6ffdd98bee74de2",
+       "note_fa": null,
+       "created_by": {
+        "kind": "system",
+        "code": "system",
+        "display_fa": "سیستم"
+       },
+       "created_at": "@-2998m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [
+      "LH-0001"
+     ],
+     "doc_date": "@-2d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0004",
+      "trigger_at": null,
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000140",
+     "folder": "FP-0032",
+     "level": "internal",
+     "state": "sealed",
+     "parties": [
+      {
+       "party": "PT-0007",
+       "role_fa": "صادرکننده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "issuer": "PT-0007",
+      "license_no": "CL-PC-2026-0417",
+      "issued_at": "@-221d",
+      "expires_at": "@144d",
+      "scope_fa": "اپ اندروید و ترمینال وب، بدون سقف کاربر",
+      "cost": {
+       "amount": "2400",
+       "currency": "USD"
+      }
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-4269m",
+     "sealed_at": "@-2880m",
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-4270m",
+     "ref": "AR-000140",
+     "scope": "PC",
+     "class": "license",
+     "title_fa": "لایسنس تجاری کتابخانه‌ی نمودار",
+     "at": 4270,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-charting-license-2026",
+         "name": "charting-license-2026.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 1809,
+         "sha256": "a9c972d4de6f09ecf4971a559c04356e1cf9e0d819abe6553602d3297f33a85a",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "adb32a50ee1421ac0624024251f439bd7202a3215fa4a9009489ace0e1149fa8",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-4270m",
+       "sealed": true,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-221d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0003",
+      "trigger_at": "@144d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": [
+      {
+       "field": "expires_at",
+       "at": "@144d",
+       "lead_days": 7,
+       "state": "pending"
+      }
+     ]
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000130",
+     "folder": "FP-0007",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0003",
+       "role_fa": "ثبت‌کننده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "domain": "coinepro.com",
+      "registrar": "PT-0003",
+      "expires_at": "@25d",
+      "auto_renew": false,
+      "dns_provider": "Cloudflare"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-4289m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-4290m",
+     "ref": "AR-000130",
+     "scope": "HQ",
+     "class": "domain",
+     "title_fa": "دامنه‌ی coinepro.com",
+     "at": 4290,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-domain-coinepro-com-renewal",
+         "name": "domain-coinepro-com-renewal.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 1769,
+         "sha256": "c039af91d3277564940d22f00b64f1c70d1f20100973717526309a3fccd28eaf",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "05191a7976e30c44950e780c40293a330ba2feacfd6cd42f2ea64794d4f127e5",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-4290m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@25d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0003",
+      "trigger_at": "@25d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": [
+      {
+       "field": "expires_at",
+       "at": "@25d",
+       "lead_days": 30,
+       "state": "sent"
+      }
+     ]
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000122",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0026105533",
+      "date": "@-16d",
+      "amount": {
+       "amount": "38.10",
+       "currency": "EUR"
+      },
+      "period": {
+       "from": "@-46d",
+       "to": "@-17d"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-4309m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-4310m",
+     "ref": "AR-000122",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور هتزنر، مهر ۱۴۰۵",
+     "at": 4310,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2026-10",
+         "name": "hetzner-R2026-10.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2116,
+         "sha256": "7dcddeab328a6c6123f60ffd058b5eee5cd52dda728f648d451b92f5bed752ad",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "a96401e798b2bdf55a650bee9b715d33e7a03d9a0efd8b7aeea5fa9a5be59b02",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-4310m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-16d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-16d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000121",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0026094107",
+      "date": "@-46d",
+      "amount": {
+       "amount": "38.10",
+       "currency": "EUR"
+      },
+      "period": {
+       "from": "@-77d",
+       "to": "@-47d"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-4314m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-4315m",
+     "ref": "AR-000121",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور هتزنر، شهریور ۱۴۰۵",
+     "at": 4315,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2026-09",
+         "name": "hetzner-R2026-09.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2116,
+         "sha256": "0d2a23494b94953cac5193ab93417902fd93fda00a027c616a70b05f7fdddf8d",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "d7dd2a47d56f770b2addbca823d2934c8d5fb999e387495b905e5c6b3d30cb19",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-4315m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-46d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-46d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000150",
+     "folder": "FP-0023",
+     "level": "confidential",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0005",
+       "role_fa": "گیرنده"
+      }
+     ],
+     "links": [
+      {
+       "kind": "about",
+       "to": {
+        "kind": "case",
+        "ref": "LC-0001"
+       },
+       "at": "@-4318m",
+       "by": {
+        "kind": "system",
+        "code": "system",
+        "display_fa": "سیستم"
+       },
+       "title_fa": null
+      },
+      {
+       "kind": "evidence_for",
+       "to": {
+        "kind": "decision",
+        "ref": "D-000083"
+       },
+       "at": "@-4318m",
+       "by": {
+        "kind": "system",
+        "code": "system",
+        "display_fa": "سیستم"
+       },
+       "title_fa": null
+      }
+     ],
+     "metadata": {
+      "case": {
+       "kind": "case",
+       "ref": "LC-0001"
+      },
+      "direction": "out",
+      "counterpart": "PT-0005",
+      "date": "@-3d",
+      "subject_en": "Instagram business account cannot reply to messages — CoinePro FX",
+      "decision": {
+       "kind": "decision",
+       "ref": "D-000083"
+      }
+     },
+     "source": {
+      "kind": "system",
+      "ref": "legal_email"
+     },
+     "created_by": {
+      "kind": "system",
+      "code": "system",
+      "display_fa": "سیستم"
+     },
+     "filed_at": "@-4317m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-4318m",
+     "ref": "AR-000150",
+     "scope": "FX",
+     "class": "legal_correspondence",
+     "title_fa": "ایمیل اول به پشتیبانی تجاری اینستاگرام",
+     "at": 4318,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-lc-0001-email-out-1",
+         "name": "lc-0001-email-out-1.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 1952,
+         "sha256": "e0d30239103f5de9d0ac06fb2f99934102bc30894f238fae1765964bce068c12",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "35399df15213dc50f4c261b9ab3df9b5aa36c1931325297b9e1b9c881b13c5dc",
+       "note_fa": null,
+       "created_by": {
+        "kind": "system",
+        "code": "system",
+        "display_fa": "سیستم"
+       },
+       "created_at": "@-4318m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [
+      "LH-0001"
+     ],
+     "doc_date": "@-3d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0004",
+      "trigger_at": null,
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000120",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "sealed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0026081422",
+      "date": "@-77d",
+      "amount": {
+       "amount": "38.10",
+       "currency": "EUR"
+      },
+      "period": {
+       "from": "@-108d",
+       "to": "@-78d"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-4319m",
+     "sealed_at": "@-4290m",
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-4320m",
+     "ref": "AR-000120",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور هتزنر، مرداد ۱۴۰۵",
+     "at": 4320,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2026-08",
+         "name": "hetzner-R2026-08.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2116,
+         "sha256": "edc4544910e68706e8eeaa9ccd0f4fd4a292801f4c6feb37cd7305fb73cb9375",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "88967c1565313743052cfe43b8750b44d773a00a3629bec31d3a1193ca6c4d0e",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-4320m",
+       "sealed": true,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-77d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-77d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000180",
+     "folder": "FP-0003",
+     "level": "secret",
+     "state": "sealed",
+     "parties": [
+      {
+       "party": "PT-0008",
+       "role_fa": "سهامدار"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "counterparty": "PT-0008",
+      "subject": "انتقال سهام، حق تقدم و vesting",
+      "start": "@-137d",
+      "auto_renew": false
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-5669m",
+     "sealed_at": "@-5660m",
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-5670m",
+     "ref": "AR-000180",
+     "scope": "HQ",
+     "class": "contract",
+     "title_fa": "توافق سهامداران",
+     "at": 5670,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-shareholders-agreement",
+         "name": "shareholders-agreement.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 1868,
+         "sha256": "c5c92dc7e13bac6cd58c7ac05750ad20fe9a320c5216cc04226ac28c48e752ba",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "43321536aca4c045dddff28509153610cfdd52d86a93caa73b94d794fae7f017",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-5670m",
+       "sealed": true,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-137d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0001",
+      "trigger_at": null,
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 2,
+     "id": "ar-AR-000110",
+     "folder": "FP-0022",
+     "level": "confidential",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0001",
+       "role_fa": "صرافی"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "exchange": "PT-0001",
+      "commission": 45,
+      "start": "@-199d",
+      "end": "@165d",
+      "review_at": "@45d",
+      "referral_link": "https://www.lbank.com/ref/DEMO-FX",
+      "account_id": "88412907",
+      "tier": "partner"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-5759m",
+     "sealed_at": null,
+     "version": 3,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-5760m",
+     "ref": "AR-000110",
+     "scope": "FX",
+     "class": "affiliate_agreement",
+     "title_fa": "توافق افیلیت صرافی ال‌بنک",
+     "at": 5760,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-lbank-affiliate-2026",
+         "name": "lbank-affiliate-2026.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2141,
+         "sha256": "ff0e6f598e7650c112b76f8d7aeabb923e8b88dfa669735cd9614f1df6335d35",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "ecb4fa6a7a6491c959e867e4cf1bddaf233df1f83f5cd9bc37ef99a372c7cb48",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-5760m",
+       "sealed": true,
+       "state": "superseded"
+      },
+      {
+       "n": 2,
+       "files": [
+        {
+         "file_id": "arf-lbank-affiliate-2026",
+         "name": "lbank-affiliate-2026.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2141,
+         "sha256": "ff0e6f598e7650c112b76f8d7aeabb923e8b88dfa669735cd9614f1df6335d35",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        },
+        {
+         "file_id": "arf-lbank-affiliate-amendment-1",
+         "name": "lbank-affiliate-amendment-1.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 1768,
+         "sha256": "d3de627da376e187d2203a0f51b431d3ddf86aff677616fc73e29eee2b723661",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "0d2a45c9600ba7ac8b01ed8a17af343923884a7e1497be760609cb256cf2fde1",
+       "note_fa": "الحاقیه‌ی ۱: کمیسیون از ۴۰٪ به ۴۵٪.",
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-2880m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-199d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0001",
+      "trigger_at": "@165d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": [
+      {
+       "field": "review_at",
+       "at": "@45d",
+       "lead_days": 7,
+       "state": "pending"
+      }
+     ]
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000104",
+     "folder": "FP-0031",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0004",
+       "role_fa": "مرجع ثبت"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "reg_no": "58466",
+      "national_id": "14012418856",
+      "reg_date": "@-47d",
+      "registry": "PT-0004",
+      "company": "PC",
+      "subject_fa": "نرم‌افزار نمودار و ترمینال معاملاتی",
+      "capital": {
+       "amount": "200000000",
+       "currency": "IRR"
+      }
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-7139m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-7140m",
+     "ref": "AR-000104",
+     "scope": "PC",
+     "class": "company_registration",
+     "title_fa": "آگهی تأسیس پرو-چارت",
+     "at": 7140,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-pc-registration",
+         "name": "pc-registration.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 5054,
+         "sha256": "89e0a40ce7dc85257a41400fd80602126150f65d743641366cf0430aaafa1778",
+         "pages": 1,
+         "text_state": "ocr",
+         "ocr_confidence": 0.88
+        }
+       ],
+       "manifest_sha256": "30c7127fcdb87de8f644084979c028a45e082afc45ab4d882c9ad980aee51de3",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-7140m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-47d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0005",
+      "trigger_at": "@-5d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000103",
+     "folder": "FP-0021",
+     "level": "internal",
+     "state": "sealed",
+     "parties": [
+      {
+       "party": "PT-0004",
+       "role_fa": "مرجع ثبت"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "reg_no": "58402",
+      "national_id": "14012407731",
+      "reg_date": "@-54d",
+      "registry": "PT-0004",
+      "company": "FX",
+      "subject_fa": "سیگنال و تحلیل بازارهای مالی",
+      "capital": {
+       "amount": "200000000",
+       "currency": "IRR"
+      }
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-7159m",
+     "sealed_at": "@-5720m",
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-7160m",
+     "ref": "AR-000103",
+     "scope": "FX",
+     "class": "company_registration",
+     "title_fa": "آگهی تأسیس کوینه‌پرو FX",
+     "at": 7160,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-fx-registration",
+         "name": "fx-registration.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 5058,
+         "sha256": "87d48af9883f485e5b7e6c68ede17cfedeef84fbd0d3e8b748c81231108fc14f",
+         "pages": 1,
+         "text_state": "ocr",
+         "ocr_confidence": 0.89
+        }
+       ],
+       "manifest_sha256": "39f785fe3a49fa7b23c4f9b61265eef52fade78e329ff9b986693f161e141f80",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-7160m",
+       "sealed": true,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-54d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0005",
+      "trigger_at": "@-5d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000102",
+     "folder": "FP-0011",
+     "level": "internal",
+     "state": "sealed",
+     "parties": [
+      {
+       "party": "PT-0004",
+       "role_fa": "مرجع ثبت"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "reg_no": "58377",
+      "national_id": "14012399120",
+      "reg_date": "@-61d",
+      "registry": "PT-0004",
+      "company": "TY",
+      "subject_fa": "آموزش و ابزار تحلیل بازار",
+      "capital": {
+       "amount": "200000000",
+       "currency": "IRR"
+      }
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-7179m",
+     "sealed_at": "@-5740m",
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-7180m",
+     "ref": "AR-000102",
+     "scope": "TY",
+     "class": "company_registration",
+     "title_fa": "آگهی تأسیس تریدیار",
+     "at": 7180,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-ty-registration",
+         "name": "ty-registration.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 4961,
+         "sha256": "44d74a0f9e03ef2999df1559f1f7842b68ecfd3e48dc7c376a6e11e126098819",
+         "pages": 1,
+         "text_state": "ocr",
+         "ocr_confidence": 0.9
+        }
+       ],
+       "manifest_sha256": "341796c42d9a2c9ca82cbe9cefc335f1c2fe52c4eb00590541dd237d9811a04b",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-7180m",
+       "sealed": true,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-61d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0005",
+      "trigger_at": "@-5d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000101",
+     "folder": "FP-0002",
+     "level": "internal",
+     "state": "sealed",
+     "parties": [
+      {
+       "party": "PT-0004",
+       "role_fa": "مرجع ثبت"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "reg_no": "58214",
+      "national_id": "14012345678",
+      "reg_date": "@-75d",
+      "registry": "PT-0004",
+      "company": "HQ",
+      "subject_fa": "سرمایه‌گذاری و اداره‌ی شرکت‌های فناوری مالی",
+      "capital": {
+       "amount": "1000000000",
+       "currency": "IRR"
+      }
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-7199m",
+     "sealed_at": "@-5760m",
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-7200m",
+     "ref": "AR-000101",
+     "scope": "HQ",
+     "class": "company_registration",
+     "title_fa": "آگهی تأسیس هلدینگ کوینه‌پرو",
+     "at": 7200,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hq-registration",
+         "name": "hq-registration.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 5163,
+         "sha256": "e4710ea58d25e71a451d428a8e3e4bd133e535bb74152ee27e2bc25c5bcd2482",
+         "pages": 1,
+         "text_state": "ocr",
+         "ocr_confidence": 0.91
+        }
+       ],
+       "manifest_sha256": "80b05d413c69b345d728be9140e80b907d1dbe42245bc59eea9ea0c4726ff373",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-7200m",
+       "sealed": true,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-75d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0005",
+      "trigger_at": "@-5d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000092",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0019020344",
+      "date": "@-2815d",
+      "amount": {
+       "amount": "11.90",
+       "currency": "EUR"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-8633m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-8634m",
+     "ref": "AR-000092",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور قدیمی هتزنر، بهمن ۱۳۹۷",
+     "at": 8634,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2019-02",
+         "name": "hetzner-R2019-02.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2115,
+         "sha256": "e651073f17c447789c488a1aa042c71bf7294aa062e5781a617f449a28b271a0",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "767dd0b89ddc6e08192a0044707395bd7965d6bd621de6c1496e551c1dfcab7a",
+       "note_fa": "از حسابداری پیش از تأسیس هلدینگ وارد شد.",
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-8634m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [
+      "LH-0002"
+     ],
+     "doc_date": "@-2815d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-2815d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000091",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0018120587",
+      "date": "@-2877d",
+      "amount": {
+       "amount": "11.90",
+       "currency": "EUR"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-8636m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-8637m",
+     "ref": "AR-000091",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور قدیمی هتزنر، آذر ۱۳۹۷",
+     "at": 8637,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2018-12",
+         "name": "hetzner-R2018-12.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2115,
+         "sha256": "ff34f585e16bdf9256f2d6d0d4ed4f366d697053ce7c8b3c944d54890f0dc152",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "21a9c1ea62226c1f9a9ae5f891fe7ff9659313a4912b5daa9e14bbb30a77ae11",
+       "note_fa": "از حسابداری پیش از تأسیس هلدینگ وارد شد.",
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-8637m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-2877d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-2877d",
+      "review_at": null,
+      "disposable": true
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000090",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0018092201",
+      "date": "@-2968d",
+      "amount": {
+       "amount": "11.90",
+       "currency": "EUR"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-8639m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-8640m",
+     "ref": "AR-000090",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور قدیمی هتزنر، شهریور ۱۳۹۷",
+     "at": 8640,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2018-09",
+         "name": "hetzner-R2018-09.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2115,
+         "sha256": "44521c9a0767a3282f723793a02eee438f20ae129723656ea63bbcac5dfa97c7",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "8d6da4a40c9ac7dea3f4b1526bf61bbea10fa7eb6bf4067bdda21a49a1d32545",
+       "note_fa": "از حسابداری پیش از تأسیس هلدینگ وارد شد.",
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-8640m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-2968d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-2968d",
+      "review_at": null,
+      "disposable": true
+     },
+     "reminders": []
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/archive/holds": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "ref": "LH-0001",
+     "title_fa": "پرونده‌ی محدودیت اینستاگرام FX",
+     "case": "LC-0001",
+     "reason_md": "تا بسته شدن پرونده‌ی **LC-0001** هر مکاتبه با پشتیبانی اینستاگرام دست‌نخورده بماند.",
+     "scope": {
+      "classes": [
+       "legal_correspondence"
+      ],
+      "parties": [
+       "PT-0005"
+      ]
+     },
+     "state": "active",
+     "placed_by": {
+      "kind": "agent",
+      "code": "HQ-LGL",
+      "display_fa": "مشاور حقوقی"
+     },
+     "placed_at": "@-2940m",
+     "released_at": null,
+     "records": 2,
+     "record_refs": [
+      "AR-000150",
+      "AR-000151"
+     ]
+    },
+    {
+     "ref": "LH-0002",
+     "title_fa": "ممیزی مالیاتی حساب قدیمی هتزنر",
+     "case": null,
+     "reason_md": "تا پایان ممیزی مالیاتی سال ۱۳۹۷، فاکتور بهمن نگه داشته شود؛ بقیه‌ی فاکتورهای قدیمی بیرون از این توقیف‌اند.",
+     "scope": {
+      "records": [
+       "AR-000092"
+      ]
+     },
+     "state": "active",
+     "placed_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "placed_at": "@-300m",
+     "released_at": null,
+     "records": 1,
+     "record_refs": [
+      "AR-000092"
+     ]
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/archive/reminders": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "id": "AR-000130:expires_at",
+     "record": "AR-000130",
+     "title_fa": "دامنه‌ی coinepro.com",
+     "scope": "HQ",
+     "class": "domain",
+     "field": "expires_at",
+     "at": "@25d",
+     "lead_days": 30,
+     "days_left": 25,
+     "state": "sent",
+     "rule": "RM-0003",
+     "to": "owner",
+     "channel": "cartable"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/archive/retention/due": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "ref": "AR-000090",
+     "title_fa": "فاکتور قدیمی هتزنر، شهریور ۱۳۹۷",
+     "scope": "HQ",
+     "class": "invoice",
+     "rule": "RR-0002",
+     "trigger_at": "@-2968d",
+     "due_at": "@-411d",
+     "then": "dispose_card",
+     "holds": [],
+     "decision_ref": "D-000093"
+    },
+    {
+     "ref": "AR-000091",
+     "title_fa": "فاکتور قدیمی هتزنر، آذر ۱۳۹۷",
+     "scope": "HQ",
+     "class": "invoice",
+     "rule": "RR-0002",
+     "trigger_at": "@-2877d",
+     "due_at": "@-320d",
+     "then": "dispose_card",
+     "holds": [],
+     "decision_ref": "D-000093"
+    },
+    {
+     "ref": "AR-000092",
+     "title_fa": "فاکتور قدیمی هتزنر، بهمن ۱۳۹۷",
+     "scope": "HQ",
+     "class": "invoice",
+     "rule": "RR-0002",
+     "trigger_at": "@-2815d",
+     "due_at": "@-258d",
+     "then": "dispose_card",
+     "holds": [
+      "LH-0002"
+     ],
+     "decision_ref": "D-000093"
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/archive/fixity": {
+  "status": 200,
+  "body": {
+   "at": "@-300m",
+   "checked": 19,
+   "failed": [],
+   "next_at": "@1140m"
+  }
+ },
+ "/archive/sources": {
+  "status": 200,
+  "body": [
+   {
+    "key": "charter_sealed",
+    "title_fa": "هر نسخه‌ی مُهرشده‌ی اساسنامه",
+    "class": "sealed_policy",
+    "enabled": true,
+    "filed": 1,
+    "last_at": "@-2760m",
+    "note_fa": null
+   },
+   {
+    "key": "resolution_month",
+    "title_fa": "PDF مصوبه‌های مُهرشده‌ی هر ماه",
+    "class": "resolution_bundle",
+    "enabled": true,
+    "filed": 0,
+    "last_at": null,
+    "note_fa": null
+   },
+   {
+    "key": "brand_sealed",
+    "title_fa": "نشان و مُهر مُهرشده",
+    "class": "brand_asset",
+    "enabled": true,
+    "filed": 0,
+    "last_at": null,
+    "note_fa": null
+   },
+   {
+    "key": "founding_registration",
+    "title_fa": "پیشنهاد مُهرشده‌ی تأسیس شرکت",
+    "class": "company_registration",
+    "enabled": true,
+    "filed": 0,
+    "last_at": null,
+    "note_fa": null
+   },
+   {
+    "key": "legal_email",
+    "title_fa": "هر ایمیل فرستاده‌ی مشاور حقوقی و پرونده‌اش",
+    "class": "legal_correspondence",
+    "enabled": true,
+    "filed": 2,
+    "last_at": "@-3000m",
+    "note_fa": null
+   },
+   {
+    "key": "case_closed",
+    "title_fa": "بسته شدن پرونده‌ی حقوقی",
+    "class": "legal_correspondence",
+    "enabled": true,
+    "filed": 0,
+    "last_at": null,
+    "note_fa": null
+   },
+   {
+    "key": "server_plan_sealed",
+    "title_fa": "طرح سرور مُهرشده",
+    "class": "other",
+    "enabled": false,
+    "filed": 0,
+    "last_at": null,
+    "note_fa": "خاموش به خواست مالک؛ طرح سرور در صفحه‌ی تأسیس میماند."
+   },
+   {
+    "key": "backup_restore_test",
+    "title_fa": "نتیجه‌ی ماهانه‌ی آزمون بازگردانی پشتیبان",
+    "class": "other",
+    "enabled": true,
+    "filed": 0,
+    "last_at": null,
+    "note_fa": null
+   }
+  ]
+ },
+ "/archive/parties": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "ref": "PT-0001",
+     "kind": "exchange",
+     "name_fa": "صرافی ال‌بنک",
+     "name_en": "LBank",
+     "identifiers": {
+      "website": "https://www.lbank.com",
+      "account": "88412907"
+     },
+     "scopes": [
+      "FX",
+      "TY"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "PT-0002",
+     "kind": "provider",
+     "name_fa": "هتزنر",
+     "name_en": "Hetzner Online GmbH",
+     "identifiers": {
+      "website": "https://www.hetzner.com",
+      "vat_id": "DE812871812"
+     },
+     "scopes": [
+      "HQ"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 6
+    },
+    {
+     "ref": "PT-0003",
+     "kind": "provider",
+     "name_fa": "ثبت‌کننده‌ی دامنه",
+     "name_en": "Domain registrar (demo)",
+     "identifiers": {
+      "website": "https://registrar.example"
+     },
+     "scopes": [
+      "HQ"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "PT-0004",
+     "kind": "government",
+     "name_fa": "اداره‌ی ثبت شرکت‌ها",
+     "name_en": null,
+     "identifiers": {
+      "website": "https://registry.example"
+     },
+     "scopes": [
+      "HQ",
+      "TY",
+      "FX",
+      "PC"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 4
+    },
+    {
+     "ref": "PT-0005",
+     "kind": "provider",
+     "name_fa": "اینستاگرام (Meta)",
+     "name_en": "Instagram (Meta)",
+     "identifiers": {
+      "email": "appeals@platform-support.example"
+     },
+     "scopes": [
+      "FX"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 2
+    },
+    {
+     "ref": "PT-0006",
+     "kind": "bank",
+     "name_fa": "بانک نمونه",
+     "name_en": "Demo Bank",
+     "identifiers": {
+      "iban": "IR820540102680020817909002",
+      "swift": "DEMOIRTH"
+     },
+     "scopes": [
+      "HQ"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 0
+    },
+    {
+     "ref": "PT-0007",
+     "kind": "provider",
+     "name_fa": "فروشنده‌ی کتابخانه‌ی نمودار",
+     "name_en": "Charting library vendor (demo)",
+     "identifiers": {
+      "website": "https://charts.example"
+     },
+     "scopes": [
+      "PC"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 1
+    },
+    {
+     "ref": "PT-0008",
+     "kind": "person",
+     "name_fa": "بنیان‌گذار (نمونه)",
+     "name_en": null,
+     "identifiers": {
+      "national_id": "0012345678"
+     },
+     "scopes": [
+      "HQ"
+     ],
+     "status": "active",
+     "version": 1,
+     "records": 1
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/archive/search?q=هتزنر": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "ref": "AR-000120",
+     "title_fa": "فاکتور هتزنر، مرداد ۱۴۰۵",
+     "class": "invoice",
+     "snippet_fa": "هتزنر Hetzner Online GmbH R0026081422",
+     "score": 5
+    },
+    {
+     "ref": "AR-000121",
+     "title_fa": "فاکتور هتزنر، شهریور ۱۴۰۵",
+     "class": "invoice",
+     "snippet_fa": "هتزنر Hetzner Online GmbH R0026094107",
+     "score": 5
+    },
+    {
+     "ref": "AR-000122",
+     "title_fa": "فاکتور هتزنر، مهر ۱۴۰۵",
+     "class": "invoice",
+     "snippet_fa": "هتزنر Hetzner Online GmbH R0026105533",
+     "score": 5
+    },
+    {
+     "ref": "AR-000090",
+     "title_fa": "فاکتور قدیمی هتزنر، شهریور ۱۳۹۷",
+     "class": "invoice",
+     "snippet_fa": "هتزنر Hetzner Online GmbH R0018092201",
+     "score": 5
+    },
+    {
+     "ref": "AR-000091",
+     "title_fa": "فاکتور قدیمی هتزنر، آذر ۱۳۹۷",
+     "class": "invoice",
+     "snippet_fa": "هتزنر Hetzner Online GmbH R0018120587",
+     "score": 5
+    },
+    {
+     "ref": "AR-000092",
+     "title_fa": "فاکتور قدیمی هتزنر، بهمن ۱۳۹۷",
+     "class": "invoice",
+     "snippet_fa": "هتزنر Hetzner Online GmbH R0019020344",
+     "score": 5
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/archive/records?q=هتزنر": {
+  "status": 200,
+  "body": {
+   "items": [
+    {
+     "current_version": 1,
+     "id": "ar-AR-000120",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "sealed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0026081422",
+      "date": "@-77d",
+      "amount": {
+       "amount": "38.10",
+       "currency": "EUR"
+      },
+      "period": {
+       "from": "@-108d",
+       "to": "@-78d"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-4319m",
+     "sealed_at": "@-4290m",
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-4320m",
+     "ref": "AR-000120",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور هتزنر، مرداد ۱۴۰۵",
+     "at": 4320,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2026-08",
+         "name": "hetzner-R2026-08.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2116,
+         "sha256": "edc4544910e68706e8eeaa9ccd0f4fd4a292801f4c6feb37cd7305fb73cb9375",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "88967c1565313743052cfe43b8750b44d773a00a3629bec31d3a1193ca6c4d0e",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-4320m",
+       "sealed": true,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-77d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-77d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000121",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0026094107",
+      "date": "@-46d",
+      "amount": {
+       "amount": "38.10",
+       "currency": "EUR"
+      },
+      "period": {
+       "from": "@-77d",
+       "to": "@-47d"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-4314m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-4315m",
+     "ref": "AR-000121",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور هتزنر، شهریور ۱۴۰۵",
+     "at": 4315,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2026-09",
+         "name": "hetzner-R2026-09.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2116,
+         "sha256": "0d2a23494b94953cac5193ab93417902fd93fda00a027c616a70b05f7fdddf8d",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "d7dd2a47d56f770b2addbca823d2934c8d5fb999e387495b905e5c6b3d30cb19",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-4315m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-46d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-46d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000122",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0026105533",
+      "date": "@-16d",
+      "amount": {
+       "amount": "38.10",
+       "currency": "EUR"
+      },
+      "period": {
+       "from": "@-46d",
+       "to": "@-17d"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-4309m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-4310m",
+     "ref": "AR-000122",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور هتزنر، مهر ۱۴۰۵",
+     "at": 4310,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2026-10",
+         "name": "hetzner-R2026-10.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2116,
+         "sha256": "7dcddeab328a6c6123f60ffd058b5eee5cd52dda728f648d451b92f5bed752ad",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "a96401e798b2bdf55a650bee9b715d33e7a03d9a0efd8b7aeea5fa9a5be59b02",
+       "note_fa": null,
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-4310m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-16d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-16d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000090",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0018092201",
+      "date": "@-2968d",
+      "amount": {
+       "amount": "11.90",
+       "currency": "EUR"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-8639m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-8640m",
+     "ref": "AR-000090",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور قدیمی هتزنر، شهریور ۱۳۹۷",
+     "at": 8640,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2018-09",
+         "name": "hetzner-R2018-09.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2115,
+         "sha256": "44521c9a0767a3282f723793a02eee438f20ae129723656ea63bbcac5dfa97c7",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "8d6da4a40c9ac7dea3f4b1526bf61bbea10fa7eb6bf4067bdda21a49a1d32545",
+       "note_fa": "از حسابداری پیش از تأسیس هلدینگ وارد شد.",
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-8640m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-2968d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-2968d",
+      "review_at": null,
+      "disposable": true
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000091",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0018120587",
+      "date": "@-2877d",
+      "amount": {
+       "amount": "11.90",
+       "currency": "EUR"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-8636m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-8637m",
+     "ref": "AR-000091",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور قدیمی هتزنر، آذر ۱۳۹۷",
+     "at": 8637,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2018-12",
+         "name": "hetzner-R2018-12.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2115,
+         "sha256": "ff34f585e16bdf9256f2d6d0d4ed4f366d697053ce7c8b3c944d54890f0dc152",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "21a9c1ea62226c1f9a9ae5f891fe7ff9659313a4912b5daa9e14bbb30a77ae11",
+       "note_fa": "از حسابداری پیش از تأسیس هلدینگ وارد شد.",
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-8637m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [],
+     "doc_date": "@-2877d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-2877d",
+      "review_at": null,
+      "disposable": true
+     },
+     "reminders": []
+    },
+    {
+     "current_version": 1,
+     "id": "ar-AR-000092",
+     "folder": "FP-0005",
+     "level": "internal",
+     "state": "filed",
+     "parties": [
+      {
+       "party": "PT-0002",
+       "role_fa": "فروشنده"
+      }
+     ],
+     "links": [],
+     "metadata": {
+      "vendor": "PT-0002",
+      "number": "R0019020344",
+      "date": "@-2815d",
+      "amount": {
+       "amount": "11.90",
+       "currency": "EUR"
+      },
+      "paid": true,
+      "category": "hosting"
+     },
+     "source": {
+      "kind": "owner",
+      "ref": null
+     },
+     "created_by": {
+      "kind": "owner",
+      "code": "owner",
+      "display_fa": "مدیر کل"
+     },
+     "filed_at": "@-8633m",
+     "sealed_at": null,
+     "version": 1,
+     "class_version": 1,
+     "suggestion": null,
+     "created_at": "@-8634m",
+     "ref": "AR-000092",
+     "scope": "HQ",
+     "class": "invoice",
+     "title_fa": "فاکتور قدیمی هتزنر، بهمن ۱۳۹۷",
+     "at": 8634,
+     "versions": [
+      {
+       "n": 1,
+       "files": [
+        {
+         "file_id": "arf-hetzner-R2019-02",
+         "name": "hetzner-R2019-02.pdf",
+         "mime": "application/pdf",
+         "size_bytes": 2115,
+         "sha256": "e651073f17c447789c488a1aa042c71bf7294aa062e5781a617f449a28b271a0",
+         "pages": 1,
+         "text_state": "text_layer",
+         "ocr_confidence": null
+        }
+       ],
+       "manifest_sha256": "767dd0b89ddc6e08192a0044707395bd7965d6bd621de6c1496e551c1dfcab7a",
+       "note_fa": "از حسابداری پیش از تأسیس هلدینگ وارد شد.",
+       "created_by": {
+        "kind": "owner",
+        "code": "owner",
+        "display_fa": "مدیر کل"
+       },
+       "created_at": "@-8634m",
+       "sealed": false,
+       "state": "current"
+      }
+     ],
+     "holds": [
+      "LH-0002"
+     ],
+     "doc_date": "@-2815d",
+     "masked": [],
+     "retention": {
+      "rule": "RR-0002",
+      "trigger_at": "@-2815d",
+      "review_at": null,
+      "disposable": false
+     },
+     "reminders": []
+    }
+   ],
+   "next_cursor": null
+  }
+ },
+ "/decisions/D-000092": {
+  "status": 200,
+  "body": {
+   "reversible": true,
+   "status": "pending",
+   "seal": null,
+   "decided_at": null,
+   "decided_by": null,
+   "note": null,
+   "resolution": null,
+   "thread": null,
+   "version": 1,
+   "effect_status": "none",
+   "work_id": null,
+   "reason_code": null,
+   "quota_estimate": {
+    "tokens": 0,
+    "usd": "0.00"
+   },
+   "expected": null,
+   "warnings": [],
+   "expires_at": null,
+   "id": "d92",
+   "ref": "D-000092",
+   "kind": "archive_schema",
+   "company": "HQ",
+   "action_class": "A2",
+   "risk": "low",
+   "title": "کلاس تازه‌ی بایگانی: بیمه‌نامه",
+   "proposer": {
+    "kind": "agent",
+    "code": "HQ-ARC",
+    "display_fa": "بایگان"
+   },
+   "created_at": "@-180m",
+   "what": "نوع سند تازه‌ی **بیمه‌نامه** (`insurance_policy`) با ۷ فیلد، یادآور روی انقضا و نگهداری مثل مجوزها (**RR-0003**).",
+   "why": "در ورود دسته‌ای این هفته دو بیمه‌نامه‌ی سایبری آمد که هیچ نوع موجودی فیلد بیمه‌گر، سقف تعهد و دوره‌ی پوشش را ندارد؛ هر دو فعلاً پیش‌نویس‌اند. با این کلاس، بایگان آن‌ها را طبقه‌بندی میکند.",
+   "risk_note": "افزودن کلاس چیزی را پاک یا عوض نمیکند؛ هیچ سند موجودی زیر آن نیست. با مُهر، دقیقاً همین بدنه اعمال میشود؛ اگر کلاس پیش از مُهر عوض شده باشد کارت باطل است.",
+   "payload": {
+    "part": "classes",
+    "key": "insurance_policy",
+    "base_version": null,
+    "body": {
+     "title_fa": "بیمه‌نامه",
+     "parent": null,
+     "scopes": "all",
+     "icon": "lock",
+     "default_level": "confidential",
+     "default_folder": null,
+     "fields": [
+      {
+       "key": "insurer",
+       "title_fa": "بیمه‌گر",
+       "type": "party",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "policy_no",
+       "title_fa": "شماره‌ی بیمه‌نامه",
+       "type": "id_code",
+       "required": true,
+       "searchable": true,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "coverage",
+       "title_fa": "نوع پوشش",
+       "type": "enum",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "options": [
+        {
+         "key": "cyber",
+         "title_fa": "سایبری"
+        },
+        {
+         "key": "liability",
+         "title_fa": "مسئولیت"
+        },
+        {
+         "key": "property",
+         "title_fa": "اموال"
+        }
+       ]
+      },
+      {
+       "key": "sum_insured",
+       "title_fa": "سقف تعهد",
+       "type": "money",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "currency": "USD"
+      },
+      {
+       "key": "period",
+       "title_fa": "دوره‌ی پوشش",
+       "type": "date_range",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "expires_at",
+       "title_fa": "انقضا",
+       "type": "date",
+       "required": true,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active"
+      },
+      {
+       "key": "premium",
+       "title_fa": "حق بیمه",
+       "type": "money",
+       "required": false,
+       "searchable": false,
+       "sensitive": false,
+       "help_fa": null,
+       "status": "active",
+       "currency": "USD"
+      }
+     ],
+     "required_files": 1,
+     "allowed_mime": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png"
+     ],
+     "ocr": true,
+     "retention": "RR-0003",
+     "reminder_fields": [
+      "expires_at"
+     ],
+     "auto_link": []
+    },
+    "impact": {
+     "records": 0,
+     "missing_required": 0
+    }
+   }
+  }
+ },
+ "/decisions/D-000093": {
+  "status": 200,
+  "body": {
+   "reversible": false,
+   "status": "pending",
+   "seal": null,
+   "decided_at": null,
+   "decided_by": null,
+   "note": null,
+   "resolution": null,
+   "thread": null,
+   "version": 1,
+   "effect_status": "none",
+   "work_id": null,
+   "reason_code": null,
+   "quota_estimate": {
+    "tokens": 0,
+    "usd": "0.00"
+   },
+   "expected": null,
+   "warnings": [],
+   "expires_at": null,
+   "id": "d93",
+   "ref": "D-000093",
+   "kind": "archive_disposal",
+   "company": "HQ",
+   "action_class": "A2",
+   "risk": "medium",
+   "title": "امحای سندهای پایان نگهداری: هفته‌ی ۴ مهر",
+   "proposer": {
+    "kind": "system",
+    "code": "system",
+    "display_fa": "سیستم"
+   },
+   "created_at": "@-2880m",
+   "what": "سه فاکتور قدیمی هتزنر به پایان **۷ سال** نگهداری پس از تاریخ فاکتور رسیده‌اند (**RR-0002**). با مُهر، فایل‌ها نابود میشوند و سنگ‌نشان (ref، کلاس، عنوان، تاریخ‌ها، hash و همین تصمیم) میماند.",
+   "why": "قاعده‌ی نگهداری فاکتورها؛ دسته‌ی هفتگی کارت امحا. هیچ‌کدام مُهر نشده‌اند و پیوندی به پرونده‌ی باز ندارند.",
+   "risk_note": "نابودی برگشت‌ناپذیر است. سندی که تا لحظه‌ی مُهر توقیف شده باشد رد میشود و میماند.",
+   "payload": {
+    "records": [
+     {
+      "ref": "AR-000090",
+      "class": "invoice",
+      "title_fa": "فاکتور قدیمی هتزنر، شهریور ۱۳۹۷",
+      "retention_rule": "RR-0002",
+      "trigger_at": "@-2968d"
+     },
+     {
+      "ref": "AR-000091",
+      "class": "invoice",
+      "title_fa": "فاکتور قدیمی هتزنر، آذر ۱۳۹۷",
+      "retention_rule": "RR-0002",
+      "trigger_at": "@-2877d"
+     },
+     {
+      "ref": "AR-000092",
+      "class": "invoice",
+      "title_fa": "فاکتور قدیمی هتزنر، بهمن ۱۳۹۷",
+      "retention_rule": "RR-0002",
+      "trigger_at": "@-2815d"
+     }
+    ]
+   }
+  }
+ },
  "#script:S-0003": {
   "status": 200,
   "body": {

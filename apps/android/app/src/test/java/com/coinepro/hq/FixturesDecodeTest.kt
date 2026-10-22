@@ -731,4 +731,76 @@ class FixturesDecodeTest {
         val rn = decode("/decisions/D-000084", com.coinepro.hq.core.net.Decision.serializer()).payloadAs(com.coinepro.hq.core.net.RoleNewPayload.serializer())!!
         assertTrue(rn.draft == "RD-0001" && rn.review == "pass" && (rn.evalScore ?: 0.0) >= 80 && rn.limits!!.tokensPerRun > 0 && rn.sha256!!.length == 64)
     }
+
+    // ------------------------------------------------------------ ⟨1.7⟩ §23 --
+    @Test
+    fun archiveSchemaDecodes() {
+        val s = com.coinepro.hq.core.net.ArchiveSchema(body("/archive/schema").jsonObject)
+        // §23.4: the seeded levels 0, 10, 20, 30; «سری» needs a passkey to view; the agents' ceiling is one level below it.
+        assertEquals(listOf(0, 10, 20, 30), s.levels.map { it.rank })
+        val secret = s.levels.single { it.key == "secret" }
+        assertTrue(secret.titleFa == "سری" && secret.stepUpToView && !secret.agentsMax)
+        assertEquals("confidential", s.levels.single { it.agentsMax }.key)
+        // The open layer: classes over the closed field types; a money field names its currency; a ref field its kinds.
+        val types = s.fieldTypes.map { it.key }
+        assertTrue(s.classes.size >= 10 && s.classes.all { c -> c.fields.all { it.type in types } && c.allowedMime.all { it in s.vocab.mimes } })
+        assertTrue(s.classes.flatMap { it.fields }.filter { it.type == "money" }.all { it.currency in s.vocab.currencies })
+        assertTrue(s.classes.flatMap { it.fields }.filter { it.type == "ref" }.all { f -> f.refKinds.isNotEmpty() && f.refKinds.all { it in s.vocab.refKinds } })
+        assertTrue(s.classes.all { it.retention == null || s.retention.any { r -> r.ref == it.retention } })
+        // Clearance is one row per grant on the wire and grouped per subject for the editor.
+        val grouped = s.rows("clearance")
+        assertTrue(grouped.isNotEmpty() && grouped.size <= (body("/archive/schema").jsonObject["clearance"] as kotlinx.serialization.json.JsonArray).size)
+        // Automations speak only the closed vocabulary; reminders point at a date field of their class.
+        assertTrue(s.automations.all { a -> a.on in s.vocab.events && a.steps.all { (it["action"] as kotlinx.serialization.json.JsonPrimitive).content in s.vocab.actions } })
+        assertTrue(s.reminders.all { r -> s.classes.single { it.key == r.cls }.fields.single { it.key == r.field }.type in setOf("date", "date_range") })
+        assertTrue(s.retention.any { it.permanent } && s.retention.any { it.years > 0 && it.then == "dispose_card" })
+        assertEquals(com.coinepro.hq.core.net.SCHEMA_PARTS, s.parts)
+        // The sources: one switch each, off is off.
+        val src = list("/archive/sources", com.coinepro.hq.core.net.SourceSwitch.serializer())
+        assertTrue(src.any { !it.enabled && !it.noteFa.isNullOrBlank() } && src.all { x -> s.classes.any { it.key == x.cls } })
+    }
+
+    @Test
+    fun archiveRecordsDecode() {
+        val s = com.coinepro.hq.core.net.ArchiveSchema(body("/archive/schema").jsonObject)
+        val rs = page("/archive/records", com.coinepro.hq.core.net.ArchiveRecord.serializer())
+        assertTrue(rs.map { it.state }.containsAll(listOf("draft", "filed", "sealed")))
+        // Every version's manifest is a SHA-256; the current one exists; a sealed record's current version is sealed.
+        assertTrue(rs.all { r -> r.current != null && r.versions.all { it.manifestSha256.length == 64 && it.files.all { f -> f.sha256.length == 64 } } })
+        assertTrue(rs.filter { it.state == "sealed" }.all { it.current!!.sealed && it.sealedAt != null })
+        // A draft carries its suggestion, never filed by itself.
+        val drafts = rs.filter { it.state == "draft" }
+        assertTrue(drafts.isNotEmpty() && drafts.all { it.suggestion != null && it.filedAt == null })
+        // Levels and classes are keys of the schema; two versions of one record; a held record names its hold.
+        assertTrue(rs.all { r -> s.levels.any { it.key == r.level } && (r.cls == null || s.classes.any { it.key == r.cls }) })
+        assertTrue(rs.any { it.versions.size >= 2 && it.versions.count { v -> v.state == "current" } == 1 })
+        assertTrue(rs.single { it.ref == "AR-000180" }.let { it.level == "secret" && it.state == "sealed" })
+        val holds = page("/archive/holds", com.coinepro.hq.core.net.LegalHold.serializer())
+        assertTrue(holds.all { h -> h.state == "active" && !h.scope.empty && h.recordRefs.size == h.records && h.recordRefs.all { ref -> rs.single { it.ref == ref }.holds.contains(h.ref) } })
+        assertTrue(holds.any { it.case != null } && holds.any { it.scope.records.isNotEmpty() })
+        // Parties carry their kind; a record's party is in the registry.
+        val parties = page("/archive/parties", com.coinepro.hq.core.net.Party.serializer())
+        assertTrue(rs.flatMap { it.parties }.all { p -> parties.any { it.ref == p.party } } && parties.all { p -> s.partyKinds.any { it.key == p.kind } })
+        // Search: snippets from the files' text; the same records as the list's `q`.
+        val hits = page("/archive/search?q=هتزنر", com.coinepro.hq.core.net.ArchiveHit.serializer())
+        assertTrue(hits.isNotEmpty() && hits.all { it.snippetFa.isNotBlank() && it.score > 0 })
+        assertEquals(hits.map { it.ref }, page("/archive/records?q=هتزنر", com.coinepro.hq.core.net.ArchiveRecord.serializer()).map { it.ref })
+    }
+
+    @Test
+    fun archiveDueListsAndCardsDecode() {
+        val reminders = page("/archive/reminders", com.coinepro.hq.core.net.DueReminder.serializer())
+        assertTrue(reminders.isNotEmpty() && reminders.all { it.id == "${it.record}:${it.field}" && it.state == "sent" && it.daysLeft <= it.leadDays })
+        val due = page("/archive/retention/due", com.coinepro.hq.core.net.RetentionDue.serializer())
+        assertTrue(due.size >= 2 && due.any { it.holds.isNotEmpty() } && due.all { it.decisionRef == "D-000093" && it.then == "dispose_card" })
+        val fx = decode("/archive/fixity", com.coinepro.hq.core.net.Fixity.serializer())
+        assertTrue(fx.checked > 0 && fx.failed.isEmpty())
+        // §23.11: both kinds are listed; the schema card carries the exact body and its base version, the disposal card its records.
+        val all = page("/decisions?status=all", com.coinepro.hq.core.net.Decision.serializer())
+        assertTrue(all.map { it.kind }.containsAll(com.coinepro.hq.core.net.ARCHIVE_KINDS))
+        val sc = decode("/decisions/D-000092", com.coinepro.hq.core.net.Decision.serializer()).payloadAs(com.coinepro.hq.core.net.SchemaCardPayload.serializer())!!
+        assertTrue(sc.part in com.coinepro.hq.core.net.SCHEMA_PARTS && sc.key.isNotBlank() && sc.body.isNotEmpty())
+        val dc = decode("/decisions/D-000093", com.coinepro.hq.core.net.Decision.serializer()).payloadAs(com.coinepro.hq.core.net.DisposalCardPayload.serializer())!!
+        assertEquals(due.map { it.ref }.toSet(), dc.records.map { it.ref }.toSet())
+    }
 }

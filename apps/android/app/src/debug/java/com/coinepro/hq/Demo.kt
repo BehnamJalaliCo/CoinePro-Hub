@@ -84,6 +84,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         val query = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
         val version = req.header("If-Match")?.trim('"')?.toIntOrNull()
         tick18()
+        // ⟨1.7⟩ §23: the archive, and the step-up and staleness check on approving its two cards.
+        archive.handle(req, path, raw, query)?.let { return it }
         if (req.method == "GET") {
             v19Read(path, query)?.let { return respond(req, it.status to it.body, it.headers) }
             v18Read(path, query)?.let { return respond(req, it.status to it.body, it.headers) }
@@ -155,6 +157,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             if (verdict == "approve") { decided16(updated.jsonObject); decided17(updated.jsonObject) }
             // ⟨1.6⟩ §22: the item published or rejected, the email sent or its case reopened, the role active or rejected.
             decided19(updated.jsonObject)
+            // ⟨1.7⟩ §23: the schema change applied, or the batch disposed with tombstones (held records skipped).
+            archive.decided(updated.jsonObject)
             // ⟨1.5⟩ §21: the prediction revealed, memos, the evaluation's effect and the HR round, for every verdict.
             return 200 to decided18(updated.jsonObject)
         }
@@ -223,6 +227,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     // ------------------------------------------------------------------ ⟨1.3⟩ --
     /** Uploaded files by id (a file:// URL in the app's cache), so a sent message can show what was attached. */
     private val files = mutableMapOf<String, JsonObject>()
+    private val archive by lazy { ArchiveDemo(context, store, files) }
     private val scripts = mutableMapOf<String, MutableList<JsonObject>>().apply {
         for ((k, v) in store) if (k.startsWith("#script:")) put(k.removePrefix("#script:"), v.second.jsonObject["items"]!!.jsonArray.map { it.jsonObject }.toMutableList())
     }
