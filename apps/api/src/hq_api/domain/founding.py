@@ -788,7 +788,7 @@ async def default_plan(tx: Tx, code: str, repo: str | None) -> PlanFields:
     sources = list(
         await tx.scalar("SELECT provision_ssh_sources FROM owner.settings WHERE id = 1") or []
     )
-    software = [k for k in P.SOFTWARE if repo or k != "repo-clone"]
+    software = [k for k in P.DEFAULT_SOFTWARE if repo or k != "repo-clone"]
     rules = (
         [FirewallRule(protocol="tcp", port="22", sources=sources, note_fa="SSH از نشانی‌های مالک")]
         if sources
