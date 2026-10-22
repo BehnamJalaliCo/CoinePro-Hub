@@ -603,7 +603,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - `manifest.json` و `SHA256SUMS`
 - **snapshot ‏restic:** از مجموعه، آرشیو WAL و خود فایل‌های `hq-files`:
   1. اول در مخزن محلی
-  2. بعد با `restic copy` به **Google Drive** (`rclone:gdrive:CoinePro-HQ/restic`)
+  2. بعد با `restic copy` به **Google Drive** (`rclone:gdrive:CoinePro HQ Backup`؛ خود پوشه مخزن restic است)
   3. و اگر روشن باشد، به Hetzner
 - **نگهداری:**
   - Drive و Hetzner: `--keep-hourly 168 --keep-daily 90 --keep-weekly 52 --keep-monthly 36 --keep-yearly 10`
@@ -661,10 +661,12 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 1. **`make gdrive-auth`** (لینک و کد؛ درخواست مالک ۲۰۲۶-۱۰-۲۲، چیزی نصب نمیشود):
    - اسکریپت یک لینک Google چاپ میکند. مالک آن را روی گوشی یا کامپیوتر خودش باز میکند، وارد میشود و «Allow» میزند.
    - مرورگر به `127.0.0.1:53682/?state=…&code=…` میرود که باز نمیشود (درست است). مالک همه‌ی آن آدرس را کپی میکند و بی‌نمایش در پرسش اسکریپت میچسباند.
-   - پشت صحنه: `rclone authorize` با client عمومی rclone و scope ‏`drive.file` در یک کانتینر موقت backup-tools ‏(`hq-gdrive-auth`، بدون root، root filesystem فقط‌خواندنی) منتظر است. آدرس فقط به صفحه‌ی محلی همان کانتینر داده میشود و rclone کد یک‌بارمصرف را همان‌جا با توکن عوض میکند. توکن مستقیم به `kv/backup/gdrive` میرود و هیچ‌جا چاپ نمیشود. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro-HQ/restic` را میسازد.
+   - پشت صحنه: `rclone authorize` با client عمومی rclone و scope ‏`drive.file` در یک کانتینر موقت backup-tools ‏(`hq-gdrive-auth`، بدون root، root filesystem فقط‌خواندنی) منتظر است. آدرس فقط به صفحه‌ی محلی همان کانتینر داده میشود و rclone کد یک‌بارمصرف را همان‌جا با توکن عوض میکند. توکن مستقیم به `kv/backup/gdrive` میرود و هیچ‌جا چاپ نمیشود. اسکریپت اتصال را آزمایش میکند و پوشه‌ی `CoinePro HQ Backup` را میسازد.
    - **دو مرحله‌ای:** `make gdrive-auth step=link` فقط لینک را میدهد و ورود ۳۰ دقیقه منتظر میماند (`HQ_GDRIVE_AUTH_WAIT_S`). بعد `make gdrive-auth step=code` آدرس را میگیرد: بی‌نمایش در ترمینال، یا از stdin وقتی مالک آدرس را به Claude سرور میدهد. کد درون آدرس فقط یک بار و فقط چند دقیقه معتبر است و بعد از مصرف بی‌ارزش است.
-   - **client اختصاصی مالک (اختیاری):** `make gdrive-auth own=1`. برای سهمیه‌ی جدا از client عمومی rclone، یک OAuth client ID (نوع Desktop) در Google Cloud خود مالک. مالک client ID و client secret را میدهد، اسکریپت فرمان را میسازد (`rclone authorize "drive" "<base64>"`) و مالک آن را روی کامپیوتر خودش اجرا میکند و JSON را بی‌نمایش میچسباند. رشته‌ی base64 یک JSON با `client_id`، `client_secret` و `"scope":"drive.file"` است، بدون padding (۷.۱ §۲.۸). شکل دو-آرگومانی (`"<client_id>" "<client_secret>"`) دسترسی **کل** Drive را میخواست و دیگر استفاده نمیشود.
-   - **کار مالک، فقط با `own=1`: consent screen آن پروژه در Google Cloud باید «In production» باشد.** در حالت «Testing»، گوگل refresh token را بعد از ۷ روز باطل میکند و backup بیرونی بی‌خبر میایستد. برای client عمومی rclone لازم نیست.
+   - **client اختصاصی مالک (`own=1`، راه ماندگار):** client عمومی rclone سهمیه‌ی مشترک همه‌ی کاربران rclone را دارد و خود rclone میگوید در ۲۰۲۶ کنار میرود. اولین copy به Drive (۲۰۲۶-۱۰-۲۲) با `403 rateLimitExceeded` همان سهمیه شکست خورد.
+     - **کار مالک در Google Cloud:** یک پروژه بسازد، Google Drive API را Enable کند، consent screen را بسازد و در Audience، «Publish app» بزند تا **«In production»** شود (در حالت «Testing»، refresh token بعد از ۷ روز باطل میشود). بعد در Clients یک OAuth client از نوع **Desktop app** بسازد.
+     - با `make gdrive-auth own=1` (همراه `step=link` هم میشود) اسکریپت client ID و client secret را میپرسد (secret بی‌نمایش؛ با `step=link` دو خط از stdin) و همان لینک و آدرس بالا را با client مالک میگیرد. ID و secret از stdin به tmpfs کانتینر میرسند، نه argv و نه env کانتینر، و کنار توکن در `kv/backup/gdrive` ذخیره میشوند. scope همچنان `drive.file` است.
+     - **عوض کردن client:** با `drive.file` هر client فقط فایل‌های خودش را میبیند. client تازه پوشه و مخزن restic خودش را میسازد (اولین copy کامل است). پوشه‌ی client قبلی در Drive میماند تا مالک خودش پاکش کند. ۲۰۲۶-۱۰-۲۲: از client عمومی به client خود مالک (پروژه‌ی `coinepro-hq-backup`، In production) رفتیم؛ ۵۱ snapshot در ۲۶۶ ثانیه کپی شد.
    - تا این کار نشده، backup ساعتی فقط محلی است و وضعیت Drive «پیکربندی نشده» است.
 2. **نسخه‌ی کاغذی رمز restic:** `make backup-password`.
    - فقط در ترمینال خود مالک، با تایپ `show`. بعد از Enter صفحه پاک میشود.
@@ -856,7 +858,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - بقیه‌ی پروتکل‌ها (`sample`، `llm`، `blind_test`، `mystery`، و `rule`/`reconcile` بی‌checker) کار ناظر یا QC میشوند. سقف: `HQ_OVERSIGHT_MODEL_RUNS_PER_DAY` (پیش‌فرض ۳ در روز مالک) و بودجه‌ی هر اجرا `HQ_OVERSIGHT_RUN_TOKENS` (پیش‌فرض ۶۰ هزار، **هرگز بیشتر از `tokens_per_run` منشور مجری**: ناظر v2 و مشاور v3 هر کدام ۲۰۰ هزار). بیرون از سقف، اجرا `skipped` ثبت میشود. هر پروتکل حداکثر یک بار در روز به مدل میرود (پروتکل ساعتی هم)، و PR-098 فقط وقتی که مدیرعاملی در ۲۴ ساعت گذشته استخدامی تأیید کرده باشد.
   - **سهم توکن نظارت، `OVERSIGHT_DAILY_SHARE`** (در `.env`، پیش‌فرض `0.2`؛ قرارداد §۱۸.۱ v1.4.4): ناظر و QC روی هم حداکثر این سهم از `AGENT_DAILY_TOKEN_CAP` را در روز UTC مصرف میکنند (با ۶۰۰ هزار: ۱۲۰ هزار). LLM Router آن را مثل بودجه اجرا میکند: وقتی مصرف امروز نقش‌های `overseer` و `inspector` هلدینگ به سهم رسید، هر فراخوانی بعدی آن‌ها با `429 budget_exhausted` (در دفتر: `rejected_budget` / `oversight_share`) رد میشود، در هر اولویتی. فقط اجرای پروتکل `critical` ادامه میدهد (runner شماره و شدت پروتکل را در meta فراخوانی میفرستد).
     - وقتی سهم پر است، اجرای پروتکل غیر `critical` نتیجه‌ی **`deferred`** میگیرد (کاری ساخته نمیشود). deferred رد نیست و در نمره‌ی انطباق حساب نمیشود. روز بعد (UTC)، اولین `oversight_tick` پروتکل‌های deferred را **اول صف** دوباره اجرا میکند: اول شدیدترها، بعد قدیمی‌ترها.
-    - `AGENT_DAILY_TOKEN_CAP=0` یعنی بی‌سقف، پس سهمی هم نیست. `OVERSIGHT_DAILY_SHARE=0` یعنی فقط پروتکل‌های `critical`. مقدار باید بین ۰ و ۱ باشد، وگرنه سرویس بالا نمیاید.
+    - `AGENT_DAILY_TOKEN_CAP=0` یعنی «هیچ» (پرامپت ۸.۱): هیچ اجرای ایجنتی نیست و سهم نظارت هم صفر است. `OVERSIGHT_DAILY_SHARE=0` یعنی فقط پروتکل‌های `critical`. مقدار باید بین ۰ و ۱ باشد، وگرنه سرویس بالا نمیاید.
   - **برآورد مصرف:** حداکثر ۳ × ۶۰ هزار = ۱۸۰ هزار توکن در روز، به‌علاوه‌ی صدور چالش‌های هفتگی (۶۰ هزار در هفته) و پیام‌های مالک در رشته‌ی `N`؛ سهم نظارت (۱۲۰ هزار با سقف فعلی) زودتر جلوی آن را میگیرد. منشور ناظر v2 سقف هر اجرا را ۲۰۰ هزار گذاشته و هیچ اجرایی از آن نمیگذرد، حتی اگر `HQ_OVERSIGHT_RUN_TOKENS` بیشتر باشد.
 - **یافته:** پاسخ‌گو (نقش پروتکل در همان شرکت، وگرنه مدیرعامل، وگرنه مالک) وضعیت را `acknowledged`، `fixing`، `fixed` یا `disputed` میکند؛ `fixed` شاهد میخواهد. `verified` فقط با شاهد رفع است و فقط با ناظر یا مالک؛ `closed` هم همین‌طور. مالک: `POST /oversight/findings/{ref}/status`.
 - **hold:** هر hold یک ردیف `H-` روی یک هدف است و هر هدف فقط یک hold باز دارد. هدف‌ها و آنچه متوقف میشود:
@@ -1032,6 +1034,8 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
      - کار‌بر کاری سرور تازه همین کلیدها را میگیرد.
   - تا این دو انجام نشده‌اند، `/v1/pricing` و ساخت جواب `channel_not_configured` میدهند.
   - **IPهای مجاز SSH** را مالک در طرح تعیین میکند. SSH باز به کل اینترنت (`0.0.0.0/0` روی 22) پذیرفته نمیشود.
+    - ⟨۹.۲⟩ هر بازه‌ی tcp که ۲۲ را شامل شود SSH است، و منبع‌هایش باید **درون** `provision_ssh_sources` مالک باشند (تا تنظیم نشده‌اند، هیچ طرحی با SSH مُهر نمیشود).
+    - منبع‌هایی که روی هم کل فضای IPv4 یا IPv6 را میپوشانند (مثلاً `0.0.0.0/1` و `128.0.0.0/1`) فقط روی 80 و 443 مجازند.
 - **گام‌ها** (هر کدام با لاگ کوتاه به api، و قابل ادامه):
   1. `ssh-key`
   2. `firewall`: یک Hetzner Cloud Firewall تازه، دقیقاً با قاعده‌های طرح. اگر طرح شبکه‌ی خصوصی بخواهد، شبکه‌ی **خود شرکت** (`10.20.0.0/16`) هم ساخته میشود. به شبکه‌ی موجود هاب وصل نمیشود، چون آن تغییر شبکه‌ی production است و با مالک است.
@@ -1044,10 +1048,13 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   رفتار در خطا:
   - گامی که شکست بخورد گزارش میشود. api دوباره اجرایش میکند؛ گام‌های تمام‌شده تکرار نمیشوند و چیزی دو بار ساخته نمیشود.
   - سروری که ساخته شده بود و بعد در کنسول حذف شد، دوباره ساخته نمیشود (`server_gone`). سرور تازه یعنی یک طرح مُهرشده‌ی تازه.
+  - ⟨۹.۲⟩ اجرایی که provisioner درباره‌اش ۷۵ دقیقه چیزی نگفته (`HQ_PROVISION_QUIET_S`، مثلاً restart وسط کار یا api که جواب نداد) را reaper در api روی همان گام `failed` میکند. فقط قاعده است، بدون مدل و بدون فراخوان بیرونی، و فقط وقتی provisioner روشن است.
+  - اجرای شکست‌خورده تأسیس را به `sealed` برمیگرداند: مالک `resume` میکند یا تأسیس را لغو میکند. اجرایی که `refused` شد (مثلاً هتزنر رمز root داد) دیگر ادامه نمیگیرد.
 - **cloud-init** از قالب‌های بازبینی‌شده‌ی `infra/provisioning/templates/` ساخته میشود، یکی برای هر کلید نرم‌افزار. هیچ قالبی ورودی نمیگیرد؛ همه‌ی مقدارها یک بار با `shlex.quote` میایند. حداکثر 32 KiB.
   - `system-upgrade`: ‏`full-upgrade`. اگر لازم باشد، **همین سرور تازه** یک بار، فقط حین ساخت، ریبوت میشود و بقیه‌ی گام‌ها را `coinepro-provision.service` بعد از بوت تمام میکند.
   - `unattended-upgrades`
-  - `work-user`: کلید مالک، رمز قفل‌شده، sudo با کلید.
+  - `work-user`: کلید مالک، رمز قفل‌شده، sudo با کلید. ⟨۹.۲⟩ کاربر را خود ساخت میسازد؛ اگر از قبل باشد گام شکست میخورد. نام‌های سیستمی Ubuntu (مثل `mail` و `proxy`) رد میشوند و پیش‌فرض `<code>-ops` است.
+  - ⟨۹.۲⟩ هر گام در یک subshell با `errexit` اجرا میشود، پس **شکست هر دستور گام را شکست میدهد**. `ssh-hardening`، `unattended-upgrades` و `work-user` در هر طرح اجباری‌اند.
   - `ssh-hardening`: فقط کلید، بدون root، بدون رمز، فقط کاربر کاری.
   - `docker`: از مخزن رسمی Docker. اثر انگشت کلید امضا (`9DC8…CD88`) پیش از اعتماد چک میشود.
   - `git`
@@ -1081,6 +1088,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
     - فقط apt، npm، docker CLI و systemctl جایگزین ضبط‌کننده‌اند.
     - کلید Docker و Node واقعی در زمان build ایمیج آزمون گرفته و چک میشوند.
     - چهار سناریو: کامل، اجرای دوباره، ریبوت، و گام شکست‌خورده.
+    - ⟨۹.۲⟩ و سه سناریوی دیگر: sha256 غلط Node، پیکربندی‌ای که `sshd -t` رد میکند، و حسابی که از قبل با نام کاربر کاری هست. هر کدام گامش را شکست میدهد و چیزی را که آن گام نگه میدارد دست‌نخورده میگذارد.
   - `HQ_PROVISION_ONLINE=1 bash scripts/quality/provisioning.sh` همان را با apt، مخزن Docker و npm واقعی اجرا میکند.
 
 ## ۲۶. تأسیس شرکت و طرح سرور، سمت api (پرامپت ۹ §۲ تا §۴، قرارداد §۱۸.۸)
@@ -1098,6 +1106,8 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   4. `provisioning` و بعد `ready_for_login`: provisioner طرح مُهرشده را میسازد (بخش provisioner).
   5. `active`: بعد از ورود خود مالک، `POST /foundings/{ref}/activate` با 🔏 (هدف = ref). شرکت `active` میشود و مدیرعامل یک کار شروع میگیرد که نقشه‌ی راه، KPIها و تیم پیشنهادی را دارد. استخدام تیم با خود مدیرعامل است، طبق قاعده‌ی استخدام.
   - `POST /foundings/{ref}/cancel` تا پیش از `active` کار میکند. شرکتی که ساخته شده میماند (`paused`) و چیزی حذف نمیشود.
+    - ⟨۹.۲⟩ لغو همه‌چیز را میبندد: کارت‌های pending `company_found` و `server_plan` withdraw میشوند، طرح مُهرشده‌ی اجرانشده به `proposed` برمیگردد، کار ممیزی و پیشنهاد لغو میشود و سشن کارگاه متوقف میشود. از تأسیس لغوشده هیچ چیز مُهر، ساخته یا build نمیشود.
+    - تا وقتی ساخت در صف یا در حال اجراست، لغو `409` میگیرد.
 - **طرح سرور** (`server.plan`، کلاس A1؛ مدیر فنی برای شرکت خودش، platform SRE برای هر شرکت یا تأسیس):
   - نرم‌افزار فقط از فهرست ثابت `hq_common.provisioning.SOFTWARE` است. کلید ناشناخته `422` میگیرد.
   - `digest` همان sha256 از JSON کانونی است و هر دو سمت آن را با یک کد حساب میکنند.
@@ -1114,7 +1124,68 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - این مسیر فهرست پروژه‌ی هتزنر را هم میدهد. api آن را هر ۶ ساعت و با هر بار باز شدن این صفحه تازه میکند.
   - پروتکل **PR-063** هر روز ساعت ۰۶:۰۰ با کد آن را با طرح‌های مُهرشده تطبیق میدهد. سرور بی‌طرح، از جمله سرورهای قدیمی همان پروژه، یافته‌ی critical میسازد. یافته‌ای که مالک ببندد (مثلاً «سرور خود ما، از قبل») دوباره ساخته نمیشود.
 
-## ۲۷. درآمد و پشتیبانی: پایه (پرامپت ۱۰ §۱، قرارداد §۱۹)
+## ۲۷. نشان و مُهر شرکت از لوگوی PNG مالک (پرامپت ۹.۱، قرارداد §۱۸.۱۴)
+- **مُهر هلدینگ داده نیست.** خورشید ۲۴ پرتو و CP دوفلزی در خود اپ‌هاست و هیچ مسیری آن را نمیسازد. `POST /companies/<holding>/brand` جواب `422` میدهد و `/brands` هیچ‌وقت هلدینگ را ندارد.
+- **داده:** جدول `org.company_brands`، نسخه‌دار. چرخه: `processing` ← `proposed` ← `active` ← `retired`، یا `processing` ← `failed` با `status_reason`.
+  - بعد از `processing` فقط `state` و زمان‌هایش عوض میشوند. trigger هر تغییر دیگری را رد میکند. DELETE هم نیست.
+  - در هر شرکت حداکثر یک نسخه‌ی `active` هست. `Company.brand_version` و `Founding.brand` از همین جدول خوانده میشوند.
+- **ساخت نشان از PNG** (فقط مالک؛ کد، بدون مدل):
+  1. `POST /api/v1/files` با PNG (بهتر با زمینه‌ی شفاف)، WebP یا JPEG. HEIC و بقیه `422` میگیرند.
+  2. `POST /api/v1/companies/<CODE>/brand` با `{file_id, part: "mark"|"wordmark", options?: {colors?: 1..4, detail: 1..5}}` و `Idempotency-Key` ← `202` با نسخه‌ی `processing`.
+     - بخش دیگر (و برای wordmark، رنگ‌ها) از نسخه‌ی فعال منتقل میشود.
+     - فایل اگر هنوز در هلدینگ است، مثل اولین پیوست به همان شرکت منتقل میشود.
+  3. worker (فعالیت `brand_trace`، workflow `BrandTrace`) فایل را در یک **پردازه‌ی فرزند** میخواند (`hq_common.untrusted`):
+     - بدون شبکه: فیلتر seccomp جلوی `socket()` را میگیرد.
+     - سقف‌ها: ۳۸۴ MiB فضای آدرس، ۵۰ ثانیه CPU، مهلت ۶۰ ثانیه، بدون نوشتن فایل. هر بار فقط یک فرزند.
+  4. نتیجه `proposed` است با `checks` (`iou`، `min_feature_px_16`، کنتراست شب و روز، هشدارها)، و رویداد `brand.updated` روی topic `companies`.
+  5. مالک پیش‌نمایش را در اپ میبیند. یا با گزینه‌ی دیگر `retrace` میکند، یا `activate` میکند.
+- **گزینه‌ها:**
+  - `colors`: تعداد رنگ. خالی یعنی «به تعداد رنگ‌های خود لوگو، حداکثر ۴». `1` یعنی یک لایه‌ی `ink` و `accent: null`.
+  - `detail`: از ۱ تا ۵، پیش‌فرض ۳. هر چه بیشتر، فیلتر نقطه‌های ریز کوچک‌تر و آستانه‌ی گوشه تیزتر.
+
+| detail | فیلتر نقطه (px در ۱۰۲۴) | آستانه‌ی گوشه |
+|---|---|---|
+| ۱ | ۲۴ | ۱۲۰° |
+| ۲ | ۱۶ | ۹۰° |
+| ۳ | ۱۰ | ۶۰° |
+| ۴ | ۶ | ۴۵° |
+| ۵ | ۳ | ۳۰° |
+
+- **خطاها (`status_reason`) و راه‌حلشان:**
+
+| خطا | یعنی | راه‌حل |
+|---|---|---|
+| `no_background` | چهار گوشه هم‌رنگ نیستند (ΔE76 > ۵)، یا لبه‌ی تصویر بیشترش هم‌رنگ زمینه نیست | PNG با زمینه‌ی شفاف، یا زمینه‌ی یکدست |
+| `too_complex` | همه‌ی `d`ها با هم بیش از ۴۸ کیلوبایت است، حتی با detail ۱ | لوگوی ساده‌تر، یا فقط نشان بدون نوشته |
+| `too_large` | بیش از ۴۰۹۶ پیکسل، یا decompression bomb، یا حافظه‌ی فرزند پر شد | تصویر کوچک‌تر (۱۰۲۴ تا ۲۰۴۸ کافی است) |
+| `too_small` | ضلع کوچک‌تر از ۱۶ پیکسل | تصویر بزرگ‌تر |
+| `unreadable` / `unsupported` | فایل خراب است، یا PNG، WebP یا JPEG نیست | دوباره خروجی بگیر |
+| `empty` | چیزی جز زمینه نماند | لوگو را روی زمینه‌ی متضاد بده |
+| `invalid_path` | خروجی ردگیر با گرامر path نخواند | گزارش به Claude سرور (نباید رخ دهد) |
+| `stopped` | فرزند در مهلت تمام نشد، یا سه بار تلاش شد | دوباره `retrace` |
+
+- **هشدارها (نسخه `proposed` میماند):**
+  - «بدون شفافیت»: JPEG یا هر تصویر بدون شفافیت.
+  - ردگیری با اصل یکی نیست: `iou` کمتر از ۰٫۹. detail بیشتر را امتحان کن.
+  - «در اندازه‌ی کوچک جزئیات گم میشود»: `min_feature_px_16` کمتر از ۱.
+  - کنتراست کم: `accent_night` یا `accent_day` جایگزین شد.
+  - detail خودکار پایین آمد.
+- **مُهر:** `POST /companies/<CODE>/brand/<version>/activate` با 🔏 `company.brand`.
+  - هدف step-up همان `digest` نسخه است: sha256 از JSON کانونی mark، wordmark، ink، accent، accent_night و accent_day. سرور آن را از ردیف ذخیره‌شده دوباره حساب میکند.
+  - نسخه‌ای که بعد از دیدن مالک عوض شده باشد با همان step-up مُهر نمیشود (`403 step_up_invalid`).
+  - نسخه‌ی فعال قبلی `retired` میشود. نسخه‌ی retired را میشود دوباره فعال کرد.
+  - نسخه‌ای که mark ندارد `409 not_ready` با `missing: ["mark"]` میگیرد.
+- **`GET /api/v1/brands`:** همه‌ی نشان‌های فعال در یک پاسخ، با `ETag` و `Cache-Control: private, no-cache`. با `If-None-Match` جواب `304` است.
+- **تأسیس:** `POST /foundings/{ref}/activate` بدون نشان فعال `409 not_ready` با `missing: ["brand"]` میدهد، مگر بدنه `{"skip_brand": true}` باشد. در آن حالت شرکت تا مُهر نشان، کدش را نشان میدهد.
+- **seed:** در `api-migrate` (`hq_api.migrate` ← `seed`):
+  - برای هر پوشه‌ی `design/brand/companies/<code>/` که شرکتش هست و هنوز هیچ نسخه‌ای ندارد، نسخه‌ی ۱ `active` با `source.kind: "seed"` ساخته میشود.
+  - از `*-mark-flat.svg` و `*-wordmark*-flat.svg`، با لایه‌های `--logo-ink` و `--logo-accent`، همان قاعده‌ی `gen-assets.mjs`.
+  - پوشه‌ها read-only در `/app/design/brand/companies` (`HQ_BRANDS_DIR`) mount میشوند. **هیچ کد شرکتی در کد نیست.**
+  - seed idempotent است. شرکتی که پوشه ندارد seed نمیشود، و نسخه‌ی آپلودی هیچ‌وقت دست نمیخورد.
+- **کلید توقف:** ردگیری کد است و مدل یا سرویس بیرونی ندارد. پس با کلید توقف هم کار میکند (مالک هیچ‌وقت قفل نیست).
+  - `reconcile_decisions` نسخه‌هایی را که بیش از ۱۰ دقیقه `processing` مانده‌اند دوباره راه میاندازد. این هم کار قاعده‌ای است.
+
+## ۲۸. درآمد و پشتیبانی: پایه (پرامپت ۱۰ §۱، قرارداد §۱۹)
 - **پنج schema:** `revenue`، `support`، `growth`، `feedback`، `intake` (migration `0025`). همه‌ی جدول‌ها `company_id` و RLS **FORCE** دارند؛ هیچ جدول بی‌شرکتی نیست.
 - **نام مستعار مشتری:** `subject = HMAC-SHA256(key, company || channel || external_id)` (`hq_common.pseudonym`).
   - کلید در `kv/support/pseudonym` است. `make up` آن را یک بار با KV check-and-set (`cas: 0`) میسازد (`infra/openbao/kv-once.sh`) و هرگز عوض نمیکند؛ چاپ نمیشود. api و worker فقط میخوانند.
@@ -1127,7 +1198,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **دروازه‌ی راه‌اندازی:** هر چیزی از پرامپت ۱۰ که خودش اجرا میشود (pull، ارسال، پیش‌نویس، batch، پروتکل) اول `hq_api.domain.gate` را میپرسد و تا قفل هلدینگ یا شرکت هست، بی‌مدل و بی‌تماس بیرونی رد میشود (`skipped`).
 - **متغیرها** (`.env`، خالی یعنی پیش‌فرض): `SUPPORT_RETENTION_DAYS`، `SUPPORT_DRAFT_DAILY_TOKENS` (۶۰ هزار برای هر شرکت در روز)، `SUPPORT_DAILY_OUTBOUND_CAP`، `SUPPORT_AUTO_REPLIES_PER_HOUR`، `SUPPORT_HANDOFF_DIGEST_MIN`، `REFERRAL_CHECKS_PER_HOUR`، `REFERRAL_CHECK_CACHE_S`، `REVENUE_BACKFILL_DAYS`، `REVENUE_PULL_MAX_DAYS`، `INTAKE_MAX_SKEW_S`.
 
-### ۲۷.۱ رادار درآمد، قیف، نجات رفرال و صندوق بازخورد (پرامپت ۱۰ §۲، §۳، §۸؛ قرارداد §۱۹.۱، §۱۹.۲، §۱۹.۷)
+### ۲۸.۱ رادار درآمد، قیف، نجات رفرال و صندوق بازخورد (پرامپت ۱۰ §۲، §۳، §۸؛ قرارداد §۱۹.۱، §۱۹.۲، §۱۹.۷)
 - **حساب افیلیت** = یک حساب سرویس §۱۸.۱۳ با policy `{"inject": {"kind": "signer", "signer": "lbank-v2"}}` و `site` = میزبان API افیلیت LBank.
   - رمز: `make account-secret KEY=<key>` (مالک)، **در یک خط به شکل `api_key:secret_key`**. هرگز چاپ و هرگز از API برگردانده نمیشود.
   - بعد `POST /api/v1/revenue/accounts` 🔏 `revenue.account` (هش بدنه): `{company, exchange: "lbank", service_account: <key>, title_fa}`.
@@ -1145,13 +1216,15 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **قیف:** `visit` (بی‌منبع)، `signup` و `vip_active` (رویداد محصول، وقتی منبع `product` با آن نوع ثبت شد)، `referral_verified` (دعوت‌شده‌های تازه‌ی هر روز) و `min_balance` (از آن‌ها، بالای **همان یک عدد** مقاله‌ی `policy` با کلید `vip.min_balance`؛ بی‌آن مقاله وصل نیست). مرحله‌ی بی‌منبع `connected: false, count: null` است و هیچ نرخی تخمین زده نمیشود.
   - نشتی: نرخ هفته‌ی آخر کمتر از ۷۰٪ میانه‌ی چهار هفته‌ی قبل ← یک ردیف `growth.leaks` و یک کار برای مدیر SALES (بعد از هر pull).
 - **نجات رفرال:** `referral.check` (پشتیبان و متخصص نجات) فقط `{invitee, meets_minimum}`؛ حداکثر `REFERRAL_CHECKS_PER_HOUR` در ساعت برای هر شرکت، جواب تا `REFERRAL_CHECK_CACHE_S` دوباره استفاده میشود؛ با قفل هلدینگ ۴۲۳.
-  - «دعوت‌شده‌ی ما نیست» در یک گفت‌وگو (یا رویداد `referral_failed` محصول) ← پرونده `RC-…`؛ چک بعدی «هست» ← `rescued`؛ ۳۰ روز یا `max_follow_ups` ← `lost`؛ لغو مشتری ← `opted_out`.
-  - پیگیری‌ها (`hq-rescue-follow-ups`، ساعتی، پشت دروازه) فقط زیر قاعده‌ی **فعال** `rescue` و فقط از فرستنده‌ی §۷ (`growth.send_template`)؛ تا آن فرستنده نیست، هیچ پیامی نمیرود (`no_sender`). متخصص نجات هیچ ابزار ارسالی ندارد.
+  - «دعوت‌شده‌ی ما نیست» در یک گفت‌وگو (یا رویداد `referral_failed` محصول) ← پرونده `RC-…`؛ چک بعدی «هست» (یا `referral_verified` محصول) ← `rescued`؛ ۳۰ روز یا `max_follow_ups` ← `lost`؛ لغو مشتری ← `opted_out`.
+  - **«قبلاً ثبت‌نام کردم» (§۴.۵):** پشتیبان UID میخواهد و `referral.check` میزند. api گفت‌وگویی را که run او جوابش را میدهد پیدا میکند، UID را فقط روی همان مشتری در `support.customers.uids` نگه میدارد و پرونده را به همان گفت‌وگو وصل میکند. پرونده‌ی محصولی که گفت‌وگو ندارد، با چک بعدی در یک گفت‌وگو به آن وصل میشود.
+  - پیگیری‌ها (`hq-rescue-follow-ups`، ساعتی، پشت دروازه) فقط زیر قاعده‌ی **فعال** `rescue` و فقط از فرستنده‌ی §۷ (`growth.send_template`: قالب مُهرشده، لغو، سقف‌ها، ساعت سکوت، کانال `live`، نگهبان با جمله‌ی ایمنی). پیام صف‌شده بعد از commit با `desk.send` میرود (دروازه دوباره پرسیده میشود). مشتری بی‌کانال (`no_channel`) یک روز بعد دوباره امتحان میشود. متخصص نجات هیچ ابزار ارسالی ندارد.
 - **صندوق بازخورد:** کلیدواژه‌های هر شرکت در `feedback.keywords` (داده) ← نوع و حوزه، بی‌مدل؛ بقیه در `hq-feedback-batch` (۰۲:۳۰ تهران، پشت دروازه) با یک فراخوانی مدل سبک (Haiku 5.5، P4) برای هر شرکت. نقل‌قول‌ها ماسک‌شده (بی handle و UID)، حداکثر ۳. موردی که در پنجره‌ی شرکت به آستانه برسد (پیش‌فرض ۵ در ۷ روز، `support.settings`) یک کار برای مدیر PRODUCT میشود.
+  - هر پیام مشتری (بعد از لغو، جواب NPS/CSAT و چک ربات) و هر توضیح NPS از `feedback.ingest` رد میشود: برچسب کلیدواژه بی‌مدل، وگرنه `pending` برای batch شبانه. گفت‌وگوی mystery ثبت میشود ولی شمرده نمیشود.
   - گزارش هفتگی پشتیبانی (`hq-support-weekly`، شنبه ۰۸:۳۰ تهران): کار برای سرپرست پشتیبانی؛ شرکت بی‌سرپرست ← همان ارقام در گزارش صبحگاهی شنبه.
 - **متغیرهای تازه‌ی egress:** `EGRESS_LBANK_PUBLIC_URL`، `EGRESS_CONNECTOR_WAIT_S` (انتظار حداکثر برای سقف نرخ، پیش‌فرض ۸ ثانیه).
 
-### ۲۷.۲ پشتیبانی: مسیر جواب، نگهبان، go-live (پرامپت ۱۰ §۴ تا §۶، قرارداد §۱۹.۳ تا §۱۹.۶)
+### ۲۸.۲ پشتیبانی: مسیر جواب، نگهبان، go-live (پرامپت ۱۰ §۴ تا §۶، قرارداد §۱۹.۳ تا §۱۹.۶)
 - **هیچ متن آزادی از ایجنت به مشتری نمیرسد.** فقط سه چیز میرود: جواب عین مقاله‌ی تأییدشده، پیش‌نویسی که سیاست `auto_send` همان کانال اجازه میدهد و همه‌ی چک‌ها را پاس کرده، یا قالب مُهرشده زیر قاعده‌ی مُهرشده.
 - **مسیر هر پیام** (`SupportInbound` در worker، `hq_api.domain.desk.process`):
   1. ماسک و ذخیره (`store_inbound`).
@@ -1194,7 +1267,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **سقف توکن پیش‌نویس** (`SUPPORT_DRAFT_DAILY_TOKENS`): llm-router در scope `support_draft:<CO>` اجرایش میکند. این همان شمارنده‌ی روزانه‌ی نقش `<CO>:support_agent` است و تمام که شد `429 budget_exhausted` میدهد. api پیش از بیدار کردن ایجنت همان شمارنده را میخواند و بی‌مدل handoff میکند (`support.settings.draft_daily_tokens` برای یک شرکت عدد دیگری میگذارد).
 - **ناظر:** `support.mystery` (فقط ناظر) گفت‌وگویی روی کانال `mystery` میسازد که کل مسیر را میرود، هرگز به تلگرام یا Chatwoot نمیرسد و در هیچ آماری نیست. PR-043 بی‌کانال `live` نتیجه‌ی `deferred` و با قفل هلدینگ `skipped` میدهد. PR-043، PR-101، PR-102 و PR-103 همه `paused` seed شده‌اند. روشن کردنشان با مالک است.
 
-### ۲۷.۳ چرخه‌ی عمر، NPS، CSAT (پرامپت ۱۰ §۷، قرارداد §۱۹.۵)
+### ۲۸.۳ چرخه‌ی عمر، NPS، CSAT (پرامپت ۱۰ §۷، قرارداد §۱۹.۵)
 - **قالب:** `POST /growth/templates` (پیشنهاد) و `POST /growth/templates/{ref}/seal` (step-up `growth.template`، هدف `ref@version:sha256` بدنه؛ توکن مُهر قالب یک شرکت برای قالب هم‌متن شرکت دیگر به کار نمیرود چون ref فرق دارد).
 - **قاعده:** `POST /growth/rules` (پیشنهاد) و `POST /growth/rules/{ref}/seal` (step-up `growth.rule`، هدف `ref@version`؛ قالبِ همان نسخه باید مُهرشده و آخرین نسخه باشد، وگرنه `409 template_not_sealed`).
   - توقف بی‌step-up است. ادامه (`/resume`) step-up میخواهد. نسخه‌ی تازه‌ی قالب قاعده را تا مُهر نسخه‌ی تازه‌ی قاعده متوقف میکند.
@@ -1220,7 +1293,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - موج‌های NPS
   - setWebhook تلگرام، یک بار برای هر کانال
 
-### ۲۷.۴ ورودی از بیرون (پرامپت ۱۰ §۹، قرارداد §۱۹.۸)
+### ۲۸.۴ ورودی از بیرون (پرامپت ۱۰ §۹، قرارداد §۱۹.۸)
 - **سه مسیر Caddy** در `api-on.caddy` (فقط با دامنه؛ در `api-off.caddy` همه‌ی `/intake/*` ۴۰۴ است)، هر کدام با سقف بدنه‌ی ۱ مگ. `/internal` همچنان ۴۰۴ است. پورت تازه‌ای منتشر نشده.
   - `/intake/v1/telegram/{CO}/{channel}`: فقط از بازه‌های منتشرشده‌ی تلگرام (`149.154.160.0/20`، `91.108.4.0/22`) و فقط با `X-Telegram-Bot-Api-Secret-Token` درست. `update_id` فقط یک بار پذیرفته میشود.
   - `/intake/v1/chatwoot/{CO}`: `X-Chatwoot-Timestamp` و `X-Chatwoot-Signature: sha256=HMAC(secret, "<ts>.<body>")`.
@@ -1232,9 +1305,9 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **رمزها** (فقط ترمینال مالک، ورودی پنهان، بار اول `cas: 0`، جایگزینی فقط با `REPLACE=yes`):
   - `make intake-secret COMPANY=… SOURCE=chatwoot|product`
   - `make telegram-bot-token COMPANY=… CHANNEL=telegram_bot|telegram_business`: توکن ربات، با webhook secret تازه کنارش.
-- **رویدادهای محصول** ماسک‌شده ذخیره میشوند و UID فقط به `subject` تبدیل میشود. `support_message` وارد میز پشتیبانی روی `product_bot` میشود (CR-011). بقیه برای کد قیف و نجات (`intake.APPLIERS`) میمانند.
+- **رویدادهای محصول** ماسک‌شده ذخیره میشوند و UID فقط به `subject` تبدیل میشود. `support_message` وارد میز پشتیبانی روی `product_bot` میشود (CR-011). بقیه همان لحظه به `intake.APPLIERS` (`domain/product_events.py`) میروند: `referral_failed` پرونده‌ی نجات باز میکند، `referral_verified` آن را `rescued` میکند، `signup`، `vip_activated` و `uid_submitted` برای قیف میمانند (`applied`). رویداد بی `data.exchange` ← `ignored`. این کار فقط نوشتن در دیتابیس است، پس با کلید توقف هم انجام میشود؛ هیچ پیامی از اینجا نمیرود.
 
-### ۲۷.۵ Chatwoot (پرامپت ۱۰ §۱۰؛ ساخته شده، **deploy نشده**، تصمیم هزینه با مالک)
+### ۲۸.۵ Chatwoot (پرامپت ۱۰ §۱۰؛ ساخته شده، **deploy نشده**، تصمیم هزینه با مالک)
 - **روی هاب نه:** Rails حدود ۸۰۰ مگ، Sidekiq حدود ۷۰۰، Postgres ۵۱۲، Redis ۱۲۸ و Caddy ۶۴؛ جمعاً حدود ۲٫۲ گیگ سقف. بودجه‌ی هاب همین حالا پر است (پروفایل full ‏10896 از 12486 مگ و STT هم جا نشد)، پس gate حافظه رد میشود.
 - **راه پیشنهادی:** یک سرور کوچک جدا (۲ vCPU، ۴ گیگ) با provisioner پرامپت ۹ و کلید نرم‌افزار `chatwoot` (`infra/provisioning/templates/chatwoot.sh`):
   - Chatwoot Community با ایمیج `v4.18.0-ce` (بخش enterprise فعال نیست).

@@ -2,6 +2,7 @@
 
     check.py done <work_user> <steps...>       every step ok, one callback
     check.py failed <work_user> <failed_step>  stopped there, the callback says so
+                                               (and, per step, nothing it guards ran)
     check.py rebooted                           the upgrade's single reboot
 
 Prints one line per check; exits non-zero on the first that fails.
@@ -100,10 +101,25 @@ def failed(user: str, step: str) -> None:
     r = results()
     ok(r.get(step, {}).get("ok") is False, f"{step} reported as failed")
     ok((STATE / "failed").exists(), "the run knows it failed")
+    ok(not (STATE / f"{step}.done").exists(), f"{step} is not marked done")
     cbs = callbacks()
     ok(len(cbs) == 1 and cbs[0]["body"]["failed"] is True, "the hub was told: failed")
     order = list(r)
     ok(order[-1] == step, "the steps after it did not run")
+    systemctl = Path("/bench/log/systemctl").read_text() if Path("/bench/log/systemctl").exists() else ""
+    if step == "node-lts":
+        ok(not Path("/usr/local/bin/node").exists(), "no node installed from the tampered tarball")
+        ok(not list(Path("/usr/local/lib").glob("nodejs/node-v*")), "nothing of it unpacked")
+        ok(not (STATE / "node.tar.xz").exists(), "the tampered tarball is gone")
+    if step in ("work-user", "ssh-hardening"):
+        # Root keeps its key login: nothing that would lock the owner out ran.
+        ok(Path("/root/.ssh/authorized_keys").exists(), "root's authorized_keys are untouched")
+        ok("reload ssh" not in systemctl and "restart ssh" not in systemctl, "ssh was not reloaded")
+        ok(not Path("/etc/ssh/sshd_config.d/10-coinepro.conf").exists(),
+           "no hardened sshd config left behind")  # fmt: skip
+    if step == "work-user":
+        ok(not Path(f"/etc/sudoers.d/90-coinepro-{user}").exists(), "no sudo for the existing account")
+        ok("ssh-hardening" not in r, "ssh-hardening did not run")
 
 
 def rebooted() -> None:

@@ -65,6 +65,8 @@ async def list_decisions(
         "lesson_adoption",
         "protocol",
         "tool_enable",
+        "company_found",
+        "server_plan",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,

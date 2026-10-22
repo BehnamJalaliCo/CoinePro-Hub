@@ -115,6 +115,18 @@ test_nobody_decides_their_own_proposal if {
 	allowed(f.owner, own, {}) # the owner decides the CEO's own proposal
 }
 
+# 8.1 §2.1: a protocol card (proposed by the overseer, sealed with step-up)
+# is the owner's alone: no agent decides it, the overseer included.
+test_a_protocol_card_is_the_owners_alone if {
+	card := {
+		"kind": "protocol", "company": "HQ", "action_class": "A1",
+		"payload": {"ref": "PR-090"}, "proposer": {"kind": "agent", "code": "HQ-OVR"},
+	}
+	allowed(f.owner, card, {})
+	"owner_only" in reasons(f.hq_ovr, card, {})
+	"owner_only" in reasons(f.ty_ceo, object.union(card, {"company": "TY"}), {})
+}
+
 test_decision_without_proposer_is_denied if {
 	no_proposer := {"kind": "proposal", "company": "TY", "action_class": "A1", "payload": {}}
 	reasons(f.owner, no_proposer, {}) == {"unknown_proposer"}

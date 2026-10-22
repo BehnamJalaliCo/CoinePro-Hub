@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
@@ -40,6 +41,13 @@ TEACHING_REF = r"^TE-[0-9]{4,8}$"
 DEFAULT_SUITE = "EV-001"  # evidence discipline: every role
 PROPOSAL_KINDS = ("charter_rule", "skill", "memory", "playbook")
 BUDGET_WARN = 0.8
+# What one case is held at against the monthly cap while its run is queued or
+# running (8.1 §2.11): the role's answer (system prompt + up to 4000 output
+# tokens) and the judge's score. Replaced by what the run really used.
+EVAL_CASE_ESTIMATE = 15_000
+RESERVE_HOURS = 6  # how long a queued or running run holds its estimate
+RECENT_RUNS = 10  # GET /academy/evals: each suite's last runs, oldest first
+TREND_SCORES = 12  # a training record's trend: the last 12 eval scores, oldest first
 
 
 class Subject(BaseModel):
@@ -54,19 +62,29 @@ class CaseResult(BaseModel):
     notes: str
 
 
+class RunTokens(BaseModel):
+    input: int
+    output: int
+
+
 class EvalRun(BaseModel):
+    """Contract §18.15: `score` and `passed` are null until the run is `done`;
+    a `failed` run (any model call failed) is never a pass."""
+
     id: UUID
     suite: str
     subject: Subject
+    state: Literal["queued", "running", "done", "failed"]
     score: float | None
     passed: bool | None
     cases: list[CaseResult]
     at: datetime
+    tokens: RunTokens
+    equiv_cost_usd: Decimal
     # ⟨1.4⟩ beside the contract's fields
-    status: str
     purpose: str
     gate: dict[str, Any] | None
-    tokens: int
+    error: str | None = None
     finished_at: datetime | None
 
 
@@ -77,12 +95,18 @@ class EvalCase(BaseModel):
     weight: float
 
 
+class Baseline(BaseModel):
+    subject: Subject
+    score: float
+
+
 class EvalSuite(BaseModel):
     ref: str
     role: str
     title_fa: str
     cases: list[EvalCase]
-    baseline: dict[str, Any] | None
+    baseline: Baseline | None
+    recent: list[EvalRun] = Field(default_factory=list)  # the last 10 runs, oldest first
 
 
 class Curriculum(BaseModel):
@@ -90,6 +114,13 @@ class Curriculum(BaseModel):
     version: int
     modules: list[dict[str, Any]]
     updated_at: datetime
+
+
+class TeachingEval(BaseModel):
+    id: UUID
+    score: float | None
+    baseline: float | None
+    passed: bool | None
 
 
 class Teaching(BaseModel):
@@ -100,7 +131,7 @@ class Teaching(BaseModel):
     text_md: str
     file_id: UUID | None
     proposal: dict[str, Any] | None
-    eval_run: UUID | None
+    eval_run: TeachingEval | None
     status: Literal["drafting", "proposed", "approved", "rejected"]
     created_at: datetime
     # ⟨1.4⟩ beside the contract's fields
@@ -125,9 +156,10 @@ class TrainingRecord(BaseModel):
 class Budget(BaseModel):
     month_start: str
     cap_tokens: int
-    used_tokens: int
+    used_tokens: int  # used by runs, plus what queued and running runs hold
     share: float
     warning: bool
+    reserved_tokens: int = 0  # ⟨8.1⟩ of used_tokens: held for queued and running runs
 
 
 def _j(v: Any) -> Any:
@@ -201,17 +233,27 @@ async def budget(tx: Tx, settings: Any) -> Budget:
     )
     share = float(settings.academy_budget_share)
     cap = int(int(total or 0) * share) if total else int(settings.academy_monthly_tokens)
-    used = await tx.scalar(
-        """SELECT COALESCE(sum(tokens), 0) FROM academy.eval_runs
+    # A queued or running run holds its estimate (less what it used so far)
+    # for as long as it can still run: RESERVE_HOURS after it was queued (a
+    # run lasts at most 90 minutes; one whose workflow never started is stale).
+    row = await tx.one(
+        """SELECT COALESCE(sum(tokens), 0) AS used,
+                  COALESCE(sum(GREATEST(reserved_tokens - tokens, 0))
+                           FILTER (WHERE status IN ('queued', 'running')
+                                     AND at > now() - make_interval(hours => :h)), 0) AS held
+           FROM academy.eval_runs
            WHERE at >= CAST(:s AS date)""",
         s=start,
+        h=RESERVE_HOURS,
     )
+    used = int(row["used"] or 0) + int(row["held"] or 0)
     return Budget(
         month_start=start.isoformat(),
         cap_tokens=cap,
-        used_tokens=int(used or 0),
+        used_tokens=used,
         share=share,
-        warning=int(used or 0) >= cap * BUDGET_WARN,
+        warning=used >= cap * BUDGET_WARN,
+        reserved_tokens=int(row["held"] or 0),
     )
 
 
@@ -223,31 +265,65 @@ async def suite(tx: Tx, ref: str) -> dict[str, Any]:
     return row
 
 
-def render_suite(r: dict[str, Any]) -> EvalSuite:
+def render_baseline(value: Any) -> Baseline | None:
+    b = _j(value) or {}
+    if b.get("score") is None or not isinstance(b.get("subject"), dict):
+        return None
+    return Baseline(subject=Subject.model_validate(b["subject"]), score=float(b["score"]))
+
+
+def render_suite(r: dict[str, Any], recent: list[dict[str, Any]] | None = None) -> EvalSuite:
     return EvalSuite(
         ref=r["ref"],
         role=r["role"],
         title_fa=r["title_fa"],
         cases=[EvalCase.model_validate(c) for c in _j(r["cases"]) or []],
-        baseline=_j(r["baseline"]),
+        baseline=render_baseline(r["baseline"]),
+        recent=[render_run(x) for x in recent or []],
     )
 
 
 def render_run(r: dict[str, Any]) -> EvalRun:
+    done = r["status"] == "done"
     return EvalRun(
         id=r["id"],
         suite=r["suite_ref"],
         subject=Subject.model_validate(_j(r["subject"])),
-        score=float(r["score"]) if r["score"] is not None else None,
-        passed=r["passed"],
+        state=r["status"],
+        score=float(r["score"]) if done and r["score"] is not None else None,
+        passed=r["passed"] if done else (False if r["status"] == "failed" else None),
         cases=[CaseResult.model_validate(c) for c in _j(r["cases"]) or []],
         at=r["at"],
-        status=r["status"],
+        tokens=RunTokens(input=int(r["input_tokens"] or 0), output=int(r["output_tokens"] or 0)),
+        equiv_cost_usd=Decimal(r["equiv_cost_usd"] or 0),
         purpose=r["purpose"],
         gate=_j(r["gate"]),
-        tokens=int(r["tokens"] or 0),
+        error=r["error"],
         finished_at=r["finished_at"],
     )
+
+
+async def recent_runs(tx: Tx, refs: list[str]) -> dict[str, list[dict[str, Any]]]:
+    """Each suite's last RECENT_RUNS runs, oldest first."""
+    rows = await tx.all(
+        """SELECT * FROM (
+               SELECT r.*, row_number() OVER (PARTITION BY suite_ref ORDER BY at DESC, id DESC) AS n
+               FROM academy.eval_runs r WHERE suite_ref = ANY(:refs)) x
+           WHERE n <= :k ORDER BY suite_ref, at, id""",
+        refs=refs,
+        k=RECENT_RUNS,
+    )
+    out: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        out.setdefault(r["suite_ref"], []).append(r)
+    return out
+
+
+async def baseline_score(tx: Tx, suite_ref: str) -> float | None:
+    """The suite's baseline score now (None: no baseline yet)."""
+    row = await tx.first("SELECT baseline FROM academy.eval_suites WHERE ref = :r", r=suite_ref)
+    b = render_baseline(row["baseline"]) if row else None
+    return b.score if b else None
 
 
 async def queue_eval(
@@ -264,17 +340,27 @@ async def queue_eval(
     skill_version_id: UUID | None = None,
     teaching_id: UUID | None = None,
 ) -> dict[str, Any]:
-    """A queued eval run (the caller starts its workflow after commit).
-    Refused over the month's academy cap."""
-    await suite(tx, suite_ref)
+    """A queued eval run (the caller starts its workflow after commit). It
+    holds an estimate against the month's academy cap while it waits and runs
+    (8.1 §2.11), so runs queued together cannot pass the cap: refused with
+    409 academy_budget when the estimate does not fit (a cap of 0 stops all).
+    The month's runs are counted under a lock (two queues at once wait)."""
+    s = await suite(tx, suite_ref)
+    await tx.exec("SELECT pg_advisory_xact_lock(hashtextextended('academy:budget', 0))")
+    estimate = max(1, len(_j(s["cases"]) or [])) * EVAL_CASE_ESTIMATE
     b = await budget(tx, settings)
-    if b.used_tokens >= b.cap_tokens:  # a cap of 0 stops every eval
-        raise ApiError(409, "academy_budget", f"{b.used_tokens} of {b.cap_tokens} tokens used")
+    if b.used_tokens + estimate > b.cap_tokens:
+        raise ApiError(
+            409,
+            "academy_budget",
+            f"{b.used_tokens} of {b.cap_tokens} tokens used or held; this run needs ~{estimate}",
+        )
     return await tx.one(
         """INSERT INTO academy.eval_runs (company_id, suite_ref, subject, candidate, purpose,
-               skill_version_id, teaching_id, requested_by_kind, requested_by_code)
-           VALUES (:co, :suite, CAST(:subj AS jsonb), CAST(:cand AS jsonb), :p, :sv, :te, :bk, :bc)
+               skill_version_id, teaching_id, requested_by_kind, requested_by_code, reserved_tokens)
+           VALUES (:co, :suite, CAST(:subj AS jsonb), CAST(:cand AS jsonb), :p, :sv, :te, :bk, :bc, :est)
            RETURNING *""",
+        est=estimate,
         co=company_id,
         suite=suite_ref,
         subj=subject.model_dump_json(),
@@ -288,11 +374,25 @@ async def queue_eval(
 
 
 def gate(score: float, baseline: dict[str, Any] | None) -> dict[str, Any]:
-    """score >= baseline - 1 (no baseline yet: the first run sets it)."""
+    """score >= baseline - 1. A suite without a baseline: this (successful)
+    run sets it, but it is not a pass by itself (8.1 §2.10): a second run, now
+    against that baseline, decides."""
     base = float(baseline["score"]) if baseline and baseline.get("score") is not None else None
-    threshold = round(base - 1, 2) if base is not None else None
-    passed = threshold is None or score >= threshold
-    return {"baseline": base, "threshold": threshold, "passed": passed}
+    if base is None:
+        return {"baseline": None, "threshold": None, "passed": False, "sets_baseline": True}
+    threshold = round(base - 1, 2)
+    return {"baseline": base, "threshold": threshold, "passed": score >= threshold}
+
+
+async def set_first_baseline(tx: Tx, suite_ref: str, subject: dict[str, Any], score: float) -> bool:
+    """A suite's first successful run sets its baseline (only when none is set)."""
+    n = await tx.exec(
+        """UPDATE academy.eval_suites SET baseline = CAST(:b AS jsonb), updated_at = now()
+           WHERE ref = :r AND (baseline IS NULL OR baseline->>'score' IS NULL)""",
+        r=suite_ref,
+        b=json.dumps({"subject": subject, "score": score}, ensure_ascii=False),
+    )
+    return bool(n)
 
 
 def weighted(cases: list[dict[str, Any]], scores: list[float]) -> float:
@@ -314,10 +414,7 @@ async def raise_baseline(tx: Tx, suite_ref: str, subject: dict[str, Any], score:
         """UPDATE academy.eval_suites SET baseline = CAST(:b AS jsonb), updated_at = now()
            WHERE ref = :r""",
         r=suite_ref,
-        b=json.dumps(
-            {"subject": subject, "version": subject.get("version"), "score": score},
-            ensure_ascii=False,
-        ),
+        b=json.dumps({"subject": subject, "score": score}, ensure_ascii=False),
     )
 
 
@@ -349,7 +446,24 @@ def render_curriculum(r: dict[str, Any]) -> Curriculum:
 
 
 # -------------------------------------------------------------- teachings --
-def render_teaching(r: dict[str, Any]) -> Teaching:
+def teaching_eval(run: dict[str, Any] | None) -> TeachingEval | None:
+    if run is None:
+        return None
+    r = render_run(run)
+    return TeachingEval(
+        id=r.id, score=r.score, baseline=(r.gate or {}).get("baseline"), passed=r.passed
+    )
+
+
+async def runs_by_id(tx: Tx, ids: list[UUID]) -> dict[UUID, dict[str, Any]]:
+    ids = [i for i in ids if i is not None]
+    if not ids:
+        return {}
+    rows = await tx.all("SELECT * FROM academy.eval_runs WHERE id = ANY(:ids)", ids=ids)
+    return {r["id"]: r for r in rows}
+
+
+def render_teaching(r: dict[str, Any], runs: dict[UUID, dict[str, Any]] | None = None) -> Teaching:
     return Teaching(
         id=r["id"],
         ref=r["ref"],
@@ -358,7 +472,7 @@ def render_teaching(r: dict[str, Any]) -> Teaching:
         text_md=r["text_md"],
         file_id=r["file_id"],
         proposal=_j(r["proposal"]),
-        eval_run=r["eval_run_id"],
+        eval_run=teaching_eval((runs or {}).get(r["eval_run_id"])),
         status=r["status"],
         created_at=r["created_at"],
         review=_j(r["review"]),
@@ -382,12 +496,17 @@ def target_role(lib: C.Library, tx_emp: dict[str, Any] | None, target: dict[str,
     return str((tx_emp or {}).get("role") or "employee")
 
 
-async def addenda_for(tx: Tx, role: str) -> list[dict[str, Any]]:
+async def addenda_for(tx: Tx, role: str, employee: str | None = None) -> list[dict[str, Any]]:
+    """The sealed addenda a run carries: its role's, and (8.1 §2.14) those
+    taught to this one employee; never another employee's."""
     return await tx.all(
-        """SELECT a.role, a.version, a.text_md, t.ref FROM academy.addenda a
+        """SELECT a.id, a.role, a.version, a.text_md, a.employee_code, t.ref FROM academy.addenda a
            JOIN academy.teachings t ON t.id = a.teaching_id
-           WHERE a.role = :role AND a.active ORDER BY a.version""",
+           WHERE a.role = :role AND a.active
+             AND (a.employee_code IS NULL OR a.employee_code = CAST(:emp AS text))
+           ORDER BY a.employee_code NULLS FIRST, a.version""",
         role=role,
+        emp=employee,
     )
 
 
@@ -411,20 +530,28 @@ async def apply_teaching(
             c=target["ref"],
         )
     role = target_role(lib, emp, target)
-    if kind == "charter_rule":
+    if kind == "charter_rule" or (kind in ("skill", "playbook") and emp is not None):
+        # A rule, or a method taught to ONE employee: an addendum for that
+        # employee only (8.1 §2.14); taught to a role, the role's.
         v = await tx.scalar(
             "SELECT COALESCE(max(version), 0) + 1 FROM academy.addenda WHERE role = :r", r=role
         )
-        await tx.exec(
-            """INSERT INTO academy.addenda (company_id, role, version, text_md, teaching_id)
-               VALUES (:co, :role, :v, :text, :t)""",
+        aid = await tx.scalar(
+            """INSERT INTO academy.addenda (company_id, role, version, text_md, teaching_id,
+                   employee_code)
+               VALUES (:co, :role, :v, :text, :t, :emp) RETURNING id""",
             co=company_id,
             role=role,
             v=v,
             text=text[:8000],
             t=t["id"],
+            emp=emp["code"] if emp is not None else None,
         )
-        result: dict[str, Any] = {"addendum": f"{role}@{v}"}
+        result: dict[str, Any] = {
+            "addendum": f"{role}@{v}",
+            "addendum_id": str(aid),
+            **({"employee": emp["code"]} if emp is not None else {}),
+        }
     elif kind in ("skill", "playbook"):
         review = _j(t["review"])
         row = await S.write_version(
@@ -451,7 +578,12 @@ async def apply_teaching(
             r=json.dumps(review),
             e=json.dumps(_eval_of(eval_row)),
         )
-        await S.activate(tx, row, int(row["latest_version"]))
+        await S.activate(
+            tx,
+            row,
+            int(row["latest_version"]),
+            await baseline_score(tx, eval_row["suite_ref"]) if eval_row else None,
+        )
         result = {"skill": f"{row['ref']}@{row['latest_version']}"}
     else:  # memory: one employee's note
         if emp is None:
@@ -482,7 +614,7 @@ def _eval_of(run: dict[str, Any] | None) -> dict[str, Any] | None:
         "suite": run["suite_ref"],
         "score": float(run["score"]) if run["score"] is not None else None,
         "baseline": g.get("baseline"),
-        "passed": run["passed"],
+        "passed": bool(run["passed"]) and run["status"] == "done",
         "run": str(run["id"]),
     }
 
@@ -558,9 +690,10 @@ async def record(tx: Tx, lib: C.Library, code: str) -> TrainingRecord:
              AND ((subject->>'kind' = 'charter' AND subject->>'ref' = :role)
                   OR (subject->>'kind' = 'skill' AND subject->>'ref' = ANY(:refs))
                   OR (subject->>'kind' = 'model' AND subject->>'ref' = :role))
-           ORDER BY finished_at DESC LIMIT 20""",
+           ORDER BY finished_at DESC LIMIT :n""",
         role=role,
         refs=refs,
+        n=max(20, TREND_SCORES),
     )
     lessons: list[str] = []
     # knowledge.lessons comes with the stars (another part of prompt 8): read
@@ -581,7 +714,9 @@ async def record(tx: Tx, lib: C.Library, code: str) -> TrainingRecord:
                 co=emp["company"],
             )
         ]
-    addenda = [f"{a['ref']} ({a['role']}@{a['version']})" for a in await addenda_for(tx, role)]
+    addenda = [
+        f"{a['ref']} ({a['role']}@{a['version']})" for a in await addenda_for(tx, role, emp["code"])
+    ]
     return TrainingRecord(
         employee=emp["code"],
         charter_version=charter.version if charter else None,
@@ -592,6 +727,6 @@ async def record(tx: Tx, lib: C.Library, code: str) -> TrainingRecord:
             for r in runs
         ],
         lessons=lessons,
-        trend=[float(r["score"]) for r in reversed(runs[:10])],
+        trend=[float(r["score"]) for r in reversed(runs[:TREND_SCORES])],
         addenda=addenda,
     )

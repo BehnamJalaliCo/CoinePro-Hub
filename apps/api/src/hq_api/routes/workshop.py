@@ -539,6 +539,8 @@ async def answer_approval(
             )
         if s["state"] in D.FINAL and body.allow:
             raise ApiError(409, "validation_failed", fields={"session": f"{ref} is {s['state']}"})
+        if body.allow:  # nothing goes on while the overseer holds it (contract §18.15)
+            await oversight.require_not_held(tx, "session", ref)
         ap = await D.answer_approval(
             tx, ctx.who, ctx.audit, s, approval_id, body.allow, body.note, step_up_id
         )

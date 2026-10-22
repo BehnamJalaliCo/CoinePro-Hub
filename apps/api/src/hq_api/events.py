@@ -71,6 +71,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "support": ("support.",),
     "growth": ("rescue.", "lifecycle.", "nps."),
     "feedback": ("feedback.",),
+    # ⟨1.4.6⟩ prompt 9.1: brand.updated (contract §18.14)
+    "companies": ("brand.",),
 }
 
 

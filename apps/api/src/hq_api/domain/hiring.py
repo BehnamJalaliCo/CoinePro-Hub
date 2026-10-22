@@ -29,6 +29,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field
 
@@ -52,7 +53,7 @@ class Envelope(BaseModel):
 
     company: str
     tokens_month: int | None  # the company's monthly budget (llm.budgets), if set
-    committed_month: int  # monthly estimates of its active employees' hire cards
+    committed_month: int  # monthly estimates of its approved hires: active, or not made yet
     used_month: int  # tokens used this Jalali month
     hires_month: int  # hire cards approved this Jalali month
 
@@ -120,7 +121,15 @@ async def check_approval(
 ) -> None:
     """The hard checks of every hire approval, whoever approves, in the
     approving transaction (contract §18.11); a refusal is a stable code and
-    no employee is made. The charter's fit is checked by the caller first."""
+    no employee is made. The charter's fit is checked by the caller first.
+
+    Every approval of a company runs under one per-company lock (contract
+    §18.15): a second approval waits until the first commits, then counts its
+    card (approved, employee not made yet) in `committed` and in the five a
+    day, so two approvals can never both fit an envelope only one fits."""
+    await tx.exec(
+        "SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))", k=f"hire:{d['company_id']}"
+    )
     model = str(payload.get("model") or "")
     if not await tx.scalar(
         "SELECT EXISTS (SELECT 1 FROM llm.connections WHERE status = 'enabled' AND models ? :m)",
@@ -172,17 +181,25 @@ def jalali_month_start(today: date) -> date:
 
 
 async def envelopes(tx: Tx) -> list[Envelope]:
-    """Every active operating company's envelope (contract §18.11)."""
-    start = jalali_month_start(datetime.now(UTC).date())
+    """Every active operating company's envelope (contract §18.11). The month
+    is the owner's Jalali month, from midnight in the owner's time zone."""
+    tz = ZoneInfo(
+        str(await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran")
+    )
+    start = jalali_month_start(datetime.now(tz).date())
     rows = await tx.all(
         """SELECT c.code,
                   (SELECT b.token_limit FROM llm.budgets b
                     WHERE b.company_id = c.id AND b.scope_type = 'company' AND b.scope_ref = c.code
                       AND b.period = 'month' AND b.enabled) AS tokens_month,
-                  (SELECT COALESCE(sum(COALESCE((d.payload->'quota_estimate_month'->>'tokens')::bigint,
-                                                d.quota_tokens, 0)), 0)
-                     FROM core.employees e JOIN cartable.decisions d ON d.id = e.hired_by_decision_id
-                    WHERE e.company_id = c.id AND e.status = 'active') AS committed_month,
+                  (SELECT COALESCE(sum(COALESCE((COALESCE(d.amendments->'quota_estimate_month',
+                                                          d.payload->'quota_estimate_month')
+                                                 ->>'tokens')::bigint, 0)), 0)
+                     FROM cartable.decisions d
+                     LEFT JOIN core.employees e ON e.hired_by_decision_id = d.id
+                    WHERE d.company_id = c.id AND d.kind = 'hire' AND d.status = 'approved'
+                      AND (e.status = 'active'
+                           OR (e.id IS NULL AND d.effect_status = 'pending'))) AS committed_month,
                   (SELECT COALESCE(sum(COALESCE(k.input_tokens, 0) + COALESCE(k.output_tokens, 0)
                                        + COALESCE(k.cache_read_tokens, 0)
                                        + COALESCE(k.cache_write_tokens, 0)), 0)
@@ -191,7 +208,7 @@ async def envelopes(tx: Tx) -> list[Envelope]:
                     WHERE d.company_id = c.id AND d.kind = 'hire' AND d.status = 'approved'
                       AND d.decided_at >= :start) AS hires_month
            FROM core.companies c WHERE c.kind = 'company' AND c.status = 'active' ORDER BY c.code""",
-        start=datetime.combine(start, time.min, tzinfo=UTC),
+        start=datetime.combine(start, time.min, tzinfo=tz).astimezone(UTC),
     )
     return [
         Envelope(
@@ -215,8 +232,10 @@ async def after_hire(
     """After an approved hire: its `hire` story (every hire, contract §18.12);
     after a delegated one (a card its CEO decides) also the 7-day probation,
     one `report` line for the owner's digest (never an urgent push) and a
-    review item for the Chief Overseer (PR-098, 24 h)."""
-    estimate = (payload.get("quota_estimate_month") or {}).get("tokens") or d.get("quota_tokens")
+    review item for the Chief Overseer (PR-098, 24 h, only while PR-098 is
+    active). A card the owner approved first is the owner's hire: no
+    probation and no «… استخدام کرد» line (contract §18.15)."""
+    estimate = (payload.get("quota_estimate_month") or {}).get("tokens")
     await stories.system(
         tx,
         company_id=d["company_id"],
@@ -235,8 +254,9 @@ async def after_hire(
         links={"employee": employee_code, "decision": d["ref"]},
         event_key=f"hire:{d['ref']}",
     )
-    if d.get("approver_code") is None:
+    if d.get("decided_by_kind") != "agent":
         return
+    ceo = str(d["decided_by_code"])
     await tx.exec(
         """UPDATE core.employees SET probation_until = now() + make_interval(days => :n)
            WHERE code = :c""",
@@ -248,7 +268,7 @@ async def after_hire(
         company_id=d["company_id"],
         company_code=d["company"],
         level="report",
-        title_fa=f"{d['approver_code']} استخدام کرد: {employee_code} ({payload['title_fa']})"[:300],
+        title_fa=f"{ceo} استخدام کرد: {employee_code} ({payload['title_fa']})"[:300],
         body_fa=(
             f"{payload['model']} / {payload['effort']} · برآورد ماهانه {stories.short(estimate)} توکن"
             " · دوره‌ی آزمایشی ۷ روز. برگرداندن: صفحه‌ی کارمند یا استوری."
@@ -266,6 +286,10 @@ async def after_hire(
     )
     if holding is None or not holding["overseer"]:
         return
+    from hq_api.domain import oversight  # the review is PR-098's: none while it is not active
+
+    if await oversight.protocol_in_force(tx, "PR-098") is None:
+        return
     await W.create(
         tx,
         Principal(kind="service", code="hiring", role="service"),
@@ -273,7 +297,7 @@ async def after_hire(
         company_code=holding["code"],
         title=f"بازبینی استخدام {employee_code} ({d['ref']}) · PR-098"[:300],
         brief=(
-            f"{d['approver_code']} با تصمیم {d['ref']} کارمند {employee_code} ({payload['title_fa']}، "
+            f"{ceo} با تصمیم {d['ref']} کارمند {employee_code} ({payload['title_fa']}، "
             f"نقش {payload.get('role')}، {payload['model']} / {payload['effort']}، برآورد ماهانه "
             f"{estimate}) را در {d['company']} استخدام کرد. ظرف ۲۴ ساعت بررسی کن: پاکت، انتخاب مدل، "
             "دلیل و نیاز واقعی. اگر لازم است hold کن یا یافته باز کن؛ تأیید یا آزاد کردن با مالک است."
@@ -323,6 +347,42 @@ async def _set(tx: Tx, holding_id: UUID, who: Principal, state_: str, mode: str 
     )
 
 
+DECIDE_TITLE = "تصمیم درباره‌ی {ref}:"  # the CEO's work item for a card (decisions.propose)
+
+
+async def close_decide_items(tx: Tx, refs: list[str], reason: str) -> list[str]:
+    """The CEOs' open «decide D-…» work items of these cards are closed
+    (cancelled): the card was withdrawn, given back to the owner or decided
+    by the owner first, so nothing is left for the CEO to decide."""
+    if not refs:
+        return []
+    rows = await tx.all(
+        """UPDATE work.work w SET status = 'cancelled', close_reason = :r, closed_at = now()
+           FROM unnest(CAST(:refs AS text[])) AS x(ref)
+           WHERE starts_with(w.title, replace(:t, '{ref}', x.ref))
+             AND w.created_by_kind = 'service' AND w.created_by_code = 'hiring'
+             AND w.status IN ('queued', 'in_progress', 'waiting')
+           RETURNING w.ref""",
+        refs=refs,
+        t=DECIDE_TITLE,
+        r=reason[:500],
+    )
+    return [str(r["ref"]) for r in rows]
+
+
+async def return_to_owner(tx: Tx) -> list[str]:
+    """Hiring switched to `proposals`: the pending hire cards a CEO was to
+    decide return to the owner's cartable (approver cleared)."""
+    rows = await tx.all(
+        """UPDATE cartable.decisions SET approver_kind = NULL, approver_code = NULL
+           WHERE kind = 'hire' AND status = 'pending' AND approver_code IS NOT NULL
+           RETURNING ref"""
+    )
+    refs = [str(r["ref"]) for r in rows]
+    await close_decide_items(tx, refs, "مالک: حالت استخدام «پیشنهاد» شد؛ تصمیم با مالک است")
+    return refs
+
+
 async def withdraw_pending(tx: Tx) -> list[str]:
     refs = await tx.scalar("SELECT cartable.withdraw_pending_hires(:note)", note=NOTE)
     return list(refs or [])
@@ -337,9 +397,13 @@ async def start(
     mode: Mode,
     charters: Any,
 ) -> dict[str, Any]:
-    """Open hiring in mode `proposals` or `delegated` (envelopes checked first)."""
+    """Open hiring in mode `proposals` or `delegated` (envelopes checked first).
+    Switching to `proposals` gives every pending card back to the owner: its
+    `approver` is cleared and its CEO's «decide D-…» item is closed (§18.15)."""
     await require_envelopes(tx, mode)
     await _set(tx, holding_id, who, "open", mode)
+    if mode == "proposals":
+        await return_to_owner(tx)
     out = await bootstrap.apply(tx, bootstrap.load(PROPOSALS_KEY), who=who, charters=charters)
     work: list[dict[str, str]] = out["created"]
     await events.emit(
@@ -352,6 +416,7 @@ async def close(tx: Tx, who: Principal, *, holding_id: UUID, holding_code: str) 
     """Close hiring; pending hire cards are withdrawn (never deleted)."""
     await _set(tx, holding_id, who, "closed", None)
     refs = await withdraw_pending(tx)
+    await close_decide_items(tx, refs, NOTE)
     await events.emit(
         tx,
         holding_code,

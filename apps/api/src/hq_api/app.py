@@ -27,6 +27,7 @@ from hq_api.routes import (
     audit_control,
     auth,
     backups,
+    brands,
     decisions,
     deliverables,
     egress,
@@ -164,6 +165,7 @@ def create_app(
         skills,
         academy,
         founding,
+        brands,
         # prompt 10 (contract §19): revenue, support, growth, feedback, intake
         revenue,
         support,

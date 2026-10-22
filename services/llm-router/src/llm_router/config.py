@@ -79,7 +79,7 @@ class Settings:
     quota_interval_s: int = field(default_factory=lambda: _int("LLM_QUOTA_INTERVAL_S", 60))
     # The oversight share (prompt 08 §2.3, contract §18.1 v1.4.4): the holding's
     # overseer and QC together stop at this share of the agents' daily token cap
-    # (UTC day); 0 cap = no cap. Empty AGENT_DAILY_TOKEN_CAP = the api's default.
+    # (UTC day); 0 = nothing (no share either). Empty AGENT_DAILY_TOKEN_CAP = the api's default.
     agent_daily_token_cap: int = field(
         default_factory=lambda: int(os.environ.get("AGENT_DAILY_TOKEN_CAP") or 2_000_000)
     )

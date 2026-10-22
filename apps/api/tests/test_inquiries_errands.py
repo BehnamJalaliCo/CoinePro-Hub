@@ -372,8 +372,11 @@ async def test_a_purchase_becomes_a_decision_and_nothing_happens_without_the_sea
         ),
     )
     assert (await run(agents, run_id))["state"] == "done"
+    # The newest: a migration round trip of another test file (0020 down and up)
+    # restarts the errand refs while older cards stay.
     d = await su.fetchrow(
-        "SELECT * FROM cartable.decisions WHERE kind = 'errand_action' AND payload->>'errand' = $1",
+        """SELECT * FROM cartable.decisions WHERE kind = 'errand_action' AND payload->>'errand' = $1
+           ORDER BY created_at DESC LIMIT 1""",
         ref,
     )
     assert d["status"] == "pending" and d["action_class"] == "A3" and d["proposer_code"] == "HQ-PA"

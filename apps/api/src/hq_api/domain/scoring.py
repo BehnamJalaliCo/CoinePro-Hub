@@ -12,6 +12,11 @@ each normalised to 0..10 over the last 90 days:
 A component without data is left out and the weights are renormalised;
 no data at all -> no score. Computed by a job (nightly, and after each
 rating for that department), stored, never edited by hand.
+
+The owner's welcome of a new hire (its `hire` story, contract §18.12 and
+§18.15) is a small fixed positive part on top: +0.2 in the month of the
+welcome (`owner_welcome` in the components), the score capped at 10. A
+welcome alone makes no score: it only adds to one that has data.
 """
 
 from __future__ import annotations
@@ -31,10 +36,18 @@ WEIGHTS = {
     "on_time": 0.15,
 }
 ACCEPTED_FROM = 6
+WELCOME_BONUS = 0.2
+
+
+def with_welcome(score: float | None, welcomed: bool) -> float | None:
+    """The owner's welcome this month: +0.2 on a score that exists (max 10)."""
+    if score is None or not welcomed:
+        return score
+    return round(min(10.0, score + WELCOME_BONUS), 2)
 
 
 def combine(components: dict[str, float | None]) -> float | None:
-    present = {k: v for k, v in components.items() if v is not None}
+    present = {k: v for k, v in components.items() if v is not None and k in WEIGHTS}
     if not present:
         return None
     total_w = sum(WEIGHTS[k] for k in present)
@@ -77,7 +90,10 @@ async def recompute_department(tx: Tx, department_id: UUID) -> list[dict[str, An
            SELECT e.id, e.code,
                   (SELECT avg(score) FROM latest l WHERE l.producer_id = e.id) AS rating_avg,
                   (SELECT count(*) FROM latest l WHERE l.producer_id = e.id AND l.score >= :acc) AS accepted,
-                  cl.done, cl.finished, cl.with_due, cl.on_time, co.usd
+                  cl.done, cl.finished, cl.with_due, cl.on_time, co.usd,
+                  EXISTS (SELECT 1 FROM owner.stories s
+                           WHERE s.kind = 'hire' AND s.links ->> 'employee' = e.code
+                             AND s.welcomed_at >= date_trunc('month', now())) AS welcomed
            FROM emp e LEFT JOIN closed cl ON cl.assignee_id = e.id LEFT JOIN cost co ON co.actor_ref = e.code""",
         d=department_id,
         acc=ACCEPTED_FROM,
@@ -100,11 +116,14 @@ async def recompute_department(tx: Tx, department_id: UUID) -> list[dict[str, An
             "cost_per_accepted_output": cost_component(per_output.get(r["id"]), dept_median),
             "on_time": round(10 * r["on_time"] / r["with_due"], 2) if r["with_due"] else None,
         }
+        score = combine(comps)
+        if r["welcomed"]:
+            comps["owner_welcome"] = WELCOME_BONUS  # recorded; added once a score exists
         results.append(
             {
                 "id": r["id"],
                 "code": r["code"],
-                "score": combine(comps),
+                "score": with_welcome(score, bool(r["welcomed"])),
                 "owner_avg": round(float(r["rating_avg"]), 2)
                 if r["rating_avg"] is not None
                 else None,

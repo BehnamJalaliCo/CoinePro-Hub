@@ -41,6 +41,7 @@ SCHEMAS = (
     "provisioning",
     "infra",
     "tools",  # 7.1 §2.12: tools.mcp_calls is a tenant table
+    "org",  # 9.1: org.company_brands
     # prompt 10 §1.1: revenue and support; every table there is a tenant table
     "revenue",
     "support",
@@ -161,6 +162,13 @@ async def _fill(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: 
 async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     """Prompt 05's tables: rows of `co` the runtime and the checker would write
     (superuser, test setup only)."""
+    # Prompt 9.1: a brand version of the company.
+    await su.execute(
+        """INSERT INTO org.company_brands (company_id, version, part, source, created_by_kind,
+               created_by_code)
+           VALUES ($1, 1, 'mark', '{"kind": "upload"}', 'owner', 'owner')""",
+        co["id"],
+    )
     # Prompt 09: a founding, its plan, a run and its event, a server, a listing
     # (the holding's in production; any company's here, to prove the isolation).
     founding = await su.fetchval(
@@ -422,9 +430,10 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
         f"SK-{n}",
     )
     sv = await su.fetchval(
-        """INSERT INTO knowledge.skill_versions (skill_id, company_id, version, body_md, source,
-               precheck, created_by_kind, created_by_code)
-           VALUES ($1, $2, 1, 'b', 'text', '{}', 'owner', 'owner') RETURNING id""",
+        """INSERT INTO knowledge.skill_versions (skill_id, company_id, version, body_md, name_fa,
+               summary_fa, scope, text_sha256, source, precheck, created_by_kind, created_by_code)
+           VALUES ($1, $2, 1, 'b', 'm', 's', '{}', repeat('0', 64), 'text', '{}', 'owner', 'owner')
+           RETURNING id""",
         skill,
         co["id"],
     )
@@ -450,7 +459,8 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     await su.execute(
         """INSERT INTO academy.eval_runs (company_id, suite_ref, subject, purpose, skill_version_id,
                requested_by_kind, requested_by_code)
-           VALUES ($1, $2, '{}', 'manual', $3, 'owner', 'owner')""",
+           VALUES ($1, $2, '{"kind": "skill", "ref": "SK-999", "version": 1}', 'manual', $3,
+                   'owner', 'owner')""",
         co["id"],
         f"EV-{n}",
         sv,

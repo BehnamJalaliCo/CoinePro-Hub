@@ -45,6 +45,13 @@ async def test_skill_review_routes_by_ref(mock: respx.MockRouter, gw: Gateway) -
     out = await call(gw, "skill.review", {"ref": "SK-101", "version": 2, **REVIEW})
     assert (out["outcome"], out["ref"], out["class"]) == ("ok", "SK-101@2", "A2"), out
     assert json.loads(skill.calls.last.request.content)["verdict"] == "pass"
+    assert "sha256" not in json.loads(skill.calls.last.request.content)
+    # 8.1 §1.6: the sha256 of the text the work item showed goes through.
+    sha = "ab" * 32
+    out = await call(gw, "skill.review", {"ref": "SK-101", "version": 2, **REVIEW, "sha256": sha})
+    assert json.loads(skill.calls.last.request.content)["sha256"] == sha, out
+    bad = await call(gw, "skill.review", {"ref": "SK-101", **REVIEW, "sha256": "not-a-sha"})
+    assert bad["code"] == "invalid_args"
     out = await call(gw, "skill.review", {"ref": "TE-0007", **REVIEW})
     assert (out["outcome"], out["ref"]) == ("ok", "TE-0007") and teach.called
     bad = await call(gw, "skill.review", {"ref": "W-000101", **REVIEW})

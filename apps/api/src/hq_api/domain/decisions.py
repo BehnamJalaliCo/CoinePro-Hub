@@ -75,6 +75,7 @@ ACTION_CLASS = {
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
 # protocol (prompt 08 §2): a new or changed oversight protocol is the owner's seal.
 # tool_enable: the seal re-enables an MCP server with its new listing (§18.13).
+# lesson_adoption: every new kind of §18.10 is sealed with step-up (§18.15).
 STEP_UP_KINDS = (
     "hire",
     "dismissal",
@@ -83,6 +84,7 @@ STEP_UP_KINDS = (
     "protocol",
     "company_found",
     "tool_enable",
+    "lesson_adoption",
     # ⟨1.5⟩ all three are sealed with step-up (contract §19.9)
     "message_template",
     "lifecycle_rule",
@@ -669,10 +671,14 @@ async def propose(
         from hq_api.domain import founding
 
         await founding.check_proposal(tx, payload, company_id)
+    # Still open: no card yet, or its card came back without an answer
+    # (returned, expired, withdrawn), so the lesson may be proposed again.
     if body.kind == "lesson_adoption" and not await tx.scalar(
-        """SELECT 1 FROM knowledge.lesson_adoptions
-           WHERE lesson_ref = :ref AND company_id = :co AND status = 'proposed'
-             AND decision_ref IS NULL""",
+        """SELECT 1 FROM knowledge.lesson_adoptions a
+           WHERE a.lesson_ref = :ref AND a.company_id = :co AND a.status = 'proposed'
+             AND (a.decision_ref IS NULL OR EXISTS (
+                  SELECT 1 FROM cartable.decisions x WHERE x.ref = a.decision_ref
+                     AND x.status IN ('returned', 'expired', 'withdrawn')))""",
         ref=payload["lesson"],
         co=company_id,
     ):
@@ -764,6 +770,8 @@ async def propose(
             priority="P2",
             assignee_code=approver,
         )
+        # Watch mode holds a card a CEO decides as well (contract §18.15).
+        await oversight.hold_if_watching(tx, d)
         return d
     if not notify_owner:  # the owner wrote it (a direct hire): nothing to tell them
         return d
@@ -883,6 +891,11 @@ async def decide(
         await stars.adoption_decided(
             tx, d["payload"]["lesson"], d["company_id"], "rejected", d["ref"]
         )
+    if verdict == "returned" and d["kind"] == "lesson_adoption":
+        await stars.adoption_reopened(tx, d["payload"]["lesson"], d["company_id"], d["ref"])
+    if d["kind"] == "hire" and d.get("approver_code") and who.code != d["approver_code"]:
+        # The owner decided a CEO's card first: the CEO's «decide D-…» item closes.
+        await hiring.close_decide_items(tx, [d["ref"]], f"{d['ref']}: مالک خودش تصمیم گرفت")
     effect = "pending" if verdict == "approved" and d["kind"] in EFFECT_KINDS else "none"
     server = None
     sealed_as_is = d["kind"] == "tool_enable" or (

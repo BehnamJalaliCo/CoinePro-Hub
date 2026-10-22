@@ -827,6 +827,8 @@ class SkillReviewIn(In):
     verdict: Literal["pass", "changes", "reject"]
     checks: dict[str, bool] = Field(default_factory=dict, max_length=8)
     notes_md: str = Field(min_length=1, max_length=4000)
+    # 8.1 §1.6: the sha256 of the text the work item showed (another one: 422)
+    sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class EvalSubjectIn(In):
@@ -842,7 +844,7 @@ class EvalRunIn(In):
 
 class TeachProposalIn(In):
     kind: Literal["charter_rule", "skill", "memory", "playbook"]
-    diff_md: str = Field(min_length=1, max_length=8000)
+    diff_md: str = Field(min_length=1, max_length=6000)  # 8.1: one skill's text at most
 
 
 class TeachDraftIn(In):
@@ -867,6 +869,7 @@ async def skill_review(api: Api, call: Call, a: SkillReviewIn) -> Result:
             "verdict": a.verdict,
             "checks": a.checks,
             "notes_md": await _text(a.notes_md),
+            **({"sha256": a.sha256} if a.sha256 else {}),
         },
         idem=call.idem("skill.review"),
     )

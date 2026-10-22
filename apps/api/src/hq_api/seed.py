@@ -13,7 +13,7 @@ from typing import Any
 import yaml
 
 from hq_api.db import Tx
-from hq_api.domain import academy, oversight, sites, skills, templates
+from hq_api.domain import academy, brands, oversight, sites, skills, templates
 from hq_api.workshop import domain as workshop
 from hq_common import charters
 
@@ -79,4 +79,7 @@ async def seed(tx: Tx) -> dict[str, Any]:
         lib = _charters()
         added["skills"] = await skills.seed(tx, holding["id"], holding["code"], lib)
         added.update(await academy.seed(tx, holding["id"], lib))
+    # Prompt 9.1 §5: version 1 of the brand of every company with a folder in
+    # design/brand/companies/ (HQ_BRANDS_DIR, read-only; folders, not codes).
+    added["brands"] = await brands.seed(tx)
     return {"companies_filled": filled, **added}

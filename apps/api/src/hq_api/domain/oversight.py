@@ -10,8 +10,13 @@ Rules kept here, in one place:
   answerable role there); it is `verified` only with evidence of the fix,
   and only by the overseer or the owner.
 - A hold stops its target until the OWNER releases or cancels it; nobody
-  else, the overseer included, can (no API path exists for them).
-- Watch mode holds and stops, never approves.
+  else, the overseer included, can (no API path exists for them). A release
+  lets the action go on; a cancel cancels the action itself (contract
+  §18.15): nothing held ever runs after a cancel.
+- Watch mode holds and stops, never approves; a target the owner released or
+  decided in the same watch period is not held again.
+- A paused (or draft) protocol is refused on every path: no run, no result,
+  no finding (contract §18.15).
 """
 
 from __future__ import annotations
@@ -27,7 +32,7 @@ from zoneinfo import ZoneInfo
 import yaml
 from pydantic import BaseModel, Field
 
-from hq_api import events
+from hq_api import events, interactions
 from hq_api.db import Tx
 from hq_api.domain import notify
 from hq_api.domain import recurrence as R
@@ -59,6 +64,14 @@ QC = "OVS-MGR"
 
 
 # ------------------------------------------------------------------ models --
+class LastRun(BaseModel):
+    """A protocol's last finished run (contract §18.15: never `skipped`)."""
+
+    at: datetime
+    result: Literal["pass", "fail", "partial", "deferred"]
+    findings: int
+
+
 class Protocol(BaseModel):
     id: UUID
     ref: str
@@ -74,7 +87,7 @@ class Protocol(BaseModel):
     status: str
     version: int
     sealed_at: datetime | None
-    last_run: dict[str, Any] | None = None
+    last_run: LastRun | None = None
 
 
 class ProtocolIn(Model):
@@ -219,7 +232,7 @@ PROTOCOL_SQL = """
 def render_protocol(r: dict[str, Any]) -> Protocol:
     last = None
     if r.get("last_at"):
-        last = {"at": r["last_at"], "result": r["last_result"], "findings": r["last_findings"]}
+        last = LastRun(at=r["last_at"], result=r["last_result"], findings=r["last_findings"])
     return Protocol(
         id=r["id"],
         ref=r["ref"],
@@ -315,6 +328,24 @@ async def load_protocol(tx: Tx, ref: str) -> dict[str, Any]:
     return await tx.one(PROTOCOL_SQL + " WHERE p.ref = :r", r=ref, not_found="not_found")
 
 
+async def protocol_in_force(tx: Tx, ref: str) -> dict[str, Any] | None:
+    """The protocol's current version when it is `active`; None when it is
+    paused, a draft or unknown (every event-driven path skips it then)."""
+    p = await tx.first(PROTOCOL_SQL + " WHERE p.ref = :r", r=ref)
+    return p if p is not None and p["status"] == "active" else None
+
+
+def require_active(p: dict[str, Any]) -> None:
+    """A paused protocol has no run, no result and no finding (§18.15)."""
+    if p.get("status") != "active":
+        raise ApiError(
+            409,
+            "validation_failed",
+            f"protocol {p.get('ref')} is {p.get('status')}",
+            fields={"protocol": f"{p.get('status')}: no run, result or finding"},
+        )
+
+
 async def new_version(
     tx: Tx,
     who: Principal,
@@ -404,6 +435,15 @@ async def finish_run(
     )
 
 
+def per_company_result(result: str, covered: list[str], failing: list[str]) -> dict[str, str]:
+    """A model run's pass or fail for every company it covered (contract
+    §18.15): a company with one of the run's findings fails; a `fail` with no
+    finding named fails every covered company; the others pass."""
+    out = dict.fromkeys(covered, "fail" if result == "fail" and not failing else "pass")
+    out |= dict.fromkeys(failing, "fail")
+    return out
+
+
 async def oversight_tokens_today(tx: Tx) -> int:
     """Tokens the overseer and QC moved today (UTC, the day of the agents'
     daily cap): every model call of their runs, from the router's ledger."""
@@ -419,9 +459,10 @@ async def oversight_tokens_today(tx: Tx) -> int:
 
 
 async def share_spent(tx: Tx, daily_cap: int, share: float) -> bool:
-    """The oversight share of today's token cap is used up (prompt 08 §2.3)."""
-    if oversight_share.limit(daily_cap, share) is None:
-        return False
+    """The oversight share of today's token cap is used up (prompt 08 §2.3;
+    a cap of 0 is nothing, so its share is spent from the start)."""
+    if oversight_share.limit(daily_cap, share) <= 0:
+        return True
     return oversight_share.spent(await oversight_tokens_today(tx), daily_cap, share)
 
 
@@ -452,7 +493,9 @@ def run_tokens(charters: Any, role: str, configured: int) -> int:
 
 
 async def model_runs_today(tx: Tx, tz: str) -> int:
-    """Protocol runs handed to the overseer or QC today (owner's day)."""
+    """Protocol runs handed to the overseer or QC today (owner's day), counted
+    under a transaction lock so that two runs never both take the last place."""
+    await tx.exec("SELECT pg_advisory_xact_lock(hashtextextended('oversight:model_runs', 0))")
     start = day_start(datetime.now(UTC), tz)
     n: int = await tx.scalar(
         "SELECT count(*) FROM oversight.protocol_runs WHERE work_id IS NOT NULL AND started_at >= :s",
@@ -558,7 +601,10 @@ async def raise_finding(
     dedupe_key: str | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """(the finding, created?). A finding still open with the same key is the
-    same finding: returned, not duplicated (an hourly rule found again)."""
+    same finding: returned, not duplicated (an hourly rule found again). A
+    protocol that is not active raises nothing (409)."""
+    if protocol is not None:
+        require_active(protocol)
     if dedupe_key:
         same = await tx.first(
             FINDING_SQL
@@ -636,10 +682,34 @@ async def raise_finding(
     return await load_finding(tx, row["ref"]), True
 
 
-def _has_fix_evidence(history: list[dict[str, Any]], given: list[dict[str, Any]]) -> bool:
-    if given:
-        return True
+def _has_fix_evidence(history: list[dict[str, Any]]) -> bool:
+    """A `fixed` step that carried its evidence (the verifier's own evidence
+    never counts: verifying is checking someone else's fix)."""
     return any(h["status"] == "fixed" and list(h["evidence"] or []) for h in history)
+
+
+async def in_chain(tx: Tx, f: dict[str, Any], code: str) -> bool:
+    """The finding's answerable, or one of its managers up the chain (the
+    company's CEO is the top of every chain)."""
+    if f["answerable_kind"] != "agent":
+        return False
+    if f["answerable_code"] == code:
+        return True
+    return bool(
+        await tx.scalar(
+            """WITH RECURSIVE up AS (
+                   SELECT e.id, e.reports_to, 0 AS depth FROM core.employees e WHERE e.code = :a
+                   UNION ALL
+                   SELECT m.id, m.reports_to, up.depth + 1 FROM core.employees m
+                   JOIN up ON m.id = up.reports_to WHERE up.depth < 20)
+               SELECT 1 FROM core.employees x
+               WHERE x.code = :me AND x.company_id = :co AND x.status = 'active'
+                 AND (x.id IN (SELECT id FROM up) OR x.kind = 'ceo')""",
+            a=f["answerable_code"],
+            me=code,
+            co=f["company_id"],
+        )
+    )
 
 
 async def update_finding(
@@ -650,9 +720,10 @@ async def update_finding(
     note: str,
     evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """The answerable moves it (acknowledged/fixing/fixed/disputed; `fixed`
-    needs evidence of the fix); the overseer and the owner verify (only with
-    that evidence) and close; the owner may also dispute."""
+    """Only the answerable (or its chain of command) moves it: acknowledged,
+    fixing, fixed (with evidence of the fix), disputed. The overseer verifies
+    only a `fixed` that carried evidence, and closes; the owner verifies,
+    closes or disputes (contract §18.15)."""
     f = await load_finding(tx, ref, lock=True)
     if f["status"] == "closed":
         raise ApiError(409, "validation_failed", f"{ref} is closed")
@@ -662,25 +733,31 @@ async def update_finding(
             raise ApiError(
                 422, "validation_failed", fields={"status": "owner: verified, closed or disputed"}
             )
-    elif who.is_agent and who.role == "overseer":
-        if status not in OVERSEER_STATUSES + ANSWERER_STATUSES:
-            raise ApiError(422, "validation_failed", fields={"status": "not a finding status"})
-    elif who.is_agent:
-        if status not in ANSWERER_STATUSES:
+    elif who.is_agent and status in OVERSEER_STATUSES:
+        if who.role != "overseer":
             raise ApiError(
                 403, "policy_denied", "only the overseer or the owner verifies or closes"
             )
-        if f["answerable_code"] != who.code and f["company_id"] != who.company_id:
-            raise ApiError(403, "policy_denied", "not this finding's company")
+    elif who.is_agent and status in ANSWERER_STATUSES:
+        if not await in_chain(tx, f, who.code):
+            raise ApiError(
+                403, "policy_denied", "only the answerable or its chain of command answers"
+            )
+    elif who.is_agent:
+        raise ApiError(422, "validation_failed", fields={"status": "not a finding status"})
     else:
         raise ApiError(403, "forbidden")
     if status == "fixed" and not evidence:
         raise ApiError(
             422, "validation_failed", fields={"evidence": "fixed needs evidence of the fix"}
         )
-    if status == "verified" and not _has_fix_evidence(await history_of(tx, f["id"]), evidence):
+    if status == "verified" and (
+        f["status"] != "fixed" or not _has_fix_evidence(await history_of(tx, f["id"]))
+    ):
         raise ApiError(
-            422, "validation_failed", fields={"evidence": "verified needs evidence of the fix"}
+            422,
+            "validation_failed",
+            fields={"evidence": "verified only after a `fixed` that carried evidence of the fix"},
         )
     all_evidence = list(f["evidence"] or []) + evidence
     await tx.exec(
@@ -807,8 +884,9 @@ async def score_challenge(
     tx: Tx, who: Principal, ref: str, score: int, notes: str
 ) -> dict[str, Any]:
     ch = await load_challenge(tx, ref, lock=True)
-    judges = {ch["judge_code"]}
-    if not (who.role in ("overseer", "inspector") or who.code in judges):
+    # The challenge's judge scores it (the overseer may too); QC scores only
+    # the challenges it judges (prompt 08.1 §4).
+    if not (who.code == ch["judge_code"] or who.role == "overseer"):
         raise ApiError(403, "policy_denied", "the judge scores")
     if ch["status"] not in ("submitted", "missed"):
         raise ApiError(409, "validation_failed", f"{ref} is {ch['status']}")
@@ -915,7 +993,12 @@ async def holds_for_run(tx: Tx, employee: str, work_ref: str | None) -> list[str
         """SELECT ref, target_kind, target_ref FROM oversight.holds WHERE state = 'held'
              AND ((target_kind = 'employee' AND target_ref = :e)
                OR (target_kind = 'tool' AND split_part(target_ref, ':', 1) = :e)
-               OR (target_kind = 'work' AND target_ref = :w))""",
+               OR (target_kind = 'work' AND target_ref = :w)
+               -- a held approved card stops its follow-up work too (8.1 §4)
+               OR (target_kind = 'decision' AND target_ref IN (
+                     SELECT d.ref FROM cartable.decisions d
+                     JOIN cartable.resolutions r ON r.source_decision_id = d.id
+                     JOIN work.work fw ON fw.id = r.follow_up_work_id WHERE fw.ref = :w)))""",
         e=employee,
         w=work_ref or "",
     )
@@ -964,11 +1047,18 @@ async def place_hold(
     watch: bool = False,
     digest: str | None = None,
 ) -> tuple[dict[str, Any], bool]:
-    """(the hold, created?): one open hold per target."""
+    """(the hold, created?): one open hold per target. A held session stops at
+    once (contract §18.15): the hold row carries it under `session` so the
+    caller interrupts it on its runtime after the commit."""
     existing = await held(tx, kind, ref)
     if existing:
         return existing, False
     company_id, company, summary = await target_company(tx, kind, ref)
+    session = None
+    if kind == "session":
+        from hq_api.workshop import domain as workshop
+
+        session = await workshop.overseer_hold(tx, ref)
     row = await tx.one(
         """INSERT INTO oversight.holds (company_id, target_kind, target_ref, summary_fa, payload_digest,
                reason_md, held_by_kind, held_by_code, watch)
@@ -1002,7 +1092,8 @@ async def place_hold(
         source_kind="agent" if by_kind == "agent" else "system",
         source_code=by_code,
     )
-    h = await tx.one(HOLD_SQL + " WHERE h.ref = :r", r=row["ref"])
+    h = dict(await tx.one(HOLD_SQL + " WHERE h.ref = :r", r=row["ref"]))
+    h["session"] = session
     return h, True
 
 
@@ -1014,7 +1105,15 @@ async def decide_hold(
     note: str | None,
     step_up_id: UUID | None,
 ) -> dict[str, Any]:
-    """The owner only (the routes are owner routes; this checks again)."""
+    """The owner only (the routes are owner routes; this checks again).
+    `released`: the action goes on. `cancelled` (contract §18.15): the action
+    itself is cancelled, so nothing held ever runs after it: a pending card is
+    rejected by the owner (note «لغو از hold»), a queued effect is cancelled
+    (and the follow-up work of an approved card), a workshop session is
+    stopped, a work item is cancelled; a held employee or tool is free again
+    (its refused actions stay refused) and a held story is never shown. Both
+    count as the owner's activity (watch mode). The result carries `session`
+    (the record to interrupt, start or stop on its runtime) and `cancelled`."""
     if not who.is_owner:
         raise ApiError(403, "forbidden", "only the owner releases or cancels a hold")
     h = await tx.one(HOLD_SQL + " WHERE h.ref = :r FOR UPDATE OF h", r=ref, not_found="not_found")
@@ -1028,6 +1127,28 @@ async def decide_hold(
         n=(note or "")[:2000] or None,
         su=step_up_id,
     )
+    session = None
+    cancelled: dict[str, Any] = {}
+    if h["target_kind"] == "session":
+        from hq_api.workshop import domain as workshop
+
+        if state == "released":
+            session = await workshop.overseer_release(tx, h["target_ref"])
+        else:
+            session = await workshop.overseer_cancel(tx, h["target_ref"])
+            cancelled["session"] = session["state"] if session else None
+    elif state == "cancelled":
+        cancelled = await cancel_target(tx, who, h)
+    await interactions.record(
+        tx,
+        who,
+        company_id=h["company_id"],
+        kind="decision",
+        action="oversight.hold_release" if state == "released" else "oversight.hold_cancel",
+        target_kind=h["target_kind"],
+        target_ref=h["target_ref"],
+        data={"hold": ref, **({"cancelled": cancelled} if cancelled else {})},
+    )
     await events.emit(
         tx,
         h["company"],
@@ -1035,7 +1156,73 @@ async def decide_hold(
         ref,
         {"state": state, "target": {"kind": h["target_kind"], "ref": h["target_ref"]}},
     )
-    return await tx.one(HOLD_SQL + " WHERE h.ref = :r", r=ref)
+    out = dict(await tx.one(HOLD_SQL + " WHERE h.ref = :r", r=ref))
+    out["session"] = session
+    out["cancelled"] = cancelled
+    return out
+
+
+CANCEL_NOTE = "لغو از hold"
+
+
+async def cancel_target(tx: Tx, who: Principal, h: dict[str, Any]) -> dict[str, Any]:
+    """What a cancelled hold cancels (contract §18.15), in the same transaction."""
+    from hq_api.domain import decisions as D
+    from hq_api.domain import work as W
+
+    kind, ref = h["target_kind"], h["target_ref"]
+    if kind == "decision":
+        d = await tx.first("SELECT ref FROM cartable.decisions WHERE ref = :r", r=ref)
+        if d is None:
+            return {}
+        d = await D.load(tx, ref, lock=True)
+        if d["status"] == "pending":
+            await D.decide(tx, who, d, "rejected", note=CANCEL_NOTE)
+            return {"decision": "rejected"}
+        out: dict[str, Any] = {}
+        if d["status"] == "approved" and d["effect_status"] == "pending":
+            await tx.exec(
+                """UPDATE cartable.decisions SET effect_status = 'cancelled', effect_error = :n
+                   WHERE id = :id AND effect_status = 'pending'""",
+                id=d["id"],
+                n=CANCEL_NOTE,
+            )
+            out["effect"] = "cancelled"
+        if d["status"] == "approved":
+            follow = await tx.scalar(
+                "SELECT follow_up_work_id FROM cartable.resolutions WHERE source_decision_id = :id",
+                id=d["id"],
+            )
+            if follow is not None and await _cancel_work(tx, W, who, follow):
+                out["follow_up"] = "cancelled"
+        return out
+    if kind == "work":
+        wid = await tx.scalar("SELECT id FROM work.work WHERE ref = :r", r=ref)
+        if wid is not None and await _cancel_work(tx, W, who, wid):
+            return {"work": "cancelled"}
+    return {}
+
+
+async def _cancel_work(tx: Tx, W: Any, who: Principal, work_id: UUID) -> bool:
+    """A work item and its open children, cancelled (as the owner's cancel)."""
+    w = await W.load(tx, work_id, lock=True)
+    if w["status"] in W.CLOSED:
+        return False
+    rows = await tx.all(
+        """WITH RECURSIVE down AS (
+               SELECT id FROM work.work WHERE id = :id
+               UNION ALL SELECT c.id FROM work.work c JOIN down ON c.parent_id = down.id)
+           UPDATE work.work SET status = 'cancelled', close_reason = :r, closed_at = now()
+           WHERE id IN (SELECT id FROM down) AND status NOT IN ('done', 'cancelled', 'failed')
+           RETURNING ref""",
+        id=work_id,
+        r=CANCEL_NOTE,
+    )
+    await tx.exec("UPDATE work.schedules SET status = 'ended' WHERE work_id = :id", id=work_id)
+    await W.event(tx, w, "cancelled", who, {"reason": CANCEL_NOTE, "cascade": len(rows) - 1})
+    for r in rows:
+        await events.emit(tx, w["company"], "work.updated", r["ref"], {"status": "cancelled"})
+    return True
 
 
 # --------------------------------------------------------------- compliance --
@@ -1223,8 +1410,17 @@ def high_risk(d: dict[str, Any]) -> bool:
 
 
 async def hold_if_watching(tx: Tx, d: dict[str, Any]) -> dict[str, Any] | None:
-    """A high-risk card proposed while the owner is away is held for the owner."""
+    """A high-risk card proposed while the owner is away is held for the owner
+    (a card a CEO decides as well); a card the owner released or cancelled
+    during this same watch period is not held again (contract §18.15)."""
     if d.get("status") != "pending" or not high_risk(d) or not await watch_on(tx):
+        return None
+    if await tx.scalar(
+        """SELECT 1 FROM oversight.holds h
+           WHERE h.target_kind = 'decision' AND h.target_ref = :r AND h.state <> 'held'
+             AND h.decided_at >= oversight.watch_since()""",
+        r=d["ref"],
+    ):
         return None
     h, _ = await place_hold(
         tx,
@@ -1232,10 +1428,19 @@ async def hold_if_watching(tx: Tx, d: dict[str, Any]) -> dict[str, Any] | None:
         ref=d["ref"],
         reason_md="حالت نگهبان: مالک نیست؛ این کارت پرریسک تا بازگشت مالک نگه داشته شد.",
         by_kind="system",
-        by_code="HQ-OVR",
+        by_code=await overseer_code(tx),
         watch=True,
     )
     return h
+
+
+async def overseer_code(tx: Tx) -> str:
+    """The holding's Chief Overseer (its code is data, never hard-coded)."""
+    code = await tx.scalar(
+        """SELECT c.code || '-' || :o FROM core.companies c WHERE c.kind = 'holding' LIMIT 1""",
+        o=OVERSEER,
+    )
+    return str(code or f"HQ-{OVERSEER}")
 
 
 async def hold_pending_cards(tx: Tx) -> int:

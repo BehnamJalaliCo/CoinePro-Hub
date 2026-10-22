@@ -298,7 +298,38 @@ async def cancel(tx: Tx, ref: str) -> dict[str, Any]:
         id=e["id"],
     )
     await _updated(tx, ref, "cancelled")
-    return await load(tx, ref)
+    out = dict(await load(tx, ref))
+    out["withdrawn"] = await withdraw_action(tx, e)
+    return out
+
+
+WITHDRAW_NOTE = "مالک: کار پیشکار لغو شد"
+
+
+async def withdraw_action(tx: Tx, e: dict[str, Any]) -> str | None:
+    """A cancelled errand withdraws its pending `errand_action` card (nothing
+    is left for the owner to seal); the card's ref, or None."""
+    if not e.get("decision_id"):
+        return None
+    d = await tx.first(
+        """UPDATE cartable.decisions SET status = 'withdrawn', decided_at = now(),
+               decided_by_kind = 'service', decided_by_code = 'system', note = :n
+           WHERE id = :id AND status = 'pending' AND kind = 'errand_action'
+           RETURNING ref, company_id, thread_code""",
+        id=e["decision_id"],
+        n=WITHDRAW_NOTE,
+    )
+    if d is None:
+        return None
+    company = await tx.scalar("SELECT code FROM core.companies WHERE id = :id", id=d["company_id"])
+    await events.emit(
+        tx,
+        company,
+        "decision.decided",
+        d["ref"],
+        {"status": "withdrawn", "kind": "errand_action"},
+    )
+    return str(d["ref"])
 
 
 async def on_proposed(tx: Tx, ref: str, decision_id: UUID) -> None:

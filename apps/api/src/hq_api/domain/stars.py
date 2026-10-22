@@ -180,6 +180,23 @@ def at(day: date, zone: ZoneInfo) -> datetime:
 
 
 # --------------------------------------------------------------- rubrics --
+def half_step(value: Decimal | float) -> bool:
+    """Stars are whole or half, 0 to 5 (contract §18.15)."""
+    v = Decimal(str(value))
+    return Decimal(0) <= v <= Decimal(5) and (v * 2) == (v * 2).to_integral_value()
+
+
+def number(value: Any) -> int | float:
+    """A rubric weight as a JSON number (never a string): 50, 17.5."""
+    v = Decimal(str(value))
+    return int(v) if v == v.to_integral_value() else float(v)
+
+
+def rubric_criteria(criteria: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The criteria as stored and served: every weight a number."""
+    return [{**c, "weight": number(c["weight"])} for c in criteria]
+
+
 def validate_rubric(criteria: list[dict[str, Any]]) -> None:
     keys = [c["key"] for c in criteria]
     if len(set(keys)) != len(keys):
@@ -209,6 +226,7 @@ async def write_rubric(
     tx: Tx, who: Principal, company_id: UUID, criteria: list[dict[str, Any]], rules_md: str
 ) -> dict[str, Any]:
     validate_rubric(criteria)
+    criteria = rubric_criteria(criteria)
     version = await tx.scalar(
         "SELECT COALESCE(max(version), 0) + 1 FROM people.star_rubrics WHERE company_id = :co",
         co=company_id,
@@ -262,7 +280,20 @@ async def give(
         raise ApiError(422, "validation_failed", fields={"week": "not a future week"})
     if await tx.scalar("SELECT people.week_rolled_up(:w)", w=week):
         raise ApiError(409, "validation_failed", "that week is already rolled up")
+    if not half_step(stars):
+        raise ApiError(422, "validation_failed", fields={"stars": "whole or half stars, 0 to 5"})
+    bad = sorted(k for k, v in criteria.items() if not half_step(v))
+    if bad:
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"criteria": f"whole or half stars, 0 to 5: {', '.join(bad)}"},
+        )
     rubric = await latest_rubric(tx, who.company_id) if who.company_id else None
+    if rubric is None and criteria:
+        raise ApiError(
+            422, "validation_failed", fields={"criteria": "no rubric yet: write one (star.rubric)"}
+        )
     if rubric is not None:
         known = {c["key"] for c in rubric["criteria"]}
         unknown = sorted(set(criteria) - known)
@@ -609,8 +640,10 @@ async def star_inflation(tx: Tx, company_code: str, period: str, key: str) -> No
     so the roll-up and the protocol open one finding, not two."""
     from hq_api.domain import oversight
 
+    protocol = await oversight.protocol_in_force(tx, "PR-080")
+    if protocol is None:  # paused (or gone): no finding (contract §18.15)
+        return
     co = await tx.one("SELECT id FROM core.companies WHERE code = :c", c=company_code)
-    protocol = await tx.first(oversight.PROTOCOL_SQL + " WHERE p.ref = 'PR-080'")
     await oversight.raise_finding(
         tx,
         company_id=co["id"],
@@ -716,6 +749,18 @@ async def adoption_decided(
         """UPDATE knowledge.lesson_adoptions SET status = :st, decision_ref = :d, updated_at = now()
            WHERE lesson_ref = :ref AND company_id = :co""",
         st=status,
+        d=decision_ref,
+        ref=lesson_ref,
+        co=company_id,
+    )
+
+
+async def adoption_reopened(tx: Tx, lesson_ref: str, company_id: UUID, decision_ref: str) -> None:
+    """Its card came back without an answer (returned, expired, withdrawn):
+    the lesson is open to that company again (contract §18.15)."""
+    await tx.exec(
+        """UPDATE knowledge.lesson_adoptions SET decision_ref = NULL, updated_at = now()
+           WHERE lesson_ref = :ref AND company_id = :co AND decision_ref = :d AND status = 'proposed'""",
         d=decision_ref,
         ref=lesson_ref,
         co=company_id,

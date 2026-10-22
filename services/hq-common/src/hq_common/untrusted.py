@@ -71,6 +71,10 @@ class Limits:
     cpu_s: int = CPU_S
     deadline_s: float = DEADLINE_S
     write_mb: int = 0  # RLIMIT_FSIZE: 0 = the child writes no file at all
+    # False (prompt 9.1, the brand tracer): the child cannot open a socket; a
+    # seccomp filter refuses socket() and io_uring before the job's code runs
+    # (x86_64; elsewhere, and in addition, Python's socket module refuses).
+    network: bool = True
 
 
 DEFAULT = Limits()
@@ -252,6 +256,75 @@ def _limit(limits: dict[str, Any]) -> None:
     resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
     resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu + 2))
     resource.setrlimit(resource.RLIMIT_FSIZE, (write, write))
+    if not limits.get("network", True):
+        _SANDBOX["network"] = _no_network()
+
+
+_SANDBOX: dict[str, str] = {}
+# seccomp (x86_64): socket(41) and io_uring_setup(425) -> EACCES, x32 and
+# i386 syscalls refused outright; everything else allowed.
+_AUDIT_ARCH_X86_64 = 0xC000003E
+_X32_BIT = 0x40000000
+_RET_ALLOW = 0x7FFF0000
+_RET_EACCES = 0x00050000 | errno.EACCES
+
+
+def _seccomp_no_sockets() -> bool:
+    import ctypes
+    import platform
+
+    if platform.machine() not in ("x86_64", "AMD64"):
+        return False
+
+    class Filter(ctypes.Structure):
+        _fields_ = [("code", ctypes.c_ushort), ("jt", ctypes.c_ubyte), ("jf", ctypes.c_ubyte),
+                    ("k", ctypes.c_uint32)]  # fmt: skip
+
+    class Prog(ctypes.Structure):
+        _fields_ = [("len", ctypes.c_ushort), ("filter", ctypes.POINTER(Filter))]
+
+    ld, jeq, jge, ret = 0x20, 0x15, 0x35, 0x06
+    prog = [
+        (ld, 0, 0, 4),  # arch
+        (jeq, 1, 0, _AUDIT_ARCH_X86_64),
+        (ret, 0, 0, _RET_EACCES),
+        (ld, 0, 0, 0),  # nr
+        (jge, 3, 0, _X32_BIT),
+        (jeq, 2, 0, 41),  # socket
+        (jeq, 1, 0, 425),  # io_uring_setup
+        (ret, 0, 0, _RET_ALLOW),
+        (ret, 0, 0, _RET_EACCES),
+    ]
+    arr = (Filter * len(prog))(*(Filter(*f) for f in prog))
+    fprog = Prog(len(prog), ctypes.cast(arr, ctypes.POINTER(Filter)))
+    libc = ctypes.CDLL(None, use_errno=True)
+    pr_set_no_new_privs, pr_set_seccomp, seccomp_mode_filter = 38, 22, 2
+    if libc.prctl(pr_set_no_new_privs, 1, 0, 0, 0) != 0:
+        return False
+    return bool(libc.prctl(pr_set_seccomp, seccomp_mode_filter, ctypes.byref(fprog), 0, 0) == 0)
+
+
+def _no_network() -> str:
+    """No socket for this child: the kernel's filter when it can be
+    installed, and Python's own refusal in any case."""
+    import socket
+
+    kind = "python"
+    with contextlib.suppress(OSError, AttributeError, ValueError):
+        if _seccomp_no_sockets():
+            kind = "seccomp"
+
+    def refuse(*_a: Any, **_k: Any) -> Any:
+        raise PermissionError(errno.EACCES, "no network in this job")
+
+    class NoSocket(socket.socket):
+        def __init__(self, *_a: Any, **_k: Any) -> None:
+            refuse()
+
+    socket.socket = NoSocket  # type: ignore[misc]
+    socket.create_connection = refuse
+    socket.getaddrinfo = refuse
+    return kind
 
 
 def _usage() -> dict[str, Any]:
@@ -265,6 +338,8 @@ def _usage() -> dict[str, Any]:
                 out[key] = int(value.split()[0])  # KiB
     ru = resource.getrusage(resource.RUSAGE_SELF)
     out["cpu_s"] = round(ru.ru_utime + ru.ru_stime, 3)
+    if _SANDBOX:
+        out["network"] = f"off ({_SANDBOX['network']})"
     return out
 
 

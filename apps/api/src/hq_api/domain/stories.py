@@ -26,8 +26,25 @@ from hq_common.redact import scrub
 DAILY_LIMIT = 3
 TITLE_MAX = 60
 BODY_MAX = 280
-LINK_KEYS = ("employee", "deliverable", "decision", "work", "period")
-OUTSIDE = re.compile(r"(https?://|www\.)", re.IGNORECASE)
+LINK_KEYS = ("employee", "deliverable", "decision", "work", "period", "metric")
+PERIOD = r"^(week|month):[0-9]{4}-[0-9]{2}(-[0-9]{2})?$"  # as a lesson's period
+METRIC = r"^[a-z][a-z0-9_]{1,40}$"  # a metric (KPI) by name, e.g. users_active
+# A link out of the hub, with or without a scheme (contract §18.15): a URL
+# scheme, `www.`, a host with a path (t.me/x, evil.com/promo), or a bare host
+# under a common top-level domain (evil.com). Names like Next.js stay text.
+TLDS = (
+    "com|net|org|io|me|ir|co|app|dev|xyz|info|biz|ru|top|site|online|link|ly|gg|tv|to|"
+    "us|uk|de|fr|ae|tr|in|cn|ai|so|cc|ws|pro|shop|store|live|news|blog|club|vip|cloud"
+)
+OUTSIDE = re.compile(
+    r"(https?://|\bwww\.|\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}/"
+    rf"|\b(?:[a-z0-9](?:[a-z0-9-]{{0,61}}[a-z0-9])?\.)+(?:{TLDS})\b)",
+    re.IGNORECASE,
+)
+# Hidden from the rings and the archive: a story the overseer holds, and one
+# whose hold the owner cancelled (cancel = the story is withdrawn, §18.15).
+NOT_HELD = """NOT EXISTS (SELECT 1 FROM oversight.holds h WHERE h.target_kind = 'story'
+                                AND h.target_ref = s.ref AND h.state IN ('held', 'cancelled'))"""
 REFS = {
     "work": ("work.work", r"^W-[0-9]{6,}$"),
     "deliverable": ("cartable.deliverables", r"^O-[0-9]{6,}$"),
@@ -118,7 +135,20 @@ async def post(
     for key, value in links.items():
         if key not in LINK_KEYS or not value:
             continue
-        if key in REFS:
+        if key in ("period", "metric"):
+            if not re.fullmatch(PERIOD if key == "period" else METRIC, value) or OUTSIDE.search(
+                value
+            ):
+                raise ApiError(
+                    422,
+                    "validation_failed",
+                    fields={
+                        f"links.{key}": "week:YYYY-MM-DD or month:YYYY-MM"
+                        if key == "period"
+                        else "a metric by name (lowercase, digits, _)"
+                    },
+                )
+        elif key in REFS:
             table, pattern = REFS[key]
             if not re.fullmatch(pattern, value) or not await tx.scalar(
                 f"SELECT 1 FROM {table} WHERE ref = :r AND company_id = :co",  # noqa: S608 - fixed tables
@@ -138,13 +168,17 @@ async def post(
             )
         clean_links[key] = value[:40]
     figs = figures_ok(figures)
+    # A milestone links its evidence: work, a deliverable or a metric (with its
+    # figure); a figure alone is a claim, not evidence (contract §18.15).
     if kind == "milestone" and not (
-        clean_links.get("work") or clean_links.get("deliverable") or figs
+        clean_links.get("work")
+        or clean_links.get("deliverable")
+        or (clean_links.get("metric") and figs)
     ):
         raise ApiError(
             422,
             "validation_failed",
-            fields={"links": "a milestone links its evidence (work, deliverable or a figure)"},
+            fields={"links": "a milestone links work, a deliverable or a metric with its figure"},
         )
     if file_id is not None:
         f = await tx.first(
@@ -197,11 +231,7 @@ async def live(tx: Tx) -> list[dict[str, Any]]:
     # A story the overseer holds (contract §18.1 hold kind `story`) is not shown
     # until the owner releases it.
     rows = await tx.all(
-        STORY_SQL  # noqa: S608 - constant clauses, no values
-        + """ WHERE s.expires_at > now()
-                AND NOT EXISTS (SELECT 1 FROM oversight.holds h WHERE h.target_kind = 'story'
-                                AND h.target_ref = s.ref AND h.state = 'held')
-              ORDER BY s.created_at, s.id"""
+        STORY_SQL + " WHERE s.expires_at > now() AND " + NOT_HELD + " ORDER BY s.created_at, s.id"
     )
     return [dict(r) for r in rows]
 

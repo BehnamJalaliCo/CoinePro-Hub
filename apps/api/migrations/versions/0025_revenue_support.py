@@ -32,7 +32,7 @@ shadow suites: eval_suites.ref may be support-shadow-<CODE> and gains a
 version; eval_runs.purpose gains 'shadow'.
 
 Revision ID: 0025
-Revises: 0023 (re-chained after 0024 by the parent)
+Revises: 0024 (re-chained after 9.1's 0024; it does not touch the decision kinds)
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ import re
 from hq_api.migration_sql import execute_script
 
 revision = "0025"
-down_revision = "0023"
+down_revision = "0024"
 branch_labels = None
 depends_on = None
 

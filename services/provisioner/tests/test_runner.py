@@ -233,3 +233,58 @@ def test_pricing_and_the_project_listing(fake: FakeHetzner) -> None:
     listing = {s["id"]: s for s in hz.servers()}
     assert listing[ours]["ours"] is True and listing[ours]["plan"] == "pv-0001"
     assert [s["ours"] for s in listing.values()].count(False) == 1
+
+
+# ------------------------------------------------------------- review 9.2 --
+def test_nothing_to_build_reads_no_secret(
+    fake: FakeHetzner, api: FakeApi, secrets_: Secrets, settings: Settings
+) -> None:
+    """The loop with no sealed plan (as it is while HQ_PROVISIONING is off and
+    nothing was sealed): no Hetzner token read, no Hetzner call."""
+    r = runner(settings, secrets_, api)
+    for _ in range(3):
+        assert r.tick() is False
+    assert secrets_.reads == 0 and fake.requests == []
+
+
+def test_ssh_outside_the_owners_addresses_is_never_built(
+    fake: FakeHetzner, api: FakeApi, secrets_: Secrets, settings: Settings
+) -> None:
+    # The api hands the owner's addresses out with the run; the plan's SSH is not in them.
+    rid = api.add(make_plan(), ssh_sources=["203.0.113.0/24"])
+    runner(settings, secrets_, api).tick()
+    assert api.finished == [{"run": rid, "state": "failed",
+                             "error": {"step": "ssh-key", "code": "plan_invalid"}}]  # fmt: skip
+    assert secrets_.reads == 0 and fake.requests == []
+
+
+def test_openbao_down_fails_the_run_instead_of_leaving_it_running(
+    fake: FakeHetzner, api: FakeApi, secrets_: Secrets, settings: Settings
+) -> None:
+    from hq_common.openbao import OpenBaoError
+
+    def sealed() -> str:
+        raise OpenBaoError("KV read provisioning/hetzner failed (HTTP 503)")
+
+    secrets_.hetzner_token = sealed  # type: ignore[method-assign]
+    rid = api.add(make_plan())
+    assert runner(settings, secrets_, api).execute(api.runs[rid]) == "failed"
+    assert api.finished[-1]["error"] == {"step": "ssh-key", "code": "not_configured"}
+    assert fake.requests == []
+
+
+def test_the_hub_in_trouble_never_leaves_the_loop_with_an_exception(
+    fake: FakeHetzner, api: FakeApi, secrets_: Secrets, settings: Settings
+) -> None:
+    # The first report (step running) fails: the run is failed at once, nothing built.
+    rid = api.add(make_plan())
+    r = runner(settings, secrets_, api)
+    api.fail_steps = 1
+    assert r.execute(api.runs[rid]) == "failed"
+    assert api.finished[-1]["error"] == {"step": "ssh-key", "code": "error"}
+    assert created(fake, "servers") == []
+    # The hub cannot be told at all: no exception (the api's reaper fails it later).
+    rid = api.add(make_plan())
+    api.fail_steps = 10**6
+    assert r.execute(api.runs[rid]) == "unreported"
+    assert created(fake, "servers") == []
