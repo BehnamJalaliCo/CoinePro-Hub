@@ -33,8 +33,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from hq_common.redact import scrub
 from hq_egress.guard import Blocked
+from hq_egress.hosts import covered
 from hq_egress.net import Entry, track
-from hq_egress.proxy import covered
 from hq_egress.rules import get_commitment
 
 log = logging.getLogger("hq_egress.substitutes_web")

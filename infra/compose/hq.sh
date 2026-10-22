@@ -5,6 +5,7 @@
 #
 # Usage: hq.sh <docker compose args...>     e.g. hq.sh ps
 #        hq.sh --print-profile
+#        hq.sh --print-substitutes-runner   (on|off: what the api is told)
 # Env:   HQ_PROFILE=lean|full   force a profile (else .env, else server RAM)
 #        HQ_ENV_FILE=PATH       use another secrets file (CI uses a throwaway one)
 #        HQ_ALL_PROFILES=1      act on the services of every profile (used by `down`)
@@ -207,6 +208,43 @@ if [[ "$tracing" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
       *) echo "warning: HQ_TRACING=on ignored ($over)" >&2 ;;
     esac
   fi
+fi
+# The substitute players (prompt 12 §9.1): opt-in profiles "substitutes" (the
+# one-shot CLI runner) and "substitutes-web" (the signed-in browser profiles),
+# off by default (HQ_SUBSTITUTES / HQ_SUBSTITUTES_WEB=on in .env), each refused
+# like stt while the profile plus it does not fit the memory budget. The api
+# gets SUBSTITUTES_RUNNER=on only while the runner is on (its CLI sign-in from
+# the app answers 409 not_ready otherwise).
+export SUBSTITUTES_RUNNER=off
+for opt in substitutes substitutes-web; do
+  var="HQ_$(tr '[:lower:]-' '[:upper:]_' <<<"$opt")"
+  value="${!var:-$(sed -n "s/^$var=//p" "$ENV_FILE" | tail -n1)}"
+  [[ "$value" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]] || continue
+  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  sum="$(compose "${profile_args[@]}" --profile "$opt" --profile backup-tools config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile "$opt")
+    if [[ "$opt" == substitutes ]]; then export SUBSTITUTES_RUNNER=on; fi
+  else
+    over="the $profile profile plus $opt needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: $var=on refused: $over." >&2
+        echo "       Turning it on is the owner's decision (STT, TTS, container MCP and the" \
+          "substitute players share the room; docs/ops/RUNBOOK.md)." >&2
+        echo "       Set $var=off in $ENV_FILE to start the stack without it." >&2
+        exit 3
+        ;;
+      *) echo "warning: $var=on ignored ($over)" >&2 ;;
+    esac
+  fi
+done
+if [[ "${1:-}" == "--print-substitutes-runner" ]]; then # the quality gate's check
+  printf '%s\n' "$SUBSTITUTES_RUNNER"
+  exit 0
 fi
 if [[ "${HQ_ALL_PROFILES:-0}" == "1" ]]; then
   profile_args=(--profile "*")

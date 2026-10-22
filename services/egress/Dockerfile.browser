@@ -2,7 +2,9 @@
 # on hq-browser with egress as its only peer; all its traffic goes through
 # egress's proxy. The official image is pinned by digest (its Chromium build
 # matches playwright==1.63.0 in browser.requirements.lock). uid 10001,
-# read-only root filesystem, HOME and the profile on the tmpfs.
+# read-only root filesystem, HOME and the profile on the tmpfs. The same image
+# runs browser-web (prompt 12 §9.1.5), whose persistent profiles live in the
+# volume mounted at /profiles (owned by uid 10001, 0700).
 FROM mcr.microsoft.com/playwright/python:v1.63.0-noble@sha256:72bd171a9ffc2b4b59532aaa6210e21014d07093120dc25528870c0b840da1f0
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -16,7 +18,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY egress/browser.requirements.lock /tmp/requirements.lock
 RUN python3 -m pip install --require-hashes --no-deps --break-system-packages -r /tmp/requirements.lock \
     && rm /tmp/requirements.lock \
-    && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hq
+    && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hq \
+    && mkdir -p /profiles && chown 10001:10001 /profiles && chmod 0700 /profiles
 
 COPY hq-common/src /app/hq-common/src
 COPY egress/src /app/egress/src

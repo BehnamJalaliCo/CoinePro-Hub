@@ -50,6 +50,8 @@ SEVERITIES = ("low", "medium", "high", "critical")
 MAX_INPUT = 400_000  # characters of a masked question (a long read)
 MAX_OUTPUT = 200_000  # characters read back from a CLI
 MAX_FINDINGS = 50
+PROXY_ENV = ("HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy",
+             "NODE_USE_ENV_PROXY")  # fmt: skip
 REASON_CHARS = 200
 LOGIN_URL_WAIT_S = 90.0
 # The one constant instruction on Gemini's command line: the question itself
@@ -222,6 +224,10 @@ def _env(job: Job, s: Settings, *, review: bool = False) -> dict[str, str]:
         "NO_UPDATE_NOTIFIER": "1",
         "HOME": str(s.work_dir / ".home"),
     }
+    # The only way out: egress's listener for the CLIs' own hosts (compose).
+    for name in PROXY_ENV:
+        if os.environ.get(name):
+            env[name] = os.environ[name]
     if job.runner == "codex_cli":
         env["CODEX_HOME"] = str(s.auth_dir / "codex")
     else:

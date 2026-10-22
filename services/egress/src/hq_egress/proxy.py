@@ -42,11 +42,13 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from hq_egress.guard import Blocked, Guard
+from hq_egress.hosts import covered
 from hq_egress.net import Entry
 
 log = logging.getLogger("hq_egress.proxy")
 # Listeners with a fixed host allow-list, CONNECT only (their own log lines).
 ALLOW_LIST_MODES = ("provisioner", "substitutes", "login")
+__all__ = ["ALLOW_LIST_MODES", "Bucket", "Buckets", "Proxy", "covered", "entries_json"]
 HEAD_MAX = 16 * 1024
 IDLE_S = 60.0
 LIFETIME_S = 180.0
@@ -203,7 +205,11 @@ class Proxy:
         low = {k.lower(): v for k, v in headers}
         bucket = self._bucket(low)
         if bucket is None:
-            extra = {"Proxy-Authenticate": 'Basic realm="egress"'} if self.mode == "browser" else {}
+            extra = (
+                {"Proxy-Authenticate": 'Basic realm="egress"'}
+                if self.mode in ("browser", "profile")
+                else {}
+            )
             await _answer(writer, 407, "Proxy Authentication Required", extra)
             return
         method = method.upper()
@@ -410,12 +416,6 @@ async def _pipe_both(
             t.cancel()
         with contextlib.suppress(Exception):
             up_w.close()
-
-
-def covered(host: str, hosts: frozenset[str]) -> bool:
-    """`host` is one of `hosts` or a subdomain of one."""
-    host = host.lower().rstrip(".")
-    return any(host == h or host.endswith("." + h) for h in hosts)
 
 
 def _origin_form(url: str) -> str:

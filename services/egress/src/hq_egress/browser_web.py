@@ -48,7 +48,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from hq_common import heartbeat, logs
 from hq_egress import browser as B
-from hq_egress.proxy import covered
+from hq_egress.hosts import covered
 
 log = logging.getLogger("hq_egress.browser_web")
 ACCOUNTS = ("chatgpt-web", "gemini-web", "deepseek-web")

@@ -125,6 +125,8 @@ def test_the_cli_gets_a_small_fixed_environment(
     s: R.Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("HQ_SOMETHING_SECRET", "x")
+    for name in R.PROXY_ENV:
+        monkeypatch.delenv(name, raising=False)
     env = R._env(job(), s)
     assert set(env) == {
         "PATH",
@@ -136,6 +138,8 @@ def test_the_cli_gets_a_small_fixed_environment(
         "CODEX_HOME",
     }
     assert env["CODEX_HOME"] == str(s.auth_dir / "codex")
+    monkeypatch.setenv("HTTPS_PROXY", "http://egress:3131")
+    assert R._env(job(), s)["HTTPS_PROXY"] == "http://egress:3131"  # its only way out
 
 
 def test_a_code_review_reads_only_its_read_only_checkout(s: R.Settings) -> None:

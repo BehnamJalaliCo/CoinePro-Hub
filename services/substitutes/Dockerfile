@@ -33,6 +33,7 @@ COPY substitutes/schemas /app/substitutes/schemas
 COPY hq-common/src /app/hq-common/src
 COPY substitutes/src /app/substitutes/src
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hq \
+    && mkdir -p /auth /work /checkout && chown 10001:10001 /auth /work && chmod 0700 /auth /work \
     && node --version \
     && HOME=/tmp codex --version \
     && HOME=/tmp gemini --version \

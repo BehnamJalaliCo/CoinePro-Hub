@@ -1,0 +1,45 @@
+# browser-login (prompt 12 §9.1.5): the owner's sign-in window for the
+# substitute players' browser profiles (`make chatgpt-web-login` and the
+# others; never started by `up`). The browser's pinned Playwright image and
+# lock, plus x11vnc (GPL-2.0) and websockify (LGPL-3.0) from Ubuntu noble at
+# pinned versions and noVNC's web client (MPL-2.0, its release checked by
+# sha256), each its own program; Xvfb is already in the image. uid 10001,
+# read-only root; the profile volume and a tmpfs are
+# added by compose. Also runs web-login-relay (hq_egress.relay).
+FROM mcr.microsoft.com/playwright/python:v1.63.0-noble@sha256:72bd171a9ffc2b4b59532aaa6210e21014d07093120dc25528870c0b840da1f0
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    HOME=/tmp \
+    PYTHONPATH=/app/hq-common/src:/app/egress/src
+
+# noVNC 1.6.0 (MPL-2.0; 2025-03-12), its web client only, checked by sha256.
+ADD --checksum=sha256:5066103959ef4e9b10f37e5a148627360dd8414e4cf8a7db92bdbd022e728aaa \
+  https://github.com/novnc/noVNC/archive/refs/tags/v1.6.0.tar.gz /tmp/novnc.tar.gz
+COPY egress/browser.requirements.lock /tmp/requirements.lock
+# The browser's own lock beside Ubuntu's Python packages (websockify's):
+# installed next to them, never over them (--ignore-installed).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends x11vnc=0.9.16-10 websockify=0.10.0+dfsg1-5build2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /usr/share/novnc \
+    && tar -xzf /tmp/novnc.tar.gz -C /usr/share/novnc --strip-components=1 \
+        noVNC-1.6.0/app noVNC-1.6.0/core noVNC-1.6.0/vendor noVNC-1.6.0/vnc.html noVNC-1.6.0/LICENSE.txt \
+    && rm /tmp/novnc.tar.gz \
+    && python3 -m pip install --require-hashes --no-deps --ignore-installed --break-system-packages \
+        -r /tmp/requirements.lock \
+    && rm /tmp/requirements.lock \
+    && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hq \
+    && mkdir -p /profiles && chown 10001:10001 /profiles && chmod 0700 /profiles
+
+COPY hq-common/src /app/hq-common/src
+COPY egress/src /app/egress/src
+COPY egress/web-login.sh /usr/local/bin/hq-web-login
+
+USER 10001
+WORKDIR /tmp
+EXPOSE 6080
+ENTRYPOINT ["/usr/local/bin/hq-web-login"]
