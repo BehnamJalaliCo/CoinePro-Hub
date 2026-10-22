@@ -133,6 +133,10 @@ class Activities:
                 "UPDATE cartable.decisions SET status = 'expired', decided_at = now() WHERE id = :id",
                 id=d["id"],
             )
+            if d["kind"] == "lesson_adoption":  # no answer: the lesson is open again (§18.15)
+                from hq_api.domain import stars
+
+                await stars.adoption_reopened(tx, d["payload"]["lesson"], d["company_id"], d["ref"])
             await D.post_system_message(
                 tx, d["thread_code"], f"تصمیم {ref} بدون پاسخ منقضی شد", {"decision": ref}
             )
