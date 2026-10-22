@@ -6,7 +6,8 @@ provisioner share, so a seal means the same bytes on both sides.
   and `run`. The owner's seal is bound to it; the provisioner recomputes it
   before touching anything, so a plan changed after the seal never runs.
 - `SOFTWARE`: the fixed list of software keys, each a reviewed cloud-init
-  template (infra/provisioning/templates/<key>.sh), in the order they run.
+  template (infra/provisioning/templates/<key>.sh), in the order they run;
+  `OPT_IN` keys (chatwoot) are never in a rule-made plan (`DEFAULT_SOFTWARE`).
 - `problems(plan, ssh_sources=...)`: what is wrong with a plan (empty: it
   may be sealed). Review 9.2 (§18.16): any tcp range that contains 22 is SSH
   and its sources must lie inside the owner's addresses
@@ -50,10 +51,17 @@ SOFTWARE: tuple[str, ...] = (
     "claude-code",
     "repo-clone",
     "node-exporter",
+    "chatwoot",
 )
 # Always in a plan (§18.16): the owner logs in as the work user, with keys
 # only, and security updates come on their own.
 REQUIRED: tuple[str, ...] = ("unattended-upgrades", "work-user", "ssh-hardening")
+# Opt-in keys: never in a plan made by rule (a founding's first server); a
+# plan names them itself. chatwoot (prompt 10 §10): a company's website chat
+# on its own small server, only once the owner seals that plan.
+OPT_IN: frozenset[str] = frozenset({"chatwoot"})
+# What a rule-made plan carries: every key but the opt-in ones, in run order.
+DEFAULT_SOFTWARE: tuple[str, ...] = tuple(k for k in SOFTWARE if k not in OPT_IN)
 # key -> the keys it needs in the same plan
 NEEDS: dict[str, tuple[str, ...]] = {
     "ssh-hardening": ("work-user",),  # no root login: the owner logs in as the work user
@@ -61,6 +69,7 @@ NEEDS: dict[str, tuple[str, ...]] = {
     "docker": ("work-user",),
     "repo-clone": ("git", "work-user"),
     "node-exporter": ("private-network",),  # metrics on the private address only
+    "chatwoot": ("docker", "work-user"),  # its containers, and an owner who can log in
 }
 LOCATIONS = frozenset({"fsn1", "nbg1", "hel1", "ash", "hil", "sin"})
 IMAGE = "ubuntu-24.04"

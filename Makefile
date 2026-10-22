@@ -11,7 +11,7 @@ ENV_FILE := infra/compose/.env
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
-	hetzner-token owner-ssh-key
+	hetzner-token owner-ssh-key intake-secret telegram-bot-token
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -142,6 +142,12 @@ hetzner-token: ## OWNER: the Hetzner project's API token for new servers (hidden
 
 owner-ssh-key: ## OWNER: add one of your PUBLIC SSH keys for new servers' work user (-> OpenBao)
 	@infra/openbao/owner-ssh-key.sh
+
+intake-secret: ## OWNER: an intake source's HMAC secret, COMPANY=<code> SOURCE=chatwoot|product (hidden)
+	@infra/openbao/intake-secret.sh "$(COMPANY)" "$(SOURCE)"
+
+telegram-bot-token: ## OWNER: a support channel's bot token, COMPANY=<code> CHANNEL=telegram_bot|telegram_business
+	@infra/openbao/telegram-bot-token.sh "$(COMPANY)" "$(CHANNEL)"
 
 llm-smoke: ## One tiny real call (Haiku, "OK") + ledger row + NATS event
 	@services/scripts/llm-smoke.sh

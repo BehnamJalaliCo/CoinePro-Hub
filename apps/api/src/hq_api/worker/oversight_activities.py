@@ -35,6 +35,7 @@ from temporalio.client import Client, ScheduleCalendarSpec, ScheduleRange, Sched
 from hq_api import audit
 from hq_api.domain import oversight as O
 from hq_api.domain import oversight_checks as C
+from hq_api.domain import oversight_support as OS  # registers PR-043/101/102/103 (prompt 10)
 from hq_api.domain import recurrence
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
@@ -145,6 +146,10 @@ class OversightActivities:
                 # day: today's run stands, no new run is recorded.
                 return {"protocol": ref, "skipped": "once_a_day"}
             run = await O.start_run(tx, p)
+            held = await OS.GATES[ref](tx) if ref in OS.GATES else None
+            if held is not None:  # ⟨1.5⟩ PR-043: locked -> skipped, no live channel -> deferred
+                await O.finish_run(tx, run["id"], held[0], notes=held[1])
+                return {"protocol": ref, held[0]: held[1]}
             if checker is not None:
                 return await self._by_code(tx, p, run, checker, holding)
             precheck = C.PRECHECKS.get(ref)

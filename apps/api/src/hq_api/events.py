@@ -64,6 +64,13 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "oversight": ("oversight.",),
     # ⟨1.4⟩ prompt 09: founding.updated, provision.step (contract §18.10)
     "founding": ("founding.", "provision."),
+    # ⟨1.5⟩ prompt 10 (contract §19.9): revenue.day, revenue.alert; support.message,
+    # support.queue, support.channel; rescue.updated, lifecycle.sent, nps.closed;
+    # feedback.item
+    "revenue": ("revenue.",),
+    "support": ("support.",),
+    "growth": ("rescue.", "lifecycle.", "nps."),
+    "feedback": ("feedback.",),
     # ⟨1.4.6⟩ prompt 9.1: brand.updated (contract §18.14)
     "companies": ("brand.",),
 }

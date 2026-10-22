@@ -51,6 +51,8 @@ PROVISIONER_TOKEN = "test-provisioner-token-" + "1" * 40  # the provisioner serv
 AGENT_KEY = bytes.fromhex("11" * 32)
 ROUTER_TOKEN = "test-router-token-" + "1" * 40
 GATEWAY_TOKEN = "test-gateway-token-" + "2" * 40
+PSEUDONYM_KEY = bytes.fromhex("33" * 32)  # kv/support/pseudonym in tests (prompt 10 §1.2)
+WORKER_API_TOKEN = "test-worker-api-token-" + "4" * 40  # the connector's caller (prompt 10 §2.2)
 
 if "TEST_DB_HOST" not in os.environ:
     pytest.skip("needs services/scripts/test-env.sh (HQ_TEST_TARGET=api)", allow_module_level=True)
@@ -105,9 +107,12 @@ def make_secrets() -> Secrets:
         service_tokens={
             "test-service": digest(SERVICE_TOKEN),
             "provisioner": digest(PROVISIONER_TOKEN),
+            "worker": digest(WORKER_API_TOKEN),
         },
         llm_router_token=ROUTER_TOKEN,
         gateway_token=GATEWAY_TOKEN,
+        support_pseudonym_key=PSEUDONYM_KEY,
+        worker_api_token=WORKER_API_TOKEN,
     )
 
 
@@ -178,9 +183,15 @@ def new_company(hub: Hub, owner_db: Database) -> Callable[..., Any]:
     """Create a fresh company from a template (as the owner role hq)."""
 
     async def make(template: str = "standard", code: str | None = None) -> dict[str, Any]:
-        code = code or random_code()
+        given = code is not None
         async with owner_db.raw() as tx:
             await tx.exec("SET LOCAL ROLE hq")
+            # The test database outlives a run: a random code may already exist.
+            while code is None or (
+                not given
+                and await tx.scalar("SELECT 1 FROM core.companies WHERE code = :c", c=code)
+            ):
+                code = random_code()
             row = await tx.one(
                 """INSERT INTO core.companies (code, name, kind, name_fa, name_en, color_index, template)
                    VALUES (:code, :name, 'company', :nfa, :name, NULL, :tpl) RETURNING id, code""",
@@ -287,6 +298,11 @@ def service_headers() -> dict[str, str]:
 
 def provisioner_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {PROVISIONER_TOKEN}"}
+
+
+def worker_headers() -> dict[str, str]:
+    """The worker's own api service token (prompt 10 §2.2: the connector's caller)."""
+    return {"Authorization": f"Bearer {WORKER_API_TOKEN}"}
 
 
 def idem() -> dict[str, str]:

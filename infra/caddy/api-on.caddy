@@ -41,6 +41,44 @@ handle @media {
 	}
 }
 
+# Intake from outside (prompt 10 §9): the only public routes prompt 10 adds,
+# exactly three, each with a 1 MB body. Telegram's webhook only from
+# Telegram's published ranges (core.telegram.org/bots/webhooks); the api checks
+# the secret token, the HMAC, the timestamp, the event ids and each source's
+# own IP list, and counts calls per source (the stock Caddy image has no rate
+# limiter). Anything else under /intake is an unknown path.
+@intake_telegram path /intake/v1/telegram/*
+handle @intake_telegram {
+	@not_telegram not remote_ip 149.154.160.0/20 91.108.4.0/22
+	respond @not_telegram 403
+	request_body {
+		max_size 1MB
+	}
+	reverse_proxy api:8000 {
+		header_up X-Forwarded-For {remote_host}
+		transport http {
+			read_timeout 30s
+		}
+	}
+}
+
+@intake_signed path /intake/v1/chatwoot/* /intake/v1/product/*
+handle @intake_signed {
+	request_body {
+		max_size 1MB
+	}
+	reverse_proxy api:8000 {
+		header_up X-Forwarded-For {remote_host}
+		transport http {
+			read_timeout 30s
+		}
+	}
+}
+
+handle /intake/* {
+	respond 404
+}
+
 # Everything else under /api: bodies capped and a normal read timeout.
 handle /api/* {
 	request_body {

@@ -22,6 +22,10 @@
 #   - prompt 07: the backups' restic password (kv/backup/restic, generated once,
 #     never printed) and the hq-backup AppRole of the host's backup scripts
 #       -> $HQ_SECRETS_DIR/backup/approle.json (600, Hub's own: no sudo)
+#   - prompt 10: the customer pseudonym's key (kv/support/pseudonym, made once
+#     with cas 0, never printed; infra/openbao/kv-once.sh); the worker's api
+#     service token for the revenue connector (kv/hq-agents/connector; its
+#     digest in kv/hq-api/config service_tokens.worker)
 # The root token is used only while the admin token does not exist yet; it is
 # NOT revoked here (owner's decision).
 #
@@ -308,6 +312,21 @@ if ! kv_exists provisioner/config; then
   log "provisioner: its api service token created (digest in hq-api/config; restart the api)"
 fi
 
+# ------------------------------------------- the worker's connector (p10) --
+# Prompt 10 §2.2: the worker's own api service token ("worker"), carried by
+# the gateway's connector calls (the revenue pulls): kept in
+# kv/hq-agents/connector for the worker, its sha256 in the api's
+# service_tokens. Made once; the api reads service tokens at start.
+if ! kv_exists hq-agents/connector; then
+  conn_token="$(newtoken)"
+  expect "$(api GET kv/data/hq-api/config </dev/null)" 200
+  CH="$(printf '%s' "$conn_token" | sha256)" jq '{data: (.data.data | .service_tokens =
+      ((.service_tokens // {}) + {worker: env.CH}))}' "$WORK/resp" | kv_put hq-api/config
+  CT="$conn_token" jq -n '{data: {api_token: env.CT}}' | kv_put hq-agents/connector
+  unset conn_token
+  log "worker: its api service token for the connector created (digest in hq-api/config; restart the api)"
+fi
+
 # ------------------------------------------------------------- backups (p07) --
 # The restic repositories' password (local, Google Drive, Hetzner): made once
 # and kept; changing it would lock every existing snapshot. The owner keeps a
@@ -315,4 +334,11 @@ fi
 # 7.1 §2.9: written with KV check-and-set (cas 0), never over an existing one.
 HQ_BAO_ADDR="$BAO_ADDR" "$REPO_DIR/infra/openbao/restic-password.sh" "$WORK/auth" ||
   die "backup: the restic password could not be checked or created"
+
+# ------------------------------------------------- support pseudonym (p10) --
+# The customer pseudonym's HMAC key (kv/support/pseudonym): made once with
+# KV check-and-set (cas 0), never rotated unless the owner asks; read by the
+# api and the worker (policies hq-api, hq-worker).
+HQ_BAO_ADDR="$BAO_ADDR" "$REPO_DIR/infra/openbao/kv-once.sh" "$WORK/auth" support/pseudonym key ||
+  die "support: the pseudonym key could not be checked or created"
 log "done"

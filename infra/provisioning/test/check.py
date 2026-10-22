@@ -82,6 +82,16 @@ def done(user: str, steps: list[str]) -> None:
     if "node-exporter" in steps:
         ok("10.20.1.2:9100" in Path("/etc/default/prometheus-node-exporter").read_text(),
            "node-exporter on the private address only")  # fmt: skip
+    if "chatwoot" in steps:
+        env = Path("/opt/chatwoot/.env")
+        ok(env.stat().st_mode & 0o077 == 0, "chatwoot: its secrets are root's only (0600)")
+        lines = dict(x.split("=", 1) for x in env.read_text().splitlines() if "=" in x)
+        ok(len(lines.get("SECRET_KEY_BASE", "")) == 128, "chatwoot: SECRET_KEY_BASE made on the server")
+        ok(Path("/opt/chatwoot/docker-compose.yml").exists(), "chatwoot: the Community compose is written")
+        docker = Path("/bench/log/docker").read_text() if Path("/bench/log/docker").exists() else ""
+        ok("compose up" not in docker and "compose pull" not in docker,
+           "chatwoot: nothing started at build time (the owner's chatwoot-start does)")  # fmt: skip
+        ok(Path("/usr/local/sbin/chatwoot-start").stat().st_mode & 0o777 == 0o750, "chatwoot-start")
     ok(Path("/var/log/coinepro-provision.log").stat().st_mode & 0o077 == 0, "the log is root's only")
     systemctl = Path("/bench/log/systemctl").read_text() if Path("/bench/log/systemctl").exists() else ""
     ok("reboot" not in systemctl or (STATE / "rebooted").exists(), "no reboot unless the upgrade needed it")

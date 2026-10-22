@@ -86,3 +86,8 @@ class Settings:
     oversight_daily_share: float = field(
         default_factory=lambda: oversight_share.parse_share(os.environ.get("OVERSIGHT_DAILY_SHARE"))
     )
+    # Prompt 10 §4.3 (contract §19.3): one company's support drafts per UTC day,
+    # the scope support_draft:<company> = its support agent's role counter; 0 = none.
+    support_draft_daily_tokens: int = field(
+        default_factory=lambda: int(os.environ.get("SUPPORT_DRAFT_DAILY_TOKENS") or 60_000)
+    )

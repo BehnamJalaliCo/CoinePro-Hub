@@ -11,6 +11,16 @@ Schedule ids:
     hq-ceo-daily              daily 07:30 (owner's zone)  CeoDaily, paused unless HQ_CEO_DAILY_REPORTS=on
     hq-stars-reminder         Friday 18:00 (owner's zone)  StarsReminder (prompt 08 §4)
     hq-stars-rollup           daily 08:00 (owner's zone)  StarsRollup: Saturday's week, a Jalali 1st's month
+    hq-support-retention      daily 04:15 (owner's zone)  SupportRetention (prompt 10 §1.4; rule-only)
+    hq-revenue-pull           daily 07:00 Asia/Tehran   RevenuePulls("scheduled") (prompt 10 §2.4)
+    hq-revenue-retry          11:00 and 18:00 Asia/Tehran  RevenuePulls("retry")
+    hq-rescue-follow-ups      hourly        RescueFollowUps (prompt 10 §3.4)
+    hq-feedback-batch         daily 02:30 Asia/Tehran   FeedbackBatch (prompt 10 §8.1)
+    hq-support-weekly         Saturday 08:30 Asia/Tehran  SupportWeekly (prompt 10 §8.3)
+                              (each of these five asks the launch gate and skips while locked)
+    hq-support-sweep          every SUPPORT_HANDOFF_DIGEST_MIN (30) min  SupportSweep (prompt 10
+                              §4-§7: expiry, reminders, the handoff line, lifecycle, NPS);
+                              its activity does nothing while the holding is locked
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -51,7 +61,16 @@ SITE_CHECKS = "hq-site-checks"
 CEO_DAILY = "hq-ceo-daily"
 STARS_REMINDER = "hq-stars-reminder"
 STARS_ROLLUP = "hq-stars-rollup"
+SUPPORT_RETENTION = "hq-support-retention"
+REVENUE_PULL = "hq-revenue-pull"
+REVENUE_RETRY = "hq-revenue-retry"
+RESCUE = "hq-rescue-follow-ups"
+FEEDBACK_BATCH = "hq-feedback-batch"
+SUPPORT_WEEKLY = "hq-support-weekly"
+TEHRAN = "Asia/Tehran"  # the exchange's settlement times are real times, not the owner's view
+SUPPORT_SWEEP = "hq-support-sweep"
 FIXED = (
+    SUPPORT_SWEEP,
     MAINTENANCE,
     DIGEST,
     MORNING,
@@ -61,6 +80,12 @@ FIXED = (
     CEO_DAILY,
     STARS_REMINDER,
     STARS_ROLLUP,
+    SUPPORT_RETENTION,
+    REVENUE_PULL,
+    REVENUE_RETRY,
+    RESCUE,
+    FEEDBACK_BATCH,
+    SUPPORT_WEEKLY,
 )
 
 
@@ -143,8 +168,18 @@ def every(minutes: int) -> ScheduleSpec:
     return ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=minutes))])
 
 
-def fixed(morning_at: time, tz: str, *, ceo_daily: bool = False) -> list[Desired]:
+def fixed(
+    morning_at: time, tz: str, *, ceo_daily: bool = False, support_sweep_min: int = 30
+) -> list[Desired]:
     return [
+        Desired(
+            SUPPORT_SWEEP,
+            "SupportSweep",
+            (),
+            every(max(5, support_sweep_min)),
+            timedelta(minutes=10),
+            timedelta(minutes=10),
+        ),
         Desired(
             SITE_CHECKS, "SiteChecks", (), every(5), timedelta(minutes=10), timedelta(minutes=4)
         ),
@@ -197,6 +232,61 @@ def fixed(morning_at: time, tz: str, *, ceo_daily: bool = False) -> list[Desired
             daily_at(time(8, 0), tz),
             timedelta(hours=12),
             timedelta(minutes=45),
+        ),
+        Desired(
+            SUPPORT_RETENTION,
+            "SupportRetention",
+            (),
+            daily_at(time(4, 15), tz),
+            timedelta(hours=12),
+            timedelta(minutes=30),
+        ),
+        *revenue_fixed(),
+    ]
+
+
+def revenue_fixed() -> list[Desired]:
+    """Prompt 10 §2-§8: they gate themselves (hq_api.domain.gate)."""
+    retry = ScheduleSpec(
+        calendars=[
+            ScheduleCalendarSpec(
+                second=[ScheduleRange(start=0, end=0)],
+                minute=[ScheduleRange(start=0, end=0)],
+                hour=_ranges((11, 18)),
+            )
+        ],
+        time_zone_name=TEHRAN,
+    )
+    return [
+        Desired(
+            REVENUE_PULL,
+            "RevenuePulls",
+            ("scheduled",),
+            daily_at(time(7, 0), TEHRAN),
+            timedelta(hours=4),
+            timedelta(hours=4),
+        ),
+        Desired(
+            REVENUE_RETRY, "RevenuePulls", ("retry",), retry, timedelta(hours=3), timedelta(hours=4)
+        ),
+        Desired(
+            RESCUE, "RescueFollowUps", (), every(60), timedelta(minutes=30), timedelta(minutes=10)
+        ),
+        Desired(
+            FEEDBACK_BATCH,
+            "FeedbackBatch",
+            (),
+            daily_at(time(2, 30), TEHRAN),
+            timedelta(hours=6),
+            timedelta(minutes=30),
+        ),
+        Desired(
+            SUPPORT_WEEKLY,
+            "SupportWeekly",
+            (),
+            weekly_at(6, time(8, 30), TEHRAN),
+            timedelta(hours=12),
+            timedelta(minutes=15),
         ),
     ]
 

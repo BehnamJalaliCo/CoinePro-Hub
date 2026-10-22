@@ -40,6 +40,12 @@ ops := {
 	"oversight.hold",
 	# prompt 09: an agent's server plan (server.plan); the provisioner's runs
 	"provisioning.plan", "provisioning.run",
+	# prompt 10 §1.5: the support desk's data, the revenue radar, the funnel (support.rego)
+	"support.read", "support.stats", "kb.read", "revenue.read", "funnel.read",
+	# prompt 10 §2-§3, §8: the worker's connector, referral.check, rescue, feedback (revenue.rego)
+	"egress.connector", "referral.check", "rescue.update", "feedback.tag",
+	# prompt 10 §12: the support desk's writes (support_desk.rego)
+	"kb.propose", "support.draft", "support.handoff", "support.mystery",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and
@@ -83,9 +89,14 @@ propose_kinds := {
 		"hire", "dismissal", "recurring_approval", "deploy",
 		"a3_action", "proposal", "budget_change", "evaluation", "code_session",
 		"lesson_adoption",
+		# ⟨1.5⟩ prompt 10 §7: a template or a lifecycle rule for the owner's seal
+		"message_template", "lifecycle_rule",
 	},
-	"manager": {"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session", "company_found"},
-	"employee": {"a3_action", "deploy", "recurring_approval", "code_session"},
+	"manager": {
+		"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session", "company_found",
+		"message_template", "lifecycle_rule",
+	},
+	"employee": {"a3_action", "deploy", "recurring_approval", "code_session", "message_template", "lifecycle_rule"},
 	"advisor": {"proposal", "code_session"},
 	"inspector": {"proposal", "hire"},
 	# ⟨1.4⟩ prompt 08: a new or changed protocol is the owner's seal (§2); an

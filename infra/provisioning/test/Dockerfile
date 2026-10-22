@@ -9,8 +9,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         openssh-server=1:9.6p1-3ubuntu13.20 openssh-client=1:9.6p1-3ubuntu13.20 \
         sudo=1.9.15p5-3ubuntu5.24.04.4 python3=3.12.3-0ubuntu2.1 curl=8.5.0-2ubuntu10.16 \
-        gnupg=2.4.4-2ubuntu17.6 ca-certificates=20260601~24.04.1 \
-        xz-utils=5.6.1+really5.4.5-1ubuntu0.3 git=1:2.43.0-1ubuntu7.3 iproute2=6.1.0-1ubuntu6.4 \
+        gnupg=2.4.4-2ubuntu17.6 ca-certificates=20260816ubuntu0.24.04.1 \
+        xz-utils=5.6.1+really5.4.5-1ubuntu0.4 git=1:2.43.0-1ubuntu7.4 iproute2=6.1.0-1ubuntu6.4 \
     && rm -rf /var/lib/apt/lists/* \
     && install -d -m 0755 /fixtures \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /fixtures/docker.asc \

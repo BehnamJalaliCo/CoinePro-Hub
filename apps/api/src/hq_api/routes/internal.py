@@ -249,6 +249,22 @@ OP_CLASS: dict[str, str] = {
     "oversight.challenge_submit": "A1",
     "oversight.challenge_score": "A2",
     "oversight.hold": "A2",
+    # prompt 10 §1.5 (support.rego): reads of the support desk, the radar, the funnel
+    "support.read": "A0",
+    "support.stats": "A0",
+    "kb.read": "A0",
+    "revenue.read": "A0",
+    "funnel.read": "A0",
+    # prompt 10 §2-§3, §8 (revenue.rego): the worker's connector, the agents' tools
+    "egress.connector": "A0",
+    "referral.check": "A0",
+    "rescue.update": "A2",
+    "feedback.tag": "A2",
+    # prompt 10 §12 (support_desk.rego): the support desk's writes
+    "kb.propose": "A1",
+    "support.draft": "A2",
+    "support.handoff": "A2",
+    "support.mystery": "A2",
 }
 
 

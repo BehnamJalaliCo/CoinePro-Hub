@@ -4,6 +4,7 @@
 # coinepro-hq stack, its volumes or the host's secrets:
 #   provision   provision.sh without sudo stops before any KV write that a
 #               file install depends on (a dev OpenBao in a container)
+#   kv-once     kv/support/pseudonym is made once with cas 0 and kept (p10)
 #   backup      every failed backup records ok:false (no stale ok:true) and
 #               leaves no partial set; a busy lock records nothing
 #   stt         an opt-in profile over the memory budget: shown while off, a
@@ -27,7 +28,8 @@ T="$(mktemp -d)"
 NAME="hq-infra-$$"
 # shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
-  docker rm -f "$NAME-bao" "$NAME-web" "$NAME-edge-off" "$NAME-edge-on" >/dev/null 2>&1 || true
+  docker rm -f "$NAME-bao" "$NAME-web" "$NAME-edge-off" "$NAME-edge-on" "$NAME-api" "$NAME-edge-api" \
+    >/dev/null 2>&1 || true
   docker network rm "$NAME-net" >/dev/null 2>&1 || true
   rm -rf "$T"
   if [[ -n "${QUALITY_TMP:-}" ]]; then rm -rf "$QUALITY_TMP"; fi
@@ -86,6 +88,30 @@ elif [[ "$(kv_code llm-router/config)" != 404 || "$(kv_code claude-runtime/confi
 else
   pass "provision: without sudo it stops before any KV write a file install depends on"
 fi
+
+# ------------------------------------------------------------ kv-once ----
+# Prompt 10 §1.2: kv/support/pseudonym is made once (cas 0) and kept on every
+# later run; the value is 32 random bytes in hex and is never printed.
+printf 'X-Vault-Token: %s\n' "$dev_token" >"$T/root.auth"
+chmod 600 "$T/root.auth"
+curl -s -o /dev/null -X POST -H @"$T/root.auth" -H 'Content-Type: application/json' \
+  -d '{"type": "kv", "options": {"version": "2"}}' "$bao/v1/sys/mounts/kv" || true
+kv_key() { curl -s -H @"$T/root.auth" "$bao/v1/kv/data/support/pseudonym" | jq -r '.data.data.key // empty'; }
+kv_version() { curl -s -H @"$T/root.auth" "$bao/v1/kv/metadata/support/pseudonym" | jq -r '.data.current_version // 0'; }
+once_out="$(HQ_BAO_ADDR="$bao" "$REPO_DIR/infra/openbao/kv-once.sh" "$T/root.auth" support/pseudonym key 2>&1)" &&
+  k1=0 || k1=$?
+first="$(kv_key)"
+HQ_BAO_ADDR="$bao" "$REPO_DIR/infra/openbao/kv-once.sh" "$T/root.auth" support/pseudonym key >/dev/null 2>&1 &&
+  k2=0 || k2=$?
+HQ_BAO_ADDR="http://127.0.0.1:9" "$REPO_DIR/infra/openbao/kv-once.sh" "$T/root.auth" support/pseudonym key \
+  >/dev/null 2>&1 && k3=0 || k3=$?
+if [[ $k1 == 0 && $k2 == 0 && $k3 != 0 && "$first" =~ ^[0-9a-f]{64}$ && "$(kv_key)" == "$first" &&
+  "$(kv_version)" == 1 && "$once_out" != *"$first"* ]]; then
+  pass "kv-once: the pseudonym key is made once (cas 0), kept on a rerun, never printed; no OpenBao, no write"
+else
+  fail "kv-once: first=$k1 rerun=$k2 unreachable=$k3 version=$(kv_version) ($(tail -n1 <<<"$once_out"))"
+fi
+unset first
 unset dev_token
 
 # ---------------------------------------------------------------- backup ----
@@ -245,6 +271,35 @@ expect_eq "X-Middleware-Subrequest never reaches the web" \
 expect_eq "a 2 MB body to the web is refused" "$(head -c 2000000 /dev/zero | code --data-binary @- "$edge_off/x")" 413
 expect_eq "a 1 KB body to the web passes" "$(head -c 1000 /dev/zero | code --data-binary @- "$edge_off/x")" 200
 expect_eq "/internal stays 404" "$(code "$edge_off/internal/v1/health")" 404
+expect_eq "intake stays closed without a domain" "$(code -X POST "$edge_off/intake/v1/product/TY")" 404
+
+# Prompt 10 §9: the three intake routes with the public API on (a stub api).
+docker run -d --name "$NAME-api" --network "$NAME-net" --network-alias api "$PYTHON_IMAGE" python -c '
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+class H(BaseHTTPRequestHandler):
+    def do_POST(self):
+        n = len(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
+        body = ("api:%s:%d" % (self.path, n)).encode()
+        self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers()
+        self.wfile.write(body)
+ThreadingHTTPServer(("0.0.0.0", 8000), H).serve_forever()' >/dev/null
+docker run -d --name "$NAME-edge-api" --network "$NAME-net" -p 127.0.0.1::80 \
+  -e HQ_SITE_ADDRESS=:80 -e HQ_API_EDGE=on -e HQ_WEB=on -e HQ_CANARY=off \
+  -v "$REPO_DIR/infra/caddy:/etc/caddy:ro" "$CADDY_IMAGE" >/dev/null
+edge_api="http://$(docker port "$NAME-edge-api" 80/tcp | head -n1)"
+for _ in $(seq 30); do
+  [[ "$(code -X POST "$edge_api/intake/v1/product/TY")" == 200 ]] && break
+  sleep 1
+done
+expect_eq "intake: a product event reaches the api" \
+  "$(curl -s -X POST --data-binary '{}' "$edge_api/intake/v1/product/TY")" "api:/intake/v1/product/TY:2"
+expect_eq "intake: a Chatwoot event reaches the api" "$(code -X POST "$edge_api/intake/v1/chatwoot/TY")" 200
+expect_eq "intake: Telegram's route only from Telegram's ranges" \
+  "$(code -X POST "$edge_api/intake/v1/telegram/TY/telegram_bot")" 403
+expect_eq "intake: a 2 MB body is refused" \
+  "$(head -c 2000000 /dev/zero | code --data-binary @- "$edge_api/intake/v1/product/TY")" 413
+expect_eq "intake: any other path is unknown" "$(code -X POST "$edge_api/intake/v1/other/TY")" 404
+expect_eq "/internal stays 404 with the api on" "$(code "$edge_api/internal/v1/health")" 404
 
 # --------------------------------------------------------------- systemd ----
 unit="$REPO_DIR/infra/systemd/coinepro-hq-container-metrics.service"

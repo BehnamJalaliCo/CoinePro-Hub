@@ -432,6 +432,8 @@ services:
       # The oversight share of the agents' daily cap (prompt 08 §2.3).
       AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
       OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
+      # Prompt 10 §4.3: one company's support drafts per UTC day (scope support_draft:<company>).
+      SUPPORT_DRAFT_DAILY_TOKENS: ${SUPPORT_DRAFT_DAILY_TOKENS:-60000}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -601,6 +603,17 @@ services:
       # The provisioner (prompt 09, opt-in profile "provisioning"): hq.sh sets it
       # while HQ_PROVISIONING=on, else empty (pricing and builds wait).
       PROVISIONER_URL: ${PROVISIONER_URL:-}
+      # Prompt 10 (contract §19): support, referral checks, the revenue radar, intake.
+      SUPPORT_RETENTION_DAYS: ${SUPPORT_RETENTION_DAYS:-180}
+      SUPPORT_DRAFT_DAILY_TOKENS: ${SUPPORT_DRAFT_DAILY_TOKENS:-60000}
+      SUPPORT_DAILY_OUTBOUND_CAP: ${SUPPORT_DAILY_OUTBOUND_CAP:-300}
+      SUPPORT_AUTO_REPLIES_PER_HOUR: ${SUPPORT_AUTO_REPLIES_PER_HOUR:-20}
+      SUPPORT_HANDOFF_DIGEST_MIN: ${SUPPORT_HANDOFF_DIGEST_MIN:-30}
+      REFERRAL_CHECKS_PER_HOUR: ${REFERRAL_CHECKS_PER_HOUR:-30}
+      REFERRAL_CHECK_CACHE_S: ${REFERRAL_CHECK_CACHE_S:-600}
+      REVENUE_BACKFILL_DAYS: ${REVENUE_BACKFILL_DAYS:-90}
+      REVENUE_PULL_MAX_DAYS: ${REVENUE_PULL_MAX_DAYS:-31}
+      INTAKE_MAX_SKEW_S: ${INTAKE_MAX_SKEW_S:-300}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -625,8 +638,10 @@ services:
     # Temporal worker (task queue hq-core) + the NATS bridge into HQ_CORE.
     <<: *service
     image: coinepro-hq/api:0.1.0
-    # hq-core: Temporal; hq-agent: OPA and the Tool Gateway; hq-stt: speech to text.
-    networks: [hq-internal, hq-core, hq-agent, hq-stt]
+    # hq-core: Temporal; hq-agent: OPA and the Tool Gateway; hq-stt: speech to text;
+    # hq-egress-api: the support desk's sends through egress (prompt 10 §4.2,
+    # POST /v1/support/send; egress's own client check covers that subnet).
+    networks: [hq-internal, hq-core, hq-agent, hq-stt, hq-egress-api]
     depends_on:
       api:
         condition: service_healthy
@@ -653,6 +668,9 @@ services:
       HQ_FILES_ROOT: /data/files
       STT_URL: ${STT_URL:-}
       STT_PUNCTUATION: ${STT_PUNCTUATION:-on}
+      # Prompt 10 §4.2: support sends leave through egress (a channel's secret
+      # is read from OpenBao for one call and handed to egress only).
+      SUPPORT_EGRESS_URL: http://egress:8090
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]

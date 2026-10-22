@@ -1,6 +1,8 @@
 """HTTP API of the Tool Gateway (hq-core only, no published port).
 
     POST /v1/tools/call   the runtime (worker) only: {token, step, index, tool, args}
+    POST /v1/connectors/call  the worker only: one call of a connector of code
+                          (prompt 10 §2.2: the revenue pulls; hq_gateway.revenue)
     GET  /v1/health       the runtime only
 There is no unauthenticated endpoint: the container healthcheck reads a
 heartbeat file. Bodies are capped; validation errors never echo values.
@@ -24,6 +26,7 @@ from hq_gateway import __version__
 from hq_gateway.config import Settings
 from hq_gateway.gateway import Gateway, Opa
 from hq_gateway.mcp import SdkOpener
+from hq_gateway.revenue import ConnectorCallIn, connector_call
 from hq_gateway.tools import Api
 from hq_gateway.web import Egress
 
@@ -126,6 +129,11 @@ def build_app(state: State) -> FastAPI:
         assert state.gateway is not None
         out = await state.gateway.call(body.token, body.step, body.index, body.tool, body.args)
         return JSONResponse(out.as_json())
+
+    @app.post("/v1/connectors/call")
+    async def connector(body: ConnectorCallIn) -> JSONResponse:
+        assert state.gateway is not None
+        return JSONResponse(await connector_call(state.gateway.api, body))
 
     @app.get("/v1/health")
     async def health() -> dict[str, Any]:

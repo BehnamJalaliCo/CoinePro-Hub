@@ -16,3 +16,20 @@ path "kv/data/llm-connections/*" {
 path "kv/data/tools/accounts/*" {
   capabilities = ["read"]
 }
+
+# The customer pseudonym's HMAC key (prompt 10 §1.2): read only; made once by
+# provision.sh (kv-once.sh, cas 0).
+path "kv/data/support/pseudonym" {
+  capabilities = ["read"]
+}
+
+# Prompt 10 §9: the intake sources' HMAC secrets and the Telegram channels'
+# webhook secret tokens, read to check a webhook (make intake-secret, make
+# telegram-bot-token: the owner's terminal, never the API).
+path "kv/data/support/intake/*" {
+  capabilities = ["read"]
+}
+
+path "kv/data/support/telegram/*" {
+  capabilities = ["read"]
+}

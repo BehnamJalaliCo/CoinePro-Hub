@@ -68,6 +68,26 @@ async def decision_decided(hub: Any, ref: str) -> None:
         log.warning("could not signal the decision workflow", extra={"ref": ref})
 
 
+async def support(hub: Any, workflow: str, arg: str) -> None:
+    """⟨1.5⟩ SupportInbound(message id) / SupportSend(message id) /
+    SupportShadow(run id), best effort after commit: a message left `queued`
+    is picked up by the next SupportSweep."""
+    client = _client(hub)
+    if client is None:
+        return
+    try:
+        await client.start_workflow(
+            workflow,
+            arg,
+            id=f"{workflow.lower()}-{arg}",
+            task_queue=hub.settings.task_queue,
+            id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
+            id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+        )
+    except Exception:  # noqa: BLE001 - the sweep catches up
+        log.warning("could not start a support workflow", extra={"workflow": workflow})
+
+
 async def route_order(
     hub: Any, req: dict[str, Any], timeout_s: float = 60.0
 ) -> dict[str, Any] | None:

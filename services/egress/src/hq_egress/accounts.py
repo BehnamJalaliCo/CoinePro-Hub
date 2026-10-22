@@ -16,16 +16,27 @@ import posixpath
 from typing import Any, Literal
 from urllib.parse import quote, quote_plus, unquote, urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from hq_egress.signers import parts
 
 MASK = "[secret]"
 
 
 class Inject(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["bearer", "header", "basic", "cookie"] = "bearer"
+    # "signer" (prompt 10 §2.2): a reviewed request signer (signers.SIGNERS),
+    # for a connector of code only; it injects nothing into any other request.
+    kind: Literal["bearer", "header", "basic", "cookie", "signer"] = "bearer"
     name: str | None = Field(default=None, max_length=100)  # header or cookie name
     username: str | None = Field(default=None, max_length=200)  # basic
+    signer: Literal["lbank-v2"] | None = None  # kind "signer" only
+
+    @model_validator(mode="after")
+    def _signer_with_its_kind(self) -> Inject:
+        if (self.kind == "signer") != (self.signer is not None):
+            raise ValueError("a signer goes with kind 'signer', and only with it")
+        return self
 
 
 class BrowseLogin(BaseModel):
@@ -69,14 +80,22 @@ class Account(BaseModel):
         never for a host a redirect or a page sends the call to."""
         return tuple(self.ports) if self.covers(host) else ()
 
+    @property
+    def is_signer(self) -> bool:
+        """A signed connector's account (prompt 10 §2.2): never for http.request,
+        web.read or web.browse."""
+        return self.inject.kind == "signer"
+
     def secrets(self) -> list[str]:
         """What a result must never hold: the secret, and the `user:secret`
-        pair a Basic header carries (its base64 is a form of it, 7.1)."""
+        pair a Basic header carries (its base64 is a form of it, 7.1); a
+        signer's secret also as each of its parts (api key, secret key)."""
         users = {self.browse.username if self.browse else None}
         if self.inject.kind == "basic":
             users.add(self.inject.username or "")
         pairs = [f"{u}:{self.secret}" for u in sorted(u for u in users if u is not None)]
-        return [self.secret, *pairs]
+        signer = parts(self.inject.signer, self.secret) if self.inject.signer else []
+        return [self.secret, *pairs, *signer]
 
     def allows(self, method: str, url: str) -> bool:
         """A GET/HEAD, or a call the owner listed (method, path prefix) on the
@@ -103,8 +122,8 @@ class Account(BaseModel):
     ) -> dict[str, str]:
         """`headers` with the credential: for the account's own host, over
         https only (never in clear text, whatever the policy says; 7.1)."""
-        if scheme != "https" or not self.covers(host):
-            return headers
+        if scheme != "https" or not self.covers(host) or self.is_signer:
+            return headers  # a signer signs each connector request itself
         out = dict(headers)
         i = self.inject
         if i.kind == "bearer":

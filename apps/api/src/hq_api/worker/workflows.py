@@ -197,6 +197,125 @@ class StarsRollup:
         return result
 
 
+@workflow.defn(name="SupportRetention")
+class SupportRetention:
+    """Daily 04:15 (owner zone): customer texts older than SUPPORT_RETENTION_DAYS
+    are removed, the rows stay (prompt 10 §1.4). Rule-only: runs while locked."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("support_retention", limit=timedelta(minutes=30))
+        return result
+
+
+# ------------------------------------------- prompt 10 §2, §3, §8 (revenue) --
+# Each activity asks hq_api.domain.gate first: while the holding (or the
+# company) is locked a pull is recorded `skipped` and nothing leaves the hub.
+ONCE = RetryPolicy(maximum_attempts=1)  # a long pull is never run twice at once
+
+
+@workflow.defn(name="RevenuePulls")
+class RevenuePulls:
+    """07:00 Tehran (`scheduled`: the day before, or the first 90-day
+    backfill) and 11:00 / 18:00 (`retry`: days still incomplete): the queued
+    pulls, one after the other (the exchange's rate limit is one bucket)."""
+
+    @workflow.run
+    async def run(self, kind: str) -> dict[str, Any]:
+        planned: dict[str, Any] = await _act("revenue_plan", kind, limit=LONG)
+        results = []
+        for pull_id in planned.get("queued") or []:
+            results.append(
+                await _act("revenue_pull", pull_id, limit=timedelta(hours=3), retry=ONCE)
+            )
+        return {**planned, "results": results}
+
+
+@workflow.defn(name="RevenuePull")
+class RevenuePull:
+    """One pull the owner asked for (POST /revenue/accounts/{id}/pull)."""
+
+    @workflow.run
+    async def run(self, pull_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await _act(
+            "revenue_pull", pull_id, limit=timedelta(hours=1), retry=ONCE
+        )
+        return result
+
+
+@workflow.defn(name="RescueFollowUps")
+class RescueFollowUps:
+    """Hourly: due rescue cases under the company's sealed rescue rule."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("rescue_follow_ups", limit=LONG)
+        return result
+
+
+@workflow.defn(name="FeedbackBatch")
+class FeedbackBatch:
+    """Nightly: the pending feedback signals in one light-model call per company."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("feedback_batch", limit=timedelta(minutes=30))
+        return result
+
+
+@workflow.defn(name="SupportWeekly")
+class SupportWeekly:
+    """Saturday: the week's support figures to each support lead."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("support_weekly", limit=timedelta(minutes=15))
+        return result
+
+
+# ⟨1.5⟩ the support desk (prompt 10 §4-§7, §11): every activity asks the launch
+# gate first and does nothing while the holding or the company is locked.
+@workflow.defn(name="SupportInbound")
+class SupportInbound:
+    """One stored customer message through the rules, then its sends."""
+
+    @workflow.run
+    async def run(self, message_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("support_inbound", message_id, limit=LONG)
+        return result
+
+
+@workflow.defn(name="SupportSend")
+class SupportSend:
+    """One queued outbound message (the owner's reply, an approved draft)."""
+
+    @workflow.run
+    async def run(self, message_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("support_send", message_id, limit=LONG)
+        return result
+
+
+@workflow.defn(name="SupportSweep")
+class SupportSweep:
+    """Every SUPPORT_HANDOFF_DIGEST_MIN minutes: expiry, reminders, the
+    owner's handoff line, held lifecycle sends, NPS waves (gated)."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("support_sweep", limit=timedelta(minutes=10))
+        return result
+
+
+@workflow.defn(name="SupportShadow")
+class SupportShadow:
+    """One shadow run of the support charter on the company's private suite."""
+
+    @workflow.run
+    async def run(self, run_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("support_shadow_run", run_id, limit=timedelta(hours=3))
+        return result
+
+
 @workflow.defn(name="ScoreJob")
 class ScoreJob:
     @workflow.run
@@ -394,6 +513,10 @@ class OrderRouting:
 
 
 WORKFLOWS = [
+    SupportInbound,
+    SupportSend,
+    SupportSweep,
+    SupportShadow,
     EvalRun,
     ProtocolRun,
     OversightWeekly,
@@ -414,4 +537,10 @@ WORKFLOWS = [
     ScoreJob,
     StarsReminder,
     StarsRollup,
+    SupportRetention,
+    RevenuePulls,
+    RevenuePull,
+    RescueFollowUps,
+    FeedbackBatch,
+    SupportWeekly,
 ]

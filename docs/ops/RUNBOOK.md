@@ -1184,3 +1184,138 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - seed idempotent است. شرکتی که پوشه ندارد seed نمیشود، و نسخه‌ی آپلودی هیچ‌وقت دست نمیخورد.
 - **کلید توقف:** ردگیری کد است و مدل یا سرویس بیرونی ندارد. پس با کلید توقف هم کار میکند (مالک هیچ‌وقت قفل نیست).
   - `reconcile_decisions` نسخه‌هایی را که بیش از ۱۰ دقیقه `processing` مانده‌اند دوباره راه میاندازد. این هم کار قاعده‌ای است.
+
+## ۲۸. درآمد و پشتیبانی: پایه (پرامپت ۱۰ §۱، قرارداد §۱۹)
+- **پنج schema:** `revenue`، `support`، `growth`، `feedback`، `intake` (migration `0025`). همه‌ی جدول‌ها `company_id` و RLS **FORCE** دارند؛ هیچ جدول بی‌شرکتی نیست.
+- **نام مستعار مشتری:** `subject = HMAC-SHA256(key, company || channel || external_id)` (`hq_common.pseudonym`).
+  - کلید در `kv/support/pseudonym` است. `make up` آن را یک بار با KV check-and-set (`cas: 0`) میسازد (`infra/openbao/kv-once.sh`) و هرگز عوض نمیکند؛ چاپ نمیشود. api و worker فقط میخوانند.
+  - **چرخاندن فقط با خواست مالک:** کلید تازه همه‌ی `subject`های گذشته را غریبه میکند (قیف، نجات، NPS از نو شروع میشوند).
+  - handle، شناسه‌ی کاربر کانال و UID خام فقط در `support.customers` میمانند. بقیه‌ی جدول‌ها فقط `subject` دارند (CHECK: hex ۶۴).
+- **ماسک پیش از ذخیره:** هر پیام مشتری از `hq_common.customer_mask.mask` رد میشود: ماسک §۱۶.۶ به‌علاوه‌ی عبارت بازیابی (۱۲+ کلمه‌ی BIP-39)، کلید خصوصی (hex ۶۴، WIF، xprv، هر بلوک `-----BEGIN`) و شماره‌ی کارت (Luhn). متن خام هرگز ذخیره نمیشود و به مدل نمیرسد. hash تراکنش هم hex ۶۴ است و ماسک میشود (سمت امن).
+- **نگهداری:** job روزانه‌ی `hq-support-retention` (۰۴:۱۵ به وقت مالک) متن‌های مشتری قدیمی‌تر از `SUPPORT_RETENTION_DAYS` (پیش‌فرض ۱۸۰) را پاک میکند: بدنه‌ی پیام‌ها، توضیح NPS، نقل‌قول بازخورد و داده‌ی رویدادهای intake. ردیف، زمان، وضعیت و برچسب‌ها میمانند.
+  - این job فقط قاعده است (بی‌مدل، بی‌تماس بیرونی)، پس با کلید توقف هلدینگ هم اجرا میشود.
+  - **backup:** متنی که پاک شد، در snapshotهای restic تا پایان نگهداری همان snapshot میماند (§۱۸: ساعتی ۷ روز، روزانه ۹۰، هفتگی ۵۲، ماهانه ۳۶، سالانه ۱۰). پاک کردن آن از backup فقط با تصمیم مالک است.
+- **دروازه‌ی راه‌اندازی:** هر چیزی از پرامپت ۱۰ که خودش اجرا میشود (pull، ارسال، پیش‌نویس، batch، پروتکل) اول `hq_api.domain.gate` را میپرسد و تا قفل هلدینگ یا شرکت هست، بی‌مدل و بی‌تماس بیرونی رد میشود (`skipped`).
+- **متغیرها** (`.env`، خالی یعنی پیش‌فرض): `SUPPORT_RETENTION_DAYS`، `SUPPORT_DRAFT_DAILY_TOKENS` (۶۰ هزار برای هر شرکت در روز)، `SUPPORT_DAILY_OUTBOUND_CAP`، `SUPPORT_AUTO_REPLIES_PER_HOUR`، `SUPPORT_HANDOFF_DIGEST_MIN`، `REFERRAL_CHECKS_PER_HOUR`، `REFERRAL_CHECK_CACHE_S`، `REVENUE_BACKFILL_DAYS`، `REVENUE_PULL_MAX_DAYS`، `INTAKE_MAX_SKEW_S`.
+
+### ۲۸.۱ رادار درآمد، قیف، نجات رفرال و صندوق بازخورد (پرامپت ۱۰ §۲، §۳، §۸؛ قرارداد §۱۹.۱، §۱۹.۲، §۱۹.۷)
+- **حساب افیلیت** = یک حساب سرویس §۱۸.۱۳ با policy `{"inject": {"kind": "signer", "signer": "lbank-v2"}}` و `site` = میزبان API افیلیت LBank.
+  - رمز: `make account-secret KEY=<key>` (مالک)، **در یک خط به شکل `api_key:secret_key`**. هرگز چاپ و هرگز از API برگردانده نمیشود.
+  - بعد `POST /api/v1/revenue/accounts` 🔏 `revenue.account` (هش بدنه): `{company, exchange: "lbank", service_account: <key>, title_fa}`.
+  - **whitelist:** IP عمومی هاب باید در پنل API افیلیت همان صرافی ثبت شود؛ LBank بدون آن جواب نمیدهد (کار مالک).
+- **مسیر امضا:** worker ← gateway `POST /v1/connectors/call` (توکن worker) ← api `POST /internal/v1/egress/connectors/{adapter}/pull` (توکن سرویس `worker` در `kv/hq-agents/connector`؛ `make up` یک بار میسازد) ← egress `POST /v1/connectors/call`.
+  - egress امضا میکند (`hq_egress/signers.py`، فهرست ثابت)، سقف مستند LBank (۵ درخواست در ۱۰ ثانیه، token bucket هر حساب) را نگه میدارد و پاسخ را **همان‌جا کوچک میکند**: از فهرست تیم فقط UID، روز دعوت و `meets_minimum`؛ موجودی خوانده و دور ریخته میشود.
+  - secret در هیچ پاسخ، لاگ یا `egress.log` نیست (هر شکلش scrub میشود). حساب signer برای `http.request`، `web.read` و `web.browse` رد میشود (`policy_denied`، در api و در egress).
+  - قیمت دلاری کوین‌های غیر USDT: قیمت بسته‌شدن همان روز از kline عمومی LBank (`EGRESS_LBANK_PUBLIC_URL`، پیش‌فرض `https://api.lbkex.com`)؛ منبع در `by_coin[].price_source`.
+- **زمان‌ها (worker):** `hq-revenue-pull` هر روز ۰۷:۰۰ تهران، روز قبل (تسویه‌ی T+1 به وقت UTC+8)؛ اولین بار backfill `REVENUE_BACKFILL_DAYS` (۹۰). `hq-revenue-retry` ساعت ۱۱:۰۰ و ۱۸:۰۰، فقط روزهای ناقص یا نیامده‌ی ۳ روز اخیر. pull دستی: `POST /api/v1/revenue/accounts/{id}/pull?from&to` (حداکثر `REVENUE_PULL_MAX_DAYS`، `Idempotency-Key` اجباری).
+  - هر pull اول دروازه را میپرسد: تا کلید توقف هلدینگ (یا شرکت) روشن است، ردیف `skipped` با `holding_locked` ثبت میشود و هیچ تماسی بیرون نمیرود.
+  - روزی که یکی از صفحه‌هایش نیامد `complete: false` با `gaps` است؛ روز کامل هرگز با pull ناقص بعدی بازنویسی نمیشود.
+- **هشدارها** (یکی برای هر رخداد، سطح `report`، بسته‌ی مالک + یک خط سیستمی در thread مدیرعامل): کمیسیون زیر ۶۰٪ میانه‌ی همان روزِ هفته در ۲۸ روز؛ دو pull شکست‌خورده‌ی پشت‌سرهم (+ یک کار برای SRE پلتفرم)؛ روزی که pull امتحانش کرد و ۳۶ ساعت بعد از تسویه هنوز ناقص است.
+- **هزینه در برابر درآمد:** `token_cost_usd` = جمع `cost_usd + equiv_cost_usd` در `llm.calls` همان روزها (به وقت UTC+8)، هرگز از گزارش ایجنت؛ `net_usd = usdt − token_cost_usd` (USDT ≈ USD).
+- **PR-103** (تطبیق رادار با داده‌ی خام): هر صفحه‌ی هر endpoint با ارقام کوچک‌شده و SHA-256اش در `revenue.days.source.pages` میماند؛ checker کد (`domain/revenue_checks.py`) سه روز اخیر را از همان‌ها دوباره حساب میکند. پروتکل در فایلش `paused` است تا کلید افیلیت مالک برسد.
+- **قیف:** `visit` (بی‌منبع)، `signup` و `vip_active` (رویداد محصول، وقتی منبع `product` با آن نوع ثبت شد)، `referral_verified` (دعوت‌شده‌های تازه‌ی هر روز) و `min_balance` (از آن‌ها، بالای **همان یک عدد** مقاله‌ی `policy` با کلید `vip.min_balance`؛ بی‌آن مقاله وصل نیست). مرحله‌ی بی‌منبع `connected: false, count: null` است و هیچ نرخی تخمین زده نمیشود.
+  - نشتی: نرخ هفته‌ی آخر کمتر از ۷۰٪ میانه‌ی چهار هفته‌ی قبل ← یک ردیف `growth.leaks` و یک کار برای مدیر SALES (بعد از هر pull).
+- **نجات رفرال:** `referral.check` (پشتیبان و متخصص نجات) فقط `{invitee, meets_minimum}`؛ حداکثر `REFERRAL_CHECKS_PER_HOUR` در ساعت برای هر شرکت، جواب تا `REFERRAL_CHECK_CACHE_S` دوباره استفاده میشود؛ با قفل هلدینگ ۴۲۳.
+  - «دعوت‌شده‌ی ما نیست» در یک گفت‌وگو (یا رویداد `referral_failed` محصول) ← پرونده `RC-…`؛ چک بعدی «هست» (یا `referral_verified` محصول) ← `rescued`؛ ۳۰ روز یا `max_follow_ups` ← `lost`؛ لغو مشتری ← `opted_out`.
+  - **«قبلاً ثبت‌نام کردم» (§۴.۵):** پشتیبان UID میخواهد و `referral.check` میزند. api گفت‌وگویی را که run او جوابش را میدهد پیدا میکند، UID را فقط روی همان مشتری در `support.customers.uids` نگه میدارد و پرونده را به همان گفت‌وگو وصل میکند. پرونده‌ی محصولی که گفت‌وگو ندارد، با چک بعدی در یک گفت‌وگو به آن وصل میشود.
+  - پیگیری‌ها (`hq-rescue-follow-ups`، ساعتی، پشت دروازه) فقط زیر قاعده‌ی **فعال** `rescue` و فقط از فرستنده‌ی §۷ (`growth.send_template`: قالب مُهرشده، لغو، سقف‌ها، ساعت سکوت، کانال `live`، نگهبان با جمله‌ی ایمنی). پیام صف‌شده بعد از commit با `desk.send` میرود (دروازه دوباره پرسیده میشود). مشتری بی‌کانال (`no_channel`) یک روز بعد دوباره امتحان میشود. متخصص نجات هیچ ابزار ارسالی ندارد.
+- **صندوق بازخورد:** کلیدواژه‌های هر شرکت در `feedback.keywords` (داده) ← نوع و حوزه، بی‌مدل؛ بقیه در `hq-feedback-batch` (۰۲:۳۰ تهران، پشت دروازه) با یک فراخوانی مدل سبک (Haiku 5.5، P4) برای هر شرکت. نقل‌قول‌ها ماسک‌شده (بی handle و UID)، حداکثر ۳. موردی که در پنجره‌ی شرکت به آستانه برسد (پیش‌فرض ۵ در ۷ روز، `support.settings`) یک کار برای مدیر PRODUCT میشود.
+  - هر پیام مشتری (بعد از لغو، جواب NPS/CSAT و چک ربات) و هر توضیح NPS از `feedback.ingest` رد میشود: برچسب کلیدواژه بی‌مدل، وگرنه `pending` برای batch شبانه. گفت‌وگوی mystery ثبت میشود ولی شمرده نمیشود.
+  - گزارش هفتگی پشتیبانی (`hq-support-weekly`، شنبه ۰۸:۳۰ تهران): کار برای سرپرست پشتیبانی؛ شرکت بی‌سرپرست ← همان ارقام در گزارش صبحگاهی شنبه.
+- **متغیرهای تازه‌ی egress:** `EGRESS_LBANK_PUBLIC_URL`، `EGRESS_CONNECTOR_WAIT_S` (انتظار حداکثر برای سقف نرخ، پیش‌فرض ۸ ثانیه).
+
+### ۲۸.۲ پشتیبانی: مسیر جواب، نگهبان، go-live (پرامپت ۱۰ §۴ تا §۶، قرارداد §۱۹.۳ تا §۱۹.۶)
+- **هیچ متن آزادی از ایجنت به مشتری نمیرسد.** فقط سه چیز میرود: جواب عین مقاله‌ی تأییدشده، پیش‌نویسی که سیاست `auto_send` همان کانال اجازه میدهد و همه‌ی چک‌ها را پاس کرده، یا قالب مُهرشده زیر قاعده‌ی مُهرشده.
+- **مسیر هر پیام** (`SupportInbound` در worker، `hq_api.domain.desk.process`):
+  1. ماسک و ذخیره (`store_inbound`).
+  2. «لغو»، stop و مشابه‌ها: مشتری از همه‌ی قاعده‌های آن شرکت برای همیشه بیرون میرود. عدد ۰ تا ۱۰ بعد از NPS و ۱ تا ۵ بعد از CSAT جواب همان‌اند، نه پرونده‌ی تازه.
+  3. گفت‌وگوی ربات‌با‌ربات (یک متن ۳ بار در ۲ دقیقه، یا ۶ پیام در ۲ دقیقه): گفت‌وگو `paused` و handoff.
+  4. گزارش امنیتی (جعل، کلاهبرداری، «Ignore your rules»)، شکایت یا «با آدم حرف بزنم»: handoff فوری.
+  5. **قاعده:** بهترین مقاله‌ی `faq` تأییدشده و منقضی‌نشده‌ی همان شرکت. اگر امتیاز ≥ `verbatim_threshold` و فاصله با دومی ≥ `verbatim_margin` (۰٫۱۵) بود، جواب عین مقاله میرود، **بی‌مدل**.
+  6. وگرنه ایجنت پشتیبانی همان شرکت یک کار P1 میگیرد و با `support.draft` پیش‌نویس میدهد. شرکت بی‌ایجنت پشتیبانی، یا شرکتی که `SUPPORT_DRAFT_DAILY_TOKENS` امروزش تمام شده: handoff بی‌مدل.
+- **پیش‌نویس** (`support.draft`، کد تصمیم میگیرد): grounded (هر لینک، کد و عدد باید عیناً در مقاله‌های ارجاع‌شده‌ی تأییدشده باشد) ← نگهبان ← `auto_send`:
+  - `kb_verbatim` (پیش‌فرض): فقط جواب عین مقاله میرود.
+  - `kb_grounded`: پیش‌نویسی هم که هر دو چک را پاس کرده و `confidence ≥ grounded_threshold` دارد.
+  - `off`: هیچ.
+  - بقیه به صف آموزش مالک (`GET /support/queue`) میرود. مشتری قالب مُهرشده‌ی `holding_reply` را میگیرد. بسته‌ی مالک هر `SUPPORT_HANDOFF_DIGEST_MIN` دقیقه **یک** خط میگیرد. handoff امنیتی `urgent` است، حداکثر ۳ بار در روز برای هر شرکت.
+- **ارسال** (`SupportSend`، فقط worker): فقط کانال `live` به مشتری میرسد. `shadow`، `paused` و `not_configured` هیچ چیزی به تلگرام یا Chatwoot نمیفرستند.
+  - قواعد تلگرام در کد چک میشود: ربات فقط به کسی مینویسد که خودش شروع کرده، و گفت‌وگوی Business با `business_connection_id` خودش جواب میگیرد. پیامی که تلگرام اجازه نمیدهد `failed: no_channel` ثبت میشود.
+  - سقف‌ها: `SUPPORT_AUTO_REPLIES_PER_HOUR` (۲۰ جواب خودکار در ساعت برای هر گفت‌وگو؛ بیست‌ویکمی گفت‌وگو را `paused` و handoff میکند) و `SUPPORT_DAILY_OUTBOUND_CAP` (برای هر شرکت؛ جواب مالک بعد از آن `429 send_limit` با `Retry-After` میگیرد).
+  - ارسال از egress است: `POST /v1/support/send` (worker روی `hq-egress-api`). توکن ربات (`kv/support/telegram/<CO>/<channel>`) یا حساب سرویس Chatwoot برای همان یک فراخوانی از OpenBao خوانده و فقط به egress داده میشود؛ در هیچ لاگ و پاسخی نیست.
+  - جمله‌ی ایمنی (قالب مُهرشده‌ی `safety`) در اولین جواب هر گفت‌وگو و در هر پیام چرخه‌ی عمر میآید.
+- **نگهبان خروجی** (`hq_common.outbound_guard`، کد، نه مدل) روی **هر** پیام خروجی همه‌ی کانال‌ها، حتی جواب خود مالک و کانال mystery:
+  - کدهای رد: `asks_secret`، `unknown_link`، `unknown_code`، `profit_promise`، `customer_data`، `internal_data`، `too_long` (۳۵۰۰)، `red_line` (فهرستش با پرامپت ۱۱ پر میشود).
+  - برای `asks_secret`، `profit_promise` و `red_line` هیچ استثنایی نیست. پیام ردشده `blocked` با دلیل‌ها میماند و جواب API برای مالک `422 send_blocked` با `fields.blocked_reasons` است. مالک متن را اصلاح و دوباره میفرستد.
+  - لینک و کد فقط وقتی پاس میشوند که **عیناً** در مقاله‌های `official_link`/`referral` تأییدشده‌ی **همان شرکت** باشند.
+- **دانشنامه:**
+  - تأیید مقاله: `POST /support/kb/{ref}/approve` با step-up `support.kb` و هدف `ref@version`.
+  - هر مقاله ۱۸۰ روز اعتبار دارد (`support.settings.kb_expiry_days`). ۱۴ روز قبلش سرپرست پشتیبانی (اگر هست) یک کار میگیرد. مقاله‌ی منقضی دیگر جواب خودکار نمیسازد.
+  - کد و لینک رفرال را فقط مالک مینویسد. پیشنهاد ایجنت (`kb.propose`) لینک و کد ندارد.
+- **حالت آموزش:** هر جواب مالک (`/reply`، `/teach`؛ هر دو `Idempotency-Key` اجباری دارند) یک مقاله‌ی پیشنهادی ماسک‌شده با `source: owner_answer` میسازد. اگر سرپرست پشتیبانی هست، یک کار تعمیم برای او ساخته میشود.
+- **آزمون سایه و go-live** (فقط وقتی مالک تاریخچه را بدهد):
+  1. فایل خروجی Telegram Desktop (`result.json`) یا CSV پرسش و پاسخ را در اپ بارگذاری کن، بعد `POST /support/history {company, file_id}`. خروجی حداکثر ۱۰۰ مورد ماسک‌شده است، به تفکیک موضوع، در suite خصوصی `support-shadow-<CO>` همان شرکت. این کار فقط قاعده است.
+  2. `POST /support/shadow/{company}/run`: worker موردها را از همان مسیر §۴.۳ بی‌ارسال اجرا میکند (اول قاعده، بعد پیش‌نویس منشور پشتیبانی روی router)، با داوری کد و داور سبک. توکنش هزینه‌ی آکادمی است و تا قفل هلدینگ هست `skipped` میشود.
+  3. **قبولی:** درست ≥ ۹۰٪ **و** صفر خطای ایمنی **و** صفر کد یا لینک اشتباه. با قبولی برای هر کانالی که در `shadow` است یک کارت `support_go_live` ساخته میشود، با آستانه‌های پیشنهادی همان اجرا. یک اعلان `decision` هم درباره‌ی خرید Premium میآید.
+  4. مُهر کارت (step-up `decision.approve`) کانال را `live` و آستانه‌ها را همان عددهای کارت میکند. آستانه‌ها مسیر ویرایش ندارند.
+  - کارت فقط به اجرای خودش بسته است. اجرای تازه‌تر کارت قبلی را باطل میکند (۴۰۹).
+  - Telegram Business اتصال Premium را هم لازم دارد (`premium_connected`، از رویداد `business_connection` خود تلگرام).
+  - قالب‌های `holding_reply` و `safety` باید مُهر شده باشند.
+- **کانال‌ها:** `PATCH /support/channels/{company}/{kind}` (If-Match).
+  - گشادتر کردن (رفتن به `kb_grounded`، یا برگرداندن کانال `paused`ی که قبلاً go-live گرفته به `live`) step-up `support.channel` با هدف `company/kind@auto_send` میخواهد.
+  - تنگ‌تر کردن بی‌step-up است. توقف (`/pause`) فوری و بی‌step-up است.
+  - کانالی که هرگز go-live نگرفته `409 shadow_not_passed` میگیرد.
+- **سقف توکن پیش‌نویس** (`SUPPORT_DRAFT_DAILY_TOKENS`): llm-router در scope `support_draft:<CO>` اجرایش میکند. این همان شمارنده‌ی روزانه‌ی نقش `<CO>:support_agent` است و تمام که شد `429 budget_exhausted` میدهد. api پیش از بیدار کردن ایجنت همان شمارنده را میخواند و بی‌مدل handoff میکند (`support.settings.draft_daily_tokens` برای یک شرکت عدد دیگری میگذارد).
+- **ناظر:** `support.mystery` (فقط ناظر) گفت‌وگویی روی کانال `mystery` میسازد که کل مسیر را میرود، هرگز به تلگرام یا Chatwoot نمیرسد و در هیچ آماری نیست. PR-043 بی‌کانال `live` نتیجه‌ی `deferred` و با قفل هلدینگ `skipped` میدهد. PR-043 و PR-101 تا PR-104 همه `paused` seed شده‌اند. روشن کردنشان با مالک است. PR-101 (کد یا لینک تأییدنشده در پاسخ خودکار)، PR-103 (تطبیق رادار) و PR-104 (پاسخ خودکاری که به مقاله‌ی منقضی، بازنشسته یا تأییدنشده استناد کرده) با کد سنجیده میشوند، بی‌مدل.
+
+### ۲۸.۳ چرخه‌ی عمر، NPS، CSAT (پرامپت ۱۰ §۷، قرارداد §۱۹.۵)
+- **قالب:** `POST /growth/templates` (پیشنهاد) و `POST /growth/templates/{ref}/seal` (step-up `growth.template`، هدف `ref@version:sha256` بدنه؛ توکن مُهر قالب یک شرکت برای قالب هم‌متن شرکت دیگر به کار نمیرود چون ref فرق دارد).
+- **قاعده:** `POST /growth/rules` (پیشنهاد) و `POST /growth/rules/{ref}/seal` (step-up `growth.rule`، هدف `ref@version`؛ قالبِ همان نسخه باید مُهرشده و آخرین نسخه باشد، وگرنه `409 template_not_sealed`).
+  - توقف بی‌step-up است. ادامه (`/resume`) step-up میخواهد. نسخه‌ی تازه‌ی قالب قاعده را تا مُهر نسخه‌ی تازه‌ی قاعده متوقف میکند.
+  - ایجنت‌ها با `propose` کارت `message_template` یا `lifecycle_rule` میسازند. مُهر کارت همان مُهر است.
+- **seed هر شرکت** در اولین استفاده: قالب‌های `holding_reply`، `safety`، `csat` و `nps` با امضای «پشتیبانی Coine»، و قاعده‌های `csat` و `nps`. همه `proposed`اند. تا مالک مُهر نکند هیچ پیامی نمیرود و هیچ کانالی `live` نمیشود.
+- **ارسال:** فقط از `hq_api.domain.growth.send_template(...)`. ترتیب چک‌ها:
+  1. دروازه‌ی قفل
+  2. قاعده‌ی فعال
+  3. قالب مُهرشده
+  4. لغو
+  5. `per_customer_days`
+  6. ساعت سکوت (پیش‌فرض ۲۲:۰۰ تا ۰۹:۰۰ تهران؛ پیام صبح میرود)
+  7. `daily_cap`
+  8. کانال `live` و قواعد تلگرام
+  9. نگهبان با جمله‌ی ایمنی
+- **NPS:** موج فصلی `NP-<سال>Q<فصل>-<CO>`، نمونه‌ی تصادفی از مشتری‌های دارای گفت‌وگو در ۹۰ روز گذشته. امتیاز = ٪promoter − ٪detractor. توضیح‌ها به `feedback.signals` میروند.
+- **CSAT:** بعد از بستن گفت‌وگو، اگر قاعده‌ی `csat` فعال است. جواب ۱ تا ۵ روی همان گفت‌وگو مینشیند.
+- `welcome` و `reactivation` تا رسیدن رویدادهای محصول (CR-009/010) کاندیدی ندارند.
+- **جاروب** (`hq-support-sweep`، هر `SUPPORT_HANDOFF_DIGEST_MIN` دقیقه) کارهای دوره‌ای را انجام میدهد و تا قفل هلدینگ هست هیچ کاری نمیکند:
+  - انقضای مقاله‌ها و یادآوری‌ها
+  - خط بسته‌ی مالک
+  - ارسال‌های نگه‌داشته‌شده
+  - موج‌های NPS
+  - setWebhook تلگرام، یک بار برای هر کانال
+
+### ۲۸.۴ ورودی از بیرون (پرامپت ۱۰ §۹، قرارداد §۱۹.۸)
+- **سه مسیر Caddy** در `api-on.caddy` (فقط با دامنه؛ در `api-off.caddy` همه‌ی `/intake/*` ۴۰۴ است)، هر کدام با سقف بدنه‌ی ۱ مگ. `/internal` همچنان ۴۰۴ است. پورت تازه‌ای منتشر نشده.
+  - `/intake/v1/telegram/{CO}/{channel}`: فقط از بازه‌های منتشرشده‌ی تلگرام (`149.154.160.0/20`، `91.108.4.0/22`) و فقط با `X-Telegram-Bot-Api-Secret-Token` درست. `update_id` فقط یک بار پذیرفته میشود.
+  - `/intake/v1/chatwoot/{CO}`: `X-Chatwoot-Timestamp` و `X-Chatwoot-Signature: sha256=HMAC(secret, "<ts>.<body>")`.
+  - `/intake/v1/product/{CO}`: `X-HQ-Timestamp` و `X-HQ-Signature`، با همان امضا ([CR-009](change-requests/CR-009.md)).
+  - پنجره‌ی زمان `INTAKE_MAX_SKEW_S` (۳۰۰) است و `id` هر رویداد فقط یک بار پذیرفته میشود.
+  - IPهای مجاز هر منبع را مالک در `POST /intake/sources` میدهد (step-up `intake.source`، هدف SHA-256 بدنه). ثبت منبع کانال را از `not_configured` به `shadow` میبرد، **نه** `live`.
+- **رد:** پاسخ ۴۰۱/۴۰۳/۴۱۳/۴۲۹ بی‌جزئیات است و فقط یک ردیف شمارش در `intake.rejections` میسازد.
+  - Caddy رسمی rate limiter ندارد. سقف را api میشمارد: `INTAKE_RATE_PER_MIN` (۱۲۰ در دقیقه برای هر منبع) و `INTAKE_MAX_BODY`.
+- **رمزها** (فقط ترمینال مالک، ورودی پنهان، بار اول `cas: 0`، جایگزینی فقط با `REPLACE=yes`):
+  - `make intake-secret COMPANY=… SOURCE=chatwoot|product`
+  - `make telegram-bot-token COMPANY=… CHANNEL=telegram_bot|telegram_business`: توکن ربات، با webhook secret تازه کنارش.
+- **رویدادهای محصول** ماسک‌شده ذخیره میشوند و UID فقط به `subject` تبدیل میشود. `support_message` وارد میز پشتیبانی روی `product_bot` میشود (CR-011). بقیه همان لحظه به `intake.APPLIERS` (`domain/product_events.py`) میروند: `referral_failed` پرونده‌ی نجات باز میکند، `referral_verified` آن را `rescued` میکند، `signup`، `vip_activated` و `uid_submitted` برای قیف میمانند (`applied`). رویداد بی `data.exchange` ← `ignored`. این کار فقط نوشتن در دیتابیس است، پس با کلید توقف هم انجام میشود؛ هیچ پیامی از اینجا نمیرود.
+
+### ۲۸.۵ Chatwoot (پرامپت ۱۰ §۱۰؛ ساخته شده، **deploy نشده**، تصمیم هزینه با مالک)
+- **روی هاب نه:** Rails حدود ۸۰۰ مگ، Sidekiq حدود ۷۰۰، Postgres ۵۱۲، Redis ۱۲۸ و Caddy ۶۴؛ جمعاً حدود ۲٫۲ گیگ سقف. بودجه‌ی هاب همین حالا پر است (پروفایل full ‏10896 از 12486 مگ و STT هم جا نشد)، پس gate حافظه رد میشود.
+- **راه پیشنهادی:** یک سرور کوچک جدا (۲ vCPU، ۴ گیگ) با provisioner پرامپت ۹ و کلید نرم‌افزار `chatwoot` (`infra/provisioning/templates/chatwoot.sh`):
+  - Chatwoot Community با ایمیج `v4.18.0-ce` (بخش enterprise فعال نیست).
+  - رمزها روی خود سرور با openssl ساخته میشوند.
+  - فقط ۴۴۳ منتشر میشود.
+  - چیزی خودش شروع نمیشود. مالک بعد از ساخت `sudo chatwoot-start <domain>` میزند.
+  - طرح سرور هزینه‌ی واقعی را از API هتزنر میگوید. مالک مُهر میکند.
+- هاب و Chatwoot فقط از HTTPS عمومی با هم حرف میزنند:
+  - هاب ← Chatwoot از egress، با حساب سرویس (`make account-secret`؛ `config` کانال `chatwoot` شامل `account` و `base_url` است).
+  - Chatwoot ← هاب از `/intake/v1/chatwoot/<CO>`، با HMAC.
+- **راه دوم** (profile روی خود هاب) فقط وقتی است که gate حافظه با اندازه‌گیری واقعی پاس شود؛ امروز نمیشود.

@@ -21,6 +21,8 @@ kinds := {
 	"company_found", "server_plan",
 	# 7.1 §18.13: an MCP server re-enabled with its new listing
 	"tool_enable",
+	# ⟨1.5⟩ prompt 10 (contract §19.9): sealed by the owner only
+	"message_template", "lifecycle_rule", "support_go_live",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

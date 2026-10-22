@@ -260,7 +260,11 @@ class ProposeIn(In):
         "lesson_adoption",
         "protocol",
         "company_found",
-    ]  # every API kind but server_plan (only server.plan makes it) and tool_enable (the api's)
+        # ⟨1.5⟩ prompt 10 §7: a template or a lifecycle rule for the owner's seal
+        "message_template",
+        "lifecycle_rule",
+    ]  # every API kind but server_plan (only server.plan makes it), tool_enable (the api's)
+    # and support_go_live (only a passed shadow run makes it)
     title_fa: str = Field(min_length=1, max_length=300)
     what_md: str = Field(default="", max_length=20000)
     why_md: str = Field(default="", max_length=20000)

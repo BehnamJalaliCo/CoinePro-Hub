@@ -1,4 +1,9 @@
-# No domain yet (HQ_API_EDGE=off): the public API stays closed at the edge.
+# No domain yet (HQ_API_EDGE=off): the public API stays closed at the edge,
+# and so do the intake webhooks (prompt 10 §9: HTTPS only).
+handle /intake/* {
+	respond 404
+}
+
 handle /api/* {
 	header Content-Type application/json
 	respond `{"status":404,"code":"not_found","message_fa":"پیدا نشد."}` 404
