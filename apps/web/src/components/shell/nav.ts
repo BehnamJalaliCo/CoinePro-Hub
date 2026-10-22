@@ -14,6 +14,19 @@ export const NAV_MAIN: NavItem[] = [
   { href: '/workshop', label: 'کارگاه کد', icon: 'code' },
 ];
 
+// ⟨1.5⟩ governance (§20): the meeting room, the charter, knowledge, the cards, OKRs, outcomes, risks, the change calendar and authority.
+export const NAV_GOVERNANCE: NavItem[] = [
+  { href: '/meetings', label: 'اتاق جلسه', icon: 'meeting' },
+  { href: '/charter', label: 'اساسنامه', icon: 'report' },
+  { href: '/knowledge', label: 'دانشنامه', icon: 'knowledge' },
+  { href: '/scorecard', label: 'کارت‌ها و امتیاز', icon: 'chart' },
+  { href: '/okr', label: 'OKR', icon: 'planner' },
+  { href: '/outcomes', label: 'بازبینی نتیجه', icon: 'refresh' },
+  { href: '/risks', label: 'دفتر ریسک', icon: 'urgent' },
+  { href: '/calendar', label: 'تقویم تغییرات', icon: 'time' },
+  { href: '/authority', label: 'ماتریس اختیار', icon: 'lock' },
+];
+
 export const NAV_TOOLS: NavItem[] = [
   // ⟨1.5⟩ revenue and support (§19)
   { href: '/revenue', label: 'درآمد', icon: 'chart' },

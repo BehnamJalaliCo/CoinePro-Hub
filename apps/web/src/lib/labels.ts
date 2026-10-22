@@ -20,6 +20,13 @@ export const DECISION_KIND: Record<string, { fa: string; icon: IconName }> = {
   message_template: { fa: 'قالب پیام', icon: 'send' },
   lifecycle_rule: { fa: 'قاعده‌ی پیام', icon: 'time' },
   support_go_live: { fa: 'شروع پشتیبانی', icon: 'messages' },
+  // ⟨1.5⟩ §20.11
+  meeting_resolution: { fa: 'مصوبه‌ی جلسه', icon: 'meeting' },
+  charter_amendment: { fa: 'اصلاحیه‌ی اساسنامه', icon: 'report' },
+  okr: { fa: 'OKR فصل', icon: 'planner' },
+  knowledge_entry: { fa: 'ورودی دانشنامه', icon: 'knowledge' },
+  risk_acceptance: { fa: 'پذیرش ریسک', icon: 'urgent' },
+  authority_change: { fa: 'تغییر ماتریس اختیار', icon: 'lock' },
 };
 
 export const DECISION_STATUS: Record<string, string> = {

@@ -22,11 +22,14 @@ const EVENT_TYPES = [
   'brand.updated',
   // ⟨1.5⟩ §19.9
   'revenue.day', 'revenue.alert', 'support.message', 'support.queue', 'support.channel', 'rescue.updated', 'lifecycle.sent', 'nps.closed', 'feedback.item',
+  // ⟨1.5⟩ §20.11
+  'meeting.scheduled', 'meeting.started', 'meeting.turn', 'meeting.claim', 'meeting.whisper', 'meeting.ended',
+  'charter.sealed', 'kpi.stale', 'okr.updated', 'outcome.due', 'risk.updated', 'calendar.conflict', 'knowledge.updated', 'knowledge.expiring',
 ] as const;
 
 const CORE_TOPICS = 'work,decisions,deliverables,messages,notifications,activity,llm,control';
 // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback`;
+const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge`;
 
 // Event type prefix -> query keys to refresh (contract §7, §16).
 const INVALIDATE: Array<[string, string[]]> = [
@@ -65,6 +68,16 @@ const INVALIDATE: Array<[string, string[]]> = [
   ['lifecycle.', ['growth']],
   ['nps.', ['growth', 'feedback']],
   ['feedback.', ['feedback']],
+  // ⟨1.5⟩ §20.11: a meeting's turns, claims and whispers (the room and the planner); a sealed charter; a stale KPI (cards and the
+  // scorecard); OKR and outcome updates; risks; calendar conflicts (the deploy cards carry them too); knowledge and its expiry.
+  ['meeting.', ['meetings', 'planner']],
+  ['charter.', ['charter']],
+  ['kpi.', ['cards', 'scorecards', 'kpis']],
+  ['okr.', ['okr']],
+  ['outcome.', ['outcomes']],
+  ['risk.', ['risks']],
+  ['calendar.', ['calendar', 'planner', 'decisions']],
+  ['knowledge.', ['knowledge']],
 ];
 
 export type StreamState = 'connecting' | 'live' | 'offline';

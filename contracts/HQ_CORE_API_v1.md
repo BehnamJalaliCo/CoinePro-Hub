@@ -1606,6 +1606,44 @@ Conflict      { a: "CE-…", b: "CE-…", rule, severity: "medium"|"high", note_
   `risk.update`, `calendar.read`, `calendar.add`, `authority.read`, `governance.read`; `knowledge.search` gains kind `knowledge`;
   `propose` accepts `expected`.
 
+### 20.12 Shapes as the apps read them ⟨1.5.1⟩
+Written with the web and Android screens (2026-10-22). Where §20.1–§20.11 leave a shape open, this is the contract.
+- **Meetings:**
+  - `GET /meetings/{ref}/turns` → `{items: [Turn], whispers?: [Whisper], next_cursor}`. `GET /meetings/{ref}` carries `drafts?: [Draft]`.
+  - `budget.cap` is `number|null` (null for a war room); `incident` is an `I-…` ref.
+  - `PATCH /meetings/{ref}` (If-Match) `{items?: [{id, n, skip?}], budget_cap?, owner_presence?}`. `POST …/speak` → `Turn`; `POST …/control` and `POST /meetings` → `Meeting`.
+  - `GET /meetings/settings` → `[MeetingType]`; `PUT` `{types}` without If-Match; each row carries its own `version`.
+- **Charter:**
+  - `GET /charter` → `[{scope, sealed, proposed, versions: [{version, status, created_by, created_at, sealed_at}]}]`; `GET …/diff` → `{scope, version, against, diff}`.
+  - `PUT /charter/{scope}` `{body_md, red_lines}`.
+  - The seal's target is the `body_sha256` the server sends: SHA-256 of the UTF-8 body as stored (no JSON wrapping, no escaping). Clients never recompute it.
+- **Knowledge:**
+  - Create and update body `{layer, company, department?, kind, title_fa, body_md, sources, valid_until}`.
+  - `review.checks` values: true = passed. Support articles keep their `KB-` refs in the knowledge view.
+- **Cards:**
+  - `trend: [number|null]` (a day with no value is null, never zero).
+  - `Card` gains `direction: "up"|"down"|"range"`.
+  - A scorecard row is `{company, kpis: [CardKpi + {card, direction}]}`.
+  - `GET /kpis/{company}` → `{company, version, kpis}`; `PUT` (If-Match on that version) `{kpis: [{key, target, scorecard, status, freshness_hours}]}`.
+- **OKR, outcomes:** an OKR check-in's `evidence` is `[Source]`; `GET /outcomes?due=true` = due now or overdue.
+- **Authority:**
+  - `PUT /authority` (🔏 body hash) `{rules: [{key, actor?, limit, version}]}`; `actor: "owner"` takes a row back.
+  - The batch-seal item limit is the rule key `batch.max_items` with `limit.items`.
+- **Risks:** `GET /risks/matrix` → `{company, counts: [[int ×5] ×5]}` indexed `[likelihood−1][impact−1]`; the create body has `owner?`, `mitigation_md?`, `review_at?`.
+- **Calendar:**
+  - `GET /calendar` → `{events, conflicts}`. `CalendarEvent` gains `version` (for If-Match).
+  - A single-event rule (a deploy on a blackout day) has `a = b`.
+- **Batch seal:**
+  - `GET /decisions/batchable` items `{ref, version, kind, company, title, quota_estimate, proposer, risk?, created_at?, expires_at?}`.
+  - The approve response is `{batch, items: [{ref, resolution}]}`.
+  - Refusal reasons in `fields.items`: `changed`, `not_pending`, `kind`, `action_class`, `risk`, `irreversible`, `amended`, `over_max_usd`, `over_max_items`, `held`.
+- **Decision payloads:**
+  - `meeting_resolution` `{meeting, item, text_md, votes, claims}`
+  - `okr` `{objective: "OB-…"|Objective, quarter}`
+  - `knowledge_entry` `{entry}`
+  - `risk_acceptance` `{risk, until, score?}`
+  - `authority_change` `{changes: [{key, from, to}]}`
+
 ## 21. v1.5 — management tools (prompt 12)
 
 > **v1.5 (2026-10-18).** The owner's everyday tools (`docs/GAP_ANALYSIS_v2.md` §5د): the premium advisor (decision memo, devil's advocate,

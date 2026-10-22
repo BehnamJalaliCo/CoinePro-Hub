@@ -6,6 +6,7 @@ import { DEMO_CHART, DEMO_SKETCH, DEMO_VOICE } from './mock-media';
 import { handleOps } from './mock-ops';
 import { handle14 } from './mock-v14';
 import { DECISIONS_16, decided16, handle16 } from './mock-v16';
+import { DECISIONS_17, decided17, handle17 } from './mock-v17';
 import { roles } from './mock-roles';
 
 const now = Date.now();
@@ -73,6 +74,9 @@ const decisions: any[] = [
   },
   // ⟨1.5⟩ the revenue-and-support cards (§19.9): a go-live after a passed shadow test, a template and a rule.
   ...DECISIONS_16,
+  // ⟨1.5⟩ governance (§20.11): two low-risk cards the batch seal can take together, and the sealed history the outcome reviews,
+  // the OKRs, the TY addendum and a risk acceptance came from.
+  ...DECISIONS_17,
 ];
 
 const employees: any[] = [
@@ -345,6 +349,8 @@ export async function handle(req: Request): Promise<Response> {
   if (v14) return v14;
   const v16 = await handle16(req, p, u);
   if (v16) return v16;
+  const v17 = await handle17(req, p, u, { decisions });
+  if (v17) return v17;
   const ops = await handleOps(req, p, u, { work, employees, control, companies, messages, threads, envelope, summary, connections });
   if (ops) return ops;
   if (m !== 'GET') {
@@ -391,7 +397,7 @@ export async function handle(req: Request): Promise<Response> {
     if (d) {
       const x = decisions.find((y) => y.ref === d[1]);
       if (x) Object.assign(x, { status: d[2] === 'approve' ? 'approved' : d[2] === 'reject' ? 'rejected' : 'returned', decided_at: new Date().toISOString(), decided_by: owner, seal: d[2] === 'approve' ? { method: 'passkey_uv', sealed_at: new Date().toISOString(), step_up_id: 'mock' } : null, resolution: d[2] === 'approve' ? 'M-0007' : null });
-      if (x && d[2] === 'approve') decided16(x);
+      if (x && d[2] === 'approve') { decided16(x); decided17(x); }
       return json(x);
     }
     const r = /^\/deliverables\/(O-\d+)\/rating$/.exec(p);

@@ -6,6 +6,9 @@ const PAGES = [
   '/work/W-000104', '/messages', '/messages?thread=FX-CEO', '/workshop', '/workshop/S-0004', '/stars', '/founding', '/skills',
   '/academy', '/tools', '/treasury', '/planner', '/resolutions', '/runs', '/sites', '/control', '/audit', '/settings',
   '/revenue', '/support', '/support/SC-000411', '/growth', '/feedback',
+  // ⟨1.5⟩ governance (§20)
+  '/meetings', '/meetings/MT-0012', '/meetings/MT-0013', '/meetings/MT-0011', '/meetings/MT-0010', '/charter', '/knowledge', '/knowledge?ref=K-0009',
+  '/scorecard', '/okr', '/outcomes', '/risks', '/calendar', '/authority',
 ];
 
 /** Fails the test on any page error, console error or failed API call while [run] is going on. */
@@ -72,5 +75,29 @@ test('saves the notification matrix', async ({ page }) => {
     await page.getByRole('switch', { name: 'گزارش: push' }).click();
     await page.getByRole('button', { name: 'ذخیره', exact: true }).click();
     await expect(page.getByText('تنظیمات اعلان ذخیره شد.')).toBeVisible();
+  });
+});
+
+test('seals low-risk cards together with one passkey', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/cartable');
+    await page.getByRole('button', { name: /مُهر گروهی/ }).click();
+    const seal = page.getByRole('dialog').getByRole('button', { name: 'برای مُهر، فشار بده و نگه دار' });
+    await seal.focus();
+    await page.keyboard.down('Enter');
+    await page.waitForTimeout(900);
+    await page.keyboard.up('Enter');
+    await expect(page.getByText(/کارت با یک مُهر تأیید شد/)).toBeVisible();
+  });
+});
+
+test('speaks in a live meeting and moves it to the next round', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/meetings/MT-0012');
+    await page.getByPlaceholder('با متن یا صدا وارد شو…').fill('ساعت کم‌بار را تأیید میکنم.');
+    await page.getByPlaceholder('با متن یا صدا وارد شو…').press('Enter');
+    await expect(page.getByText('حرفت در جلسه ثبت شد؛ نوبت بعد جواب میدهد.')).toBeVisible();
+    await page.getByRole('button', { name: 'رفتن به دور ۲' }).click();
+    await expect(page.getByText('دور ۲ شروع شد: رأی روی پیش‌نویس.')).toBeVisible();
   });
 });

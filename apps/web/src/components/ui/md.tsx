@@ -2,9 +2,9 @@ import { Fragment, type ReactNode } from 'react';
 
 /** A small, safe Markdown subset for agent-written text: paragraphs, ### headings, - lists,
  *  **bold**, `code` and refs (D-…, M-…, O-…, W-…, A-…; ⟨1.3⟩ F-…, S-…, G-…, AP-…; ⟨1.4⟩ FI-…, PR-…, CH-…, SO-…, H-…, Q-…, E-…,
- *  SK-…, EV-…, TE-…, L-…, C-…, PV-…, N-…, P-…) as Latin figures. No raw HTML, ever.
+ *  SK-…, EV-…, TE-…, L-…, C-…, PV-…, N-…, P-…; ⟨1.5⟩ MT-…, K-…, KB-…, OB-…, KR-…, OR-…, RK-…, CE-…, B-…) as Latin figures. No raw HTML, ever.
  *  A ref inside a path (`hq/S-0004`) stays part of that path. */
-const REF = /(?<![/\w-])([DMOWIFSGNPHQELC]-\d{3,6}|A-\d{4}|(?:AP|FI|PR|CH|SO|SK|EV|TE|PV)-\d{3,4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\d{2,3}|MGR|CEO|ADV|OVR|PA|SYS)(?:-\d{4})?)\b/;
+const REF = /(?<![/\w-])([DMOWIFSGNPHQELCKB]-\d{3,6}|A-\d{4}|(?:AP|FI|PR|CH|SO|SK|EV|TE|PV|MT|KB|OB|KR|OR|RK|CE)-\d{3,4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\d{2,3}|MGR|CEO|ADV|OVR|PA|SYS)(?:-\d{4})?)\b/;
 
 function inline(text: string, key: string): ReactNode[] {
   const out: ReactNode[] = [];

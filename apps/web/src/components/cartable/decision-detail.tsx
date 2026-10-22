@@ -18,14 +18,16 @@ import { useNow } from '@/lib/store';
 import { companyOf } from '@/lib/company';
 import type { LifecycleRule, ShadowReport, Template } from '@/lib/api/v16';
 import { AUTO_SEND, CHANNEL_FA, PURPOSE_FA, triggerFa } from '@/components/v16/bits';
+import { DecisionOutcomes, ExpectedBlock, GovernancePayload } from '@/components/v17/cartable';
 import { ACTOR_FA, DECISION_KIND, DECISION_STATUS, RISK } from '@/lib/labels';
 import { ago, cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
 
 type Decision = Schemas['Decision'];
 // code_session: its seal creates a Code Workshop grant (contract §5.1 ⟨1.4.3⟩). The round-two kinds are sealed the same way, each card
 // bound to what it proposes (§18.13 ⟨1.4.5⟩); a server plan is sealed only on its own route, against its digest (§18.8).
-// ⟨1.5⟩ the revenue-and-support cards (§19.9) are sealed the same way, each bound to its template, rule or shadow report.
-const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption', 'message_template', 'lifecycle_rule', 'support_go_live']);
+// ⟨1.5⟩ the revenue-and-support cards (§19.9) are sealed the same way, each bound to its template, rule or shadow report; so are the
+// governance kinds marked 🔏 in §20.11 (a charter amendment, a risk acceptance, an authority change), target = ref.
+const STEP_UP_KINDS = new Set(['hire', 'dismissal', 'budget_change', 'code_session', 'protocol', 'tool_enable', 'errand_action', 'company_found', 'lesson_adoption', 'message_template', 'lifecycle_rule', 'support_go_live', 'charter_amendment', 'risk_acceptance', 'authority_change']);
 export const needsStepUp = (d: Decision) => d.action_class === 'A3' || STEP_UP_KINDS.has(d.kind);
 /** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8). */
 const OWN_ROUTE: Record<string, { href: (d: Decision) => string; fa: string }> = {
@@ -178,7 +180,8 @@ function Payload({ d }: { d: Decision }) {
       </Section>
     );
   }
-  return null;
+  // ⟨1.5⟩ the governance kinds (§20.11)
+  return <GovernancePayload d={d} />;
 }
 
 export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void }) {
@@ -245,6 +248,9 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
       <Section title="چی"><Md text={d.what} /></Section>
       <Section title="چرا"><Md text={d.why} /></Section>
       <Payload d={d} />
+      {/* ⟨1.5⟩ §20.6: what the card promises, and its 30/60/90-day reviews once sealed. */}
+      <ExpectedBlock d={d} />
+      <DecisionOutcomes d={d} />
       <Section title="مصرف و ریسک">
         <div className="grid grid-cols-2 gap-2">
           <Fact label="برآورد توکن" mono>{tokens(d.quota_estimate.tokens)}</Fact>
