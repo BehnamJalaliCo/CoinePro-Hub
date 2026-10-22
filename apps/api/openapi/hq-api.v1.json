@@ -84,24 +84,73 @@
         "title": "AccountPolicy",
         "type": "object"
       },
-      "ActivateIn": {
-        "additionalProperties": false,
+      "ActiveBrand": {
         "properties": {
-          "version": {
+          "accent": {
             "anyOf": [
               {
-                "minimum": 1.0,
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "default: the latest version",
-            "title": "Version"
+            "title": "Accent"
+          },
+          "accent_day": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent Day"
+          },
+          "accent_night": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent Night"
+          },
+          "ink": {
+            "title": "Ink",
+            "type": "string"
+          },
+          "mark": {
+            "$ref": "#/components/schemas/BrandShape"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "wordmark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrandShape"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "title": "ActivateIn",
+        "required": [
+          "version",
+          "mark",
+          "wordmark",
+          "ink",
+          "accent",
+          "accent_night",
+          "accent_day"
+        ],
+        "title": "ActiveBrand",
         "type": "object"
       },
       "Activity": {
@@ -1218,6 +1267,274 @@
           "count"
         ],
         "title": "BaseBackup",
+        "type": "object"
+      },
+      "BrandChecks": {
+        "properties": {
+          "contrast_day": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contrast Day"
+          },
+          "contrast_night": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contrast Night"
+          },
+          "iou": {
+            "title": "Iou",
+            "type": "number"
+          },
+          "min_feature_px_16": {
+            "title": "Min Feature Px 16",
+            "type": "number"
+          },
+          "paths_bytes": {
+            "title": "Paths Bytes",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "paths_bytes",
+          "min_feature_px_16",
+          "iou"
+        ],
+        "title": "BrandChecks",
+        "type": "object"
+      },
+      "BrandIn": {
+        "additionalProperties": false,
+        "properties": {
+          "file_id": {
+            "format": "uuid",
+            "title": "File Id",
+            "type": "string"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrandOptionsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "part": {
+            "default": "mark",
+            "enum": [
+              "mark",
+              "wordmark"
+            ],
+            "title": "Part",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_id"
+        ],
+        "title": "BrandIn",
+        "type": "object"
+      },
+      "BrandLayer": {
+        "properties": {
+          "color": {
+            "title": "Color",
+            "type": "string"
+          },
+          "d": {
+            "title": "D",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "ink",
+              "accent"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "color",
+          "d"
+        ],
+        "title": "BrandLayer",
+        "type": "object"
+      },
+      "BrandOptions": {
+        "properties": {
+          "colors": {
+            "anyOf": [
+              {
+                "maximum": 4.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Colors"
+          },
+          "detail": {
+            "default": 3,
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Detail",
+            "type": "integer"
+          }
+        },
+        "title": "BrandOptions",
+        "type": "object"
+      },
+      "BrandOptionsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "colors": {
+            "anyOf": [
+              {
+                "maximum": 4.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Colors"
+          },
+          "detail": {
+            "default": 3,
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Detail",
+            "type": "integer"
+          }
+        },
+        "title": "BrandOptionsIn",
+        "type": "object"
+      },
+      "BrandShape": {
+        "properties": {
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/BrandLayer"
+            },
+            "title": "Layers",
+            "type": "array"
+          },
+          "vb": {
+            "title": "Vb",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vb",
+          "layers"
+        ],
+        "title": "BrandShape",
+        "type": "object"
+      },
+      "BrandSource": {
+        "properties": {
+          "file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "has_alpha": {
+            "title": "Has Alpha",
+            "type": "boolean"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "upload",
+              "seed"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "sha256",
+          "width",
+          "height",
+          "has_alpha"
+        ],
+        "title": "BrandSource",
+        "type": "object"
+      },
+      "Brands": {
+        "properties": {
+          "companies": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ActiveBrand"
+            },
+            "title": "Companies",
+            "type": "object"
+          },
+          "etag": {
+            "title": "Etag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "etag",
+          "companies"
+        ],
+        "title": "Brands",
         "type": "object"
       },
       "BreakdownRow": {
@@ -2534,6 +2851,17 @@
       },
       "Company": {
         "properties": {
+          "brand_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand Version"
+          },
           "code": {
             "title": "Code",
             "type": "string"
@@ -2673,6 +3001,201 @@
           "notifications_new"
         ],
         "title": "CompanyAway",
+        "type": "object"
+      },
+      "CompanyBrand": {
+        "properties": {
+          "accent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent"
+          },
+          "accent_day": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent Day"
+          },
+          "accent_night": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent Night"
+          },
+          "activated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "checks": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrandChecks"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "ink": {
+            "title": "Ink",
+            "type": "string"
+          },
+          "mark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrandShape"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "$ref": "#/components/schemas/BrandOptions"
+          },
+          "palette": {
+            "items": {
+              "$ref": "#/components/schemas/PaletteShare"
+            },
+            "title": "Palette",
+            "type": "array"
+          },
+          "part": {
+            "default": "mark",
+            "enum": [
+              "mark",
+              "wordmark"
+            ],
+            "title": "Part",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/BrandSource"
+          },
+          "state": {
+            "enum": [
+              "processing",
+              "proposed",
+              "active",
+              "failed",
+              "retired"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "wordmark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrandShape"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "company",
+          "version",
+          "state",
+          "source",
+          "mark",
+          "wordmark",
+          "ink",
+          "accent",
+          "accent_night",
+          "accent_day",
+          "palette",
+          "options",
+          "checks",
+          "digest",
+          "status_reason",
+          "created_at",
+          "activated_at"
+        ],
+        "title": "CompanyBrand",
+        "type": "object"
+      },
+      "CompanyBrandView": {
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanyBrand"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanyBrand"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "active",
+          "proposed"
+        ],
+        "title": "CompanyBrandView",
         "type": "object"
       },
       "CompanyCounts": {
@@ -6549,6 +7072,9 @@
             ],
             "title": "Audit Work"
           },
+          "brand": {
+            "$ref": "#/components/schemas/FoundingBrand"
+          },
           "code": {
             "anyOf": [
               {
@@ -6754,6 +7280,36 @@
           "scores"
         ],
         "title": "FoundingAudit",
+        "type": "object"
+      },
+      "FoundingBrand": {
+        "properties": {
+          "state": {
+            "enum": [
+              "missing",
+              "proposed",
+              "active"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "state",
+          "version"
+        ],
+        "title": "FoundingBrand",
         "type": "object"
       },
       "FoundingIn": {
@@ -10590,6 +11146,33 @@
         "title": "Page[CodeSession]",
         "type": "object"
       },
+      "Page_CompanyBrand_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyBrand"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[CompanyBrand]",
+        "type": "object"
+      },
       "Page_Decision_": {
         "properties": {
           "items": {
@@ -11074,6 +11657,24 @@
           "items"
         ],
         "title": "Page[Work]",
+        "type": "object"
+      },
+      "PaletteShare": {
+        "properties": {
+          "hex": {
+            "title": "Hex",
+            "type": "string"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "hex",
+          "share"
+        ],
+        "title": "PaletteShare",
         "type": "object"
       },
       "PlanIn": {
@@ -11708,6 +12309,20 @@
           "message_fa": {
             "title": "Message Fa",
             "type": "string"
+          },
+          "missing": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missing"
           },
           "request_id": {
             "anyOf": [
@@ -13013,6 +13628,16 @@
           "yearly"
         ],
         "title": "Retention",
+        "type": "object"
+      },
+      "RetraceIn": {
+        "additionalProperties": false,
+        "properties": {
+          "options": {
+            "$ref": "#/components/schemas/BrandOptionsIn"
+          }
+        },
+        "title": "RetraceIn",
         "type": "object"
       },
       "Return": {
@@ -18894,6 +19519,13 @@
         "title": "Device",
         "type": "object"
       },
+      "hq_api__routes__brands__ActivateIn": {
+        "additionalProperties": false,
+        "description": "Empty: the seal is the step-up on the version's digest.",
+        "properties": {},
+        "title": "ActivateIn",
+        "type": "object"
+      },
       "hq_api__routes__egress__ReserveIn": {
         "additionalProperties": false,
         "properties": {
@@ -18957,6 +19589,19 @@
           "class"
         ],
         "title": "ReserveIn",
+        "type": "object"
+      },
+      "hq_api__routes__founding__ActivateIn": {
+        "additionalProperties": false,
+        "description": "⟨1.4.6⟩ `skip_brand`: activate a company whose brand is not sealed yet.",
+        "properties": {
+          "skip_brand": {
+            "default": false,
+            "title": "Skip Brand",
+            "type": "boolean"
+          }
+        },
+        "title": "ActivateIn",
         "type": "object"
       },
       "hq_api__routes__founding__FinishIn": {
@@ -19320,6 +19965,26 @@
           "actions"
         ],
         "title": "Step",
+        "type": "object"
+      },
+      "hq_api__routes__skills__ActivateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "default: the latest version",
+            "title": "Version"
+          }
+        },
+        "title": "ActivateIn",
         "type": "object"
       },
       "hq_api__routes__tools__Resolved": {
@@ -22226,6 +22891,90 @@
         ]
       }
     },
+    "/api/v1/brands": {
+      "get": {
+        "description": "Every active brand in one response; the clients draw every company's\nmark and seal from it. `ETag`; `If-None-Match` -> `304`.",
+        "operationId": "all_brands",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "companies": {},
+                  "etag": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Brands"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "304": {
+            "description": "Not modified"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "All Brands",
+        "tags": [
+          "brand"
+        ]
+      }
+    },
     "/api/v1/budgets": {
       "get": {
         "description": "Every budget with its current-period use.",
@@ -22487,6 +23236,7 @@
               "application/json": {
                 "example": [
                   {
+                    "brand_version": 1,
                     "code": "TY",
                     "color_index": 1,
                     "counts": {
@@ -22603,6 +23353,7 @@
             "content": {
               "application/json": {
                 "example": {
+                  "brand_version": 1,
                   "code": "TY",
                   "color_index": 1,
                   "counts": {
@@ -22710,6 +23461,7 @@
             "content": {
               "application/json": {
                 "example": {
+                  "brand_version": 1,
                   "code": "TY",
                   "color_index": 1,
                   "counts": {
@@ -22831,6 +23583,7 @@
             "content": {
               "application/json": {
                 "example": {
+                  "brand_version": 1,
                   "code": "TY",
                   "color_index": 1,
                   "counts": {
@@ -22926,6 +23679,928 @@
         "summary": "Update Company",
         "tags": [
           "organisation"
+        ]
+      }
+    },
+    "/api/v1/companies/{code}/brand": {
+      "get": {
+        "description": "The active version and, if any, the newest `proposed` one.",
+        "operationId": "get_brand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "active": {
+                    "accent": "x",
+                    "accent_day": "x",
+                    "accent_night": "x",
+                    "activated_at": "2026-10-17T05:42:00Z",
+                    "checks": {
+                      "contrast_day": 1.0,
+                      "contrast_night": 1.0,
+                      "iou": 1.0,
+                      "min_feature_px_16": 1.0,
+                      "paths_bytes": 1,
+                      "warnings": [
+                        "x"
+                      ]
+                    },
+                    "company": "TY",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "digest": "x",
+                    "ink": "x",
+                    "mark": {
+                      "layers": [
+                        {
+                          "color": null,
+                          "d": null,
+                          "role": null
+                        }
+                      ],
+                      "vb": "x"
+                    },
+                    "options": {
+                      "colors": 1,
+                      "detail": 1
+                    },
+                    "palette": [
+                      {
+                        "hex": "x",
+                        "share": 1.0
+                      }
+                    ],
+                    "part": "mark",
+                    "source": {
+                      "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "has_alpha": false,
+                      "height": 1,
+                      "kind": "upload",
+                      "path": "x",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "width": 1
+                    },
+                    "state": "processing",
+                    "status_reason": "x",
+                    "version": 1,
+                    "wordmark": {
+                      "layers": [
+                        {
+                          "color": null,
+                          "d": null,
+                          "role": null
+                        }
+                      ],
+                      "vb": "x"
+                    }
+                  },
+                  "proposed": {
+                    "accent": "x",
+                    "accent_day": "x",
+                    "accent_night": "x",
+                    "activated_at": "2026-10-17T05:42:00Z",
+                    "checks": {
+                      "contrast_day": 1.0,
+                      "contrast_night": 1.0,
+                      "iou": 1.0,
+                      "min_feature_px_16": 1.0,
+                      "paths_bytes": 1,
+                      "warnings": [
+                        "x"
+                      ]
+                    },
+                    "company": "TY",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "digest": "x",
+                    "ink": "x",
+                    "mark": {
+                      "layers": [
+                        {
+                          "color": null,
+                          "d": null,
+                          "role": null
+                        }
+                      ],
+                      "vb": "x"
+                    },
+                    "options": {
+                      "colors": 1,
+                      "detail": 1
+                    },
+                    "palette": [
+                      {
+                        "hex": "x",
+                        "share": 1.0
+                      }
+                    ],
+                    "part": "mark",
+                    "source": {
+                      "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "has_alpha": false,
+                      "height": 1,
+                      "kind": "upload",
+                      "path": "x",
+                      "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                      "width": 1
+                    },
+                    "state": "processing",
+                    "status_reason": "x",
+                    "version": 1,
+                    "wordmark": {
+                      "layers": [
+                        {
+                          "color": null,
+                          "d": null,
+                          "role": null
+                        }
+                      ],
+                      "vb": "x"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyBrandView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Brand",
+        "tags": [
+          "brand"
+        ]
+      },
+      "post": {
+        "description": "A new version from the owner's logo (`file_id` from POST /files: PNG,\nbest with transparency; WebP or JPEG with the warning «بدون شفافیت»), the\nother part carried over from the active version. `processing` until the\nmedia worker has traced it (then `brand.updated`). Requires `Idempotency-Key`.",
+        "operationId": "upload_brand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                "options": {
+                  "colors": 1,
+                  "detail": 1
+                },
+                "part": "mark"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/BrandIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "accent": "x",
+                  "accent_day": "x",
+                  "accent_night": "x",
+                  "activated_at": "2026-10-17T05:42:00Z",
+                  "checks": {
+                    "contrast_day": 1.0,
+                    "contrast_night": 1.0,
+                    "iou": 1.0,
+                    "min_feature_px_16": 1.0,
+                    "paths_bytes": 1,
+                    "warnings": [
+                      "x"
+                    ]
+                  },
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "digest": "x",
+                  "ink": "x",
+                  "mark": {
+                    "layers": [
+                      {
+                        "color": "x",
+                        "d": "x",
+                        "role": "ink"
+                      }
+                    ],
+                    "vb": "x"
+                  },
+                  "options": {
+                    "colors": 1,
+                    "detail": 1
+                  },
+                  "palette": [
+                    {
+                      "hex": "x",
+                      "share": 1.0
+                    }
+                  ],
+                  "part": "mark",
+                  "source": {
+                    "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "has_alpha": false,
+                    "height": 1,
+                    "kind": "upload",
+                    "path": "x",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                    "width": 1
+                  },
+                  "state": "processing",
+                  "status_reason": "x",
+                  "version": 1,
+                  "wordmark": {
+                    "layers": [
+                      {
+                        "color": "x",
+                        "d": "x",
+                        "role": "ink"
+                      }
+                    ],
+                    "vb": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyBrand"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Upload Brand",
+        "tags": [
+          "brand"
+        ]
+      }
+    },
+    "/api/v1/companies/{code}/brand/versions": {
+      "get": {
+        "description": "Every version, newest first.",
+        "operationId": "brand_versions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "accent": "x",
+                      "accent_day": "x",
+                      "accent_night": "x",
+                      "activated_at": "2026-10-17T05:42:00Z",
+                      "checks": {
+                        "contrast_day": 1.0,
+                        "contrast_night": 1.0,
+                        "iou": 1.0,
+                        "min_feature_px_16": 1.0,
+                        "paths_bytes": 1,
+                        "warnings": [
+                          "x"
+                        ]
+                      },
+                      "company": "TY",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "digest": "x",
+                      "ink": "x",
+                      "mark": {
+                        "layers": [
+                          {
+                            "color": null,
+                            "d": null,
+                            "role": null
+                          }
+                        ],
+                        "vb": "x"
+                      },
+                      "options": {
+                        "colors": 1,
+                        "detail": 1
+                      },
+                      "palette": [
+                        {
+                          "hex": "x",
+                          "share": 1.0
+                        }
+                      ],
+                      "part": "mark",
+                      "source": {
+                        "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "has_alpha": false,
+                        "height": 1,
+                        "kind": "upload",
+                        "path": "x",
+                        "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                        "width": 1
+                      },
+                      "state": "processing",
+                      "status_reason": "x",
+                      "version": 1,
+                      "wordmark": {
+                        "layers": [
+                          {
+                            "color": null,
+                            "d": null,
+                            "role": null
+                          }
+                        ],
+                        "vb": "x"
+                      }
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CompanyBrand_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Brand Versions",
+        "tags": [
+          "brand"
+        ]
+      }
+    },
+    "/api/v1/companies/{code}/brand/{version}/activate": {
+      "post": {
+        "description": "🔏 step-up `company.brand`, target = the version's `digest`, which the\nserver recomputes from the stored version: a version that changed after\nthe owner saw it is not sealed. The previous active version is retired.",
+        "operationId": "activate_brand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {},
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/hq_api__routes__brands__ActivateIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "accent": "x",
+                  "accent_day": "x",
+                  "accent_night": "x",
+                  "activated_at": "2026-10-17T05:42:00Z",
+                  "checks": {
+                    "contrast_day": 1.0,
+                    "contrast_night": 1.0,
+                    "iou": 1.0,
+                    "min_feature_px_16": 1.0,
+                    "paths_bytes": 1,
+                    "warnings": [
+                      "x"
+                    ]
+                  },
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "digest": "x",
+                  "ink": "x",
+                  "mark": {
+                    "layers": [
+                      {
+                        "color": "x",
+                        "d": "x",
+                        "role": "ink"
+                      }
+                    ],
+                    "vb": "x"
+                  },
+                  "options": {
+                    "colors": 1,
+                    "detail": 1
+                  },
+                  "palette": [
+                    {
+                      "hex": "x",
+                      "share": 1.0
+                    }
+                  ],
+                  "part": "mark",
+                  "source": {
+                    "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "has_alpha": false,
+                    "height": 1,
+                    "kind": "upload",
+                    "path": "x",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                    "width": 1
+                  },
+                  "state": "processing",
+                  "status_reason": "x",
+                  "version": 1,
+                  "wordmark": {
+                    "layers": [
+                      {
+                        "color": "x",
+                        "d": "x",
+                        "role": "ink"
+                      }
+                    ],
+                    "vb": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyBrand"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Activate Brand",
+        "tags": [
+          "brand"
+        ]
+      }
+    },
+    "/api/v1/companies/{code}/brand/{version}/retrace": {
+      "post": {
+        "description": "A new `processing` version from the same file with other options.\nRequires `Idempotency-Key`.",
+        "operationId": "retrace_brand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "options": {
+                  "colors": 1,
+                  "detail": 1
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RetraceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "accent": "x",
+                  "accent_day": "x",
+                  "accent_night": "x",
+                  "activated_at": "2026-10-17T05:42:00Z",
+                  "checks": {
+                    "contrast_day": 1.0,
+                    "contrast_night": 1.0,
+                    "iou": 1.0,
+                    "min_feature_px_16": 1.0,
+                    "paths_bytes": 1,
+                    "warnings": [
+                      "x"
+                    ]
+                  },
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "digest": "x",
+                  "ink": "x",
+                  "mark": {
+                    "layers": [
+                      {
+                        "color": "x",
+                        "d": "x",
+                        "role": "ink"
+                      }
+                    ],
+                    "vb": "x"
+                  },
+                  "options": {
+                    "colors": 1,
+                    "detail": 1
+                  },
+                  "palette": [
+                    {
+                      "hex": "x",
+                      "share": 1.0
+                    }
+                  ],
+                  "part": "mark",
+                  "source": {
+                    "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "has_alpha": false,
+                    "height": 1,
+                    "kind": "upload",
+                    "path": "x",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                    "width": 1
+                  },
+                  "state": "processing",
+                  "status_reason": "x",
+                  "version": 1,
+                  "wordmark": {
+                    "layers": [
+                      {
+                        "color": "x",
+                        "d": "x",
+                        "role": "ink"
+                      }
+                    ],
+                    "vb": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyBrand"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Retrace Brand",
+        "tags": [
+          "brand"
         ]
       }
     },
@@ -27868,6 +29543,10 @@
                       "session_ref": "x"
                     },
                     "audit_work": "x",
+                    "brand": {
+                      "state": "missing",
+                      "version": 1
+                    },
                     "code": "TY",
                     "company": "TY",
                     "created_at": "2026-10-17T05:42:00Z",
@@ -28023,6 +29702,10 @@
                     "session_ref": "x"
                   },
                   "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
                   "code": "TY",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
@@ -28169,6 +29852,10 @@
                     "session_ref": "x"
                   },
                   "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
                   "code": "TY",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
@@ -28290,7 +29977,7 @@
     },
     "/api/v1/foundings/{ref}/activate": {
       "post": {
-        "description": "🔏 step-up `founding.activate`, target = the ref: after the owner logged\nin on the new server, the company goes live and its CEO starts.",
+        "description": "🔏 step-up `founding.activate`, target = the ref: after the owner logged\nin on the new server, the company goes live and its CEO starts. ⟨1.4.6⟩\nWithout an active brand: `409 not_ready` with `missing: [\"brand\"]`,\nunless the body says `{skip_brand: true}`.",
         "operationId": "activate_founding",
         "parameters": [
           {
@@ -28303,6 +29990,26 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "skip_brand": false
+              },
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/hq_api__routes__founding__ActivateIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -28315,6 +30022,10 @@
                     "session_ref": "x"
                   },
                   "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
                   "code": "TY",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
@@ -28461,6 +30172,10 @@
                     "session_ref": "x"
                   },
                   "audit_work": "x",
+                  "brand": {
+                    "state": "missing",
+                    "version": 1
+                  },
                   "code": "TY",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
@@ -36627,7 +38342,7 @@
                 "version": 1
               },
               "schema": {
-                "$ref": "#/components/schemas/ActivateIn"
+                "$ref": "#/components/schemas/hq_api__routes__skills__ActivateIn"
               }
             }
           },
