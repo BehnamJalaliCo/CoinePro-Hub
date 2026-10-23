@@ -29,6 +29,11 @@
 #   - prompt 12 §9.1: the substitute players' host dispatcher's api service
 #     token (its digest in kv/hq-api/config service_tokens.substitutes; the
 #     token only in $HQ_SECRETS_DIR/substitutes/api-auth, 600, Hub's own)
+#   - prompt 14 §3: the transit engine at transit/ and its one key,
+#     archive-secret (aes256-gcm96; not exportable, no plaintext backup, never
+#     deletable): the archive's `secret` files are encrypted with data keys
+#     from it (envelope); the key itself never leaves OpenBao. The api and the
+#     worker may only ask it for a data key and decrypt one (their policies).
 # The root token is used only while the admin token does not exist yet; it is
 # NOT revoked here (owner's decision).
 #
@@ -148,6 +153,32 @@ if [[ "$using" == root ]]; then
 fi
 use_token "$(cat "$ADMIN_FILE")"
 expect "$(echo '{}' | api POST auth/token/renew-self)" 200
+
+# ------------------------------------------------- transit (prompt 14 §3) ----
+# The archive's envelope key. Created once; every run keeps it undeletable and
+# checks it is still not exportable and has no plaintext backup (a key that
+# was loosened by hand cannot be tightened again: that is said, loudly).
+expect "$(api GET sys/mounts </dev/null)" 200
+if ! jq -e '.data["transit/"] // ."transit/"' "$WORK/resp" >/dev/null; then
+  expect "$(echo '{"type":"transit","description":"CoinePro HQ envelope keys (archive)"}' |
+    api POST sys/mounts/transit)" 204
+  log "enabled transit at transit/"
+fi
+key_code="$(api GET transit/keys/archive-secret </dev/null)"
+if [[ "$key_code" == 404 ]]; then
+  expect "$(echo '{"type":"aes256-gcm96","exportable":false,"allow_plaintext_backup":false}' |
+    api POST transit/keys/archive-secret)" 200 204
+  log "transit key archive-secret created (aes256-gcm96, not exportable)"
+else
+  expect "$key_code" 200
+fi
+expect "$(echo '{"deletion_allowed":false}' | api POST transit/keys/archive-secret/config)" 200 204
+expect "$(api GET transit/keys/archive-secret </dev/null)" 200
+if ! jq -e '.data.exportable == false and .data.allow_plaintext_backup == false
+    and .data.deletion_allowed == false' "$WORK/resp" >/dev/null; then
+  log "WARNING: transit/keys/archive-secret was made exportable or backed up by hand;" \
+    "OpenBao cannot undo that (the owner decides what follows)" >&2
+fi
 
 # -------------------------------------------------------------- AppRoles ----
 approle() { # approle NAME CIDRS

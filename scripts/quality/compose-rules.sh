@@ -20,6 +20,8 @@
 # and shared with egress only; the window's relay alone adds hq-web-login-ui
 # (its 127.0.0.1:6080). Prompt 13 §2.3: the render courier sits on hq-media
 # (api, OpenBao; internal) only, and the renderer has no network at all.
+# Prompt 14 §4: the archive's OCR sits on hq-ocr (internal) only, whose only
+# other member is the worker; its fetch job sits on hq-fetch like stt-fetch.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -27,13 +29,14 @@ ensure_env
 
 JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch",
   "backup-tools","mcp-codecortex-index","substitute-runner","browser-web-login","web-login-relay","tts",
-  "media-courier","media-render"]'
+  "media-courier","media-render","ocr-fetch"]'
 HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch",
   "backup-tools","egress","searxng","browser","provisioner","mcp-time","mcp-codecortex","mcp-codecortex-index",
-  "substitute-runner","browser-web","browser-web-login","web-login-relay","tts","media-courier","media-render"]'
+  "substitute-runner","browser-web","browser-web-login","web-login-relay","tts","media-courier","media-render",
+  "ocr","ocr-fetch"]'
 NOT_INTERNAL='["temporal","opa","gateway","web","stt","egress","searxng","browser","provisioner",
   "mcp-time","mcp-codecortex","substitute-runner","browser-web","browser-web-login","web-login-relay","tts",
-  "media-courier","media-render"]'
+  "media-courier","media-render","ocr","ocr-fetch"]'
 # Services whose networks are exactly these.
 ONLY_ON='{"gateway":["hq-agent","hq-egress-api","hq-mcp"],"opa":["hq-agent"],"web":["hq-edge"],"claude-runtime":["hq-llm"],
   "stt":["hq-stt"],"stt-fetch":["hq-fetch"],
@@ -41,14 +44,16 @@ ONLY_ON='{"gateway":["hq-agent","hq-egress-api","hq-mcp"],"opa":["hq-agent"],"we
   "searxng":["hq-egress"],"browser":["hq-browser"],
   "provisioner":["hq-prov","hq-prov-out"],"mcp-time":["hq-mcp"],"mcp-codecortex":["hq-mcp"],
   "substitute-runner":["hq-subs"],"browser-web":["hq-browser-web"],"browser-web-login":["hq-web-login"],
-  "web-login-relay":["hq-web-login","hq-web-login-ui"],"tts":["hq-tts"],"media-courier":["hq-media"]}'
+  "web-login-relay":["hq-web-login","hq-web-login-ui"],"tts":["hq-tts"],"media-courier":["hq-media"],
+  "ocr":["hq-ocr"],"ocr-fetch":["hq-fetch"]}'
 # Allow-list of every restricted network.
 MEMBERS='{
   "hq-core":["temporal","temporal-namespace","temporal-ui","api","worker","postgres","prometheus"],
   "hq-agent":["worker","gateway","api","opa"],
   "hq-edge":["caddy","web"],
   "hq-stt":["worker","stt"],
-  "hq-fetch":["stt-fetch"],
+  "hq-fetch":["stt-fetch","ocr-fetch"],
+  "hq-ocr":["worker","ocr"],
   "hq-egress":["egress","searxng"],
   "hq-egress-api":["gateway","egress","worker"],
   "hq-browser":["egress","browser"],
@@ -62,7 +67,7 @@ MEMBERS='{
   "hq-tts":["tts","api","openbao"],
   "hq-media":["media-courier","api","openbao"]}'
 INTERNAL_NETS='["hq-agent","hq-edge","hq-stt","hq-egress-api","hq-browser","hq-prov","hq-prov-out","hq-mcp",
-  "hq-subs","hq-browser-web","hq-web-login","hq-tts","hq-media"]'
+  "hq-subs","hq-browser-web","hq-web-login","hq-tts","hq-media","hq-ocr"]'
 # The opt-in profiles' services (cadvisor, stt) follow the same rules.
 mapfile -t OPT_IN < <(opt_in_profiles)
 failed=0
@@ -145,6 +150,30 @@ for profile in "${PROFILES[@]}"; do
       (if ($c.cap_add // []) != [] then "media-courier: no capability may be added" else empty end),
       (if ([($r.volumes // [])[] | .target] | sort) != ["/jobs"] then "media-render: only the job volume" else empty end)
       end' <<<"$media_json")"
+  if [[ -n "$problems" ]]; then
+    printf 'compose-rules: %s: %s\n' "$profile" "$problems" >&2
+    failed=1
+  fi
+done
+# Prompt 14 §4: the OCR sandbox. No published port, no capability added,
+# no-new-privileges, capped in processes and CPU, the pinned traineddata
+# read-only and nothing else mounted; only the worker is told where it is.
+for profile in "${PROFILES[@]}"; do
+  ocr_json="$(compose_json "$profile" ocr)" || ocr_json="{}"
+  problems="$(jq -r '.services.ocr as $o
+    | if $o == null then "ocr: not in profile ocr" else
+      (if ($o.ports // []) != [] then "ocr: publishes a port" else empty end),
+      (if ($o.cap_add // []) != [] then "ocr: no capability may be added" else empty end),
+      (if (($o.security_opt // []) | index("no-new-privileges:true")) == null
+       then "ocr: no-new-privileges is off" else empty end),
+      (if ($o.deploy.resources.limits.pids // 0) < 1 then "ocr: no pids limit" else empty end),
+      (if ($o.deploy.resources.limits.cpus // null) == null then "ocr: no CPU limit" else empty end),
+      (if [($o.volumes // [])[] | "\(.target):\(.read_only // false)"] != ["/models:true"]
+       then "ocr: only the traineddata, read-only" else empty end),
+      ([.services | to_entries[] | select(.key != "worker")
+        | select((.value.environment.HQ_OCR_URL // "") != "") | .key]
+       | if length > 0 then "HQ_OCR_URL given to \(join(","))" else empty end)
+      end' <<<"$ocr_json")"
   if [[ -n "$problems" ]]; then
     printf 'compose-rules: %s: %s\n' "$profile" "$problems" >&2
     failed=1

@@ -6,6 +6,10 @@
 # Temporal databases carry a schema version. The api's files are restored
 # into a throwaway volume and every sha256 is checked (an empty set runs the
 # same path on a sample file); the audit-anchor copy must be valid JSONL.
+# Prompt 14 §5: one archive record's file (the newest one not destroyed) is
+# found among the restored files and its sha256 compared with the one the
+# restored database holds (archive.record_files.stored_sha256): a file that
+# changed before the backup passes the files' own sums but not this.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -23,12 +27,14 @@ source "$REPO_DIR/infra/backup/files.sh"
 
 log() { printf 'restore-test: %s\n' "$*"; }
 started_s="$(date +%s)"
+archive_json=null  # {ref, ok} once the archive record is checked (prompt 14 §5)
 # The outcome, for the hub's own health (health.hub, prompt 05 §4).
 status() { # status OK STAMP
   mkdir -p "$BACKUP_ROOT/status" && chmod 755 "$BACKUP_ROOT/status"
   jq -n --arg at "$(date -u +%FT%TZ)" --argjson ok "$1" --arg stamp "$2" \
-    --argjson dur "$(($(date +%s) - started_s))" \
-    '{at: $at, ok: $ok, stamp: $stamp, duration_s: $dur}' >"$BACKUP_ROOT/status/$STATUS_NAME.json.tmp"
+    --argjson dur "$(($(date +%s) - started_s))" --argjson archive "$archive_json" \
+    '{at: $at, ok: $ok, stamp: $stamp, duration_s: $dur, archive: $archive}' \
+    >"$BACKUP_ROOT/status/$STATUS_NAME.json.tmp"
   chmod 644 "$BACKUP_ROOT/status/$STATUS_NAME.json.tmp"
   mv "$BACKUP_ROOT/status/$STATUS_NAME.json.tmp" "$BACKUP_ROOT/status/$STATUS_NAME.json"
 }
@@ -134,11 +140,39 @@ else
   log "files ok (no files in this set; the archive/restore path passed on a sample file)"
 fi
 
+# Prompt 14 §5: one archive record restored and its hash checked. The newest
+# file of the archive that was not destroyed (disposal removes the bytes and
+# keeps the tombstone); a backup older than the archive has none to check.
+archive_ref=none
+if [[ "$(sql -d hq -c "SELECT to_regclass('archive.record_files') IS NOT NULL")" == t ]]; then
+  row="$(sql -d hq -F ' ' -c "SELECT r.ref, f.storage_key, f.stored_sha256 FROM archive.record_files f
+    JOIN archive.records r ON r.id = f.record_id WHERE f.destroyed_at IS NULL AND f.storage_key IS NOT NULL
+    ORDER BY f.created_at DESC LIMIT 1")"
+  if [[ -n "$row" ]]; then
+    read -r archive_ref key want <<<"$row"
+    archive_json="$(jq -n --arg r "$archive_ref" '{ref: $r, ok: false}')"
+    # The file store's own layout (LocalStorage): <root>/<key[:2]>/<key>.
+    [[ "$key" =~ ^[0-9a-f]{32}$ && "$want" =~ ^[0-9a-f]{64}$ ]] ||
+      fail "archive: $archive_ref: the restored database names no valid file key or sha256"
+    if [[ -n "$RESTORE_FILES_DIR" ]]; then src=(-v "$RESTORE_FILES_DIR:/data:ro"); else src=(-v "$files_vol:/data:ro"); fi
+    got="$(docker run --rm --network none "${src[@]}" "$tools_image" \
+      sh -c 'sha256sum "/data/$1" 2>/dev/null | cut -d" " -f1' sh "${key:0:2}/$key")"
+    [[ -n "$got" ]] || fail "archive: $archive_ref: its file is not among the restored files"
+    [[ "$got" == "$want" ]] || fail "archive: $archive_ref: the restored file does not match its sha256"
+    archive_json="$(jq -n --arg r "$archive_ref" '{ref: $r, ok: true}')"
+    log "archive ok ($archive_ref, its file's sha256 verified)"
+  else
+    log "archive: no record yet"
+  fi
+else
+  log "archive: no archive in this backup"
+fi
+
 if [[ -s "$dir/audit-chain.jsonl" ]]; then
   jq -e -s 'all(.[]; has("seq") and has("hash"))' "$dir/audit-chain.jsonl" >/dev/null ||
     fail "audit anchors: not valid JSONL with seq and hash"
   log "audit anchors ok ($(wc -l <"$dir/audit-chain.jsonl") line(s))"
 fi
 
-log "PASS ($latest, ${#databases[@]} databases); throwaway container and volumes removed"
+log "PASS ($latest, ${#databases[@]} databases, archive=$archive_ref); throwaway container and volumes removed"
 status true "$latest"
