@@ -33,6 +33,7 @@ async def _seeded(hub: Hub) -> None:
     async with hub.db.tx(await hub.companies.ids()) as tx:
         await V.seed(tx, holding.id)
 
+
 @pytest.fixture(autouse=True)
 async def _end_test_runs(su: Any) -> AsyncIterator[None]:
     """The holding's agents these tests gave a running run (agent tokens)
@@ -132,7 +133,10 @@ async def test_the_registry_has_every_candidate_with_its_licence_and_numbers(
     assert xtts["licence_commercial"] is False and "Coqui Public Model License" in xtts["licence"]
     assert xtts["installed"] is False and xtts["rtf"] is None and xtts["note_fa"]
     assert by["parsvoice-xtts-owner"]["speaker"] == "owner" and by["parsvoice-xtts-owner"]["clones"]
-    assert by["chatterbox-fa"]["licence"].startswith("CC BY-NC") and not by["chatterbox-fa"]["licence_commercial"]
+    assert (
+        by["chatterbox-fa"]["licence"].startswith("CC BY-NC")
+        and not by["chatterbox-fa"]["licence_commercial"]
+    )
     assert by["manatts-piper"]["installed"] is False and "GPU" in by["manatts-piper"]["note_fa"]
     assert by["piper-gyro"]["licence_commercial"] is False  # its dataset licence is unstated
     assert by["piper-gyro"]["installed"] is False  # ... so it is not shipped
@@ -145,8 +149,12 @@ async def test_a_non_commercial_voice_is_never_active_without_the_owner(
     h = owner_session["headers"]
 
     async def activate(vid: str, body: dict[str, Any], seal: bool = True) -> httpx.Response:
-        extra = await step_up(hub, owner_session["session_id"], "voice.activate", vid) if seal else {}
-        return await client.post(f"/api/v1/media/voices/{vid}/activate", headers={**h, **extra}, json=body)
+        extra = (
+            await step_up(hub, owner_session["session_id"], "voice.activate", vid) if seal else {}
+        )
+        return await client.post(
+            f"/api/v1/media/voices/{vid}/activate", headers={**h, **extra}, json=body
+        )
 
     # Not installed on the hub (gated, over the memory budget): never, whatever is accepted.
     r = await activate("parsvoice-xtts", {"accept_non_commercial": True})
@@ -160,7 +168,11 @@ async def test_a_non_commercial_voice_is_never_active_without_the_owner(
     r = await activate(NC, {"accept_non_commercial": True}, seal=False)
     assert r.status_code == 403 and r.json()["code"] == "step_up_required"
     r = await activate(NC, {"accept_non_commercial": True})
-    assert r.status_code == 200 and r.json()["status"] == "active" and r.json()["licence_commercial"] is False
+    assert (
+        r.status_code == 200
+        and r.json()["status"] == "active"
+        and r.json()["licence_commercial"] is False
+    )
     listed = (await client.get("/api/v1/media/voices", headers=h)).json()
     assert [v["id"] for v in listed if v["status"] == "active"] == [NC]
     # A commercial one needs no acceptance, only the seal; one voice is active.
@@ -168,7 +180,9 @@ async def test_a_non_commercial_voice_is_never_active_without_the_owner(
     r = await activate("piper-ganji", {})
     assert r.status_code == 200 and r.json()["status"] == "active"
     assert await su.fetchval("SELECT status FROM media.voices WHERE id = $1", NC) == "candidate"
-    n = await su.fetchval("SELECT count(*) FROM audit.entries WHERE action = 'voice.activate' AND step_up")
+    n = await su.fetchval(
+        "SELECT count(*) FROM audit.entries WHERE action = 'voice.activate' AND step_up"
+    )
     assert n >= 2
     # The owner's blind score.
     s = await client.post("/api/v1/media/voices/piper-ganji/score", headers=h, json={"score": 8})
@@ -216,11 +230,17 @@ async def test_the_bakeoff_queues_once_and_its_audio_goes_through_17_1(
         r = await client.post("/internal/v1/voices/jobs/claim", headers=TTS)
         assert r.status_code == 200, r.text
         job = r.json()
-        assert (job["kind"], job["engine"], job["voice"]) == ("sample", "piper", "fa_IR-reza_ibrahim-medium")
+        assert (job["kind"], job["engine"], job["voice"]) == (
+            "sample",
+            "piper",
+            "fa_IR-reza_ibrahim-medium",
+        )
         # §17.1: the type is read from the bytes and the length from the file.
         assert (await _done(client, job, b"not audio at all, really")).status_code == 422
         wrong = await client.post(
-            f"/internal/v1/voices/jobs/{job['id']}/done", content=b"x", headers={**TTS, "Content-Type": "audio/mpeg"}
+            f"/internal/v1/voices/jobs/{job['id']}/done",
+            content=b"x",
+            headers={**TTS, "Content-Type": "audio/mpeg"},
         )
         assert wrong.status_code == 415
         ok = await _done(client, job, audio(tmp_path, "ogg", 3), synth_s=0.6, peak_mb=251.5)
@@ -231,12 +251,24 @@ async def test_the_bakeoff_queues_once_and_its_audio_goes_through_17_1(
                FROM files.files f JOIN files.processing p ON p.file_id = f.id WHERE f.id = $1""",
             fid,
         )
-        assert row["kind"] == "audio" and row["mime"] == "audio/ogg" and row["created_by_code"] == "tts"
+        assert (
+            row["kind"] == "audio"
+            and row["mime"] == "audio/ogg"
+            and row["created_by_code"] == "tts"
+        )
         assert row["status"] == "processing" and 2.5 < float(row["duration_s"]) < 3.5
         assert "reza" not in row["name"]  # a neutral name: the listening is blind
-        v = await su.fetchrow("SELECT rtf, mem_mb, measured_at FROM media.voices WHERE id = 'piper-reza-ibrahim'")
-        assert v["measured_at"] is not None and 0.1 < float(v["rtf"]) < 0.3 and float(v["mem_mb"]) >= 251.5
-        listed = {x["id"]: x for x in (await client.get("/api/v1/media/voices", headers=owner)).json()}
+        v = await su.fetchrow(
+            "SELECT rtf, mem_mb, measured_at FROM media.voices WHERE id = 'piper-reza-ibrahim'"
+        )
+        assert (
+            v["measured_at"] is not None
+            and 0.1 < float(v["rtf"]) < 0.3
+            and float(v["mem_mb"]) >= 251.5
+        )
+        listed = {
+            x["id"]: x for x in (await client.get("/api/v1/media/voices", headers=owner)).json()
+        }
         (sample,) = [s for s in listed["piper-reza-ibrahim"]["samples"] if s["script"] == "numbers"]
         assert sample["title_fa"] == "عدد و درصد" and sample["file"]["id"] == str(fid)
         assert (await client.post("/internal/v1/voices/jobs/claim", headers=TTS)).status_code == 204
@@ -249,17 +281,23 @@ async def test_the_bakeoff_and_the_tts_job_do_nothing_while_the_holding_is_locke
     async with holding_switch(su, "released"):
         await wk["acts"].legal_voice.voice_bakeoff()
         await _sample_job(su, "piper-amir")
-    before = await su.fetch("SELECT id, state, attempts FROM media.speech_jobs WHERE state = 'queued'")
+    before = await su.fetch(
+        "SELECT id, state, attempts FROM media.speech_jobs WHERE state = 'queued'"
+    )
     assert before
     async with holding_switch(su, "engaged"):
         out = await wk["acts"].legal_voice.voice_bakeoff()
         assert out == {"skipped": True, "reason": "holding_locked"}
         assert (await client.post("/internal/v1/voices/jobs/claim", headers=TTS)).status_code == 204
         assert (await client.post("/internal/v1/tts/claim", headers=TTS)).status_code == 204
-    after = await su.fetch("SELECT id, state, attempts FROM media.speech_jobs WHERE state = 'queued'")
+    after = await su.fetch(
+        "SELECT id, state, attempts FROM media.speech_jobs WHERE state = 'queued'"
+    )
     assert sorted(map(tuple, before)) == sorted(map(tuple, after))  # nothing claimed, nothing new
     # Only the TTS service takes jobs.
-    assert (await client.post("/internal/v1/voices/jobs/claim", headers=await agent_headers("HQ-ADV"))).status_code == 403
+    assert (
+        await client.post("/internal/v1/voices/jobs/claim", headers=await agent_headers("HQ-ADV"))
+    ).status_code == 403
 
 
 # -------------------------------------------------------------- narration --
@@ -286,7 +324,9 @@ async def test_media_voice_queues_the_narration_with_the_active_voice(
             assert r.status_code == 202, r.text
             out = r.json()
             assert out["voice"]["licence_commercial"] is True and out["state"] == "queued"
-            script = await su.fetchval("SELECT script FROM media.speech_jobs WHERE id = $1", UUID(out["job"]))
+            script = await su.fetchval(
+                "SELECT script FROM media.speech_jobs WHERE id = $1", UUID(out["job"])
+            )
             assert_spoken(script)
             assert "درصد" in script
             # A non-commercial voice the owner did not choose is refused.
@@ -309,7 +349,9 @@ async def test_media_voice_queues_the_narration_with_the_active_voice(
             done = await _done(client, job, audio(tmp_path, "ogg", 2), synth_s=0.3, peak_mb=240)
             assert done.status_code == 200, done.text
             assert seen == [("MI-0042", UUID(done.json()["file"]))]
-            owner_of = await su.fetchval("SELECT company_id FROM files.files WHERE id = $1", seen[0][1])
+            owner_of = await su.fetchval(
+                "SELECT company_id FROM files.files WHERE id = $1", seen[0][1]
+            )
             assert owner_of == co["id"]
         async with holding_switch(su, "engaged"):
             locked = await client.post(
@@ -326,9 +368,13 @@ async def test_media_voice_queues_the_narration_with_the_active_voice(
 async def test_the_owners_reference_is_the_owners_and_never_an_agents(
     client: httpx.AsyncClient, owner: dict[str, str], su: Any, tmp_path: Path
 ) -> None:
-    await su.execute("UPDATE media.voice_references SET state = 'superseded' WHERE state <> 'superseded'")
+    await su.execute(
+        "UPDATE media.voice_references SET state = 'superseded' WHERE state <> 'superseded'"
+    )
     assert (await client.get("/api/v1/media/voices/reference", headers=owner)).status_code == 404
-    short = (await upload(client, owner, audio(tmp_path, "ogg", 20), "audio/ogg", "short.ogg")).json()
+    short = (
+        await upload(client, owner, audio(tmp_path, "ogg", 20), "audio/ogg", "short.ogg")
+    ).json()
     r = await client.post(
         "/api/v1/media/voices/reference", headers={**owner, **idem()}, json={"file_id": short["id"]}
     )
@@ -344,7 +390,9 @@ async def test_the_owners_reference_is_the_owners_and_never_an_agents(
     # Never an agent's: the holding's own agents do not see it either.
     # (the counsel has files.read in the holding; the reference is not a
     # file it may open: a missing and a forbidden file answer the same 403)
-    seen = await client.get(f"/internal/v1/files/{good['id']}/meta", headers=await agent_headers("HQ-LGL"))
+    seen = await client.get(
+        f"/internal/v1/files/{good['id']}/meta", headers=await agent_headers("HQ-LGL")
+    )
     assert seen.status_code == 403 and seen.json()["code"] == "policy_denied"
     # Only the owner sets it.
     agent = await client.post(
@@ -353,3 +401,15 @@ async def test_the_owners_reference_is_the_owners_and_never_an_agents(
         json={"file_id": good["id"]},
     )
     assert agent.status_code in (401, 403)
+
+
+def test_the_tts_images_scripts_are_the_hubs_spoken_scripts() -> None:
+    """services/tts/bakeoff_scripts.json (the operator's bake-off, make
+    tts-bakeoff) is exactly what the hub's queue gives every voice."""
+    import json
+
+    shipped = json.loads(Path("/w/tts/bakeoff_scripts.json").read_text(encoding="utf-8"))
+    assert shipped == [{"key": s["key"], "spoken": V.spoken(s["key"])} for s in V.SCRIPTS]
+    assert {s["key"] for s in V.SCRIPTS} == {"numbers", "latin", "crypto", "long", "reel60"}
+    for s in shipped:
+        assert_spoken(s["spoken"])

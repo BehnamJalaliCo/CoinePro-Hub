@@ -295,7 +295,7 @@ SEED: tuple[dict[str, Any], ...] = (
 )
 # The hub's own measurements of the Piper voices (the bake-off of 2026-10-23
 # 02:50 UTC on this CPX42 under the production limits: 320 MiB, 1 thread, no
-# network; python -m hq_tts.bakeoff on the five scripts, RUNBOOK §31.6):
+# network; python -m hq_tts.bakeoff on the five scripts, RUNBOOK §31.13):
 # voice -> (rtf over all five, the highest peak RSS of one synthesis in MiB).
 # The container's own peak was 264.8 MiB.
 MEASURED: dict[str, tuple[float, float]] = {

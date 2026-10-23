@@ -58,6 +58,7 @@ RUN chmod 0755 /voices
 
 COPY hq-common/src /app/hq-common/src
 COPY tts/voice.lock.json /app/tts/voice.lock.json
+COPY tts/bakeoff_scripts.json /app/tts/bakeoff_scripts.json
 COPY tts/src /app/tts/src
 
 USER 10001

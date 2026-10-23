@@ -117,7 +117,10 @@ async def _case(client: httpx.AsyncClient, lgl: dict[str, str], company: str) ->
 
 
 async def _draft(
-    client: httpx.AsyncClient, lgl: dict[str, str], ref: str, body: str = "Dear team,\nPlease review."
+    client: httpx.AsyncClient,
+    lgl: dict[str, str],
+    ref: str,
+    body: str = "Dear team,\nPlease review.",
 ) -> dict[str, Any]:
     r = await client.post(
         f"/internal/v1/legal/cases/{ref}/emails",
@@ -230,13 +233,21 @@ async def test_an_email_leaves_only_by_the_seal_and_exactly_once(
     co = await new_company()
     lgl = await agent_headers("HQ-LGL")
     case = await _case(client, lgl, co["code"])
-    assert case["ref"].startswith("LC-") and case["company"] == co["code"] and case["counsel"] == "HQ-LGL"
+    assert (
+        case["ref"].startswith("LC-")
+        and case["company"] == co["code"]
+        and case["counsel"] == "HQ-LGL"
+    )
     out = await _draft(client, lgl, case["ref"])
     assert out["from"] == ADDRESS and out["state"] == "waiting_seal"
-    d = (await client.get(f"/api/v1/decisions/{out['decision']}", headers=owner_session["headers"])).json()
+    d = (
+        await client.get(f"/api/v1/decisions/{out['decision']}", headers=owner_session["headers"])
+    ).json()
     assert (d["kind"], d["action_class"], d["status"]) == ("email_send", "A3", "pending")
     p = d["payload"]
-    assert p["to"] == ["support@example.com"] and p["from"] == ADDRESS and p["digest"] == out["digest"]
+    assert (
+        p["to"] == ["support@example.com"] and p["from"] == ADDRESS and p["digest"] == out["digest"]
+    )
     assert p["digest"] == L.digest({
         "from_addr": p["from"], "to_addrs": p["to"], "cc_addrs": p["cc"], "subject": p["subject"],
         "body_md": p["body_md"], "attachments": p["attachments"], "lang": p["lang"],
@@ -244,7 +255,9 @@ async def test_an_email_leaves_only_by_the_seal_and_exactly_once(
     assert mailbox.sent == []  # a draft is a card, nothing more
     # The seal is bound to the message digest, not to the card's ref.
     no = await client.post(
-        f"/api/v1/decisions/{d['ref']}/approve", headers={**owner_session["headers"], **idem()}, json={}
+        f"/api/v1/decisions/{d['ref']}/approve",
+        headers={**owner_session["headers"], **idem()},
+        json={},
     )
     assert no.status_code == 403 and no.json()["code"] == "step_up_required"
     wrong = await _approve(client, hub, owner_session, d["ref"], d["ref"])
@@ -265,16 +278,26 @@ async def test_an_email_leaves_only_by_the_seal_and_exactly_once(
     assert len(mailbox.sent) == 1
     rcpt, raw = mailbox.sent[0]
     msg = BytesParser(policy=email_policy.default).parsebytes(raw)
-    assert rcpt == ["support@example.com"] and msg["From"] == ADDRESS and msg["To"] == "support@example.com"
-    assert msg["Subject"] == p["subject"] and msg.get_body().get_content().strip() == p["body_md"].strip()
-    full = (await client.get(f"/api/v1/legal/cases/{case['ref']}", headers=owner_session["headers"])).json()
+    assert (
+        rcpt == ["support@example.com"]
+        and msg["From"] == ADDRESS
+        and msg["To"] == "support@example.com"
+    )
+    assert (
+        msg["Subject"] == p["subject"]
+        and msg.get_body().get_content().strip() == p["body_md"].strip()
+    )
+    full = (
+        await client.get(f"/api/v1/legal/cases/{case['ref']}", headers=owner_session["headers"])
+    ).json()
     assert full["status"] == "waiting_reply"
     (email,) = [e for e in full["emails"] if e["direction"] == "out"]
     assert email["state"] == "sent" and email["message_id"] == msg["Message-ID"]
     assert [t["kind"] for t in full["timeline"]][-1] == "email_out"
     # The audit has the send (A3) once.
     n = await su.fetchval(
-        "SELECT count(*) FROM audit.entries WHERE action = 'legal.email_send' AND target_ref = $1", case["ref"]
+        "SELECT count(*) FROM audit.entries WHERE action = 'legal.email_send' AND target_ref = $1",
+        case["ref"],
     )
     assert n == 1
 
@@ -292,12 +315,18 @@ async def test_a_change_after_the_owner_saw_it_is_a_new_card(
     first = await _draft(client, lgl, case["ref"], "Version one.")
     second = await _draft(client, lgl, case["ref"], "Version two, after the owner read it.")
     assert first["decision"] != second["decision"] and first["digest"] != second["digest"]
-    old = (await client.get(f"/api/v1/decisions/{first['decision']}", headers=owner_session["headers"])).json()
+    old = (
+        await client.get(f"/api/v1/decisions/{first['decision']}", headers=owner_session["headers"])
+    ).json()
     assert old["status"] == "withdrawn"
     late = await _approve(client, hub, owner_session, first["decision"], first["digest"])
     assert late.status_code == 409 and late.json()["code"] == "decision_not_pending"
-    assert (await _approve(client, hub, owner_session, second["decision"], second["digest"])).status_code == 200
-    full = (await client.get(f"/api/v1/legal/cases/{case['ref']}", headers=owner_session["headers"])).json()
+    assert (
+        await _approve(client, hub, owner_session, second["decision"], second["digest"])
+    ).status_code == 200
+    full = (
+        await client.get(f"/api/v1/legal/cases/{case['ref']}", headers=owner_session["headers"])
+    ).json()
     states = {e["digest"]: e["state"] for e in full["emails"]}
     assert states == {first["digest"]: "superseded", second["digest"]: "queued"}
 
@@ -318,7 +347,9 @@ async def test_without_a_connected_mailbox_a_draft_stays_a_card(
     out = await _draft(client, lgl, case["ref"])
     r = await _approve(client, hub, owner_session, out["decision"], out["digest"])
     assert r.status_code == 409 and r.json()["code"] == "account_not_configured"
-    d = (await client.get(f"/api/v1/decisions/{out['decision']}", headers=owner_session["headers"])).json()
+    d = (
+        await client.get(f"/api/v1/decisions/{out['decision']}", headers=owner_session["headers"])
+    ).json()
     assert d["status"] == "pending" and mailbox.sent == []
 
 
@@ -335,7 +366,9 @@ async def test_reject_reopens_the_case_and_closing_waits_for_the_seal(
     case = await _case(client, lgl, co["code"])
     out = await _draft(client, lgl, case["ref"])
     h = owner_session["headers"]
-    shut = await client.post(f"/api/v1/legal/cases/{case['ref']}/close", headers={**h, **idem()}, json={})
+    shut = await client.post(
+        f"/api/v1/legal/cases/{case['ref']}/close", headers={**h, **idem()}, json={}
+    )
     assert shut.status_code == 409
     r = await client.post(
         f"/api/v1/decisions/{out['decision']}/reject",
@@ -352,7 +385,9 @@ async def test_reject_reopens_the_case_and_closing_waits_for_the_seal(
     )
     assert woke is not None and json.loads(woke["run_meta"])["task_class"] == "legal_case"
     closed = await client.post(
-        f"/api/v1/legal/cases/{case['ref']}/close", headers={**h, **idem()}, json={"note_fa": "حل شد"}
+        f"/api/v1/legal/cases/{case['ref']}/close",
+        headers={**h, **idem()},
+        json={"note_fa": "حل شد"},
     )
     assert closed.status_code == 200 and closed.json()["status"] == "closed"
     assert mailbox.sent == []
@@ -368,27 +403,51 @@ async def test_a_reply_reaches_its_case_and_wakes_the_counsel_unrelated_mail_doe
     wk: dict[str, Any],
     su: Any,
 ) -> None:
-    await su.execute("UPDATE legal.mailbox SET last_uid = 0, uidvalidity = NULL WHERE account = 'mail'")
+    await su.execute(
+        "UPDATE legal.mailbox SET last_uid = 0, uidvalidity = NULL WHERE account = 'mail'"
+    )
     co = await new_company()
     lgl = await agent_headers("HQ-LGL")
     case = await _case(client, lgl, co["code"])
     out = await _draft(client, lgl, case["ref"])
-    assert (await _approve(client, hub, owner_session, out["decision"], out["digest"])).status_code == 200
+    assert (
+        await _approve(client, hub, owner_session, out["decision"], out["digest"])
+    ).status_code == 200
     await wk["acts"].decision_apply_effect(out["decision"])
-    sent_mid = BytesParser(policy=email_policy.default).parsebytes(mailbox.sent[-1][1])["Message-ID"]
+    sent_mid = BytesParser(policy=email_policy.default).parsebytes(mailbox.sent[-1][1])[
+        "Message-ID"
+    ]
     mailbox.inbox = [
-        (101, _reply(sent_mid, "We reviewed your account. Call +98 912 345 6789 or write ali@example.net.",
-                     files=[("notice.pdf", "application/pdf", PDF),
-                            ("tool.zip", "application/zip", b"PK\x03\x04 not kept")])),  # fmt: skip
+        (
+            101,
+            _reply(
+                sent_mid,
+                "We reviewed your account. Call +98 912 345 6789 or write ali@example.net.",
+                files=[
+                    ("notice.pdf", "application/pdf", PDF),
+                    ("tool.zip", "application/zip", b"PK\x03\x04 not kept"),
+                ],
+            ),
+        ),
         (102, _reply("<not-ours@example.com>", "A newsletter.")),
         (103, b"Subject: no headers at all\r\n\r\nspam"),
     ]
     got = await L.poll(hub, txf(hub))
-    assert got["ok"] and got["matched"] == [case["ref"]] and got["ignored"] == 2 and got["last_uid"] == 103
-    full = (await client.get(f"/api/v1/legal/cases/{case['ref']}", headers=owner_session["headers"])).json()
+    assert (
+        got["ok"]
+        and got["matched"] == [case["ref"]]
+        and got["ignored"] == 2
+        and got["last_uid"] == 103
+    )
+    full = (
+        await client.get(f"/api/v1/legal/cases/{case['ref']}", headers=owner_session["headers"])
+    ).json()
     inbound = [e for e in full["emails"] if e["direction"] == "in"]
     assert len(inbound) == 1 and inbound[0]["state"] == "received"
-    assert "912 345 6789" not in inbound[0]["body_md"] and "ali@example.net" not in inbound[0]["body_md"]
+    assert (
+        "912 345 6789" not in inbound[0]["body_md"]
+        and "ali@example.net" not in inbound[0]["body_md"]
+    )
     assert full["status"] == "open" and full["timeline"][-1]["kind"] == "email_in"
     # §17.1: the PDF is kept (in the holding, where the counsel's files.read
     # reaches it); the zip is only named on the timeline.
@@ -396,7 +455,10 @@ async def test_a_reply_reaches_its_case_and_wakes_the_counsel_unrelated_mail_doe
     assert kept["name"] == "notice.pdf" and kept["mime"] == "application/pdf"
     assert "tool.zip" in full["timeline"][-1]["summary_fa"]
     holding = await su.fetchval("SELECT id FROM core.companies WHERE kind = 'holding'")
-    assert await su.fetchval("SELECT company_id FROM files.files WHERE id = $1::uuid", kept["file_id"]) == holding
+    assert (
+        await su.fetchval("SELECT company_id FROM files.files WHERE id = $1::uuid", kept["file_id"])
+        == holding
+    )
     meta = await client.get(f"/internal/v1/files/{kept['file_id']}/meta", headers=lgl)
     assert meta.status_code == 200, meta.text
     woke = await su.fetchrow(
@@ -406,7 +468,9 @@ async def test_a_reply_reaches_its_case_and_wakes_the_counsel_unrelated_mail_doe
     )
     assert woke["priority"] == "P2" and json.loads(woke["run_meta"])["task_class"] == "legal_email"
     # Unrelated mail is not stored anywhere.
-    assert not await su.fetchval("SELECT 1 FROM legal.emails WHERE message_id = '<not-ours@example.com>'")
+    assert not await su.fetchval(
+        "SELECT 1 FROM legal.emails WHERE message_id = '<not-ours@example.com>'"
+    )
     # Polling again finds nothing new (the cursor moved on).
     again = await L.poll(hub, txf(hub))
     assert again["matched"] == [] and again["ignored"] == 0
@@ -424,7 +488,10 @@ async def test_the_poller_does_nothing_while_the_holding_is_locked(
     assert mailbox.fetches == 0
     mailbox.on = False
     unconfigured = await L.poll(hub, txf(hub))
-    assert unconfigured == {"skipped": True, "reason": "account_not_configured"} and mailbox.fetches == 0
+    assert (
+        unconfigured == {"skipped": True, "reason": "account_not_configured"}
+        and mailbox.fetches == 0
+    )
 
 
 # ------------------------------------------------------------- the scope --
@@ -461,7 +528,9 @@ async def test_the_counsel_reaches_only_its_own_cases(
         code,
     )
     other = await agent_headers(code)
-    assert (await client.get(f"/internal/v1/legal/cases/{case['ref']}/mail", headers=other)).status_code == 404
+    assert (
+        await client.get(f"/internal/v1/legal/cases/{case['ref']}/mail", headers=other)
+    ).status_code == 404
     note = await client.post(
         f"/internal/v1/legal/cases/{case['ref']}/notes",
         headers={**other, **idem()},
@@ -549,7 +618,9 @@ async def test_the_mailbox_password_never_shows(
     def egress(request: httpx.Request) -> httpx.Response:
         seen.append(json.loads(request.content))
         if request.url.path == "/v1/mail/fetch":
-            return httpx.Response(200, json={"outcome": "error", "code": "upstream_error", "data": None})
+            return httpx.Response(
+                200, json={"outcome": "error", "code": "upstream_error", "data": None}
+            )
         return httpx.Response(200, json={"outcome": "ok", "data": {"refused": []}})
 
     real = MAIL.EgressMail(httpx.MockTransport(egress))
@@ -561,7 +632,9 @@ async def test_the_mailbox_password_never_shows(
         lgl = await agent_headers("HQ-LGL")
         case = await _case(client, lgl, co["code"])
         out = await _draft(client, lgl, case["ref"])
-        assert (await _approve(client, hub, owner_session, out["decision"], out["digest"])).status_code == 200
+        assert (
+            await _approve(client, hub, owner_session, out["decision"], out["digest"])
+        ).status_code == 200
         sent = await L.deliver(hub, txf(hub), out["decision"])
         assert sent["email"] == "sent"
         polled = await L.poll(hub, txf(hub))
@@ -570,8 +643,16 @@ async def test_the_mailbox_password_never_shows(
         assert seen[0]["host"] == "smtp.example.org" and seen[0]["port"] == 465
         assert seen[1]["host"] == "imap.example.org" and seen[1]["port"] == 993
         answers = [
-            (await client.get(f"/api/v1/legal/cases/{case['ref']}", headers=owner_session["headers"])).text,
-            (await client.get(f"/api/v1/decisions/{out['decision']}", headers=owner_session["headers"])).text,
+            (
+                await client.get(
+                    f"/api/v1/legal/cases/{case['ref']}", headers=owner_session["headers"]
+                )
+            ).text,
+            (
+                await client.get(
+                    f"/api/v1/decisions/{out['decision']}", headers=owner_session["headers"]
+                )
+            ).text,
             (await client.get(f"/internal/v1/legal/cases/{case['ref']}/mail", headers=lgl)).text,
             (await client.get("/api/v1/tools/accounts", headers=owner_session["headers"])).text,
         ]

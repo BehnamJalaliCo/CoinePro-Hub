@@ -5,12 +5,13 @@ per second of speech) and the peak resident memory of that synthesis alone
 (wait4), and the container's own peak (cgroup v2). The Ogg files go to --out
 for listening; the report (JSON, numbers only) to stdout.
 
-    python -m hq_tts.bakeoff --scripts /in/scripts.json [--out /out] [--voices a,b]
+    python -m hq_tts.bakeoff [--scripts scripts.json] [--out /out] [--voices a,b]
 
-scripts.json: [{"key": "numbers", "spoken": "..."}, ...], the scripts as the
-hub speaks them (hq_api.domain.voices.SCRIPTS through the hub's normaliser).
+scripts.json: [{"key": "numbers", "spoken": "..."}, ...], by default the
+image's bakeoff_scripts.json: the scripts as the hub speaks them
+(hq_api.domain.voices.SCRIPTS through the hub's normaliser).
 On the hub the same measurement runs through the api's bake-off queue (the
-TTS one-shot, opt-in); this is the operator's run (RUNBOOK §31.6).
+TTS one-shot, opt-in); this is the operator's run (RUNBOOK §31.13).
 """
 
 from __future__ import annotations
@@ -24,6 +25,10 @@ from typing import Any
 
 from hq_tts.engine import Engine, Piper, cgroup_peak_mb, installed
 from hq_tts.job import Settings
+
+# The fixed scripts as the hub speaks them (the api's SCRIPTS through its
+# normaliser; apps/api's test keeps the two equal).
+SCRIPTS = Path(__file__).resolve().parents[2] / "bakeoff_scripts.json"
 
 
 def measure(
@@ -62,7 +67,7 @@ def measure(
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="hq_tts.bakeoff")
-    ap.add_argument("--scripts", required=True)
+    ap.add_argument("--scripts", default=str(SCRIPTS))
     ap.add_argument("--out")
     ap.add_argument("--voices", default="")
     a = ap.parse_args(argv)

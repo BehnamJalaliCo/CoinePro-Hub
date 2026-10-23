@@ -52,7 +52,7 @@ class VoiceSample(BaseModel):
     peak_mb: float | None
 
 
-class Voice(BaseModel):
+class RegistryVoice(BaseModel):
     """Contract §22.2 and §22.7; ⟨1.6⟩ `installed` (the hub's TTS image runs
     it), `measured_on` (the CPU it was measured on) and `version` beside."""
 
@@ -75,11 +75,11 @@ class Voice(BaseModel):
     version: int
 
 
-class ScoreIn(Model):
+class VoiceScoreIn(Model):
     score: int = Field(ge=1, le=10)
 
 
-class ActivateIn(Model):
+class VoiceActivateIn(Model):
     accept_non_commercial: bool = False
 
 
@@ -135,34 +135,34 @@ class Narration(BaseModel):
     spoken_chars: int
 
 
-async def _voice(tx: Any, voice_id: str) -> Voice:
+async def _voice(tx: Any, voice_id: str) -> RegistryVoice:
     row = await V.one(tx, voice_id)
     samples = await V.samples_of(tx, [row["id"]])
-    return Voice.model_validate(V.render(row, samples.get(row["id"], [])))
+    return RegistryVoice.model_validate(V.render(row, samples.get(row["id"], [])))
 
 
 # ------------------------------------------------------------------- owner --
-@router.get("/media/voices", response_model=list[Voice], responses=E)
-async def list_voices(ctx: Ctx = Depends(owner_ctx)) -> list[Voice]:
+@router.get("/media/voices", response_model=list[RegistryVoice], responses=E)
+async def list_voices(ctx: Ctx = Depends(owner_ctx)) -> list[RegistryVoice]:
     """The registry (one row per engine and speaker), with the bake-off
     samples for the owner's blind listening; `licence_commercial: false` is
     shown on every use."""
     async with ctx.tx() as tx:
-        return [Voice.model_validate(v) for v in await V.all_voices(tx)]
+        return [RegistryVoice.model_validate(v) for v in await V.all_voices(tx)]
 
 
-@router.post("/media/voices/{id}/score", response_model=Voice, responses=E)
-async def score_voice(id: str, body: ScoreIn, ctx: Ctx = Depends(owner_ctx)) -> Voice:
+@router.post("/media/voices/{id}/score", response_model=RegistryVoice, responses=E)
+async def score_voice(id: str, body: VoiceScoreIn, ctx: Ctx = Depends(owner_ctx)) -> RegistryVoice:
     """The owner's blind listening score, 1 to 10."""
     async with ctx.tx() as tx:
         await V.score(tx, ctx.who, id, body.score)
         return await _voice(tx, id)
 
 
-@router.post("/media/voices/{id}/activate", response_model=Voice, responses=E)
+@router.post("/media/voices/{id}/activate", response_model=RegistryVoice, responses=E)
 async def activate_voice(
-    id: str, body: ActivateIn, request: Request, ctx: Ctx = Depends(owner_ctx)
-) -> Voice:
+    id: str, body: VoiceActivateIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> RegistryVoice:
     """🔏 `voice.activate` (target = the voice id): the voice every new
     briefing and narration speaks with. Non-commercial: only with
     `accept_non_commercial: true`; not installed or not measured: 409."""
@@ -225,7 +225,7 @@ async def _tts(ctx: Ctx, op: str) -> None:
     response_model=SpeechJob,
     responses={**E, 204: {"description": "nothing to say, or the holding is locked"}},
 )
-async def claim_job(ctx: Ctx = Depends(internal_ctx)) -> Any:
+async def voice_job_claim(ctx: Ctx = Depends(internal_ctx)) -> Any:
     """The next bake-off sample or narration; 204 when there is none and
     always while the holding is locked (nothing is spoken then)."""
     await _tts(ctx, "voices.claim")
@@ -249,7 +249,7 @@ async def claim_job(ctx: Ctx = Depends(internal_ctx)) -> Any:
         }
     },
 )
-async def job_done(
+async def voice_job_done(
     id: UUID,
     request: Request,
     duration_s: float | None = Query(default=None, ge=0, le=7200),
@@ -318,7 +318,7 @@ async def job_done(
 @internal_router.post(
     "/voices/jobs/{id}/fail", status_code=204, response_class=Response, responses=E
 )
-async def job_fail(id: UUID, body: JobFail, ctx: Ctx = Depends(internal_ctx)) -> Response:
+async def voice_job_fail(id: UUID, body: JobFail, ctx: Ctx = Depends(internal_ctx)) -> Response:
     """The voice could not be made; after three tries the job is `failed`."""
     await _tts(ctx, "voices.done")
     async with ctx.tx() as tx:

@@ -138,7 +138,7 @@ class AgentCaseIn(Model):
     counterpart: Counterpart | None = None
 
 
-class NoteIn(Model):
+class CaseNoteIn(Model):
     kind: Literal["note", "form", "decision"]
     summary_fa: str = Field(min_length=1, max_length=4000)
     ref_link: str | None = Field(default=None, max_length=80)
@@ -146,7 +146,7 @@ class NoteIn(Model):
     status: Literal["open", "waiting_reply", "resolved"] | None = None
 
 
-class DraftIn(Model):
+class EmailDraftIn(Model):
     to: list[str] = Field(min_length=1, max_length=20)
     cc: list[str] = Field(default_factory=list, max_length=20)
     subject: str = Field(min_length=1, max_length=998)
@@ -328,7 +328,7 @@ async def counsel_open(
 
 @internal_router.post("/legal/cases/{ref}/notes", response_model=LegalCase, responses=E)
 async def counsel_note(
-    ref: str, body: NoteIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+    ref: str, body: CaseNoteIn, request: Request, ctx: Ctx = Depends(internal_ctx)
 ) -> Any:
     """case.note (A1): a note, a form's outcome or a decision on the
     timeline of one of the counsel's own cases; `deadline` adds one."""
@@ -358,7 +358,7 @@ async def counsel_note(
     "/legal/cases/{ref}/emails", response_model=Drafted, status_code=201, responses=E
 )
 async def counsel_draft(
-    ref: str, body: DraftIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+    ref: str, body: EmailDraftIn, request: Request, ctx: Ctx = Depends(internal_ctx)
 ) -> Any:
     """email.draft (A1): the exact message becomes an `email_send` card for
     the owner's seal; a draft still waiting on this case is superseded (its

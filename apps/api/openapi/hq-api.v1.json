@@ -72,6 +72,16 @@
           "inject": {
             "$ref": "#/components/schemas/InjectPolicy"
           },
+          "mail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MailPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "ports": {
             "items": {
               "type": "integer"
@@ -461,6 +471,59 @@
           "state"
         ],
         "title": "AdvisorTrigger",
+        "type": "object"
+      },
+      "AgentCaseIn": {
+        "additionalProperties": false,
+        "properties": {
+          "brief_md": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "counterpart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Counterpart"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "platform_restriction",
+              "account_appeal",
+              "takedown",
+              "partner_dispute",
+              "policy_review",
+              "contract_review",
+              "compliance",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "title_fa": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "title_fa",
+          "kind"
+        ],
+        "title": "AgentCaseIn",
         "type": "object"
       },
       "AgentDecide": {
@@ -2763,6 +2826,132 @@
         "title": "CallbackToken",
         "type": "object"
       },
+      "CaseIn": {
+        "additionalProperties": false,
+        "properties": {
+          "brief_md": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "counterpart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Counterpart"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "file_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "File Ids",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "platform_restriction",
+              "account_appeal",
+              "takedown",
+              "partner_dispute",
+              "policy_review",
+              "contract_review",
+              "compliance",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "title_fa": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "title_fa",
+          "kind"
+        ],
+        "title": "CaseIn",
+        "type": "object"
+      },
+      "CaseNoteIn": {
+        "additionalProperties": false,
+        "properties": {
+          "deadline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Deadline"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "note",
+              "form",
+              "decision"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref_link": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Link"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "open",
+                  "waiting_reply",
+                  "resolved"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "summary_fa": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Summary Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "summary_fa"
+        ],
+        "title": "CaseNoteIn",
+        "type": "object"
+      },
       "CaseResult": {
         "properties": {
           "id": {
@@ -3547,6 +3736,25 @@
           "verdict"
         ],
         "title": "ClaimIn",
+        "type": "object"
+      },
+      "CloseIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note_fa": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          }
+        },
+        "title": "CloseIn",
         "type": "object"
       },
       "CodeSession": {
@@ -5254,6 +5462,42 @@
         "title": "Count",
         "type": "object"
       },
+      "Counterpart": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "channel": {
+            "default": "other",
+            "enum": [
+              "email",
+              "form",
+              "portal",
+              "other"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "title": "Counterpart",
+        "type": "object"
+      },
       "Creative": {
         "properties": {
           "ai_generated": {
@@ -5643,6 +5887,28 @@
         "title": "DaySource",
         "type": "object"
       },
+      "Deadline": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "what_fa": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "What Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "what_fa"
+        ],
+        "title": "Deadline",
+        "type": "object"
+      },
       "Decision": {
         "properties": {
           "action_class": {
@@ -5953,7 +6219,8 @@
               "tool_enable",
               "message_template",
               "lifecycle_rule",
-              "support_go_live"
+              "support_go_live",
+              "email_send"
             ],
             "title": "Kind",
             "type": "string"
@@ -7386,6 +7653,45 @@
         "title": "DraftIn",
         "type": "object"
       },
+      "Drafted": {
+        "properties": {
+          "case": {
+            "title": "Case",
+            "type": "string"
+          },
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "state": {
+            "const": "waiting_seal",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case",
+          "decision",
+          "digest",
+          "email",
+          "from",
+          "state"
+        ],
+        "title": "Drafted",
+        "type": "object"
+      },
       "EgressDay": {
         "additionalProperties": false,
         "properties": {
@@ -7543,6 +7849,237 @@
           "class"
         ],
         "title": "EgressEntry",
+        "type": "object"
+      },
+      "Email": {
+        "description": "EmailDraft plus its life (contract §22.7). ⟨1.6⟩ `state` also has\n`queued` (sealed, waiting to leave), `sending` and `failed`.",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/EmailAttachment"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "body_md": {
+            "title": "Body Md",
+            "type": "string"
+          },
+          "case": {
+            "title": "Case",
+            "type": "string"
+          },
+          "cc": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cc",
+            "type": "array"
+          },
+          "decision_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Ref"
+          },
+          "digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Digest"
+          },
+          "direction": {
+            "enum": [
+              "out",
+              "in"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lang": {
+            "enum": [
+              "fa",
+              "en"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "message_id": {
+            "title": "Message Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "waiting_seal",
+              "queued",
+              "sending",
+              "sent",
+              "failed",
+              "received",
+              "superseded",
+              "rejected"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "type": "string"
+            },
+            "title": "To",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "case",
+          "direction",
+          "state",
+          "from",
+          "to",
+          "cc",
+          "subject",
+          "body_md",
+          "attachments",
+          "lang",
+          "digest",
+          "decision_ref",
+          "message_id",
+          "at"
+        ],
+        "title": "Email",
+        "type": "object"
+      },
+      "EmailAttachment": {
+        "properties": {
+          "file_id": {
+            "title": "File Id",
+            "type": "string"
+          },
+          "mime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_id",
+          "name",
+          "sha256"
+        ],
+        "title": "EmailAttachment",
+        "type": "object"
+      },
+      "EmailDraftIn": {
+        "additionalProperties": false,
+        "properties": {
+          "body_md": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Body Md",
+            "type": "string"
+          },
+          "cc": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Cc",
+            "type": "array"
+          },
+          "file_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "File Ids",
+            "type": "array"
+          },
+          "lang": {
+            "enum": [
+              "fa",
+              "en"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 998,
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "To",
+            "type": "array"
+          }
+        },
+        "required": [
+          "to",
+          "subject",
+          "body_md",
+          "lang"
+        ],
+        "title": "EmailDraftIn",
         "type": "object"
       },
       "Employee": {
@@ -12003,6 +12540,46 @@
         "title": "Inventory",
         "type": "object"
       },
+      "JobDone": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "job": {
+            "title": "Job",
+            "type": "string"
+          },
+          "state": {
+            "const": "done",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job",
+          "state",
+          "file"
+        ],
+        "title": "JobDone",
+        "type": "object"
+      },
+      "JobFail": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "JobFail",
+        "type": "object"
+      },
       "KbApproveIn": {
         "additionalProperties": false,
         "properties": {
@@ -12661,6 +13238,143 @@
         "title": "Leak",
         "type": "object"
       },
+      "LegalCase": {
+        "properties": {
+          "brief_md": {
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "counsel": {
+            "title": "Counsel",
+            "type": "string"
+          },
+          "counterpart": {
+            "additionalProperties": true,
+            "title": "Counterpart",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deadlines": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Deadlines",
+            "type": "array"
+          },
+          "emails": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Email"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emails"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "platform_restriction",
+              "account_appeal",
+              "takedown",
+              "partner_dispute",
+              "policy_review",
+              "contract_review",
+              "compliance",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "opened_by": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "waiting_reply",
+              "waiting_owner",
+              "resolved",
+              "closed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineEntry"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "company",
+          "title_fa",
+          "kind",
+          "brief_md",
+          "counterpart",
+          "status",
+          "counsel",
+          "timeline",
+          "deadlines",
+          "opened_by",
+          "created_at",
+          "updated_at",
+          "closed_at",
+          "version"
+        ],
+        "title": "LegalCase",
+        "type": "object"
+      },
       "Lesson": {
         "properties": {
           "adoption": {
@@ -13129,6 +13843,18 @@
       "Links": {
         "additionalProperties": false,
         "properties": {
+          "case": {
+            "anyOf": [
+              {
+                "pattern": "^LC-[0-9]{4,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case"
+          },
           "corrects": {
             "anyOf": [
               {
@@ -13596,6 +14322,71 @@
           "credential"
         ],
         "title": "LoginVerifyIn",
+        "type": "object"
+      },
+      "MailOut": {
+        "properties": {
+          "case": {
+            "title": "Case",
+            "type": "string"
+          },
+          "emails": {
+            "items": {
+              "$ref": "#/components/schemas/Email"
+            },
+            "title": "Emails",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "waiting_reply",
+              "waiting_owner",
+              "resolved",
+              "closed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case",
+          "status",
+          "emails"
+        ],
+        "title": "MailOut",
+        "type": "object"
+      },
+      "MailPolicy": {
+        "additionalProperties": false,
+        "description": "⟨1.6⟩ the `mail` account's servers (prompt 13 §3.2) when they are not\nimap.<site> and smtp.<site>; both must be the account's own site.",
+        "properties": {
+          "imap_host": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9]([a-z0-9.-]{1,251}[a-z0-9])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imap Host"
+          },
+          "smtp_host": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9]([a-z0-9.-]{1,251}[a-z0-9])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smtp Host"
+          }
+        },
+        "title": "MailPolicy",
         "type": "object"
       },
       "McpServer": {
@@ -14634,6 +15425,39 @@
           "value_ratio"
         ],
         "title": "Month",
+        "type": "object"
+      },
+      "Narration": {
+        "properties": {
+          "item": {
+            "title": "Item",
+            "type": "string"
+          },
+          "job": {
+            "title": "Job",
+            "type": "string"
+          },
+          "spoken_chars": {
+            "title": "Spoken Chars",
+            "type": "integer"
+          },
+          "state": {
+            "const": "queued",
+            "title": "State",
+            "type": "string"
+          },
+          "voice": {
+            "$ref": "#/components/schemas/VoiceUsed"
+          }
+        },
+        "required": [
+          "job",
+          "item",
+          "state",
+          "voice",
+          "spoken_chars"
+        ],
+        "title": "Narration",
         "type": "object"
       },
       "NoteIn": {
@@ -16548,6 +17372,33 @@
           "items"
         ],
         "title": "Page[Inquiry]",
+        "type": "object"
+      },
+      "Page_LegalCase_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LegalCase"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[LegalCase]",
         "type": "object"
       },
       "Page_Message_": {
@@ -18579,6 +19430,73 @@
         "title": "Reason",
         "type": "object"
       },
+      "Reference": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Fa"
+          },
+          "state": {
+            "enum": [
+              "processing",
+              "ready",
+              "rejected"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "duration_s",
+          "created_at",
+          "state",
+          "reason_fa"
+        ],
+        "title": "Reference",
+        "type": "object"
+      },
+      "ReferenceIn": {
+        "additionalProperties": false,
+        "properties": {
+          "file_id": {
+            "format": "uuid",
+            "title": "File Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_id"
+        ],
+        "title": "ReferenceIn",
+        "type": "object"
+      },
       "ReferralCheckIn": {
         "additionalProperties": false,
         "properties": {
@@ -18732,6 +19650,155 @@
           "device_name"
         ],
         "title": "RegisterVerifyIn",
+        "type": "object"
+      },
+      "RegistryVoice": {
+        "description": "Contract §22.2 and §22.7; ⟨1.6⟩ `installed` (the hub's TTS image runs\nit), `measured_on` (the CPU it was measured on) and `version` beside.",
+        "properties": {
+          "clones": {
+            "title": "Clones",
+            "type": "boolean"
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "installed": {
+            "title": "Installed",
+            "type": "boolean"
+          },
+          "licence": {
+            "title": "Licence",
+            "type": "string"
+          },
+          "licence_commercial": {
+            "title": "Licence Commercial",
+            "type": "boolean"
+          },
+          "measured_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured At"
+          },
+          "measured_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured On"
+          },
+          "mem_mb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mem Mb"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "owner_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Score"
+          },
+          "rtf": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rtf"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/VoiceSample"
+            },
+            "title": "Samples",
+            "type": "array"
+          },
+          "speaker": {
+            "enum": [
+              "model",
+              "owner"
+            ],
+            "title": "Speaker",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "candidate",
+              "active",
+              "retired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "engine",
+          "name_fa",
+          "licence",
+          "licence_commercial",
+          "rtf",
+          "mem_mb",
+          "owner_score",
+          "status",
+          "speaker",
+          "clones",
+          "installed",
+          "samples",
+          "note_fa",
+          "measured_at",
+          "measured_on",
+          "version"
+        ],
+        "title": "RegistryVoice",
         "type": "object"
       },
       "Reject": {
@@ -22686,6 +23753,56 @@
         "title": "Source",
         "type": "object"
       },
+      "SpeechJob": {
+        "properties": {
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "sample",
+              "narration"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "script": {
+            "title": "Script",
+            "type": "string"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "ref",
+          "engine",
+          "voice",
+          "script"
+        ],
+        "title": "SpeechJob",
+        "type": "object"
+      },
       "StandingOrder": {
         "properties": {
           "applies_to": {
@@ -25061,6 +26178,49 @@
         "title": "Throttle",
         "type": "object"
       },
+      "TimelineEntry": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "note",
+              "email_out",
+              "email_in",
+              "form",
+              "decision"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "summary_fa": {
+            "title": "Summary Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "kind",
+          "ref",
+          "summary_fa"
+        ],
+        "title": "TimelineEntry",
+        "type": "object"
+      },
       "ToolCallIn": {
         "additionalProperties": false,
         "properties": {
@@ -25775,6 +26935,152 @@
           "license"
         ],
         "title": "Voice",
+        "type": "object"
+      },
+      "VoiceActivateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "accept_non_commercial": {
+            "default": false,
+            "title": "Accept Non Commercial",
+            "type": "boolean"
+          }
+        },
+        "title": "VoiceActivateIn",
+        "type": "object"
+      },
+      "VoiceIn": {
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "pattern": "^MI-[0-9]{4,}$",
+            "title": "Ref",
+            "type": "string"
+          },
+          "text_fa": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Text Fa",
+            "type": "string"
+          },
+          "voice_id": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9_.-]{1,60}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Id"
+          }
+        },
+        "required": [
+          "ref",
+          "text_fa"
+        ],
+        "title": "VoiceIn",
+        "type": "object"
+      },
+      "VoiceSample": {
+        "properties": {
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "peak_mb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak Mb"
+          },
+          "rtf": {
+            "title": "Rtf",
+            "type": "number"
+          },
+          "script": {
+            "title": "Script",
+            "type": "string"
+          },
+          "text_fa": {
+            "title": "Text Fa",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "script",
+          "title_fa",
+          "text_fa",
+          "file",
+          "duration_s",
+          "rtf",
+          "peak_mb"
+        ],
+        "title": "VoiceSample",
+        "type": "object"
+      },
+      "VoiceScoreIn": {
+        "additionalProperties": false,
+        "properties": {
+          "score": {
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Score",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "score"
+        ],
+        "title": "VoiceScoreIn",
+        "type": "object"
+      },
+      "VoiceUsed": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "licence": {
+            "title": "Licence",
+            "type": "string"
+          },
+          "licence_commercial": {
+            "title": "Licence Commercial",
+            "type": "boolean"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name_fa",
+          "licence",
+          "licence_commercial"
+        ],
+        "title": "VoiceUsed",
         "type": "object"
       },
       "Wal": {
@@ -36967,7 +38273,8 @@
                     "protocol",
                     "tool_enable",
                     "company_found",
-                    "server_plan"
+                    "server_plan",
+                    "email_send"
                   ],
                   "type": "string"
                 },
@@ -45010,6 +46317,683 @@
         ]
       }
     },
+    "/api/v1/legal/cases": {
+      "get": {
+        "description": "The cases of every company (or one), newest first.",
+        "operationId": "list_cases",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "waiting_reply",
+                    "waiting_owner",
+                    "resolved",
+                    "closed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "brief_md": "x",
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "company": "TY",
+                      "counsel": "x",
+                      "counterpart": {},
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "deadlines": [
+                        {}
+                      ],
+                      "emails": [
+                        {
+                          "at": "2026-10-17T05:42:00Z",
+                          "attachments": [],
+                          "body_md": "x",
+                          "case": "x",
+                          "cc": [],
+                          "decision_ref": null,
+                          "digest": null,
+                          "direction": "out",
+                          "error": null,
+                          "from": "x",
+                          "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                          "lang": "fa",
+                          "message_id": "x",
+                          "state": "waiting_seal",
+                          "subject": "x",
+                          "to": []
+                        }
+                      ],
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "platform_restriction",
+                      "opened_by": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
+                      "ref": "W-000789",
+                      "status": "open",
+                      "timeline": [
+                        {
+                          "at": "2026-10-17T05:42:00Z",
+                          "kind": "note",
+                          "ref": "W-000789",
+                          "summary_fa": "x"
+                        }
+                      ],
+                      "title_fa": "گزارش هفتگی رشد",
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "version": 1
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_LegalCase_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Cases",
+        "tags": [
+          "legal"
+        ]
+      },
+      "post": {
+        "description": "The owner opens a case: the counsel is woken with a work item\n(nothing runs while the holding is locked). Requires `Idempotency-Key`.",
+        "operationId": "open_case",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "brief_md": "x",
+                "company": "TY",
+                "counterpart": {
+                  "address": "x",
+                  "channel": "email",
+                  "name": "report.pdf"
+                },
+                "file_ids": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "kind": "platform_restriction",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CaseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "brief_md": "x",
+                  "closed_at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "counsel": "x",
+                  "counterpart": {},
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "deadlines": [
+                    {}
+                  ],
+                  "emails": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "attachments": [
+                        {
+                          "file_id": "x",
+                          "mime": null,
+                          "name": "report.pdf",
+                          "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a"
+                        }
+                      ],
+                      "body_md": "x",
+                      "case": "x",
+                      "cc": [
+                        "x"
+                      ],
+                      "decision_ref": "x",
+                      "digest": "x",
+                      "direction": "out",
+                      "error": "x",
+                      "from": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "lang": "fa",
+                      "message_id": "x",
+                      "state": "waiting_seal",
+                      "subject": "x",
+                      "to": [
+                        "TY-GROWTH-MGR"
+                      ]
+                    }
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "platform_restriction",
+                  "opened_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "ref": "W-000789",
+                  "status": "open",
+                  "timeline": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "kind": "note",
+                      "ref": "W-000789",
+                      "summary_fa": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/LegalCase"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Open Case",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/api/v1/legal/cases/{ref}": {
+      "get": {
+        "description": "One case with its full timeline and every email (in and out).",
+        "operationId": "get_case",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "brief_md": "x",
+                  "closed_at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "counsel": "x",
+                  "counterpart": {},
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "deadlines": [
+                    {}
+                  ],
+                  "emails": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "attachments": [
+                        {
+                          "file_id": "x",
+                          "mime": null,
+                          "name": "report.pdf",
+                          "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a"
+                        }
+                      ],
+                      "body_md": "x",
+                      "case": "x",
+                      "cc": [
+                        "x"
+                      ],
+                      "decision_ref": "x",
+                      "digest": "x",
+                      "direction": "out",
+                      "error": "x",
+                      "from": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "lang": "fa",
+                      "message_id": "x",
+                      "state": "waiting_seal",
+                      "subject": "x",
+                      "to": [
+                        "TY-GROWTH-MGR"
+                      ]
+                    }
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "platform_restriction",
+                  "opened_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "ref": "W-000789",
+                  "status": "open",
+                  "timeline": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "kind": "note",
+                      "ref": "W-000789",
+                      "summary_fa": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/LegalCase"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Case",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/api/v1/legal/cases/{ref}/close": {
+      "post": {
+        "description": "The owner closes a case; 409 while one of its emails waits for the seal.",
+        "operationId": "close_case",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "note_fa": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CloseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "brief_md": "x",
+                  "closed_at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "counsel": "x",
+                  "counterpart": {},
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "deadlines": [
+                    {}
+                  ],
+                  "emails": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "attachments": [
+                        {
+                          "file_id": "x",
+                          "mime": null,
+                          "name": "report.pdf",
+                          "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a"
+                        }
+                      ],
+                      "body_md": "x",
+                      "case": "x",
+                      "cc": [
+                        "x"
+                      ],
+                      "decision_ref": "x",
+                      "digest": "x",
+                      "direction": "out",
+                      "error": "x",
+                      "from": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "lang": "fa",
+                      "message_id": "x",
+                      "state": "waiting_seal",
+                      "subject": "x",
+                      "to": [
+                        "TY-GROWTH-MGR"
+                      ]
+                    }
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "platform_restriction",
+                  "opened_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "ref": "W-000789",
+                  "status": "open",
+                  "timeline": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "kind": "note",
+                      "ref": "W-000789",
+                      "summary_fa": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/LegalCase"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Close Case",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
     "/api/v1/lessons": {
       "get": {
         "description": "Lessons from the best companies with each other company's adoption.",
@@ -45146,6 +47130,637 @@
         "summary": "List Lessons",
         "tags": [
           "people"
+        ]
+      }
+    },
+    "/api/v1/media/voices": {
+      "get": {
+        "description": "The registry (one row per engine and speaker), with the bake-off\nsamples for the owner's blind listening; `licence_commercial: false` is\nshown on every use.",
+        "operationId": "list_voices",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "clones": false,
+                    "engine": "x",
+                    "id": "x",
+                    "installed": false,
+                    "licence": "x",
+                    "licence_commercial": false,
+                    "measured_at": "2026-10-17T05:42:00Z",
+                    "measured_on": "x",
+                    "mem_mb": 1.0,
+                    "name_fa": "تریدیار",
+                    "note_fa": "x",
+                    "owner_score": 1,
+                    "rtf": 1.0,
+                    "samples": [
+                      {
+                        "duration_s": 1.0,
+                        "file": {
+                          "duration_s": null,
+                          "height": null,
+                          "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                          "kind": "image",
+                          "mime": "application/pdf",
+                          "name": "report.pdf",
+                          "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                          "size": 1,
+                          "status": "processing",
+                          "transcript": null,
+                          "variants": {
+                            "poster": null,
+                            "thumb": null
+                          },
+                          "width": null
+                        },
+                        "peak_mb": 1.0,
+                        "rtf": 1.0,
+                        "script": "x",
+                        "text_fa": "x",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "speaker": "model",
+                    "status": "candidate",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RegistryVoice"
+                  },
+                  "title": "Response List Voices",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Voices",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/v1/media/voices/reference": {
+      "get": {
+        "description": "The owner's recorded voice; 404 when there is none.",
+        "operationId": "get_reference",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "duration_s": 1.0,
+                  "file": {
+                    "duration_s": 1.0,
+                    "height": 1,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "image",
+                    "mime": "application/pdf",
+                    "name": "report.pdf",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                    "size": 1,
+                    "status": "processing",
+                    "transcript": "x",
+                    "variants": {
+                      "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    },
+                    "width": 1
+                  },
+                  "reason_fa": "x",
+                  "state": "processing"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Reference"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Reference",
+        "tags": [
+          "media"
+        ]
+      },
+      "post": {
+        "description": "The owner only: an audio upload of 1-3 minutes of clean speech\n(POST /files first). Kept like any owner file; never attached, never\nsent anywhere. Requires `Idempotency-Key`.",
+        "operationId": "set_reference",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ReferenceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "duration_s": 1.0,
+                  "file": {
+                    "duration_s": 1.0,
+                    "height": 1,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "image",
+                    "mime": "application/pdf",
+                    "name": "report.pdf",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                    "size": 1,
+                    "status": "processing",
+                    "transcript": "x",
+                    "variants": {
+                      "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    },
+                    "width": 1
+                  },
+                  "reason_fa": "x",
+                  "state": "processing"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Reference"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Set Reference",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/v1/media/voices/{id}/activate": {
+      "post": {
+        "description": "🔏 `voice.activate` (target = the voice id): the voice every new\nbriefing and narration speaks with. Non-commercial: only with\n`accept_non_commercial: true`; not installed or not measured: 409.",
+        "operationId": "activate_voice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "accept_non_commercial": false
+              },
+              "schema": {
+                "$ref": "#/components/schemas/VoiceActivateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "clones": false,
+                  "engine": "x",
+                  "id": "x",
+                  "installed": false,
+                  "licence": "x",
+                  "licence_commercial": false,
+                  "measured_at": "2026-10-17T05:42:00Z",
+                  "measured_on": "x",
+                  "mem_mb": 1.0,
+                  "name_fa": "تریدیار",
+                  "note_fa": "x",
+                  "owner_score": 1,
+                  "rtf": 1.0,
+                  "samples": [
+                    {
+                      "duration_s": 1.0,
+                      "file": {
+                        "duration_s": 1.0,
+                        "height": 1,
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "image",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                        "size": 1,
+                        "status": "processing",
+                        "transcript": "x",
+                        "variants": {
+                          "poster": null,
+                          "thumb": null
+                        },
+                        "width": 1
+                      },
+                      "peak_mb": 1.0,
+                      "rtf": 1.0,
+                      "script": "x",
+                      "text_fa": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "speaker": "model",
+                  "status": "candidate",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryVoice"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Activate Voice",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/v1/media/voices/{id}/score": {
+      "post": {
+        "description": "The owner's blind listening score, 1 to 10.",
+        "operationId": "score_voice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "score": 1
+              },
+              "schema": {
+                "$ref": "#/components/schemas/VoiceScoreIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "clones": false,
+                  "engine": "x",
+                  "id": "x",
+                  "installed": false,
+                  "licence": "x",
+                  "licence_commercial": false,
+                  "measured_at": "2026-10-17T05:42:00Z",
+                  "measured_on": "x",
+                  "mem_mb": 1.0,
+                  "name_fa": "تریدیار",
+                  "note_fa": "x",
+                  "owner_score": 1,
+                  "rtf": 1.0,
+                  "samples": [
+                    {
+                      "duration_s": 1.0,
+                      "file": {
+                        "duration_s": 1.0,
+                        "height": 1,
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "image",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                        "size": 1,
+                        "status": "processing",
+                        "transcript": "x",
+                        "variants": {
+                          "poster": null,
+                          "thumb": null
+                        },
+                        "width": 1
+                      },
+                      "peak_mb": 1.0,
+                      "rtf": 1.0,
+                      "script": "x",
+                      "text_fa": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "speaker": "model",
+                  "status": "candidate",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryVoice"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Score Voice",
+        "tags": [
+          "media"
         ]
       }
     },
@@ -53627,7 +56242,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^(A|N|P|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$",
+                  "pattern": "^(A|N|P|L|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$",
                   "type": "string"
                 },
                 {
@@ -59528,6 +62143,7 @@
                     "advisor",
                     "overseer",
                     "assistant",
+                    "legal",
                     "ceo",
                     "manager",
                     "department",
@@ -60416,6 +63032,10 @@
                     "name": "report.pdf",
                     "signer": "lbank-v2",
                     "username": "x"
+                  },
+                  "mail": {
+                    "imap_host": "x",
+                    "smtp_host": "x"
                   },
                   "ports": [
                     1
@@ -71191,6 +73811,579 @@
         ]
       }
     },
+    "/internal/v1/legal/cases": {
+      "post": {
+        "description": "case.open (A1): a new case the calling counsel works. Requires `Idempotency-Key`.",
+        "operationId": "counsel_open",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "brief_md": "x",
+                "company": "TY",
+                "counterpart": {
+                  "address": "x",
+                  "channel": "email",
+                  "name": "report.pdf"
+                },
+                "kind": "platform_restriction",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/AgentCaseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "brief_md": "x",
+                  "closed_at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "counsel": "x",
+                  "counterpart": {},
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "deadlines": [
+                    {}
+                  ],
+                  "emails": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "attachments": [
+                        {
+                          "file_id": "x",
+                          "mime": null,
+                          "name": "report.pdf",
+                          "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a"
+                        }
+                      ],
+                      "body_md": "x",
+                      "case": "x",
+                      "cc": [
+                        "x"
+                      ],
+                      "decision_ref": "x",
+                      "digest": "x",
+                      "direction": "out",
+                      "error": "x",
+                      "from": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "lang": "fa",
+                      "message_id": "x",
+                      "state": "waiting_seal",
+                      "subject": "x",
+                      "to": [
+                        "TY-GROWTH-MGR"
+                      ]
+                    }
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "platform_restriction",
+                  "opened_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "ref": "W-000789",
+                  "status": "open",
+                  "timeline": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "kind": "note",
+                      "ref": "W-000789",
+                      "summary_fa": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/LegalCase"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Counsel Open",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/legal/cases/{ref}/emails": {
+      "post": {
+        "description": "email.draft (A1): the exact message becomes an `email_send` card for\nthe owner's seal; a draft still waiting on this case is superseded (its\ncard withdrawn). Nothing is sent here. Requires `Idempotency-Key`.",
+        "operationId": "counsel_draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "body_md": "x",
+                "cc": [
+                  "x"
+                ],
+                "file_ids": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "lang": "fa",
+                "subject": "x",
+                "to": [
+                  "TY-GROWTH-MGR"
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/EmailDraftIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "case": "x",
+                  "decision": "D-000123",
+                  "digest": "x",
+                  "email": "x",
+                  "from": "x",
+                  "state": "waiting_seal"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Drafted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Counsel Draft",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/legal/cases/{ref}/mail": {
+      "get": {
+        "description": "mail.read (A0): the masked emails of one of the counsel's own cases.",
+        "operationId": "counsel_mail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "case": "x",
+                  "emails": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "attachments": [
+                        {
+                          "file_id": "x",
+                          "mime": "application/pdf",
+                          "name": "report.pdf",
+                          "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a"
+                        }
+                      ],
+                      "body_md": "x",
+                      "case": "x",
+                      "cc": [
+                        "x"
+                      ],
+                      "decision_ref": "x",
+                      "digest": "x",
+                      "direction": "out",
+                      "error": "x",
+                      "from": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "lang": "fa",
+                      "message_id": "x",
+                      "state": "waiting_seal",
+                      "subject": "x",
+                      "to": [
+                        "TY-GROWTH-MGR"
+                      ]
+                    }
+                  ],
+                  "status": "open"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/MailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Counsel Mail",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/legal/cases/{ref}/notes": {
+      "post": {
+        "description": "case.note (A1): a note, a form's outcome or a decision on the\ntimeline of one of the counsel's own cases; `deadline` adds one.",
+        "operationId": "counsel_note",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "deadline": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "what_fa": "x"
+                },
+                "kind": "note",
+                "ref_link": "x",
+                "status": "open",
+                "summary_fa": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CaseNoteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "brief_md": "x",
+                  "closed_at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "counsel": "x",
+                  "counterpart": {},
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "deadlines": [
+                    {}
+                  ],
+                  "emails": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "attachments": [
+                        {
+                          "file_id": "x",
+                          "mime": null,
+                          "name": "report.pdf",
+                          "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a"
+                        }
+                      ],
+                      "body_md": "x",
+                      "case": "x",
+                      "cc": [
+                        "x"
+                      ],
+                      "decision_ref": "x",
+                      "digest": "x",
+                      "direction": "out",
+                      "error": "x",
+                      "from": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "lang": "fa",
+                      "message_id": "x",
+                      "state": "waiting_seal",
+                      "subject": "x",
+                      "to": [
+                        "TY-GROWTH-MGR"
+                      ]
+                    }
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "platform_restriction",
+                  "opened_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "ref": "W-000789",
+                  "status": "open",
+                  "timeline": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "kind": "note",
+                      "ref": "W-000789",
+                      "summary_fa": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/LegalCase"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Counsel Note",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/lessons": {
       "post": {
         "description": "lesson.write (overseer, AI Ops head): a lesson from a company; every other\ncompany's CEO gets a work item to consider adopting it. Requires `Idempotency-Key`.",
@@ -71306,6 +74499,110 @@
           }
         },
         "summary": "Agent Lesson",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/media/voice": {
+      "post": {
+        "description": "`media.voice` (A2, the voice producer): the item's narration is queued\nfor the TTS one-shot with the active voice (or the one named); the\nresult's licence fields are shown on every use. Requires `Idempotency-Key`.",
+        "operationId": "media_voice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "ref": "W-000789",
+                "text_fa": "x",
+                "voice_id": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/VoiceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "item": "x",
+                  "job": "x",
+                  "spoken_chars": 1,
+                  "state": "queued",
+                  "voice": {
+                    "id": "x",
+                    "licence": "x",
+                    "licence_commercial": false,
+                    "name_fa": "تریدیار"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Narration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Media Voice",
         "tags": [
           "internal"
         ]
@@ -77294,6 +80591,348 @@
           }
         },
         "summary": "Tts Fail",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/voices/jobs/claim": {
+      "post": {
+        "description": "The next bake-off sample or narration; 204 when there is none and\nalways while the holding is locked (nothing is spoken then).",
+        "operationId": "voice_job_claim",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "engine": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "sample",
+                  "ref": "W-000789",
+                  "script": "x",
+                  "voice": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "nothing to say, or the holding is locked"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Voice Job Claim",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/voices/jobs/{id}/done": {
+      "post": {
+        "description": "The job's audio (raw Ogg/Opus, ≤ 20 MB) with its measurement. It goes\nthrough §17.1 like an upload: the type is read from the bytes, ffprobe\ngives its length, and a processing row hands it to the media worker.",
+        "operationId": "voice_job_done",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "duration_s",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 7200,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Duration S"
+            }
+          },
+          {
+            "in": "query",
+            "name": "synth_s",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 36000,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Synth S"
+            }
+          },
+          {
+            "in": "query",
+            "name": "peak_mb",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 65536,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Peak Mb"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "file": "x",
+                  "job": "x",
+                  "state": "done"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/JobDone"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Voice Job Done",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/voices/jobs/{id}/fail": {
+      "post": {
+        "description": "The voice could not be made; after three tries the job is `failed`.",
+        "operationId": "voice_job_fail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "error": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/JobFail"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Voice Job Fail",
         "tags": [
           "internal"
         ]
