@@ -142,7 +142,7 @@ fun TreasuryScreen() {
                 SectionTitle("شرکت‌ها", note = "رنگ هر شرکت ثابت است، نه بر اساس رتبه")
                 Loadable(byCo) { rows ->
                     HBars(
-                        rows.filter { it.key != null }.sortedByDescending { it.equivCostUsd.toDoubleOrNull() ?: 0.0 }.map { row ->
+                        rows.filter { com.coinepro.hq.core.format.isRealModel(it.key) }.sortedByDescending { it.equivCostUsd.toDoubleOrNull() ?: 0.0 }.map { row ->
                             val co = companyOf(companies, row.key)
                             HBarRow(row.key!!, row.equivCostUsd.toDoubleOrNull() ?: 0.0, usd(row.equivCostUsd), slot(co.colorIndex), tokens(row.inputTokens + row.outputTokens)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

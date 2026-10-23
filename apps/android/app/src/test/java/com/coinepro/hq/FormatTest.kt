@@ -2,6 +2,7 @@ package com.coinepro.hq
 
 import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.format.instant
+import com.coinepro.hq.core.format.isRealModel
 import com.coinepro.hq.core.format.jDate
 import com.coinepro.hq.core.format.modelLabel
 import com.coinepro.hq.core.format.pct
@@ -11,6 +12,8 @@ import com.coinepro.hq.core.format.usd
 import com.coinepro.hq.ui.v14.figs
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -69,5 +72,13 @@ class FormatTest {
         // Units and a dollar sign stay with their number, so "2.4M" never reads "M2.4" in a right-to-left line.
         assertEquals("تعهد ⁦2.4M⁩، مصرف ⁦$4.20⁩ در ⁦1.1s⁩", figs("تعهد 2.4M، مصرف $4.20 در 1.1s").text)
         assertEquals("⁦5⁩ Max", figs("5 Max").text)
+    }
+
+    @Test
+    fun claudeCodesLocalMessagesAreNotAModel() {
+        // Claude Code records its own local messages (no tokens, no cost) as "<synthetic>"; the treasury's models list skips them.
+        assertFalse(isRealModel("<synthetic>"))
+        assertFalse(isRealModel(null))
+        assertTrue(isRealModel("claude-sonnet-5-5"))
     }
 }

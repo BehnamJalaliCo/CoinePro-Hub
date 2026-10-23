@@ -80,6 +80,12 @@ export function cx(...a: Array<string | false | null | undefined>): string {
 }
 
 /** "claude-sonnet-5-5" → "Sonnet 5.5" (model names stay Latin). */
+/** A ledger row's model is a real model: Claude Code records its own local messages (an interruption, an API error notice) as
+ *  `<synthetic>`, with no tokens and no cost, so such a placeholder never shows as a model. */
+export function isRealModel(id: string | null | undefined): id is string {
+  return !!id && !id.startsWith('<');
+}
+
 export function modelLabel(id: string | null | undefined): string {
   if (!id) return '—';
   const m = /^claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(id);

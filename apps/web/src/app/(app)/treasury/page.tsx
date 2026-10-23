@@ -14,7 +14,7 @@ import { Bar, Card, ErrorState, PageHeader, Pill, SectionTitle, Segmented, Skele
 import { useBreakdown, useCompanies, useConnections, useTreasury } from '@/lib/api/hooks';
 import { companyColor } from '@/lib/company';
 import { useScope } from '@/lib/scope';
-import { tokens, usd, cx, until } from '@/lib/format';
+import { tokens, usd, cx, until, isRealModel } from '@/lib/format';
 import { ModelMark, ModelName } from '@/components/brand/model-mark';
 
 const TOKEN_COLOR = { input: 'var(--hq-chart-1)', output: 'var(--hq-chart-2)', cache: 'var(--hq-chart-3)', write: 'var(--hq-chart-5)', thinking: 'var(--hq-chart-4)' };
@@ -89,7 +89,7 @@ export default function TreasuryPage() {
             </Card>
             <Card className="flex flex-col gap-4 p-5">
               <SectionTitle title="مدل‌ها" />
-              {byModel.data ? <HBars rows={byModel.data.filter((r) => r.key).map((r) => ({ key: String(r.key), label: <ModelName model={String(r.key)} />, value: Number(r.equiv_cost_usd), fmt: usd(r.equiv_cost_usd), sub: <span><span className="fig">{tokens(r.input_tokens + r.output_tokens)}</span>، {r.calls} فراخوانی</span> }))} /> : <Skeleton className="h-40" />}
+              {byModel.data ? <HBars rows={byModel.data.filter((r) => isRealModel(r.key)).map((r) => ({ key: String(r.key), label: <ModelName model={String(r.key)} />, value: Number(r.equiv_cost_usd), fmt: usd(r.equiv_cost_usd), sub: <span><span className="fig">{tokens(r.input_tokens + r.output_tokens)}</span>، {r.calls} فراخوانی</span> }))} /> : <Skeleton className="h-40" />}
             </Card>
           </div>
         </div>

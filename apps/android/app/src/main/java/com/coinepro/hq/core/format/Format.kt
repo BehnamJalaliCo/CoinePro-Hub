@@ -110,6 +110,10 @@ fun pct(v: Double?): String = if (v == null) "—" else "${v.roundToInt()}٪"
 fun faDecimal(n: Double, digits: Int = 1): String = String.format(Locale.US, "%.${digits}f", n).replace('.', '٫')
 
 /** "claude-sonnet-5-5" → "Sonnet 5.5" (model names stay Latin). */
+/** A ledger row's model is a real model: Claude Code records its own local messages (an interruption, an API error notice) as
+ *  `<synthetic>`, with no tokens and no cost, so such a placeholder never shows as a model (mirrors the web's isRealModel). */
+fun isRealModel(id: String?): Boolean = !id.isNullOrBlank() && !id.startsWith("<")
+
 fun modelLabel(id: String?): String {
     if (id.isNullOrBlank()) return "—"
     val m = Regex("^claude-([a-z]+)-(\\d+)(?:-(\\d+))?").find(id) ?: return id
