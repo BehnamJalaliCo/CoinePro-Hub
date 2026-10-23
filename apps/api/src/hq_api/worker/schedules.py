@@ -33,6 +33,9 @@ Schedule ids:
     hq-ceo-letters            hourly        CeoLetters: at the owner's day and hour
                               (prompt 12 part B: each asks the launch gate and does
                               nothing while the holding is locked)
+    hq-legal-mail-poll        every 5 min   LegalMailPoll (prompt 13 §3.2: replies to the cases)
+    hq-voice-bakeoff          daily 03:40 (owner's zone)  VoiceBakeoff (prompt 13 §4.2:
+                              queue the missing samples; both do nothing while locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -87,6 +90,9 @@ DEPLOY_RECHECK = "hq-deploy-recheck"
 HR_ROUNDS = "hq-hr-rounds"
 CEO_LETTERS = "hq-ceo-letters"
 P12B = (WASTE_DAILY, CARTABLE_REMINDERS, DEPLOY_RECHECK, HR_ROUNDS, CEO_LETTERS)
+LEGAL_MAIL_POLL = "hq-legal-mail-poll"
+VOICE_BAKEOFF = "hq-voice-bakeoff"
+P13B = (LEGAL_MAIL_POLL, VOICE_BAKEOFF)
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -108,6 +114,7 @@ FIXED = (
     "hq-substitute-web",
     "hq-substitute-daily",
     *P12B,
+    *P13B,
 )
 
 
@@ -266,6 +273,7 @@ def fixed(
         *revenue_fixed(),
         *management_fixed(),
         *p12b_fixed(tz),
+        *p13b_fixed(tz),
     ]
 
 
@@ -346,6 +354,28 @@ def p12b_fixed(tz: str) -> list[Desired]:
         ),
         Desired(
             CEO_LETTERS, "CeoLetters", (), hourly, timedelta(minutes=50), timedelta(minutes=15)
+        ),
+    ]
+
+
+def p13b_fixed(tz: str) -> list[Desired]:
+    """Prompt 13, legal and voice: each activity asks the launch gate first."""
+    return [
+        Desired(
+            LEGAL_MAIL_POLL,
+            "LegalMailPoll",
+            (),
+            every(5),
+            timedelta(minutes=5),
+            timedelta(minutes=5),
+        ),
+        Desired(
+            VOICE_BAKEOFF,
+            "VoiceBakeoff",
+            (),
+            daily_at(time(3, 40), tz),
+            timedelta(hours=12),
+            timedelta(minutes=5),
         ),
     ]
 
