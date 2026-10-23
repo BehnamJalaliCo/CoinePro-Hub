@@ -810,7 +810,10 @@ async def direct_hire(body: DirectHireIn, request: Request, ctx: Ctx = Depends(o
     department); `model`, `effort` and `title_en` default to the charter's."""
     target = hashlib.sha256(await request.body()).hexdigest()
     co = await ctx.hub.companies.by_code(body.company)
-    charter = ctx.hub.charters.get(body.role) if ctx.hub.charters is not None else None
+    # ⟨1.6⟩ the file charters plus this company's active role drafts (§22.5)
+    async with ctx.tx() as tx:
+        lib = await D.company_charters(tx, ctx.hub.charters, co.id)
+    charter = lib.get(body.role) if lib is not None else None
     payload: dict[str, Any] = {
         "company": co.code,
         "department": body.department,
@@ -829,7 +832,7 @@ async def direct_hire(body: DirectHireIn, request: Request, ctx: Ctx = Depends(o
             mode="json", exclude_none=True
         )
     # Before the step-up is consumed: the charter must fit (422 otherwise).
-    D.check_hire_role(payload, co.kind, ctx.hub.charters, required=True)
+    D.check_hire_role(payload, co.kind, lib, required=True)
     async with ctx.tx() as tx:
         # A retry after a lost answer replays it (the step-up is single-use).
         idem = await idempotency.claim(tx, request, ctx.who)

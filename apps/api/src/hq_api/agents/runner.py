@@ -48,6 +48,7 @@ from hq_api.domain import academy as AC
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
 from hq_api.domain import oversight as O
+from hq_api.domain import role_drafts as RD
 from hq_api.domain import skills as SK
 from hq_api.errors import sqlstate_of
 from hq_api.hub import Hub
@@ -158,6 +159,9 @@ class RunCtx:
     # ⟨1.5⟩ what the code that made the run's work tells it (work.run_meta):
     # its router task class and the owner-zone flag (prompt 12 §15), a memo's mode.
     run_meta: dict[str, Any] = field(default_factory=dict)
+    # ⟨1.6⟩ the charters of the run's company: the files plus its role drafts
+    # (contract §22.5); None = the files only
+    lib: Any = None
 
     @property
     def token_cap(self) -> int:
@@ -202,6 +206,9 @@ class Runner:
             if run["state"] in FINAL:
                 return Claim("final", run["state"], run["error_code"])
             emp = await self._employee(tx, run["employee_id"])
+            if lib is not None and lib.get(emp["role"]) is None:
+                # ⟨1.6⟩ a role written on demand runs from its draft (§22.5)
+                lib = await RD.overlay(tx, lib, emp["company_id"], running=True)
             charter = lib.get(emp["role"]) if lib is not None else None
             refuse = None
             if charter is None:
@@ -384,6 +391,8 @@ class Runner:
             if run["state"] != "running":
                 return {"state": run["state"], "skipped": True}
             emp = await self._employee(tx, run["employee_id"])
+            if lib is not None and lib.get(run["charter_role"]) is None:
+                lib = await RD.overlay(tx, lib, emp["company_id"], running=True)
         charter = lib.get(run["charter_role"]) if lib is not None else None
         if charter is None:
             return await self.finish(run_id, "failed", "no_charter")
@@ -394,7 +403,7 @@ class Runner:
             str(run["id"]),
             ttl_s=max(60, int((expires - datetime.now(UTC)).total_seconds())),
         )
-        rc = RunCtx(run=run, emp=emp, charter=charter, token=token)
+        rc = RunCtx(run=run, emp=emp, charter=charter, token=token, lib=lib)
         if run["work_id"] is not None:
             async with await self._tx() as tx:
                 meta = await tx.scalar(
@@ -415,7 +424,7 @@ class Runner:
     async def _steps(self, rc: RunCtx, deadline: float) -> tuple[str, str | None, str | None]:
         run, charter = rc.run, rc.charter
         system = P.system_prompt(
-            self.hub.charters,
+            rc.lib or self.hub.charters,  # _common first, then the charter (file or draft)
             charter,
             await self._values(rc.emp),
             max_actions=self.s.agent_actions_per_step,
@@ -839,7 +848,10 @@ class Runner:
         """The companies a run may read: its charter's scope (prompt 5.1 §1.1),
         every company for a holding charter in the holding, else its own."""
         holding = await self.hub.companies.holding()
-        if rc.charter.scope == "holding" and rc.emp["company_id"] == holding.id:
+        # ⟨1.6⟩ a role draft reads its own company only, whatever its scope says
+        # (as its principal does: security/deps.py reads the files only)
+        filed = self.hub.charters is not None and rc.charter.role in self.hub.charters.roles
+        if rc.charter.scope == "holding" and filed and rc.emp["company_id"] == holding.id:
             return await self.hub.companies.ids()
         return [rc.emp["company_id"]]
 

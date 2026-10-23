@@ -222,7 +222,15 @@ class Gateway:
         if catalog.cls in ("A3", "A4"):
             code = "a4_forbidden_for_ai" if catalog.cls == "A4" else "a3_requires_decision"
             return Outcome("denied", catalog.cls, code, None, None, {})
-        if name not in self.lib.allowed(gate.get("role")):
+        # ⟨1.6⟩ a role written on demand: the api sends its tools (contract
+        # §22.5); a file charter: agents/roles. Never both, never more.
+        drafted = gate.get("tools")
+        allowed = (
+            [str(t) for t in drafted]
+            if isinstance(drafted, list) and self.lib.get(gate.get("role")) is None
+            else self.lib.allowed(gate.get("role"))
+        )
+        if name not in allowed:
             return Outcome("denied", catalog.cls, "tool_not_in_charter", None, None, {})
         # The overseer's holds (prompt 08 §2): a held employee or work item only
         # reads; a held tool does not run at all. Only the owner releases.

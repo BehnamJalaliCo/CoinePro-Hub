@@ -710,6 +710,14 @@ def check_hire_role(
         )
 
 
+async def company_charters(tx: Tx, charters: Any, company_id: Any) -> Any:
+    """⟨1.6⟩ The file charters plus the company's active role drafts (§22.5):
+    a hire may name either; a draft only in its own company and department."""
+    from hq_api.domain import role_drafts
+
+    return await role_drafts.overlay(tx, charters, company_id)
+
+
 async def known_model(tx: Tx, model: str) -> bool:
     return bool(
         await tx.scalar("SELECT EXISTS (SELECT 1 FROM llm.connections WHERE models ? :m)", m=model)
@@ -732,6 +740,8 @@ async def propose(
     await hiring.require_open(tx, who, body.kind)  # before any card exists (§18.11)
     payload = validate_payload(body.kind, body.payload)
     if body.kind == "hire":
+        # ⟨1.6⟩ a role written on demand is a charter of its company (§22.5)
+        charters = await company_charters(tx, charters, company_id)
         check_hire_role(payload, company_kind, charters, required=who.is_agent)
         if payload["company"] != company_code:
             raise ApiError(
@@ -1048,6 +1058,7 @@ async def decide(
     if verdict == "approved" and d["kind"] == "hire":
         # Every approval, whoever approves (contract §18.11): refused with a
         # stable code before anything changes, so no employee is made.
+        charters = await company_charters(tx, charters, d["company_id"])
         await hiring.check_approval(
             tx, d, amended("hire", d["payload"], amendments), charters, by_ceo=who.is_agent
         )
@@ -1148,6 +1159,10 @@ async def decide(
         body += f"\n\n{note}"
     if d["kind"] == "errand_action":  # the errand goes on, whatever the verdict
         await errands.on_decided(tx, d, verdict)
+    if d["kind"] == "role_new" and verdict in ("rejected", "returned"):
+        from hq_api.domain import role_drafts
+
+        await role_drafts.card_decided(tx, {**d, "note": note}, verdict, who)
     links = {"decision": d["ref"]}
     if resolution:
         links["resolution"] = resolution["ref"]
@@ -1360,6 +1375,11 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
                 {"decision": d["ref"], "grant": g["ref"]},
             )
         result = {"grant": g["ref"]}
+    elif d["kind"] == "role_new":
+        # ⟨1.6⟩ the draft the card showed becomes an active charter (§22.5)
+        from hq_api.domain import role_drafts
+
+        result = await role_drafts.apply_card(tx, d, actor_principal(d))
     await tx.exec(
         "UPDATE cartable.decisions SET effect_status = 'applied', effect_applied_at = now() WHERE id = :id",
         id=d["id"],

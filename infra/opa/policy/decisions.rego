@@ -23,6 +23,8 @@ kinds := {
 	"tool_enable",
 	# ⟨1.5⟩ prompt 10 (contract §19.9): sealed by the owner only
 	"message_template", "lifecycle_rule", "support_go_live",
+	# ⟨1.6⟩ prompt 13 §1.1 (contract §22.5): a role written on demand, the owner's seal
+	"role_new",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).
