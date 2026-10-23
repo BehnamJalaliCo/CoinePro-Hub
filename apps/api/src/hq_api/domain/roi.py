@@ -38,12 +38,19 @@ Q = Decimal("0.000001")
 def window(period: str, key: str | None, today: date) -> tuple[str, date, date]:
     """(period_key, first day, first day after) of a week or a Jalali month."""
     if period == "week":
-        start = date.fromisoformat(key) if key else S.saturday_of(today)
-        if start.weekday() != 5:
+        try:
+            start = date.fromisoformat(key) if key else S.saturday_of(today)
+        except ValueError as exc:
+            raise ApiError(
+                422, "validation_failed", fields={"key": "a Saturday (YYYY-MM-DD)"}
+            ) from exc
+        if start.weekday() != 5 or not 2000 <= start.year <= 2100:
             raise ApiError(422, "validation_failed", fields={"key": "a Saturday (YYYY-MM-DD)"})
         return start.isoformat(), start, start + timedelta(days=7)
     if key:
         y, m = (int(x) for x in key.split("-")[:2])
+        if not (1380 <= y <= 1480 and 1 <= m <= 12):
+            raise ApiError(422, "validation_failed", fields={"key": "a Jalali month (YYYY-MM)"})
         anchor = _jalali_day(y, m, today)
     else:
         anchor = today

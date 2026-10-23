@@ -29881,6 +29881,7 @@
     },
     "/api/v1/briefings/{ref}": {
       "get": {
+        "description": "One briefing: its text, its audio (a FileRef once ready) and its voice.",
         "operationId": "get_briefing",
         "parameters": [
           {
@@ -39767,6 +39768,7 @@
     },
     "/api/v1/hr/rounds/{ref}": {
       "get": {
+        "description": "One HR round: each employee's facts and flags, the report and the cards.",
         "operationId": "get_hr_round",
         "parameters": [
           {
@@ -71029,7 +71031,7 @@
         ],
         "requestBody": {
           "content": {
-            "audio/ogg": {
+            "application/octet-stream": {
               "schema": {
                 "format": "binary",
                 "type": "string"

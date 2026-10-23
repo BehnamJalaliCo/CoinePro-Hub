@@ -26,7 +26,7 @@ TEHRAN = ZoneInfo("Asia/Tehran")
 
 
 def _day() -> date:
-    return date(2045, 1, 1) + timedelta(days=secrets.randbelow(100_000))
+    return date(2045, 1, 1) + timedelta(days=secrets.randbelow(18_000))  # within the API's days
 
 
 async def _run(su: Any, emp: str, state: str, at: datetime, work: Any = None) -> str:

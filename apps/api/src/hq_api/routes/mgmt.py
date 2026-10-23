@@ -42,6 +42,7 @@ E = responses(401, 403, 404, 409, 422)
 CO = r"^[A-Z][A-Z0-9]{1,9}$"
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
 MAX_AUDIO = 20 * 1024 * 1024
+FIRST_DAY, LAST_DAY = date(2020, 1, 1), date(2100, 12, 31)  # the days a report can be about
 
 
 # ------------------------------------------------------------------ models --
@@ -325,6 +326,7 @@ async def latest_briefing(
 
 @router.get("/briefings/{ref}", response_model=Briefing, responses=E)
 async def get_briefing(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Briefing:
+    """One briefing: its text, its audio (a FileRef once ready) and its voice."""
     async with ctx.tx() as tx:
         return await _briefing(tx, await tx.one(B.SQL + " WHERE b.ref = :r", r=ref))
 
@@ -377,6 +379,7 @@ async def list_hr_rounds(
 
 @router.get("/hr/rounds/{ref}", response_model=HrRound, responses=E)
 async def get_hr_round(ref: str, ctx: Ctx = Depends(owner_ctx)) -> HrRound:
+    """One HR round: each employee's facts and flags, the report and the cards."""
     async with ctx.tx() as tx:
         r = await tx.one(
             """SELECT r.*, c.code AS company FROM people.hr_rounds r JOIN core.companies c ON c.id = r.company_id
@@ -421,6 +424,9 @@ async def treasury_waste(
 ) -> Any:
     """`?day` -> one WasteDay (default yesterday); `?from&to` -> the days of
     [from, to] (at most 92). No prompt or reply text, only figures and refs."""
+    for name, d in (("day", day), ("from", from_), ("to", to)):
+        if d is not None and not (FIRST_DAY <= d <= LAST_DAY):
+            raise ApiError(422, "validation_failed", fields={name: "a day between 2020 and 2100"})
     cid, code = await _company_id(ctx, company)
     async with ctx.tx() as tx:
         if from_ is not None or to is not None:
@@ -770,7 +776,10 @@ async def tts_claim(ctx: Ctx = Depends(internal_ctx)) -> Any:
     openapi_extra={
         "requestBody": {
             "required": True,
-            "content": {"audio/ogg": {"schema": {"type": "string", "format": "binary"}}},
+            # documented as bytes (the route itself takes audio/ogg only)
+            "content": {
+                "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
+            },
         }
     },
 )

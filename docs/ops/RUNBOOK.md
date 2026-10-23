@@ -1319,3 +1319,159 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - هاب ← Chatwoot از egress، با حساب سرویس (`make account-secret`؛ `config` کانال `chatwoot` شامل `account` و `base_url` است).
   - Chatwoot ← هاب از `/intake/v1/chatwoot/<CO>`، با HMAC.
 - **راه دوم** (profile روی خود هاب) فقط وقتی است که gate حافظه با اندازه‌گیری واقعی پاس شود؛ امروز نمیشود.
+
+<!-- prompt 12, part B: subsections §30.11 to §30.18 of §30 (the §30 heading and §30.1–§30.10 are part A's) -->
+### ۳۰.۱۱ صدای فارسی گزارش‌ها: TTS (پرامپت ۱۲ §۴، قرارداد §۲۱.۴)
+- **موتور:**
+  - Piper 1.8.0 (`piper-tts`، GPL-3.0؛ espeak-ng درونش هم GPL-3.0). به‌صورت **برنامه‌ی جدا** اجرا میشود (`python -m piper`)، پس به کد ما link نمیشود.
+  - رمزگذاری Ogg/Opus با ‏32 kbps با `opusenc` (opus-tools، BSD؛ libopus، BSD-3)، نه ffmpeg. همان codec و ظرف است، ولی ۶ بسته به جای ۲۰۵ بسته‌ی ffmpeg (ایمیج ۵۹۰ مگ به جای ۱٫۲ گیگ).
+- **صدا:** `fa_IR-amir-medium` از `rhasspy/piper-voices` (لایسنس مخزن MIT) در revision ثابت `5041a7a4…`. sha256 هر فایل در `services/tts/voice.lock.json` و `ADD --checksum` در Dockerfile است.
+  - **لایسنس دیتاست** از `MODEL_CARD` خود صدا: **CC0** (datacula.com).
+    - `ganji` و `reza_ibrahim` هم CC0 اند.
+    - `gyro` «See URL» است و پیش‌فرض نیست.
+    - MMS-TTS متا (CC-BY-NC-4.0) پیش‌فرض نیست.
+  - صدا و لایسنسش در `/meta.tts` است.
+  - عوض کردن صدا: `HQ_TTS_VOICE` در `.env`، فقط از جدول `briefings.VOICES` (همه با لایسنس آزاد).
+- **کار یک‌بارمصرف، نه سرویس:** image `coinepro-hq/tts`، profile `tts`. timer `coinepro-hq-tts.timer` هر ۲ دقیقه `infra/tts/run-once.sh` را اجرا میکند:
+  - اگر `HQ_TTS` روشن نباشد، بی‌صدا تمام میشود.
+  - روی `/run/hq/oneshot.lock` حداکثر ۱۰ دقیقه منتظر میماند.
+    - این قفل مشترک با backup ساعتی است و `infra/systemd/coinepro-hq-oneshot.conf` آن را میسازد.
+    - backup هم پیش از کارش همین قفل را میگیرد (حداکثر ۱۵ دقیقه صبر).
+  - بعد `hq.sh run --rm --no-deps tts`: یک pass، حداکثر ۳ گزارش.
+    - کانتینر از `POST /internal/v1/tts/claim` کار میگیرد. ۲۰۴ یعنی کاری نیست، و **همیشه وقتی کلید توقف هلدینگ روشن است** همین ۲۰۴ است.
+    - صدا میسازد و Ogg را با `POST /internal/v1/tts/{id}/done` میفرستد.
+    - شکست با `/fail` گزارش میشود. بعد از ۳ بار `audio_state: "failed"`.
+  - **شبکه:** فقط `hq-tts` (internal، ‏172.30.21.0/24)، با api و OpenBao.
+    - نه اینترنت، نه Postgres، نه سرویس دیگر (probe در `live.sh`؛ `compose-rules`).
+    - principal سرویسی `tts`، با توکنی در `kv/tts/config` (AppRole `tts` روی همان subnet؛ `provision.sh` یک بار میسازد).
+    - اعتبار AppRole در `${HQ_SECRETS_DIR}/services/tts/approle.json` است.
+- **عددها** (اندازه‌گیری ۲۰۲۶-۱۰-۲۲ روی همین CPX42 با `make tts-bench`؛ ۱ thread، متن ثابت ۱۲۱ کلمه، ۵۱ ثانیه گفتار):
+  - RTF ‏0.09 تا 0.10
+  - peak RSS برنامه‌ی Piper ‏250 تا 253 مگ
+  - peak کانتینر (cgroup) ‏239 تا 241 مگ
+  - Ogg حدود ۲۰۵ کیلوبایت
+  - `MEM_TTS=320m` در هر دو profile
+  - راز حافظه: Piper هر خط را جدا میخواند. پس متن به جمله‌ها و بندهای ≤ ۱۴ کلمه شکسته میشود (`piper_lines`) و `MALLOC_ARENA_MAX=1`. بدون این دو، peak به ۳۴۰ تا ۳۸۴ مگ میرسید.
+- **gate حافظه:**
+  - full+tts: ‏11216 از 12288 مگ (جا میشود)
+  - lean+tts: ‏6192 از 6196
+  - با قاعده‌ی «یک‌بارمصرف‌ها یک بار با بزرگ‌ترین سقف» (§۱۵، بخش A) فقط حدود ۶۴ مگ به full اضافه میکند.
+- **روشن و خاموش (تصمیم مالک، §۰.۸ بند ۷):** پیش‌فرض خاموش است، چون STT جا نمیشود و اولویت حافظه با مالک است.
+  - `make tts-on`: `HQ_TTS=on`، build، `up api worker` و فعال کردن timer. هر بار که بیرون از budget باشد، `hq.sh` رد میکند.
+  - `make tts-off`: برگشت به حالت پیش‌فرض.
+  - api فقط وقتی کار صوتی میسازد که `HQ_TTS_ACTIVE=on` باشد. وگرنه گزارش `audio_state: "off"` است و متن بی‌تغییر میماند.
+- **متن گفتاری** را api با کد میسازد (`hq_api.speech.fa_speech_script`):
+  - markdown حذف میشود.
+  - refها به عنوانشان و کد کارمندها به عنوان فارسی تبدیل میشوند.
+  - عدد، پول، درصد، تاریخ جلالی و ISO و ساعت به کلمه تبدیل میشوند.
+  - هیچ رقم لاتینی یا فارسی نمیماند (`assert_spoken`).
+
+### ۳۰.۱۲ گزارش صبحگاهی صوتی و نامه‌ی هفتگی مدیرعامل‌ها (پرامپت ۱۲ §۴.۲ و §۴.۳)
+- **صبحگاهی:** بعد از گزارش نوشته‌شده‌ی پرامپت ۵، یک `BR-…` نوع `morning` با همان متن ساخته میشود (نسخه‌ی خوش‌خوان، اگر ساخته شده باشد).
+  - صدا فقط با `owner_settings.audio_briefings.morning` و TTS روشن.
+  - **وقتی هلدینگ قفل است هیچ briefing ساخته نمیشود.**
+  - خود گزارش قاعده‌محور همچنان ساخته میشود و دو خط تازه دارد، هر دو فقط کد: «هدررفت دیروز» (§۸) و «یادآوری کارتابل» (§۱۱).
+- **نامه‌ی هفتگی:** schedule `hq-ceo-letters` هر ساعت اجرا میشود، ولی فقط در روز و ساعت `owner_settings.ceo_weekly_letter` کار میکند (پیش‌فرض شنبه ۰۹:۰۰ در منطقه‌ی مالک).
+  - برای هر شرکت عملیاتی فعال، یک کار برای مدیرعاملش با بسته‌ی واقعیت‌ها (JSON، با کد) و سقف ۴۰ هزار توکن.
+  - قفل هلدینگ یا قفل خود شرکت ← هیچ.
+  - **سنجش عدد** در `deliver`:
+    - بیش از ۶۰۰ کلمه ← ۴۲۲ (این تلاش شمرده نمیشود).
+    - عدد بی‌منبع، بار اول ← ۴۲۲ و `state: returned`.
+    - بار دوم منتشر میشود، عنوانش «عدد بی‌منبع» میگیرد و یک یافته‌ی PR-001 باز میشود.
+    - بعد یک `BR-…` نوع `ceo_letter` ساخته میشود.
+- API:
+  - `GET /briefings?kind&company&cursor`
+  - `GET /briefings/latest?kind&company` (۴۰۴ تا وقتی چیزی نیست)
+  - `GET /briefings/{ref}`
+  - stream `briefing.ready` روی `briefings`
+
+### ۳۰.۱۳ رتبه‌ی دپارتمان‌ها (پرامپت ۱۲ §۵)
+- همراه برآیند ستاره‌ها (`hq-stars-rollup`، هفتگی و ماه جلالی)، با کد:
+  - ۳۵٪ نیرو
+  - ۳۰٪ تحویل: کار سررسیده‌ی done یا delivered، با شاهد و به‌موقع
+  - ۲۰٪ کارایی: همان عدد برآیند
+  - ۱۵٪ امتیاز مالک
+- جزء بی‌داده کنار میرود و وزن‌ها دوباره تقسیم میشوند. دپارتمان بی کارمند فعال رتبه نمیگیرد.
+- `rank_holding` بین دپارتمان‌های هم‌کد است و وقتی فقط یکی هست null است.
+- `people.department_ranks` append-only است و هر دوره یک بار نوشته میشود.
+- این محاسبه‌ی قاعده‌محور داخل برآیند موجود است و با کلید توقف هم انجام میشود.
+- `GET /rankings/departments?period&key&company`، stream `rankings.updated` روی `stars`.
+
+### ۳۰.۱۴ ارزیابی ماهانه‌ی HR و PR-082 (پرامپت ۱۲ §۶)
+- **زمان:** schedule `hq-hr-rounds` هر روز ۱۰:۰۰ (منطقه‌ی مالک) اجرا میشود، ولی فقط روز یکم ماه جلالی برای هر شرکت عملیاتی فعال و هلدینگ `HR-…` میسازد.
+  - اسم دور، ماه جلالیِ اجراست؛ واقعیت‌ها مال ماه تمام‌شده‌اند.
+  - **با قفل هلدینگ هیچ.** قفل یک شرکت ← آن شرکت نه.
+- **ارزیاب:** `<CO>-HR-MGR`، وگرنه مدیرعامل؛ برای هلدینگ، `aiops_head`.
+  - OPA اجازه میدهد مدیر AIOPS هلدینگ `evaluation` پیشنهاد دهد.
+  - کار با مهلت ۲۰ ساعت و سقف ۱۰۰ هزار توکن.
+  - پرچم `coach` کارت ندارد؛ یک پیش‌نویس آموزش آکادمی برای مدیر AI Ops میسازد.
+- **کارت `evaluation` نسخه‌ی ۲:** `round` اجباری است. کارمند بی‌پرچم فقط با `evidence` و `override_reason` (`unflagged: true`). تأیید با 🔏 `decision.approve`.
+  - promote و demote: مدل باید یک اتصال enabled داشته باشد و پاکت جا شود، وگرنه `409 envelope_exceeded` و هیچ تغییری.
+  - dismiss: همان مسیر برکناری. کار باز به مدیر یا مدیرعامل میرود و حافظه به `transfer_to`.
+  - confirm: `probation_until` پاک میشود.
+- **PR-082:** نسخه‌ی ۲، `active`، `FREQ=MONTHLY;BYMONTHDAY=3;BYHOUR=10`، `calendar: jalali`، با متن check تازه (migration ‏0027_1 یا seed، با ردیف Audit).
+  - schedule آن روزانه ۱۰:۰۰ است و اجرا جز روز سوم ماه جلالی بی‌اثر تمام میشود (بی ردیف `protocol_runs`).
+  - checker آن کد است (`hr.hr_rounds_ran`).
+  - با قفل هلدینگ هیچ اجرایی نیست.
+- loader پروتکل‌ها کلید ناشناخته را با یک هشدار نادیده میگیرد.
+
+### ۳۰.۱۵ diff واقعی کارت deploy (پرامپت ۱۲ §۷)
+- **دسترسی:** همان دسترسی git فعلی هاب، یعنی توکن workspace کارگاه در OpenBao (`hq-api/workshop/github/<WS>`)، همان که `hq/<ref>` را push میکند. توکن تازه‌ای از مالک خواسته نمیشود.
+  - ریپو باید یک workspace **همان شرکت** باشد. وگرنه، یا وقتی توکن نیست ← `diff: null, diff_unavailable: "no_access"`.
+  - کارت همیشه به `head_sha` (اجباری) بسته است.
+- **ساخت:** api (git ‏1:2.47.3 در image) پیش از ساخت کارت `git fetch --depth=200` میکند: شاخه‌ی پیش‌فرض و `refs/pull/<n>/head`.
+  - mirrorها در volume ‏`hq-git` (`/var/lib/hq-git`) میمانند.
+  - توکن فقط در محیط git است (`GIT_CONFIG_*`)، نه در argv و نه روی دیسک.
+  - `head_sha` در ریپو نیست ← ۴۲۲.
+  - سقف‌ها: ۳۰۰ فایل، ۴۰۰ خط برای هر فایل، ۲۵۶ کیلوبایت کل. فایل باینری patch ندارد.
+  - هر خط patch که رمز دارد ماسک میشود (`secret_masked`).
+  - `diff` و `diff_unavailable` پیشنهاددهنده دور ریخته میشود.
+- **بستن به `head_sha`:** schedule `hq-deploy-recheck` هر ۱۵ دقیقه (`git ls-remote`؛ **با قفل هلدینگ هیچ**)، و یک بار پیش از مُهر مالک.
+  - push تازه ← کارت `withdrawn` («superseded: a new push»)، پیام سیستم و یک کار برای پیشنهاددهنده.
+  - مُهر ← `409 decision_not_pending`.
+- `GET /decisions/{ref}/diff?file=<path>`: patch کامل یک فایل تا ۲۰۰۰ خط، با همان ماسک.
+- **پاک کردن mirrorها:** فقط با تصمیم مالک (`docker volume rm coinepro-hq_hq-git` وقتی stack پایین است). اولین کارت بعدی دوباره fetch میکند.
+
+### ۳۰.۱۶ گزارش هدررفت روزانه و ROI (پرامپت ۱۲ §۸ و §۱۰)
+- **هدررفت:** schedule `hq-waste-daily` ساعت ۰۷:۴۵ (منطقه‌ی مالک) برای دیروز، با کد، در `llm.waste_daily`: یک ردیف برای هر شرکت و یکی برای کل هلدینگ.
+  - **با قفل هلدینگ چیزی ذخیره نمیشود.** `GET /treasury/waste` همان روز را با همان کد حساب میکند و نشان میدهد.
+  - **دسته‌ها:**
+    - failed_runs
+    - cancelled_work
+    - no_progress_runs
+    - retry_loops: ≥ ۳ اجرا روی یک کار
+    - router_errors
+    - duplicate_calls: همان `request_sha256` در ۱۰ دقیقه
+    - cache_miss: ورودی بیش از ۱۰ هزار، با همان `prefix_sha256` در یک ساعت و بدون cache read
+    - over_model: haiku < sonnet < opus در برابر assignment پیش‌فرض task class
+  - هر دسته جدا شمرده میشود. سهم روز، اجتماع فراخوانی‌های پرچم‌خورده است.
+  - llm-router فقط hash درخواست و prefix را در `llm.calls.meta` نگه میدارد، هرگز متن را.
+  - سهم بیش از ۱۵٪ ← اعلان `report`. کارایی ستاره‌ها همین عددها را میخواند (`waste.shares_between`).
+- **ROI:** `GET /treasury/roi?by=employee|department|company&period=week|month&key&company`، هنگام خواندن با کد.
+  - درآمد فقط برای شرکت است (`revenue.days`): `roi = revenue / cost`.
+  - شرکت بی‌درآمد ← null.
+  - کارمند و دپارتمان همیشه null.
+
+### ۳۰.۱۷ یادداشت سریع و یادآوری کارتابل (پرامپت ۱۲ §۱۱)
+- **یادداشت `NT-…`:**
+  - `POST /notes` (Idempotency-Key)
+  - `PATCH` (If-Match؛ متن، برچسب، `archived`). حذف وجود ندارد.
+  - `POST /notes/{ref}/promote {to, company?, title?}` از همان مسیرهای موجود (`POST /work`، `POST /orders`، `POST /errands`) میگذرد.
+  - `/transcribe?purpose=note&save=true` یادداشت صوتی میسازد و `note_ref` برمیگرداند.
+  - هیچ مدلی روی یادداشت اجرا نمیشود.
+- **یادآوری:** schedule `hq-cartable-reminders` هر ۱۵ دقیقه (**با قفل هلدینگ هیچ**).
+  - فقط کارت‌هایی که مالک تصمیم‌گیرنده است، و هر آستانه یک بار (`owner.decision_reminders`، append-only).
+  - آستانه‌ها: نیمه‌ی مهلت، ۶ ساعت پیش از انقضا، ۲۴ ساعت، ۷۲ ساعت و ۷ روز.
+  - اعلان سطح `decision`؛ در خلوت نگه داشته میشود.
+  - کارت `waiting_h` و `reminders[]` میگیرد. تنظیم در `owner_settings.reminders`.
+
+### ۳۰.۱۸ ادعاهای رد شده و تابلوی سلامت ایجنت‌ها (پرامپت ۱۲ §۱۲)
+- **ابزار `claim.verdict`** (A2؛ راستی‌آزما، ناظر، QC) ← `POST /internal/v1/claims`. OPA در `mgmt.rego`، A2 grant در `data.json`.
+  - ادعا ماسک‌شده و حداکثر ۳۰۰ نویسه است.
+  - `refuted` بی شاهد ← ۴۲۲.
+  - `quality.claims` (`CL-…`) append-only است. stream `claim.verdict` روی `quality`.
+- **تابلو:** `GET /runs/health?company&period=7d|30d`، با این پرچم‌ها:
+  - `truth`: ≥ ۲۰٪ رد شده، با دست‌کم ۵ ادعا
+  - `reliability`: ≥ ۲۵٪ شکست
+  - `loops`: ≥ ۲ حلقه
+- ادعاهای رد شده در بسته‌ی HR (§۶) هم میآیند. فهرست: `GET /claims?company&employee&verdict&cursor`.
