@@ -451,3 +451,10 @@ def test_the_bounds_of_the_files_agree() -> None:
     assert set(data["never_batch"]) == set(seed["batch.never"]["lim"]["kinds"])
     numeric = {k for k, r in seed.items() if r["lim"] and not r["locked"] and AU._number_key(r)}
     assert numeric == set(data["authority_bounds"])
+
+
+async def test_the_api_pushes_the_matrix_at_its_start(hub: Hub) -> None:
+    assert await hub.policy.put_authority({"version": "stale", "rules": {}})
+    assert await AU.push_at_start(hub, attempts=1, wait_s=0)
+    async with hub.db.raw() as tx:
+        assert await hub.policy.value("limits/version") == AU.opa_doc(await AU.rows(tx))["version"]

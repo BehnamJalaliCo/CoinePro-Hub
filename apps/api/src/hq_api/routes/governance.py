@@ -157,6 +157,8 @@ async def list_okr(
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[OKR.Objective]:
+    """Objectives (Jalali quarters, e.g. 1405-Q3) with their key results and
+    progress, oldest first; an OKR is `active` only after the owner's seal."""
     after_t, after_id = pagination.time_id(cursor)
     co = (await ctx.hub.companies.by_code(company)).id if company else None
     async with ctx.tx() as tx:
@@ -303,6 +305,7 @@ async def list_risks(
 
 @router.get("/risks/{ref}", response_model=RK.Risk, responses=E)
 async def get_risk(ref: str, ctx: Ctx = Depends(owner_ctx)) -> RK.Risk:
+    """One risk with its history (score = likelihood × impact)."""
     async with ctx.tx() as tx:
         return await RK.render(tx, await RK.load(tx, ref))
 

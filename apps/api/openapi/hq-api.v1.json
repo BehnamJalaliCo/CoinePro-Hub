@@ -42783,6 +42783,7 @@
     },
     "/api/v1/okr": {
       "get": {
+        "description": "Objectives (Jalali quarters, e.g. 1405-Q3) with their key results and\nprogress, oldest first; an OKR is `active` only after the owner's seal.",
         "operationId": "list_okr",
         "parameters": [
           {
@@ -50463,6 +50464,7 @@
     },
     "/api/v1/risks/{ref}": {
       "get": {
+        "description": "One risk with its history (score = likelihood × impact).",
         "operationId": "get_risk",
         "parameters": [
           {

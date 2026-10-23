@@ -880,6 +880,7 @@ async def _agent_decide(
             return idem.replay
         d = await D.load(tx, ref, lock=True)
         quota_ok = await D.within_quota(tx, d)
+        await gov_authority.ensure(ctx.hub)  # ⟨1.5⟩ the matrix may take a kind back (prompt 11 §7)
         await allow(
             ctx,
             "decision.approve",

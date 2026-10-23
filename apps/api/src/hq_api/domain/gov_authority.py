@@ -393,6 +393,22 @@ async def ensure(hub: Any, *, force: bool = False) -> None:
         _SYNC.update(at=time.monotonic(), digest=digest)
 
 
+async def push_at_start(hub: Any, attempts: int = 12, wait_s: float = 5.0) -> bool:
+    """The api's start (contract §20.7: "the API pushes them at start"): a few
+    tries while OPA comes up, then ensure() takes over at every use. Internal
+    only (OPA on hq-agent): no model, no outside call."""
+    import asyncio
+
+    for _ in range(attempts):
+        try:
+            if await push(hub):
+                return True
+        except Exception:  # noqa: BLE001 - the database or OPA not ready yet
+            log.warning("authority push at start: not yet")
+        await asyncio.sleep(wait_s)
+    return False
+
+
 async def within(hub: Any, tx: Tx, key: str, count: int, default: float) -> bool:
     """count < the rule's number, by the database row and by OPA (both)."""
     ok = count < await limit_value(tx, key, default)
