@@ -24,8 +24,6 @@ import asyncpg
 
 from hq_common import meetings_share, oversight_share, owner_zone
 from llm_router import anomaly, events, hashes, ledger
-from hq_common import oversight_share, owner_zone
-from llm_router import anomaly, events, hashes, ledger
 from llm_router.assignment import AssignmentError, apply_request, resolve, scope_chain
 from llm_router.backends.base import (
     ERROR,
@@ -320,6 +318,7 @@ class RouterService:
         await self._check_budgets(snap, req, company, chain, row, rls, now)
         await self._check_oversight_share(req, company, holding, row, rls, now)
         await self._check_meeting(snap, req, company, row, rls, now)
+        await self._check_owner_zone(req, holding, row, rls, now)
         await self._check_support_draft(req, company, row, rls, now)
 
         try:
