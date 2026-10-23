@@ -63,6 +63,7 @@ from hq_api.routes import (
 )
 from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
 from hq_api.routes import media as media_routes  # prompt 13, the media half
+from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 
 log = logging.getLogger("hq_api.access")
@@ -207,6 +208,9 @@ def create_app(
     for p12a in (advisor_routes, substitute_routes):
         app.include_router(p12a.router, prefix="/api/v1")
         app.include_router(p12a.internal_router, prefix="/internal/v1")
+    # Prompt 13 §1.1 (contract §22.5): roles written on demand.
+    app.include_router(role_draft_routes.router, prefix="/api/v1")
+    app.include_router(role_draft_routes.internal_router, prefix="/internal/v1")
     # The only public routes prompt 10 adds (webhooks; never /internal).
     app.include_router(intake.webhook_router, prefix="/intake/v1")
     # ⟨1.6⟩ prompt 13, the media half (contract §22.2): the media studio, and the

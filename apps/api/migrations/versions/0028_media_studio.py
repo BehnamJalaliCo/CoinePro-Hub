@@ -339,6 +339,10 @@ CREATE TRIGGER role_drafts_immutable BEFORE UPDATE ON people.role_drafts
                                                       'created_at');
 CREATE TRIGGER role_drafts_version BEFORE UPDATE ON people.role_drafts
     FOR EACH ROW EXECUTE FUNCTION core.bump_version();
+-- A draft's own eval cases run through the academy's eval run (purpose role_draft).
+ALTER TABLE academy.eval_runs DROP CONSTRAINT eval_runs_purpose_check;
+ALTER TABLE academy.eval_runs ADD CONSTRAINT eval_runs_purpose_check
+    CHECK (purpose IN ('manual', 'skill', 'teaching', 'shadow', 'role_draft'));
 """
 
 # Data (§22.1): MEDIA for every operating company (the department, its asleep
@@ -389,8 +393,8 @@ def _kinds_sql(add: tuple[str, ...], drop: tuple[str, ...]) -> str:
     """Rewrite decisions_kind_check from the kinds it holds now (plus `add`,
     minus `drop`), NOT VALID: an earlier migration's kinds are kept whatever
     they are, and a sibling migration doing the same composes with this one."""
-    added = ", ".join(f"'{k}'" for k in add) or "NULL"
-    dropped = ", ".join(f"'{k}'" for k in drop) or "NULL"
+    added = ", ".join(f"'{k}'" for k in add)
+    dropped = ", ".join(f"'{k}'" for k in drop)  # empty: ARRAY[]::text[] (a NULL would drop every kind)
     return f"""
         DO $$
         DECLARE kinds text;
@@ -445,6 +449,9 @@ def downgrade() -> None:
         REVOKE UPDATE (mandate, identity_md) ON core.departments FROM hq_api;
         ALTER TABLE agents.runs DROP COLUMN identity_doc;
         ALTER TABLE core.departments DROP COLUMN mandate, DROP COLUMN identity_md;
+        ALTER TABLE academy.eval_runs DROP CONSTRAINT eval_runs_purpose_check;
+        ALTER TABLE academy.eval_runs ADD CONSTRAINT eval_runs_purpose_check
+            CHECK (purpose IN ('manual', 'skill', 'teaching', 'shadow')) NOT VALID;
         DROP TABLE people.role_drafts;
         DROP SEQUENCE people.role_draft_ref_seq;
         DROP SCHEMA media CASCADE;

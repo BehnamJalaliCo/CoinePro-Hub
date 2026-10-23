@@ -148,7 +148,8 @@ async def _decide(
         if verdict == "approved" and d["kind"] == "hire":
             # The new employee needs a real charter, else approving is refused.
             company = await ctx.hub.companies.by_id(d["company_id"])
-            D.check_hire_role(final, company.kind, ctx.hub.charters, required=True)
+            lib = await D.company_charters(tx, ctx.hub.charters, d["company_id"])
+            D.check_hire_role(final, company.kind, lib, required=True)
         step_up_id = None
         if verdict == "approved" and needs_step_up(d):
             step_up_id = await stepup.consume(tx, request, ctx.who, "decision.approve", ref)

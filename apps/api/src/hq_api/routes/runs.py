@@ -54,16 +54,26 @@ class Role(BaseModel):
     tools: list[str]
     limits: RoleLimits
     version: int
+    # ⟨1.6⟩ contract §22.5, §22.7: a charter file, or a role written on demand
+    # (a draft: a charter on the server, of one company and department)
+    source: Literal["file", "draft"] = "file"
+    company: str | None = None
+    draft: str | None = None
 
 
 @router.get("/roles", response_model=list[Role], responses=E)
 async def list_roles(ctx: Ctx = Depends(owner_ctx)) -> list[Role]:
     """The role charters (agents/roles/*.md), read-only: what each role is, its
-    default model and effort, its tools and limits, and the charter version."""
+    default model and effort, its tools and limits, and the charter version.
+    ⟨1.6⟩ Then every company's active role drafts (`source: "draft"`)."""
+    from hq_api.domain import role_drafts as RD
+
     lib = ctx.hub.charters
     if lib is None:
         return []
-    return [
+    async with ctx.tx() as tx:
+        drafts = await tx.all(RD.DRAFT_SQL + " WHERE r.state = 'active' ORDER BY c.code, r.role")
+    files = [
         Role(
             role=c.role,
             title_fa=c.title_fa,
@@ -80,6 +90,28 @@ async def list_roles(ctx: Ctx = Depends(owner_ctx)) -> list[Role]:
         )
         for c in sorted(lib.roles.values(), key=lambda c: c.role)
     ]
+    for r in drafts:
+        c = RD.charter_of(r)
+        files.append(
+            Role(
+                role=c.role,
+                title_fa=c.title_fa,
+                title_en=c.title_en,
+                kind=c.kind,
+                scope=c.scope,
+                department=c.department,
+                model=c.model,
+                effort=c.effort,
+                priority=c.priority,
+                tools=list(c.tools),
+                limits=RoleLimits(**c.limits.__dict__),
+                version=c.version,
+                source="draft",
+                company=r["company"],
+                draft=r["ref"],
+            )
+        )
+    return files
 
 
 # -------------------------------------------------------------------- runs --

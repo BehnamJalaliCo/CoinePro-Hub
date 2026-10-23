@@ -818,7 +818,7 @@ async def notify(api: Api, call: Call, a: NotifyIn) -> Result:
 
 
 # ------------------------------------------- skills and academy (p08 §6-§7) --
-SKILL_OR_TEACHING = r"^(SK-[0-9]{3,6}|TE-[0-9]{4,8})$"
+SKILL_OR_TEACHING = r"^(SK-[0-9]{3,6}|TE-[0-9]{4,8}|RD-[0-9]{4,8})$"  # ⟨1.6⟩ RD: a role draft
 
 
 class SkillReviewIn(In):
@@ -858,6 +858,9 @@ async def skill_review(api: Api, call: Call, a: SkillReviewIn) -> Result:
     path = (
         f"/internal/v1/skills/{a.ref}/review"
         if a.ref.startswith("SK-")
+        # ⟨1.6⟩ a role written on demand (contract §22.5): the same review, five checks
+        else f"/internal/v1/roles/drafts/{a.ref}/review"
+        if a.ref.startswith("RD-")
         else f"/internal/v1/academy/teach/{a.ref}/review"
     )
     resp = await api.request(
