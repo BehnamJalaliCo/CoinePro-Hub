@@ -1,5 +1,68 @@
 PROMPT_14 REPORT (the archive of record of the holding and of every company, with its open layer)
 
+## Merged on 13 (branch r14f)
+- **Merged on 13:** r14 (7eb7562) is merged onto the deployed prompt 13, `server/p13-media-legal` 75712ba (prompts 6 to 13, migration head 0028_1). Branch **r14f**. Not deployed; deploying is the parent's.
+- **Migration chain:** `0025` → `0026` → `0026_1` → `0027` → `0027_1` → `0027_2` → `0028` → `0028_1` → `0029` (the head; down_revision `0028_1`, unchanged).
+  - `0028_1` no longer validates, as r14 left it. Its text changed only; the production database ran it once and is not touched.
+  - `0029` is the only revision that validates `decisions_kind_check` and `threads_kind_check`. They hold every kind of 11 to 14 (test_only_the_head_validates_the_kind_checks, test_the_head_holds_every_kind_of_11_to_14_validated).
+- **Conflicts, resolved as unions:**
+  - the runner's rule for system roles (below);
+  - knowledge.search: 11's `knowledge`, 12's `docs`, `code` and `notes`, and 14's `records`, in the api and the gateway's `SearchIn`;
+  - the decisions route: 11's authority refresh, then 14's destroy queue;
+  - the app's routers (12's ask, reviews and dceo beside 14's archive);
+  - the worker's mounts (12's git repo and `hq-git` beside 14's archive seed);
+  - `.gitleaksignore`, and the chain line of RUNBOOK §31.
+  - RUNBOOK keeps §29 (11), §30 (12), §31 (13) and §32 (14). Every report is kept.
+  - OpenAPI regenerated: **528 operations**, 75712ba's 494 plus the archive's 34. Nothing removed or renamed.
+- **Fixed where 11 to 14 meet:**
+  - **Ask the hub reads the archive** (12 §2, contract §21.2 and §23.9):
+    - `corpus.retrieve` takes kind `record`. `archive.search.ask_hits` ranks records the way the corpus ranks its candidates.
+    - The ask's clearance is set on the transaction first, so RLS drops a record above it before anything is ranked: it is never counted or quoted.
+    - File text is matched and quoted only where the content is visible; a sensitive value only from `confidential` up.
+    - The owner's clearance in an ask is capped at `agents_max` (contract note 13).
+    - Citation kind `record` in the api and in the gateway's `ask.answer`. The librarian's own record hits join its ask's retrieved set.
+    - Test: test_ask_the_hub_finds_records_only_within_the_askers_clearance. It covers the owner, an agent's own-company clearance, internal everywhere, no clearance, and the librarian's own search. A lower clearance never sees a higher record, and the secret record is never in an ask.
+  - **The librarian could not run on 13.** `agents.queue_run` refused every system role, and the runner let a system role run only for a meeting turn, so an ask that woke HQ-LIB always ended `failed`.
+    - With 0029's `queue_run` and the union rule, a system role with a system charter runs: the librarian for its ask, the archivist for its items.
+    - The secretary runs only for a meeting, and HQ-SYS (no charter) never.
+    - Test: test_system_roles_with_a_system_charter_run_and_the_secretary_only_in_a_meeting. The librarian answers an ask in its own run, citing a record.
+  - **A Jalali date in a document:** `archive.suggest` called the advisor's `jalali_to_gregorian`, which prompt 11 replaced. It now uses `gov_common.from_jalali` (found by mypy; test_the_archive_reads_jalali_dates_with_prompt_11s_calendar).
+  - **knowledge.search:** `records` sits beside 11's four-layer `knowledge` in one call, each under its own rule (test_records_and_the_four_layers_in_one_knowledge_search).
+  - **test_hiring's round trip:** r12f's `reseeded` fixture runs the deploy's seed after it, and that seed brings the archive's open layer back.
+    - test_a_round_trip_keeps_a_card_of_every_later_kind now also keeps `archive_schema` and `archive_disposal` cards and ends on 0029.
+    - After the re-seed it finds the levels, the classes and HQ-ARC again.
+  - **Checked, unchanged:**
+    - the advisor's tools test;
+    - the prompt order 13 set (_common, the sealed charter, the role, the department identity, the skills). The archivist's prompt follows it, with no department;
+    - the template departments: HQ-ARC (system, no department) beside 13's LEGAL with HQ-LGL, 12's HQ-LIB and 11's HQ-SEC.
+  - **Tests that assumed what no longer holds:**
+    - test_agents counts system runs within its own test.
+    - Two archive tests count a record's notifications since the record was made: a round trip restarts the archive's ref sequences, while notifications stay.
+    - test_p12f_join's chain ends on 0029.
+- **Hub state:** nothing new runs on its own and nothing calls a model.
+  - An ask that needs the librarian still answers 423 while the holding is locked.
+  - A queued system-role run is refused `locked` like every agent's.
+- **Contract notes (r14f):**
+  13. §23.9 says an ask searches records "within the asker's clearance". The asker is the owner, who sees everything, but the passages go to the librarian, a model.
+      - Built: the owner's ask clearance is capped at the level marked `agents_max` (`confidential`). A `secret` record (encrypted, a passkey to view) never reaches a model or an ask's stored passages.
+      - An agent's clearance is capped already.
+  14. §21.2's citation and scope kinds have no archive kind. Added `record` (an `AR-…` ref) to both.
+- **Gates on r14f (test name p14 and p14s, image tag p14):**
+  - **api, the full suite, fresh database:** green. 826 passed, pytest exit 0, 45 minutes.
+    - The first full run had one failure: test_p12f_join's chain still ended on 0028_1. It was fixed (4a1e6e5) and the full suite run again, fresh.
+    - Before that, targeted runs: the joins (p12f, p13f, p14f), the archive's two files, test_hiring, test_agents, test_inquiries_errands, test_p11_meetings, test_rls_all_tables, test_schema_rules, test_openapi, test_worker, test_stream_topics and test_p10_foundation.
+  - **services:** gateway, hq-common and llm-router: 691 passed. services/ocr is untouched since r14.
+  - **lint** (ruff, format, mypy --strict; api and services): green.
+  - **OpenAPI:** regenerated, 528 operations.
+  - **Other gates:**
+    - opa: 177/177 at 100% coverage.
+    - shellcheck: 80 scripts.
+    - compose-config and compose-rules: lean and full.
+    - memory-budget: full 10896, full+ocr 11280 ≤ 12288 MiB, so `ocr` fits on full; lean+ocr is 60 over. `ocr` stays off.
+    - infra.sh: green, including `ocr` off by default.
+    - gitleaks: history and tree clean.
+  - The test envs p14 and p14s are down. `make check` and `verify-live` are the parent's.
+
 ## Branch and state
 - Branch **r14** from `dev/p14-base` d04b02b. That base is prompt 13 joined (media, the legal counsel with cases §22.4, voice), on prompt 12 parts A and B and prompt 10, plus main up to "Prompt 14 sent". Nothing else is merged.
   - Two forks of this agent built parts in parallel and are merged into r14:
