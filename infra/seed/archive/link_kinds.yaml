@@ -1,0 +1,17 @@
+# How a record relates to something else (contract §23.3).
+link_kinds:
+  - {key: supersedes, title_fa: جایگزینِ, inverse_fa: جایگزین‌شده با, to_kinds: [record]}
+  - {key: amends, title_fa: اصلاحیه‌ی, inverse_fa: اصلاح‌شده با, to_kinds: [record]}
+  - {key: renews, title_fa: تمدیدِ, inverse_fa: تمدیدشده با, to_kinds: [record]}
+  - key: evidence_for
+    title_fa: مدرکِ
+    inverse_fa: مدرک‌ها
+    to_kinds: [decision, resolution, case, work, record]
+  - key: attached_to
+    title_fa: پیوستِ
+    inverse_fa: پیوست‌ها
+    to_kinds: [decision, resolution, case, work, record, employee, revenue_account]
+  - key: about
+    title_fa: درباره‌ی
+    inverse_fa: سندهای مربوط
+    to_kinds: [decision, resolution, case, work, record, employee, revenue_account, party, company]

@@ -107,3 +107,34 @@ class OpenBaoClient:
                 raise OpenBaoError(f"KV write {path} failed (HTTP {resp.status_code})")
             return
         raise OpenBaoError(f"KV write {path} failed after re-login")
+
+    async def _transit(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        """One call to the transit engine (prompt 14 §3). Neither the key nor
+        any plaintext ever appears in an error: only the path and the status."""
+        for attempt in (1, 2):
+            resp = await self._http.post(
+                f"/v1/transit/{path}", json=body, headers=await self._headers()
+            )
+            if resp.status_code == 403 and attempt == 1:
+                self._token = None
+                continue
+            if resp.status_code != 200:
+                raise OpenBaoError(f"transit {path.split('/')[0]} failed (HTTP {resp.status_code})")
+            data: dict[str, Any] = resp.json()["data"]
+            return data
+        raise OpenBaoError(f"transit {path.split('/')[0]} failed after re-login")
+
+    async def transit_datakey(self, key: str) -> tuple[bytes, str]:
+        """A fresh 256-bit data key: (its bytes, the same key wrapped by the
+        transit key `key`). The transit key itself never leaves OpenBao."""
+        import base64
+
+        data = await self._transit(f"datakey/plaintext/{key}", {"bits": 256})
+        return base64.b64decode(data["plaintext"]), str(data["ciphertext"])
+
+    async def transit_decrypt(self, key: str, ciphertext: str) -> bytes:
+        """A wrapped data key back as bytes (for one read, never stored)."""
+        import base64
+
+        data = await self._transit(f"decrypt/{key}", {"ciphertext": ciphertext})
+        return base64.b64decode(data["plaintext"])

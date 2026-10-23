@@ -1,0 +1,185 @@
+# Classes of record and their fields (contract §23.2). The owner edits or
+# retires any of them in the app; every change is a new class version and a
+# field is never deleted, only retired. `retention` names a rule of
+# retention.yaml by its seed_key. Field types are the closed vocabulary.
+common_mime: &docs [application/pdf, image/jpeg, image/png, image/webp, image/heic]
+classes:
+  - key: company_registration
+    title_fa: ثبت شرکت
+    icon: building
+    scopes: all
+    default_level: confidential
+    required_files: 1
+    allowed_mime: *docs
+    ocr: true
+    retention: permanent
+    fields:
+      - {key: registration_no, title_fa: شماره‌ی ثبت, type: id_code, required: true, searchable: true}
+      - {key: registered_at, title_fa: تاریخ ثبت, type: date, required: true, searchable: true}
+      - {key: authority, title_fa: مرجع ثبت, type: party, searchable: true}
+      - {key: national_id, title_fa: شناسه‌ی ملی, type: id_code, searchable: true}
+      - {key: capital, title_fa: سرمایه, type: money}
+      - {key: address, title_fa: نشانی, type: long_text, sensitive: true}
+  - key: contract
+    title_fa: قرارداد
+    icon: contract
+    scopes: all
+    default_level: confidential
+    required_files: 1
+    allowed_mime: *docs
+    ocr: true
+    retention: contracts
+    reminder_fields: [end]
+    fields:
+      - {key: counterparty, title_fa: طرف قرارداد, type: party, required: true, searchable: true}
+      - {key: subject, title_fa: موضوع, type: text, required: true, searchable: true}
+      - {key: start, title_fa: شروع, type: date, required: true, searchable: true}
+      - {key: end, title_fa: پایان, type: date, searchable: true}
+      - {key: value, title_fa: مبلغ, type: money, searchable: true}
+      - {key: signed, title_fa: امضاشده, type: boolean}
+      - key: renewal
+        title_fa: تمدید
+        type: enum
+        options:
+          - {key: none, title_fa: ندارد}
+          - {key: auto, title_fa: خودکار}
+          - {key: manual, title_fa: با تصمیم}
+  - key: affiliate_agreement
+    title_fa: توافق افیلیت
+    icon: handshake
+    scopes: all
+    default_level: confidential
+    required_files: 1
+    allowed_mime: *docs
+    ocr: true
+    retention: contracts
+    reminder_fields: [review_at, end]
+    fields:
+      - {key: exchange, title_fa: صرافی, type: party, required: true, searchable: true}
+      - {key: start, title_fa: شروع, type: date, required: true, searchable: true}
+      - {key: end, title_fa: پایان, type: date}
+      - {key: review_at, title_fa: بازبینی, type: date, required: true}
+      - {key: commission, title_fa: پورسانت, type: percent, searchable: true}
+      - {key: account, title_fa: حساب درآمد, type: ref, ref_kinds: [revenue_account]}
+  - key: license
+    title_fa: مجوز
+    icon: badge
+    scopes: all
+    default_level: internal
+    required_files: 1
+    allowed_mime: *docs
+    ocr: true
+    retention: licenses
+    reminder_fields: [expires_at]
+    fields:
+      - {key: issuer, title_fa: صادرکننده, type: party, required: true, searchable: true}
+      - {key: license_no, title_fa: شماره‌ی مجوز, type: id_code, required: true, searchable: true}
+      - {key: issued_at, title_fa: تاریخ صدور, type: date}
+      - {key: expires_at, title_fa: انقضا, type: date, required: true, searchable: true}
+  - key: invoice
+    title_fa: فاکتور و رسید
+    icon: receipt
+    scopes: all
+    default_level: internal
+    required_files: 1
+    allowed_mime: *docs
+    ocr: true
+    retention: invoices
+    auto_link: [{field: decision, link_kind: evidence_for}]
+    fields:
+      - {key: vendor, title_fa: فروشنده, type: party, required: true, searchable: true}
+      - {key: invoice_no, title_fa: شماره‌ی فاکتور, type: text, searchable: true}
+      - {key: date, title_fa: تاریخ, type: date, required: true, searchable: true}
+      - {key: amount, title_fa: مبلغ, type: money, required: true, searchable: true}
+      - {key: paid, title_fa: پرداخت‌شده, type: boolean}
+      - {key: decision, title_fa: تصمیم, type: ref, ref_kinds: [decision]}
+  - key: domain
+    title_fa: دامنه
+    icon: globe
+    scopes: all
+    default_level: internal
+    required_files: 0
+    allowed_mime: *docs
+    ocr: true
+    retention: licenses
+    reminder_fields: [expires_at]
+    fields:
+      - {key: domain, title_fa: دامنه, type: text, required: true, searchable: true}
+      - {key: registrar, title_fa: ثبت‌کننده, type: party, searchable: true}
+      - {key: expires_at, title_fa: انقضا, type: date, required: true, searchable: true}
+      - {key: auto_renew, title_fa: تمدید خودکار, type: boolean}
+  - key: legal_correspondence
+    title_fa: مکاتبه‌ی حقوقی
+    icon: mail
+    scopes: all
+    default_level: confidential
+    required_files: 1
+    allowed_mime: *docs
+    ocr: true
+    retention: legal_correspondence
+    auto_link: [{field: case, link_kind: about}]
+    fields:
+      - {key: case, title_fa: پرونده, type: ref, ref_kinds: [case], required: true, searchable: true}
+      - {key: counterpart, title_fa: طرف مکاتبه, type: party, searchable: true}
+      - key: direction
+        title_fa: جهت
+        type: enum
+        options:
+          - {key: out, title_fa: ارسالی}
+          - {key: in, title_fa: دریافتی}
+      - {key: date, title_fa: تاریخ, type: date, required: true, searchable: true}
+      - {key: subject, title_fa: موضوع, type: text, searchable: true}
+  - key: sealed_policy
+    title_fa: اساسنامه و سیاست مُهرشده
+    icon: seal
+    scopes: all
+    default_level: internal
+    required_files: 1
+    allowed_mime: [application/pdf]
+    ocr: false
+    retention: permanent
+    fields:
+      - {key: policy, title_fa: سند, type: text, required: true, searchable: true}
+      - {key: version, title_fa: نسخه, type: number, required: true, searchable: true}
+      - {key: sealed_at, title_fa: تاریخ مُهر, type: date, required: true, searchable: true}
+      - {key: digest, title_fa: چکیده‌ی مُهر, type: text}
+  - key: brand_asset
+    title_fa: نشان و مُهر
+    icon: palette
+    scopes: all
+    default_level: internal
+    required_files: 1
+    allowed_mime: [application/pdf, image/png, image/webp, image/jpeg]
+    ocr: false
+    retention: permanent
+    fields:
+      - {key: version, title_fa: نسخه, type: number, required: true, searchable: true}
+      - {key: sealed_at, title_fa: تاریخ مُهر, type: date, required: true, searchable: true}
+      - {key: digest, title_fa: چکیده‌ی مُهر, type: text}
+  - key: resolution_bundle
+    title_fa: مصوبه‌های ماه
+    icon: book
+    scopes: all
+    default_level: internal
+    required_files: 1
+    allowed_mime: [application/pdf]
+    ocr: false
+    retention: permanent
+    fields:
+      - {key: month, title_fa: ماه, type: text, required: true, searchable: true}
+      - {key: count, title_fa: شمار مصوبه‌ها, type: number, required: true}
+      - {key: first_ref, title_fa: نخستین مصوبه, type: text, searchable: true}
+      - {key: last_ref, title_fa: آخرین مصوبه, type: text, searchable: true}
+  - key: other
+    title_fa: سایر
+    icon: folder
+    scopes: all
+    default_level: internal
+    required_files: 0
+    allowed_mime: *docs
+    ocr: true
+    retention: other
+    fields:
+      - {key: date, title_fa: تاریخ, type: date, searchable: true}
+      - {key: subject, title_fa: موضوع, type: text, searchable: true}
+      - {key: note, title_fa: یادداشت, type: long_text, searchable: true}

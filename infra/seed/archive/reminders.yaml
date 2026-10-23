@@ -1,0 +1,6 @@
+# Reminder rules (contract §23.6): days before the field's date.
+reminders:
+  - {seed_key: contract_end, class: contract, field: end, lead_days: [60, 30, 7], to: owner, channel: cartable}
+  - {seed_key: license_expiry, class: license, field: expires_at, lead_days: [90, 30, 7], to: owner, channel: cartable}
+  - {seed_key: domain_expiry, class: domain, field: expires_at, lead_days: [90, 30, 7], to: owner, channel: cartable}
+  - {seed_key: affiliate_review, class: affiliate_agreement, field: review_at, lead_days: [30, 7], to: owner, channel: cartable}
