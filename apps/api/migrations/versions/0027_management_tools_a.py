@@ -391,7 +391,7 @@ ALTER TABLE llm.connections ADD CONSTRAINT connections_status_check
 ALTER TABLE llm.connections DROP CONSTRAINT connections_kind_check;
 ALTER TABLE llm.connections ADD CONSTRAINT connections_kind_check
     CHECK (kind IN ('claude_subscription', 'api', 'fake', 'subscription'));
-ALTER TABLE llm.connections ADD COLUMN verified_at timestamptz;
+ALTER TABLE llm.connections ADD COLUMN IF NOT EXISTS verified_at timestamptz;
 GRANT INSERT (key, kind, provider, display_name, status, status_reason, status_changed_at, secret_ref,
               api_base, models, default_model, pricing, limits, fallback_priority)
     ON llm.connections TO hq_api;
