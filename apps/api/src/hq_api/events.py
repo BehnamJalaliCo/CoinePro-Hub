@@ -90,6 +90,11 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "people": ("hr.",),
     "notes": ("note.",),
     "quality": ("claim.",),
+    # ⟨1.5⟩ prompt 12 §2, §3, §13 (contract §21.12): ask.answered, review.updated,
+    # dceo.scored (after the owner's decision only)
+    "ask": ("ask.",),
+    "reviews": ("review.",),
+    "dceo": ("dceo.",),
 }
 
 

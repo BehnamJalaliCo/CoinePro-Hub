@@ -66,6 +66,9 @@ from hq_api.routes import (
     workshop,
 )
 from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
+from hq_api.routes import ask as ask_routes  # prompt 12 §2, §3, §13 (on prompt 11)
+from hq_api.routes import dceo as dceo_routes
+from hq_api.routes import reviews as review_routes
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 
 log = logging.getLogger("hq_api.access")
@@ -216,6 +219,11 @@ def create_app(
     for p12a in (advisor_routes, substitute_routes):
         app.include_router(p12a.router, prefix="/api/v1")
         app.include_router(p12a.internal_router, prefix="/internal/v1")
+    # Prompt 12 §2, §3, §13 (contract §21.2, §21.3, §21.10): ask the hub, the
+    # weekly review, the digital CEO's predictions.
+    for p12f in (ask_routes, review_routes, dceo_routes):
+        app.include_router(p12f.router, prefix="/api/v1")
+    app.include_router(ask_routes.internal_router, prefix="/internal/v1")
     # The only public routes prompt 10 adds (webhooks; never /internal).
     app.include_router(intake.webhook_router, prefix="/intake/v1")
     app.state.version = __version__

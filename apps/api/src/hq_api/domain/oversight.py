@@ -332,6 +332,9 @@ async def seed_protocols(tx: Tx, holding_id: UUID, root: str | Path) -> int:
         )
         added += 1
     await activate_pr082(tx)
+    from hq_api.domain import dceo  # ⟨1.5⟩ prompt 12 §13: PR-121 on a fresh database
+
+    await dceo.activate(tx)
     return added
 
 

@@ -719,7 +719,7 @@ async def test_paused_protocols_have_no_schedule_run_or_finding_and_do_not_count
     # Seeded paused; prompt 11 switches its own on (a new active version) once
     # built: PR-111/114/115 and PR-090/112/113/116 (the reconcile below does);
     # ⟨1.5⟩ prompt 12 §6.7: PR-082 is seeded paused and activated (version 2)
-    on = set(GC.SWITCHED_ON) | set(GV.ACTIVATED) | {O.PR082}
+    on = set(GC.SWITCHED_ON) | set(GV.ACTIVATED) | {O.PR082, "PR-121"}
     paused = {p["ref"] for p in lib_file if p["status"] == "paused"} - on
     assert {"PR-043", "PR-053"} <= paused and not paused & on
     rows = await su.fetch(

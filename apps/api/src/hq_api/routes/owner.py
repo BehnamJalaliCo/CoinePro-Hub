@@ -183,6 +183,22 @@ class OwnerSettings(BaseModel):
     audio_briefings: dict[str, Any] | None = None
     ceo_weekly_letter: dict[str, Any] | None = None
     reminders: dict[str, Any] | None = None
+    # ⟨1.5⟩ prompt 12 §3, §13 (contract §21.12)
+    weekly_review: dict[str, Any] | None = None
+    digital_ceo: dict[str, Any] | None = None
+
+
+class WeeklyReviewIn(BaseModel):
+    enabled: bool | None = None
+    day: Literal["sa", "su", "mo", "tu", "we", "th", "fr"] | None = None
+    at: str | None = Field(default=None, pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+
+
+class DigitalCeoIn(BaseModel):
+    enabled: bool | None = None
+    reveal: Literal["after", "before"] | None = None
+    model_predictions: bool | None = None
+    max_model_per_day: int | None = Field(default=None, ge=0, le=100)
 
 
 class AudioBriefingsIn(BaseModel):
@@ -229,6 +245,8 @@ class OwnerSettingsIn(BaseModel):
     audio_briefings: AudioBriefingsIn | None = None
     ceo_weekly_letter: CeoWeeklyLetterIn | None = None
     reminders: RemindersIn | None = None
+    weekly_review: WeeklyReviewIn | None = None
+    digital_ceo: DigitalCeoIn | None = None
 
     @field_validator("provision_ssh_sources")
     @classmethod
@@ -394,13 +412,15 @@ def _settings_out(row: dict[str, Any]) -> OwnerSettings:
         audio_briefings=row.get("audio_briefings"),
         ceo_weekly_letter=row.get("ceo_weekly_letter"),
         reminders=row.get("reminders"),
+        weekly_review=row.get("weekly_review"),
+        digital_ceo=row.get("digital_ceo"),
     )
 
 
 SETTINGS_COLS = (
     "timezone, morning_report_at, digest_minutes, ceo_daily_attention, learning_daily_cap, "
     "calendars, watch_after_hours, provision_ssh_sources, advisor, substitutes, version"
-    ", audio_briefings, ceo_weekly_letter, reminders"
+    ", audio_briefings, ceo_weekly_letter, reminders, weekly_review, digital_ceo"
 )
 
 
@@ -448,7 +468,9 @@ async def put_owner_settings(
                    substitutes = COALESCE(CAST(:subs AS jsonb), substitutes),
                    audio_briefings = audio_briefings || COALESCE(CAST(:ab AS jsonb), '{{}}'),
                    ceo_weekly_letter = ceo_weekly_letter || COALESCE(CAST(:cwl AS jsonb), '{{}}'),
-                   reminders = reminders || COALESCE(CAST(:rem AS jsonb), '{{}}')
+                   reminders = reminders || COALESCE(CAST(:rem AS jsonb), '{{}}'),
+                   weekly_review = weekly_review || COALESCE(CAST(:wr AS jsonb), '{{}}'),
+                   digital_ceo = digital_ceo || COALESCE(CAST(:dc AS jsonb), '{{}}')
                WHERE id = 1 AND version = :v RETURNING {SETTINGS_COLS}""",  # noqa: S608 - constant column list, values are bound
             adv=_merged(blocks["advisor"], body.advisor),
             subs=_merged(blocks["substitutes"], body.substitutes),
@@ -463,6 +485,8 @@ async def put_owner_settings(
             ab=_block(body.audio_briefings),
             cwl=_block(body.ceo_weekly_letter),
             rem=_block(body.reminders),
+            wr=_block(body.weekly_review),
+            dc=_block(body.digital_ceo),
             v=version,
         )
         if row is None:

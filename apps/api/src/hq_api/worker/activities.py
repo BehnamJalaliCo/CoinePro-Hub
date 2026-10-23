@@ -87,6 +87,10 @@ class Activities:
 
         self.management = ManagementActivities(hub, self._tx)
         self.mgmt = MgmtActivities(hub, self._tx)  # prompt 12 part B
+        # prompt 12 §2, §3, §13: the corpus, asks, the weekly review, the digital CEO
+        from hq_api.worker.owner_tools_activities import OwnerToolsActivities
+
+        self.owner_tools = OwnerToolsActivities(hub, self._tx, router=self.router)
 
     def all(self) -> list[Any]:
         return [
@@ -94,6 +98,7 @@ class Activities:
             *self.management.all(),
             *self.desk.all(),
             *self.mgmt.all(),
+            *self.owner_tools.all(),
             *self.media.all(),
             *self.brand.all(),
             *self.people.all(),

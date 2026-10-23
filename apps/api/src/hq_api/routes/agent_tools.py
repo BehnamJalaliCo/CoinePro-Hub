@@ -506,7 +506,20 @@ def _plain(row: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------- knowledge.search --
-KINDS = ("resolutions", "deliverables", "decisions", "work", "messages", "knowledge")
+KINDS = (
+    "resolutions",
+    "deliverables",
+    "decisions",
+    "work",
+    "messages",
+    "knowledge",
+    # ⟨1.5⟩ prompt 12 §2.3: the hub's documents and the repositories' code
+    # (advisor, overseer, librarian; a CTO only its own company's code), and
+    # the owner's open quick notes (the advisor only)
+    "docs",
+    "code",
+    "notes",
+)
 
 
 class Hit(BaseModel):
@@ -520,6 +533,11 @@ class Hit(BaseModel):
     layer: str | None = None
     valid_until: date | None = None
     sources: list[dict[str, Any]] | None = None
+    # ⟨1.5⟩ kinds `docs` and `code` (prompt 12 §2): the passage's place
+    repo: str | None = None
+    path: str | None = None
+    lines: list[int] | None = None
+    commit: str | None = None
 
 
 @router.get("/knowledge/search", response_model=list[Hit], responses=E)
@@ -543,9 +561,10 @@ async def tool_knowledge_search(
     if not wanted:
         raise ApiError(422, "validation_failed", fields={"kinds": f"some of {', '.join(KINDS)}"})
     every = company is None and ctx.who.scope == "holding"
+    target = {"kinds": wanted, "charter": ctx.who.charter}
     if every:
-        await allow(ctx, "knowledge.read", {"company": ctx.who.company, "kinds": wanted})
-    co = None if every else await _company(ctx, "knowledge.read", company, kinds=wanted)
+        await allow(ctx, "knowledge.read", {"company": ctx.who.company, **target})
+    co = None if every else await _company(ctx, "knowledge.read", company, **target)
     queries = {
         "resolutions": """SELECT 'resolution' AS kind, r.ref, c.code AS company, r.title,
                               left(r.body, 400) AS body, r.sealed_at AS at
@@ -589,7 +608,8 @@ async def tool_knowledge_search(
                      "title": r["title_fa"], "body": r["body"], "at": r["at"], "layer": r["layer"],
                      "valid_until": r["valid_until"], "sources": list(r["sources"] or [])}
                 )  # fmt: skip
-        for k in (k for k in wanted if k != "knowledge"):
+        hits += await _p12_hits(tx, q, wanted, co.id if co else None, limit)
+        for k in (k for k in wanted if k in queries):
             hits += await tx.all(
                 queries[k]
                 + " AND (CAST(:co AS uuid) IS NULL OR c.id = :co) ORDER BY at DESC LIMIT :lim",
@@ -598,7 +618,7 @@ async def tool_knowledge_search(
                 lim=limit,
             )
     hits.sort(key=lambda h: h["at"], reverse=True)
-    return [
+    out = [
         Hit(
             kind=h["kind"],
             ref=h["ref"],
@@ -609,9 +629,51 @@ async def tool_knowledge_search(
             layer=h.get("layer"),
             valid_until=h.get("valid_until"),
             sources=h.get("sources"),
+            repo=h.get("repo"),
+            path=h.get("path"),
+            lines=[h["line_from"], h["line_to"]] if h.get("line_from") else None,
+            commit=h.get("commit"),
         )
         for h in hits[:limit]
     ]
+    files = [h for h in hits[:limit] if h["kind"] in ("doc", "code")]
+    if ctx.who.charter == "librarian" and files:
+        # Its own search in an ask's run joins the retrieved set (prompt 12 §2.2).
+        from hq_api.domain import ask as AK
+
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as wtx:
+            await AK.extend(wtx, ctx.who, files)
+    return out
+
+
+async def _p12_hits(
+    tx: Tx, q: str, wanted: list[str], company_id: Any, limit: int
+) -> list[dict[str, Any]]:
+    """Kinds `docs`, `code` (the corpus; RLS keeps a CTO to its own company's
+    repositories) and `notes` (the owner's open quick notes)."""
+    from hq_api.domain import corpus
+
+    out: list[dict[str, Any]] = []
+    files = [{"docs": "doc", "code": "code"}[k] for k in wanted if k in ("docs", "code")]
+    if files:
+        words = await corpus.terms(tx, q)
+        cos = [company_id] if company_id else None
+        for r in await corpus.chunk_hits(tx, words, files, cos, limit):
+            place = {"kind": r["kind"], "repo": r["repo"], "path": r["path"],
+                     "lines": [r["line_from"], r["line_to"]]}  # fmt: skip
+            out.append({**r, "ref": corpus.cite_key(place), "body": r["text"]})
+    if "notes" in wanted:
+        pat = "%" + await tx.scalar("SELECT core.like_escape(core.fa_normalize(:q))", q=q) + "%"
+        out += await tx.all(
+            """SELECT 'note' AS kind, n.ref, c.code AS company, left(n.text_md, 80) AS title,
+                      left(n.text_md, 400) AS body, n.created_at AS at
+               FROM owner.notes n JOIN core.companies c ON c.id = n.company_id
+               WHERE n.status = 'open' AND core.fa_normalize(n.text_md) LIKE :pat
+               ORDER BY n.created_at DESC LIMIT :lim""",
+            pat=pat,
+            lim=limit,
+        )
+    return out
 
 
 # -------------------------------------------------------------- audit.recent --

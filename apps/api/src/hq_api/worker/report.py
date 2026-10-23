@@ -88,7 +88,15 @@ async def gather(tx: Tx, now: datetime, tz: str) -> dict[str, Any]:
         # ⟨1.5⟩ prompt 12 §8, §11: rule-only lines (the waste of yesterday, the
         # owner's waiting cards by age); no model, no outside call
         **await _p12b_lines(tx, today, now),
+        # ⟨1.5⟩ prompt 12 §3: a weekly review skipped in the last week (one line, no nag)
+        "review_line": await _review_line(tx, now),
     }
+
+
+async def _review_line(tx: Tx, now: datetime) -> str | None:
+    from hq_api.domain import reviews
+
+    return await reviews.morning_line(tx, now)
 
 
 async def _p12b_lines(tx: Tx, today: date, now: datetime) -> dict[str, Any]:
@@ -136,7 +144,7 @@ def render(data: dict[str, Any]) -> tuple[str, str]:
         ),
         f"- **کارتابل خروجی:** {dl['new_24h']} خروجی در ۲۴ ساعت گذشته؛ {dl['unrated']} خروجی هنوز امتیاز ندارد",
         f"- **پیام‌ها:** {data['unread']} پیام نخوانده",
-        *[data[k] for k in ("reminders_line", "waste_line") if data.get(k)],
+        *[data[k] for k in ("reminders_line", "waste_line", "review_line") if data.get(k)],
         "",
         "## شرکت‌ها",
         "| شرکت | تصمیم در انتظار | کار باز | عقب‌افتاده | خروجی تازه "

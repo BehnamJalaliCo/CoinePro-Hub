@@ -107,6 +107,8 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "substitute.call",
         # prompt 12 §12 (contract §21.9): a fact check of one claim
         "claim.verdict",
+        # prompt 12 §2 (contract §21.2): the librarian's answer to the owner's ask
+        "ask.answer",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

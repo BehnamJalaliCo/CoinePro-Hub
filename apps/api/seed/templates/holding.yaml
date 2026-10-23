@@ -72,3 +72,11 @@ leadership:
       department: AIOPS
       title_fa: منشی جلسه
       title_en: Meeting Secretary
+    # ⟨1.5⟩ prompt 12 §2.4: the Hub Librarian (agents/roles/librarian.md), a
+    # system role like the secretary: never hired, rated or starred; it runs
+    # only for the owner's «از هاب بپرس» (task class ask_hub).
+    - code_suffix: LIB
+      kind: system
+      role: librarian
+      title_fa: کتابدار هاب
+      title_en: Hub Librarian

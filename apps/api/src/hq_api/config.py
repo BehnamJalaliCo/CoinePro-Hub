@@ -276,6 +276,10 @@ class Settings:
         default_factory=lambda: _env("HQ_GIT_REMOTE", "https://github.com/{repo}.git")
     )
     git_timeout_s: int = field(default_factory=lambda: _int("HQ_GIT_TIMEOUT_S", 120))
+    # Prompt 12 §2.1: the hub's own repository for the corpus of «از هاب بپرس»,
+    # a read-only mount of its git directory (the worker; committed files only,
+    # never the working tree's ignored ones). Empty or missing: `not_indexed`.
+    hub_repo: str = field(default_factory=lambda: _env("HQ_HUB_REPO", "/hub-repo.git"))
 
     @property
     def login_configured(self) -> bool:

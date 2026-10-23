@@ -45,10 +45,11 @@ from hq_gateway import (
     governance,  # noqa: F401 - prompt 11 §4-§10: kpi, okr, outcome, risk, calendar, authority
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
     knowledge,  # noqa: F401 - prompt 11: knowledge.propose/review/approve
-    meetings,  # noqa: F401 - prompt 11: meeting.statement/challenge/whisper/item/minutes
     management,  # noqa: F401 - prompt 12 part A: memo.write, substitute.call
+    meetings,  # noqa: F401 - prompt 11: meeting.statement/challenge/whisper/item/minutes
     mgmt,  # noqa: F401 - prompt 12 part B: claim.verdict
     oversight,  # noqa: F401 - registers the overseer's tools (prompt 08)
+    owner_tools,  # noqa: F401 - prompt 12 §2: ask.answer
     people,  # noqa: F401 - registers stars, lessons, stories, hire.decide
     revenue,  # noqa: F401 - prompt 10: revenue.read, funnel.read, rescue, feedback, referral
     support,  # noqa: F401 - kb.*, support.draft/handoff/mystery (prompt 10)

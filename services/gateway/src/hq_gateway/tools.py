@@ -201,8 +201,21 @@ class UsageIn(In):
 
 class SearchIn(In):
     q: str = Field(min_length=2, max_length=200)
+    # ⟨1.5⟩ prompt 12 §2.3: `docs` and `code` (the corpus), `notes` (the advisor's)
     kinds: (
-        list[Literal["resolutions", "deliverables", "decisions", "work", "messages", "knowledge"]]
+        list[
+            Literal[
+                "resolutions",
+                "deliverables",
+                "decisions",
+                "work",
+                "messages",
+                "knowledge",
+                "docs",
+                "code",
+                "notes",
+            ]
+        ]
         | None
     ) = None
     # Filters of kind `knowledge` (prompt 11 §3.5, contract §20.3): approved, unexpired entries.

@@ -698,6 +698,11 @@ async def reply_meta(tx: Tx, who: Principal, thread: str) -> dict[str, Any]:
         )
         if t is not None:
             return {"proactive": {"kind": t["kind"], "key": t["key"]}}
+        from hq_api.domain import reviews  # prompt 12 §3: the weekly review's brief
+
+        review = await reviews.brief_of_run(tx, run["work_id"])
+        if review is not None:
+            return {"review": review}
     if run["trigger"] == "message":
         mode = await tx.scalar(
             """SELECT m.meta->>'mode' FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
@@ -712,7 +717,13 @@ async def after_reply(
     tx: Tx, who: Principal, message: dict[str, Any], meta: dict[str, Any]
 ) -> None:
     """A proactive note is posted: the trigger keeps its message, the owner
-    gets one `report`-level notification (never urgent), the work is done."""
+    gets one `report`-level notification (never urgent), the work is done.
+    The weekly review's brief (prompt 12 §3): the review keeps its message."""
+    if meta.get("review"):
+        from hq_api.domain import reviews
+
+        await reviews.brief_posted(tx, who, message, str(meta["review"]))
+        return
     pro = meta.get("proactive")
     if not pro:
         return

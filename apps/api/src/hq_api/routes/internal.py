@@ -299,6 +299,11 @@ OP_CLASS: dict[str, str] = {
     "tts.claim": "A0",
     "tts.done": "A1",
     "claim.verdict": "A2",
+    # prompt 12 §2, §13 (owner_tools.rego): the librarian's answer; the digital
+    # CEO's own rows (a service; nothing else is ever granted to it)
+    "ask.answer": "A1",
+    "dceo.predict": "A0",
+    "dceo.principles": "A1",
 }
 
 

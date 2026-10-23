@@ -572,7 +572,12 @@ DECISION_SQL = """
               FROM substitutes.calls s
              WHERE d.kind = 'deploy' AND s.purpose_kind = 'decision' AND s.purpose_ref = d.ref
                AND s.seat = 'code_review'
-             ORDER BY s.created_at DESC LIMIT 1) AS second_review_call
+             ORDER BY s.created_at DESC LIMIT 1) AS second_review_call,
+           (SELECT jsonb_build_object('verdict', p.verdict, 'confidence', p.confidence,
+                                      'method', p.method, 'correct', p.correct)
+              FROM dceo.predictions p
+             WHERE p.decision_id = d.id AND d.status <> 'pending' AND p.actual IS NOT NULL
+             ORDER BY p.method = 'model' DESC LIMIT 1) AS dceo_prediction
     FROM cartable.decisions d
     JOIN core.companies c ON c.id = d.company_id
     LEFT JOIN cartable.resolutions r ON r.id = d.resolution_id
@@ -611,6 +616,8 @@ def render(r: dict[str, Any]) -> Decision:
         reason_code=r["reason_code"],
         resolution=r["resolution"],
         thread=r["thread_code"],
+        # ⟨1.5⟩ prompt 12 §13 (contract §21.10): null until the owner decides
+        digital_ceo_prediction=_prediction(r.get("dceo_prediction")),
         expected=r.get("expected"),
         warnings=list(r.get("warnings") or []),
         effect_status=r["effect_status"],
@@ -620,6 +627,15 @@ def render(r: dict[str, Any]) -> Decision:
         waiting_h=_waiting_h(r),
         reminders=list(r.get("reminders") or []),
     )
+
+
+def _prediction(v: Any) -> dict[str, Any] | None:
+    """The digital CEO's scored prediction {verdict, confidence, method, correct}."""
+    if isinstance(v, str):
+        v = json.loads(v)
+    if not isinstance(v, dict):
+        return None
+    return {**v, "confidence": float(v["confidence"])}
 
 
 def _with_review(r: dict[str, Any]) -> dict[str, Any]:
@@ -911,6 +927,10 @@ async def propose(
         thread=thread_code,
     )
     d = await load(tx, row["ref"])
+    if not approver:  # ⟨1.5⟩ prompt 12 §13: the digital CEO's baseline, sealed before any decision
+        from hq_api.domain import dceo
+
+        await dceo.on_proposed(tx, d)
     if calendar is not None and calendar[0] is not None:
         from hq_api.domain import gov_calendar
 
@@ -1160,6 +1180,11 @@ async def decide(
     if server is not None:
         await mcp.enable_listing(tx, server)
     await gov_cards.after_decided(tx, d, verdict)  # ⟨1.5⟩ outcome reviews, okr, the calendar
+    from hq_api.domain import (
+        dceo,  # ⟨1.5⟩ prompt 12 §13: the owner's verdict scores the predictions
+    )
+
+    await dceo.score(tx, who, d, verdict)
     resolution = None
     if verdict == "approved":
         # Resolutions are append-only: the follow-up work (if any) exists first

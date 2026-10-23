@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field
 
 from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
+from hq_api.domain import dceo, gov_authority
 from hq_api.domain import decisions as D
-from hq_api.domain import gov_authority
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import Model, Page
 from hq_api.security import stepup
@@ -113,15 +113,19 @@ async def list_decisions(
             after_id=after_id,
             lim=limit + 1,
         )
-    items, nxt = pagination.page(rows, limit, ("created_at", "id"))
-    return Page(items=[D.render(r) for r in items], next_cursor=nxt)
+        items, nxt = pagination.page(rows, limit, ("created_at", "id"))
+        out = [D.render(r) for r in items]
+        await dceo.reveal(tx, out)  # ⟨1.5⟩ only with reveal "before" (prompt 12 §13)
+    return Page(items=out, next_cursor=nxt)
 
 
 @router.get("/decisions/{ref}", response_model=D.Decision, responses=E)
 async def get_decision(ref: str, ctx: Ctx = Depends(owner_ctx)) -> D.Decision:
     """One decision card: what, why, quota, risk, reversibility, payload and its seal."""
     async with ctx.tx() as tx:
-        return D.render(await D.load(tx, ref))
+        out = D.render(await D.load(tx, ref))
+        await dceo.reveal(tx, [out])
+        return out
 
 
 async def _decide(

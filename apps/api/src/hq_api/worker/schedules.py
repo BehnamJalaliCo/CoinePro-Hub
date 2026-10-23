@@ -40,6 +40,13 @@ Schedule ids:
     hq-ceo-letters            hourly        CeoLetters: at the owner's day and hour
                               (prompt 12 part B: each asks the launch gate and does
                               nothing while the holding is locked)
+    hq-corpus-nightly         daily 03:30 Asia/Tehran  CorpusNightly (prompt 12 §2.1)
+    hq-ask-sweep              every 5 min   AskSweep (prompt 12 §2.2: a run without an answer)
+    hq-weekly-review          every 15 min  WeeklyReviewTick (prompt 12 §3)
+    hq-dceo                   every 5 min   DceoSweep (prompt 12 §13: predictions)
+    hq-dceo-principles        Saturday 11:00 (owner's zone)  DceoPrinciples (prompt 12 §13.5)
+                              (prompt 12 §2, §3, §13: each asks the launch gate and does
+                              nothing at all while the holding is locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -98,6 +105,12 @@ DEPLOY_RECHECK = "hq-deploy-recheck"
 HR_ROUNDS = "hq-hr-rounds"
 CEO_LETTERS = "hq-ceo-letters"
 P12B = (WASTE_DAILY, CARTABLE_REMINDERS, DEPLOY_RECHECK, HR_ROUNDS, CEO_LETTERS)
+CORPUS_NIGHTLY = "hq-corpus-nightly"
+ASK_SWEEP = "hq-ask-sweep"
+WEEKLY_REVIEW = "hq-weekly-review"
+DCEO = "hq-dceo"
+DCEO_PRINCIPLES = "hq-dceo-principles"
+OWNER_TOOLS = (CORPUS_NIGHTLY, ASK_SWEEP, WEEKLY_REVIEW, DCEO, DCEO_PRINCIPLES)
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -123,6 +136,7 @@ FIXED = (
     "hq-substitute-web",
     "hq-substitute-daily",
     *P12B,
+    *OWNER_TOOLS,
 )
 
 
@@ -287,6 +301,39 @@ def fixed(
         *governance_fixed(tz, meetings_paused=meetings_paused),
         *management_fixed(),
         *p12b_fixed(tz),
+        *owner_tools_fixed(tz),
+    ]
+
+
+def owner_tools_fixed(tz: str) -> list[Desired]:
+    """Prompt 12 §2, §3, §13: each activity asks the launch gate first."""
+    return [
+        Desired(
+            CORPUS_NIGHTLY,
+            "CorpusNightly",
+            (),
+            daily_at(time(3, 30), TEHRAN),
+            timedelta(hours=6),
+            timedelta(hours=1),
+        ),
+        Desired(ASK_SWEEP, "AskSweep", (), every(5), timedelta(minutes=5), timedelta(minutes=3)),
+        Desired(
+            WEEKLY_REVIEW,
+            "WeeklyReviewTick",
+            (),
+            every(15),
+            timedelta(minutes=10),
+            timedelta(minutes=6),
+        ),
+        Desired(DCEO, "DceoSweep", (), every(5), timedelta(minutes=5), timedelta(minutes=12)),
+        Desired(
+            DCEO_PRINCIPLES,
+            "DceoPrinciples",
+            (),
+            weekly_at(6, time(11, 0), tz),
+            timedelta(hours=12),
+            timedelta(minutes=12),
+        ),
     ]
 
 

@@ -57,6 +57,8 @@ ops := {
 	"memo.write", "substitute.call", "substitutes.jobs",
 	# prompt 12 part B (mgmt.rego): the TTS one-shot, a checked claim
 	"tts.claim", "tts.done", "claim.verdict",
+	# prompt 12 §2, §13 (owner_tools.rego): the librarian's answer; the digital CEO's own rows
+	"ask.answer", "dceo.predict", "dceo.principles",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and
@@ -528,17 +530,37 @@ reads_company(c) if {
 	is_string(c)
 }
 
-# Message bodies (other threads) are searched by the advisor only.
+# Message bodies (other threads) are searched by the advisor only; ⟨1.5⟩
+# prompt 12 §2.3: so are the owner's quick notes (`notes`); the hub's
+# documents and the repositories' code (`docs`, `code`) by the advisor, the
+# overseer, the librarian and a CTO (RLS keeps a CTO to its own company's
+# repositories). Every other kind as before.
 knowledge_kinds_ok if op != "knowledge.read"
 
 knowledge_kinds_ok if {
 	op == "knowledge.read"
-	not "messages" in {k | some k in object.get(t, "kinds", [])}
+	every k in object.get(t, "kinds", []) {
+		knowledge_kind_ok(k)
+	}
 }
 
-knowledge_kinds_ok if {
-	op == "knowledge.read"
+restricted_knowledge_kinds := {"messages", "notes", "docs", "code"}
+
+knowledge_kind_ok(k) if not k in restricted_knowledge_kinds
+
+knowledge_kind_ok(k) if {
+	k in {"messages", "notes"}
 	p.role == "advisor"
+}
+
+knowledge_kind_ok(k) if {
+	k in {"docs", "code"}
+	p.role in {"advisor", "overseer"}
+}
+
+knowledge_kind_ok(k) if {
+	k in {"docs", "code"}
+	tv("charter") in {"librarian", "cto"}
 }
 
 # A manager asks another department of its own company.

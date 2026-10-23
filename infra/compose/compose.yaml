@@ -705,6 +705,10 @@ services:
       SUPPORT_EGRESS_URL: http://egress:8090
       # Prompt 12 §9.1: a creative's Persian overlay is set in IRANYekanX by code.
       HQ_FONTS_DIR: /app/fonts
+      # Prompt 12 §2.1: the corpus of «از هاب بپرس»: the hub's repository (its git
+      # directory, read-only: committed files only) and the workspaces' mirrors.
+      HQ_HUB_REPO: /hub-repo.git
+      HQ_GIT_MIRRORS: /var/lib/hq-git
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -718,6 +722,8 @@ services:
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/status:/hub-status:ro
       - ../../agents:/app/agents:ro
+      - ../../.git:/hub-repo.git:ro
+      - hq-git:/var/lib/hq-git
     healthcheck:
       test: ["CMD", "python", "-m", "hq_common.heartbeat"]
       interval: 15s

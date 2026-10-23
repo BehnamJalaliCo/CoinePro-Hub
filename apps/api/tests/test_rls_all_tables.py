@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -58,6 +58,8 @@ SCHEMAS = (
     # prompt 12 part B: briefings and letters; checked claims
     "reports",
     "quality",
+    # prompt 12 §13: the digital CEO (its predictions and principles)
+    "dceo",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.
@@ -538,6 +540,63 @@ async def _fill_p12a(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p12f(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 12 §2, §3, §13 (migration 0027_2): one row of company `co` in
+    each new table (the corpus, asks, a weekly review, the digital CEO's)."""
+    import random
+
+    c = co["id"]
+    src = await su.fetchval(
+        """INSERT INTO knowledge.corpus_sources (company_id, key, kind, repo, branch)
+           VALUES ($1, $2, 'workspace', 'acme/rls', 'main') RETURNING id""",
+        c,
+        f"{co['code']}-RLS",
+    )
+    f = await su.fetchval(
+        """INSERT INTO knowledge.corpus_files (company_id, source_id, path, blob_sha, size, kind, state, chunks,
+               commit) VALUES ($1, $2, 'a.py', $3, 1, 'code', 'indexed', 1, 'abcdef1') RETURNING id""",
+        c,
+        src,
+        "a" * 40,
+    )
+    await su.execute(
+        """INSERT INTO knowledge.corpus_chunks (company_id, file_id, source_id, kind, repo, path, line_from,
+               line_to, commit, body) VALUES ($1, $2, $3, 'code', 'acme/rls', 'a.py', 1, 1, 'abcdef1', 'x = 1')""",
+        c,
+        f,
+        src,
+    )
+    await su.execute(
+        """INSERT INTO knowledge.asks (company_id, q, state, created_by_kind, created_by_code)
+           VALUES ($1, 'rls', 'queued', 'owner', 'owner')""",
+        c,
+    )
+    week = date(2060, 1, 3) + timedelta(weeks=random.randint(0, 5000))
+    await su.execute(
+        "INSERT INTO owner.reviews (company_id, week, scheduled_at) VALUES ($1, $2, now())", c, week
+    )
+    d = await su.fetchrow(
+        """INSERT INTO cartable.decisions (company_id, kind, action_class, title, proposer_kind, proposer_code)
+           VALUES ($1, 'proposal', 'A1', 'rls', 'owner', 'owner') RETURNING id, ref""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO dceo.predictions (company_id, decision_id, decision_ref, decision_kind, decision_title,
+               decision_risk, proposer_kind, method, verdict, confidence, sealed, sealed_hash)
+           VALUES ($1, $2, $3, 'proposal', 'rls', 'low', 'owner', 'baseline', 'approve', 0.5, '{}', $4)""",
+        c,
+        d["id"],
+        d["ref"],
+        "0" * 64,
+    )
+    await su.execute(
+        """INSERT INTO dceo.principles (company_id, ref, version, text_fa, status, created_by_kind,
+               created_by_code) VALUES ($1, $2, 1, 'اصل', 'active', 'owner', 'owner')""",
+        c,
+        f"DP-{random.randint(100000, 999999)}",
+    )
+
+
 async def _fill_p12b(su: Any, co: dict[str, Any]) -> None:
     """Prompt 12 part B (migration 0027_1): one row of company `co` in each new
     table (reports, quality; people.department_ranks/hr_rounds; owner.notes,
@@ -976,6 +1035,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p11b(su, b)
     await _fill_p12a(su, b)
     await _fill_p12b(su, b)
+    await _fill_p12f(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
