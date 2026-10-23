@@ -19,6 +19,9 @@
 #         failure (closing it is the owner's DOCKER-USER rule).
 #   12 §14  each running MCP container server: the gateway reaches it; it
 #         reaches no internet, no 10.10.1.1 and no hub service; reviewed digest.
+#   13 §2.3  the render worker: hq-media reaches the api and OpenBao only; the
+#         renderer's own service has no network at all (its probe); a forged
+#         signed media URL and every other /public path are 404 at the edge.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -217,6 +220,42 @@ if docker network inspect hq-tts >/dev/null 2>&1; then
     if probe hq-tts "${target%%:*}" "${target##*:}"; then fail "hq-tts reaches $target"; fi
   done
   ok "$before" "hq-tts reaches the api and OpenBao only (no database, no internet)"
+fi
+# ------------------------------------------------------ prompt 13 §2.3 ----
+# The render worker's courier network (hq-media, internal): the api and
+# OpenBao only. Probed on the network itself (the one-shots run per pass).
+if docker network inspect hq-media >/dev/null 2>&1; then
+  before=$failures
+  probe hq-media api 8000 || fail "positive control: hq-media cannot reach api:8000"
+  probe hq-media openbao 8200 || fail "positive control: hq-media cannot reach openbao:8200"
+  for target in postgres:5432 valkey:6379 nats:4222 llm-router:8000 gateway:8080 opa:8181 \
+    temporal:7233 egress:3128 1.1.1.1:443 10.10.1.1:443; do
+    if probe hq-media "${target%%:*}" "${target##*:}"; then fail "hq-media reaches $target"; fi
+  done
+  ok "$before" "hq-media reaches the api and OpenBao only (no database, no internet)"
+fi
+# The renderer's sandbox: its own compose service (network_mode none) runs the
+# probe: no interface but loopback, and no connection opens to the api,
+# OpenBao, Postgres, the host, the internet, a neighbour or the metadata address.
+if docker image inspect coinepro-hq/media-render:0.1.0 >/dev/null 2>&1; then
+  before=$failures
+  answer="$("$HQ" --profile media run --rm --no-deps -T media-render probe 2>/dev/null)" ||
+    fail "media-render: the sandbox probe failed (${answer:-no answer})"
+  ok "$before" "media-render has no network at all (loopback only; nothing it tried answered)"
+fi
+# The media studio's one public route (13 §2.3): through Caddy, a forged or
+# unknown signed URL, another path under /public and /internal are all 404
+# (the api signs a real one only for a render file, for 15 minutes).
+site="$(sed -n 's/^HQ_SITE_ADDRESS=//p' "${HQ_ENV_FILE:-$REPO_DIR/infra/compose/.env}" 2>/dev/null | tail -n1)"
+if [[ -n "$site" && "$site" != :* ]] && running coinepro-hq-caddy-1; then
+  before=$failures
+  forged="$(openssl rand -base64 48 | tr '+/' '-_' | tr -d '=\n' | cut -c1-51)"
+  for path in "/public/v1/media/$forged" "/public/v1/media/x" "/public/v1/other" "/internal/v1/media/render/claim"; do
+    code="$(docker run --rm --network host "$CURL_IMAGE" -s -o /dev/null -w '%{http_code}' \
+      --resolve "$site:443:127.0.0.1" "https://$site$path" 2>/dev/null || true)"
+    [[ "$code" == 404 ]] || fail "https://$site$path answers $code, not 404"
+  done
+  ok "$before" "a forged signed media URL, other /public paths and /internal are 404 at the edge"
 fi
 
 # ------------------------------------------------------------ 7.1 §2.19 ----

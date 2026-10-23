@@ -39,7 +39,8 @@
           "kpi.record",
           "okr.checkin",
           "risk.update",
-          "calendar.add"
+          "calendar.add",
+          "role.decide"
         ],
         "manager": [
           "work.delegate",
@@ -61,7 +62,8 @@
           "kpi.record",
           "okr.checkin",
           "risk.update",
-          "calendar.add"
+          "calendar.add",
+          "media.review"
         ],
         "inspector": [
           "work.delegate",
@@ -101,7 +103,9 @@
           "support.draft",
           "support.handoff",
           "knowledge.review",
-          "claim.verdict"
+          "claim.verdict",
+          "media.render",
+          "media.voice"
         ],
         "assistant": [
           "errand.step",

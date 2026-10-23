@@ -16,8 +16,10 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy, SearchAttributeKey
 from temporalio.exceptions import ActivityError, ApplicationError
 
+from hq_api.worker.legal_workflows import P13B_WORKFLOWS
 from hq_api.worker.mgmt_workflows import P12B_WORKFLOWS
 from hq_api.worker.owner_tools_workflows import OWNER_TOOLS_WORKFLOWS
+from hq_api.worker.studio_workflows import STUDIO_WORKFLOWS
 
 SCHEDULED_START = SearchAttributeKey.for_datetime("TemporalScheduledStartTime")
 SHORT = timedelta(seconds=30)
@@ -637,4 +639,6 @@ WORKFLOWS = [
     SubstituteDaily,
     *P12B_WORKFLOWS,  # prompt 12 part B (mgmt_workflows.py)
     *OWNER_TOOLS_WORKFLOWS,  # prompt 12 §2, §3, §13 (owner_tools_workflows.py)
+    *STUDIO_WORKFLOWS,  # prompt 13: the media studio (studio_workflows.py)
+    *P13B_WORKFLOWS,  # prompt 13, legal and voice (legal_workflows.py)
 ]

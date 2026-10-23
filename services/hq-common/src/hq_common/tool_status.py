@@ -109,6 +109,21 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "claim.verdict",
         # prompt 12 §2 (contract §21.2): the librarian's answer to the owner's ask
         "ask.answer",
+        # prompt 13 §1.1 (contract §22.5): roles written on demand
+        "role.draft",
+        "role.decide",
+        # prompt 13 §2 (contract §22.2): the media studio
+        "media.item",
+        "media.render",
+        "media.voice",  # the narration, in the voice registry's queue (§22.3)
+        "media.review",
+        "series.propose",
+        # prompt 13 (contract §22.3, §22.4): the legal counsel's tools (email.draft
+        # only makes a card)
+        "case.open",
+        "case.note",
+        "email.draft",
+        "mail.read",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

@@ -26,7 +26,7 @@ from hq_common.redact import scrub
 DAILY_LIMIT = 3
 TITLE_MAX = 60
 BODY_MAX = 280
-LINK_KEYS = ("employee", "deliverable", "decision", "work", "period", "metric")
+LINK_KEYS = ("employee", "deliverable", "decision", "work", "period", "metric", "role_draft")
 PERIOD = r"^(week|month):[0-9]{4}-[0-9]{2}(-[0-9]{2})?$"  # as a lesson's period
 METRIC = r"^[a-z][a-z0-9_]{1,40}$"  # a metric (KPI) by name, e.g. users_active
 # A link out of the hub, with or without a scheme (contract §18.15): a URL

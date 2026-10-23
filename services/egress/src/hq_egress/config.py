@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 from dataclasses import dataclass, field
 
 Net = ipaddress.IPv4Network | ipaddress.IPv6Network
@@ -143,4 +144,32 @@ class Settings:
     connector_wait_s: float = field(
         default_factory=lambda: float(os.environ.get("EGRESS_CONNECTOR_WAIT_S", "8"))
     )
+    # Prompt 13 §2.3 (contract §22.2, §22.7): publishing. The hub's public
+    # name (compose: HQ_SITE_ADDRESS): the only host an Instagram media URL may
+    # name (its one signed file URL); empty or not a name = Instagram refused.
+    public_host: str = field(
+        default_factory=lambda: public_host(os.environ.get("EGRESS_PUBLIC_HOST", ""))
+    )
+    # One publish call's whole time: a 50 MB video to Telegram, or a Graph call.
+    media_deadline_s: float = field(
+        default_factory=lambda: float(os.environ.get("EGRESS_MEDIA_DEADLINE_S", "120"))
+    )
     log_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL", "info"))
+
+
+_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_HOSTNAME = re.compile(rf"^(?=.{{4,253}}$){_LABEL}(?:\.{_LABEL})+$")
+
+
+def public_host(raw: str) -> str:
+    """The hub's public host name from a Caddy site address ("hq.example.com",
+    "https://hq.example.com", "hq.example.com:443"); "" for none (":80", empty)."""
+    value = raw.strip().lower()
+    for prefix in ("https://", "http://"):
+        if value.startswith(prefix):
+            value = value[len(prefix) :]
+    value = value.split("/", 1)[0]
+    host, _, port = value.partition(":")
+    if port and port != "443":
+        return ""
+    return host if _HOSTNAME.match(host) else ""

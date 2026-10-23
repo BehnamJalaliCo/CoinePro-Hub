@@ -34,8 +34,10 @@ from temporalio import activity
 from hq_api.agents.clients import Router
 from hq_api.domain import academy as A
 from hq_api.domain import notify
+from hq_api.domain import role_drafts as RD
 from hq_api.domain import skills as S
 from hq_api.hub import Hub
+from hq_common import charters as C
 from hq_common.redact import scrub
 
 log = logging.getLogger("hq_api.worker.academy")
@@ -157,6 +159,7 @@ class AcademyActivities:
                 return False
             if row["skill_version_id"] is not None:
                 await self._gate_skill(tx, row, None, holding.code)
+            await RD.eval_finished(tx, row, None)  # ⟨1.6⟩ a role draft's: decides nothing
             await A.emit_eval(tx, holding.code, row)
         return True
 
@@ -187,6 +190,8 @@ class AcademyActivities:
         subject = S._j(run["subject"]) or {}
         candidate = S._j(run["candidate"]) or {}
         holding = await self.hub.companies.holding()
+        if candidate.get("role_draft"):
+            return self._draft_subject(candidate, holding)
         extra = ""
         model: str | None = None
         if subject["kind"] in ("charter", "model"):
@@ -242,6 +247,30 @@ class AcademyActivities:
         if extra:
             system += "\n\n" + extra
         return role, system + "\n\n" + EXAM, model or charter.model, charter.effort
+
+    def _draft_subject(
+        self, candidate: dict[str, Any], holding: Any
+    ) -> tuple[str, str, str | None, str | None]:
+        """⟨1.6⟩ A role written on demand under test (contract §22.5): _common
+        first, then the draft's own body, on the draft's model and effort."""
+        lib = self.hub.charters
+        values = {
+            "employee_code": f"{candidate.get('company', holding.code)}-ACADEMY",
+            "employee_title_fa": str(candidate.get("title_fa") or ""),
+            "company_code": str(candidate.get("company") or holding.code),
+            "company_name_fa": str(candidate.get("company") or holding.code),
+            "company_name_en": str(candidate.get("company") or holding.code),
+            "holding_code": holding.code,
+            "department_code": str(candidate.get("department") or ""),
+            "owner_timezone": "Asia/Tehran",
+        }
+        system = C.fill(lib.common, values) + "\n\n" + C.fill(str(candidate["charter_md"]), values)
+        return (
+            str(candidate["role"]),
+            system + "\n\n" + EXAM,
+            str(candidate.get("model") or "claude-sonnet-5-5"),
+            str(candidate.get("effort") or "medium"),
+        )
 
     @activity.defn(name="academy_eval_run")
     async def eval_run(self, run_id: str) -> dict[str, Any]:
@@ -303,9 +332,12 @@ class AcademyActivities:
             await self._fail(run_id, str(exc), usage)
             return {"run": run_id, "failed": str(exc), "passed": False, "tokens": usage.total}
         total = A.weighted(cases, scores)
+        drafted = bool((S._j(run["candidate"]) or {}).get("role_draft"))
         async with self._tx() as tx:
             suite_now = await A.suite(tx, run["suite_ref"])
-            g = A.gate(total, S._j(suite_now["baseline"]))
+            # ⟨1.6⟩ a role draft's own cases: an absolute bar; its score becomes
+            # the role's baseline when it passes (contract §22.5)
+            g = RD.eval_gate(total) if drafted else A.gate(total, S._j(suite_now["baseline"]))
             if g.get("sets_baseline"):
                 await A.set_first_baseline(tx, run["suite_ref"], S._j(run["subject"]) or {}, total)
             row = await tx.one(
@@ -326,6 +358,8 @@ class AcademyActivities:
             )
             if row["skill_version_id"] is not None:
                 await self._gate_skill(tx, row, g, holding.code)
+            if drafted:
+                await RD.eval_finished(tx, row, g)
             await A.emit_eval(tx, holding.code, row)
             await self._budget_warning(tx, holding)
         out: dict[str, Any] = {

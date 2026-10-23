@@ -20,11 +20,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class FakeApi:
-    """/internal/v1/tts: a queue of jobs, then 204 (as while locked or idle)."""
+    """/internal/v1/tts (briefings) and /internal/v1/voices/jobs (bake-off
+    samples, narration): a queue of jobs each, then 204 (as while locked or idle)."""
 
-    def __init__(self, jobs: list[dict[str, Any]]) -> None:
+    def __init__(
+        self, jobs: list[dict[str, Any]], voice_jobs: list[dict[str, Any]] | None = None
+    ) -> None:
         self.jobs = list(jobs)
+        self.voice_jobs = list(voice_jobs or [])
         self.done: list[tuple[str, bytes, str]] = []
+        self.params: list[dict[str, str]] = []
         self.failed: list[tuple[str, str]] = []
         self.calls: list[str] = []
 
@@ -32,14 +37,16 @@ class FakeApi:
         path = request.url.path
         self.calls.append(f"{request.method} {path}")
         assert request.headers["authorization"] == "Bearer t"
-        if path == "/internal/v1/tts/claim":
-            if not self.jobs:
+        if path in ("/internal/v1/tts/claim", "/internal/v1/voices/jobs/claim"):
+            queue = self.jobs if path.startswith("/internal/v1/tts") else self.voice_jobs
+            if not queue:
                 return httpx.Response(204)
-            return httpx.Response(200, json=self.jobs.pop(0))
+            return httpx.Response(200, json=queue.pop(0))
         if path.endswith("/done"):
             self.done.append(
                 (path.split("/")[-2], request.content, request.headers["content-type"])
             )
+            self.params.append(dict(request.url.params))
             return httpx.Response(200, json={"audio_state": "ready"})
         if path.endswith("/fail"):
             self.failed.append((path.split("/")[-2], json.loads(request.content)["error"]))
@@ -69,7 +76,10 @@ async def test_a_pass_speaks_each_claimed_briefing_and_stops_at_204() -> None:
     assert [d[0] for d in api.done] == ["a1", "a2"]
     assert all(d[1].startswith(b"OggS") and d[2] == "audio/ogg" for d in api.done)
     assert fake.scripts == ["سلام.", "روز خوب."]
-    assert api.calls[-1] == "POST /internal/v1/tts/claim"  # the 204 ended the pass
+    assert api.calls[-2:] == [  # each queue's 204 ended its part of the pass
+        "POST /internal/v1/tts/claim",
+        "POST /internal/v1/voices/jobs/claim",
+    ]
 
 
 async def test_nothing_to_say_means_one_claim_and_no_engine_run() -> None:
@@ -78,7 +88,7 @@ async def test_nothing_to_say_means_one_claim_and_no_engine_run() -> None:
     async with client(api) as c:
         out = await J.run(c, fake, max_jobs=3)
     assert out == {"done": [], "failed": []}
-    assert api.calls == ["POST /internal/v1/tts/claim"]
+    assert api.calls == ["POST /internal/v1/tts/claim", "POST /internal/v1/voices/jobs/claim"]
     assert fake.scripts == []
 
 
@@ -154,18 +164,21 @@ def test_the_real_engine_runs_piper_then_opusenc_with_the_text_on_stdin(
             (cwd / "speech.ogg").write_bytes(b"OggS-data")
         return type("R", (), {"returncode": 0, "stderr": b""})()
 
+    def measured(argv: list[str], **kw: Any) -> tuple[int, bytes, float]:
+        run(argv, input=kw["stdin"], **{k: v for k, v in kw.items() if k != "stdin"})
+        return 0, b"", 251.5
+
     monkeypatch.setattr(E.subprocess, "run", run)
+    monkeypatch.setattr(E, "run_measured", measured)
     spoken = E.Piper(tmp_path, "v").speak("متن محرمانه‌ی گزارش.", tmp_path)
     assert spoken.ogg == b"OggS-data" and spoken.duration_s == pytest.approx(1.0)
+    assert spoken.peak_rss_mb == 251.5  # this synthesis' own peak (wait4)
     assert seen[0]["input"].decode().strip() == "متن محرمانه‌ی گزارش."
     assert all("محرمانه" not in " ".join(s["argv"]) for s in seen)  # never in argv
     assert seen[0]["env"]["MALLOC_ARENA_MAX"] == "1"
     assert seen[1]["argv"][:4] == [E.OPUSENC, "--quiet", "--speech", "--bitrate"]
 
-    def broken(argv: list[str], **kw: Any) -> Any:
-        return type("R", (), {"returncode": 1, "stderr": b"boom"})()
-
-    monkeypatch.setattr(E.subprocess, "run", broken)
+    monkeypatch.setattr(E, "run_measured", lambda argv, **kw: (1, b"boom", 0.0))
     with pytest.raises(E.EngineError, match="piper failed"):
         E.Piper(tmp_path, "v").speak("x.", tmp_path / "none")
 

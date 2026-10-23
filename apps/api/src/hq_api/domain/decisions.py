@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from hq_api import events
 from hq_api.db import Tx
@@ -65,6 +65,13 @@ KINDS = (
     "knowledge_entry",
     # ⟨1.5⟩ prompt 11 §5, §7, §8 (contract §20.11)
     *gov_cards.KINDS,
+    # ⟨1.6⟩ prompt 13 (contract §22.6): a series sealed on its digest, an item to
+    # publish outside a sealed series, a role written on demand
+    "media_series",
+    "media_publish",
+    "role_new",
+    # ⟨1.6⟩ prompt 13 §3 (contract §22.4): the counsel's exact email, the owner's seal
+    "email_send",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -96,6 +103,12 @@ ACTION_CLASS = {
     "charter_amendment": "A2",
     "knowledge_entry": "A1",
     **gov_cards.ACTION_CLASS,
+    # ⟨1.6⟩ the seal on a series is the owner's A3 approval in advance of its
+    # items (§22.0); a role is a new charter, sealed like a hire
+    "media_series": "A3",
+    "media_publish": "A3",
+    "role_new": "A2",
+    "email_send": "A3",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -121,7 +134,14 @@ STEP_UP_KINDS = (
     *gov_cards.STEP_UP_KINDS,
     # ⟨1.5⟩ prompt 12 §6: a monthly HR evaluation is the owner's seal (§21.12)
     "evaluation",
+    # ⟨1.6⟩ all sealed with step-up (contract §22.6)
+    "media_series",
+    "media_publish",
+    "role_new",
 )
+# ⟨1.6⟩ cards only code writes (series.propose, the media pipeline, a role
+# draft's gates); an agent's or the owner's `propose` of one is refused.
+SYSTEM_CARD_KINDS = ("media_series", "media_publish", "role_new")
 # ⟨1.5⟩ applied in the deciding transaction, bound to their payload (§19.9)
 SEALED_CARD_KINDS = ("message_template", "lifecycle_rule", "support_go_live")
 # ⟨1.5⟩ prompt 11 §2-§3: applied in the deciding transaction too (a card on a
@@ -137,6 +157,9 @@ EFFECT_KINDS = (
     "protocol",
     "company_found",
     "evaluation",  # ⟨1.5⟩ promote / demote / dismiss / confirm (prompt 12 §6)
+    "media_publish",  # ⟨1.6⟩ the item is published through the official APIs
+    "role_new",  # ⟨1.6⟩ the draft becomes an active charter
+    "email_send",  # ⟨1.6⟩ its one send, by the worker (legal.deliver), after the locks
 )
 FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action", "meeting_resolution")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
@@ -215,8 +238,10 @@ class A3Payload(Model):
     # owner sees recipients and amounts, their SHA-256 and the registration's).
     # Approving it runs that one call once, in the follow-up run.
     action: Literal[
-        "publish", "customer_message", "group_message", "restart", "price_change", "mcp_call"
-    ]
+        "publish", "customer_message", "group_message", "restart", "price_change", "mcp_call",
+        # ⟨1.6⟩ the counsel's form or portal values; the owner submits them (§22.4)
+        "form_submit",
+    ]  # fmt: skip
     target: str = Field(min_length=1, max_length=300)
     preview: str = Field(default="", max_length=20000)
     args_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -436,6 +461,87 @@ class SupportGoLivePayload(Model):
     shadow_report: dict[str, Any]
 
 
+class MediaSeriesPayload(Model):
+    """⟨1.6⟩ A series proposed for the owner's seal (contract §22.2): sealed on
+    the series page on its digest (POST /media/series/{ref}/seal), never by
+    the cartable's approve."""
+
+    series: str = Field(pattern=r"^SR-[0-9]{4,}$")
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    title_fa: str = Field(min_length=1, max_length=200)
+    kind: Literal["reel", "story", "post", "carousel"]
+    auto_publish: bool = False
+    max_per_day: int = Field(ge=1, le=20)
+    schedule: str = Field(min_length=5, max_length=500)
+    targets: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
+
+
+class MediaPlacement(Model):
+    channel: Literal["telegram", "instagram"]
+    placement: Literal[
+        "telegram_post", "telegram_story", "instagram_reel", "instagram_story", "instagram_post"
+    ]
+    account: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]{1,40}$")
+    via: Literal["api", "manual"]
+    blocked: str | None = Field(default=None, max_length=40)
+
+
+class MediaPublishPayload(Model):
+    """⟨1.6.1⟩ An item to publish outside a sealed series or after a failed
+    check (contract §22.7): approving it publishes it (A3)."""
+
+    item: str = Field(pattern=r"^MI-[0-9]{4,}$")
+    series: str | None = Field(default=None, pattern=r"^SR-[0-9]{4,}$")
+    kind: Literal["reel", "story", "post", "carousel"]
+    title_fa: str = Field(min_length=1, max_length=300)
+    why: str = Field(default="", max_length=2000)
+    placements: list[MediaPlacement] = Field(default_factory=list, max_length=10)
+    render: dict[str, Any] | None = None
+    checks: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
+
+
+class RoleNewPayload(Model):
+    """⟨1.6.1⟩ A role written on demand for the owner's seal (contract §22.7)."""
+
+    draft: str = Field(pattern=r"^RD-[0-9]{4,}$")
+    company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+    department: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,11}$")
+    role: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    title_fa: str = Field(min_length=1, max_length=120)
+    model: str = Field(min_length=3, max_length=100)
+    effort: Effort
+    limits: dict[str, Any]
+    tools_count: int = Field(ge=0, le=200)
+    review: dict[str, Any] | None = None
+    eval_score: float | None = None
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class EmailAttachment(Model):
+    file_id: str = Field(pattern=r"^[0-9a-f-]{36}$")
+    name: str = Field(min_length=1, max_length=255)
+    mime: str = Field(min_length=3, max_length=100)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class EmailSendPayload(Model):
+    """⟨1.6⟩ The exact message of a case's email (contract §22.4, §22.7):
+    made by email.draft only; the seal is bound to `digest`."""
+
+    model_config = ConfigDict(extra="forbid", serialize_by_alias=True)
+
+    case: str = Field(pattern=r"^LC-[0-9]{4,}$")
+    email: str = Field(pattern=r"^[0-9a-f-]{36}$")
+    from_: str = Field(alias="from", max_length=320)
+    to: list[str] = Field(min_length=1, max_length=20)
+    cc: list[str] = Field(default_factory=list, max_length=20)
+    subject: str = Field(max_length=998)
+    body_md: str = Field(max_length=100000)
+    attachments: list[EmailAttachment] = Field(default_factory=list, max_length=10)
+    lang: Literal["fa", "en"]
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 PAYLOADS: dict[str, type[Model]] = {
     "hire": HirePayload,
     "dismissal": DismissalPayload,
@@ -459,6 +565,10 @@ PAYLOADS: dict[str, type[Model]] = {
     "charter_amendment": CharterAmendmentPayload,
     "knowledge_entry": KnowledgeEntryPayload,
     **gov_cards.PAYLOADS,
+    "media_series": MediaSeriesPayload,
+    "media_publish": MediaPublishPayload,
+    "role_new": RoleNewPayload,
+    "email_send": EmailSendPayload,
 }
 
 
@@ -489,6 +599,10 @@ class DecisionIn(Model):
         "okr",
         "risk_acceptance",
         "authority_change",
+        "media_series",
+        "media_publish",
+        "role_new",
+        "email_send",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -724,6 +838,14 @@ def check_hire_role(
         )
 
 
+async def company_charters(tx: Tx, charters: Any, company_id: Any) -> Any:
+    """⟨1.6⟩ The file charters plus the company's active role drafts (§22.5):
+    a hire may name either; a draft only in its own company and department."""
+    from hq_api.domain import role_drafts
+
+    return await role_drafts.overlay(tx, charters, company_id)
+
+
 async def known_model(tx: Tx, model: str) -> bool:
     return bool(
         await tx.scalar("SELECT EXISTS (SELECT 1 FROM llm.connections WHERE models ? :m)", m=model)
@@ -746,6 +868,8 @@ async def propose(
     await hiring.require_open(tx, who, body.kind)  # before any card exists (§18.11)
     payload = validate_payload(body.kind, body.payload)
     if body.kind == "hire":
+        # ⟨1.6⟩ a role written on demand is a charter of its company (§22.5)
+        charters = await company_charters(tx, charters, company_id)
         check_hire_role(payload, company_kind, charters, required=who.is_agent)
         if payload["company"] != company_code:
             raise ApiError(
@@ -830,6 +954,12 @@ async def propose(
         raise ApiError(
             422, "validation_failed", fields={"kind": "a server plan comes from server.plan"}
         )
+    if body.kind in SYSTEM_CARD_KINDS and who.kind != "service":
+        # ⟨1.6⟩ series.propose, the media pipeline and a role draft's gates make
+        # these cards, each bound to what it shows (contract §22.6)
+        raise ApiError(
+            422, "validation_failed", fields={"kind": f"a {body.kind} card is made by code"}
+        )
     if body.kind == "support_go_live" and who.kind != "service":
         # ⟨1.5⟩ only a passed shadow run makes this card (contract §19.4)
         raise ApiError(409, "shadow_not_passed", "a go-live card comes from a passed shadow run")
@@ -843,6 +973,17 @@ async def propose(
         from hq_api.domain import founding
 
         await founding.check_proposal(tx, payload, company_id)
+    if body.kind == "email_send" and not await tx.scalar(
+        """SELECT 1 FROM legal.emails WHERE id = CAST(:e AS uuid) AND company_id = :co
+             AND state = 'waiting_seal' AND decision_id IS NULL AND digest = :d""",
+        e=payload["email"],
+        co=company_id,
+        d=payload["digest"],
+    ):
+        # ⟨1.6⟩ only email.draft makes this card, for its own waiting email (§22.4)
+        raise ApiError(
+            422, "validation_failed", fields={"kind": "an email card comes from email.draft"}
+        )
     if body.kind in ("meeting_resolution", "knowledge_entry") and who.is_owner:
         # ⟨1.5⟩ made by the system from a meeting draft or a passed review
         raise ApiError(
@@ -1094,6 +1235,7 @@ async def decide(
     if verdict == "approved" and d["kind"] == "hire":
         # Every approval, whoever approves (contract §18.11): refused with a
         # stable code before anything changes, so no employee is made.
+        charters = await company_charters(tx, charters, d["company_id"])
         await hiring.check_approval(
             tx, d, amended("hire", d["payload"], amendments), charters, by_ceo=who.is_agent, hub=hub
         )
@@ -1118,7 +1260,7 @@ async def decide(
         await hiring.close_decide_items(tx, [d["ref"]], f"{d['ref']}: مالک خودش تصمیم گرفت")
     effect = "pending" if verdict == "approved" and d["kind"] in EFFECT_KINDS else "none"
     server = None
-    sealed_as_is = d["kind"] == "tool_enable" or (
+    sealed_as_is = d["kind"] in ("tool_enable", "email_send") or (
         d["kind"] == "a3_action" and (d["payload"] or {}).get("action") == "mcp_call"
     )
     if verdict == "approved" and amendments and sealed_as_is:
@@ -1185,6 +1327,10 @@ async def decide(
     )
 
     await dceo.score(tx, who, d, verdict)
+    if d["kind"] == "email_send":  # ⟨1.6⟩ queued for its one send, or the case reopens
+        from hq_api.domain import legal
+
+        await legal.on_decided(tx, d, verdict, note)
     resolution = None
     if verdict == "approved":
         # Resolutions are append-only: the follow-up work (if any) exists first
@@ -1218,6 +1364,14 @@ async def decide(
         body += f"\n\n{note}"
     if d["kind"] == "errand_action":  # the errand goes on, whatever the verdict
         await errands.on_decided(tx, d, verdict)
+    if d["kind"] in ("media_series", "media_publish") and verdict != "approved":
+        from hq_api.domain import studio  # ⟨1.6⟩ the series back to draft, the item rejected
+
+        await studio.card_declined(tx, d, verdict, note)
+    if d["kind"] == "role_new" and verdict in ("rejected", "returned"):
+        from hq_api.domain import role_drafts
+
+        await role_drafts.card_decided(tx, {**d, "note": note}, verdict, who)
     links = {"decision": d["ref"]}
     if resolution:
         links["resolution"] = resolution["ref"]
@@ -1401,6 +1555,13 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
         from hq_api.domain import hr
 
         result = await hr.apply(tx, d, p)
+    elif d["kind"] == "email_send":
+        # ⟨1.6⟩ the send itself happened before (legal.deliver, outside any
+        # transaction); only a sent email's card is applied.
+        state = await tx.scalar("SELECT state FROM legal.emails WHERE decision_id = :d", d=d["id"])
+        if state != "sent":
+            raise ApiError(409, "validation_failed", f"{ref}: the email is {state}, not sent")
+        result = {"email": "sent"}
     elif d["kind"] == "code_session":
         # The seal is the grant; the decision's id is unique on the grant, so a
         # retried effect never makes a second one.
@@ -1430,6 +1591,17 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
                 {"decision": d["ref"], "grant": g["ref"]},
             )
         result = {"grant": g["ref"]}
+    elif d["kind"] == "media_publish":
+        # ⟨1.6⟩ the item goes out now through the official APIs (the worker
+        # publishes it after this commit; contract §22.7)
+        from hq_api.domain import studio_publish
+
+        result = await studio_publish.card_approved(tx, d, p)
+    elif d["kind"] == "role_new":
+        # ⟨1.6⟩ the draft the card showed becomes an active charter (§22.5)
+        from hq_api.domain import role_drafts
+
+        result = await role_drafts.apply_card(tx, d, actor_principal(d))
     await tx.exec(
         "UPDATE cartable.decisions SET effect_status = 'applied', effect_applied_at = now() WHERE id = :id",
         id=d["id"],

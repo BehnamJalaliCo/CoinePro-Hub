@@ -26,8 +26,9 @@ a warning).
 
 cartable.decisions gains `expected` and `warnings` (set once, at the
 proposal); work.work gains key_result_id. The decision kinds gain the six of
-contract §20.11 (appended to what the constraint holds, NOT VALID, then
-validated here: this is the head of prompt 11, after 0026). PR-090,
+contract §20.11 (appended to what the constraint holds, NOT VALID; the
+head, 0028_1, validates every kind at once, so a round trip keeps the cards
+of a later revision). PR-090,
 PR-112, PR-113 and PR-116 become active (a data migration with an audit row
 each) where only their seeded, paused versions exist; on a fresh database the
 seed does the same right after it seeds them (hq_api.domain.gov_checks).
@@ -578,17 +579,17 @@ def upgrade() -> None:
     grants.append(f"GRANT UPDATE ON {mutable} TO {APP_ROLES};")
     grants.append(f"GRANT USAGE ON SEQUENCE {', '.join(SEQUENCES)} TO {APP_ROLES};")
     execute_script("\n".join(grants))
+    # NOT VALID (0026 added its three NOT VALID too): the head (0028_1)
+    # validates every card against every kind of prompts 11, 12 and 13, so a
+    # down-and-up run keeps a later revision's cards (test_hiring's round trip).
     execute_script(_kinds_sql(NEW_KINDS, ()))
-    # Every kind of both halves is there now (0026 added its three NOT VALID):
-    # the head validates every card against them.
-    execute_script("ALTER TABLE cartable.decisions VALIDATE CONSTRAINT decisions_kind_check;")
     execute_script(ACTIVATE.replace("@REFS@", ", ".join(f"'{r}'" for r in ACTIVATED)))
 
 
 def downgrade() -> None:
     # The six kinds stay in decisions_kind_check: cards of those kinds outlive
     # the tables (0026's downgrade then takes its own three out, NOT VALID; the
-    # re-upgrade validates at this head: the 0009 round trip of test_hiring).
+    # re-upgrade validates at the head, 0028_1: the 0009 round trip of test_hiring).
     # The activated protocols keep their versions.
     execute_script(
         """

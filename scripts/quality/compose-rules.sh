@@ -18,19 +18,22 @@
 # §9.1: the substitute runner sits on hq-subs, the profile browser on
 # hq-browser-web and the owner's sign-in window on hq-web-login, each internal
 # and shared with egress only; the window's relay alone adds hq-web-login-ui
-# (its 127.0.0.1:6080).
+# (its 127.0.0.1:6080). Prompt 13 §2.3: the render courier sits on hq-media
+# (api, OpenBao; internal) only, and the renderer has no network at all.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ensure_env
 
 JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch",
-  "backup-tools","mcp-codecortex-index","substitute-runner","browser-web-login","web-login-relay","tts"]'
+  "backup-tools","mcp-codecortex-index","substitute-runner","browser-web-login","web-login-relay","tts",
+  "media-courier","media-render"]'
 HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch",
   "backup-tools","egress","searxng","browser","provisioner","mcp-time","mcp-codecortex","mcp-codecortex-index",
-  "substitute-runner","browser-web","browser-web-login","web-login-relay","tts"]'
+  "substitute-runner","browser-web","browser-web-login","web-login-relay","tts","media-courier","media-render"]'
 NOT_INTERNAL='["temporal","opa","gateway","web","stt","egress","searxng","browser","provisioner",
-  "mcp-time","mcp-codecortex","substitute-runner","browser-web","browser-web-login","web-login-relay","tts"]'
+  "mcp-time","mcp-codecortex","substitute-runner","browser-web","browser-web-login","web-login-relay","tts",
+  "media-courier","media-render"]'
 # Services whose networks are exactly these.
 ONLY_ON='{"gateway":["hq-agent","hq-egress-api","hq-mcp"],"opa":["hq-agent"],"web":["hq-edge"],"claude-runtime":["hq-llm"],
   "stt":["hq-stt"],"stt-fetch":["hq-fetch"],
@@ -38,7 +41,7 @@ ONLY_ON='{"gateway":["hq-agent","hq-egress-api","hq-mcp"],"opa":["hq-agent"],"we
   "searxng":["hq-egress"],"browser":["hq-browser"],
   "provisioner":["hq-prov","hq-prov-out"],"mcp-time":["hq-mcp"],"mcp-codecortex":["hq-mcp"],
   "substitute-runner":["hq-subs"],"browser-web":["hq-browser-web"],"browser-web-login":["hq-web-login"],
-  "web-login-relay":["hq-web-login","hq-web-login-ui"],"tts":["hq-tts"]}'
+  "web-login-relay":["hq-web-login","hq-web-login-ui"],"tts":["hq-tts"],"media-courier":["hq-media"]}'
 # Allow-list of every restricted network.
 MEMBERS='{
   "hq-core":["temporal","temporal-namespace","temporal-ui","api","worker","postgres","prometheus"],
@@ -56,9 +59,10 @@ MEMBERS='{
   "hq-browser-web":["browser-web","egress"],
   "hq-web-login":["browser-web-login","web-login-relay","egress"],
   "hq-web-login-ui":["web-login-relay"],
-  "hq-tts":["tts","api","openbao"]}'
+  "hq-tts":["tts","api","openbao"],
+  "hq-media":["media-courier","api","openbao"]}'
 INTERNAL_NETS='["hq-agent","hq-edge","hq-stt","hq-egress-api","hq-browser","hq-prov","hq-prov-out","hq-mcp",
-  "hq-subs","hq-browser-web","hq-web-login","hq-tts"]'
+  "hq-subs","hq-browser-web","hq-web-login","hq-tts","hq-media"]'
 # The opt-in profiles' services (cadvisor, stt) follow the same rules.
 mapfile -t OPT_IN < <(opt_in_profiles)
 failed=0
@@ -115,6 +119,32 @@ for profile in "${PROFILES[@]}"; do
       (if ($b.cap_add // []) != ["SYS_CHROOT"] then "\($k): cap_add must be exactly [SYS_CHROOT]" else empty end),
       (if ($b.environment.BROWSER_SANDBOX // "") != "1" then "\($k): BROWSER_SANDBOX is not 1" else empty end)
     ' <<<"$(compose_json "$profile" substitutes-web web-login)")"
+  if [[ -n "$problems" ]]; then
+    printf 'compose-rules: %s: %s\n' "$profile" "$problems" >&2
+    failed=1
+  fi
+done
+# Prompt 13 §2.3: the render worker's sandbox. The renderer has no network
+# at all (not even egress), keeps Chromium's sandbox (the browser's seccomp
+# profile, SYS_CHROOT only, no-new-privileges), and is capped in processes,
+# CPU and memory; the courier is the one with a network (hq-media only).
+for profile in "${PROFILES[@]}"; do
+  media_json="$(compose_json "$profile" media)" || media_json="{}"
+  problems="$(jq -r '.services["media-render"] as $r | .services["media-courier"] as $c
+    | if $r == null or $c == null then "media-render/media-courier: not in profile media" else
+      (if ($r.network_mode // "") != "none" then "media-render: network_mode must be none" else empty end),
+      (if ($r.networks // null) != null then "media-render: must have no network" else empty end),
+      (if (($r.security_opt // []) | index("seccomp=../browser/seccomp_profile.json")) == null
+       then "media-render: not on the pinned seccomp profile" else empty end),
+      (if (($r.security_opt // []) | index("no-new-privileges:true")) == null
+       then "media-render: no-new-privileges is off" else empty end),
+      (if ($r.cap_add // []) != ["SYS_CHROOT"] then "media-render: cap_add must be exactly [SYS_CHROOT]" else empty end),
+      (if ($r.environment.MEDIA_SANDBOX // "") != "1" then "media-render: MEDIA_SANDBOX is not 1" else empty end),
+      (if ($r.deploy.resources.limits.pids // 0) < 1 then "media-render: no pids limit" else empty end),
+      (if ($r.deploy.resources.limits.cpus // null) == null then "media-render: no CPU limit" else empty end),
+      (if ($c.cap_add // []) != [] then "media-courier: no capability may be added" else empty end),
+      (if ([($r.volumes // [])[] | .target] | sort) != ["/jobs"] then "media-render: only the job volume" else empty end)
+      end' <<<"$media_json")"
   if [[ -n "$problems" ]]; then
     printf 'compose-rules: %s: %s\n' "$profile" "$problems" >&2
     failed=1

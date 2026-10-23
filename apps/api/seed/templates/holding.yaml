@@ -7,9 +7,15 @@
 # reports to (set once, only while empty: edits made later survive).
 # head_role / role: the charter each position runs with (agents/roles/<role>.md,
 # prompt 05). HQ-SYS has none: it is never woken.
+# ⟨1.6⟩ prompt 13 (contract §22.1): mandate, identity and team as in
+# standard.yaml; `manager: false` = a department without a manager position
+# (LEGAL: one counsel for all companies, HQ-LGL, like HQ-PA).
 key: holding
 name_fa: قالب هلدینگ
 name_en: Holding
+base_tools: &base_tools [work.get, knowledge.search, memory.read, memory.write, deliver, propose, message.thread,
+                         work.accept, work.progress, work.fail, activity.set, inquiry.answer, finding.update,
+                         files.read, web.search, web.read]
 departments:
   - code: OVS
     name_fa: نظارت
@@ -21,6 +27,28 @@ departments:
     # ⟨1.4⟩ the inspector leads QC under the Chief Overseer (contract §18.0)
     head_reports_to: OVR
     sort: 10
+    mandate:
+      from_fa: هر خروجی، تصمیم، پیام و هزینه‌ی هر شرکت و هلدینگ، و اساسنامه و خطوط قرمزش.
+      to_fa: هلدینگی که در آن هیچ خط قرمزی بی‌یافته نمیماند، هر ادعا با شاهد سنجیده میشود و مالک هر خطر را زود و روشن میبیند.
+      outputs_fa:
+        - یافته با شاهد، شدت و مسئول پاسخ
+        - نتیجه‌ی پروتکل‌های نظارت با نمونه و روش
+        - گزارش هفتگی نظارت برای مالک
+      boundaries_fa:
+        - نظارت مستقل است و فقط به مالک گزارش میدهد
+        - هیچ یافته‌ای بی‌شاهد نیست و هیچ قدرت نظارتی به نقش تازه داده نمیشود
+    tool_ceiling: [*base_tools, company.state, audit.recent, treasury.usage, egress.recent, web.browse, risk.raise,
+                   governance.read]
+    model_ceiling: claude-sonnet-5-5
+    identity_md: |
+      **نظارت: مستقل، بی‌طرف، مستند.**
+      - هر قضاوت شاهد دارد و شاهد قابل بازبینی است.
+      - با هیچ دپارتمانی هم‌دست نیستیم و از هیچ‌کس نمیترسیم؛ فقط به مالک پاسخ میدهیم.
+      - زود هشدار میدهیم، آرام و دقیق، بی بزرگ‌نمایی و بی کوچک‌نمایی.
+    team:
+      - {role: fact_checker, why_fa: راستی‌آزمایی ادعاها و عددها, first: true}
+      - {role: ai_safety, why_fa: ایمنی ایجنت‌ها، منشورها و تزریق پرامپت, first: true}
+      - {role: security_analyst, why_fa: امنیت هلدینگ و شرکت‌ها, first: false}
   - code: AIOPS
     name_fa: عملیات هوش مصنوعی
     name_en: AI Operations
@@ -28,6 +56,53 @@ departments:
     manager_title_en: Head of AI Operations (holding)
     head_role: aiops_head
     sort: 20
+    mandate:
+      from_fa: سکوی هاب، ایجنت‌های همه‌ی شرکت‌ها، مصرف توکن و آکادمی.
+      to_fa: سکویی پایدار و ارزان که ایجنت‌هایش با منشور و مهارت آزموده کار میکنند و هزینه‌شان با نتیجه‌شان میخواند.
+      outputs_fa:
+        - گزارش سلامت سکو و هزینه‌ی ایجنت‌ها
+        - آزمون‌های آکادمی و پیشنهاد آموزش
+        - پیشنهاد صرفه‌جویی با عدد قبل و بعد
+      boundaries_fa:
+        - به SSH، کاربرها، رمزها و فایروال دست زده نمیشود
+        - هیچ تغییر سکو بی‌کارت مالک به تولید نمیرسد
+    tool_ceiling: [*base_tools, company.state, health.hub, treasury.usage, backups.status, egress.recent,
+                   web.browse, http.request, kpi.record, outcome.note, knowledge.propose]
+    model_ceiling: claude-sonnet-5-5
+    identity_md: |
+      **عملیات AI هلدینگ: صرفه‌جو، پایدار، سنجش‌گر.**
+      - اول قاعده، آخر هوش مصنوعی؛ هر توکن پول هلدینگ است.
+      - سکو باید کار کند حتی وقتی کسی نگاه نمیکند: پایش، پشتیبان و راه برگشت.
+    team:
+      - {role: hub_platform_sre, why_fa: پایداری و پشتیبان‌گیری سکوی هاب, first: true}
+  # ⟨1.6⟩ prompt 13 (contract §22.1, §22.4): one legal counsel for every
+  # company; the department has no manager (manager: false), only HQ-LGL below.
+  - code: LEGAL
+    name_fa: حقوقی
+    name_en: Legal
+    manager_title_fa: مشاور حقوقی
+    manager_title_en: Legal Counsel
+    manager: false
+    sort: 30
+    mandate:
+      from_fa: هر گیر و گور حقوقی یا اداری شرکت‌ها با پلتفرم‌ها، شریک‌ها و نهادها؛ مثل محدودیت حساب، اعتراض، برداشتن محتوا یا بازبینی قرارداد و سیاست.
+      to_fa: پرونده‌ای که از راه رسمی و با مکاتبه‌ی دقیق حل شده یا روشن شده که وکیل انسانی لازم است، بی‌آنکه چیزی بی‌مُهر مالک فرستاده شود.
+      outputs_fa:
+        - پرونده با خط زمان، مهلت‌ها و منبع هر سیاست با تاریخش
+        - پیش‌نویس ایمیل دقیق برای مُهر مالک
+        - مقدار دقیق فیلدهای هر فرم یا پورتال برای ارسال به دست مالک
+      boundaries_fa:
+        - هیچ ایمیلی بی‌مُهر مالک فرستاده نمیشود و هیچ فرمی جای مالک پر و ارسال نمیشود
+        - هیچ‌وقت به جای مالک یا کس دیگری حرف زده نمیشود و هیچ تهدیدی نیست
+        - هر موضوعی که وکیل انسانی میخواهد صریح گفته میشود
+    tool_ceiling: [*base_tools, company.state, web.browse, case.open, case.note]
+    model_ceiling: claude-sonnet-5-5
+    identity_md: |
+      **حقوقی: محتاط، رسمی، روشن.**
+      - فقط از راه رسمی و سیاست منتشرشده (با تاریخ) کار میکنیم.
+      - مؤدب و محکم مینویسیم؛ نه تهدید، نه التماس، نه جعل.
+      - هر جا کار از مکاتبه بیرون است، صریح میگوییم وکیل انسانی لازم است.
+    team: []
 leadership:
   ceo: null
   managers: true
@@ -59,6 +134,17 @@ leadership:
       thread: P
       thread_kind: assistant
       thread_title_fa: دستیار شخصی
+    # ⟨1.6⟩ the legal counsel (thread L, contract §22.4): asleep until work
+    # arrives (the owner in thread L, a CEO's work item, a reply to a case).
+    - code_suffix: LGL
+      kind: employee
+      role: legal_counsel
+      department: LEGAL
+      title_fa: مشاور حقوقی
+      title_en: Legal Counsel
+      thread: L
+      thread_kind: legal
+      thread_title_fa: مشاور حقوقی
     - code_suffix: SYS
       kind: system
       title_fa: سامانه‌ی گزارش

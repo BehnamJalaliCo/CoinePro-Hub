@@ -45,13 +45,16 @@ from hq_gateway import (
     governance,  # noqa: F401 - prompt 11 §4-§10: kpi, okr, outcome, risk, calendar, authority
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
     knowledge,  # noqa: F401 - prompt 11: knowledge.propose/review/approve
+    legal,  # noqa: F401 - prompt 13: case.open/note, email.draft, mail.read, media.voice
     management,  # noqa: F401 - prompt 12 part A: memo.write, substitute.call
+    media,  # noqa: F401 - prompt 13: media.item, media.render, media.review, series.propose
     meetings,  # noqa: F401 - prompt 11: meeting.statement/challenge/whisper/item/minutes
     mgmt,  # noqa: F401 - prompt 12 part B: claim.verdict
     oversight,  # noqa: F401 - registers the overseer's tools (prompt 08)
     owner_tools,  # noqa: F401 - prompt 12 §2: ask.answer
     people,  # noqa: F401 - registers stars, lessons, stories, hire.decide
     revenue,  # noqa: F401 - prompt 10: revenue.read, funnel.read, rescue, feedback, referral
+    roles,  # noqa: F401 - prompt 13 §1.1: role.draft, role.decide
     support,  # noqa: F401 - kb.*, support.draft/handoff/mystery (prompt 10)
     web,  # registers the internet tools (web.*, http.request)
 )
@@ -224,7 +227,15 @@ class Gateway:
         if catalog.cls in ("A3", "A4"):
             code = "a4_forbidden_for_ai" if catalog.cls == "A4" else "a3_requires_decision"
             return Outcome("denied", catalog.cls, code, None, None, {})
-        if name not in self.lib.allowed(gate.get("role")):
+        # ⟨1.6⟩ a role written on demand: the api sends its tools (contract
+        # §22.5); a file charter: agents/roles. Never both, never more.
+        drafted = gate.get("tools")
+        allowed = (
+            [str(t) for t in drafted]
+            if isinstance(drafted, list) and self.lib.get(gate.get("role")) is None
+            else self.lib.allowed(gate.get("role"))
+        )
+        if name not in allowed:
             return Outcome("denied", catalog.cls, "tool_not_in_charter", None, None, {})
         # The overseer's holds (prompt 08 §2): a held employee or work item only
         # reads; a held tool does not run at all. Only the owner releases.

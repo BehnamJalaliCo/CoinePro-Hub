@@ -391,13 +391,19 @@ async def test_the_new_decision_kinds_and_the_shadow_suites(su: Any) -> None:
     for kind in ("meeting_resolution", "charter_amendment", "knowledge_entry", "okr",
                  "risk_acceptance", "authority_change"):  # fmt: skip
         assert f"'{kind}'" in check, kind
+    # ⟨1.6⟩ prompt 13's migration 0028 adds its kinds to the same CHECK NOT VALID
+    # (the run sheet's rule for a rewritten kind CHECK); the head (0028_1)
+    # validates it, and every row fits it.
     assert await su.fetchval(
         """SELECT convalidated FROM pg_constraint
            WHERE conname = 'decisions_kind_check' AND conrelid = 'cartable.decisions'::regclass"""
     )
     assert not await su.fetchval(
-        """SELECT count(*) FROM cartable.decisions WHERE position(quote_literal(kind) IN $1) = 0""",
-        check,
+        """SELECT count(*) FROM cartable.decisions d WHERE NOT (d.kind = ANY (
+               SELECT m[1] FROM pg_constraint c,
+                      regexp_matches(pg_get_constraintdef(c.oid), '''([a-z0-9_]+)''', 'g') AS m
+               WHERE c.conname = 'decisions_kind_check'
+                 AND c.conrelid = 'cartable.decisions'::regclass))"""
     )
     suites = await su.fetchval(
         "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'eval_suites_ref_check'"

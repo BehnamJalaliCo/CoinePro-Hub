@@ -64,6 +64,14 @@ def voice(settings: Any) -> dict[str, str]:
     return {"engine": "piper", "version": PIPER_VERSION, "voice": name, "license": VOICES[name]}
 
 
+async def _registry_voice(tx: Tx, settings: Any) -> dict[str, str]:
+    """⟨1.6⟩ one registry for every voice (prompt 13 §4.1): the active voice of
+    media.voices when the TTS image runs it, else the configured default."""
+    from hq_api.domain import voices
+
+    return await voices.briefing_voice(tx, settings)
+
+
 async def owner_blocks(tx: Tx) -> tuple[dict[str, Any], dict[str, Any]]:
     row = (
         await tx.first("SELECT audio_briefings, ceo_weekly_letter FROM owner.settings WHERE id = 1")
@@ -152,7 +160,7 @@ async def create(
         text=text_md,
         script=script,
         state="pending" if tts else "off",
-        voice=json.dumps(voice(settings)) if tts else None,
+        voice=json.dumps(await _registry_voice(tx, settings)) if tts else None,
         uns=unsourced,
     )
     await events.emit(

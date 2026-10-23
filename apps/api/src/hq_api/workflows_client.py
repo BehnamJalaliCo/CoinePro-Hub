@@ -88,6 +88,23 @@ async def support(hub: Any, workflow: str, arg: str) -> None:
         log.warning("could not start a support workflow", extra={"workflow": workflow})
 
 
+async def media(hub: Any, workflow: str, arg: str) -> None:
+    """⟨1.6⟩ MediaPublish(item ref) / MediaUnpublish(item ref), best effort
+    after commit: the media sweep catches up with anything left."""
+    client = _client(hub)
+    if client is None:
+        return
+    try:
+        await client.start_workflow(
+            workflow,
+            arg,
+            id=f"{workflow.lower()}-{arg}-{uuid.uuid4().hex[:8]}",
+            task_queue=hub.settings.task_queue,
+        )
+    except Exception:  # noqa: BLE001 - the sweep catches up
+        log.warning("could not start a media workflow", extra={"workflow": workflow})
+
+
 async def route_order(
     hub: Any, req: dict[str, Any], timeout_s: float = 60.0
 ) -> dict[str, Any] | None:

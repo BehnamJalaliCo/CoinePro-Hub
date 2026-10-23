@@ -4,6 +4,11 @@ handle /intake/* {
 	respond 404
 }
 
+# The media studio's signed file URL (prompt 13 §2.3) needs HTTPS too.
+handle /public/* {
+	respond 404
+}
+
 handle /api/* {
 	header Content-Type application/json
 	respond `{"status":404,"code":"not_found","message_fa":"پیدا نشد."}` 404

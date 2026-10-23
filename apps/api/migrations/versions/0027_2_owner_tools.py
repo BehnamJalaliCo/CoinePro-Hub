@@ -28,10 +28,10 @@ blocks weekly_review and digital_ceo (§21.12). PR-121 (the digital CEO's
 predictions sealed before the decision) becomes active (a new version, its
 audit row) where it is still the seeded, paused version 1.
 
-No decision kind is added (§21.12). The kind CHECK holds every kind of the
-earlier migrations (0026 and 0026_1 re-add theirs NOT VALID; 0026_1
-validates); this head validates it once more, so a round trip (test_hiring's
-downgrade to 0009) ends with every card checked.
+No decision kind is added (§21.12), and the kind CHECK is not validated here:
+the head (0028_1, prompt 13) validates every kind of 11, 12 and 13 at once, so
+a round trip (test_hiring's downgrade to 0009) keeps a later revision's cards
+and ends with every card checked.
 
 Revision ID: 0027_2
 Revises: 0027_1
@@ -345,9 +345,7 @@ def upgrade() -> None:
     grants.append(f"GRANT USAGE ON SEQUENCE {', '.join(SEQUENCES)} TO {APP_ROLES};")
     execute_script("\n".join(grants))
     execute_script(ACTIVATE_PR121)
-    # Every kind of the earlier migrations is in the CHECK (none is new here):
-    # the head validates every card against it.
-    execute_script("ALTER TABLE cartable.decisions VALIDATE CONSTRAINT decisions_kind_check;")
+    # No VALIDATE here: the head (0028_1) validates the kind CHECK.
 
 
 def downgrade() -> None:

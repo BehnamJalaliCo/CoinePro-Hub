@@ -12,6 +12,7 @@ import re
 import resource
 import subprocess
 import sys
+import tempfile
 import time
 import wave
 from dataclasses import dataclass
@@ -22,7 +23,7 @@ OPUS_KBPS = "32"
 OPUSENC = "/usr/bin/opusenc"  # opus-tools (Debian)
 PIPER_TIMEOUT_S = 900
 ENCODE_TIMEOUT_S = 300
-CLAUSE_WORDS = 14  # a line Piper reads at once: memory grows with its length
+CLAUSE_WORDS = 8  # a line Piper reads at once: memory grows with its length (prompt 13 §4: 14 -> 8)
 _BREAK = re.compile(r"(?<=[.!?؟؛،,:])\s+")
 CGROUP_PEAK = Path("/sys/fs/cgroup/memory.peak")
 
@@ -53,6 +54,38 @@ def peak_child_rss_mb() -> float:
     return resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss / 1024
 
 
+def run_measured(
+    argv: list[str], *, stdin: bytes, env: dict[str, str], cwd: Path, timeout: float
+) -> tuple[int, bytes, float]:
+    """One program with its text on stdin -> (exit code, stderr tail, its OWN
+    peak resident set in MiB). ⟨prompt 13 §4⟩ wait4 reports this child alone,
+    so every bake-off sample has its own measured peak (RUSAGE_CHILDREN only
+    knows the largest child so far)."""
+    with tempfile.TemporaryFile() as err:
+        proc = subprocess.Popen(  # noqa: S603 - fixed argv, the text on stdin
+            argv, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=err, env=env, cwd=cwd
+        )
+        assert proc.stdin is not None
+        try:
+            proc.stdin.write(stdin)
+        finally:
+            proc.stdin.close()
+        deadline = time.monotonic() + timeout
+        while True:
+            pid, status, usage = os.wait4(proc.pid, os.WNOHANG)
+            if pid == proc.pid:
+                break
+            if time.monotonic() > deadline:
+                proc.kill()
+                _, status, usage = os.wait4(proc.pid, 0)
+                proc.returncode = -9
+                raise EngineError("timed out")
+            time.sleep(0.02)
+        proc.returncode = os.waitstatus_to_exitcode(status)
+        err.seek(0)
+        return proc.returncode, err.read()[-2000:], usage.ru_maxrss / 1024
+
+
 def piper_lines(script: str) -> str:
     """One short clause per line (sentence ends and commas; a long clause is
     cut at a word boundary): Piper reads each line on its own, so its memory
@@ -79,6 +112,15 @@ def wav_seconds(path: Path) -> float:
         return w.getnframes() / float(w.getframerate() or 1)
 
 
+def installed(voices_dir: Path) -> list[str]:
+    """The voices of the image's /voices (a model and its config)."""
+    return sorted(
+        p.name.removesuffix(".onnx")
+        for p in voices_dir.glob("*.onnx")
+        if Path(f"{p}.json").is_file()
+    )
+
+
 class Piper:
     """The real engine: one voice of the image's /voices."""
 
@@ -100,17 +142,15 @@ class Piper:
             "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
         }
         started = time.monotonic()
-        piper = subprocess.run(  # noqa: S603 - fixed argv, the text on stdin
+        code, stderr, peak = run_measured(
             [sys.executable, "-m", "piper", "-m", str(self.model), "-f", str(wav)],
-            input=piper_lines(script).encode(),
-            capture_output=True,
+            stdin=piper_lines(script).encode(),
             env=env,
             cwd=work,
             timeout=PIPER_TIMEOUT_S,
-            check=False,
         )
-        if piper.returncode != 0 or not wav.is_file():
-            raise EngineError("piper failed: " + piper.stderr.decode(errors="replace")[-300:])
+        if code != 0 or not wav.is_file():
+            raise EngineError("piper failed: " + stderr.decode(errors="replace")[-300:])
         enc = subprocess.run(  # noqa: S603 - fixed argv
             [OPUSENC, "--quiet", "--speech", "--bitrate", OPUS_KBPS, str(wav), str(ogg)],
             capture_output=True,
@@ -126,7 +166,7 @@ class Piper:
             ogg=ogg.read_bytes(),
             duration_s=round(wav_seconds(wav), 3),
             synth_s=round(synth, 3),
-            peak_rss_mb=round(peak_child_rss_mb(), 1),
+            peak_rss_mb=round(peak, 1),
         )
 
 

@@ -59,6 +59,14 @@ ops := {
 	"tts.claim", "tts.done", "claim.verdict",
 	# prompt 12 §2, §13 (owner_tools.rego): the librarian's answer; the digital CEO's own rows
 	"ask.answer", "dceo.predict", "dceo.principles",
+	# prompt 13, the media half (media.rego): the media studio and the render
+	# one-shot's queue; roles written on demand (roles.rego)
+	"media.item", "media.render", "media.review", "series.propose", "media.jobs",
+	"role.draft", "role.decide",
+	# prompt 13, the legal and voice half (legal_voice.rego): the counsel's
+	# tools, a media item's narration, the TTS one-shot's voice jobs
+	"legal.case_open", "legal.case_note", "legal.email_draft", "legal.mail_read",
+	"media.voice", "voices.claim", "voices.done",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and

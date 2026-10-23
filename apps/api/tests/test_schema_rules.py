@@ -54,6 +54,10 @@ SCHEMAS = (
     "quality",
     # prompt 12 §13: the digital CEO (its predictions and principles)
     "dceo",
+    # prompt 13: the counsel's cases (legal and voice); the media studio and
+    # the voice registry (people.role_drafts is in people)
+    "legal",
+    "media",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.

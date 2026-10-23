@@ -145,7 +145,7 @@ class Story(BaseModel):
     id: UUID
     ref: str
     company: str
-    kind: Literal["hire", "deliverable", "stars", "milestone", "post"]
+    kind: Literal["hire", "deliverable", "stars", "milestone", "post", "role"]
     author: Actor | None
     title_fa: str
     body_fa: str
@@ -713,7 +713,8 @@ async def agent_hire_decide(
         }[body.verdict]  # type: ignore[assignment]
         if verdict == "approved":
             company = await ctx.hub.companies.by_id(d["company_id"])
-            D.check_hire_role(d["payload"], company.kind, ctx.hub.charters, required=True)
+            lib = await D.company_charters(tx, ctx.hub.charters, d["company_id"])
+            D.check_hire_role(d["payload"], company.kind, lib, required=True)
         await ctx.ensure_unlocked(tx, d["company_id"])
         out = await D.decide(
             tx, ctx.who, d, verdict, note=body.note, charters=ctx.hub.charters, hub=ctx.hub

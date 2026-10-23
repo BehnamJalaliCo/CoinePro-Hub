@@ -47,6 +47,9 @@ uv --prerelease=explicit infra/mcp/codecortex/server.in -o infra/mcp/codecortex/
 # tts (prompt 12 §4): Piper and onnxruntime are not in the test image either (the
 # tests use a fake engine); its shared packages follow the test lock.
 uv $S/tts/requirements.in -c $S/requirements-test.lock -o $S/tts/requirements.lock
+# media-render (prompt 13 §2.3): Playwright (matching its image's Chromium) is not in
+# the test image (the tests use no browser); its shared packages follow the test lock.
+uv $S/media-render/requirements.in -c $S/requirements-test.lock -o $S/media-render/requirements.lock
 uv apps/api/requirements.in apps/api/requirements-dev.in -c $S/requirements-test.lock -o apps/api/requirements-test.lock
 uv apps/api/requirements.in -c apps/api/requirements-test.lock -o apps/api/requirements.lock
-echo "lock: services (test, llm-router, claude-runtime, gateway, egress, provisioner, browser, stt, tts) and apps/api (test, runtime)"
+echo "lock: services (test, llm-router, claude-runtime, gateway, egress, provisioner, browser, stt, tts, media-render) and apps/api (test, runtime)"

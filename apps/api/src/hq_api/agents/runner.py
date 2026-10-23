@@ -48,9 +48,11 @@ from hq_api.db import Tx
 from hq_api.domain import academy as AC
 from hq_api.domain import charter as CH
 from hq_api.domain import decisions as D
+from hq_api.domain import departments as DM
 from hq_api.domain import files as F
 from hq_api.domain import meeting_flow as MF
 from hq_api.domain import oversight as O
+from hq_api.domain import role_drafts as RD
 from hq_api.domain import skills as SK
 from hq_api.errors import sqlstate_of
 from hq_api.hub import Hub
@@ -133,8 +135,19 @@ RUN_TASK_CLASSES = frozenset(
         "hr_eval",
         "dceo_predict",
         "dceo_principles",
+        # ⟨1.6⟩ the media studio's steps (prompt 13 §2)
+        "media_script",
+        "media_direction",
+        "media_motion",
+        "media_review",
+        "ui_design",
+        # ⟨1.6⟩ prompt 13 §3: a case's work, a reply's reading (legal.wake)
+        "legal_case",
+        "legal_email",
     }
 )
+# ⟨1.6⟩ a role's own class when nothing more specific names one.
+TASK_CLASS_OF_ROLE = {"legal_counsel": "legal_case"}
 HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
 MIN_OUTPUT_TOKENS = 256  # a step needs at least this much room to answer at all
 LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked for context
@@ -173,6 +186,9 @@ class RunCtx:
     # ⟨1.5⟩ what the code that made the run's work tells it (work.run_meta):
     # its router task class and the owner-zone flag (prompt 12 §15), a memo's mode.
     run_meta: dict[str, Any] = field(default_factory=dict)
+    # ⟨1.6⟩ the charters of the run's company: the files plus its role drafts
+    # (contract §22.5); None = the files only
+    lib: Any = None
 
     @property
     def token_cap(self) -> int:
@@ -217,6 +233,9 @@ class Runner:
             if run["state"] in FINAL:
                 return Claim("final", run["state"], run["error_code"])
             emp = await self._employee(tx, run["employee_id"])
+            if lib is not None and lib.get(emp["role"]) is None:
+                # ⟨1.6⟩ a role written on demand runs from its draft (§22.5)
+                lib = await RD.overlay(tx, lib, emp["company_id"], running=True)
             charter = lib.get(emp["role"]) if lib is not None else None
             refuse = None
             # ⟨1.5⟩ the one system role that runs: the secretary's meeting summary
@@ -416,6 +435,8 @@ class Runner:
             if run["state"] != "running":
                 return {"state": run["state"], "skipped": True}
             emp = await self._employee(tx, run["employee_id"])
+            if lib is not None and lib.get(run["charter_role"]) is None:
+                lib = await RD.overlay(tx, lib, emp["company_id"], running=True)
         charter = lib.get(run["charter_role"]) if lib is not None else None
         if charter is None:
             return await self.finish(run_id, "failed", "no_charter")
@@ -426,7 +447,7 @@ class Runner:
             str(run["id"]),
             ttl_s=max(60, int((expires - datetime.now(UTC)).total_seconds())),
         )
-        rc = RunCtx(run=run, emp=emp, charter=charter, token=token)
+        rc = RunCtx(run=run, emp=emp, charter=charter, token=token, lib=lib)
         if run["work_id"] is not None:
             async with await self._tx() as tx:
                 meta = await tx.scalar(
@@ -446,7 +467,8 @@ class Runner:
 
     async def _steps(self, rc: RunCtx, deadline: float) -> tuple[str, str | None, str | None]:
         run, charter = rc.run, rc.charter
-        lib = self.hub.charters
+        # ⟨1.6⟩ the files plus the company's role drafts (contract §22.5)
+        lib = rc.lib or self.hub.charters
         async with await self._tx() as tx:
             # ⟨1.5⟩ the sealed charter and the company's addendum (prompt 11 §2.5)
             charter_text, rc.charter_docs = await CH.prompt_section(
@@ -463,7 +485,7 @@ class Runner:
             )
             rc.charter = charter
         system = P.system_prompt(
-            lib,
+            lib,  # _common first, then the charter (file or draft)
             charter,
             await self._values(rc.emp),
             max_actions=self.s.agent_actions_per_step,
@@ -655,6 +677,8 @@ class Runner:
             return named
         if rc.charter.kind in TASK_CLASS_OF_KIND:
             return TASK_CLASS_OF_KIND[rc.charter.kind]
+        if rc.charter.role in TASK_CLASS_OF_ROLE:
+            return TASK_CLASS_OF_ROLE[rc.charter.role]
         return ALERT_TASK if rc.run["trigger"] == "alert" else "general"
 
     @staticmethod
@@ -858,13 +882,24 @@ class Runner:
             sec = SK.prompt_section(active, addenda)
             rc.skills = sec.skills
             rc.addenda = [str(a["ref"]) for a in sec.addenda]  # teaching refs (llm meta)
+            # ⟨1.6⟩ the department's identity comes first in this section: after
+            # the charter, before the skills (contract §22.1); its version is kept.
+            identity, identity_doc = await DM.identity(
+                tx,
+                await tx.scalar(
+                    "SELECT department_id FROM core.employees WHERE id = :e",
+                    e=rc.run["employee_id"],
+                ),
+            )
             await tx.exec(
-                "UPDATE agents.runs SET skills = :s, addenda = :a WHERE id = :id",
+                """UPDATE agents.runs SET skills = :s, addenda = :a, identity_doc = :doc
+                   WHERE id = :id""",
                 s=rc.skills,
                 a=[a["id"] for a in sec.addenda],
+                doc=identity_doc,
                 id=rc.run["id"],
             )
-        return sec.text
+        return "\n\n".join(x for x in (identity, sec.text) if x)
 
     async def _values(self, emp: dict[str, Any]) -> dict[str, str]:
         holding = await self.hub.companies.holding()
@@ -892,7 +927,10 @@ class Runner:
         """The companies a run may read: its charter's scope (prompt 5.1 §1.1),
         every company for a holding charter in the holding, else its own."""
         holding = await self.hub.companies.holding()
-        if rc.charter.scope == "holding" and rc.emp["company_id"] == holding.id:
+        # ⟨1.6⟩ a role draft reads its own company only, whatever its scope says
+        # (as its principal does: security/deps.py reads the files only)
+        filed = self.hub.charters is not None and rc.charter.role in self.hub.charters.roles
+        if rc.charter.scope == "holding" and filed and rc.emp["company_id"] == holding.id:
             return await self.hub.companies.ids()
         return [rc.emp["company_id"]]
 

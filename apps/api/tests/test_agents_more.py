@@ -195,12 +195,15 @@ def test_propose_section_is_generated_from_the_api_models(hub: Any) -> None:
         lib, lib.roles["cto"], D.PAYLOADS, {"company_code": "TY", "holding_code": "HQ"}
     )
     assert "kind `hire`: payload {company: string, department: string, role?: string" in co
-    assert "`role` must be one of: referral_rescue (department SALES)" in co
+    # ⟨1.6⟩ prompt 13: the media charters sort first (motion_designer)
+    assert "`role` must be one of: motion_designer (department MEDIA)" in co
     assert "`company` is TY" in co
     # Every company-scope employee charter, prompt 10's four included (sorted by role).
     for hireable in (
         "revenue_analyst (department FIN)", "sre (department TECH)",
         "support_agent (department SALES)", "support_lead (department SALES)",
+        "referral_rescue (department SALES)", "scriptwriter (department MEDIA)",
+        "voice_producer (department MEDIA)", "ui_designer (department MEDIA)",
     ):  # fmt: skip
         assert hireable in co, hireable
     assert "work_id: uuid" in co and "effort: low|medium|high|xhigh|max" in co

@@ -51,7 +51,11 @@
 | `make chatgpt-login`، `make gemini-login` | **فقط مالک، در ترمینال خودش:** ورود CLI بازیکن ذخیره (Codex با کد دستگاه، Gemini با کد تأیید)؛ همین از اپ هم هست (§۳۰.۴) |
 | `make chatgpt-web-login`، `make gemini-web-login`، `make deepseek-web-login` | **فقط مالک، با تونل SSH خودش:** ورود یک‌باره در پروفایل مرورگر هاب؛ noVNC فقط روی `127.0.0.1:6080`، حداکثر ۱۵ دقیقه (§۳۰.۴) |
 | `make tts-on`، `make tts-off`، `make tts-bench` | صدای فارسی گزارش‌ها (پرامپت ۱۲ §۴): روشن و خاموش کردن profile اختیاری `tts` و timer آن (بیرون از بودجه‌ی حافظه رد میشود)، و اندازه‌گیری RTF و RAM روی متن ثابت (§۳۰.۱۱، حافظه‌ی همه‌ی profileها در §۳۰.۶) |
+| `make tts-bakeoff [OUT=…]` | bake-off صدا (پرامپت ۱۳ §۴): هر صدای image روی متن‌های ثابت، RTF و peak هر ساخت، Ogg در `OUT`؛ بی‌شبکه (§۳۱.۱۳) |
+| `make account-secret KEY=mail` | **فقط مالک:** رمز صندوق ایمیل مشاور حقوقی (پرامپت ۱۳ §۳؛ §۳۱.۱۲) |
 | `make mcp-build`، `make mcp-test`، `make mcp-index` | MCP روی کانتینر (پرامپت ۱۲ §۱۴): ساخت تکرارپذیر imageها با digest فهرست مجاز، آزمون روی شبکه‌ی دورانداختنی، ایندکس CodeCortex (§۳۰.۵) |
+| `make media-on`، `make media-off`، `make media-bench` | render worker استودیوی رسانه (پرامپت ۱۳ §۲.۳): روشن و خاموش کردن profile اختیاری `media` و timer آن (بیرون از بودجه‌ی حافظه رد میشود)، و اندازه‌گیری یک ریلز ۳۰ ثانیه‌ای، یک عکس Lottie و یک صفحه‌ی طراحی در همان سندباکس بی‌شبکه (§۳۱.۵) |
+| `make account-secret KEY=telegram-<co>`، `KEY=instagram-<co>` | **فقط مالک، در ترمینال خودش:** توکن ربات کانال تلگرام و توکن حساب business اینستاگرام هر شرکت برای انتشار رسمی (§۳۱.۶) |
 
 ## ۲. بالا آوردن و پایین آوردن
 
@@ -1577,7 +1581,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **محرک OKR:** از `governance.key_results` و `governance.objectives` پرامپت ۱۱ میخواند. پیشرفت مثل خود پرامپت ۱۱ است: (current − start) ÷ (target − start)، بین ۰ و ۱. KR وصل به KPI مقدار `last_value` همان KPI را میگیرد. روی جدول‌های واقعی پرامپت ۱۱ با `gov_okr.progress` و فصل شمسی `gov_common.quarter_bounds` خود آن کار میکند.
 
 ### ۳۰.۸ «از هاب بپرس» (پرامپت ۱۲ §۲، قرارداد §۲۱.۲)
-- **migration ‏`0027_2`** (`0027_2_owner_tools.py`، بعد از `0027_1`): جدول‌های `knowledge.corpus_sources`، `corpus_files`، `corpus_chunks` و `knowledge.asks` (`AK-0001`)، `owner.reviews` (۳۰.۹)، schema تازه‌ی `dceo` (۳۰.۱۰)، بلوک‌های `weekly_review` و `digital_ceo` در `owner.settings`، و فعال شدن `PR-121`. همه با `company_id` و RLS **FORCE**؛ ردیف corpus ریپوی یک workspace مال شرکت همان workspace است، و پیش‌بینی مال شرکت همان کارت. هیچ نوع کارت تازه‌ای نیست؛ CHECK نوع کارت در head دوباره validate میشود.
+- **migration ‏`0027_2`** (`0027_2_owner_tools.py`، بعد از `0027_1`): جدول‌های `knowledge.corpus_sources`، `corpus_files`، `corpus_chunks` و `knowledge.asks` (`AK-0001`)، `owner.reviews` (۳۰.۹)، schema تازه‌ی `dceo` (۳۰.۱۰)، بلوک‌های `weekly_review` و `digital_ceo` در `owner.settings`، و فعال شدن `PR-121`. همه با `company_id` و RLS **FORCE**؛ ردیف corpus ریپوی یک workspace مال شرکت همان workspace است، و پیش‌بینی مال شرکت همان کارت. هیچ نوع کارت تازه‌ای نیست؛ CHECK نوع کارت اینجا validate نمیشود؛ head (`0028_1`، پرامپت ۱۳) همه‌ی نوع‌های ۱۱، ۱۲ و ۱۳ را با هم validate میکند (۳۱).
 - **منبع دانش (corpus)، بدون مدل:**
   - **ریپوی خود هاب:** پوشه‌ی `.git` آن فقط‌خواندنی در worker (`../../.git:/hub-repo.git:ro`، متغیر `HQ_HUB_REPO`). فقط فایل‌های commit‌شده‌ی `HEAD` خوانده میشوند، نه فایل‌های ignore‌شده‌ی working tree (مثل `infra/compose/.env`). `docs/`، `contracts/`، `agents/` (و RUNBOOK) و README/CLAUDE.md ریشه نوع `doc`‌اند، بقیه `code`.
   - **ریپوی هر workspace کارگاه:** `fetch --depth=1` شاخه‌ی پیش‌فرض در volume ‏`hq-git` (`/var/lib/hq-git/corpus/<WS>.git`)، با همان توکن workspace که `hq/<ref>` را push میکند (`hq-api/workshop/github/<WS>`؛ هیچ توکن تازه‌ای نیست). ریپویی که هاب نمیخواند ← `not_indexed` و هر جواب همین را میگوید.
@@ -1643,7 +1647,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - peak کانتینر (cgroup) ‏239 تا 241 مگ
   - Ogg حدود ۲۰۵ کیلوبایت
   - `MEM_TTS=320m` در هر دو profile
-  - راز حافظه: Piper هر خط را جدا میخواند. پس متن به جمله‌ها و بندهای ≤ ۱۴ کلمه شکسته میشود (`piper_lines`) و `MALLOC_ARENA_MAX=1`. بدون این دو، peak به ۳۴۰ تا ۳۸۴ مگ میرسید.
+  - راز حافظه: Piper هر خط را جدا میخواند. پس متن به جمله‌ها و بندهای ≤ ۸ کلمه شکسته میشود (`piper_lines`؛ پرامپت ۱۳ از ۱۴ به ۸، ۳۱.۱۳) و `MALLOC_ARENA_MAX=1`. بدون این دو، peak به ۳۴۰ تا ۳۸۴ مگ میرسید.
 - **gate حافظه:**
   - full+tts: ‏11216 از 12288 مگ (جا میشود)
   - lean+tts: ‏6192 از 6196
@@ -1767,3 +1771,308 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - `reliability`: ≥ ۲۵٪ شکست
   - `loops`: ≥ ۲ حلقه
 - ادعاهای رد شده در بسته‌ی HR (§۶) هم میآیند. فهرست: `GET /claims?company&employee&verdict&cursor`.
+
+## ۳۱. استودیوی رسانه و مشاور حقوقی (پرامپت ۱۳؛ قرارداد §۲۲)
+بخش رسانه (§۱، §۱.۱، §۲، §۵ و §۶ پرامپت) در ۳۱.۱ تا ۳۱.۹. بخش حقوقی و صدا (§۳ و §۴) در ۳۱.۱۱ به بعد (کار شاخه‌ی r13b).
+- **migration ‏`0028`** (`0028_media_studio.py`، بعد از `0027_2` پرامپت ۱۲):
+  - ستون‌های `mandate` و `identity_md` روی `core.departments` و `identity_doc` روی `agents.runs`.
+  - schema تازه‌ی `media`: ‏`series`، `items`، `compositions` (append-only)، `render_jobs`، `publish_log` (append-only).
+  - جدول `people.role_drafts`.
+  - نوع استوری `role`.
+  - task classهای `media_script`، `media_direction`، `media_motion`، `media_review` و `ui_design` (همین‌ها در seed روتر).
+  - همه‌ی جدول‌ها `company_id` و RLS **FORCE** دارند و حذف نمیشوند.
+  - داده: دپارتمان `MEDIA` (با مدیر خوابش و دو رشته) برای هر شرکت عملیاتی؛ `LEGAL` و `HQ-LGL` (خواب، بی مدیر) برای هلدینگ. **هیچ کارمندی ساخته نمیشود.** رشته‌ی `L` و نوع رشته‌ی `legal` مال ۳۱.۱۱ است (رشته‌ی `L` را seed از `holding.yaml` میسازد).
+  - نوع‌های کارت `media_series`، `media_publish` و `role_new` از روی نوع‌هایی که CHECK الان دارد، `NOT VALID` اضافه میشوند. `email_send` مال `0028_1` است.
+  - **زنجیره (روی پرامپت ۱۲ نهایی):** `0025` ← `0026` ← `0026_1` ← `0027` ← `0027_1` ← `0027_2` ← `0028` ← `0028_1` (حقوقی و صدا، آخرین). `0028_1` هر دو CHECK ‏`decisions_kind_check` و `threads_kind_check` را با همه‌ی نوع‌های ۱۱، ۱۲ و ۱۳ validate میکند. هر بازنویسی پیش از آن (۰۰۱۸، ۰۰۲۳، ۰۰۲۵، ۰۰۲۶، ۰۰۲۶_۱، ۰۰۲۸) `NOT VALID` است و `0027_2` چیزی validate نمیکند، تا اجرای پایین و بالای migrationها (test_hiring) ردیف‌های بعدی را نگه دارد.
+- **دروازه‌ی راه‌اندازی:** تا کلید توقف هلدینگ روشن است، هیچ چیزی از این بخش مدل یا سرویس بیرونی صدا نمیزند:
+  - sweep رسانه (`hq-media-sweep`، هر ۵ دقیقه) هیچ کاری نمیکند (`skipped: holding_locked`): هیچ آیتمی از برنامه‌ها ساخته نمیشود، هیچ انتشاری نیست و بازسنجی هم نیست.
+  - `POST /internal/v1/media/render/claim` و `POST /internal/v1/voices/jobs/claim` (صف صدای ۳۱.۱۳) جواب `204` میدهند. کار شرکتی که قفل است هم منتظر میماند.
+  - انتشار بعد از مُهر کارت هم صبر میکند (اثر کارت تا قفل هست اجرا نمیشود).
+  - اجرای ایجنت‌ها مثل همیشه رد میشود (`locked`). کار هر گام فقط رکورد است.
+  - برداشتن پستی که قبلاً منتشر شده کار خود مالک است و با مُهر خودش اجرا میشود (فقط برمیدارد).
+- **پیش‌فرض‌های §۰.۹ تا جواب مالک:**
+  - مدل موشن‌گرافی Opus 5.5 (منشور `motion_designer`).
+  - صدا: ParsVoice-XTTS (۳۱.۱۱)؛ تا نصبش Piper `fa_IR`.
+  - بی GPU و بی کتابخانه‌ی موسیقی: `music` فقط `none`.
+  - سقف روزانه‌ی هر برنامه: ریلز ۲، استوری ۳، پست و کاروسل ۲.
+  - صندوق ایمیل: ندارد (۳۱.۱۱).
+
+### ۳۱.۱ مأموریت، شخصیت و تیم شروع هر دپارتمان (§۱، قرارداد §۲۲.۱)
+- **از قالب:** `apps/api/seed/templates/standard.yaml` و `holding.yaml` برای هر دپارتمان این‌ها را دارند:
+  - `mandate`: ‏`from_fa`، `to_fa`، `outputs_fa`، `boundaries_fa`، `tool_ceiling`، `model_ceiling`.
+  - `identity_md`.
+  - `team`.
+  - seed فقط جای خالی را پر میکند؛ ویرایش مالک میماند.
+- **سقف ابزار:** هیچ‌وقت `hire.decide`، `role.decide`، `message.owner`، قدرت نظارت، ابزار A3/A4 یا ابزار ناشناخته را نمیپذیرد (۴۲۲).
+  - MEDIA: سقف مدل Opus، ابزارهای `media.item`، `media.render`، `media.voice`. **`media.review` فقط مال مدیر رسانه است** و در سقف نیست.
+  - بقیه‌ی دپارتمان‌ها: Sonnet.
+- **تیم:** فقط نقش‌هایی که منشورشان در `agents/roles/` هست و در همان دپارتمان‌اند. نقش staged روزی که فعال شود، خودش در فهرست میآید.
+- **API:**
+  - `GET /companies/{code}/departments`: هر دپارتمان `mandate`، `identity_md` و `team` دارد.
+  - `GET /templates`: `blueprint` هر قالب.
+  - `company.state`: مأموریت و تیم هر دپارتمان، و شخصیت دپارتمان خود صداکننده.
+  - ویرایش: `PUT /companies/{code}/departments/{dept}/mandate` با 🔏 `department.mandate` روی SHA-256 بدنه و `If-Match`.
+- **runtime:** `identity_md` بعد از منشور و پیش از مهارت‌ها در system prompt مدیر و هر کارمند همان دپارتمان میآید. نسخه‌اش روی اجرا در `agents.runs.identity_doc` (مثلاً `TY-MEDIA@4`) ثبت میشود. CEO و نقش‌های بی دپارتمان هیچ شخصیتی نمیخوانند.
+
+### ۳۱.۲ نقش‌هایی که به‌موقع نوشته میشوند (§۱.۱، قرارداد §۲۲.۵)
+- **درخواست:**
+  - مالک: `POST /roles/drafts {company, department, brief_md}`. مدیر دپارتمان با یک کار بیدار میشود.
+  - یا خود مدیر با `role.draft` (A1) مینویسد.
+- **سقف با کد (۴۲۲ برای هر فیلد):**
+  - ابزارها داخل `tool_ceiling` دپارتمان؛ هیچ قدرت نظارت، اختیار استخدام، خط مالک یا ابزار A3/A4.
+  - مدل داخل `model_ceiling`؛ `limits` حداکثر به اندازه‌ی خود مدیر.
+  - دست‌کم ۳ مورد آزمون.
+- **دروازه‌ها به ترتیب:**
+  1. چک تکراری بودن (8-gram، بی مدل)
+  2. بازبینی ناظر روی متن کامل ماسک‌شده و sha256 (`skill.review` با ref `RD-…`، چک پنجم `ceiling`)
+  3. آزمون‌های خودش در آکادمی (قبولی ۷۰ از ۱۰۰، که baseline نقش میشود؛ تا قفل هست اجرا نمیشود)
+  4. تأیید
+- **تأیید:**
+  - با `role.decide` مدیرعامل همان شرکت، فقط وقتی استخدام `delegated` است.
+  - وگرنه، و همیشه برای هلدینگ، کارت `role_new` برای مُهر مالک (🔏).
+  - هر نقش تازه یک استوری `role` میسازد.
+- **کجا میماند:** نقش فعال یک منشور روی سرور است، برای همان شرکت و دپارتمان. `agents/` هرگز نوشته نمیشود. `_common.md` همیشه اول است.
+  - `GET /roles` هر دو را با `source: file|draft` نشان میدهد. استخدام هر دو را میپذیرد.
+  - بازنشسته کردن: `POST /roles/drafts/{ref}/retire` (بی مُهر؛ استخدام تازه نه، کارمندهای فعلی کار میکنند).
+
+### ۳۱.۳ برنامه‌ی انتشار (§۲، قرارداد §۲۲.۲)
+- **ساخت:**
+  - مالک: `POST /media/series` (`Idempotency-Key`) ← `draft`.
+  - یا مدیر رسانه با `series.propose` (A1) ← `proposed` با کارت `media_series` (A3).
+  - شکل: `targets` (حساب خود همان شرکت: `telegram-<co>` و `instagram-<co>`)، `schedule` (RRULE در منطقه‌ی مالک)، `topics.pool`، `format`، هر هفت چک، `auto_publish`، `max_per_day`.
+  - قالبی که خط تولید نمیتواند بسازد ۴۲۲ میگیرد؛ مثلاً ریلز غیر 9:16، موسیقی `library` یا حساب شرکت دیگر.
+- **مُهر:** `POST /media/series/{ref}/seal {digest}` با 🔏 `media.series` روی همان `digest`. digest دیگر ← `409 version_conflict`.
+  - مُهر کارت `media_series` منتظر را هم تأیید میکند و برنامه‌ی متوقف را ادامه میدهد.
+  - تأیید همان کارت از کارتابل ← `409 validation_failed` (مثل طرح سرور).
+- **ویرایش برنامه‌ی مُهرشده** (`PUT …` با `If-Match`) آن را به `proposed` برمیگرداند: مُهر قبلی دیگر آن را نمیپوشاند و تا مُهر دوباره هیچ چیز خودکار منتشر نمیشود.
+  - `POST …/pause` و `…/retire` بی مُهرند.
+- **زمان‌بندی:** sweep رسانه برای هر برنامه‌ی مُهرشده یک آیتم برای هر رخداد RRULE میسازد، با موضوع بعدی pool. برای هر رخداد فقط یک آیتم ساخته میشود، و حداکثر `max_per_day` در هر روز مالک.
+  - رخدادی که بیش از ۳۰ دقیقه پیش گذشته جبران نمیشود.
+  - `next_at[]` و `today {made, published}` را سرور حساب میکند.
+
+### ۳۱.۴ خط تولید (§۲.۳)
+هر گام یک کار برای نقش همان گام در دپارتمان رسانه‌ی همان شرکت است (کم‌کارترین کارمند). جابه‌جایی بین گام‌ها با کد است.
+- **ویدیو** (ریلز، استوری با مدت): سناریو (`scriptwriter`) ← کارگردانی (`video_director`) ← ترکیب‌بندی (`motion_designer`) ← صدا (`voice_producer`، اگر قالب صدا دارد) ← render (کد) ← چک‌ها (کد) ← بازبینی (`media_director`).
+- **تصویر** (پست، کاروسل، استوری تصویری): سناریو ← ترکیب‌بندی ← چک‌ها ← بازبینی. ترکیب‌بندی یکی از این دو است:
+  - فریم‌های `visual_designer` (creativeهای `substitute.call`، که با `deliver` و ref‌های `CR-…` تحویل میشوند)
+  - یا ترکیب‌بندی کد `motion_designer` که render worker به عکس تبدیل میکند: کاروسل با `data-slides="N"` و قاب k در [k-1, k) ثانیه؛ عکس تک در ثانیه‌ی ۳.
+- **طراحی UI** (`design`، `ui_designer`): بریف ← ترکیب‌بندی ← render (phone با 390×844 @2x و desktop با 1440×900، کل صفحه) ← بازبینی. هرگز منتشر نمیشود و به‌صورت خروجی برای CTO میماند.
+- **نقشی که استخدام نشده:** آیتم `held` میشود، با یادداشت. مدیر رسانه یک بار برای هر گام کار «نقش لازم است» میگیرد.
+- **ابزارها** (`agents/tools.md`):
+  - `media.item` (A1، گام جاری، فقط نقش همان گام؛ بعد از ثبت، کار گام با شاهد آیتم `done` میشود)
+  - `media.render` (A2، پیش‌نمایش؛ تا profile ‏`media` خاموش است ← `503 channel_not_configured`)
+  - `media.voice` (A2، فقط `voice_producer`)
+  - `media.review` (A2، **فقط مدیر رسانه**؛ `changes` آیتم را به زودترین گام نقشی که در یادداشت آمده برمیگرداند، `reject` تمامش میکند)
+  - `series.propose` (A1)
+- **schema ترکیب‌بندی** (`hq_common/composition.py`، یک بار در api پیش از ذخیره و یک بار در render worker):
+  - یک سند HTML با `lang="fa" dir="rtl"`.
+  - فقط `/lib/anime.min.js` (anime.js 3.2.2) و `/lib/lottie.min.js` (lottie-web 5.12.2 light).
+  - عکس فقط `/assets/<file id>` از فایل‌های همین شرکت (یا data:image).
+  - IRANYekanX تنها قلم.
+  - هیچ `fetch`، XHR، WebSocket، worker، import، URL با scheme، `<link>`، `<iframe>`، `<base>`، `<form>`، `@import`، `@font-face`، storage یا eval.
+  - یا یک Lottie بی expression.
+  - متن دیدنی نباید رمز یا ایمیل داشته باشد.
+  - رد ← `422` با نام قاعده. هر تغییر نسخه‌ی تازه با sha256 است (`media.compositions`).
+- **صدا:** `media.voice` متن گوینده را با `fa_speech_script` به کلمه تبدیل میکند و با صدای فعال رجیستری (یا صدایی که قالب نام میبرد) در صف رجیستری میگذارد (`media.speech_jobs`، کار `narration`؛ ۳۱.۱۳). TTS one-shot آن را از `POST /internal/v1/voices/jobs/claim` میگیرد.
+  - وقتی روایت آماده شد (`voices.ON_NARRATION`)، فایل روی آیتم میآید و آیتم به render میرود. روایتی که سه بار شکست خورد، آیتم را بی‌صدا و با زیرنویس جلو میبرد.
+  - روایت کار شرکتی که قفل است (کلید توقف یا freeze) تا باز شدن قفل گرفته نمیشود.
+  - تا profile ‏`tts` خاموش است، آیتم بی‌صدا و با زیرنویس ادامه میدهد. یادداشتش همین را میگوید.
+- **چک‌ها با کد** (`studio_checks.py`):
+  - `brand`: برند فعال، رنگ‌های ترکیب‌بندی از پالت (به‌علاوه‌ی سیاه و سفید)، فقط IRANYekanX، و نشان که خود render گذاشته.
+  - `red_lines`: الگوهای قاعده‌ای اساسنامه‌ی مُهرشده (`governance.charters` پرامپت ۱۱)، و تا مُهر نشده الگوهای `agents/charter/HOLDING.md`. روی سناریو، صدا، زیرنویس، متن صفحه، متن تصویر و کپشن.
+  - `risk_warning`: محتوای ترید هشدار ریسک را هم در صدا یا زیرنویس (برای تصویر: روی قاب) دارد و هم در کپشن.
+  - `facts`: هر عدد سناریو در یادداشت منبعی آمده (عدد «فرض کنید» حساب نیست).
+  - `rights`: فقط فایل خود شرکت یا ساخته‌ی هاب، و موسیقی `none`.
+  - `platform`: نسبت، مدت و حجم برای هر جای انتشار.
+  - `qc`: رأی مدیر رسانه.
+
+### ۳۱.۵ render worker (§۲.۳، §۶)
+- profile اختیاری `media`، **پیش‌فرض خاموش**، با دو یک‌بارمصرف که volume کارها (`hq-media-jobs`) را با هم دارند:
+  - `media-courier`: روی شبکه‌ی داخلی `hq-media` (172.30.23.0/24)، که فقط به api و OpenBao میرسد. کار را میگیرد و فایل‌ها را برمیگرداند. principal سرویسی `media` با توکنی در `kv/media/config` (AppRole `media`؛ `provision.sh` یک بار میسازد).
+  - `media-render`: **بی هیچ شبکه** (`network_mode: none`)، root فقط‌خواندنی، uid 10001، `cap_drop: ALL` و فقط `SYS_CHROOT`، seccomp خود Playwright، no-new-privileges، ۲ CPU، ۵۱۲ پردازه، tmpfs ‏256m، و مهلت ۶۰۰ ثانیه برای هر کار (container یک دقیقه بعد کشته میشود).
+  - Chromium بی‌سر ترکیب‌بندی را **قاب به قاب** با ساعت مجازی render میکند، نه ضبط زنده. هر درخواست صفحه بیرون از `/lib`، `/fonts` و `/assets` کار رد میشود و به‌صورت violation برمیگردد (api آیتم را با همان به سازنده‌اش برمیگرداند).
+  - ffmpeg: H.264 High، yuv420p، AAC (سکوت وقتی صدا نیست)، `+faststart`.
+  - نشان شرکت پایین چپ حاشیه‌ی امن است (۱۲٪ ضلع کوتاه). زیرنویس فارسی و CTA روی لایه‌ای جدا که ترکیب‌بندی به آن دسترسی ندارد.
+  - خروجی‌ها: ویدیو، poster، WebVTT. همه از بررسی نوع و حجم api (§۱۷.۱) رد میشوند. poster، `variant=poster` همان ویدیو است.
+- **روشن و خاموش (تصمیم حافظه با مالک):**
+  - `make install-systemd` یک بار، بعد `make media-on`: `HQ_MEDIA=on`، build، `up api worker`، و timer ‏`coinepro-hq-media.timer` (هر ۲ دقیقه، زیر قفل یک‌بارمصرف مشترک با backup و TTS).
+  - `make media-off` برمیگرداند. بیرون از budget، `hq.sh` رد میکند (exit 3).
+  - هر دور (`infra/media/run-once.sh`) حداکثر `MEDIA_MAX_JOBS=2` کار.
+  - تا خاموش است، render در صف میماند و آیتم همین را میگوید.
+- **عددها** (`make media-bench`، ۲۰۲۶-۱۰-۲۳ روی همین CPX42، سقف 960m، ۳ بار؛ ریلز ۳۰ ثانیه‌ای 1080×1920، ۹۰۰ قاب):
+  - زمان ۵۱ تا ۵۶ ثانیه
+  - peak کانتینر ۷۱۸ تا ۷۷۶ مگ
+  - Chromium ‏۲۸۴ تا ۲۹۱ مگ
+  - ریلز ۱٫۵ تا ۱٫۸ مگابایت
+  - عکس Lottie ‏۱٫۶ ثانیه / ۲۵۹ مگ؛ صفحه‌ی طراحی ۱٫۷ ثانیه / ۲۸۰ مگ
+  - `MEM_MEDIA_RENDER=960m` و `MEM_MEDIA_COURIER=64m` (۱۷ مگ اندازه‌گیری‌شده)
+- **gate حافظه:**
+  - full+media: ‏11920 از 12288 (جا میشود)؛ با TTS هم 12240 (جا میشود).
+  - با MCP، runner یا مرورگر وب بازیکن‌ها جا نمیشود.
+  - lean+media: ‏700 مگ بیشتر (رد میشود).
+- **probe زنده** (`make verify-live`): `hq-media` فقط api و OpenBao را میبیند. خود سرویس `media-render` جز loopback هیچ چیز نمیبیند. URL امضاشده‌ی ساختگی و هر مسیر دیگر `/public` در لبه `404` است.
+
+### ۳۱.۶ انتشار: تلگرام و اینستاگرام (§۲.۳)
+- **کی منتشر میشود:**
+  - **خودکار** فقط وقتی همه‌ی این‌ها برقرار است: برنامه مُهرشده و digest همان است که مُهر شد، `auto_publish`، هر هفت چک `pass`، همه‌ی جاها با API رسمی و حسابشان کلید دارد، و حالت نگهبان خاموش است. آیتم `scheduled` میشود، در رخداد بعدی برنامه منتشر میشود و حداکثر `max_per_day` در هر روز.
+  - **وگرنه** `waiting_owner` و کارت `media_publish` (A3). `why` یکی از این‌هاست: `one_off`، `check_failed`، `not_sealed`، `not_auto`، `no_api`، `account_not_configured`، `platform_limit`، `watch_mode` یا `publish_failed`.
+  - تأیید کارت (🔏 `decision.approve`، از کارتابل یا `POST /media/items/{ref}/publish`) همان آیتم را همان موقع منتشر میکند.
+  - **استوری کانال تلگرام Bot API ندارد:** همیشه کارت با فایل است. مالک خودش میگذارد (`external_id: "manual"`).
+- **مسیر:** worker از راه egress (`POST /v1/media/publish`) میفرستد:
+  - تلگرام: `sendVideo`، `sendPhoto`، `sendMediaGroup`. کپشن ساده، با برچسب «ساخته‌شده با کمک هوش مصنوعی».
+  - اینستاگرام: Graph API ‏(`graph.instagram.com/v23.0`): `me`، بررسی نام کاربری، `limit`، container (`REELS`، `STORIES`، `IMAGE`، `CAROUSEL`) با `is_ai_generated: true`، بررسی وضعیت، بعد `media_publish` و `permalink`.
+  - اینستاگرام فایل را از **URL امضاشده‌ی همان یک فایل، حداکثر ۱۵ دقیقه** میگیرد: `https://hq.coinepro.com/public/v1/media/<token>` (HMAC، فقط فایل‌های ساخته‌ی render یا creative). هر چیز دیگر `404` است. Caddy فقط GET/HEAD این مسیر را به api میدهد.
+  - هیچ انتشاری از مرورگر یا کوکی نیست.
+- **متوقف میشود با:** قفل هلدینگ (هیچ)، کلید توقف یا deploy freeze شرکت (آیتم `scheduled` میماند)، hold روی کار گام‌ها یا کارت، و حالت نگهبان (کارت).
+- **سقف خود پلتفرم:** اینستاگرام ۵۰ پست API در ۲۴ ساعت برای هر حساب ← `429 platform_limit` با `Retry-After`. انتشار خودکار هم پس میافتد.
+  - `GET /media/limits`: هر حساب `per_24h`، `used_24h`، `resets_at` و `note_fa` دارد.
+- **برداشتن:** `POST /media/items/{ref}/unpublish` با 🔏 `media.unpublish` روی ref.
+  - پیام کانال تلگرام با `deleteMessage` برداشته میشود (`removed`).
+  - اینستاگرام از API حذف ندارد، پس `remove_by_hand`.
+  - آیتم `rejected` میشود. همه در `media.publish_log` ثبت میشود.
+- **کار مالک برای هر شرکت (`<co>` با حرف کوچک):**
+  1. در اپ، حساب `telegram-<co>` بساز:
+     - `site: api.telegram.org`
+     - `companies: [<CO>]`
+     - `policy.inject.username`: کانال (`@name` یا `-100…`)
+     - ربات باید مدیر کانال با اجازه‌ی ارسال و حذف باشد.
+  2. در ترمینال خودت: `make account-secret KEY=telegram-<co>` (توکن ربات).
+  3. در اپ، حساب `instagram-<co>` بساز:
+     - `site: graph.instagram.com`
+     - `policy.inject.username`: نام کاربری صفحه‌ی business یا creator
+  4. در ترمینال خودت: `make account-secret KEY=instagram-<co>` (توکن long-lived).
+  - اینستاگرام دامنه و HTTPS میخواهد (`HQ_SITE_ADDRESS`، و egress با `EGRESS_PUBLIC_HOST`).
+  - تا این‌ها نیست، هر جا `account_not_configured` است و چیزی منتشر نمیشود.
+
+### ۳۱.۷ بازسنجی روزانه‌ی پست‌های منتشرشده (§۲.۶)
+- sweep رسانه پست‌هایی را که دست‌کم یک ساعت از انتشارشان گذشته، **با کد و بی مدل** دوباره میسنجد: خطوط قرمز، هشدار ریسک، عدد بی‌منبع و برند. حداکثر ۵ پست در روز برای هر شرکت. تا قفل هست، هیچ.
+- **پست مشکل‌دار:**
+  - یافته‌ی `high` برای ناظر با `dedupe_key` همان آیتم
+  - برنامه‌اش `paused` با یادداشت «ناظر کل… متوقفش کرد»، تا مالک
+- پروتکل نمونه‌گیری با مدل ناظر در `agents/protocols` نیست. اضافه کردنش کار Claude سشن مشورت است.
+
+### ۳۱.۸ API و stream
+- **مالک:**
+  - `GET|POST /media/series`، `GET|PUT /media/series/{ref}`، `POST …/seal|pause|retire`
+  - `GET|POST /media/items`، `GET /media/items/{ref}`، `POST …/publish|unpublish`
+  - `GET /media/limits`
+- **ایجنت‌ها:** `POST /internal/v1/media/item|render|voice|review` و `/media/series/propose`.
+- **one-shotها:**
+  - `POST /internal/v1/media/render/claim`، `GET …/{id}/files/{file_id}`، `POST …/{id}/output|done|fail` (سرویس `media`)
+  - `POST /internal/v1/voices/jobs/claim|{id}/done|{id}/fail` (سرویس `tts`؛ روایت آیتم‌ها و نمونه‌های bake-off، ۳۱.۱۳)
+- **عمومی:** فقط `GET|HEAD /public/v1/media/{token}`.
+- **stream:** `media.item` و `media.series` روی topic ‏`media`؛ `role.updated` روی `people`.
+- **کدهای خطا:** `series_not_sealed` (409) و `platform_limit` (429).
+
+### ۳۱.۹ حافظه و هزینه (§۶)
+- render worker: ۹۶۰ مگ، و فقط وقتی مالک روشنش کند (۳۱.۵). poller، چک‌ها و انتشار داخل worker موجودند و سرویس تازه نیستند.
+- **پاکت توکن:** هر ریلز از پاکت ماهانه‌ی همان شرکت پرداخت میشود و در ستاره‌ی کارایی دیده میشود.
+  - prompt ثابت هر گام اندازه گرفته شد: سناریست ۵٫۴، کارگردان ۵٫۲، موشن ۵٫۶، صدا ۴٫۸ و مدیر رسانه ۷٫۱ هزار توکن.
+  - برآورد هر ریلز ۱۳۰ تا ۲۸۵ هزار توکن (بیشترش Opus ترکیب‌بندی). جزئیاتش در گزارش `PROMPT_13.md`.
+  - **این عدد با سقف روزانه‌ی ۶۰۰ هزار توکن ایجنت‌ها جور نیست** (۲ تا ۴ ریلز در روز برای همه‌ی هاب). سقف با مالک است.
+
+### ۳۱.۱۱ مشاور حقوقی: پرونده، ایمیل مُهرشده، پاسخ‌ها (پرامپت ۱۳ §۳، قرارداد §۲۲.۴)
+- **جایگاه:** دپارتمان `LEGAL` («حقوقی») در قالب هلدینگ، **بی‌مدیر** (`manager: false` در `seed/templates/holding.yaml`)، و کارمند seed‌شده‌ی **`HQ-LGL`** (منشور `legal_counsel`، scope هلدینگ) با رشته‌ی **`L`** (kind `legal`). خواب است تا کار برسد:
+  - پیام مالک در رشته‌ی `L` (با P2، مثل A، N و P)؛
+  - کار مدیرعامل یک شرکت: `work.request {company: HQ, department: LEGAL}` (تنها مسیر میان‌شرکتی غیر از CEO به CEO؛ OPA در `legal_voice.rego`)؛
+  - پاسخی که به یکی از پرونده‌هایش رسید.
+- **پرونده `LC-0001`** (`legal.cases`، با `company_id` همان شرکتی که پرونده درباره‌ی آن است؛ کار هلدینگ مال هلدینگ است):
+  - `GET /legal/cases?company&status&cursor` (تازه‌ترین اول)، `GET /legal/cases/{ref}` (timeline کامل و همه‌ی ایمیل‌ها).
+  - `POST /legal/cases {company, title_fa, kind, brief_md, file_ids?}` (مالک، Idempotency-Key) ← پرونده و یک کار P2 برای مشاور (`run_meta.task_class: legal_case`).
+  - `POST /legal/cases/{ref}/close {note_fa?}`؛ تا وقتی ایمیلی منتظر مُهر یا ارسال است ← ۴۰۹.
+  - timeline در `legal.case_events` (append-only): `note`، `form`، `decision`، `email_out`، `email_in`.
+  - stream: `legal.case` روی topic `legal`.
+- **ابزارهای مشاور** (Tool Gateway، فقط منشور `legal_counsel`؛ هر کدام فقط روی پرونده‌های خود همان مشاور، وگرنه ۴۰۴):
+  - `case.open`، `case.note` (با `deadline {at, what_fa}` و وضعیت `open | waiting_reply | resolved`)،
+  - `email.draft` (A1): پیام دقیق ← کارت **`email_send`** (A3)،
+  - `mail.read` (A0): ایمیل‌های ماسک‌شده‌ی پرونده.
+  - فرم و پورتال: `propose` با `a3_action` و `action: "form_submit"` (مقدار هر فیلد در `preview`)؛ مالک خودش میفرستد.
+- **ایمیل، دقیقاً همان، یک بار:**
+  - `digest` = SHA-256 شکل canonical پیام: JSON با کلیدهای مرتب و بی‌فاصله از `{from, to, cc, subject, body_md, attachments: [sha256…], lang}` (`hq_api.domain.legal.canonical`). کارت همین را نشان میدهد و مُهرش (step-up `decision.approve`) روی **همین digest** است، نه روی ref کارت.
+  - تأیید: اصلاحیه (amendments) ← ۴۲۲. ایمیل تغییرکرده یا کنار رفته ← ۴۰۹ `decision_not_pending`. صندوق وصل نیست ← ۴۰۹ `account_not_configured` و کارت همان کارت میماند (تصمیم مالک §۰.۹ بند ۶).
+  - بعد از مُهر، ایمیل `queued` است. effect کارت در worker (`decision_apply_effect`) **بعد از چک قفل‌ها** (کلید توقف هلدینگ و شرکت، hold) آن را میفرستد:
+    - ادعا (`sending`) در تراکنش خودش، ارسال از egress، ثبت `sent` یا `failed`.
+    - ادعایی که با crash در `sending` مانده هرگز دوباره فرستاده نمیشود (`unknown_outcome`). شکست هم خودکار تکرار نمیشود: پیش‌نویس تازه، کارت تازه.
+  - پیش‌نویس تازه وقتی یکی منتظر است ← قبلی `superseded` و کارتش `withdrawn`.
+  - رد یا برگشت کارت ← ایمیل `rejected`، پرونده دوباره `open` و یک کار برای مشاور با یادداشت مالک.
+  - stateهای ایمیل: `waiting_seal`، `queued`، `sending`، `sent`، `failed`، `received`، `superseded`، `rejected`.
+- **پاسخ‌ها:** schedule `hq-legal-mail-poll` هر ۵ دقیقه (`LegalMailPoll` ← `legal_mail_poll`):
+  - **با قفل هلدینگ هیچ کاری نمیکند** (نه صندوق، نه کار). بی‌صندوق: `account_not_configured` در `legal.mailbox.last_result`.
+  - از آخرین UID به بعد میخواند (`BODY.PEEK`، پرچم‌های صندوق دست نمیخورند؛ UIDVALIDITY تازه ← از اول، تکراری‌ها با Message-ID کنار میروند).
+  - فقط پیامی که `In-Reply-To` یا `References` آن یکی از پیام‌های فرستاده‌ی ما را نام ببرد وارد پرونده میشود. بقیه ذخیره نمیشوند (فقط شمرده میشوند).
+  - متن و موضوع ماسک میشوند (`hq_common.redact.scrub`). نشانی فرستنده دست نمیخورد تا مشاور آن را با دامنه‌های رسمی بسنجد.
+  - پیوست‌ها از §۱۷.۱ رد میشوند: نوع از روی بایت‌ها، عکس بی‌متادیتا (در child)، متن PDF بیرون از تراکنش. بقیه فقط نامشان در timeline میآید. پیوست‌ها در هلدینگ نگه داشته میشوند تا `files.read` مشاور به آن‌ها برسد.
+  - مشاور با یک کار P2 بیدار میشود (`run_meta.task_class: legal_email`).
+- **هیچ ایمیلی خودکار فرستاده نمیشود.** تنها راه ارسال، effect کارت مُهرشده است.
+
+### ۳۱.۱۲ صندوق ایمیل مشاور (کار مالک)
+- **حساب سرویس `mail`** در `/tools/accounts` (اپ، 🔏 `account.put`):
+  - `site`: دامنه‌ی سرویس (مثلاً `gmail.com` برای Gmail و Workspace).
+  - `policy.inject: {kind: "basic", username: "<نشانی صندوق>"}`.
+  - `policy.ports: [465, 993]` (یا `587` با STARTTLS اجباری).
+  - `policy.mail: {imap_host, smtp_host}` فقط وقتی سرورها `imap.<site>` و `smtp.<site>` نیستند. هر دو باید روی همان site باشند، وگرنه ۴۲۲.
+- **رمز:** `make account-secret KEY=mail` (app password؛ ورودی پنهان، `kv/tools/accounts/mail`). هیچ‌جا چاپ، لاگ یا پاسخ نمیشود. فقط برای همان یک فراخوانی به egress میرود.
+- **egress** (`hq_egress/mail_out.py`): `POST /v1/mail/send` و `/v1/mail/fetch`، فقط از worker:
+  - فقط hostهای همان site و فقط portهای خود حساب (۴۶۵ یا ۵۸۷ برای SMTP، ۹۹۳ برای IMAP).
+  - TLS همیشه، با گواهی بررسی‌شده برای همان نام. اتصال به نشانیِ بررسی‌شده‌ی guard (نه نشانی خصوصی یا خود هاب).
+  - فرستنده‌ی envelope همیشه خود صندوق است. هر entry در `egress.log` با ابزار `mail.send` (A3) یا `mail.fetch` (A0).
+- تا مالک وصل نکند، پیش‌نویس‌ها فقط کارت‌اند و poller هیچ نمیخواند.
+
+### ۳۱.۱۳ صدا: رجیستری `media.voices` و bake-off (پرامپت ۱۳ §۴، قرارداد §۲۲.۳)
+- **یک رجیستری برای همه:**
+  - گزارش‌های صوتی §۲۱.۴ با صدای فعال رجیستری حرف میزنند (وقتی image آن را دارد؛ وگرنه `HQ_TTS_VOICE`).
+  - روایت آیتم‌های رسانه (`media.voice`، A2، فقط `voice_producer` در شرکت خودش) هم همین‌طور.
+  - صدای غیرتجاری که مالک انتخاب نکرده ← ۴۰۹ با `voice_id: licence_not_chosen`.
+- **ردیف‌ها** (هر موتور و گوینده یک ردیف؛ seed یک بار، بعد عدد اندازه‌گیری و انتخاب مالک میماند):
+  - `piper-amir` (فعال، پیش‌فرض تا انتخاب مالک)، `piper-ganji`، `piper-ganji-adabi`، `piper-reza-ibrahim`: MIT و دیتاست CC0، در image.
+  - `piper-gyro`: لایسنس دیتاست روی کارتش نیامده («See URL»): غیرتجاری حساب میشود و در image نیست.
+  - `manatts-piper`: هنوز آموزش ندیده (پایین را ببین).
+  - `parsvoice-xtts`، `parsvoice-xtts-owner`: CPML، غیرتجاری. دانلودش gated است (حساب Hugging Face مالک) و XTTS-v2 روی CPU حدود ۲٫۵ تا ۳ گیگ میخواهد. نصب نیست.
+  - `chatterbox-fa`، `chatterbox-fa-owner`: CC BY-NC 4.0، gated، بیرون از بودجه. نصب نیست.
+  - مدل چندزبانه‌ی آزاد با فارسی روی کارت پیدا نشد (Kokoro‏ Apache-2.0 فارسی ندارد؛ Chatterbox چندزبانه MIT فارسی ندارد؛ MMS-TTS‏ fas‏ CC-BY-NC است).
+- **API مالک:**
+  - `GET /media/voices`: با `licence`، `licence_commercial`، `rtf`، `mem_mb`، `installed`، `samples[]`.
+  - `POST /media/voices/{id}/score {score: 1..10}`.
+  - `POST /media/voices/{id}/activate` 🔏 `voice.activate` (target = id):
+    - غیرتجاری بی `{accept_non_commercial: true}` ← ۴۲۲.
+    - نصب‌نشده یا اندازه‌نگرفته ← ۴۰۹ `not_ready`.
+    - همیشه یک صدای فعال.
+  - `GET /media/voices/reference` (۴۰۴ وقتی نیست)، `POST /media/voices/reference {file_id}`:
+    - فقط فایل صوتی خود مالک، ۶۰ تا ۱۸۰ ثانیه، که به هیچ پیامی پیوست نشده.
+    - هیچ ایجنتی آن را نمیخواند (حتی ایجنت‌های هلدینگ) و به هیچ‌جا فرستاده نمیشود.
+    - موتور کلون‌کننده‌ای روی هاب نصب نیست، پس فعلاً فقط نگه داشته میشود.
+- **bake-off روی هاب:**
+  - schedule `hq-voice-bakeoff` روزانه ۰۳:۴۰ (منطقه‌ی مالک): برای هر صدای نصب‌شده و هر متن ثابت، کار `sample` میسازد (یک بار برای هر round). **با قفل هلدینگ هیچ.**
+  - TTS one-shot (همان timer `coinepro-hq-tts`، فقط با `HQ_TTS=on`): بعد از گزارش‌ها از `POST /internal/v1/voices/jobs/claim` کار میگیرد (۲۰۴ وقتی کاری نیست، و **همیشه با قفل هلدینگ**).
+  - هر کار صدای خودش را نام میبرد. صدایی که image ندارد ← `voice not installed`، هرگز صدای دیگر.
+  - Ogg با `?duration_s&synth_s&peak_mb` برمیگردد و از §۱۷.۱ رد میشود: نوع از بایت‌ها، طول از ffprobe، ردیف processing برای worker رسانه (بی pass نشانه‌گذاری مدل).
+  - نام فایل خنثی است (`voice-xxxxxxxx.ogg`) تا شنیدن کور بماند. `rtf` صدا = جمع زمان کار ÷ جمع ثانیه‌های گفتار همان round؛ `mem_mb` بیشترین peak.
+- **متن‌های ثابت** (`hq_api.domain.voices.SCRIPTS`؛ صدا همان شکل گفتاری `fa_speech_script` را میخواند و image همان را در `services/tts/bakeoff_scripts.json` دارد):
+  - `numbers`: عدد، دلار و درصد
+  - `latin`: RSI، MACD، Bitcoin، Ethereum، Fibonacci
+  - `crypto`: کلمه‌های کریپتو
+  - `long`: یک جمله‌ی ۶۶ کلمه‌ای
+  - `reel60`: متن ریلز با هشدار ریسک (۱۵۹ کلمه، ۶۴ تا ۷۶ ثانیه)
+- **اجرای اپراتور:** `make tts-bakeoff [OUT=/tmp/hq-bakeoff]`: همان image، بی‌شبکه، با سقف `MEM_TTS`. خروجی JSON است و Ogg‌ها در `OUT`.
+- **عددها** (۲۰۲۶-۱۰-۲۳، همین CPX42، سقف ۳۲۰ مگ، ۱ thread، بی‌شبکه، پنج متن، ۱۴۴ تا ۱۷۷ ثانیه گفتار برای هر صدا):
+
+| صدا | RTF | peak یک ساخت | لایسنس |
+|---|---|---|---|
+| piper-amir | 0.177 | 236.3 مگ | MIT + CC0 (تجاری) |
+| piper-ganji | 0.170 | 254.5 مگ | MIT + CC0 (تجاری) |
+| piper-ganji-adabi | 0.187 | 270.5 مگ | MIT + CC0 (تجاری) |
+| piper-reza-ibrahim | 0.185 | 269.8 مگ | MIT + CC0 (تجاری) |
+  - peak کانتینر (cgroup) ‏264.8 مگ.
+  - RTF شامل بار کردن مدل در هر کار است.
+  - با خط‌های ۱۴ کلمه‌ای، دو صدای سنگین‌تر به ۳۳۷ مگ میرسیدند و کانتینر به سقف ۳۲۰ میخورد. پس `CLAUSE_WORDS` از ۱۴ به ۸ آمد (۱۰ کلمه: ۳۰۷ مگ). `MEM_TTS=320m` همان میماند.
+- **ManaTTS (برنامه و برآورد؛ کرایه‌ی GPU تصمیم مالک، §۰.۹ بند ۳):**
+  - fine-tune صدای Piper/VITS از `fa_IR-amir-medium` روی ۸۶ ساعت ManaTTS (CC0، یک گوینده‌ی زن)؛ متن‌ها با همان normaliser.
+  - برآورد: یک GPU ‏24GB حدود ۲۴ تا ۴۸ ساعت، ۱۵ تا ۷۰ دلار کرایه.
+  - خروجی ONNX با sha256 در `voice.lock.json`، بعد همین bake-off و شنیدن کور مالک.
+
+### ۳۱.۱۴ حافظه و هزینه‌ی بخش حقوقی و صدا (پرامپت ۱۳ §۶)
+- **poller ایمیل:** داخل worker موجود، سرویس تازه ندارد. **ارسال ایمیل:** effect همان worker. **صندوق:** از egress موجود (بی سرویس و بی پورت تازه).
+- **TTS:** همان one-shot پروفایل `tts` (خاموش)، `MEM_TTS=320m`، قفل مشترک با backup. سه صدای تازه در image: روی هم ۱۹۰ مگ دیسک (۳ × ۶۳٫۵)، بی اثر روی حافظه (هر کار یک صدا را بار میکند).
+  - gate: full+tts ‏11216 از 12288؛ lean+tts ‏6192 از 6196. هیچ‌کدام تغییر نکرد.
+- **ParsVoice-XTTS و Chatterbox:** به بودجه نمیخورند (≈۲٫۵ تا ۳ گیگ؛ full+tts فقط حدود ۱ گیگ جا دارد). اندازه‌گیری نشدند (دانلود gated، حساب مالک).
+- **توکن:** کار مشاور با پاکت هلدینگ است (task classهای `legal_case` و `legal_email`، هرگز روی provider دیگر). سقف منشور: ۸ گام و ۲۰۰ هزار توکن در هر اجرا. تا راه‌اندازی هاب هیچ اجرایی نیست.

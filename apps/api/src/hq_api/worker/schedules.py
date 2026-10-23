@@ -47,6 +47,12 @@ Schedule ids:
     hq-dceo-principles        Saturday 11:00 (owner's zone)  DceoPrinciples (prompt 12 §13.5)
                               (prompt 12 §2, §3, §13: each asks the launch gate and does
                               nothing at all while the holding is locked)
+    hq-media-sweep            every 5 min   MediaSweep (prompt 13 §2: the sealed series'
+                              schedules, due publishing, the rule re-check; nothing
+                              at all while the holding is locked)
+    hq-legal-mail-poll        every 5 min   LegalMailPoll (prompt 13 §3.2: replies to the cases)
+    hq-voice-bakeoff          daily 03:40 (owner's zone)  VoiceBakeoff (prompt 13 §4.2:
+                              queue the missing samples; both do nothing while locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -111,6 +117,10 @@ WEEKLY_REVIEW = "hq-weekly-review"
 DCEO = "hq-dceo"
 DCEO_PRINCIPLES = "hq-dceo-principles"
 OWNER_TOOLS = (CORPUS_NIGHTLY, ASK_SWEEP, WEEKLY_REVIEW, DCEO, DCEO_PRINCIPLES)
+MEDIA_SWEEP = "hq-media-sweep"  # prompt 13 §2
+LEGAL_MAIL_POLL = "hq-legal-mail-poll"
+VOICE_BAKEOFF = "hq-voice-bakeoff"
+P13B = (LEGAL_MAIL_POLL, VOICE_BAKEOFF)
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -137,6 +147,8 @@ FIXED = (
     "hq-substitute-daily",
     *P12B,
     *OWNER_TOOLS,
+    MEDIA_SWEEP,
+    *P13B,
 )
 
 
@@ -302,6 +314,8 @@ def fixed(
         *management_fixed(),
         *p12b_fixed(tz),
         *owner_tools_fixed(tz),
+        *studio_fixed(),
+        *p13b_fixed(tz),
     ]
 
 
@@ -450,6 +464,37 @@ def p12b_fixed(tz: str) -> list[Desired]:
         ),
         Desired(
             CEO_LETTERS, "CeoLetters", (), hourly, timedelta(minutes=50), timedelta(minutes=15)
+        ),
+    ]
+
+
+def studio_fixed() -> list[Desired]:
+    """Prompt 13 §2: the media sweep gates itself (hq_api.domain.gate)."""
+    return [
+        Desired(
+            MEDIA_SWEEP, "MediaSweep", (), every(5), timedelta(minutes=10), timedelta(minutes=25)
+        )
+    ]
+
+
+def p13b_fixed(tz: str) -> list[Desired]:
+    """Prompt 13, legal and voice: each activity asks the launch gate first."""
+    return [
+        Desired(
+            LEGAL_MAIL_POLL,
+            "LegalMailPoll",
+            (),
+            every(5),
+            timedelta(minutes=5),
+            timedelta(minutes=5),
+        ),
+        Desired(
+            VOICE_BAKEOFF,
+            "VoiceBakeoff",
+            (),
+            daily_at(time(3, 40), tz),
+            timedelta(hours=12),
+            timedelta(minutes=5),
         ),
     ]
 

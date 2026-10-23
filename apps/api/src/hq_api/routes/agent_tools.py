@@ -30,6 +30,7 @@ from hq_api import audit, idempotency
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
 from hq_api.domain import backups, hiring, oversight
+from hq_api.domain import departments as DM
 from hq_api.domain import files as F
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
@@ -221,15 +222,30 @@ class HoldingState(BaseModel):
     hiring: Literal["closed", "open"] = "closed"
 
 
-async def _company_state(tx: Tx, co: Any) -> CompanyState:
-    depts = await tx.all(
-        """SELECT d.code, d.name_en, m.code AS manager, m.activity AS manager_activity
+async def _company_state(
+    tx: Tx, co: Any, charters: Any = None, own_department: str | None = None
+) -> CompanyState:
+    rows = await tx.all(
+        """SELECT d.code, d.name_en, m.code AS manager, m.activity AS manager_activity,
+                  d.mandate, d.identity_md, d.version
            FROM core.departments d
            LEFT JOIN core.employees m ON m.department_id = d.id AND m.kind IN ('manager', 'inspector')
                 AND m.status <> 'dismissed'
            WHERE d.company_id = :co AND d.status = 'active' ORDER BY d.sort, d.code""",
         co=co.id,
     )
+    # ⟨1.6⟩ each department's mandate and starting team (contract §22.1); the
+    # identity only for the caller's own department (the others' tone is theirs)
+    key = co.template or ("holding" if co.kind == "holding" else "standard")
+    depts = []
+    for r in rows:
+        d: dict[str, Any] = {k: r[k] for k in ("code", "name_en", "manager", "manager_activity")}
+        d["mandate"] = r["mandate"]
+        d["team"] = [t.model_dump() for t in DM.team(key, r["code"], charters)]
+        if own_department and r["code"] == own_department:
+            d["identity_md"] = r["identity_md"]
+            d["identity_version"] = r["version"]
+        depts.append(d)
     emps = await tx.all(
         """SELECT kind, count(*) AS n FROM core.employees
            WHERE company_id = :co AND status = 'active' GROUP BY kind""",
@@ -309,12 +325,16 @@ async def tool_company_state(
         await allow(ctx, "company.read", {"company": ctx.who.company})
         async with read_tx(ctx) as tx:
             return HoldingState(
-                companies=[await _company_state(tx, c) for c in await ctx.hub.companies.all()],
+                companies=[
+                    await _company_state(tx, c, ctx.hub.charters, ctx.who.department)
+                    for c in await ctx.hub.companies.all()
+                ],
                 hiring=await hiring.state(tx),
             )
     co = await _company(ctx, "company.read", company)
+    own = ctx.who.department if co.id == ctx.who.company_id else None
     async with read_tx(ctx) as tx:
-        return await _company_state(tx, co)
+        return await _company_state(tx, co, ctx.hub.charters, own)
 
 
 # -------------------------------------------------------------- health.sites --
@@ -858,6 +878,10 @@ class Gate(BaseModel):
     # ⟨1.4⟩ the overseer's open holds on this run (its employee, its work, or
     # `tool:<name>` for one tool): the gateway refuses every action but reads.
     held: list[str] = Field(default_factory=list)
+    # ⟨1.6⟩ a role written on demand (contract §22.5): its charter lives on the
+    # server, so the gateway checks the run's tools against this list instead
+    # of agents/roles (null for a file charter)
+    tools: list[str] | None = None
 
 
 @router.post("/runs/self/reserve", response_model=Gate, responses=E)
@@ -895,10 +919,21 @@ async def run_reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> Gate
         lock = await tx.scalar("SELECT control.lock_state(:co)", co=ctx.who.company_id)
         thread = await tx.scalar(
             """SELECT code FROM msg.threads WHERE employee_id = :e
-                 AND kind IN ('advisor', 'overseer', 'assistant', 'ceo', 'manager', 'employee')
-               ORDER BY kind IN ('advisor', 'overseer', 'assistant') DESC LIMIT 1""",
+                 AND kind IN ('advisor', 'overseer', 'assistant', 'legal', 'ceo', 'manager', 'employee')
+               ORDER BY kind IN ('advisor', 'overseer', 'assistant', 'legal') DESC LIMIT 1""",
             e=ctx.who.employee_id,
         )
+        draft_tools = None
+        lib = ctx.hub.charters
+        if lib is not None and ctx.who.charter and lib.get(ctx.who.charter) is None:
+            tools = await tx.scalar(
+                """SELECT tools FROM people.role_drafts
+                   WHERE company_id = :co AND role = :r AND state IN ('active', 'retired')
+                   ORDER BY (state = 'active') DESC, activated_at DESC NULLS LAST LIMIT 1""",
+                co=ctx.who.company_id,
+                r=ctx.who.charter,
+            )
+            draft_tools = list(tools or [])
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as all_tx:
         held = await oversight.holds_for_run(all_tx, ctx.who.code, w["ref"] if w else None)
     assert ctx.who.company is not None
@@ -924,6 +959,7 @@ async def run_reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> Gate
         step_tool_calls=row["step_tool_calls"],
         step_tool_calls_cap=row["step_tool_calls_cap"],
         held=held,
+        tools=draft_tools,
     )
 
 

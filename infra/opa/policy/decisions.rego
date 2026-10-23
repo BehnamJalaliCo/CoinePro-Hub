@@ -27,6 +27,12 @@ kinds := {
 	"meeting_resolution", "charter_amendment", "knowledge_entry",
 	# ⟨1.5⟩ prompt 11 §5, §7, §8 (contract §20.11): the owner's
 	"okr", "risk_acceptance", "authority_change",
+	# ⟨1.6⟩ prompt 13 §1.1 (contract §22.5): a role written on demand, the owner's seal
+	"role_new",
+	# ⟨1.6⟩ prompt 13 §2 (contract §22.6): a series sealed on its page, an item to publish
+	"media_series", "media_publish",
+	# ⟨1.6⟩ prompt 13 §3: the counsel's exact email (the owner's seal)
+	"email_send",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

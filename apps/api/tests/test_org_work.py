@@ -76,6 +76,7 @@ async def test_companies_templates_and_versions(
         "QUANT",
         "AIOPS",
         "HR",
+        "MEDIA",  # ⟨1.6⟩ prompt 13 (contract §22.1), sort 25
     ]
 
     from .conftest import random_code
@@ -88,9 +89,9 @@ async def test_companies_templates_and_versions(
     r = await client.post("/api/v1/companies", headers={**h, **su}, json=body)
     assert r.status_code == 201, r.text
     company = r.json()
-    assert company["counts"]["employees_active"] == 9  # CEO + 8 managers, nobody numbered
+    assert company["counts"]["employees_active"] == 10  # CEO + 9 managers, nobody numbered
     depts = (await client.get(f"/api/v1/companies/{code}/departments", headers=h)).json()
-    assert len(depts) == 8 and all(d["manager"]["code"].endswith("-MGR") for d in depts)
+    assert len(depts) == 9 and all(d["manager"]["code"].endswith("-MGR") for d in depts)
 
     patch = {"name_en": "New Co Renamed"}
     assert (
@@ -169,7 +170,7 @@ async def test_employees_chart_pause_and_dismiss(
 
     chart = (await client.get(f"/api/v1/org/{co}/chart", headers=h)).json()
     ceo = chart["roots"][0]
-    assert ceo["kind"] == "ceo" and len(ceo["children"]) == 8
+    assert ceo["kind"] == "ceo" and len(ceo["children"]) == 9
     tech = next(c for c in ceo["children"] if c["department"] == "TECH")
     assert [c["code"] for c in tech["children"]] == [emp_code]
 
