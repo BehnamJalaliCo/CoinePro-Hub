@@ -460,7 +460,7 @@ async def disposal_card(tx: Tx, rows: list[dict[str, Any]]) -> str | None:
     recent = await tx.scalar(
         """SELECT 1 FROM cartable.decisions WHERE kind = 'archive_disposal'
              AND (status = 'pending' OR created_at > now() - CAST(:gap AS interval)) LIMIT 1""",
-        gap=f"{int(CARD_EVERY.total_seconds())} seconds",
+        gap=CARD_EVERY,
     )
     if recent:
         return None

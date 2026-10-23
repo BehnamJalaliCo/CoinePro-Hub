@@ -31,7 +31,7 @@ import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from hq_api.archive import scan
@@ -271,7 +271,7 @@ async def _resolutions(hub: Any, txf: Any, today: date) -> int:
             """SELECT r.ref, r.title, r.body, r.sealed_at, r.company_id, c.code
                FROM cartable.resolutions r JOIN core.companies c ON c.id = r.company_id
                WHERE r.sealed_at > now() - CAST(:lb AS interval) ORDER BY r.sealed_at, r.ref""",
-            lb=f"{LOOKBACK_MONTHS * 31} days",
+            lb=timedelta(days=LOOKBACK_MONTHS * 31),
         )
     groups: dict[tuple[Any, str, str], list[dict[str, Any]]] = {}
     for x in rows:
@@ -510,7 +510,7 @@ async def _restore_tests(hub: Any, txf: Any) -> int:
         rows = await tx.all(
             """SELECT at, ok, duration_s, source, snapshot, notes, detail, company_id FROM backup.restore_tests
                WHERE at > now() - CAST(:lb AS interval) ORDER BY at""",
-            lb=f"{LOOKBACK_MONTHS * 31} days",
+            lb=timedelta(days=LOOKBACK_MONTHS * 31),
         )
     firsts: dict[str, dict[str, Any]] = {}
     for x in rows:

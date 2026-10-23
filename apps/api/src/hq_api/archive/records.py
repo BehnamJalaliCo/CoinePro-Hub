@@ -341,6 +341,15 @@ async def check_parties(
     return out, list(dict.fromkeys(refs))
 
 
+def party_refs_of(
+    fields: list[dict[str, Any]], metadata: dict[str, Any], listed: list[str]
+) -> list[str]:
+    """The record's parties: those it lists and those its `party` fields name
+    (a hold's party facet and search both read them)."""
+    named = [metadata[f["key"]] for f in fields if f["type"] == "party" and metadata.get(f["key"])]
+    return list(dict.fromkeys([*listed, *named]))
+
+
 def doc_date_of(fields: list[dict[str, Any]], metadata: dict[str, Any]) -> date | None:
     for f in fields:
         v = metadata.get(f["key"])
@@ -499,7 +508,7 @@ async def create(
         m=dumps(clean),
         dd=dd,
         p=dumps(party_rows),
-        pr=party_refs,
+        pr=party_refs_of(fields, clean, party_refs),
         wd=watch_dates_of(cls, fields, clean),
         sk=source_kind,
         sr=source_ref,
@@ -747,6 +756,10 @@ async def patch(
     if cls is not None:
         sets["doc_date"] = doc_date_of(fields, meta)
         sets["watch_dates"] = watch_dates_of(cls, fields, meta)
+    listed = sets.get("party_refs", list(r["party_refs"] or []))
+    if "parties" not in sets:
+        listed = [p["party"] for p in J(r["parties"], [])]
+    sets["party_refs"] = party_refs_of(fields, meta, listed)
     assigns = []
     params: dict[str, Any] = {"id": r["id"]}
     for k, v in sets.items():

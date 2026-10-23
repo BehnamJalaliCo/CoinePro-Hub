@@ -931,6 +931,12 @@ def upgrade() -> None:
     # An owner upload the archive took over (or refused for a secret) loses
     # its extracted text and transcript with its bytes (prompt 14 §3).
     execute_script("GRANT UPDATE (transcript) ON files.processing TO hq_api;")
+    # The step-up target archive.hold.release has a third segment (§23.11).
+    execute_script(
+        r"""ALTER TABLE auth.step_ups DROP CONSTRAINT step_ups_action_check;
+            ALTER TABLE auth.step_ups ADD CONSTRAINT step_ups_action_check
+                CHECK (action ~ '^[a-z_]+\.[a-z_]+(\.[a-z_]+)?$');"""
+    )
     execute_script(
         # Added NOT VALID, then validated in its own statement (the head
         # validates: every earlier re-add is NOT VALID, so a down-and-up run
@@ -969,5 +975,8 @@ def downgrade() -> None:
         )
         + _queue_run(QUEUE_RUN_OLD)
         + "REVOKE UPDATE (transcript) ON files.processing FROM hq_api;"
+        + r"""ALTER TABLE auth.step_ups DROP CONSTRAINT step_ups_action_check;
+              ALTER TABLE auth.step_ups ADD CONSTRAINT step_ups_action_check
+                  CHECK (action ~ '^[a-z_]+\.[a-z_]+$') NOT VALID;"""
         + "DROP SCHEMA archive CASCADE;"
     )
