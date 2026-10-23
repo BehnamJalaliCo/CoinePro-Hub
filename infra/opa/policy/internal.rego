@@ -59,6 +59,8 @@ ops := {
 	# tools, a media item's narration, the TTS one-shot's voice jobs
 	"legal.case_open", "legal.case_note", "legal.email_draft", "legal.mail_read",
 	"media.voice", "voices.claim", "voices.done",
+	# prompt 14 (archive.rego): the archive's tools (the archivist, the counsel)
+	"archive.search", "archive.read", "archive.file", "archive.link", "archive.hold",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and
