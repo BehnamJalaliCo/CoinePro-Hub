@@ -803,6 +803,17 @@ async def _fill_p10(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p13a_roles(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 13 §1.1 (migration 0028): a role draft of company `co`."""
+    await su.execute(
+        """INSERT INTO people.role_drafts (company_id, department_id, brief_md, requested_by_kind,
+               requested_by_code)
+           SELECT $1, id, 'یه تدوینگر پادکست', 'owner', 'owner' FROM core.departments
+           WHERE company_id = $1 AND code = 'GROWTH'""",
+        co["id"],
+    )
+
+
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_no_table_leaks_between_companies(
     client: httpx.AsyncClient,
@@ -817,6 +828,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p10(su, b)
     await _fill_p12a(su, b)
     await _fill_p12b(su, b)
+    await _fill_p13a_roles(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name

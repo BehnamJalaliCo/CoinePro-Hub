@@ -370,8 +370,7 @@ def check_ceiling(
 _FA = str.maketrans(
     "يىكۀأإآٱةؤ‌۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩",
     "ییکهااااهو 01234567890123456789",
-    "‍ـًٌٍَُِّْٕٖٓٔ"
-    "ٰٜٟٗ٘ٙٚٛٝٞ",
+    "‍ـًٌٍَُِّْٰٕٖٜٟٓٔٗ٘ٙٚٛٝٞ",
 )
 _WORD = re.compile(r"[0-9a-z؀-ۿ]+")
 
@@ -419,9 +418,7 @@ def originality(text: str, corpus: dict[str, str]) -> dict[str, Any]:
     }
 
 
-async def corpus(
-    tx: Tx, lib: C.Library | None, company_id: Any, skip: list[Any]
-) -> dict[str, str]:
+async def corpus(tx: Tx, lib: C.Library | None, company_id: Any, skip: list[Any]) -> dict[str, str]:
     """Every file charter's body and the company's active drafts but `skip`."""
     out = {c.role: c.body for c in (lib.roles.values() if lib is not None else [])}
     for r in await tx.all(
@@ -481,7 +478,9 @@ def review_brief(r: dict[str, Any], text: str) -> str:
     )
 
 
-def check_review(verdict: str, checks: dict[str, Any], given: str | None, shown: str | None) -> None:
+def check_review(
+    verdict: str, checks: dict[str, Any], given: str | None, shown: str | None
+) -> None:
     if given is not None and given != shown:
         raise ApiError(
             422, "validation_failed", "sha_mismatch", fields={"sha256": "not the text under review"}
@@ -657,7 +656,9 @@ async def write(
             co=who.company_id,
         )
         row = await load(tx, str(found), lock=True) if found else None
-    if row is not None and (row["company_id"] != who.company_id or row["department_id"] != dept["id"]):
+    if row is not None and (
+        row["company_id"] != who.company_id or row["department_id"] != dept["id"]
+    ):
         raise ApiError(403, "policy_denied", "a draft of another department")
     if row is not None and row["state"] != "drafting":
         raise ApiError(409, "validation_failed", f"{row['ref']} is {row['state']}, not drafting")
@@ -819,9 +820,7 @@ async def record_review(
     if verdict == "pass":
         r = await _set(tx, r, review=review, state="eval", state_note_fa="آزمون‌های خود نقش")
     elif verdict == "changes":
-        r = await _set(
-            tx, r, review=review, state="drafting", state_note_fa="ناظر اصلاح خواست"
-        )
+        r = await _set(tx, r, review=review, state="drafting", state_note_fa="ناظر اصلاح خواست")
         await _back_to_writer(tx, r, f"The overseer asked for changes:\n\n{notes_md[:3000]}")
     else:
         r = await _set(tx, r, review=review, state="rejected", state_note_fa="ناظر رد کرد")
@@ -968,7 +967,9 @@ async def eval_finished(
             tx,
             r,
             eval_run=summary,
-            state_note_fa="آزمون اجرا نشد (" + str(run.get("error") or "")[:80] + ")؛ هیچ تصمیمی گرفته نشد",
+            state_note_fa="آزمون اجرا نشد ("
+            + str(run.get("error") or "")[:80]
+            + ")؛ هیچ تصمیمی گرفته نشد",
         )
         await emit(tx, r, "eval:failed")
         return r
@@ -990,9 +991,7 @@ async def eval_finished(
 
 
 # -------------------------------------------------------------- approval --
-async def route_approval(
-    tx: Tx, r: dict[str, Any], *, hiring_mode: str | None
-) -> dict[str, Any]:
+async def route_approval(tx: Tx, r: dict[str, Any], *, hiring_mode: str | None) -> dict[str, Any]:
     """An operating company's draft while hiring is `delegated`: its CEO
     decides (a work item); otherwise, and always for the holding, a `role_new`
     card for the owner (🔏)."""
@@ -1022,7 +1021,7 @@ async def route_approval(
                 priority="P2",
                 assignee_code=str(ceo),
             )
-            r = await _set(
+            return await _set(
                 tx,
                 r,
                 approver_kind="agent",
@@ -1030,7 +1029,6 @@ async def route_approval(
                 work_id=w["id"],
                 state_note_fa=f"با مدیرعامل ({ceo})",
             )
-            return r
     ev = _j(r["eval_run"]) or {}
     review = _j(r["review"]) or {}
     lim = _j(r["limits"]) or {}
@@ -1074,7 +1072,9 @@ async def route_approval(
     )  # fmt: skip
 
 
-async def activate(tx: Tx, r: dict[str, Any], by: Principal, *, note: str | None = None) -> dict[str, Any]:
+async def activate(
+    tx: Tx, r: dict[str, Any], by: Principal, *, note: str | None = None
+) -> dict[str, Any]:
     """The draft becomes an active charter of its company and department: the
     version it supersedes is retired, a role story is posted."""
     from hq_api.domain import stories
@@ -1085,7 +1085,10 @@ async def activate(tx: Tx, r: dict[str, Any], by: Principal, *, note: str | None
     ev = _j(r["eval_run"]) or {}
     if review.get("verdict") != "pass" or ev.get("passed") is not True:
         raise ApiError(
-            409, "validation_failed", "not_approved", fields={"state": "needs the review's pass and a passed eval"}
+            409,
+            "validation_failed",
+            "not_approved",
+            fields={"state": "needs the review's pass and a passed eval"},
         )
     old = await tx.first(
         """SELECT * FROM people.role_drafts
@@ -1129,7 +1132,13 @@ async def activate(tx: Tx, r: dict[str, Any], by: Principal, *, note: str | None
 
 
 async def decide_by_ceo(
-    tx: Tx, who: Principal, r: dict[str, Any], verdict: str, note: str | None, *, lib: C.Library | None
+    tx: Tx,
+    who: Principal,
+    r: dict[str, Any],
+    verdict: str,
+    note: str | None,
+    *,
+    lib: C.Library | None,
 ) -> dict[str, Any]:
     """role.decide: the company's CEO, its own company, only while hiring is
     `delegated`, only a draft that passed review and eval and still fits the
@@ -1139,11 +1148,15 @@ async def decide_by_ceo(
     if r["company_id"] != who.company_id or r["company_kind"] != "company":
         raise ApiError(403, "policy_denied", "a CEO decides the drafts of its own company")
     if await hiring.mode(tx) != "delegated":
-        raise ApiError(403, "policy_denied", "hiring is not delegated: the owner decides (role_new)")
+        raise ApiError(
+            403, "policy_denied", "hiring is not delegated: the owner decides (role_new)"
+        )
     if r["state"] != "proposed" or r["approver_code"] != who.code:
         raise ApiError(409, "validation_failed", f"{r['ref']} is not waiting for you")
     if verdict == "approve":
-        dept = await tx.one("SELECT mandate FROM core.departments WHERE id = :d", d=r["department_id"])
+        dept = await tx.one(
+            "SELECT mandate FROM core.departments WHERE id = :d", d=r["department_id"]
+        )
         mgr = await manager_of(tx, r["department_id"])
         body = DraftIn(
             company=r["company"],
@@ -1158,7 +1171,9 @@ async def decide_by_ceo(
             model=str(r["model"]),
             effort=r["effort"],
             limits=Limits.model_validate(_j(r["limits"])),
-            eval_cases=[EvalCaseIn.model_validate(c) for c in (_j(r["eval"]) or {}).get("cases") or []],
+            eval_cases=[
+                EvalCaseIn.model_validate(c) for c in (_j(r["eval"]) or {}).get("cases") or []
+            ],
         )
         manager_charter = lib.get(mgr["role"]) if lib is not None and mgr else None
         bad = check_ceiling(body, mandate=_j(dept["mandate"]), manager=manager_charter, lib=lib)
@@ -1206,7 +1221,9 @@ async def apply_card(tx: Tx, d: dict[str, Any], who: Principal) -> dict[str, Any
     r = await load(tx, str(p.get("draft")), lock=True)
     if r["sha256"] != p.get("sha256"):
         raise ApiError(409, "decision_not_pending", "the draft changed after the card was made")
-    owner = Principal(kind=d["decided_by_kind"] or "owner", code=d["decided_by_code"] or "owner", role="owner")
+    owner = Principal(
+        kind=d["decided_by_kind"] or "owner", code=d["decided_by_code"] or "owner", role="owner"
+    )
     r = await activate(tx, r, owner, note=f"تأیید مالک ({d['ref']})")
     del who
     return {"draft": r["ref"], "state": r["state"]}

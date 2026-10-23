@@ -248,9 +248,7 @@ async def review_draft(
                 if exc.code != "academy_budget":
                     raise
                 r = await RD.load(tx, ref)
-                await RD._set(
-                    tx, r, state_note_fa="سقف ماهانه‌ی آکادمی پر است؛ آزمون صف نشد"
-                )
+                await RD._set(tx, r, state_note_fa="سقف ماهانه‌ی آکادمی پر است؛ آزمون صف نشد")
         out = _brief(await RD.load(tx, ref))
         if idem:
             await idem.store(tx, 200, out.model_dump(mode="json"))

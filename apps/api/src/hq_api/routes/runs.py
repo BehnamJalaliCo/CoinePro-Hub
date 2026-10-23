@@ -72,9 +72,7 @@ async def list_roles(ctx: Ctx = Depends(owner_ctx)) -> list[Role]:
     if lib is None:
         return []
     async with ctx.tx() as tx:
-        drafts = await tx.all(
-            RD.DRAFT_SQL + " WHERE r.state = 'active' ORDER BY c.code, r.role"
-        )
+        drafts = await tx.all(RD.DRAFT_SQL + " WHERE r.state = 'active' ORDER BY c.code, r.role")
     files = [
         Role(
             role=c.role,

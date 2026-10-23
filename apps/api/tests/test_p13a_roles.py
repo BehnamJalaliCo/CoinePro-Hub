@@ -109,7 +109,9 @@ async def delegated(su: Any) -> AsyncIterator[None]:
 async def score(agents: Any, hub: Hub, n: int, value: int) -> None:
     holding = (await hub.companies.holding()).code
     for _ in range(n):
-        agents.fake.enqueue(f"{holding}-AIOPS-MGR", "پاسخ با فصل‌بندی", {"score": value, "notes": "ok"})
+        agents.fake.enqueue(
+            f"{holding}-AIOPS-MGR", "پاسخ با فصل‌بندی", {"score": value, "notes": "ok"}
+        )
 
 
 def common_first(hub: Hub, system: str, body: str) -> bool:
@@ -121,9 +123,7 @@ def common_first(hub: Hub, system: str, body: str) -> bool:
 
 async def eval_of(su: Any, ref: str) -> str:
     return str(
-        await su.fetchval(
-            "SELECT eval_run->>'run' FROM people.role_drafts WHERE ref = $1", ref
-        )
+        await su.fetchval("SELECT eval_run->>'run' FROM people.role_drafts WHERE ref = $1", ref)
     )
 
 
@@ -211,9 +211,10 @@ async def test_a_draft_goes_through_the_gates_and_its_ceo_approves_it(
     r = await review(client, ref, sha256=sha)
     assert r.status_code == 200 and r.json()["state"] == "eval", r.text
     run_id = await eval_of(su, ref)
-    assert await su.fetchval(
-        "SELECT purpose FROM academy.eval_runs WHERE id = $1::uuid", run_id
-    ) == "role_draft"
+    assert (
+        await su.fetchval("SELECT purpose FROM academy.eval_runs WHERE id = $1::uuid", run_id)
+        == "role_draft"
+    )
     since = len(agents.fake.calls)
     await score(agents, hub, 3, 8)
     out = await academy.eval_run(run_id)
@@ -239,9 +240,10 @@ async def test_a_draft_goes_through_the_gates_and_its_ceo_approves_it(
         f"/internal/v1/roles/drafts/{ref}/decide", headers=ceo, json={"verdict": "approve"}
     )
     assert r.status_code == 200 and r.json()["state"] == "active", r.text
-    assert await su.fetchval(
-        "SELECT kind FROM owner.stories WHERE event_key = $1", f"role:{ref}"
-    ) == "role"
+    assert (
+        await su.fetchval("SELECT kind FROM owner.stories WHERE event_key = $1", f"role:{ref}")
+        == "role"
+    )
     # GET /roles lists it as a draft of its company.
     roles = (await client.get("/api/v1/roles", headers=owner)).json()
     mine = [x for x in roles if x["role"] == "podcast_editor" and x.get("company") == co]
@@ -319,7 +321,9 @@ async def test_a_failed_eval_ends_it_and_without_delegation_the_owner_seals_a_ca
     assert r.status_code == 200, r.text
     async with hub.db.tx(await hub.companies.ids()) as tx:
         await D.apply_effect(tx, card, D.actor_principal(await D.load(tx, card)))
-    assert await su.fetchval("SELECT state FROM people.role_drafts WHERE ref = $1", ref2) == "active"
+    assert (
+        await su.fetchval("SELECT state FROM people.role_drafts WHERE ref = $1", ref2) == "active"
+    )
 
 
 async def test_holding_drafts_always_go_to_the_owner(
@@ -343,7 +347,9 @@ async def test_holding_drafts_always_go_to_the_owner(
     assert (await review(client, ref)).status_code == 200
     await score(agents, hub, 3, 9)
     assert (await academy.eval_run(await eval_of(su, ref)))["passed"] is True
-    row = await su.fetchrow("SELECT approver_code, decision_id FROM people.role_drafts WHERE ref = $1", ref)
+    row = await su.fetchrow(
+        "SELECT approver_code, decision_id FROM people.role_drafts WHERE ref = $1", ref
+    )
     assert row["approver_code"] is None and row["decision_id"] is not None  # delegated or not
 
 
@@ -433,9 +439,10 @@ async def test_a_drafted_role_runs_with_common_first_and_its_a3_act_is_still_a_c
         code,
     )
     assert (card["kind"], card["status"], card["action_class"]) == ("a3_action", "pending", "A3")
-    assert await su.fetchval(
-        "SELECT charter_role FROM agents.runs WHERE id = $1", row["id"]
-    ) == "episode_poster"
+    assert (
+        await su.fetchval("SELECT charter_role FROM agents.runs WHERE id = $1", row["id"])
+        == "episode_poster"
+    )
 
 
 async def test_a_new_version_supersedes_and_a_retired_role_takes_no_new_hire(
@@ -451,7 +458,9 @@ async def test_a_new_version_supersedes_and_a_retired_role_takes_no_new_hire(
     r = await write(client, f"{co}-GROWTH-MGR", draft(co, charter_md=BODY + "\nAlso loudness."))
     assert r.status_code == 201, r.text
     new = r.json()["ref"]
-    assert (await client.get(f"/api/v1/roles/drafts/{new}", headers=owner)).json()["supersedes"] == old
+    assert (await client.get(f"/api/v1/roles/drafts/{new}", headers=owner)).json()[
+        "supersedes"
+    ] == old
     await su.execute(
         """UPDATE people.role_drafts SET state = 'proposed', review = '{"verdict": "pass"}',
                eval_run = '{"passed": true, "score": 88}' WHERE ref = $1""",
