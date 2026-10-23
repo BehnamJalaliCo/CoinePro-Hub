@@ -365,9 +365,11 @@ async def test_parts_keyed_by_ref_are_created_with_key_new_and_an_automation_run
         auto,
     )
     assert len(runs) == 1 and runs[0]["outcome"] == "done"
+    # Since the record was made: a down-and-up run of the migrations (test_hiring)
+    # recreates the archive and its ref sequences, while notifications stay.
     assert (
         await su.fetchval(
-            "SELECT count(*) FROM notify.notifications WHERE link_kind = 'archive_record' AND link_ref = $1 AND level = 'report'",
+            "SELECT count(*) FROM notify.notifications WHERE link_kind = 'archive_record' AND link_ref = $1 AND level = 'report' AND created_at >= (SELECT created_at FROM archive.records WHERE ref = $1)",
             rec.json()["ref"],
         )
         == 1

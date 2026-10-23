@@ -233,8 +233,10 @@ async def test_a_contract_ending_in_30_days_gets_one_cartable_reminder(
         )
     out = await RM.run(hub, txf(hub))
     assert out["created"] >= 1, out
+    # Since the record was made: a down-and-up run of the migrations (test_hiring)
+    # recreates the archive and its ref sequences, while notifications stay.
     n = await su.fetchrow(
-        "SELECT level, title_fa FROM notify.notifications WHERE link_kind = 'archive_record' AND link_ref = $1",
+        "SELECT level, title_fa FROM notify.notifications WHERE link_kind = 'archive_record' AND link_ref = $1 AND created_at >= (SELECT created_at FROM archive.records WHERE ref = $1)",
         rec["ref"],
     )
     assert n is not None and n["level"] == "decision" and "end" in n["title_fa"]
@@ -247,7 +249,7 @@ async def test_a_contract_ending_in_30_days_gets_one_cartable_reminder(
     await RM.run(hub, txf(hub))  # once per threshold
     assert (
         await su.fetchval(
-            "SELECT count(*) FROM notify.notifications WHERE link_kind = 'archive_record' AND link_ref = $1",
+            "SELECT count(*) FROM notify.notifications WHERE link_kind = 'archive_record' AND link_ref = $1 AND created_at >= (SELECT created_at FROM archive.records WHERE ref = $1)",
             rec["ref"],
         )
         == 1
