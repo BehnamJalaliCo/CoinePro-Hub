@@ -6,7 +6,7 @@ set -euo pipefail
 COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${HQ_ENV_FILE:-$COMPOSE_DIR/.env}"
 key="${1:-}" value="${2:-}"
-case "$key" in HQ_TRACING | HQ_STT | HQ_TTS | HQ_MEDIA) ;; *) echo "error: unknown switch: $key" >&2; exit 2 ;; esac
+case "$key" in HQ_TRACING | HQ_STT | HQ_TTS | HQ_MEDIA | HQ_OCR) ;; *) echo "error: unknown switch: $key" >&2; exit 2 ;; esac
 case "$value" in on | off) ;; *) echo "error: $key is on or off" >&2; exit 2 ;; esac
 [[ -f "$ENV_FILE" ]] || { echo "error: $ENV_FILE is missing (make env)" >&2; exit 1; }
 tmp="$(mktemp "$(dirname "$ENV_FILE")/.env.tmp.XXXXXX")"

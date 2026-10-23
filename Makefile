@@ -154,6 +154,40 @@ media-bench: ## The render worker's numbers, offline, in its sandbox: a 30 s ree
 	docker run --rm $(MEDIA_SANDBOX_FLAGS) coinepro-hq/media-render:0.1.0 probe
 	docker volume rm hq-media-bench >/dev/null
 
+# Prompt 14 §4: the archive's OCR (opt-in profile "ocr": Tesseract with the
+# pinned fas + eng traineddata, on the internal hq-ocr with the worker only).
+# Off until the owner orders the memory between the opt-ins.
+.PHONY: ocr-fetch ocr-on ocr-off ocr-bench ocr-test
+OCR_SANDBOX_FLAGS = --network none --read-only --tmpfs /tmp:size=128m,mode=1777 --cap-drop ALL \
+	--security-opt no-new-privileges:true --pids-limit 64 --cpus 2 --user 10001:10001 \
+	-v coinepro-hq_ocr-models:/models:ro
+ocr-fetch: ## Download the pinned OCR traineddata into the ocr-models volume (sha256-checked; set=fast|best)
+	HQ_OCR=off $(HQ) --profile ocr build ocr-fetch
+	HQ_OCR=off $(HQ) --profile ocr run --rm -e OCR_MODEL="$(set)" ocr-fetch
+
+ocr-on: ## Switch the archive's OCR on (profile "ocr", refused over the memory budget); the worker gets HQ_OCR_URL
+	@infra/compose/set-env.sh HQ_OCR on
+	$(HQ) build ocr
+	$(HQ) up -d --wait ocr worker
+
+ocr-off: ## Switch the archive's OCR off again (the default): scanned files keep text_state "none"
+	@infra/compose/set-env.sh HQ_OCR off
+	HQ_ALL_PROFILES=1 $(HQ) stop ocr
+	$(HQ) up -d --wait worker
+
+ocr-bench: ## The OCR's numbers, offline, in its sandbox: the Persian sample scan and its PDF (seconds, confidence, peak memory)
+	HQ_OCR=off $(HQ) --profile ocr build ocr
+	@for f in scan_fa.png scan_fa.pdf; do \
+	  docker run --rm $(OCR_SANDBOX_FLAGS) -v "$(abspath services/ocr/tests/samples):/s:ro" \
+	    --memory "$$(sed -n 's/^MEM_OCR=\([0-9]*m\).*/\1/p' infra/compose/profiles/$$($(HQ) --print-profile).env)" \
+	    coinepro-hq/ocr:0.1.0 python -m hq_ocr.bench /s/$$f || exit 1; \
+	done
+
+ocr-test: ## The OCR's tests with real Tesseract and the pinned traineddata (needs make ocr-fetch once)
+	HQ_OCR=off $(HQ) --profile ocr build ocr
+	docker run --rm $(OCR_SANDBOX_FLAGS) -v "$(abspath services/ocr/tests):/app/ocr/tests:ro" \
+	  coinepro-hq/ocr:0.1.0 python -m unittest discover -s tests -v
+
 stt-fetch: ## Download the pinned speech model into the stt-models volume (sha256-checked; model=large-v3-turbo)
 	HQ_STT=off $(HQ) --profile stt build stt-fetch
 	HQ_STT=off $(HQ) --profile stt run --rm -e STT_MODEL="$(or $(model),large-v3-turbo)" stt-fetch

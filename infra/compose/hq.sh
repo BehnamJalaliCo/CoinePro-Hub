@@ -7,6 +7,7 @@
 #        hq.sh --print-profile
 #        hq.sh --print-substitutes-runner   (on|off: what the api is told)
 #        hq.sh --print-media                (on|off: the render worker, prompt 13)
+#        hq.sh --print-ocr                  (on|off: the archive's OCR, prompt 14)
 # Env:   HQ_PROFILE=lean|full   force a profile (else .env, else server RAM)
 #        HQ_ENV_FILE=PATH       use another secrets file (CI uses a throwaway one)
 #        HQ_ALL_PROFILES=1      act on the services of every profile (used by `down`)
@@ -14,6 +15,7 @@
 #        HQ_PROVISIONING=on|off the provisioner (opt-in profile "provisioning"; else .env)
 #        HQ_MCP=on|off          MCP servers in containers (opt-in profile "mcp"; else .env)
 #        HQ_MEDIA=on|off        the media render worker (opt-in profile "media"; else .env)
+#        HQ_OCR=on|off          the archive's OCR (opt-in profile "ocr"; else .env)
 set -euo pipefail
 
 COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -337,6 +339,37 @@ if [[ "$media" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
 fi
 if [[ "${1:-}" == "--print-media" ]]; then # the quality gate's check
   printf '%s\n' "$HQ_MEDIA_ACTIVE"
+  exit 0
+fi
+# The archive's OCR (prompt 14 §4): opt-in profile "ocr" (Tesseract on the
+# internal hq-ocr, the worker its only client), switched on with HQ_OCR=on
+# (.env; `make ocr-on`, after `make ocr-fetch`). Refused like stt while the
+# profile plus ocr does not fit the memory budget; the worker gets HQ_OCR_URL
+# only while it is on (else scanned files keep text_state "none").
+ocr="${HQ_OCR:-$(sed -n 's/^HQ_OCR=//p' "$ENV_FILE" | tail -n1)}"
+export HQ_OCR_URL=""
+if [[ "$ocr" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  sum="$(compose "${profile_args[@]}" --profile ocr --profile backup-tools config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile ocr)
+    export HQ_OCR_URL="http://ocr:8088"
+  else
+    over="the $profile profile plus ocr needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_OCR=on refused: $over (make ocr-off)." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_OCR=on ignored ($over)" >&2 ;;
+    esac
+  fi
+fi
+if [[ "${1:-}" == "--print-ocr" ]]; then # the quality gate's check
+  if [[ -n "$HQ_OCR_URL" ]]; then echo on; else echo off; fi
   exit 0
 fi
 if [[ "${HQ_ALL_PROFILES:-0}" == "1" ]]; then
