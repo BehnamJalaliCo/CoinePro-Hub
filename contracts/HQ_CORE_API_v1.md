@@ -2010,6 +2010,10 @@ may be held by either player; the table gives the default holder. A text seat ru
 fast); the owner may switch it to `via: "web"` to use the unlimited chat in the browser instead. Model ids are data in the connection's
 `models[]`: one the CLI does not offer is `available: false`, the seat falls to the nearest available model of the same tier, and the morning
 report says so.
+⟨1.7.2⟩ **Gemini CLI for individuals is gone** (2026-10-23: Google answers the CLI's "Sign in with Google" with «This client is no longer
+supported for Gemini Code Assist for individuals», pointing to Antigravity). So every Gemini seat runs `via: "web"` (the signed-in browser
+profile, below); the Gemini CLI runner reports the player `unavailable` with that reason and never asks for an API key. `code_review` stays
+with GPT (Codex CLI). An API-key Gemini connection (paid) remains possible through §21.9.
 | Seat | Player · model | What it does | Per day |
 |---|---|---|---|
 | `advisor_second_opinion` | gpt · strong | An independent opinion on the same masked facts pack as a decision memo (§21.1), **without** the advisor's memo. `DecisionMemo.second_opinion: {player, model, recommendation, confidence, summary_fa (≤ 600), differences: [string], agrees: bool}\|null`; `agrees` is code (same `recommendation`). A disagreement shows on the card and in the weekly review. | 3 |
