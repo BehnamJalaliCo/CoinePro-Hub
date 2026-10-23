@@ -43,9 +43,11 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     rev = _revisions()
     assert rev["0026"] == "0025" and rev["0026_1"] == "0026"
     assert rev["0027"] == "0026_1" and rev["0027_1"] == "0027" and rev["0027_2"] == "0027_1"
+    # ⟨1.6⟩ prompt 13 sits on prompt 12 final: 0027_2 -> 0028 -> 0028_1 (the head)
+    assert rev["0028"] == "0027_2" and rev["0028_1"] == "0028"
     heads = set(rev) - {d for d in rev.values() if d}
-    assert heads == {"0027_2"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0027_2"
+    assert heads == {"0028_1"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0028_1"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:
