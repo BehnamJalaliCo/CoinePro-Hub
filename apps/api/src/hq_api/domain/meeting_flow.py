@@ -1542,6 +1542,7 @@ async def start_due(tx: Tx, now: datetime, s: Any) -> int:
                    WHERE id = :id""",
                 id=m["id"],
             )
+            await MT.calendar_cancelled(tx, m["ref"])
             continue
         await start(tx, await MT.load(tx, m["ref"], lock=True), s)
         n += 1

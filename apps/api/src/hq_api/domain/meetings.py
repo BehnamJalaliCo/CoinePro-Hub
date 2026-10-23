@@ -884,6 +884,16 @@ async def refresh_budget(tx: Tx, m: dict[str, Any]) -> dict[str, Any]:
 MEETING_SQL = """
     SELECT m.*, c.code AS company FROM meetings.meetings m JOIN core.companies c ON c.id = m.company_id
 """
+CALENDAR_SLOT = timedelta(hours=1)  # a meeting's place on the change calendar (§9.2)
+
+
+async def calendar_cancelled(tx: Tx, ref: str) -> None:
+    """A cancelled (missed) meeting leaves the change calendar."""
+    await tx.exec(
+        """UPDATE governance.calendar_events SET status = 'cancelled', updated_at = now()
+           WHERE auto_key = :k AND status = 'planned'""",
+        k=f"meeting:{ref}",
+    )
 
 
 async def load(tx: Tx, ref: str, *, lock: bool = False) -> dict[str, Any]:
@@ -947,6 +957,21 @@ async def create(
     if row is None:
         return None
     m = await load(tx, row["ref"])
+    if m["type"] != "standup":  # prompt 11 §9.2: meetings fill the change calendar (by code)
+        from hq_api.domain import gov_calendar
+
+        await gov_calendar.insert(
+            tx,
+            m["company_id"],
+            kind="meeting",
+            title_fa=m["title_fa"],
+            starts_at=m["starts_at"],
+            ends_at=m["starts_at"] + CALENDAR_SLOT,
+            source={"meeting": m["ref"]},
+            risk="low",
+            by=("service", "meetings"),
+            auto_key=f"meeting:{m['ref']}",
+        )
     await events.emit(
         tx,
         m["company"],

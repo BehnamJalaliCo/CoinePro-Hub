@@ -23,6 +23,7 @@ from pydantic import Field
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
+from hq_api.domain import gov_authority
 from hq_api.domain import knowledge as K
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow
@@ -351,6 +352,12 @@ async def agent_approve_knowledge(
     _agent(ctx)
     async with ctx.tx() as tx:
         entry = await _visible(ctx, tx, ref, body.version)
+        # The matrix row decides by the database too, not only by OPA's copy
+        # (an OPA restart loses the pushed data until the next push).
+        matrix_row = await gov_authority.row(tx, "knowledge.approve.company")
+    if matrix_row is not None and matrix_row["actor"] == "owner":
+        raise ApiError(403, "policy_denied", "the owner took knowledge.approve.company back")
+    await gov_authority.ensure(ctx.hub)  # OPA reads data.hq.authority (prompt 11 §7)
     await allow(ctx, "knowledge.approve", {"company": entry["company"], "layer": entry["layer"]})
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who)
