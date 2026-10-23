@@ -93,6 +93,9 @@ jobs:
       - name: Generated design assets are current
         run: python3 apps/android/scripts/gen_assets.py --check
 
+      - name: One version for both apps (apps/VERSION and the web's package.json)
+        run: test "$(cat apps/VERSION)" = "$(python3 -c 'import json; print(json.load(open("apps/web/package.json"))["version"])')"
+
       # Optional: the owner's signing key (repository secrets). Without it the release APK is signed with
       # the runner's throwaway debug key and passkeys cannot work with it.
       - name: Owner signing key
@@ -124,10 +127,12 @@ jobs:
           out=apps/android/app/build/outputs/apk
           cp "$out/debug/app-debug.apk" coinepro-hq-debug.apk
           cp "$out/release/app-release.apk" coinepro-hq.apk
-          notes="Commit ${GITHUB_SHA::7}. coinepro-hq.apk: the app (passkey sign-in)."
+          v="$(cat apps/VERSION)"
+          cp coinepro-hq.apk "coinepro-hq-$v.apk"
+          notes="Version $v, commit ${GITHUB_SHA::7} (apps/CHANGELOG.md). coinepro-hq.apk: the app (passkey sign-in)."
           notes="$notes coinepro-hq-debug.apk: development build with the demo holding."
           if ! gh release view android-latest >/dev/null 2>&1; then
-            gh release create android-latest --prerelease --title "Android (latest)" --notes "$notes" --target "$GITHUB_SHA"
+            gh release create android-latest --prerelease --title "Android $v" --notes "$notes" --target "$GITHUB_SHA"
           fi
-          gh release edit android-latest --notes "$notes"
-          gh release upload android-latest coinepro-hq.apk coinepro-hq-debug.apk --clobber
+          gh release edit android-latest --title "Android $v" --notes "$notes"
+          gh release upload android-latest coinepro-hq.apk "coinepro-hq-$v.apk" coinepro-hq-debug.apk --clobber

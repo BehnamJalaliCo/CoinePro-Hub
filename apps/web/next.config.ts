@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import pkg from './package.json';
 
 const mock = process.env.NEXT_PUBLIC_HQ_MOCK === '1';
 
@@ -8,6 +9,8 @@ const config: NextConfig = {
   reactStrictMode: true,
   productionBrowserSourceMaps: false,
   images: { unoptimized: true },
+  // The panel's version (apps/VERSION, kept equal to package.json by CI), shown in Settings.
+  env: { NEXT_PUBLIC_APP_VERSION: pkg.version },
   // Development fixtures never ship: outside mock mode the module resolves to an empty stand-in.
   turbopack: mock ? {} : { resolveAlias: { '@/lib/api/mock': './src/lib/api/mock-off.ts' } },
   // Project rules live in the repository's CLAUDE.md; Next must not write its own agent files here.

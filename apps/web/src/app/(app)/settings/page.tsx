@@ -99,6 +99,7 @@ export default function SettingsPage() {
             </div>
           </Card>
           <NotificationMatrix />
+          <p className="px-1 text-[11px] text-muted">نسخه‌ی پنل <span className="fig">{process.env.NEXT_PUBLIC_APP_VERSION}</span></p>
         </div>
       </div>
     </>

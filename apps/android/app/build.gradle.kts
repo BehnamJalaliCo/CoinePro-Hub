@@ -16,6 +16,8 @@ val signing = Properties().apply {
 }
 fun signingValue(key: String, env: String): String? = signing.getProperty(key) ?: System.getenv(env)
 
+val appVersion: String = rootProject.file("../VERSION").readText().trim()
+
 android {
     namespace = "com.coinepro.hq"
     compileSdk = 37
@@ -24,8 +26,10 @@ android {
         applicationId = "com.coinepro.hq"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        // One version for both apps: apps/VERSION (major.minor.patch, see apps/CHANGELOG.md). The code grows with it,
+        // so every release installs over the one before.
+        versionName = appVersion
+        versionCode = appVersion.split(".").map(String::toInt).let { (major, minor, patch) -> major * 10_000 + minor * 100 + patch }
         // The hub's public origin; also the WebAuthn relying party (contract §2).
         buildConfigField("String", "HQ_ORIGIN", "\"https://hq.coinepro.com\"")
     }
