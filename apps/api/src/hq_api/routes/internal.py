@@ -11,6 +11,7 @@ single insert after the policy allowed it.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from datetime import datetime
 from decimal import Decimal
@@ -42,6 +43,7 @@ from hq_api.schemas import EMPLOYEE_CODE, Evidence, FileRef, Model
 from hq_api.workshop import service as workshop_service
 
 router = APIRouter(tags=["internal"])
+log = logging.getLogger("hq_api.internal")
 E = responses(401, 403, 404, 409, 422, 423)
 Priority = Literal["P0", "P1", "P2", "P3", "P4"]
 MIME = re.compile(r"^[a-z0-9.+-]+/[a-z0-9.+-]+$")
@@ -1124,8 +1126,11 @@ async def raise_notification(
         # ⟨1.5⟩ prompt 11 §1.8: the company's war room opens at once (P0), unless locked
         from hq_api.domain import meeting_flow as MF
 
-        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as wtx:
-            await MF.war_room_for_alert(wtx, company.id, company.code)
+        try:  # the alert itself never waits for, or fails with, its war room
+            async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as wtx:
+                await MF.war_room_for_alert(wtx, company.id, company.code)
+        except Exception:
+            log.exception("war room not opened", extra={"company": company.code})
     return NotificationOut(id=n["id"], level=n["level"], state=n["state"])
 
 
