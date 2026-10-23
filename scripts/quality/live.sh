@@ -20,7 +20,8 @@
 #   12 §14  each running MCP container server: the gateway reaches it; it
 #         reaches no internet, no 10.10.1.1 and no hub service; reviewed digest.
 #   13 §2.3  the render worker: hq-media reaches the api and OpenBao only; the
-#         renderer's own service has no network at all (its probe).
+#         renderer's own service has no network at all (its probe); a forged
+#         signed media URL and every other /public path are 404 at the edge.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -241,6 +242,20 @@ if docker image inspect coinepro-hq/media-render:0.1.0 >/dev/null 2>&1; then
   answer="$("$HQ" --profile media run --rm --no-deps -T media-render probe 2>/dev/null)" ||
     fail "media-render: the sandbox probe failed (${answer:-no answer})"
   ok "$before" "media-render has no network at all (loopback only; nothing it tried answered)"
+fi
+# The media studio's one public route (13 §2.3): through Caddy, a forged or
+# unknown signed URL, another path under /public and /internal are all 404
+# (the api signs a real one only for a render file, for 15 minutes).
+site="$(sed -n 's/^HQ_SITE_ADDRESS=//p' "${HQ_ENV_FILE:-$REPO_DIR/infra/compose/.env}" 2>/dev/null | tail -n1)"
+if [[ -n "$site" && "$site" != :* ]] && running coinepro-hq-caddy-1; then
+  before=$failures
+  forged="$(openssl rand -base64 48 | tr '+/' '-_' | tr -d '=\n' | cut -c1-51)"
+  for path in "/public/v1/media/$forged" "/public/v1/media/x" "/public/v1/other" "/internal/v1/media/render/claim"; do
+    code="$(docker run --rm --network host "$CURL_IMAGE" -s -o /dev/null -w '%{http_code}' \
+      --resolve "$site:443:127.0.0.1" "https://$site$path" 2>/dev/null || true)"
+    [[ "$code" == 404 ]] || fail "https://$site$path answers $code, not 404"
+  done
+  ok "$before" "a forged signed media URL, other /public paths and /internal are 404 at the edge"
 fi
 
 # ------------------------------------------------------------ 7.1 §2.19 ----
