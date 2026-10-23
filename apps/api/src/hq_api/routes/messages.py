@@ -100,6 +100,8 @@ class MessageIn(Model):
     body: str = Field(default="", max_length=100000)
     links: Links | None = None
     attachments: list[UUID] = Field(default_factory=list, max_length=F.MAX_ATTACHMENTS)
+    # ⟨1.5⟩ the advisor's devil's advocate (contract §21.1): thread A only.
+    mode: Literal["devil"] | None = None
 
     @model_validator(mode="after")
     def _something(self) -> MessageIn:
@@ -148,7 +150,7 @@ MESSAGE_SQL = """
            m.kind, m.created_at, m.seq, m.citations, m.meta
     FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
 """
-META_KEYS = ("citations_dropped",)
+META_KEYS = ("citations_dropped", "mode", "proactive", "review")  # ⟨1.5⟩ §21.14
 # How each cited kind is found (refs are global: D-, M-, O-, W-, <thread>-<seq>, audit seq).
 CITED = {
     "decision": "SELECT 1 FROM cartable.decisions WHERE ref = :r",
@@ -470,6 +472,12 @@ async def send_message(
     message wakes that agent: `reply` is its queued run; the reply arrives as a
     message (and live on GET /threads/{code}/live). Requires `Idempotency-Key`."""
     links = body.links.model_dump(exclude_none=True) if body.links else {}
+    if body.mode is not None and code != "A":
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"mode": "the devil's advocate is the advisor's (thread A)"},
+        )
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
@@ -483,7 +491,14 @@ async def send_message(
                 tx, holding.id, links, body.body, body.attachments, voice
             )
         m = await post_message(
-            ctx, tx, code, body.body, links, body.attachments, checked=("errand",)
+            ctx,
+            tx,
+            code,
+            body.body,
+            links,
+            body.attachments,
+            meta={"mode": body.mode} if body.mode else None,
+            checked=("errand",),
         )
         if code == errands.THREAD:
             await errands.opened_by(tx, links["errand"], m["ref"])

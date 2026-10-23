@@ -80,7 +80,8 @@
           "oversight.challenge_score",
           "protocol.result",
           "oversight.protocol_result",
-          "risk.update"
+          "risk.update",
+          "claim.verdict"
         ],
         "employee": [
           "work.accept",
@@ -99,7 +100,8 @@
           "feedback.tag",
           "support.draft",
           "support.handoff",
-          "knowledge.review"
+          "knowledge.review",
+          "claim.verdict"
         ],
         "assistant": [
           "errand.step",
@@ -136,7 +138,8 @@
           "deploy.freeze",
           "deploy_freeze.set",
           "support.mystery",
-          "knowledge.review"
+          "knowledge.review",
+          "claim.verdict"
         ]
       },
       "authority_bounds": {

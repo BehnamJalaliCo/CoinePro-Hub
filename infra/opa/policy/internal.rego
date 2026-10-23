@@ -52,6 +52,11 @@ ops := {
 	# prompt 11 §4-§10: cards, OKRs, outcomes, risks, the calendar, the matrix (governance.rego)
 	"kpi.record", "okr.draft", "okr.checkin", "outcome.note", "risk.raise", "risk.update",
 	"calendar.read", "calendar.add", "authority.read", "governance.read",
+	# prompt 12 part A: the advisor's memo, the substitute players and the
+	# runner's job queue (advisor_substitutes.rego)
+	"memo.write", "substitute.call", "substitutes.jobs",
+	# prompt 12 part B (mgmt.rego): the TTS one-shot, a checked claim
+	"tts.claim", "tts.done", "claim.verdict",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and

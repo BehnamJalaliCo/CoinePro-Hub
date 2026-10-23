@@ -224,8 +224,16 @@ def clean_path(raw: str) -> str | None:
     return unquote(raw)
 
 
+def is_profile(acct: dict[str, Any]) -> bool:
+    """A signed-in browser profile's account (contract §21.13: chatgpt-web,
+    gemini-web, deepseek-web): its "secret" is the profile the profile
+    browser alone mounts, never a value in OpenBao."""
+    return ((acct.get("browse") or {}).get("kind")) == "profile"
+
+
 async def account(tx: Tx, bao: Any, key: str, company: str) -> dict[str, Any]:
-    """The account for one call, with its secret (OpenBao kv/tools/accounts/<key>)."""
+    """The account for one call, with its secret (OpenBao kv/tools/accounts/<key>);
+    a profile account has none (None) and needs none."""
     row = await tx.one(
         "SELECT id, key, site, companies, policy FROM tools.accounts WHERE key = :k",
         k=key,
@@ -233,11 +241,12 @@ async def account(tx: Tx, bao: Any, key: str, company: str) -> dict[str, Any]:
     )
     if row["companies"] is not None and company not in row["companies"]:
         raise ApiError(403, "policy_denied", "account_not_for_this_company")
-    secret = await read_secret(bao, key)
-    if not secret:
+    policy = row["policy"] or {}
+    profile = is_profile(policy)
+    secret = None if profile else await read_secret(bao, key)
+    if not secret and not profile:
         raise ApiError(409, "account_not_configured")
     await tx.exec("UPDATE tools.accounts SET last_used_at = now() WHERE id = :id", id=row["id"])
-    policy = row["policy"] or {}
     return {
         "key": row["key"],
         "site": row["site"],

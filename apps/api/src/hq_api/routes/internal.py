@@ -42,6 +42,8 @@ from hq_api.routes.messages import (
 from hq_api.schemas import EMPLOYEE_CODE, Evidence, FileRef, Model
 from hq_api.workshop import service as workshop_service
 
+log = logging.getLogger("hq_api.routes.internal")
+
 router = APIRouter(tags=["internal"])
 log = logging.getLogger("hq_api.internal")
 E = responses(401, 403, 404, 409, 422, 423)
@@ -288,6 +290,15 @@ OP_CLASS: dict[str, str] = {
     "calendar.add": "A2",
     "authority.read": "A0",
     "governance.read": "A0",
+    # prompt 12 part A (advisor_substitutes.rego): the advisor's memo, the
+    # substitute players' seat calls, and the runner's job queue (service)
+    "memo.write": "A1",
+    "substitute.call": "A0",
+    "substitutes.jobs": "A0",
+    # prompt 12 part B (mgmt.rego): the TTS one-shot, the fact check of a claim
+    "tts.claim": "A0",
+    "tts.done": "A1",
+    "claim.verdict": "A2",
 }
 
 
@@ -579,6 +590,11 @@ async def deliver_work(
 ) -> Any:
     """Creates the Deliverable (cartable of outputs) and marks the work
     delivered; its delivered children become done. Requires `Idempotency-Key`."""
+    from hq_api.domain import briefings as BR
+    from hq_api.domain import hr as HR
+
+    # ⟨1.5⟩ a CEO's weekly letter: an unsourced figure sends it back once
+    unsourced_mark = await BR.letter_gate(ctx, id, body.body or "")
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
@@ -615,7 +631,7 @@ async def deliver_work(
             co=w["company_id"],
             w=w["id"],
             p=ctx.who.employee_id,
-            title=body.title,
+            title=BR.marked(body.title, unsourced_mark),
             summary=body.summary,
             body=body.body,
             att=[str(a) for a in body.attachments],
@@ -642,6 +658,9 @@ async def deliver_work(
         await founding.on_delivered(
             tx, w, dl["ref"], body.body or "", [e.model_dump(mode="json") for e in body.evidence]
         )
+        # ⟨1.5⟩ prompt 12: a CEO's letter becomes its briefing; an HR round's report
+        await BR.on_delivered(tx, ctx.hub.settings, w, dl, body.body or "", unsourced_mark)
+        await HR.on_delivered(tx, w, dl["ref"])
         await ctx.emit(
             tx,
             w["company"],
@@ -836,6 +855,14 @@ async def propose_decision(
         raise ApiError(403, "policy_denied", "agents only")
     assert ctx.who.company is not None
     assert ctx.who.company_id is not None
+    if body.kind == "deploy":
+        # ⟨1.5⟩ prompt 12 §7: the real diff, read with the hub's existing git
+        # access before the card exists (its payload never changes after)
+        from hq_api.domain import deploy_diff
+
+        body = body.model_copy(
+            update={"payload": await deploy_diff.attach(ctx.hub, body.payload, ctx.who.company_id)}
+        )
     async with ctx.tx() as tx:
         # The key first: a retried request gets the answer it already got.
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
@@ -873,6 +900,7 @@ async def propose_decision(
         )
         if body.kind == "errand_action":  # ⟨1.4⟩ the errand waits for the owner
             await errands.on_proposed(tx, payload["errand"], d["id"])
+
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,
@@ -885,8 +913,25 @@ async def propose_decision(
         result = D.render(d)
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
+    if body.kind == "deploy":
+        await _review_deploy(ctx, d)
     await workflows_client.decision_created(ctx.hub, result.ref)
     return result
+
+
+async def _review_deploy(ctx: Ctx, d: dict[str, Any]) -> None:
+    """⟨1.5⟩ Prompt 12 §7 x §9.1: a deploy card's real diff gets its second
+    code review (seat code_review), after the card exists. The players and
+    seats are the holding's, so it runs in the hub's scope. Skipped while the
+    holding is locked or the seat is off; it never approves or blocks, and the
+    card is the same without it (a failure here is logged, never the card's)."""
+    from hq_api.domain import substitutes
+
+    try:
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+            await substitutes.review_deploy(tx, ctx.hub, d)
+    except Exception:
+        log.exception("the deploy card's second review was not queued", extra={"ref": d["ref"]})
 
 
 async def _agent_decide(
@@ -981,6 +1026,12 @@ async def agent_message(
 
             async with read_tx(ctx) as rtx:
                 kept, dropped = await validate_citations(rtx, body.citations)
+        # ⟨1.5⟩ the advisor's reply in A: a proactive note or a devil's answer (§21.1).
+        from hq_api.domain import advisor as ADV
+
+        meta: dict[str, Any] = await ADV.reply_meta(tx, ctx.who, code)
+        if body.citations:
+            meta["citations_dropped"] = dropped
         m = await post_message(
             ctx,
             tx,
@@ -989,8 +1040,9 @@ async def agent_message(
             links,
             body.attachments,
             citations=kept,
-            meta={"citations_dropped": dropped} if body.citations else None,
+            meta=meta or None,
         )
+        await ADV.after_reply(tx, ctx.who, m, meta)
         result = (
             await render_messages(tx, [await tx.one(MESSAGE_SQL + " WHERE m.id = :id", id=m["id"])])
         )[0]

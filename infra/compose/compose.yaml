@@ -328,7 +328,7 @@ services:
     <<: *service
     image: openbao/openbao:2.7.1
     # hq-prov: the provisioner's AppRole (bound to 172.30.10.0/24, prompt 09).
-    networks: [hq-internal, hq-llm, hq-prov]
+    networks: [hq-internal, hq-llm, hq-prov, hq-tts]
     command: ["server"]
     environment:
       BAO_ADDR: http://127.0.0.1:8200
@@ -434,6 +434,8 @@ services:
       OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
       # Prompt 11 §1.2: all meeting turns of a UTC day (not the war room) share this part of the cap.
       MEETINGS_DAILY_SHARE: ${MEETINGS_DAILY_SHARE:-0.15}
+      # Prompt 12 §15: the owner zone's automatic runs (advisor, librarian, digital CEO).
+      OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
       # Prompt 10 §4.3: one company's support drafts per UTC day (scope support_draft:<company>).
       SUPPORT_DRAFT_DAILY_TOKENS: ${SUPPORT_DRAFT_DAILY_TOKENS:-60000}
     user: "10001:10001"
@@ -565,7 +567,8 @@ services:
     # hq-internal: Caddy, NATS, OpenBao (AppRole bound to 172.30.0.0/24);
     # hq-core: Temporal; hq-agent: OPA and the gateway's calls to /internal/v1;
     # hq-prov: the provisioner (prompt 09) and its calls to /internal/v1.
-    networks: [hq-internal, hq-core, hq-agent, hq-prov]
+    # hq-tts: the TTS one-shot's calls to /internal/v1/tts (prompt 12 §4).
+    networks: [hq-internal, hq-core, hq-agent, hq-prov, hq-tts]
     build:
       context: ../../apps/api
       additional_contexts:
@@ -605,6 +608,12 @@ services:
       # The provisioner (prompt 09, opt-in profile "provisioning"): hq.sh sets it
       # while HQ_PROVISIONING=on, else empty (pricing and builds wait).
       PROVISIONER_URL: ${PROVISIONER_URL:-}
+      # Prompt 12 §14: MCP servers in containers (opt-in profile "mcp",
+      # infra/compose/mcp.yaml): hq.sh sets MCP_CONTAINERS=on only while
+      # HQ_MCP=on and it fits the memory budget; the reviewed allow-list
+      # (infra/mcp/servers.yaml) is mounted read-only.
+      MCP_CONTAINERS: ${MCP_CONTAINERS:-off}
+      HQ_MCP_ALLOWLIST: /app/mcp/servers.yaml
       # Prompt 10 (contract §19): support, referral checks, the revenue radar, intake.
       SUPPORT_RETENTION_DAYS: ${SUPPORT_RETENTION_DAYS:-180}
       SUPPORT_DRAFT_DAILY_TOKENS: ${SUPPORT_DRAFT_DAILY_TOKENS:-60000}
@@ -616,6 +625,21 @@ services:
       REVENUE_BACKFILL_DAYS: ${REVENUE_BACKFILL_DAYS:-90}
       REVENUE_PULL_MAX_DAYS: ${REVENUE_PULL_MAX_DAYS:-31}
       INTAKE_MAX_SKEW_S: ${INTAKE_MAX_SKEW_S:-300}
+      # Prompt 12 (contract §21.0, §21.7): the owner zone's share (the api defers
+      # what no longer fits) and the route a new connection's secret may take.
+      AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
+      OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
+      CONNECTION_SECRET_ROUTE: ${CONNECTION_SECRET_ROUTE:-api}
+      # Prompt 12 §9.1: hq.sh sets it on only while the substitutes runner's
+      # opt-in profile is on and fits the memory budget (else the app's CLI
+      # sign-in answers 409 not_ready; the owner's terminal still works).
+      SUBSTITUTES_RUNNER: ${SUBSTITUTES_RUNNER:-off}
+      # Prompt 12 part B: the Persian voice is on only while the opt-in profile
+      # "tts" runs (hq.sh sets HQ_TTS_ACTIVE); else briefings are text only.
+      HQ_TTS: ${HQ_TTS_ACTIVE:-off}
+      HQ_TTS_VOICE: ${HQ_TTS_VOICE:-fa_IR-amir-medium}
+      # The deploy card's diff (§21.6): mirrors of the workspaces' repositories.
+      HQ_GIT_MIRRORS: /var/lib/hq-git
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -625,6 +649,9 @@ services:
       - hq-files:/data/files
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors:ro
       - ../../agents:/app/agents:ro
+      - ../mcp/servers.yaml:/app/mcp/servers.yaml:ro
+      # Mirrors for the deploy card's diff (prompt 12 §7): rebuilt by a fetch if lost.
+      - hq-git:/var/lib/hq-git
     healthcheck:
       test: ["CMD", "python", "-m", "hq_common.heartbeat"]
       interval: 15s
@@ -665,6 +692,7 @@ services:
       OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
       # Prompt 11 §1.2: the meetings' share of the daily cap (a meeting that does not fit is `written`).
       MEETINGS_DAILY_SHARE: ${MEETINGS_DAILY_SHARE:-0.15}
+      OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
       HQ_CEO_DAILY_REPORTS: ${HQ_CEO_DAILY_REPORTS:-off}
       HQ_MORNING_REPORT_LLM: ${HQ_MORNING_REPORT_LLM:-on}
       # Owner media (prompt 6 §2-§3): the file store (posters, key frames, sound
@@ -675,6 +703,8 @@ services:
       # Prompt 10 §4.2: support sends leave through egress (a channel's secret
       # is read from OpenBao for one call and handed to egress only).
       SUPPORT_EGRESS_URL: http://egress:8090
+      # Prompt 12 §9.1: a creative's Persian overlay is set in IRANYekanX by code.
+      HQ_FONTS_DIR: /app/fonts
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -682,6 +712,7 @@ services:
     volumes:
       - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/hq-worker:/run/secrets/hq:ro
       - hq-files:/data/files
+      - ../../design/fonts/static:/app/fonts:ro
       # Append-only anchor file of the audit chain, outside the Postgres volume
       # and inside the backup set (created by `make bootstrap`, owner uid 10001).
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors
@@ -709,7 +740,9 @@ services:
     build:
       context: ../../services
       dockerfile: gateway/Dockerfile
-    networks: [hq-agent, hq-egress-api]
+    # hq-mcp (prompt 12 §14): the MCP servers in containers, straight to
+    # http://mcp-<key>:8080/mcp (no egress); nothing else of the hub is on it.
+    networks: [hq-agent, hq-egress-api, hq-mcp]
     depends_on:
       api:
         condition: service_healthy
@@ -756,7 +789,9 @@ services:
       context: ../../services
       dockerfile: egress/Dockerfile
     # hq-prov-out: the provisioner's way to api.hetzner.cloud (prompt 09).
-    networks: [hq-egress, hq-egress-api, hq-browser, hq-prov-out]
+    # Prompt 12 §9.1: hq-subs (the substitute runner's CLI hosts), hq-browser-web
+    # (the profile browser) and hq-web-login (the owner's sign-in window).
+    networks: [hq-egress, hq-egress-api, hq-browser, hq-prov-out, hq-subs, hq-browser-web, hq-web-login]
     depends_on:
       searxng:
         condition: service_healthy
@@ -775,10 +810,21 @@ services:
       EGRESS_BROWSER_PROXY_CLIENTS: 172.30.9.0/24
       EGRESS_PROVISIONER_PROXY_CLIENTS: 172.30.11.0/24
       EGRESS_PROVISIONER_HOSTS: api.hetzner.cloud
+      # Prompt 12 §9.1 (contract §21.13): the substitute players. The runner's
+      # CLIs reach only their own hosts (EGRESS_SUBSTITUTES_HOSTS, default in
+      # hq_egress.config); the profile browser and the sign-in window reach
+      # only their recipe's hosts (infra/egress/recipes, reviewed files).
+      EGRESS_SUBSTITUTES_PROXY_CLIENTS: 172.30.13.0/24
+      EGRESS_WEB_PROXY_CLIENTS: 172.30.14.0/24
+      EGRESS_LOGIN_PROXY_CLIENTS: 172.30.15.0/24
+      EGRESS_WEB_BROWSER_URL: http://browser-web:8096
+      EGRESS_RECIPES_DIR: /recipes
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=16m,mode=1777"]
     cap_drop: [ALL]
+    volumes:
+      - ../egress/recipes:/recipes:ro
     healthcheck:
       test: ["CMD", "python", "-m", "hq_common.heartbeat"]
       interval: 15s
@@ -1265,6 +1311,171 @@ services:
         limits:
           memory: ${MEM_STT:?}
 
+  substitute-runner:
+    # The substitute players' CLIs (prompt 12 §9.1, contract §21.13): OpenAI
+    # Codex CLI and Google Gemini CLI, one one-shot container per call
+    # (infra/substitutes/dispatch.sh runs it from coinepro-hq-substitutes.timer,
+    # one job at a time for both): the Job JSON on stdin, JSON lines out, the
+    # prompt on the CLI's own stdin. Opt-in (profile "substitutes",
+    # HQ_SUBSTITUTES=on; hq.sh refuses it over the memory budget). Its only
+    # network reaches egress's CONNECT listener for its two CLIs' hosts; no
+    # hub service, no database. The CLIs' sign-in lives in hq-substitute-auth
+    # (files 600, not in the backups), which nothing else mounts.
+    <<: *job
+    profiles: [substitutes]
+    image: coinepro-hq/substitutes:0.1.0
+    build:
+      context: ../../services
+      dockerfile: substitutes/Dockerfile
+    networks: [hq-subs]
+    environment:
+      HTTPS_PROXY: http://egress:3131
+      HTTP_PROXY: http://egress:3131
+      NO_PROXY: localhost,127.0.0.1
+      # Node's own fetch takes the proxy from the environment (Gemini CLI).
+      NODE_USE_ENV_PROXY: "1"
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - "/work:size=64m,uid=10001,gid=10001,mode=0700"
+      - "/tmp:size=16m,mode=1777"
+    cap_drop: [ALL]
+    volumes:
+      - hq-substitute-auth:/auth
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_SUBSTITUTE:?}
+
+  browser-web:
+    # The substitute players' signed-in browser profiles (prompt 12 §9.1.5):
+    # the same Playwright image as the browser, one persistent profile per
+    # account (chatgpt-web, gemini-web, deepseek-web) in hq-substitute-web
+    # (files 600, not in the backups), opened per job by a reviewed recipe
+    # and closed after it. egress is its only peer and its only way out
+    # (:3132, a job's bucket: the site's own hosts only). Opt-in (profile
+    # "substitutes-web", HQ_SUBSTITUTES_WEB=on; hq.sh's memory rule). The
+    # same sandbox as the browser: seccomp, SYS_CHROOT only, non-root.
+    <<: *service
+    profiles: [substitutes-web]
+    image: coinepro-hq/browser:0.1.0
+    command: ["python3", "-m", "hq_egress.browser_web"]
+    networks: [hq-browser-web]
+    environment:
+      BROWSER_SANDBOX: "1"
+      BROWSER_JS_HEAP_MB: ${BROWSER_JS_HEAP_MB:-192}
+      BROWSER_WEB_PROFILES: /profiles
+      PORT: "8096"
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=${BROWSER_WEB_TMPFS:-64m},mode=1777"]
+    security_opt: ["no-new-privileges:true", "seccomp=../browser/seccomp_profile.json"]
+    cap_drop: [ALL]
+    cap_add: [SYS_CHROOT]
+    volumes:
+      - hq-substitute-web:/profiles
+    healthcheck:
+      test: ["CMD", "python3", "-m", "hq_common.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_BROWSER_WEB:?}
+
+  browser-web-login:
+    # The owner's sign-in window (prompt 12 §9.1.5), only through
+    # `make chatgpt-web-login | gemini-web-login | deepseek-web-login` in the
+    # owner's own terminal: the profile in a visible Chromium on a virtual
+    # display, shown by noVNC (MPL-2.0) for at most 15 minutes, its traffic
+    # through egress's sign-in listener (:3133, the recipes' own and sign-in
+    # hosts only). Never started by `up` (profile "web-login"); Claude never
+    # runs it. web-login-relay is its only way to the host's 127.0.0.1:6080.
+    <<: *job
+    profiles: [web-login]
+    image: coinepro-hq/browser-login:0.1.0
+    build:
+      context: ../../services
+      dockerfile: egress/Dockerfile.browser-login
+    networks: [hq-web-login]
+    environment:
+      BROWSER_SANDBOX: "1"
+      BROWSER_WEB_PROFILES: /profiles
+      BROWSER_WEB_LOGIN_PROXY: http://egress:3133
+      HQ_WEB_LOGIN_SECONDS: "900"
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=256m,mode=1777"]
+    security_opt: ["no-new-privileges:true", "seccomp=../browser/seccomp_profile.json"]
+    cap_drop: [ALL]
+    cap_add: [SYS_CHROOT]
+    volumes:
+      - hq-substitute-web:/profiles
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_BROWSER_LOGIN:?}
+
+  web-login-relay:
+    # The sign-in window's noVNC on the host's loopback only (127.0.0.1:6080;
+    # the owner reaches it through their own `ssh -L`). A stdlib TCP relay to
+    # the window's container: a container on an internal network cannot
+    # publish a port, and the window itself stays on its internal network.
+    # Started and removed by the same make target (profile "web-login").
+    <<: *job
+    profiles: [web-login]
+    image: coinepro-hq/browser-login:0.1.0
+    entrypoint: ["python3", "-m", "hq_egress.relay"]
+    networks: [hq-web-login, hq-web-login-ui]
+    ports: ["127.0.0.1:6080:6080"]
+    environment:
+      RELAY_LISTEN: "0.0.0.0:6080"
+      RELAY_TARGET: "coinepro-hq-web-login:6080"
+      RELAY_SECONDS: "960"
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_WEB_LOGIN_RELAY:?}
+
+  tts:
+    # The hub's Persian voice (prompt 12 §4, contract §21.4): a one-shot, not a
+    # service. The timer coinepro-hq-tts runs it every 2 minutes under the
+    # one-shot lock it shares with the backups (infra/tts/run-once.sh); it
+    # claims a briefing's spoken script from the api (204: nothing, and always
+    # while the holding is locked), speaks it with Piper on the CPU and sends
+    # the Ogg back. Opt-in (profile "tts", HQ_TTS=on). hq-tts is internal: the
+    # api and OpenBao only (its AppRole is bound to that subnet); no internet,
+    # no database, no audio ever leaves the hub.
+    <<: *job
+    profiles: [tts]
+    image: coinepro-hq/tts:0.1.0
+    build:
+      context: ../../services
+      dockerfile: tts/Dockerfile
+    networks: [hq-tts]
+    environment:
+      OPENBAO_ADDR: http://openbao:8200
+      OPENBAO_APPROLE_FILE: /run/secrets/hq/approle.json
+      HQ_API_INTERNAL_URL: http://api:8000
+      TTS_VOICE: ${HQ_TTS_VOICE:-fa_IR-amir-medium}
+      TTS_MAX_JOBS: "3"
+      TTS_THREADS: "1"
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/tts:/run/secrets/hq:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_TTS:?}
+
   cadvisor:
     # Opt-in only (profile "cadvisor", prompt 05 §11): it needs the Docker and
     # containerd sockets, i.e. root on the host. The default profiles get
@@ -1412,6 +1623,63 @@ networks:
       config:
         - subnet: 172.30.9.0/24
           gateway: 172.30.9.1
+  hq-mcp:
+    # The MCP servers in containers (prompt 12 §14, infra/compose/mcp.yaml)
+    # and the Tool Gateway only. Internal: no route out; egress, the api and
+    # the data services are not on it.
+    name: hq-mcp
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.12.0/24
+          gateway: 172.30.12.1
+  hq-subs:
+    # The substitute runner and egress only (prompt 12 §9.1). Internal: the
+    # runner's only way out is egress's listener for its CLIs' hosts.
+    name: hq-subs
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.13.0/24
+          gateway: 172.30.13.1
+  hq-browser-web:
+    # The profile browser and egress only (prompt 12 §9.1.5). Internal.
+    name: hq-browser-web
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.14.0/24
+          gateway: 172.30.14.1
+  hq-web-login:
+    # The owner's sign-in window, its relay and egress (prompt 12 §9.1.5). Internal.
+    name: hq-web-login
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.15.0/24
+          gateway: 172.30.15.1
+  hq-web-login-ui:
+    # The relay alone: the network its 127.0.0.1:6080 is published from.
+    name: hq-web-login-ui
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.16.0/24
+          gateway: 172.30.16.1
+  hq-tts:
+    # The TTS one-shot, the api (/internal/v1/tts) and OpenBao (its AppRole,
+    # bound to this subnet). Internal: no route out (prompt 12 §4).
+    name: hq-tts
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.21.0/24
+          gateway: 172.30.21.1
 
 volumes:
   hq-tools:
@@ -1428,3 +1696,8 @@ volumes:
   tempo-data:
   hq-files:
   stt-models:
+  # Prompt 12 §9.1: the CLIs' sign-in and the browser profiles (both 600, not in backups).
+  hq-substitute-auth:
+  hq-substitute-web:
+  # prompt 12 §7: the deploy diff's mirrors of the workspaces' repositories
+  hq-git:

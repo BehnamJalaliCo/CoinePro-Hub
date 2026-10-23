@@ -122,6 +122,19 @@ THREAD_MESSAGES = 12
 # agents/roles), never from a role name (contract hard rule 1).
 TASK_CLASS_OF_KIND = {"advisor": "advisor"}
 ALERT_TASK = "ops_alert"
+# ⟨1.5⟩ the classes work.run_meta may name (prompt 12 §15, contract §21.0).
+RUN_TASK_CLASSES = frozenset(
+    {
+        "advisor_memo",
+        "advisor_proactive",
+        "advisor_review",
+        "ask_hub",
+        "ceo_letter",
+        "hr_eval",
+        "dceo_predict",
+        "dceo_principles",
+    }
+)
 HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
 MIN_OUTPUT_TOKENS = 256  # a step needs at least this much room to answer at all
 LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked for context
@@ -157,6 +170,9 @@ class RunCtx:
     # ("holding@3", "TY@1") and a meeting turn's context, meta and tool
     charter_docs: list[str] = field(default_factory=list)
     meeting: dict[str, Any] = field(default_factory=dict)
+    # ⟨1.5⟩ what the code that made the run's work tells it (work.run_meta):
+    # its router task class and the owner-zone flag (prompt 12 §15), a memo's mode.
+    run_meta: dict[str, Any] = field(default_factory=dict)
 
     @property
     def token_cap(self) -> int:
@@ -411,6 +427,12 @@ class Runner:
             ttl_s=max(60, int((expires - datetime.now(UTC)).total_seconds())),
         )
         rc = RunCtx(run=run, emp=emp, charter=charter, token=token)
+        if run["work_id"] is not None:
+            async with await self._tx() as tx:
+                meta = await tx.scalar(
+                    "SELECT run_meta FROM work.work WHERE id = :id", id=run["work_id"]
+                )
+            rc.run_meta = dict(meta) if isinstance(meta, dict) else {}
         deadline = time.monotonic() + self.s.agent_max_run_s
         try:
             outcome = await self._steps(rc, deadline)
@@ -468,6 +490,10 @@ class Runner:
                     }
         if orders:
             system += "\n\n" + orders
+        if await self._devil(rc):
+            from hq_api.domain.advisor import DEVIL_INSTRUCTION
+
+            system += "\n\n" + DEVIL_INSTRUCTION
         text, image_ids = await self._context(rc)
         rc.messages = [{"role": "user", "content": await self._with_images(rc, text, image_ids)}]
         live_thread = await self._reply_thread(rc)
@@ -610,6 +636,7 @@ class Runner:
                 "charter_docs": rc.charter_docs,
                 **rc.oversight,
                 **(rc.meeting.get("meta") or {}),
+                **self._zone(rc),
             },
         }
         if max_output:
@@ -621,9 +648,39 @@ class Runner:
         return await self._with_heartbeat(self.router.run(body, self.s.agent_step_timeout_s))
 
     def _task_class(self, rc: RunCtx) -> str:
+        # ⟨1.5⟩ a run the code made for one purpose names its class (prompt 12:
+        # advisor_memo, advisor_proactive...); never one an agent chose.
+        named = rc.run_meta.get("task_class")
+        if isinstance(named, str) and named in RUN_TASK_CLASSES:
+            return named
         if rc.charter.kind in TASK_CLASS_OF_KIND:
             return TASK_CLASS_OF_KIND[rc.charter.kind]
         return ALERT_TASK if rc.run["trigger"] == "alert" else "general"
+
+    @staticmethod
+    def _zone(rc: RunCtx) -> dict[str, str]:
+        """The owner-zone flag llm-router reads (prompt 12 §15): `auto` stops
+        at the zone's share, `direct` (the owner asked) always runs."""
+        zone = rc.run_meta.get("owner_zone")
+        return {"owner_zone": zone} if zone in ("auto", "direct") else {}
+
+    async def _devil(self, rc: RunCtx) -> bool:
+        """The advisor's devil's advocate for this run only (contract §21.1):
+        a devil memo, or the owner's latest message in thread A asked for it."""
+        if rc.charter.kind != "advisor":
+            return False
+        if rc.run_meta.get("mode") == "devil":
+            return True
+        if rc.run["trigger"] != "message" or rc.run["thread_id"] is None:
+            return False
+        async with await self._tx() as tx:
+            mode = await tx.scalar(
+                """SELECT m.meta->>'mode' FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
+                   WHERE m.thread_id = :t AND t.code = 'A' AND m.author_kind = 'owner'
+                   ORDER BY m.seq DESC LIMIT 1""",
+                t=rc.run["thread_id"],
+            )
+        return bool(mode == "devil")
 
     async def _with_heartbeat(self, aw: Awaitable[ModelCall]) -> ModelCall:
         """A model call (a step, or the advisor's streamed answer) beating the
@@ -719,6 +776,7 @@ class Runner:
                     "purpose": "answer",
                     "skills": rc.skills,
                     "addenda": rc.addenda,
+                    **self._zone(rc),
                 },
             }
             if rc.run["model"]:

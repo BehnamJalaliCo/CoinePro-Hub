@@ -7,6 +7,11 @@ it (as written, percent-encoded, base64 with or without padding, and the
 Basic pair `base64("user:secret")`) BEFORE any text is cut (7.1), a file that
 holds it is dropped, and a browser screenshot masks the fields it was typed
 into. An extra port of the account's policy opens for its own site only.
+
+A `profile` account (prompt 12 §9.1, contract §21.13: chatgpt-web,
+gemini-web, deepseek-web) has no secret at all: it names a signed-in browser
+profile that only the profile browser (browser-web) mounts; web.browse with
+it runs in that profile and reaches only its site's own hosts.
 """
 
 from __future__ import annotations
@@ -43,13 +48,22 @@ class BrowseLogin(BaseModel):
     """How the browser signs in: a cookie or header, or a login form egress fills."""
 
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["cookie", "header", "form"]
+    # "profile" (prompt 12 §9.1): a signed-in browser profile, no secret.
+    kind: Literal["cookie", "header", "form", "profile"]
     name: str | None = Field(default=None, max_length=100)
     login_url: str | None = Field(default=None, max_length=2000)
     username: str | None = Field(default=None, max_length=200)
     user_selector: str | None = Field(default=None, max_length=200)
     pass_selector: str | None = Field(default=None, max_length=200)
     submit_selector: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def _profile_alone(self) -> BrowseLogin:
+        extra = (self.name, self.login_url, self.username, self.user_selector,
+                 self.pass_selector, self.submit_selector)  # fmt: skip
+        if self.kind == "profile" and any(v is not None for v in extra):
+            raise ValueError("a profile takes nothing but its kind")
+        return self
 
 
 class AllowRule(BaseModel):
@@ -64,11 +78,25 @@ class Account(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]{1,40}$")
     site: str = Field(min_length=3, max_length=253)
-    secret: str = Field(min_length=1, max_length=8000)
+    # None only for a signed-in profile (it has no secret at all).
+    secret: str | None = Field(default=None, min_length=1, max_length=8000)
     inject: Inject = Field(default_factory=Inject)
     browse: BrowseLogin | None = None
     ports: list[int] = Field(default_factory=list, max_length=5)
     allow: list[AllowRule] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def _secret_unless_profile(self) -> Account:
+        if self.is_profile:
+            if self.secret is not None or self.inject.kind == "signer":
+                raise ValueError("a profile account carries no secret")
+        elif not self.secret:
+            raise ValueError("an account needs its secret")
+        return self
+
+    @property
+    def is_profile(self) -> bool:
+        return self.browse is not None and self.browse.kind == "profile"
 
     def covers(self, host: str) -> bool:
         site = self.site.lower().rstrip(".")
@@ -90,6 +118,8 @@ class Account(BaseModel):
         """What a result must never hold: the secret, and the `user:secret`
         pair a Basic header carries (its base64 is a form of it, 7.1); a
         signer's secret also as each of its parts (api key, secret key)."""
+        if self.secret is None:
+            return []
         users = {self.browse.username if self.browse else None}
         if self.inject.kind == "basic":
             users.add(self.inject.username or "")
@@ -122,8 +152,8 @@ class Account(BaseModel):
     ) -> dict[str, str]:
         """`headers` with the credential: for the account's own host, over
         https only (never in clear text, whatever the policy says; 7.1)."""
-        if scheme != "https" or not self.covers(host) or self.is_signer:
-            return headers  # a signer signs each connector request itself
+        if scheme != "https" or not self.covers(host) or self.is_signer or self.secret is None:
+            return headers  # a signer signs each request itself; a profile has no secret
         out = dict(headers)
         i = self.inject
         if i.kind == "bearer":

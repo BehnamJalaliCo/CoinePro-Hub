@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -51,10 +51,18 @@ PROTOCOL_PREFIX = "protocol-"
 WEEKLY = "hq-oversight-weekly"
 
 
-def protocol_desired(ref: str, rrule: str, tz: str, paused: bool) -> schedules.Desired:
-    spec = ScheduleSpec(
-        calendars=[schedules.calendar_for(recurrence.parse(rrule))], time_zone_name=tz
-    )
+def protocol_desired(
+    ref: str, rrule: str, tz: str, paused: bool, calendar: str = "gregorian"
+) -> schedules.Desired:
+    rule = recurrence.parse(rrule)
+    if calendar == "jalali":
+        # ⟨1.5⟩ BYMONTHDAY is a Jalali day (contract §21.12): the schedule fires
+        # daily at the hour and protocol_run ends at once on every other day.
+        spec = schedules.daily_at(
+            time(rule.by_hour[0] if rule.by_hour else 0, rule.by_minute[0]), tz
+        )
+    else:
+        spec = ScheduleSpec(calendars=[schedules.calendar_for(rule)], time_zone_name=tz)
     return schedules.Desired(
         f"{PROTOCOL_PREFIX}{ref}",
         "ProtocolRun",
@@ -99,7 +107,9 @@ class OversightActivities:
             # prompt 11's own, once (as the api's seed): PR-111/114/115 and PR-090/112/113/116
             await _p11.switch_on(tx, holding.id)
             await _gov.activate(tx)
-            rows = await tx.all("SELECT ref, schedule, status FROM oversight.current_protocols")
+            rows = await tx.all(
+                "SELECT ref, schedule, status, calendar FROM oversight.current_protocols"
+            )
         out: dict[str, Any] = {"seeded": seeded, "protocols": {}, "deleted": []}
         wanted = {WEEKLY}
         out["weekly"] = await schedules.upsert(client, weekly_desired(tz), task_queue)
@@ -107,7 +117,7 @@ class OversightActivities:
             if r["status"] != "active":
                 continue  # paused or draft (contract §18.1 v1.4.4): no schedule at all
             paused = not self.hub.settings.oversight_schedules
-            d = protocol_desired(r["ref"], r["schedule"], tz, paused)
+            d = protocol_desired(r["ref"], r["schedule"], tz, paused, r["calendar"])
             out["protocols"][d.id] = await schedules.upsert(client, d, task_queue)
             wanted.add(d.id)
         async for s in await client.list_schedules():
@@ -140,6 +150,9 @@ class OversightActivities:
             tz = str(
                 await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
             )
+            if not O.jalali_due(p, datetime.now(ZoneInfo(tz)).date()):
+                # ⟨1.5⟩ a Jalali protocol off its day: no run row, no model (§21.12)
+                return {"protocol": ref, "skipped": "not_its_jalali_day"}
             checker = C.CHECKS.get(ref) if p["method"] in O.CODE_METHODS else None
             if checker is None and await tx.scalar(
                 """SELECT 1 FROM oversight.protocol_runs WHERE protocol_ref = :r AND work_id IS NOT NULL

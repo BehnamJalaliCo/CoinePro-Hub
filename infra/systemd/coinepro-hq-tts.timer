@@ -1,0 +1,11 @@
+[Unit]
+Description=CoinePro HQ: a TTS pass every 2 minutes (enabled by make tts-on only)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+AccuracySec=15s
+Unit=coinepro-hq-tts.service
+
+[Install]
+WantedBy=timers.target

@@ -48,6 +48,7 @@ from hq_api.routes import (
     meetings,
     messages,
     meta,
+    mgmt,
     notifications,
     orders,
     org,
@@ -64,6 +65,8 @@ from hq_api.routes import (
     work,
     workshop,
 )
+from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
+from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 
 log = logging.getLogger("hq_api.access")
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
@@ -72,6 +75,8 @@ UPLOAD_PATHS = ("/internal/v1/files", "/api/v1/files", "/api/v1/transcribe")
 
 
 def upload_limit(path: str, max_file: int, max_body: int) -> int:
+    if path.startswith("/internal/v1/tts/") and path.endswith("/done"):
+        return mgmt.MAX_AUDIO  # ⟨1.5⟩ a briefing's Ogg from the TTS one-shot
     if path == "/api/v1/files":
         return media.VIDEO.max_bytes  # the largest kind; each kind is held to its own
     if path == "/api/v1/transcribe":
@@ -141,6 +146,8 @@ def create_app(
         )
         return response
 
+    # ⟨1.5⟩ prompt 12 part B: first, so /runs/health is not read as /runs/{id}
+    app.include_router(mgmt.first_router, prefix="/api/v1")
     for module in (
         meta,
         auth,
@@ -183,6 +190,7 @@ def create_app(
         meetings,
         charter,
         knowledge,
+        mgmt,  # prompt 12 part B (contract §21.4-§21.9)
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
@@ -197,11 +205,17 @@ def create_app(
     app.include_router(skills.internal_router, prefix="/internal/v1")
     app.include_router(academy.internal_router, prefix="/internal/v1")
     app.include_router(founding.internal_router, prefix="/internal/v1")
+    app.include_router(mgmt.internal_router, prefix="/internal/v1")
     for p10 in (revenue, support, growth, growth_funnel, feedback):
         app.include_router(p10.internal_router, prefix="/internal/v1")
     for p11 in (meetings, charter, knowledge):  # prompt 11 §1-§3
         app.include_router(p11.internal_router, prefix="/internal/v1")
     app.include_router(governance.internal_router, prefix="/internal/v1")  # prompt 11 §4-§10
+    # Prompt 12 part A (contract §21.1, §21.13): the advisor's memos and the
+    # substitute players.
+    for p12a in (advisor_routes, substitute_routes):
+        app.include_router(p12a.router, prefix="/api/v1")
+        app.include_router(p12a.internal_router, prefix="/internal/v1")
     # The only public routes prompt 10 adds (webhooks; never /internal).
     app.include_router(intake.webhook_router, prefix="/intake/v1")
     app.state.version = __version__

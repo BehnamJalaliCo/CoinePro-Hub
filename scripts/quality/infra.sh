@@ -69,7 +69,7 @@ chmod 600 "$S/openbao-init.json"
 # Every file already installed but the KV empty: the path where a run without
 # sudo used to rotate the tokens in KV, then stop at the file install.
 for f in llm-router/approle.json claude-runtime/approle.json hq-api/approle.json \
-  hq-worker/approle.json provisioner/approle.json prometheus/llm-metrics.token \
+  hq-worker/approle.json provisioner/approle.json tts/approle.json prometheus/llm-metrics.token \
   prometheus/node-exporter.password node-exporter/web.yml gateway/worker-token.sha256; do
   echo "$S/services/$f"
 done >"$S/.provisioned"
@@ -376,6 +376,91 @@ elif [[ "$(jq -r '.services | has("tempo") and has("otel-collector")' <<<"$on_js
   fail "tracing: HQ_TRACING=on does not start Tempo and the collector, or Prometheus does not scrape them"
 else
   pass "tracing: off by default; HQ_TRACING=on adds Tempo, the collector and their scrape jobs"
+fi
+
+# ------------------------------------------------- mcp (prompt 12 §14) ----
+# The MCP container servers are an opt-in profile: off by default (not
+# rendered, the api's MCP_CONTAINERS=off); on where it fits (full: the api
+# gets MCP_CONTAINERS=on); where it does not fit (lean) the memory gate fails
+# once it is switched on and hq.sh refuses to start it, and a command that
+# starts nothing renders without it.
+mcp_of() { # mcp_of PROFILE HQ_MCP -> "<has mcp-time>,<api MCP_CONTAINERS>"
+  HQ_PROFILE="$1" HQ_MCP="$2" "$HQ" config --format json 2>/dev/null |
+    jq -r '[(.services | has("mcp-time")), .services.api.environment.MCP_CONTAINERS] | map(tostring) | join(",")'
+}
+mcp_gate="$(HQ_MCP=on CI=1 "$REPO_DIR/scripts/quality/memory-budget.sh" 2>&1)" && mcp_gate_rc=0 || mcp_gate_rc=$?
+mcp_refusal="$(HQ_PROFILE=lean HQ_MCP=on "$HQ" --dry-run up --no-start 2>&1)" && mcp_up_rc=0 || mcp_up_rc=$?
+if [[ "$(mcp_of full off)" != "false,off" ]]; then
+  fail "mcp: on by default ($(mcp_of full off))"
+elif [[ "$(mcp_of full on)" != "true,on" ]]; then
+  fail "mcp: HQ_MCP=on within the budget (full) does not start it or tell the api ($(mcp_of full on))"
+elif ((mcp_gate_rc == 0)) || ! grep -q 'lean+mcp OVER (' <<<"$mcp_gate"; then
+  fail "mcp: the memory gate with HQ_MCP=on passed lean+mcp over the budget"
+elif ((mcp_up_rc != 3)) || ! grep -q 'HQ_MCP=on refused' <<<"$mcp_refusal"; then
+  fail "mcp: hq.sh 'up' accepted HQ_MCP=on over the memory budget (lean, exit $mcp_up_rc)"
+elif [[ "$(mcp_of lean on)" != "false,off" ]]; then
+  fail "mcp: over the budget, a command that starts nothing did not run without mcp"
+else
+  pass "mcp: off by default; on where it fits (MCP_CONTAINERS=on); without room the gate fails and 'up' is refused"
+fi
+# ------------------------------------ the substitute players (prompt 12 §9.1) --
+# Both profiles off by default; switched on, the lean profile (no room) refuses
+# them and the full one takes them (and tells the api SUBSTITUTES_RUNNER=on).
+subs_off="$(HQ_PROFILE=full HQ_SUBSTITUTES=off HQ_SUBSTITUTES_WEB=off "$HQ" config --services)"
+if grep -qxE 'substitute-runner|browser-web|browser-web-login|web-login-relay' <<<"$subs_off"; then
+  fail "substitutes: a substitute service is on by default"
+else
+  pass "substitutes: the runner, the profile browser and the sign-in window are off by default"
+fi
+refusal="$(HQ_PROFILE=lean HQ_SUBSTITUTES=on "$HQ" --dry-run up --no-start 2>&1)" && sub_rc=0 || sub_rc=$?
+web_refusal="$(HQ_PROFILE=lean HQ_SUBSTITUTES_WEB=on "$HQ" --dry-run up --no-start 2>&1)" &&
+  web_rc=0 || web_rc=$?
+on_services="$(HQ_PROFILE=full HQ_SUBSTITUTES=on HQ_SUBSTITUTES_WEB=on "$HQ" config --services)"
+if ((sub_rc != 3)) || ! grep -q 'HQ_SUBSTITUTES=on refused' <<<"$refusal"; then
+  fail "substitutes: lean accepted HQ_SUBSTITUTES=on over the memory budget (exit $sub_rc)"
+elif ((web_rc != 3)) || ! grep -q 'HQ_SUBSTITUTES_WEB=on refused' <<<"$web_refusal"; then
+  fail "substitutes: lean accepted HQ_SUBSTITUTES_WEB=on over the memory budget (exit $web_rc)"
+elif ! grep -qx substitute-runner <<<"$on_services" || ! grep -qx browser-web <<<"$on_services"; then
+  fail "substitutes: full did not take both profiles within its budget"
+elif [[ "$(HQ_PROFILE=full HQ_SUBSTITUTES=on "$HQ" --print-substitutes-runner)" != on ]] ||
+  [[ "$(HQ_PROFILE=full HQ_SUBSTITUTES=off "$HQ" --print-substitutes-runner)" != off ]]; then
+  fail "substitutes: hq.sh does not export SUBSTITUTES_RUNNER=on while the runner is on"
+else
+  pass "substitutes: refused over the budget (lean), taken within it (full), SUBSTITUTES_RUNNER follows"
+fi
+# The owner's sign-in window: noVNC on the host's loopback only, at most 15 minutes.
+login_json="$(HQ_PROFILE=full "$HQ" --profile web-login config --format json)"
+published="$(jq -r '[.services | to_entries[] | select(.key == "web-login-relay" or .key == "browser-web-login")
+  | (.value.ports // [])[] | "\(.host_ip // "0.0.0.0"):\(.published)"] | join(",")' <<<"$login_json")"
+# shellcheck disable=SC2016 # the script's own text, not an expansion
+if [[ "$published" != "127.0.0.1:6080" ]]; then
+  fail "web-login: published $published (only 127.0.0.1:6080)"
+elif [[ "$(jq -r '.services["browser-web-login"].environment.HQ_WEB_LOGIN_SECONDS' <<<"$login_json")" != 900 ]] ||
+  ! grep -q '((seconds > 900' "$REPO_DIR/services/egress/web-login.sh" ||
+  ! grep -qF 'timeout "$seconds" python3 -m hq_egress.browser_web login' "$REPO_DIR/services/egress/web-login.sh" ||
+  ((10#$(jq -r '.services["web-login-relay"].environment.RELAY_SECONDS' <<<"$login_json") > 960)); then
+  fail "web-login: the window is not closed after 15 minutes"
+elif ! grep -q -- '-localhost -rfbport 5900' "$REPO_DIR/services/egress/web-login.sh"; then
+  fail "web-login: x11vnc is not on the container's loopback"
+else
+  pass "web-login: noVNC on 127.0.0.1:6080 only, closed after 15 minutes, VNC on loopback"
+fi
+# The dispatcher (fake api, fake runner): off, locked, a call, a sign-in, a review.
+if out="$(bash "$REPO_DIR/infra/substitutes/test-dispatch.sh" 2>&1)"; then
+  pass "substitutes: the dispatcher ($(grep -c ': ok:' <<<"$out") cases)"
+else
+  fail "substitutes: the dispatcher: $(grep FAIL <<<"$out" | head -3 | tr '\n' ' ')"
+fi
+unit="$REPO_DIR/infra/systemd/coinepro-hq-substitutes.service"
+missing=()
+for want in NoNewPrivileges=yes ProtectSystem=full CapabilityBoundingSet= \
+  RuntimeDirectory=coinepro-hq-substitutes RuntimeDirectoryMode=0700; do
+  grep -qxF "$want" "$unit" || missing+=("$want")
+done
+if ((${#missing[@]})); then
+  fail "systemd: the substitutes unit lacks ${missing[*]}"
+else
+  pass "systemd: the substitutes unit is sandboxed (its own 0700 runtime dir)"
 fi
 
 exit "$failed"

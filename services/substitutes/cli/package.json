@@ -1,0 +1,10 @@
+{
+  "name": "hq-substitutes-cli",
+  "private": true,
+  "description": "The substitute players' official CLIs (prompt 12 §9.1, contract §21.13), pinned: OpenAI Codex CLI and Google Gemini CLI, both Apache-2.0.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@google/gemini-cli": "0.63.0",
+    "@openai/codex": "0.160.0"
+  }
+}

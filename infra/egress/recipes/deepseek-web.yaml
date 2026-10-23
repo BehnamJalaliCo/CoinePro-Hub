@@ -1,0 +1,44 @@
+# DeepSeek's free chat in the hub's signed-in browser profile `deepseek-web`
+# (prompt 12 §9.1.5, contract §21.13): text only (seats quick_search and
+# third_opinion). Owner's decision 2026-10-22: only two features of the site,
+# ALWAYS on: deep thinking ("DeepThink") and web search; nothing else of the
+# site is used. A reviewed file.
+# The selectors are written against chat.deepseek.com as documented on
+# 2026-10-22 and are NOT yet verified on the live site (no sign-in exists
+# until the owner's `make deepseek-web-login`); a failing step falls back to
+# one Claude run with web.browse on this profile, which proposes the fix here.
+key: deepseek-web
+version: "2026-10-22.1"
+site: chat.deepseek.com
+start_url: "https://chat.deepseek.com/"
+hosts:
+  - chat.deepseek.com
+  - deepseek.com
+  - challenges.cloudflare.com
+login_hosts:
+  - accounts.google.com
+  - appleid.apple.com
+features: [deep_thinking, web_search]
+expired:
+  url_contains: ["/sign_in", "/login"]
+  selectors:
+    - "input[type=password]"
+    - "button:has-text('Log in')"
+tasks:
+  text:
+    timeout_s: 300
+    steps:
+      - {do: goto, url: "{start_url}"}
+      - {do: wait, selector: "textarea", timeout_s: 30}
+      # Both toggles on for every job (clicked only while off).
+      - do: click_unless
+        selector: "div[role=button]:has-text('DeepThink')"
+        unless: "div[role=button][aria-pressed=true]:has-text('DeepThink')"
+      - do: click_unless
+        selector: "div[role=button]:has-text('Search')"
+        unless: "div[role=button][aria-pressed=true]:has-text('Search')"
+      - {do: fill, selector: "textarea", text: "{prompt}"}
+      - {do: press, selector: "textarea", key: Enter}
+      - {do: wait, selector: ".ds-markdown", timeout_s: 120}
+      - {do: wait_gone, selector: "div[role=button]:has-text('Stop')", timeout_s: 280}
+      - {do: read, selector: ".ds-markdown"}

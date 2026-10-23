@@ -110,4 +110,10 @@ async def seed(tx: Tx) -> dict[str, Any]:
     added["holidays"] = await gov_calendar.seed_holidays(tx)
     added["kpis"] = await gov_kpis.seed_all(tx)
     added["protocols_activated"] = len(await gov_checks.activate(tx))
+    # Prompt 12 §9.1: the substitute players and their default seats (once;
+    # every sign-in is the owner's, so they start signed out and off).
+    if holding is not None:
+        from hq_api.domain import substitutes
+
+        added["substitutes"] = await substitutes.seed(tx, holding["id"])
     return {"companies_filled": filled, **added}

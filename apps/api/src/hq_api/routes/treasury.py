@@ -8,18 +8,20 @@ meta.sdk_cost_usd. Keys are write-only: stored in OpenBao, never returned.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, Literal
+from urllib.parse import urlsplit
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from hq_api import pagination
+from hq_api import idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import org, pricing
 from hq_api.errors import ApiError, responses
@@ -561,6 +563,180 @@ async def list_connections(ctx: Ctx = Depends(owner_ctx)) -> list[Connection]:
     return [Connection(**r) for r in rows]
 
 
+class ModelPrice(Model):
+    input_per_mtok: Decimal = Field(ge=0)
+    output_per_mtok: Decimal = Field(ge=0)
+
+
+class ConnectionLimits(Model):
+    rpm: int | None = Field(default=None, ge=1, le=100000)
+    tpm: int | None = Field(default=None, ge=1, le=100_000_000)
+    daily_usd: Decimal | None = Field(default=None, ge=0)
+
+
+class ConnectionIn(Model):
+    """⟨1.5⟩ a new connection (contract §21.7, §21.14)."""
+
+    key: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,62}$")
+    provider: Literal["anthropic", "openai", "google", "deepseek", "mistral", "openai_compatible"]
+    kind: Literal["subscription", "api_key"]
+    display_name: str = Field(min_length=1, max_length=100)
+    base_url: str | None = Field(default=None, max_length=500)
+    models: list[str] = Field(min_length=1, max_length=50)
+    default_model: str | None = Field(default=None, max_length=100)
+    pricing: dict[str, ModelPrice] = Field(default_factory=dict)
+    limits: ConnectionLimits = Field(default_factory=ConnectionLimits)
+    fallback_priority: int | None = Field(default=None, ge=1, le=100)
+
+    @field_validator("models")
+    @classmethod
+    def _models(cls, v: list[str]) -> list[str]:
+        out = []
+        for m in v:
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}", m):
+                raise ValueError(f"{m[:40]!r} is not a model id")
+            out.append(m)
+        if len(set(out)) != len(out):
+            raise ValueError("each model once")
+        return out
+
+    @model_validator(mode="after")
+    def _shape(self) -> ConnectionIn:
+        if self.default_model is not None and self.default_model not in self.models:
+            raise ValueError("default_model must be one of models")
+        if any(m not in self.models for m in self.pricing):
+            raise ValueError("pricing names a model not in models")
+        if self.base_url is not None:
+            if self.provider != "openai_compatible":
+                raise ValueError("base_url is for an openai_compatible provider only")
+            reason = public_https(self.base_url)
+            if reason:
+                raise ValueError(f"base_url: {reason}")
+        elif self.provider == "openai_compatible":
+            raise ValueError("an openai_compatible provider needs base_url")
+        return self
+
+
+def public_https(url: str) -> str | None:
+    """Why a base URL may not be one (the egress guard's rule: https, a
+    public host name or address, port 443 or its own), or None. The router
+    resolves the name again before it calls (llm_router.verify)."""
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        return "not a valid URL"
+    host = (parts.hostname or "").lower().rstrip(".")
+    if parts.scheme != "https" or not host:
+        return "https only"
+    if parts.username or parts.password:
+        return "no credentials in the URL (the key goes to OpenBao)"
+    if port is not None and not 1 <= port <= 65535:
+        return "not a valid port"
+    if host == "localhost" or host.endswith((".internal", ".local", ".localhost")):
+        return "not a public host"
+    if host in INTERNAL_HOSTS or any(host.endswith("." + h) for h in INTERNAL_HOSTS):
+        return "not a host of the hub"
+    try:
+        ip = ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return None if "." in host else "a public host name"
+    if not ip.is_global or ip.is_multicast:
+        return "a private, loopback, link-local or reserved address"
+    return None
+
+
+INTERNAL_HOSTS = ("hq.coinepro.com",)
+
+
+@router.post(
+    "/connections",
+    response_model=Connection,
+    status_code=201,
+    responses=responses(401, 403, 409, 422, 428),
+)
+async def create_connection(
+    body: ConnectionIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
+    """⟨1.5⟩ 🔏 step-up `connection.create` (target = the SHA-256 of the exact
+    body); `Idempotency-Key` required. -> `pending_secret`: its key goes
+    through the write-only POST /connections/{id}/secret or the owner's
+    `make connection-secret KEY=<key>`; the router then verifies it at no
+    token cost (`verifying` -> `ready` or `error`). Used only through
+    PUT /assignments. A duplicate key is 409 version_conflict. A new
+    subscription runs through its own CLI and is not made here (409
+    not_ready): the substitute accounts are seeded."""
+    async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        sid = await stepup.consume(
+            tx, request, ctx.who, "connection.create", await stepup.body_target(request)
+        )
+        if body.kind == "subscription":
+            raise ApiError(
+                409,
+                "not_ready",
+                "a subscription runs through its own CLI; the substitute subscriptions are seeded",
+            )
+        if await tx.scalar("SELECT 1 FROM llm.connections WHERE key = :k", k=body.key):
+            raise ApiError(409, "version_conflict", f"the connection {body.key} exists already")
+        pricing = {
+            m: {
+                "input_per_mtok": str(p.input_per_mtok),
+                "output_per_mtok": str(p.output_per_mtok),
+                # the router's price table (USD per 1M tokens), from the owner's figures
+                "input": str(p.input_per_mtok),
+                "output": str(p.output_per_mtok),
+                "source_url": "https://owner.local/entered-by-the-owner",
+                "as_of": datetime.now(UTC).date().isoformat(),
+            }
+            for m, p in body.pricing.items()
+        }
+        limits = body.limits.model_dump(mode="json", exclude_none=True)
+        row = await tx.one(
+            """INSERT INTO llm.connections (key, kind, provider, display_name, status, status_reason,
+                   secret_ref, api_base, models, default_model, pricing, limits, fallback_priority)
+               VALUES (:k, 'api', :p, :n, 'pending_secret', 'waiting for its key', :ref, :base,
+                       CAST(:models AS jsonb), :dm, CAST(:pricing AS jsonb), CAST(:limits AS jsonb), :fp)
+               RETURNING id""",
+            k=body.key,
+            p=body.provider,
+            n=body.display_name,
+            ref=f"kv/llm-connections/{body.key}",
+            base=body.base_url,
+            models=json.dumps(body.models),
+            dm=body.default_model or body.models[0],
+            pricing=json.dumps(pricing),
+            limits=json.dumps(limits),
+            fp=body.fallback_priority,
+        )
+        holding = await ctx.hub.companies.holding()
+        await ctx.audit(
+            tx,
+            company_id=holding.id,
+            action="connection.create",
+            action_class="A2",
+            target_kind="connection",
+            target_ref=body.key,
+            summary=f"{body.provider} ({len(body.models)} models), waiting for its key",
+            step_up=sid is not None,
+        )
+        await ctx.interaction(
+            tx,
+            company_id=holding.id,
+            kind="setting",
+            action="connection.create",
+            target_kind="connection",
+            target_ref=body.key,
+            data={"provider": body.provider, "models": body.models},
+        )
+        out = Connection(**await tx.one(CONN_SQL + " WHERE id = :id", id=row["id"]))
+        if idem:
+            await idem.store(tx, 201, out.model_dump(mode="json"))
+    return out
+
+
 @router.patch(
     "/connections/{id}",
     response_model=Connection,
@@ -578,6 +754,15 @@ async def update_connection(
         cur = await tx.one(CONN_SQL + " WHERE id = :id FOR UPDATE", id=id)
         check_version(cur["version"], expected)
         await stepup.consume(tx, request, ctx.who, "connection.update", str(id))
+        # ⟨1.5⟩ a new connection is switched on by its verification, never by
+        # hand; a substitute player's account is never the router's (§21.13).
+        if fields.get("status") == "enabled" and (
+            cur["status"] in ("pending_secret", "verifying", "error")
+            or cur["kind"] == "subscription"
+        ):
+            raise ApiError(
+                409, "not_ready", f"{cur['key']} is {cur['status']}: it cannot be enabled"
+            )
         if "pricing" in fields:
             merged = {
                 **cur["pricing"],
@@ -636,13 +821,30 @@ async def set_connection_secret(
     audited (the audit records only that it changed)."""
     bao = ctx.hub.bao
     async with ctx.tx() as tx:
-        cur = await tx.one("SELECT key, secret_ref FROM llm.connections WHERE id = :id", id=id)
+        cur = await tx.one(
+            "SELECT key, secret_ref, status FROM llm.connections WHERE id = :id FOR UPDATE", id=id
+        )
         await stepup.consume(tx, request, ctx.who, "connection.secret", str(id))
         if not cur["secret_ref"] or not str(cur["secret_ref"]).startswith("kv/llm-connections/"):
             raise ApiError(422, "validation_failed", "this connection takes no key")
+        new = cur["status"] in ("pending_secret", "verifying", "error")
+        # ⟨1.5⟩ the owner's decision (§0.8 #8): "terminal only" keeps a new
+        # connection's key off this route (`make connection-secret KEY=...`).
+        if new and ctx.hub.settings.connection_secret_route == "terminal":  # noqa: S105
+            raise ApiError(
+                409,
+                "validation_failed",
+                f"a new connection's key goes in by terminal: make connection-secret KEY={cur['key']}",
+            )
         if bao is None:
             raise ApiError(503, "channel_not_configured", "the secret store is not available")
         await bao.write_kv(str(cur["secret_ref"]).removeprefix("kv/"), {"api_key": body.secret})
+        if new:  # the router verifies it at no token cost (llm_router.verify)
+            await tx.exec(
+                """UPDATE llm.connections SET status = 'verifying', status_reason = 'verifying its key',
+                       status_changed_at = now(), updated_at = now() WHERE id = :id""",
+                id=id,
+            )
         holding = await ctx.hub.companies.holding()
         await ctx.audit(
             tx,
@@ -735,13 +937,24 @@ async def put_assignments(
                 )
             conn_id = None
             if a.connection:
-                conn_id = await tx.scalar(
-                    "SELECT id FROM llm.connections WHERE key = :k", k=a.connection
+                conn = await tx.first(
+                    "SELECT id, kind FROM llm.connections WHERE key = :k", k=a.connection
                 )
-                if conn_id is None:
+                if conn is None:
                     raise ApiError(
                         422, "validation_failed", fields={"connection": f"unknown {a.connection}"}
                     )
+                # ⟨1.5⟩ a substitute player's subscription is called by seat only
+                # (contract §21.13): no Claude run is ever assigned to it.
+                if conn["kind"] == "subscription":
+                    raise ApiError(
+                        422,
+                        "validation_failed",
+                        fields={
+                            "connection": f"{a.connection} is a substitute player's (seats only)"
+                        },
+                    )
+                conn_id = conn["id"]
             # Only through the scope-checked function (the api role cannot write the table).
             await tx.exec(
                 "SELECT llm.put_assignment(:st, :sr, :cn, :m, :e, :note)",

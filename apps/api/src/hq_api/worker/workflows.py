@@ -16,6 +16,8 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy, SearchAttributeKey
 from temporalio.exceptions import ActivityError, ApplicationError
 
+from hq_api.worker.mgmt_workflows import P12B_WORKFLOWS
+
 SCHEDULED_START = SearchAttributeKey.for_datetime("TemporalScheduledStartTime")
 SHORT = timedelta(seconds=30)
 LONG = timedelta(minutes=5)
@@ -212,6 +214,44 @@ class SupportRetention:
 # Each activity asks hq_api.domain.gate first: while the holding (or the
 # company) is locked a pull is recorded `skipped` and nothing leaves the hub.
 ONCE = RetryPolicy(maximum_attempts=1)  # a long pull is never run twice at once
+
+
+# ------------------------------------------- prompt 12 part A (§1, §9.1) --
+# The advisor's sweep is rule-only until it would wake the advisor (the
+# launch gate decides); the web jobs and the daily pass ask the gate too.
+ONCE_P12 = RetryPolicy(maximum_attempts=1)  # a web job is never sent twice
+
+
+@workflow.defn(name="AdvisorSweep")
+class AdvisorSweep:
+    """Every 2 min: failed memos, automatic memos, proactive triggers."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("advisor_sweep", limit=timedelta(minutes=5))
+        return result
+
+
+@workflow.defn(name="SubstituteWebJobs")
+class SubstituteWebJobs:
+    """Every minute: the substitutes' queued web calls through egress."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act(
+            "substitute_web_jobs", limit=timedelta(minutes=15), retry=ONCE_P12
+        )
+        return result
+
+
+@workflow.defn(name="SubstituteDaily")
+class SubstituteDaily:
+    """Daily 09:15 Tehran: the value-ratio notice (Jalali 15th), the model lists."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("substitute_daily", limit=timedelta(minutes=5))
+        return result
 
 
 @workflow.defn(name="RevenuePulls")
@@ -591,4 +631,8 @@ WORKFLOWS = [
     SupportWeekly,
     KpiCollect,
     GovernanceDaily,
+    AdvisorSweep,
+    SubstituteWebJobs,
+    SubstituteDaily,
+    *P12B_WORKFLOWS,  # prompt 12 part B (mgmt_workflows.py)
 ]

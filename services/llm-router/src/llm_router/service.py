@@ -22,8 +22,10 @@ from typing import Any
 
 import asyncpg
 
-from hq_common import meetings_share, oversight_share
-from llm_router import anomaly, events, ledger
+from hq_common import meetings_share, oversight_share, owner_zone
+from llm_router import anomaly, events, hashes, ledger
+from hq_common import oversight_share, owner_zone
+from llm_router import anomaly, events, hashes, ledger
 from llm_router.assignment import AssignmentError, apply_request, resolve, scope_chain
 from llm_router.backends.base import (
     ERROR,
@@ -115,6 +117,12 @@ class Plan:
     @property
     def rls_scope(self) -> set[str]:
         return {self.company.id, self.holding.id}
+
+
+# Statuses a connection takes calls in (prompt 12 §9: `ready` = a new
+# connection verified; `quota_exhausted` is the breaker's to decide).
+ROUTABLE = frozenset({"enabled", "ready", "quota_exhausted"})
+SUBSTITUTE_KIND = "subscription"
 
 
 def _usage_scopes(
@@ -283,6 +291,8 @@ class RouterService:
                 **(req.meta or {}),
                 # how many images the model saw (never their bytes)
                 **({"images": len(req.images())} if req.images() else {}),
+                # ⟨1.5⟩ prompt 12 §8: the request's and its prefix's hashes (never the text)
+                **hashes.of(req, model),
             },
         )
         scopes = _usage_scopes(chain, company, holding)
@@ -502,6 +512,40 @@ class RouterService:
         async with self.db.scoped(rls) as conn:
             await ledger.record_decision(conn, row, "rejected_budget", why)
 
+    async def _check_owner_zone(
+        self,
+        req: RunRequest,
+        holding: Company,
+        row: ledger.CallRow,
+        rls: set[str],
+        now: datetime,
+    ) -> None:
+        """The owner zone's share (prompt 12 §15, contract §21.0): the zone's
+        automatic runs (meta owner_zone != "direct" on one of its task
+        classes) stop at OWNER_ZONE_DAILY_SHARE of AGENT_DAILY_TOKEN_CAP per
+        UTC day; what the owner asked for directly always goes (and counts)."""
+        zone = (req.meta or {}).get("owner_zone")
+        if not owner_zone.applies(req.task_class, zone if isinstance(zone, str) else None):
+            return
+        cap = owner_zone.limit(self.s.agent_daily_token_cap, self.s.owner_zone_daily_share)
+        keys = [("task_class", tc, "day") for tc in owner_zone.TASK_CLASSES]
+        async with self.db.scoped({holding.id}) as conn:
+            usage = await ledger.load_usage(conn, keys, now)
+        used = sum(c.tokens for c in usage.values())
+        if not owner_zone.spent(used, self.s.agent_daily_token_cap, self.s.owner_zone_daily_share):
+            return
+        self.metrics.budget_rejections.labels(holding.code).inc()
+        async with self.db.scoped(rls) as conn:
+            await ledger.record_decision(conn, row, "rejected_budget", "owner_zone_share")
+        retry = max(1, int((next_period_start("day", now) - now).total_seconds()))
+        raise RouterError(
+            429,
+            "budget_exhausted",
+            f"the owner zone's share of today's token cap is used up ({used}/{cap})",
+            retry_after=retry,
+            call_id=row.id,
+        )
+
     async def _check_support_draft(
         self,
         req: RunRequest,
@@ -600,9 +644,12 @@ class RouterService:
                 fallback_from,
             )
 
-        if connection.status == "disabled":
+        # Prompt 12 §9: a connection that is not switched on or verified yet
+        # (pending_secret, verifying, error), and a substitute player's account
+        # (kind subscription, contract §21.13), never takes a call.
+        if connection.status not in ROUTABLE or connection.kind == SUBSTITUTE_KIND:
             raise RouterError(
-                503, "connection_disabled", f"connection {connection.key} is disabled"
+                503, "connection_disabled", f"connection {connection.key} is {connection.status}"
             )
         breaker = self.breaker_for(connection)
         permit = breaker.allow()

@@ -9,7 +9,7 @@ change) -> follow-up work when needed. Authority is policy (OPA), not code.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
@@ -30,6 +30,7 @@ from hq_api.domain import (
     recurring,
     stars,
 )
+from hq_api.domain import substitutes as S
 from hq_api.domain import work as W
 from hq_api.domain.charter import CharterAmendmentPayload
 from hq_api.errors import ApiError
@@ -118,6 +119,8 @@ STEP_UP_KINDS = (
     "charter_amendment",
     # ⟨1.5⟩ prompt 11 (contract §20.11): 🔏 risk_acceptance, authority_change
     *gov_cards.STEP_UP_KINDS,
+    # ⟨1.5⟩ prompt 12 §6: a monthly HR evaluation is the owner's seal (§21.12)
+    "evaluation",
 )
 # ⟨1.5⟩ applied in the deciding transaction, bound to their payload (§19.9)
 SEALED_CARD_KINDS = ("message_template", "lifecycle_rule", "support_go_live")
@@ -133,6 +136,7 @@ EFFECT_KINDS = (
     "lesson_adoption",
     "protocol",
     "company_found",
+    "evaluation",  # ⟨1.5⟩ promote / demote / dismiss / confirm (prompt 12 §6)
 )
 FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action", "meeting_resolution")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
@@ -188,13 +192,20 @@ class DeployPayload(Model):
 
     repo: str = Field(min_length=1, max_length=200)
     pr_url: str = Field(pattern=r"^https://", max_length=500)
-    head_sha: str = Field(pattern=r"^[0-9a-f]{7,40}$")
+    # ⟨1.5⟩ the card is bound to it, diff or not (contract §21.6)
+    head_sha: str = Field(pattern=r"^[0-9a-f]{7,64}$")
     diff_stat: str = Field(default="", max_length=2000)
     ci: dict[str, Any] = Field(default_factory=dict)
     tests: dict[str, Any] = Field(default_factory=dict)
     rollout: str = Field(default="", max_length=2000)
     window: DeployWindow | None = None
     calendar_conflicts: list[dict[str, Any]] | None = Field(default=None, max_length=50)
+    # ⟨1.5⟩ written by the api from the repository, never by the proposer (§21.6)
+    diff: dict[str, Any] | None = None
+    diff_unavailable: Literal["no_access", "too_large", "fetch_failed"] | None = None
+    # ⟨1.5⟩ the substitute's second code review (§21.13), read from its call
+    # when the card is shown (the payload never changes); never the proposer's
+    second_review: dict[str, Any] | None = None
 
 
 class A3Payload(Model):
@@ -251,10 +262,30 @@ class BudgetChangePayload(Model):
     usd_limit: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=4)
 
 
+class EvaluationEvidence(Model):
+    kind: str = Field(min_length=1, max_length=40)
+    ref: str = Field(min_length=1, max_length=300)
+    note: str = Field(default="", max_length=1000)
+
+
+class EvaluationChange(Model):
+    model: str | None = Field(default=None, min_length=3, max_length=100)
+    effort: Effort | None = None
+    title_fa: str | None = Field(default=None, min_length=1, max_length=200)
+    quota_estimate_month: Quota | None = None
+
+
 class EvaluationPayload(Model):
+    """⟨1.5⟩ payload v2 (contract §21.5); a v1 card's `evidence` was a text."""
+
     employee: str = Field(pattern=EMP)
-    recommendation: Literal["promote", "demote", "dismiss"]
-    evidence: str = Field(default="", max_length=5000)
+    recommendation: Literal["promote", "demote", "dismiss", "confirm"]
+    change: EvaluationChange | None = None
+    transfer_to: str | None = Field(default=None, pattern=EMP)
+    round: str | None = Field(default=None, pattern=r"^HR-[0-9]{4,}$")
+    evidence: list[EvaluationEvidence] | str = Field(default_factory=list)
+    unflagged: bool | None = None
+    override_reason: str | None = Field(default=None, min_length=1, max_length=2000)
 
 
 class CodeSessionPayload(Model):
@@ -522,10 +553,26 @@ class Decision(BaseModel):
     effect_status: str
     version: int
     created_at: datetime
+    # ⟨1.5⟩ the advisor's memos on this card (contract §21.1), oldest first
+    memos: list[dict[str, Any]] = Field(default_factory=list)
+    # ⟨1.5⟩ cartable reminders (contract §21.8): hours waiting, the thresholds sent
+    waiting_h: float | None = None
+    reminders: list[dict[str, Any]] = Field(default_factory=list)
 
 
 DECISION_SQL = """
-    SELECT d.*, c.code AS company, r.ref AS resolution
+    SELECT d.*, c.code AS company, r.ref AS resolution,
+           (SELECT COALESCE(jsonb_agg(jsonb_build_object('ref', m.ref, 'mode', m.mode, 'state', m.state)
+                                      ORDER BY m.created_at), '[]'::jsonb)
+              FROM advisor.memos m WHERE m.decision_id = d.id) AS memos,
+           (SELECT COALESCE(jsonb_agg(jsonb_build_object('at', x.at, 'kind', x.kind) ORDER BY x.at), '[]')
+              FROM owner.decision_reminders x WHERE x.decision_id = d.id) AS reminders,
+           (SELECT jsonb_build_object('state', s.state, 'player', s.player, 'model', s.model,
+                                      'result', s.result)
+              FROM substitutes.calls s
+             WHERE d.kind = 'deploy' AND s.purpose_kind = 'decision' AND s.purpose_ref = d.ref
+               AND s.seat = 'code_review'
+             ORDER BY s.created_at DESC LIMIT 1) AS second_review_call
     FROM cartable.decisions d
     JOIN core.companies c ON c.id = d.company_id
     LEFT JOIN cartable.resolutions r ON r.id = d.resolution_id
@@ -551,7 +598,7 @@ def render(r: dict[str, Any]) -> Decision:
         risk=r["risk"],
         risk_note=r["risk_note"],
         reversible=r["reversible"],
-        payload=r["payload"],
+        payload=_with_review(r),
         amendments=r["amendments"],
         status=r["status"],
         expires_at=r["expires_at"],
@@ -569,7 +616,32 @@ def render(r: dict[str, Any]) -> Decision:
         effect_status=r["effect_status"],
         version=r["version"],
         created_at=r["created_at"],
+        memos=list(r.get("memos") or []),
+        waiting_h=_waiting_h(r),
+        reminders=list(r.get("reminders") or []),
     )
+
+
+def _with_review(r: dict[str, Any]) -> dict[str, Any]:
+    """A deploy card's payload with its `second_review` (prompt 12 §7 x §9.1):
+    the latest code_review call's findings, or null while there is none."""
+    if r["kind"] != "deploy":
+        return dict(r["payload"])
+    call = r.get("second_review_call")
+    if isinstance(call, str):
+        call = json.loads(call)
+    return {**r["payload"], "second_review": S.second_review_of(call)}
+
+
+def _waiting_h(r: dict[str, Any]) -> float | None:
+    """Hours the card waited for its decision (until now while pending)."""
+    end: datetime | None = r["decided_at"] or (
+        datetime.now(UTC) if r["status"] == "pending" else None
+    )
+    start: datetime | None = r.get("created_at")
+    if end is None or start is None:
+        return None
+    return round((end - start).total_seconds() / 3600, 1)
 
 
 async def load(tx: Tx, ref: str, *, lock: bool = False) -> dict[str, Any]:
@@ -698,6 +770,10 @@ async def propose(
             raise ApiError(
                 422, "validation_failed", fields={"payload.employee": "unknown in this company"}
             )
+    if body.kind == "evaluation":
+        from hq_api.domain import hr
+
+        payload = await hr.check_proposal(tx, payload, company_id)
     if body.kind == "recurring_approval":
         w = await tx.first(
             "SELECT company_id, kind FROM work.work WHERE id = :id", id=payload["work_id"]
@@ -855,6 +931,10 @@ async def propose(
         from hq_api.domain import founding
 
         await founding.proposed(tx, d, payload)
+    if body.kind == "evaluation":
+        from hq_api.domain import hr
+
+        await hr.on_proposed(tx, d)
     if body.kind == "lesson_adoption":  # one answer per lesson and company
         await tx.exec(
             """UPDATE knowledge.lesson_adoptions SET decision_ref = :d, updated_at = now()
@@ -997,6 +1077,12 @@ async def decide(
         await hiring.check_approval(
             tx, d, amended("hire", d["payload"], amendments), charters, by_ceo=who.is_agent, hub=hub
         )
+    if verdict == "approved" and d["kind"] == "evaluation":
+        # ⟨1.5⟩ prompt 12 §6: promote / demote under the hire checks of §18.11,
+        # before anything changes (409 envelope_exceeded)
+        from hq_api.domain import hr
+
+        await hr.check_approval(tx, d, amended("evaluation", d["payload"], amendments))
     if verdict in ("rejected", "returned") and d["kind"] == "company_found":
         from hq_api.domain import founding
 
@@ -1286,6 +1372,10 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
         from hq_api.domain import founding
 
         result = await founding.found_company(tx, d, p)
+    elif d["kind"] == "evaluation":
+        from hq_api.domain import hr
+
+        result = await hr.apply(tx, d, p)
     elif d["kind"] == "code_session":
         # The seal is the grant; the decision's id is unique on the grant, so a
         # retried effect never makes a second one.

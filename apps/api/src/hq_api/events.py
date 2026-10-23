@@ -54,7 +54,7 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "inquiries": ("inquiry.",),
     "errands": ("errand.",),
     # ⟨1.4⟩ prompt 08: stars.rollup (stars), story.created (stories), contract §18.10
-    "stars": ("stars.",),
+    "stars": ("stars.", "rankings."),  # ⟨1.5⟩ rankings.updated (prompt 12 §5)
     "stories": ("story.",),
     # ⟨1.4⟩ the skill library and the academy (contract §18.10): skill.updated;
     # academy.eval (and academy.teaching)
@@ -79,6 +79,17 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "meetings": ("meeting.",),
     "governance": ("charter.", "kpi.", "okr.", "outcome.", "risk.", "calendar."),
     "knowledge": ("knowledge.",),
+    # ⟨1.5⟩ prompt 12 part A (contract §21.12): memo.ready, advisor.proactive;
+    # substitute.updated; creative.updated
+    "advisor": ("memo.", "advisor."),
+    "treasury": ("substitute.",),
+    "creatives": ("creative.",),
+    # ⟨1.5⟩ prompt 12 part B (contract §21.12): briefing.ready, hr.round,
+    # note.created, claim.verdict (decision.reminded is on `decisions`)
+    "briefings": ("briefing.",),
+    "people": ("hr.",),
+    "notes": ("note.",),
+    "quality": ("claim.",),
 }
 
 

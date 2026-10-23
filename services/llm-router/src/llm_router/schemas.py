@@ -43,6 +43,9 @@ META_KEYS = frozenset(
         "meeting_cap",
         "meeting_kind",
         "charter_docs",
+        # prompt 12 §15: an owner-zone call is "auto" (stops at the owner zone
+        # share) or "direct" (the owner asked: always runs inside the cap)
+        "owner_zone",
     }
 )
 # Keys whose value is a list of short refs ("SK-001@3", "TE-0001", "holding@3").

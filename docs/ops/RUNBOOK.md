@@ -47,6 +47,11 @@
 | `make audit-reanchor reason="..."` | فقط بعد از restore دیتابیس، **فقط در ترمینال**: لنگر تازه‌ی زنجیره‌ی Audit، با تأیید تایپی و ردیف audit (§۳) |
 | `make prompt-check role=<role>` | یک فراخوانی **واقعی** با prompt یک منشور (پیش‌فرض مشاور) از راه `hq-ops`؛ schema و پاسخ سنجیده میشوند؛ هیچ چیزی جز ledger ذخیره نمیشود |
 | `make bootstrap-month1` | کارهای راه‌اندازی ماه ۱ (`apps/api/seed/bootstrap/month1.yaml`) به نام سرویس `bootstrap`؛ **اجرای واقعی مدل بیدار میکند** (`docs/ops/AGENTS.md`) |
+| `make connection-secret KEY=<key>` | **فقط مالک، در ترمینال خودش** (پرامپت ۱۲ §۹): کلید API یک اتصال LLM تازه (ورودی پنهان، مستقیم به OpenBao)؛ روتر بی خرج توکن وارسیش میکند (§۳۰.۳) |
+| `make chatgpt-login`، `make gemini-login` | **فقط مالک، در ترمینال خودش:** ورود CLI بازیکن ذخیره (Codex با کد دستگاه، Gemini با کد تأیید)؛ همین از اپ هم هست (§۳۰.۴) |
+| `make chatgpt-web-login`، `make gemini-web-login`، `make deepseek-web-login` | **فقط مالک، با تونل SSH خودش:** ورود یک‌باره در پروفایل مرورگر هاب؛ noVNC فقط روی `127.0.0.1:6080`، حداکثر ۱۵ دقیقه (§۳۰.۴) |
+| `make tts-on`، `make tts-off`، `make tts-bench` | صدای فارسی گزارش‌ها (پرامپت ۱۲ §۴): روشن و خاموش کردن profile اختیاری `tts` و timer آن (بیرون از بودجه‌ی حافظه رد میشود)، و اندازه‌گیری RTF و RAM روی متن ثابت (§۳۰.۱۱، حافظه‌ی همه‌ی profileها در §۳۰.۶) |
+| `make mcp-build`، `make mcp-test`، `make mcp-index` | MCP روی کانتینر (پرامپت ۱۲ §۱۴): ساخت تکرارپذیر imageها با digest فهرست مجاز، آزمون روی شبکه‌ی دورانداختنی، ایندکس CodeCortex (§۳۰.۵) |
 
 ## ۲. بالا آوردن و پایین آوردن
 
@@ -798,7 +803,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
      ثبت دوباره‌ی همان `key` با بدنه‌ی دیگر یک نسخه‌ی تازه است و وضعیتش دوباره `pending` میشود. ثبت دوباره‌ی **همان بدنه** هیچ چیز را عوض نمیکند (سرور روشن، روشن میماند). اگر host عوض شود، رمز قبلی دیگر فرستاده نمیشود (`has_secret: false`) تا مالک دوباره `make mcp-secret` بزند (7.1). URL سرور `http` فقط روی پورت 443 است و نقطه‌ی آخر نام میزبان برداشته میشود.
   2. **رمز سرور، اگر دارد:** مالک خودش در ترمینال میزند `make mcp-secret KEY=<key>` (ورودی بی‌نمایش). رمز در OpenBao در `kv/hq-api/tools/mcp/<key>` میرود. API فقط `has_secret` را نشان میدهد، هیچ‌وقت خود مقدار را.
      - **کلید JSON چندخطی** (مثل service account گوگل): `make mcp-secret KEY=<key> FILE=<path>`. اسکریپت بررسی میکند که فایل یک شیء JSON است، متن آن را همان‌طور ذخیره میکند و بعد پیشنهاد میدهد فایل پاک شود (`shred -u`). خود اسکریپت چیزی پاک نمیکند.
-  3. **روشن کردن** با `POST /api/v1/tools/mcp/<key>/enable` و 🔏 `mcp.enable` روی `key`. سرور `container` **هنوز اجراشدنی نیست** (شبکه‌ی `hq-mcp` و پل stdio→HTTP ساخته نشده‌اند): جواب `409 not_ready` است و `status_reason` همین را میگوید.
+  3. **روشن کردن** با `POST /api/v1/tools/mcp/<key>/enable` و 🔏 `mcp.enable` روی `key`. سرور `container` از پرامپت ۱۲ اجراشدنی است، فقط دقیقاً همان‌طور که فهرست مجاز میگوید و فقط وقتی پروفایل `mcp` روشن است (وگرنه `409 not_ready`): §۳۰.۵.
   4. **خاموش کردن** با `POST /api/v1/tools/mcp/<key>/disable`. فوری است و step-up نمیخواهد.
 
   هر سه POST `Idempotency-Key` میخواهند. کلید پیش از مصرف step-up گرفته میشود، پس تکرار همان درخواست همان جواب را با `Idempotent-Replay` میدهد.
@@ -823,7 +828,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **transport:**
   - **`http`:** فقط URL با https و نام میزبان عمومی؛ نه IP، نه نام داخلی، نه `hq.coinepro.com`، و بدون اعتبار داخل URL. Gateway آن را **فقط از پراکسی egress** میزند (`EGRESS_PROXY_URL` در env سرویس gateway). محافظ SSRF همان‌جا IP نهایی را چک میکند. بدون پراکسی، جواب `channel_not_configured` است و هرگز اتصال مستقیم برقرار نمیشود.
   - **`container`:** آدرس `http://mcp-<name>:<port>/...`. یک سرویس compose جدا روی شبکه‌ی internal ‏`hq-mcp`، که فقط با gateway مشترک است. سرورهای stdio پشت یک پل stdio→HTTP بازبینی‌شده اجرا میشوند. هیچ‌جا docker socket نیست.
-  - این سرویس و شبکه **وقتی مالک اولین سرور container را مُهر کند** اضافه میشوند (با قاعده‌های `compose-rules`). الان هیچ‌کدام وجود ندارد: سرور `container` ثبت میشود ولی **هنوز اجراشدنی نیست** (enable ← `409 not_ready`؛ در کاتالوگ `channel_not_configured` با «هنوز اجراشدنی نیست»).
+  - از پرامپت ۱۲ شبکه‌ی `hq-mcp`، پل stdio→HTTP و فهرست مجاز بازبینی‌شده ساخته شده‌اند (پروفایل اختیاری `mcp`، پیش‌فرض خاموش): §۳۰.۵.
 - **سرورهای پیشنهادی** (`apps/api/seed/mcp_proposals.yaml`؛ فقط پیشنهاد، هیچ‌کدام ثبت نشده):
 
   | key | سرور | ابزارها |
@@ -1429,3 +1434,298 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - `hq-kpi-collect` و `hq-governance-daily` اول `gate.holding_lock` را میپرسند و تا کلید توقف هلدینگ روشن است **هیچ کاری** نمیکنند (نه ردیف، نه کار، نه مدل، نه تماس بیرونی). هیچ‌کدام مدل صدا نمیزند.
 - PR-006، PR-090، PR-112، PR-113 و PR-116 مثل همه‌ی پروتکل‌ها در قفل هلدینگ `skipped` میشوند (بی‌ردیف اجرا).
 - کاری که این jobها میسازند (بازبینی ریسک، OKR فصل بعد) تنها چیزی است که میتواند ایجنتی را بیدار کند، و فقط وقتی قفل نیست.
+## ۳۰. ابزار مدیریت (پرامپت ۱۲؛ قرارداد §۲۱)
+بخش A ‏(§۱، §۹، §۹.۱، §۱۴، §۱۵) در ۳۰.۱ تا ۳۰.۷ و بخش B ‏(§۴ تا §۸، §۱۰ تا §۱۲) در ۳۰.۱۱ تا ۳۰.۱۸.
+- **migration ‏`0027`** (`0027_management_tools_a.py`): دو schema تازه، `advisor` (یادداشت‌ها و محرک‌ها) و `substitutes` (بازیکن‌ها، جایگاه‌ها، فراخوانی‌ها، ورودها، creativeها). همه‌ی جدول‌ها `company_id` و RLS **FORCE** دارند؛ ردیف‌های مالک و هلدینگ با `company_id` هلدینگ. هیچ نوع کارت تازه‌ای اضافه نمیشود.
+  - همچنین: بلوک‌های `advisor` و `substitutes` در `owner.settings`، ستون `work.work.run_meta` (task class اجرا و پرچم سهم مالک، فقط با کدی که کار را میسازد)، وضعیت‌های تازه‌ی `llm.connections` (`pending_secret`، `verifying`، `ready`، `error`) و نوع `subscription`، task classهای تازه، سه اتصال بازیکن ذخیره و سه حساب پروفایل مرورگر.
+- **migration ‏`0027_1`** (`0027_1_management_reports.py`، بخش B، بعد از `0027`): schemaهای `reports` و `quality` و جدول‌های تازه‌ی `people`، `llm` و `owner` (۳۰.۱۱ تا ۳۰.۱۸).
+  - **زنجیره:** `0025` ← `0027` ← `0027_1`. بعد از merge پرامپت ۱۱، `0027` روی `0026_1` آن مینشیند.
+- **دروازه‌ی راه‌اندازی:** هیچ چیزی از این بخش تا کلید توقف هلدینگ روشن است مدل یا سرویس بیرونی صدا نمیزند:
+  - یادداشت خودکار ساخته نمیشود و درخواست مالک ← `423 company_locked`.
+  - هر محرک تازه `deferred` (با `holding_locked`) ثبت میشود؛ خود قاعده‌ها فقط دیتابیس میخوانند.
+  - هر فراخوانی بازیکن ذخیره `skipped` میشود؛ `claim` هیچ کاری نمیدهد؛ worker هیچ کار وبی اجرا نمیکند.
+  - وارسی اتصال تازه صبر میکند (`verifying`).
+- **تصمیم‌های منتظر مالک (§۰.۸)، پیش‌فرض‌ها تا جواب او:** یادداشت خودکار روشن، حداکثر ۳ در روز؛ گزارش فعال ۳ در روز؛ `OWNER_ZONE_DAILY_SHARE=0.25`؛ رمز اتصال تازه از هر دو راه (`CONNECTION_SECRET_ROUTE=api`)؛ جایگاه‌ها و سقف‌های جدول §۹.۱، همه روشن؛ بازیکن پیش‌فرض عکس `gpt`؛ عکس و ویدیو فقط از مسیر وب؛ هیچ پروفایل اختیاری (MCP، runner، مرورگر وب) روشن نمیشود تا مالک بگوید.
+
+### ۳۰.۱ مشاور پریمیوم: یادداشت تصمیم، مخالف‌خوان، گزارش فعال (§۱، قرارداد §۲۱.۱)
+- **یادداشت تصمیم** (`advisor.memos`، شماره‌ی `DM-0001`):
+  - **درخواست مالک:** `POST /api/v1/decisions/{ref}/memo {mode: standard|devil}` ← `202`. همان کارت، mode و `version` همان یادداشت را برمیگرداند. کارت تصمیم‌گرفته ← `409 decision_not_pending`.
+  - **خودکار:** sweep مشاور در worker (`hq-advisor-sweep`، هر ۲ دقیقه) برای کارت‌های امروزِ مالک با `risk: high` یا نوع `deploy`، `company_found` یا `server_plan` یادداشت میسازد، به ترتیب ساخت و حداکثر `owner_settings.advisor.auto_memo.max_per_day` (۳) در روز مالک. اضافه‌ها به فردا نمیروند؛ فقط دکمه‌ی درخواست میماند.
+  - **اجرا:** یک کار برای `HQ-ADV` با بودجه‌ی ۸۰ هزار توکن، task class ‏`advisor_memo` و `owner_zone` برابر `auto` یا `direct`. بسته‌ی شاهد (کارت، ماسک‌شده) در brief است و در `advisor.memos.facts` میماند.
+  - **`memo.write`** (A1، فقط مشاور، فقط کارت `pending` و همان `version`): `against_md` خالی ← ۴۲۲؛ نسخه‌ی دیگر کارت ← `409 version_conflict`؛ هر ارجاع سمت سرور سنجیده میشود و ارجاع ساختگی حذف و در `citations_dropped` شمرده میشود. کار یادداشت با شاهد `DM-…` بسته میشود.
+  - **کارت قفل است:** trigger پایگاه‌داده (`advisor.stale_on_change`) یادداشت کارتی را که هنوز `pending` است و عوض شده `stale` میکند (ستون‌های دفتری مثل `reminded_at` حساب نیستند). نسخه‌ی تازه یادداشت تازه میگیرد؛ خودکار فقط اگر شرط خودکار برقرار باشد.
+  - یادداشتی که اجرایش بی `memo.write` تمام شد، بعد از ۵ دقیقه `failed` میشود.
+  - **نظر دوم و سوم:** کنار هر یادداشت، با کد، دو فراخوانی بازیکن ذخیره روی همان بسته‌ی شاهد ماسک‌شده و **بی دیدن یادداشت**: جایگاه `advisor_second_opinion` (GPT) و `third_opinion` (DeepSeek). `agrees` با کد است (همان `recommendation`). بازیکن خاموش، خارج‌شده یا بالای سقف روزانه ← نظر `null`.
+- **مخالف‌خوان:** پیام مالک در رشته‌ی `A` با `mode: "devil"` (در هر رشته‌ی دیگر ← ۴۲۲). runner دستور مخالف‌خوان را فقط برای همان اجرا به system prompt مشاور اضافه میکند و جواب `meta.mode: "devil"` میگیرد.
+- **گزارش فعال** (`advisor.triggers`): محرک‌ها با کد و بی مدل: بودجه‌ی ماه ≥ ۹۰٪، سهمیه‌ی اشتراک بیش از ۲ ساعت `limited`، افت انطباق ≥ ۱۰ امتیاز در یک روز، حادثه‌ی `sev1` باز بیش از ۳۰ دقیقه، هشدار افت کمیسیون رادار درآمد، ≥ ۳ کارت منتظر بیش از ۷۲ ساعت، یافته‌ی `critical` باز بیش از ۲۴ ساعت، و KR عقب از OKR (بعد از merge پرامپت ۱۱؛ تا جدولش نیست، چیزی نمیسازد).
+  - `key` هر محرک در هر روز یکتاست؛ همان محرک دوباره مشاور را بیدار نمیکند.
+  - مشاور با واقعیت‌های از پیش جمع‌شده بیدار میشود (۵۰ هزار توکن، `advisor_proactive`) و یک پیام کوتاه در `A` مینویسد (`meta.proactive: {kind, key}`) با یک اعلان سطح `report`؛ **هرگز `urgent`**.
+  - سقف `owner_settings.advisor.proactive_per_day` (۳)؛ بقیه `capped`. قفل هلدینگ یا پر بودن سهم مالک ← `deferred`.
+- **API:** `GET /decisions/{ref}/memo?mode`، `GET /advisor/memos?decision&cursor`، `GET /advisor/triggers?since&kind`؛ `Decision.memos`. stream: `memo.ready` و `advisor.proactive` روی topic ‏`advisor`.
+
+### ۳۰.۲ سهم توکن مالک و task classهای تازه (§۱۵، قرارداد §۲۱.۰)
+- **`OWNER_ZONE_DAILY_SHARE`** (در `.env`، خالی یعنی `0.25`): کارهای **خودکار** منطقه‌ی مالک (یادداشت خودکار، گزارش فعال، خلاصه‌ی مرور هفتگی، کتابدار، پیش‌بینی و اصول مدیر کل دیجیتال) روی هم حداکثر این سهم از `AGENT_DAILY_TOKEN_CAP` را در روز UTC مصرف میکنند (با ۶۰۰ هزار: ۱۵۰ هزار).
+  - LLM Router مثل سهم نظارت اجرایش میکند: فراخوانی task classهای منطقه با `meta.owner_zone` غیر از `direct` بعد از پر شدن سهم ← `429 budget_exhausted` (در دفتر `rejected_budget` / `owner_zone_share`). فراخوانی بی پرچم هم خودکار حساب میشود (سمت امن).
+  - **درخواست مستقیم مالک** (یادداشت به درخواست، پرسش، پیام) همیشه اجرا میشود، داخل سقف کل، و در منطقه شمرده میشود.
+  - api هم پیش از ساختن کار خودکار همین را میپرسد: یادداشت خودکار ساخته نمیشود و محرک `deferred` میشود.
+- **task classهای تازه** (seed روتر و migration ‏0027): `advisor_memo`، `advisor_proactive`، `advisor_review`، `ask_hub`، `ceo_letter`، `hr_eval`، `dceo_predict`، `dceo_principles`؛ و برای بازیکن‌های ذخیره `sub_code_review`، `sub_second_opinion`، `sub_cross_check`، `sub_errand`، `sub_draft`، `sub_long_read`، `sub_creative` (فقط در دفتر، با هزینه‌ی معادل؛ روتر هرگز آن‌ها را اجرا نمیکند).
+  - task class اجرای ایجنت از `work.work.run_meta` میآید (فقط کلاس‌های همین فهرست؛ هرگز انتخاب ایجنت).
+- **بازیکن‌های ذخیره** از هیچ سقف یا سهم Claude نمیخورند: سقفشان سهمیه‌ی اشتراک و سقف روزانه‌ی هر جایگاه است.
+
+### ۳۰.۳ افزودن اتصال تازه (§۹، قرارداد §۲۱.۷)
+- **ساخت:** `POST /api/v1/connections` با 🔏 `connection.create` روی SHA-256 بدنه و `Idempotency-Key` اجباری: `{key, provider, kind, display_name, base_url?, models[], default_model?, pricing{}, limits{}, fallback_priority?}`.
+  - provider فقط `anthropic`، `openai`، `google`، `deepseek`، `mistral` یا `openai_compatible`. `base_url` فقط برای `openai_compatible`، فقط `https` و نه آدرس خصوصی، loopback یا داخلی هاب (مثلاً `10.10.1.2` ← ۴۲۲). key تکراری ← `409 version_conflict`.
+  - `kind: subscription` اینجا ساخته نمیشود (`409 not_ready`): اشتراک‌ها با CLI خودشان کار میکنند و اشتراک‌های بازیکن ذخیره seed شده‌اند.
+  - نتیجه `pending_secret` است. اتصال تازه فقط با `PUT /assignments` 🔏 به کار میرود؛ تا وارسی نشده، روتر هیچ فراخوانی به آن نمیدهد و `PATCH status: enabled` ← `409 not_ready`.
+- **رمز، از دو راه:**
+  - مسیر API موجود `POST /connections/{id}/secret` 🔏 `connection.secret` (write-only) اتصال تازه را به `verifying` میبرد.
+  - ترمینال خود مالک: `make connection-secret KEY=<key>` (ورودی پنهان، مستقیم به OpenBao در `kv/llm-connections/<key>`). Claude سرور هرگز آن را اجرا نمیکند.
+  - با `CONNECTION_SECRET_ROUTE=terminal` (تصمیم مالک) مسیر API برای اتصال تازه `409 validation_failed` میدهد و دستور ترمینال را میگوید.
+- **وارسی:** روتر هر `LLM_CONNECTION_VERIFY_INTERVAL_S` (۳۰ ثانیه) اتصال‌های `pending_secret` را که رمزشان رسیده `verifying` میکند و هر `verifying` را با فهرست مدل‌های همان ارائه‌دهنده (`GET .../models`) میسنجد، **بی خرج هیچ توکنی** ← `ready` (با `verified_at`) یا `error` با `status_reason` کوتاه.
+  - پیش از تماس، نام میزبان resolve میشود و آدرس غیرعمومی رد میشود (قاعده‌ی محافظ egress).
+  - تا کلید توقف هلدینگ روشن است هیچ تماسی نمیرود.
+  - هیچ پاسخ، لاگ، رویداد یا ردیف Audit رمز را ندارد.
+
+### ۳۰.۴ بازیکن‌های ذخیره: ChatGPT، Gemini و DeepSeek (§۹.۱، قرارداد §۲۱.۱۳)
+#### api، worker و ابزار ایجنت
+- **قاعده‌ی نیمکت در کد:** هر فراخوانی جایگاه یک سؤال محدود است، با برچسب `source {player, model, connection, at}`، و **هرگز شاهد نیست** (هیچ مسیر نوشتنی ندارد و رکورد قابل ارجاع نیست). ورودی ماسک‌شده است؛ داده‌ی شخصی یا رمز (حتی داخل base64/hex) ← `policy_denied`. `quick_search` از کل محافظ `web.search` رد میشود (هیچ نام، ref یا کد کارمند داخلی). کد ریپو فقط در `code_review`.
+  - **هیچ جابه‌جایی پنهانی نیست:** بازیکن `limited`، خارج‌شده، منقضی یا `off`، یا جایگاهی که سقف روزانه‌اش پر است ← فراخوانی `skipped` (در `month.skipped`) و صداکننده با مدل خودش ادامه میدهد. اجرای Claude هرگز به بازیکن ذخیره نمیرود و برعکس.
+  - این فراخوانی‌ها از هیچ سقف یا سهم Claude نمیخورند؛ هر کدام یک ردیف در `llm.calls` (caller ‏`substitutes`، task class ‏`sub_*`) با هزینه‌ی معادل از جدول قیمت اتصال میگیرند. جدول قیمت اتصال‌های بازیکن ذخیره خالی است تا مالک پر کند؛ تا آن موقع `equiv_usd` صفر است و اعلان «عقب ماندن» نمیآید.
+- **صف کارها (api):** `substitutes.calls` هم صف CLI است و هم صف وب.
+  - CLI: `POST /internal/v1/substitutes/jobs/claim` (فقط principal سرویسی `substitutes`؛ یک کار در لحظه برای هر دو؛ تا قفل هست هیچ کاری) و `.../jobs/{id}/done` (idempotent). سهمیه‌ی تمام‌شده ← بازیکن `limited` با `limited_until` و جایگاه `skipped`. جوابی که بعد از `queued` رسید به‌صورت یک کار برای ایجنت صداکننده برمیگردد.
+  - وب: worker (`hq-substitute-web`، هر دقیقه) کارهای وب را از `POST egress /v1/substitutes/web` اجرا میکند: یکی در لحظه برای هر بازیکن و دست‌کم ۶۰ ثانیه فاصله؛ تا قفل هست هیچ. پروفایل منقضی ← `web.state: expired`، کارهای منتظرش `skipped` و **یک** اعلان `report`. recipe شکسته ← فراخوانی `failed` با شماره‌ی قدم، و اگر SRE پلتفرم هلدینگ استخدام شده باشد یک کار fallback برای او.
+- **جایگاه‌ها:** از جدول §۹.۱ seed شده‌اند (همه روشن، جز `code_review` جمنای). `PUT /api/v1/substitutes/{player}/seats` با 🔏 `substitute.seats` روی هش بدنه و `If-Match`؛ جایگاهی که در فهرست نیست خاموش میشود؛ `creative` و همه‌ی جایگاه‌های DeepSeek فقط `via: web`.
+  - مدل‌ها داده‌اند: روزی یک بار (`hq-substitute-daily`، ۰۹:۱۵ تهران) برای هر بازیکن CLI واردشده یک کار `models` (Gemini: یکی برای هر مدل). مدلی که CLI نمیدهد `available: false` و جایگاهش به نزدیک‌ترین مدل موجود همان ردیف میرود؛ گزارش صبحگاهی میگوید.
+  - روز ۱۵ ماه شمسی، بازیکن پولی واردشده‌ای که `value_ratio` آن زیر `owner_settings.substitutes.behind_ratio` (۰٫۴) است یک اعلان `report` میگیرد؛ هیچ چیز خودش گسترده نمیشود.
+- **creative (عکس و ویدیو، `CR-0001`):** `POST /api/v1/creatives` (مالک، `Idempotency-Key`؛ prompt با قالب خود هاب از brief و جای انتشار، با «هیچ متنی در تصویر نباشد») یا `substitute.call` با `seat: creative` (prompt را ایجنت مسئول مینویسد).
+  - دانلود از پردازش §۱۷.۱ رد میشود (نوع از روی بایت‌ها، حذف EXIF در child، سقف اندازه). **متن فارسی را خود هاب میگذارد:** IRANYekanX، راست‌به‌چپ، رنگ و نشان برند شرکت، داخل حاشیه‌ی امن همان جای انتشار (مثلاً استوری اینستاگرام: ۱۴٪ بالا و ۲۰٪ پایین خالی)، با resvg در child ← `composed` ← `review`. فونت از `design/fonts/static` فقط‌خواندنی (`HQ_FONTS_DIR`) در worker.
+  - مالک `accept` یا `reject` میکند. **پذیرفتن یعنی انتشار نیست:** انتشار در کانال یا استوری کار بیرونی است و کارت A3 میخواهد.
+- **ورود CLI از اپ:** `POST /api/v1/connections/{id}/login` با 🔏 `connection.login` روی id؛ تا runner خاموش است (یا برای DeepSeek) ← `409 not_ready` با دستور ترمینال. `GET .../login/{login_id}` برای poll؛ `POST .../login/{login_id}/code` فقط برای `auth_code`، write-only، حداکثر ۱۰ دقیقه، یک بار به runner داده و پاک میشود؛ در هیچ پاسخ، لاگ یا Audit نیست. خروج: `POST /connections/{id}/logout` 🔏 `connection.logout`؛ پاک کردن پروفایل وب: `POST /substitutes/{player}/web/logout` 🔏 `substitute.web_logout` (egress در دور بعد worker پاکش میکند).
+- **ابزار `substitute.call`** (A0): مشاور، ناظر، دستیار و مدیرعامل‌ها در جایگاه‌های خودشان و فقط در شرکت خودشان؛ مدیر فنی و QC فقط `code_review` (OPA ‏`advisor_substitutes.rego`). تا قفل هست ← ۴۲۳. ردها: `channel_not_configured`، `rate_limited`، `policy_denied`.
+- **بازبینی دوم کد:** یافته‌ها `verified: null` میمانند تا مدیر فنی یا QC بسنجد؛ هیچ یافته‌ی سنجیده‌نشده‌ای به `risk_note` کارت نمیرسد و تأیید کارت با یا بی آن همان است.
+
+#### runner، dispatcher، مرورگر وب و ورود
+- **همه خاموش است تا مالک بگوید:** دو profile اختیاری `substitutes` (runner CLIها) و `substitutes-web` (پروفایل‌های لاگین‌شده‌ی مرورگر) با `HQ_SUBSTITUTES=on` و `HQ_SUBSTITUTES_WEB=on` در `.env` روشن میشوند. `hq.sh` هر کدام را که با بودجه‌ی حافظه جا نشود رد میکند (exit 3)، مثل STT. api فقط وقتی runner روشن است `SUBSTITUTES_RUNNER=on` میگیرد (`hq.sh --print-substitutes-runner`). کلید توقف هلدینگ هم هر کار را متوقف میکند: api تا قفل هست هیچ کاری تحویل نمیدهد.
+- **runner:** image `coinepro-hq/substitutes` با OpenAI Codex CLI ‏0.160.0 و Google Gemini CLI ‏0.63.0 (هر دو Apache-2.0، از `services/substitutes/cli/package-lock.json` با hash). هر فراخوانی یک container یک‌بارمصرف است: Job روی stdin، prompt روی stdin خود CLI (هرگز در argv)، خروجی خط‌های JSON.
+  - ابزارهای خود CLI خاموش‌اند: Codex با `--sandbox read-only` در پوشه‌ی خالی tmpfs؛ Gemini با فایل تنظیمات سیستمی `/etc/gemini-cli/settings.json` که هیچ core tool ثبت نمیکند. فقط بازبینی کد (`code_review`) checkout فقط‌خواندنی را با ابزارهای خواندن فایل میبیند (`review.json`).
+  - ورود CLIها فقط در volume `hq-substitute-auth` است (فایل‌ها ۶۰۰، بیرون از backup). اگر گم شد، مالک دوباره وارد میشود.
+- **dispatcher:** `infra/substitutes/dispatch.sh` با `coinepro-hq-substitutes.timer` هر ۲۰ ثانیه، به نام کاربر Hub (نصب با `make install-systemd`). وقتی خاموش است همان لحظه بیرون میرود.
+  - یک کار در لحظه برای هر دو بازیکن (flock). با یک container موقت curl روی `hq-internal` کار را از `POST /internal/v1/substitutes/jobs/claim` میگیرد؛ توکنش (`kv/hq-api/config` → `service_tokens.substitutes`، خود توکن فقط در `~/.secrets/substitutes/api-auth` با دسترسی ۶۰۰) هرگز در خط فرمان نیست. `make up` یک بار آن را میسازد؛ بعدش api را restart کن.
+  - بازبینی کد: `git archive` همان `head_sha` از clone خود هاب (`HQ_SUBSTITUTE_REPOS`، پیش‌فرض `coinepro-hub=/home/Hub/CoinePro-Hub`)، فایل‌هایی که اسکن رمز (`hq_common.secret_files`) پیدا میکند کامل حذف، و mount فقط‌خواندنی. ریپو یا commit ناشناخته ← `no_access`.
+- **hostهای egress (فقط CONNECT روی 443):** runner روی `hq-subs` فقط به listener ‏`:3131` میرسد: `chatgpt.com`، `auth.openai.com`، `cloudcode-pa.googleapis.com`، `oauth2.googleapis.com`، `www.googleapis.com` (با زیردامنه‌ها؛ `EGRESS_SUBSTITUTES_HOSTS`). `api.openai.com` نه. مرورگر پروفایل روی `hq-browser-web` فقط به `:3132` میرسد و هر کار فقط به hostهای recipe خودش. پنجره‌ی ورود روی `hq-web-login` فقط به `:3133` (hostهای خود سایت‌ها و ورودشان).
+- **probe قابلیت‌ها (کار `models`):** Codex فهرست مدل‌های حساب را میدهد (`codex debug models`)؛ Gemini فهرستی ندارد و هر کار یک مدل را با یک کلمه امتحان میکند. فقط وقتی ورود هست و قفل نیست، و از سهمیه‌ی اشتراک (نه توکن Claude).
+- **ورود CLIها (فقط مالک، در ترمینال خودش):** `make chatgpt-login` (کد دستگاه: لینک و کد را روی گوشی میزنی) و `make gemini-login` (لینک را باز میکنی و کد را برمیگردانی، بعد `/quit`). همین از اپ هم هست (تنظیمات ← اتصال‌ها، با step-up). خروج از اپ: `POST /connections/{id}/logout` 🔏.
+- **مرورگر وب و ورود یک‌باره (فقط مالک):** `make chatgpt-web-login`، `make gemini-web-login` یا `make deepseek-web-login`.
+  - پروفایل در یک Chromium قابل دیدن باز میشود، حداکثر ۱۵ دقیقه. noVNC فقط روی `127.0.0.1:6080` سرور است (از راه `web-login-relay`). با تونل SSH خودت: `ssh -L 6080:127.0.0.1:6080 …`، بعد `http://127.0.0.1:6080/vnc.html` با رمز یک‌باره‌ای که همان ترمینال نشان میدهد. **تنظیم SSH سرور عوض نمیشود.**
+  - وارد شو و مرورگر را ببند. هاب رمزت را نمیبیند. پروفایل در volume `hq-substitute-web` است (فایل‌ها ۶۰۰، بیرون از backup) و فقط `browser-web` و همین پنجره mountش میکنند.
+  - پیش از روشن کردن `substitutes-web` وارد شو: پنجره‌ی ورود و مرورگر پروفایل با هم از جمع سقف‌های حافظه بیشترند.
+  - خروج از اپ: `POST /substitutes/{player}/web/logout` 🔏 که پروفایل را پاک میکند.
+- **recipeها و fallback:** `infra/egress/recipes/{chatgpt-web,gemini-web,deepseek-web}.yaml` فایل‌های بازبینی‌شده‌اند: گفت‌وگوی تازه (در ChatGPT موقت) ← چسباندن prompt ← صبر (عکس ≤ ۳ دقیقه، ویدیو ≤ ۱۰ دقیقه) ← خواندن جواب یا دانلود نسخه‌ی اصلی ← بستن. در DeepSeek فقط DeepThink و Search، همیشه روشن.
+  - صفحه‌ی ورود ← `expired` (هیچ ورود خودکاری نیست؛ مالک دوباره وارد میشود). قدمی که شکست بخورد ← `recipe_failed` با شماره‌ی قدم؛ این نشانه‌ی fallback یک اجرای Claude با `web.browse` روی همان پروفایل است که اصلاح recipe را به‌صورت تغییر بازبینی‌شده پیشنهاد میدهد. selectorها هنوز روی سایت واقعی سنجیده نشده‌اند (هیچ ورودی ساخته نشده).
+  - `web.browse` با حساب پروفایل همان قواعد مرور را دارد: POSTی که در `allow` حساب نیست `needs_owner` میشود. برای اینکه fallback بتواند پیام بفرستد، مالک باید فراخوان ارسال همان سایت را در `allow` حساب مُهر کند (🔏 `account.put`).
+  - هیچ screenshot، لاگ یا جوابی کوکی ندارد: جواب فقط متن خوانده‌شده یا فایل اصلی است و نوع فایل از روی محتوا تعیین میشود.
+- **بازبینی دوم کد:** checkout فقط‌خواندنی همان `head_sha`، بی فایل‌های رمزدار؛ Codex با `--output-schema` (`findings: [{path, line, severity, title_fa, detail_md}]`). یافته‌ها فقط پیشنهادند: مدیر فنی یا QC میسنجد، و هرگز تأیید یا مسدود نمیکنند.
+- **حافظه:** `MEM_SUBSTITUTE=512m`، `MEM_BROWSER_WEB=768m`، `MEM_BROWSER_LOGIN=1024m`، `MEM_WEB_LOGIN_RELAY=32m` (اندازه‌گیری‌ها در گزارش). در full هر دو profile با هم جا میشوند، ولی همراه STT نه. اولویت با مالک است.
+
+### ۳۰.۵ MCP روی کانتینر (پرامپت ۱۲ §۱۴، قرارداد §۲۱.۱۱)
+- **پروفایل اختیاری `mcp`، پیش‌فرض خاموش** (`HQ_MCP=` در `.env`). `hq.sh` فایل `infra/compose/mcp.yaml` را به همه‌ی فرمان‌ها اضافه میکند و پروفایل را فقط با `HQ_MCP=on` و وقتی در بودجه‌ی حافظه جا شود روشن میکند؛ وگرنه `up` با کد ۳ رد میشود (مثل STT). api فقط وقتی پروفایل روشن است `MCP_CONTAINERS=on` میگیرد.
+  - **عددها (۲۰۲۶-۱۰-۲۲):** `mcp-time` حدود ۹۲ مگ، پیک ۹۷ (`MEM_MCP_TIME=192m`)؛ CodeCortex روی ریپوی هاب ۷۶ مگ بیکار، ۱۳۳ بعد از چند فراخوانی، پیک ۳۰۷ (`MEM_MCP_CODECORTEX=384m`)؛ job ایندکس کامل پیک ۳۳۰ مگ در ۱۲ ثانیه (`MEM_MCP_CODECORTEX_INDEX=448m`).
+  - **بودجه:** full با mcp ‏11920 از 12288 مگ (جا میشود، ۳۶۸ مگ میماند)؛ lean با mcp ‏700 مگ بیشتر از بودجه. همراه STT جا نمیشود. اولویت با مالک است (§۰.۸ بند ۷).
+- **شبکه:** `hq-mcp` (internal، `172.30.12.0/24`): فقط سرورهای MCP و Tool Gateway. egress، api و دیتابیس روی آن نیستند. gateway مستقیم به `http://mcp-<key>:8080/mcp` وصل میشود (بی egress).
+- **هر سرور:** کاربر 10001، rootfs فقط‌خواندنی، `cap_drop: ALL`، `no-new-privileges`، فقط `hq-mcp`، هرگز socket داکر، بی رمز. پل stdio→HTTP: ‏`mcp-proxy` (MIT) داخل همان image.
+- **فهرست مجاز بازبینی‌شده:** `infra/mcp/servers.yaml` (key، image با digest، URL، دستور، لایسنس، منبع، ابزارهای بازبینی‌شده با کمترین کلاس، ابزارهای ممنوع، `mem_limit`، `needs_internet`/`needs_secret`).
+  - `POST /api/v1/tools/mcp` با `transport: container` فقط دقیقاً همان key، image و URL، بی `auth_header`، بی ابزار ممنوع یا بازبینی‌نشده‌ی روشن، و بی کلاس پایین‌تر از بازبینی‌شده پذیرفته میشود؛ وگرنه ۴۲۲ (پیش از مصرف مُهر). سروری که اینترنت یا رمز بخواهد ← `409 not_ready` (نسخه‌ی بعد).
+  - روشن کردن (🔏 `mcp.enable`) وقتی پروفایل خاموش است یا image مُهرشده دیگر همان بازبینی‌شده نیست ← `409 not_ready`؛ `mcp.call` همان وقت ← `503 channel_not_configured`. همه‌ی قواعد §۲۰ سر جایش است (pin فهرست، فهرست تغییرکرده ← خاموش + کارت `tool_enable`، کلاس مُهرشده، A3 به کارت، redaction، `mcp_calls`).
+- **image با digest ثابت:** imageها روی خود هاب ساخته میشوند و هرگز pull نمیشوند (`pull_policy: never`). `make mcp-build` آن‌ها را تکرارپذیر میسازد (`SOURCE_DATE_EPOCH=0`، timestamp بازنویسی‌شده، بی attestation)؛ digest هر ساخت باید همان فهرست مجاز باشد وگرنه خطا میدهد و هر دو را چاپ میکند. `make up` با `HQ_MCP=on` همین را اول اجرا میکند. compose هر سرور را با همان digest اجرا میکند، پس ساخت دیگری بالا نمیآید.
+  - به‌روزرسانی Debian (مثلاً git در image‌ی CodeCortex) digest را عوض میکند: digest تازه فقط با تغییر بازبینی‌شده‌ی `servers.yaml`، `mcp.yaml` و پیشنهاد در `apps/api/seed/mcp_proposals.yaml`.
+- **افزودن سرور تازه = یک PR بازبینی‌شده** روی فهرست مجاز (و image در `infra/mcp/<key>/` و سرویس در `infra/compose/mcp.yaml`)، بعد دو مُهر مالک در اپ (🔏 `mcp.add` روی بدنه، 🔏 `mcp.enable` روی key). هیچ سروری خودش ثبت یا روشن نمیشود.
+- **سرور مرجع `time`:** ‏`mcp-server-time` (MIT)، ابزارهای `get_current_time` و `convert_time` (A0)، منطقه‌ی زمانی Asia/Tehran؛ پیشنهاد آماده در `apps/api/seed/mcp_proposals.yaml`، منتظر مُهر مالک.
+- **CodeCortex** (پروژه‌ی خود مالک، Apache-2.0، بدون `semantic` و بدون `parsers`): فقط ابزارهای خواندنی A0؛ ویرایش، حافظه‌ی خودش، همگام‌سازی و `cortex_dependency_docs` در فهرست مجاز ممنوع و در ثبت `enabled: false` هستند.
+  - **ریپو:** ریپوی هاب فقط‌خواندنی به job یک‌بارمصرف `mcp-codecortex-index` (بی شبکه) mount میشود؛ job یک کپی git در HEAD ریپو (volume ‏`mcp-codecortex-repos`) و ایندکس را در volume وضعیت همان ریپو میسازد. سرور کپی را فقط‌خواندنی و فقط وضعیت را نوشتنی mount میکند؛ حین پاسخ‌گویی ایندکس نمیسازد.
+  - **زمان job:** با `make up` (اگر پروفایل روشن است)، هر شب ۰۳:۳۰ تهران (`coinepro-hq-mcp-index.timer`) و وقتی HEAD ریپوی هاب جابه‌جا شود (`coinepro-hq-mcp-index.path`)؛ هر دو تا `HQ_MCP` خاموش است کاری نمیکنند. دستی: `make mcp-index` (`FULL=1` یعنی از نو). فقط قاعده است (بی مدل، بی تماس بیرونی)، پس با کلید توقف هلدینگ هم اجرا میشود. نصب unitها: `make install-systemd` (با sudo، کار مالک).
+  - ریپوی workspaceها و تأسیس‌ها: برای هر ریپو یک mount فقط‌خواندنی و یک volume وضعیت (تغییر بازبینی‌شده‌ی `mcp.yaml`).
+- **آزمون‌ها:** `make mcp-test` روی imageهای ساخته‌شده و یک شبکه‌ی internal دورانداختنی: فهرست و ساعت تهران از `time`، PR intelligence روی ریپوی نمونه، کپی فقط‌خواندنی، بی اینترنت، بی `10.10.1.1`، بی سرویس هاب. `make verify-live` وقتی سرورها بالا هستند: gateway به آن‌ها میرسد، آن‌ها به هیچ‌جا نمیرسند، و digest در حال اجرا همان فهرست مجاز است.
+### ۳۰.۶ حافظه‌ی پروفایل‌های اختیاری پرامپت ۱۲ (همه پیش‌فرض خاموش)
+- **چهار profile اختیاری،** هر کدام با یک متغیر خالی در `.env`:
+  - `tts` (`HQ_TTS`): صدای فارسی، یک‌بارمصرف، `MEM_TTS=320m`
+  - `mcp` (`HQ_MCP`): `mcp-time` ‏192m، `mcp-codecortex` ‏384m و job ایندکس ‏448m، روی هم ‏1024 مگ
+  - `substitutes` (`HQ_SUBSTITUTES`): runner بازیکن‌های ذخیره، یک‌بارمصرف، `MEM_SUBSTITUTE=512m`
+  - `substitutes-web` (`HQ_SUBSTITUTES_WEB`): مرورگر پروفایل‌های لاگین‌شده، `MEM_BROWSER_WEB=768m`
+  - پنجره‌ی ورود `web-login` فقط با `make <x>-web-login` و حداکثر ۱۵ دقیقه: ‏1056 مگ (`MEM_BROWSER_LOGIN` و relay).
+- **بودجه‌ی full** (مرجع ‏15360 مگ، بودجه ‏12288): خود full ‏10896 مگ.
+  - **تنها، هر کدام جا میشود:** tts ‏11216، mcp ‏11920، substitutes ‏11408، substitutes-web ‏11664، web-login ‏11952.
+  - **دوتایی‌هایی که جا میشوند:** tts+mcp ‏12240، tts+substitutes ‏11728، tts+substitutes-web ‏11984، substitutes+substitutes-web ‏12176.
+  - **جا نمیشوند:** mcp+substitutes (۱۴۴ مگ بیشتر)، mcp+substitutes-web (۴۰۰)، tts+substitutes+substitutes-web (۲۰۸)، هر چهار با هم ‏13520 (۱۲۳۲). STT به‌تنهایی ۷۸۴ مگ بیشتر است.
+- **بودجه‌ی lean** (مرجع ‏7745، بودجه ‏6196): فقط tts جا میشود (‏6192)؛ بقیه نه.
+- **gate:** `hq.sh` profileها را به همین ترتیب روی هم میشمارد: `mcp`، `substitutes`، `substitutes-web`، `tts`. اولی که از بودجه بیرون بزند رد میشود و `up` با کد ۳ تمام میشود. هر کار یک‌بارمصرف با سقف کامل خودش شمرده میشود؛ قاعده‌ی «یک بار با بزرگ‌ترین سقف» هنوز در gate نیست، پس عددها محتاطانه‌اند.
+- **اولویت با مالک است** (§۰.۸ بند ۷): هیچ‌کدام روشن نمیشود تا مالک بگوید.
+
+### ۳۰.۷ پیوند دو بخش
+- **بازبینی دوم کد کارت deploy:** کارت `deploy` که diff واقعی دارد (۳۰.۱۵)، بعد از ساخت یک فراخوانی `code_review` میگیرد.
+  - صداکننده سرویس `deploy-review` است و ورودی همان diff ماسک‌شده‌ی کارت.
+  - checkout را dispatcher از کلون خود هاب میسازد. ریپویی که در `HQ_SUBSTITUTE_REPOS` نیست ← `no_access`.
+  - کارت `payload.second_review` را از همان فراخوانی میخواند: `{player, model, findings, verified}` یا null.
+  - هیچ‌وقت تأیید یا مسدود نمیکند. یافته‌ی سنجیده‌نشده به `risk_note` نمیرود. کارت بی‌diff بازبینی نمیگیرد.
+- **بررسی دوم ادعا:** ادعایی که با `protocol` ثبت شود (نمونه‌ی `PR-001` یا نمونه‌ی راستی‌آزما)، یک فراخوانی `overseer_cross_check` میگیرد.
+  - ورودی: متن ماسک‌شده‌ی ادعا، عنوان و خلاصه‌ی خروجی. رأی و یادداشت بررسی‌کننده در آن نیست.
+  - برای هر خروجی و متن ادعا فقط یک بار.
+  - اگر رأیش فرق کند، ادعا با یک کار برای ناظر کل برمیگردد (Audit ‏`claim.returned`).
+  - خودش هیچ ردیف `quality.claims` یا `claim.verdict` نمیسازد.
+- **حوزه‌ی فراخوانی ایجنت شرکت:** `substitute.call` در حوزه‌ی هاب اجرا میشود، چون بازیکن‌ها و جایگاه‌ها ردیف‌های هلدینگ‌اند و سقف روزانه همه‌ی شرکت‌ها را میشمارد. فراخوانی برای شرکت خود ایجنت ثبت میشود.
+- **یادداشت stale:** یادآوری کارتابل (۳۰.۱۷) ردیف `owner.decision_reminders` است و به خود کارت دست نمیزند. trigger فقط `version`، `updated_at` و `reminded_at` را کنار میگذارد.
+- **محرک OKR:** از `governance.key_results` و `governance.objectives` پرامپت ۱۱ میخواند. پیشرفت مثل خود پرامپت ۱۱ است: (current − start) ÷ (target − start)، بین ۰ و ۱. KR وصل به KPI مقدار `last_value` همان KPI را میگیرد. تا جدول نیست، هیچ محرکی نمیسازد.
+
+### ۳۰.۱۱ صدای فارسی گزارش‌ها: TTS (پرامپت ۱۲ §۴، قرارداد §۲۱.۴)
+- **موتور:**
+  - Piper 1.8.0 (`piper-tts`، GPL-3.0؛ espeak-ng درونش هم GPL-3.0). به‌صورت **برنامه‌ی جدا** اجرا میشود (`python -m piper`)، پس به کد ما link نمیشود.
+  - رمزگذاری Ogg/Opus با ‏32 kbps با `opusenc` (opus-tools، BSD؛ libopus، BSD-3)، نه ffmpeg. همان codec و ظرف است، ولی ۶ بسته به جای ۲۰۵ بسته‌ی ffmpeg (ایمیج ۵۹۰ مگ به جای ۱٫۲ گیگ).
+- **صدا:** `fa_IR-amir-medium` از `rhasspy/piper-voices` (لایسنس مخزن MIT) در revision ثابت `5041a7a4…`. sha256 هر فایل در `services/tts/voice.lock.json` و `ADD --checksum` در Dockerfile است.
+  - **لایسنس دیتاست** از `MODEL_CARD` خود صدا: **CC0** (datacula.com).
+    - `ganji` و `reza_ibrahim` هم CC0 اند.
+    - `gyro` «See URL» است و پیش‌فرض نیست.
+    - MMS-TTS متا (CC-BY-NC-4.0) پیش‌فرض نیست.
+  - صدا و لایسنسش در `/meta.tts` است.
+  - عوض کردن صدا: `HQ_TTS_VOICE` در `.env`، فقط از جدول `briefings.VOICES` (همه با لایسنس آزاد).
+- **کار یک‌بارمصرف، نه سرویس:** image `coinepro-hq/tts`، profile `tts`. timer `coinepro-hq-tts.timer` هر ۲ دقیقه `infra/tts/run-once.sh` را اجرا میکند:
+  - اگر `HQ_TTS` روشن نباشد، بی‌صدا تمام میشود.
+  - روی `/run/hq/oneshot.lock` حداکثر ۱۰ دقیقه منتظر میماند.
+    - این قفل مشترک با backup ساعتی است و `infra/systemd/coinepro-hq-oneshot.conf` آن را میسازد.
+    - backup هم پیش از کارش همین قفل را میگیرد (حداکثر ۱۵ دقیقه صبر).
+  - بعد `hq.sh run --rm --no-deps tts`: یک pass، حداکثر ۳ گزارش.
+    - کانتینر از `POST /internal/v1/tts/claim` کار میگیرد. ۲۰۴ یعنی کاری نیست، و **همیشه وقتی کلید توقف هلدینگ روشن است** همین ۲۰۴ است.
+    - صدا میسازد و Ogg را با `POST /internal/v1/tts/{id}/done` میفرستد.
+    - شکست با `/fail` گزارش میشود. بعد از ۳ بار `audio_state: "failed"`.
+  - **شبکه:** فقط `hq-tts` (internal، ‏172.30.21.0/24)، با api و OpenBao.
+    - نه اینترنت، نه Postgres، نه سرویس دیگر (probe در `live.sh`؛ `compose-rules`).
+    - principal سرویسی `tts`، با توکنی در `kv/tts/config` (AppRole `tts` روی همان subnet؛ `provision.sh` یک بار میسازد).
+    - اعتبار AppRole در `${HQ_SECRETS_DIR}/services/tts/approle.json` است.
+- **عددها** (اندازه‌گیری ۲۰۲۶-۱۰-۲۲ روی همین CPX42 با `make tts-bench`؛ ۱ thread، متن ثابت ۱۲۱ کلمه، ۵۱ ثانیه گفتار):
+  - RTF ‏0.09 تا 0.10
+  - peak RSS برنامه‌ی Piper ‏250 تا 253 مگ
+  - peak کانتینر (cgroup) ‏239 تا 241 مگ
+  - Ogg حدود ۲۰۵ کیلوبایت
+  - `MEM_TTS=320m` در هر دو profile
+  - راز حافظه: Piper هر خط را جدا میخواند. پس متن به جمله‌ها و بندهای ≤ ۱۴ کلمه شکسته میشود (`piper_lines`) و `MALLOC_ARENA_MAX=1`. بدون این دو، peak به ۳۴۰ تا ۳۸۴ مگ میرسید.
+- **gate حافظه:**
+  - full+tts: ‏11216 از 12288 مگ (جا میشود)
+  - lean+tts: ‏6192 از 6196
+  - gate هر یک‌بارمصرف را با سقف کامل خودش میشمارد (۳۲۰ مگ؛ قاعده‌ی «یک بار با بزرگ‌ترین سقف» هنوز در gate نیست). جمع همه‌ی profileهای اختیاری در ۳۰.۶ است.
+- **روشن و خاموش (تصمیم مالک، §۰.۸ بند ۷):** پیش‌فرض خاموش است، چون STT جا نمیشود و اولویت حافظه با مالک است.
+  - `make tts-on`: `HQ_TTS=on`، build، `up api worker` و فعال کردن timer. هر بار که بیرون از budget باشد، `hq.sh` رد میکند.
+  - `make tts-off`: برگشت به حالت پیش‌فرض.
+  - api فقط وقتی کار صوتی میسازد که `HQ_TTS_ACTIVE=on` باشد. وگرنه گزارش `audio_state: "off"` است و متن بی‌تغییر میماند.
+- **متن گفتاری** را api با کد میسازد (`hq_api.speech.fa_speech_script`):
+  - markdown حذف میشود.
+  - refها به عنوانشان و کد کارمندها به عنوان فارسی تبدیل میشوند.
+  - عدد، پول، درصد، تاریخ جلالی و ISO و ساعت به کلمه تبدیل میشوند.
+  - هیچ رقم لاتینی یا فارسی نمیماند (`assert_spoken`).
+
+### ۳۰.۱۲ گزارش صبحگاهی صوتی و نامه‌ی هفتگی مدیرعامل‌ها (پرامپت ۱۲ §۴.۲ و §۴.۳)
+- **صبحگاهی:** بعد از گزارش نوشته‌شده‌ی پرامپت ۵، یک `BR-…` نوع `morning` با همان متن ساخته میشود (نسخه‌ی خوش‌خوان، اگر ساخته شده باشد).
+  - صدا فقط با `owner_settings.audio_briefings.morning` و TTS روشن.
+  - **وقتی هلدینگ قفل است هیچ briefing ساخته نمیشود.**
+  - خود گزارش قاعده‌محور همچنان ساخته میشود و دو خط تازه دارد، هر دو فقط کد: «هدررفت دیروز» (§۸) و «یادآوری کارتابل» (§۱۱).
+- **نامه‌ی هفتگی:** schedule `hq-ceo-letters` هر ساعت اجرا میشود، ولی فقط در روز و ساعت `owner_settings.ceo_weekly_letter` کار میکند (پیش‌فرض شنبه ۰۹:۰۰ در منطقه‌ی مالک).
+  - برای هر شرکت عملیاتی فعال، یک کار برای مدیرعاملش با بسته‌ی واقعیت‌ها (JSON، با کد) و سقف ۴۰ هزار توکن.
+  - قفل هلدینگ یا قفل خود شرکت ← هیچ.
+  - **سنجش عدد** در `deliver`:
+    - بیش از ۶۰۰ کلمه ← ۴۲۲ (این تلاش شمرده نمیشود).
+    - عدد بی‌منبع، بار اول ← ۴۲۲ و `state: returned`.
+    - بار دوم منتشر میشود، عنوانش «عدد بی‌منبع» میگیرد و یک یافته‌ی PR-001 باز میشود.
+    - بعد یک `BR-…` نوع `ceo_letter` ساخته میشود.
+- API:
+  - `GET /briefings?kind&company&cursor`
+  - `GET /briefings/latest?kind&company` (۴۰۴ تا وقتی چیزی نیست)
+  - `GET /briefings/{ref}`
+  - stream `briefing.ready` روی `briefings`
+
+### ۳۰.۱۳ رتبه‌ی دپارتمان‌ها (پرامپت ۱۲ §۵)
+- همراه برآیند ستاره‌ها (`hq-stars-rollup`، هفتگی و ماه جلالی)، با کد:
+  - ۳۵٪ نیرو
+  - ۳۰٪ تحویل: کار سررسیده‌ی done یا delivered، با شاهد و به‌موقع
+  - ۲۰٪ کارایی: همان عدد برآیند
+  - ۱۵٪ امتیاز مالک
+- جزء بی‌داده کنار میرود و وزن‌ها دوباره تقسیم میشوند. دپارتمان بی کارمند فعال رتبه نمیگیرد.
+- `rank_holding` بین دپارتمان‌های هم‌کد است و وقتی فقط یکی هست null است.
+- `people.department_ranks` append-only است و هر دوره یک بار نوشته میشود.
+- این محاسبه‌ی قاعده‌محور داخل برآیند موجود است و با کلید توقف هم انجام میشود.
+- `GET /rankings/departments?period&key&company`، stream `rankings.updated` روی `stars`.
+
+### ۳۰.۱۴ ارزیابی ماهانه‌ی HR و PR-082 (پرامپت ۱۲ §۶)
+- **زمان:** schedule `hq-hr-rounds` هر روز ۱۰:۰۰ (منطقه‌ی مالک) اجرا میشود، ولی فقط روز یکم ماه جلالی برای هر شرکت عملیاتی فعال و هلدینگ `HR-…` میسازد.
+  - اسم دور، ماه جلالیِ اجراست؛ واقعیت‌ها مال ماه تمام‌شده‌اند.
+  - **با قفل هلدینگ هیچ.** قفل یک شرکت ← آن شرکت نه.
+- **ارزیاب:** `<CO>-HR-MGR`، وگرنه مدیرعامل؛ برای هلدینگ، `aiops_head`.
+  - OPA اجازه میدهد مدیر AIOPS هلدینگ `evaluation` پیشنهاد دهد.
+  - کار با مهلت ۲۰ ساعت و سقف ۱۰۰ هزار توکن.
+  - پرچم `coach` کارت ندارد؛ یک پیش‌نویس آموزش آکادمی برای مدیر AI Ops میسازد.
+- **کارت `evaluation` نسخه‌ی ۲:** `round` اجباری است. کارمند بی‌پرچم فقط با `evidence` و `override_reason` (`unflagged: true`). تأیید با 🔏 `decision.approve`.
+  - promote و demote: مدل باید یک اتصال enabled داشته باشد و پاکت جا شود، وگرنه `409 envelope_exceeded` و هیچ تغییری.
+  - dismiss: همان مسیر برکناری. کار باز به مدیر یا مدیرعامل میرود و حافظه به `transfer_to`.
+  - confirm: `probation_until` پاک میشود.
+- **PR-082:** نسخه‌ی ۲، `active`، `FREQ=MONTHLY;BYMONTHDAY=3;BYHOUR=10`، `calendar: jalali`، با متن check تازه (migration ‏0027_1 یا seed، با ردیف Audit).
+  - schedule آن روزانه ۱۰:۰۰ است و اجرا جز روز سوم ماه جلالی بی‌اثر تمام میشود (بی ردیف `protocol_runs`).
+  - checker آن کد است (`hr.hr_rounds_ran`).
+  - با قفل هلدینگ هیچ اجرایی نیست.
+- loader پروتکل‌ها کلید ناشناخته را با یک هشدار نادیده میگیرد.
+
+### ۳۰.۱۵ diff واقعی کارت deploy (پرامپت ۱۲ §۷)
+- **دسترسی:** همان دسترسی git فعلی هاب، یعنی توکن workspace کارگاه در OpenBao (`hq-api/workshop/github/<WS>`)، همان که `hq/<ref>` را push میکند. توکن تازه‌ای از مالک خواسته نمیشود.
+  - ریپو باید یک workspace **همان شرکت** باشد. وگرنه، یا وقتی توکن نیست ← `diff: null, diff_unavailable: "no_access"`.
+  - کارت همیشه به `head_sha` (اجباری) بسته است.
+- **ساخت:** api (git ‏1:2.47.3 در image) پیش از ساخت کارت `git fetch --depth=200` میکند: شاخه‌ی پیش‌فرض و `refs/pull/<n>/head`.
+  - mirrorها در volume ‏`hq-git` (`/var/lib/hq-git`) میمانند.
+  - توکن فقط در محیط git است (`GIT_CONFIG_*`)، نه در argv و نه روی دیسک.
+  - `head_sha` در ریپو نیست ← ۴۲۲.
+  - سقف‌ها: ۳۰۰ فایل، ۴۰۰ خط برای هر فایل، ۲۵۶ کیلوبایت کل. فایل باینری patch ندارد.
+  - هر خط patch که رمز دارد ماسک میشود (`secret_masked`).
+  - `diff` و `diff_unavailable` پیشنهاددهنده دور ریخته میشود.
+- **بستن به `head_sha`:** schedule `hq-deploy-recheck` هر ۱۵ دقیقه (`git ls-remote`؛ **با قفل هلدینگ هیچ**)، و یک بار پیش از مُهر مالک.
+  - push تازه ← کارت `withdrawn` («superseded: a new push»)، پیام سیستم و یک کار برای پیشنهاددهنده.
+  - مُهر ← `409 decision_not_pending`.
+- `GET /decisions/{ref}/diff?file=<path>`: patch کامل یک فایل تا ۲۰۰۰ خط، با همان ماسک.
+- **پاک کردن mirrorها:** فقط با تصمیم مالک (`docker volume rm coinepro-hq_hq-git` وقتی stack پایین است). اولین کارت بعدی دوباره fetch میکند.
+
+### ۳۰.۱۶ گزارش هدررفت روزانه و ROI (پرامپت ۱۲ §۸ و §۱۰)
+- **هدررفت:** schedule `hq-waste-daily` ساعت ۰۷:۴۵ (منطقه‌ی مالک) برای دیروز، با کد، در `llm.waste_daily`: یک ردیف برای هر شرکت و یکی برای کل هلدینگ.
+  - **با قفل هلدینگ چیزی ذخیره نمیشود.** `GET /treasury/waste` همان روز را با همان کد حساب میکند و نشان میدهد.
+  - **دسته‌ها:**
+    - failed_runs
+    - cancelled_work
+    - no_progress_runs
+    - retry_loops: ≥ ۳ اجرا روی یک کار
+    - router_errors
+    - duplicate_calls: همان `request_sha256` در ۱۰ دقیقه
+    - cache_miss: ورودی بیش از ۱۰ هزار، با همان `prefix_sha256` در یک ساعت و بدون cache read
+    - over_model: haiku < sonnet < opus در برابر assignment پیش‌فرض task class
+  - هر دسته جدا شمرده میشود. سهم روز، اجتماع فراخوانی‌های پرچم‌خورده است.
+  - llm-router فقط hash درخواست و prefix را در `llm.calls.meta` نگه میدارد، هرگز متن را.
+  - سهم بیش از ۱۵٪ ← اعلان `report`. کارایی ستاره‌ها همین عددها را میخواند (`waste.shares_between`).
+- **ROI:** `GET /treasury/roi?by=employee|department|company&period=week|month&key&company`، هنگام خواندن با کد.
+  - درآمد فقط برای شرکت است (`revenue.days`): `roi = revenue / cost`.
+  - شرکت بی‌درآمد ← null.
+  - کارمند و دپارتمان همیشه null.
+
+### ۳۰.۱۷ یادداشت سریع و یادآوری کارتابل (پرامپت ۱۲ §۱۱)
+- **یادداشت `NT-…`:**
+  - `POST /notes` (Idempotency-Key)
+  - `PATCH` (If-Match؛ متن، برچسب، `archived`). حذف وجود ندارد.
+  - `POST /notes/{ref}/promote {to, company?, title?}` از همان مسیرهای موجود (`POST /work`، `POST /orders`، `POST /errands`) میگذرد.
+  - `/transcribe?purpose=note&save=true` یادداشت صوتی میسازد و `note_ref` برمیگرداند.
+  - هیچ مدلی روی یادداشت اجرا نمیشود.
+- **یادآوری:** schedule `hq-cartable-reminders` هر ۱۵ دقیقه (**با قفل هلدینگ هیچ**).
+  - فقط کارت‌هایی که مالک تصمیم‌گیرنده است، و هر آستانه یک بار (`owner.decision_reminders`، append-only).
+  - آستانه‌ها: نیمه‌ی مهلت، ۶ ساعت پیش از انقضا، ۲۴ ساعت، ۷۲ ساعت و ۷ روز.
+  - اعلان سطح `decision`؛ در خلوت نگه داشته میشود.
+  - کارت `waiting_h` و `reminders[]` میگیرد. تنظیم در `owner_settings.reminders`.
+
+### ۳۰.۱۸ ادعاهای رد شده و تابلوی سلامت ایجنت‌ها (پرامپت ۱۲ §۱۲)
+- **ابزار `claim.verdict`** (A2؛ راستی‌آزما، ناظر، QC) ← `POST /internal/v1/claims`. OPA در `mgmt.rego`، A2 grant در `data.json`.
+  - ادعا ماسک‌شده و حداکثر ۳۰۰ نویسه است.
+  - `refuted` بی شاهد ← ۴۲۲.
+  - `quality.claims` (`CL-…`) append-only است. stream `claim.verdict` روی `quality`.
+- **تابلو:** `GET /runs/health?company&period=7d|30d`، با این پرچم‌ها:
+  - `truth`: ≥ ۲۰٪ رد شده، با دست‌کم ۵ ادعا
+  - `reliability`: ≥ ۲۵٪ شکست
+  - `loops`: ≥ ۲ حلقه
+- ادعاهای رد شده در بسته‌ی HR (§۶) هم میآیند. فهرست: `GET /claims?company&employee&verdict&cursor`.

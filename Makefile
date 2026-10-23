@@ -11,7 +11,9 @@ ENV_FILE := infra/compose/.env
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
-	hetzner-token owner-ssh-key intake-secret telegram-bot-token
+	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret \
+	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login
+.PHONY: mcp-build mcp-test mcp-index
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -39,6 +41,8 @@ up: $(ENV_FILE) ## Start every service of the active profile and wait until heal
 	@infra/openbao/unseal.sh
 	@infra/openbao/provision.sh
 	@infra/backup/anchor-dir.sh --check
+	@# Prompt 12 §14: the MCP container servers (by digest, never pulled), only while HQ_MCP=on.
+	@infra/mcp/build.sh --if-on
 	$(HQ) up -d --build --remove-orphans --wait --wait-timeout 300
 	@# The hourly backup's image (own profile, nothing depends on it): built and checked here.
 	$(HQ) --profile backup-tools build backup-tools
@@ -94,6 +98,26 @@ tracing-off: ## Switch traces off again (the default): Tempo and the collector s
 	HQ_ALL_PROFILES=1 $(HQ) stop tempo otel-collector
 	$(HQ) up -d --wait prometheus
 
+# Prompt 12 §4: the Persian voice (opt-in profile "tts"; a one-shot run by the
+# coinepro-hq-tts timer). Off until the owner orders the memory (§0.8 #7).
+.PHONY: tts-on tts-off tts-bench
+tts-on: ## Switch the Persian voice on (profile "tts", refused over the memory budget) and start its timer
+	@infra/compose/set-env.sh HQ_TTS on
+	$(HQ) build tts
+	$(HQ) up -d --wait api worker
+	sudo systemctl enable --now coinepro-hq-tts.timer
+
+tts-off: ## Switch the Persian voice off again (the default): briefings stay text, audio_state "off"
+	@infra/compose/set-env.sh HQ_TTS off
+	-sudo systemctl disable --now coinepro-hq-tts.timer
+	$(HQ) up -d --wait api worker
+
+tts-bench: ## The voice's acceptance numbers: 120 words -> Ogg, RTF < 0.5, peak RSS < 300 MB (no network)
+	HQ_TTS=off $(HQ) --profile tts build tts
+	docker run --rm --read-only --tmpfs /tmp:size=64m,mode=1777 --network none --cap-drop ALL \
+	  --memory "$$(sed -n 's/^MEM_TTS=\([0-9]*m\).*/\1/p' infra/compose/profiles/$$($(HQ) --print-profile).env)" \
+	  coinepro-hq/tts:0.1.0 python -m hq_tts.bench
+
 stt-fetch: ## Download the pinned speech model into the stt-models volume (sha256-checked; model=large-v3-turbo)
 	HQ_STT=off $(HQ) --profile stt build stt-fetch
 	HQ_STT=off $(HQ) --profile stt run --rm -e STT_MODEL="$(or $(model),large-v3-turbo)" stt-fetch
@@ -134,8 +158,37 @@ claude-token: ## OWNER: store the token from `claude setup-token` in OpenBao (hi
 mcp-secret: ## OWNER: the secret of one MCP server, KEY=<server key> [FILE=<json key file>] (-> OpenBao)
 	@infra/openbao/mcp-secret.sh "$(KEY)" "$(FILE)"
 
+mcp-build: ## Build the MCP container servers reproducibly; each must give its digest in infra/mcp/servers.yaml
+	@infra/mcp/build.sh
+
+mcp-test: ## The MCP container servers' own test on the built images, in a throwaway network (prompt 12 §14)
+	@infra/mcp/selftest.sh
+
+mcp-index: ## Refresh CodeCortex's index of the hub repository now (only while HQ_MCP=on; FULL=1 rebuilds it)
+	@infra/mcp/index.sh $(if $(FULL),--full,)
+
 account-secret: ## OWNER: the secret of one holding service account (KEY=<key>; hidden input)
 	@infra/openbao/account-secret.sh "$(KEY)"
+
+connection-secret: ## OWNER: a new LLM connection's API key (KEY=<key>; hidden input -> OpenBao)
+	@infra/openbao/connection-secret.sh "$(KEY)"
+
+# Prompt 12 §9.1 (contract §21.13): the substitute players' sign-ins, by the
+# owner in their own terminal only (never Claude); also from the app.
+chatgpt-login: ## OWNER: sign the Codex CLI in with ChatGPT (device code; your own terminal)
+	@infra/substitutes/cli-login.sh codex
+
+gemini-login: ## OWNER: sign the Gemini CLI in with Google (paste the code back; your own terminal)
+	@infra/substitutes/cli-login.sh gemini
+
+chatgpt-web-login: ## OWNER: sign in to ChatGPT in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh chatgpt-web
+
+gemini-web-login: ## OWNER: sign in to Gemini in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh gemini-web
+
+deepseek-web-login: ## OWNER: sign in to DeepSeek in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh deepseek-web
 
 hetzner-token: ## OWNER: the Hetzner project's API token for new servers (hidden input -> OpenBao)
 	@infra/openbao/hetzner-token.sh

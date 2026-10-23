@@ -21,7 +21,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from hq_common import heartbeat, tokens
 from hq_common.openbao import OpenBaoClient
-from llm_router import __version__
+from llm_router import __version__, verify
 from llm_router.auth import Caller, CallerDirectory, RateLimiter
 from llm_router.backends.base import Backend
 from llm_router.backends.claude_runtime import ClaudeRuntimeBackend
@@ -333,6 +333,15 @@ async def _start(state: State) -> None:
         asyncio.create_task(_every(6 * 3600, service.maintenance, "maintenance")),
         asyncio.create_task(_every(s.anomaly_interval_s, service.anomaly_scan, "anomaly")),
         asyncio.create_task(_every(s.quota_interval_s, service.quota_scan, "quota")),
+        # Prompt 12 §9: new connections' secrets, verified at no token cost
+        # (never while the holding's kill switch is engaged).
+        asyncio.create_task(
+            _every(
+                s.connection_verify_interval_s,
+                lambda: verify.scan(db, bao.read_kv, service.lock_state),
+                "verify",
+            )
+        ),
     ]
 
 

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from hq_api import __version__
 from hq_api.context import Ctx, owner_ctx
-from hq_api.domain import org
+from hq_api.domain import briefings, org
 from hq_api.errors import responses
 from hq_api.hub import Hub, get_hub
 from hq_api.workshop import service as workshop
@@ -38,6 +38,14 @@ class Precedence(BaseModel):
     note_fa: str
 
 
+class TtsMeta(BaseModel):
+    enabled: bool
+    engine: str
+    version: str
+    voice: str
+    license: str
+
+
 class Meta(BaseModel):
     api_version: str
     service_version: str
@@ -49,6 +57,9 @@ class Meta(BaseModel):
     workshop: WorkshopMeta
     # ⟨1.4⟩ who outranks whom (§18.0); Employee.rank follows it
     precedence: list[Precedence]
+    # ⟨1.5⟩ the hub's Persian voice (§21.4): engine, voice, its licence; `enabled`
+    # is the opt-in TTS profile (off: briefings are text, audio_state "off")
+    tts: TtsMeta | None = None
 
 
 @router.get("/health", response_model=Health)
@@ -78,4 +89,5 @@ async def get_meta(ctx: Ctx = Depends(owner_ctx)) -> Meta:
         precedence=[
             Precedence(rank=r, kinds=list(kinds), note_fa=note) for r, kinds, note in org.PRECEDENCE
         ],
+        tts=TtsMeta(enabled=s.tts, **briefings.voice(s)),
     )

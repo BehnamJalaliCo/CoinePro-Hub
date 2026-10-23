@@ -1,0 +1,88 @@
+# The reviewed allow-list of MCP servers that run as containers on the hub
+# (prompt 12 §14, contract §21.11). A `container` registration
+# (POST /api/v1/tools/mcp, 🔏 mcp.add) is accepted only for a key listed here,
+# with exactly this `image` and `url`; enabling it is still the owner's seal
+# (🔏 mcp.enable), and every §18.13 rule holds (listing pin, a changed listing
+# switches the server off and raises a `tool_enable` card, sealed classes, A3
+# to a card, redaction, tools.mcp_calls).
+#
+# Adding a server = a reviewed change to this file (and its image under
+# infra/mcp/<key>/, its service in infra/compose/mcp.yaml), then the owner's
+# two seals in the app. Nothing here is ever registered or enabled by itself.
+#
+# image: the local build pinned by its digest. `make mcp-build` builds every
+# image reproducibly (SOURCE_DATE_EPOCH=0, rewritten timestamps, no
+# attestations: the same Dockerfile and locks give the same digest) and fails
+# when the digest is not the one below; compose runs the image by this digest
+# (pull_policy never), so a different build cannot start. Changing a digest is
+# a reviewed change like any other line here.
+# tools: what a registration may enable, with the lowest class it may seal.
+# banned_tools: never enabled (a registration may list them only with
+# `enabled: false`); `*` matches any suffix. A tool the server lists that is
+# in neither list is simply not registered, so mcp.call refuses it.
+# needs_internet / needs_secret: true is not runnable in this version (409
+# not_ready); every server here runs on hq-mcp only, with no route out.
+servers:
+  - key: time
+    title_fa: زمان و منطقه‌ی زمانی
+    image: coinepro-hq/mcp-time:0.1.0@sha256:8552b94bf09d743779cc643f5cf295029fdac301af234a29b0036186fe8c385a
+    build: infra/mcp/time/Dockerfile
+    url: http://mcp-time:8080/mcp
+    command: [/opt/proxy/bin/mcp-proxy, --host, 0.0.0.0, --port, "8080", --,
+              /opt/server/bin/mcp-server-time, --local-timezone, Asia/Tehran]
+    licence: MIT (mcp-server-time 2026.8.18, modelcontextprotocol/servers); MIT (mcp-proxy 0.12.0)
+    source_url: https://github.com/modelcontextprotocol/servers/tree/main/src/time
+    tools:
+      - {name: get_current_time, class: A0}
+      - {name: convert_time, class: A0}
+    banned_tools: []
+    mem_limit: MEM_MCP_TIME
+    needs_internet: false
+    needs_secret: false
+
+  - key: codecortex
+    title_fa: هوش کد (CodeCortex)
+    image: coinepro-hq/mcp-codecortex:0.1.0@sha256:c1766a8aa2d353fd2baa37f6870b121353b240a806719d6fe38a978e68afeeba
+    build: infra/mcp/codecortex/Dockerfile
+    url: http://mcp-codecortex:8080/mcp
+    command: [/opt/proxy/bin/mcp-proxy, --host, 0.0.0.0, --port, "8080", --,
+              /opt/server/bin/python, /opt/hq/serve.py, /index/coinepro-hub]
+    licence: Apache-2.0 (codecortex-context-engine 0.1.0a10, the owner's own project); MIT (mcp-proxy 0.12.0)
+    source_url: https://github.com/BehnamJalaliCo/CodeCortex
+    # Read-only code intelligence over the copy the index job keeps (the hub's
+    # own repository; the index never runs while answering).
+    tools:
+      - {name: cortex_repository_map, class: A0}
+      - {name: cortex_find_symbol, class: A0}
+      - {name: cortex_find_references, class: A0}
+      - {name: cortex_dependency_graph, class: A0}
+      - {name: cortex_impact, class: A0}
+      - {name: cortex_architecture, class: A0}
+      - {name: cortex_architecture_drift, class: A0}
+      - {name: cortex_symbol_history, class: A0}
+      - {name: cortex_pr_intelligence, class: A0}
+      - {name: cortex_precise_definition, class: A0}
+      - {name: cortex_precise_references, class: A0}
+      - {name: cortex_precise_implementations, class: A0}
+      - {name: cortex_structural_search, class: A0}
+      - {name: cortex_stats, class: A0}
+      - {name: cortex_validate, class: A0}
+    # Always off (owner, 2026-10-18): editing, its own memory (the hub's
+    # knowledge and memory stay the one source), distributed sync, and the
+    # dependency docs (they need the internet).
+    banned_tools:
+      - cortex_rename_symbol
+      - cortex_replace_symbol_body
+      - cortex_insert_before_symbol
+      - cortex_insert_after_symbol
+      - cortex_rewrite_apply
+      - cortex_rewrite_preview
+      - cortex_remember
+      - cortex_memory_search
+      - cortex_team_memory_search
+      - cortex_sync_*
+      - cortex_worker_*
+      - cortex_dependency_docs
+    mem_limit: MEM_MCP_CODECORTEX
+    needs_internet: false
+    needs_secret: false

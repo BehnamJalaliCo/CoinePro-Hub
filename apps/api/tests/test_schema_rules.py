@@ -46,6 +46,12 @@ SCHEMAS = (
     # prompt 11 §1-§2: the meeting room and the charter (knowledge.entries is in "knowledge")
     "meetings",
     "governance",
+    # prompt 12 part A: the advisor's memos and triggers, the substitute players
+    "advisor",
+    "substitutes",
+    # prompt 12 part B: briefings and letters; checked claims
+    "reports",
+    "quality",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.

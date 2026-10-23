@@ -1,0 +1,9 @@
+[Unit]
+Description=CoinePro HQ: refresh CodeCortex's index after the hub repository's HEAD moves (a merge, a pull, a deploy)
+
+[Path]
+PathChanged=/home/Hub/CoinePro-Hub/.git/logs/HEAD
+Unit=coinepro-hq-mcp-index.service
+
+[Install]
+WantedBy=paths.target

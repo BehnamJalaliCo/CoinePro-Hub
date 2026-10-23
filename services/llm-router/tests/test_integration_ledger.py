@@ -156,6 +156,7 @@ async def test_run_records_ledger_usage_and_events(
     assert row["equiv_cost_usd"] == Decimal("0.003000") and row["cost_usd"] is None
     meta = json.loads(row["meta"]) if isinstance(row["meta"], str) else row["meta"]
     assert meta["sdk_cost_usd"] == "0.000400"
+    assert len(meta["request_sha256"]) == 64  # prompt 12 §8: a hash, never the text
     assert row["department"] == "TECH" and row["work_ref"] == "W-1" and row["caller"] == "tests"
     assert row["meta"]  # assignment trail, stop reason
     assert str(row["id"])[14] == "7"  # uuid v7
