@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
 from hq_api.db import Tx
-from hq_api.domain import control
+from hq_api.domain import control, gov_outcomes
 from hq_api.domain import oversight as O
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow
@@ -569,6 +569,8 @@ class ProtocolResultIn(Model):
     result: Literal["pass", "fail", "partial"]
     findings: list[str] = Field(default_factory=list, max_length=50)
     notes: str = Field(default="", max_length=20000)
+    # ⟨1.5⟩ prompt 11 §6.3: PR-006's verdicts on answered outcome reviews
+    outcomes: list[gov_outcomes.OverseerVerdict] = Field(default_factory=list, max_length=50)
 
 
 class ChallengeIn(Model):
@@ -745,6 +747,12 @@ async def protocol_result(body: ProtocolResultIn, ctx: Ctx = Depends(internal_ct
                 "UPDATE oversight.findings SET updated_at = now() WHERE ref = ANY(:r)",
                 r=body.findings,
             )
+        if body.outcomes:
+            if body.protocol != "PR-006" or ctx.who.role != "overseer":
+                raise ApiError(
+                    422, "validation_failed", fields={"outcomes": "PR-006's, the overseer's"}
+                )
+            await gov_outcomes.overseer_verdicts(tx, ctx.who, body.outcomes)
         covered = await _covered(ctx, protocol)
         per_company = O.per_company_result(body.result, covered, mine)
         done = await O.finish_run(

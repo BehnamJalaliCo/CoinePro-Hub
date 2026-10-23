@@ -70,6 +70,19 @@ async def _set_hiring(su: Any, state: str) -> None:
 
 
 # ------------------------------------------------------------- migration --
+@pytest.fixture
+def reseeded() -> Any:
+    """The round trip below recreates every table after 0009 empty; the seed
+    runs again afterwards, as the api's migrate does on a deploy (prompt 12's
+    substitute players, prompt 11's meeting types and the rest), so the tests
+    after this one find the hub as it is."""
+    from .conftest import _run
+
+    yield
+    _run("hq_api.migrate", API_DIR, "hq", "HQ_DB_PASSWORD", "/api/src")
+
+
+@pytest.mark.usefixtures("reseeded")
 async def test_migration_withdraws_pending_hire_cards_once(
     client: httpx.AsyncClient,
     hub: Any,

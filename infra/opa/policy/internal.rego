@@ -46,6 +46,29 @@ ops := {
 	"egress.connector", "referral.check", "rescue.update", "feedback.tag",
 	# prompt 10 §12: the support desk's writes (support_desk.rego)
 	"kb.propose", "support.draft", "support.handoff", "support.mystery",
+	# prompt 11 §1-§3: the meeting room and the knowledge base (governance_meetings.rego)
+	"meeting.statement", "meeting.challenge", "meeting.whisper", "meeting.item", "meeting.minutes",
+	"knowledge.propose", "knowledge.review", "knowledge.approve",
+	# prompt 11 §4-§10: cards, OKRs, outcomes, risks, the calendar, the matrix (governance.rego)
+	"kpi.record", "okr.draft", "okr.checkin", "outcome.note", "risk.raise", "risk.update",
+	"calendar.read", "calendar.add", "authority.read", "governance.read",
+	# prompt 12 part A: the advisor's memo, the substitute players and the
+	# runner's job queue (advisor_substitutes.rego)
+	"memo.write", "substitute.call", "substitutes.jobs",
+	# prompt 12 part B (mgmt.rego): the TTS one-shot, a checked claim
+	"tts.claim", "tts.done", "claim.verdict",
+	# prompt 12 §2, §13 (owner_tools.rego): the librarian's answer; the digital CEO's own rows
+	"ask.answer", "dceo.predict", "dceo.principles",
+	# prompt 13, the media half (media.rego): the media studio and the render
+	# one-shot's queue; roles written on demand (roles.rego)
+	"media.item", "media.render", "media.review", "series.propose", "media.jobs",
+	"role.draft", "role.decide",
+	# prompt 13, the legal and voice half (legal_voice.rego): the counsel's
+	# tools, a media item's narration, the TTS one-shot's voice jobs
+	"legal.case_open", "legal.case_note", "legal.email_draft", "legal.mail_read",
+	"media.voice", "voices.claim", "voices.done",
+	# prompt 14 (archive.rego): the archive's tools (the archivist, the counsel)
+	"archive.search", "archive.read", "archive.file", "archive.link", "archive.hold",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and
@@ -91,18 +114,26 @@ propose_kinds := {
 		"lesson_adoption",
 		# ⟨1.5⟩ prompt 10 §7: a template or a lifecycle rule for the owner's seal
 		"message_template", "lifecycle_rule",
+		# ⟨1.5⟩ prompt 11 §2: its own company's addendum (the api checks the scope)
+		"charter_amendment",
+		# ⟨1.5⟩ prompt 11 §7, §8: a change of the authority matrix, a risk's acceptance
+		"authority_change", "risk_acceptance",
 	},
 	"manager": {
 		"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session", "company_found",
 		"message_template", "lifecycle_rule",
+		"proposal", "risk_acceptance",
 	},
 	"employee": {"a3_action", "deploy", "recurring_approval", "code_session", "message_template", "lifecycle_rule"},
-	"advisor": {"proposal", "code_session"},
+	"advisor": {"proposal", "code_session", "charter_amendment"},
 	"inspector": {"proposal", "hire"},
 	# ⟨1.4⟩ prompt 08: a new or changed protocol is the owner's seal (§2); an
 	# errand's external commitment is the owner's decision (§5)
-	"overseer": {"proposal", "protocol"},
+	"overseer": {"proposal", "protocol", "charter_amendment", "authority_change"},
 	"assistant": {"proposal", "errand_action"},
+	# ⟨1.7⟩ prompt 14: a system role of the holding (the archivist) proposes a
+	# schema change of the archive, never applies one
+	"system": {"archive_schema"},
 }
 
 # Data, not code (data.json). Without it nothing that depends on it is allowed.
@@ -512,17 +543,37 @@ reads_company(c) if {
 	is_string(c)
 }
 
-# Message bodies (other threads) are searched by the advisor only.
+# Message bodies (other threads) are searched by the advisor only; ⟨1.5⟩
+# prompt 12 §2.3: so are the owner's quick notes (`notes`); the hub's
+# documents and the repositories' code (`docs`, `code`) by the advisor, the
+# overseer, the librarian and a CTO (RLS keeps a CTO to its own company's
+# repositories). Every other kind as before.
 knowledge_kinds_ok if op != "knowledge.read"
 
 knowledge_kinds_ok if {
 	op == "knowledge.read"
-	not "messages" in {k | some k in object.get(t, "kinds", [])}
+	every k in object.get(t, "kinds", []) {
+		knowledge_kind_ok(k)
+	}
 }
 
-knowledge_kinds_ok if {
-	op == "knowledge.read"
+restricted_knowledge_kinds := {"messages", "notes", "docs", "code"}
+
+knowledge_kind_ok(k) if not k in restricted_knowledge_kinds
+
+knowledge_kind_ok(k) if {
+	k in {"messages", "notes"}
 	p.role == "advisor"
+}
+
+knowledge_kind_ok(k) if {
+	k in {"docs", "code"}
+	p.role in {"advisor", "overseer"}
+}
+
+knowledge_kind_ok(k) if {
+	k in {"docs", "code"}
+	tv("charter") in {"librarian", "cto"}
 }
 
 # A manager asks another department of its own company.

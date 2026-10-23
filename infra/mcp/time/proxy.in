@@ -1,0 +1,6 @@
+# The stdio -> Streamable HTTP bridge (prompt 12 §14.3): mcp-proxy (MIT,
+# sparfenyuk/mcp-proxy). Its own venv: mcp-proxy imports mcp's 1.x server
+# internals (0.12.0 breaks on mcp 2.x, 0.13.0 says mcp<2), while the newer
+# mcp-server-time releases need mcp>=2.3; the two never share a resolution.
+mcp-proxy
+mcp<2

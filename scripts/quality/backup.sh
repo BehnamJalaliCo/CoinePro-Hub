@@ -40,6 +40,10 @@
 #   checkfail  restic check failing: check.ok false, hq_backup_check_ok 0
 #   early      a run that fails before OpenBao is read keeps Drive "configured"
 #   wal        a failing wal-push is a failed run with wal.failing
+#   archive    the restore test finds one archive record's file among the
+#              restored files and checks it against the sha256 the restored
+#              database holds (prompt 14 §5): the weekly names it; a file that
+#              changed before the backup fails the test
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -304,6 +308,19 @@ sql -c "CREATE DATABASE hq" >/dev/null
 sql -d hq -c "CREATE EXTENSION vector" >/dev/null
 sql -d hq -c "CREATE TABLE t (v text)" >/dev/null
 sql -d hq -c "INSERT INTO t VALUES ('$marker_db')" >/dev/null
+# Prompt 14 §5: the archive's two columns the restore test reads, one record
+# and its file in the file store's layout (<key[:2]>/<key>).
+archive_key="$(openssl rand -hex 16)"
+archive_body="archive-file-$(openssl rand -hex 8)"
+archive_sha="$(printf '%s' "$archive_body" | sha256sum | cut -d' ' -f1)"
+sql -d hq -c "CREATE SCHEMA archive" -c "CREATE TABLE archive.records (id int PRIMARY KEY, ref text NOT NULL)" \
+  -c "CREATE TABLE archive.record_files (record_id int NOT NULL, storage_key text, stored_sha256 text NOT NULL,
+        destroyed_at timestamptz, created_at timestamptz NOT NULL DEFAULT now())" \
+  -c "INSERT INTO archive.records VALUES (1, 'AR-000001')" \
+  -c "INSERT INTO archive.record_files (record_id, storage_key, stored_sha256) VALUES (1, '$archive_key', '$archive_sha')" \
+  >/dev/null
+docker run --rm -v "$N-files:/d" "$TOOLS" sh -c \
+  "mkdir -p /d/${archive_key:0:2} && printf %s '$archive_body' >/d/${archive_key:0:2}/$archive_key && chown -R 10001 /d"
 archived_now() { # wait (up to $1 s) until the archiver has the current segment
   local _
   for _ in $(seq 1 "$1"); do
@@ -524,6 +541,12 @@ else
   fail "weekly: exit non-zero: $(tail -n4 <<<"$out")"
 fi
 
+if [[ "$(jq -r '.db.notes' "$w")" == *"archive=AR-000001"* ]]; then
+  pass "weekly: the archive record AR-000001 came back and its file's sha256 is the one its database row holds"
+else
+  fail "weekly: the restore test did not check the archive record ($(jq -r '.db.notes' "$w"))"
+fi
+
 # ---------------------------------------------------------------- random ----
 if out="$(run restore-weekly.sh HQ_PITR_AFTER_BASE_S=1 HQ_PITR_BEFORE_SNAPSHOT_S=30)"; then
   t_s="$(date -u -d "$(jq -r .pitr.target "$w")" +%s)"
@@ -670,5 +693,28 @@ else
   fi
 fi
 docker run --rm -v "$B:/b" "$TOOLS" chmod 700 /b/wal
+
+# --------------------------------------------------------------- archive ----
+# Prompt 14 §5, on a set of backup.sh (files.tar.gz restored into a volume):
+# the record's file is checked against its row; once the row's sha256 differs
+# from the stored file (a file changed before the backup: the set's own sums
+# still agree with it), the restore test fails on that record.
+rt="$B/status/restore-test.json"
+if run backup.sh >/dev/null && out="$(run restore-test.sh)" &&
+  grep -q 'archive ok (AR-000001' <<<"$out" && grep -q 'archive=AR-000001' <<<"$out" &&
+  [[ "$(jq -c '.archive' "$rt")" == '{"ref":"AR-000001","ok":true}' ]]; then
+  sql -d hq -c "UPDATE archive.record_files SET stored_sha256 = repeat('0', 64)" >/dev/null
+  if run backup.sh >/dev/null && out="$(run restore-test.sh)"; then
+    fail "archive: a record whose file differs from its sha256 passed the restore test"
+  elif grep -q 'FAIL: archive: AR-000001: the restored file does not match its sha256' <<<"$out" &&
+    [[ "$(jq -c '[.ok, .archive]' "$rt")" == '[false,{"ref":"AR-000001","ok":false}]' ]]; then
+    pass "archive: the restore test checks one record's file against its row; a changed file fails it"
+  else
+    fail "archive: changed file: $(tail -n2 <<<"$out") status $(jq -c . "$rt")"
+  fi
+  sql -d hq -c "UPDATE archive.record_files SET stored_sha256 = '$archive_sha'" >/dev/null
+else
+  fail "archive: the restore test of a backup.sh set: $(tail -n3 <<<"${out:-}") status $(jq -c . "$rt" 2>/dev/null)"
+fi
 
 exit "$failed"

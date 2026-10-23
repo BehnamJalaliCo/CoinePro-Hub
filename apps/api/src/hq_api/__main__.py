@@ -24,7 +24,7 @@ from hq_api.channels import Channels
 from hq_api.companies import Companies
 from hq_api.config import Settings
 from hq_api.db import Database
-from hq_api.domain import founding
+from hq_api.domain import founding, gov_authority
 from hq_api.events import Bus, OutboxRelay
 from hq_api.hub import Hub
 from hq_api.live import LiveHub
@@ -114,6 +114,8 @@ def make_app(s: Settings) -> FastAPI:
             tasks.append(asyncio.create_task(OutboxRelay(s, hub.db, hub.bus).run()))
         tasks.append(asyncio.create_task(refresh_secrets(hub, bao)))
         tasks.append(asyncio.create_task(heartbeat.run(lambda: health(hub))))
+        # ⟨1.5⟩ prompt 11 §7: the authority matrix to OPA at start (then at every use)
+        tasks.append(asyncio.create_task(gov_authority.push_at_start(hub)))
         hub.workshop = await workshop.build(hub)
         if hub.workshop is not None:
             tasks.append(asyncio.create_task(workshop.loop(hub)))

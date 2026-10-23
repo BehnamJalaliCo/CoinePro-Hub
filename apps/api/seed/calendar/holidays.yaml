@@ -1,0 +1,66 @@
+# The official holidays of the Iranian (Jalali) calendar, 1405 and 1406
+# (prompt 11 §9.2, contract §20.9): data, seeded as `holiday` events of the
+# holding (holding-wide) in the change calendar. A deploy on one of these days
+# is a `medium` conflict; the calendar never decides.
+#
+# basis: solar  - fixed in the Jalali calendar (exact).
+# basis: lunar  - fixed in the Hijri calendar; the date here is the tabular
+#                 Hijri estimate and may differ from the official calendar by a
+#                 day (RUNBOOK §29: check them against the official calendar
+#                 each year and correct this file; the seed only adds days).
+days:
+  - {date: "2026-03-21", jalali: "1405-01-01", title_fa: "تعطیلی عید فطر", basis: lunar}
+  - {date: "2026-03-21", jalali: "1405-01-01", title_fa: "نوروز", basis: solar}
+  - {date: "2026-03-22", jalali: "1405-01-02", title_fa: "نوروز", basis: solar}
+  - {date: "2026-03-23", jalali: "1405-01-03", title_fa: "نوروز", basis: solar}
+  - {date: "2026-03-24", jalali: "1405-01-04", title_fa: "نوروز", basis: solar}
+  - {date: "2026-04-01", jalali: "1405-01-12", title_fa: "روز جمهوری اسلامی", basis: solar}
+  - {date: "2026-04-02", jalali: "1405-01-13", title_fa: "روز طبیعت", basis: solar}
+  - {date: "2026-04-13", jalali: "1405-01-24", title_fa: "شهادت امام صادق", basis: lunar}
+  - {date: "2026-05-27", jalali: "1405-03-06", title_fa: "عید قربان", basis: lunar}
+  - {date: "2026-06-04", jalali: "1405-03-14", title_fa: "رحلت امام خمینی", basis: solar}
+  - {date: "2026-06-04", jalali: "1405-03-14", title_fa: "عید غدیر", basis: lunar}
+  - {date: "2026-06-05", jalali: "1405-03-15", title_fa: "قیام ۱۵ خرداد", basis: solar}
+  - {date: "2026-06-25", jalali: "1405-04-04", title_fa: "تاسوعا", basis: lunar}
+  - {date: "2026-06-26", jalali: "1405-04-05", title_fa: "عاشورا", basis: lunar}
+  - {date: "2026-08-05", jalali: "1405-05-14", title_fa: "اربعین", basis: lunar}
+  - {date: "2026-08-13", jalali: "1405-05-22", title_fa: "رحلت پیامبر و شهادت امام حسن", basis: lunar}
+  - {date: "2026-08-15", jalali: "1405-05-24", title_fa: "شهادت امام رضا", basis: lunar}
+  - {date: "2026-08-22", jalali: "1405-05-31", title_fa: "شهادت امام حسن عسکری", basis: lunar}
+  - {date: "2026-08-31", jalali: "1405-06-09", title_fa: "میلاد پیامبر و امام صادق", basis: lunar}
+  - {date: "2026-11-14", jalali: "1405-08-23", title_fa: "شهادت حضرت فاطمه", basis: lunar}
+  - {date: "2026-12-23", jalali: "1405-10-02", title_fa: "ولادت امام علی", basis: lunar}
+  - {date: "2027-01-06", jalali: "1405-10-16", title_fa: "مبعث", basis: lunar}
+  - {date: "2027-01-24", jalali: "1405-11-04", title_fa: "ولادت امام زمان", basis: lunar}
+  - {date: "2027-02-11", jalali: "1405-11-22", title_fa: "پیروزی انقلاب اسلامی", basis: solar}
+  - {date: "2027-02-28", jalali: "1405-12-09", title_fa: "شهادت امام علی", basis: lunar}
+  - {date: "2027-03-10", jalali: "1405-12-19", title_fa: "عید فطر", basis: lunar}
+  - {date: "2027-03-11", jalali: "1405-12-20", title_fa: "تعطیلی عید فطر", basis: lunar}
+  - {date: "2027-03-20", jalali: "1405-12-29", title_fa: "ملی شدن صنعت نفت", basis: solar}
+  - {date: "2027-03-21", jalali: "1406-01-01", title_fa: "نوروز", basis: solar}
+  - {date: "2027-03-22", jalali: "1406-01-02", title_fa: "نوروز", basis: solar}
+  - {date: "2027-03-23", jalali: "1406-01-03", title_fa: "نوروز", basis: solar}
+  - {date: "2027-03-24", jalali: "1406-01-04", title_fa: "نوروز", basis: solar}
+  - {date: "2027-04-01", jalali: "1406-01-12", title_fa: "روز جمهوری اسلامی", basis: solar}
+  - {date: "2027-04-02", jalali: "1406-01-13", title_fa: "روز طبیعت", basis: solar}
+  - {date: "2027-04-03", jalali: "1406-01-14", title_fa: "شهادت امام صادق", basis: lunar}
+  - {date: "2027-05-17", jalali: "1406-02-27", title_fa: "عید قربان", basis: lunar}
+  - {date: "2027-05-25", jalali: "1406-03-04", title_fa: "عید غدیر", basis: lunar}
+  - {date: "2027-06-04", jalali: "1406-03-14", title_fa: "رحلت امام خمینی", basis: solar}
+  - {date: "2027-06-05", jalali: "1406-03-15", title_fa: "قیام ۱۵ خرداد", basis: solar}
+  - {date: "2027-06-14", jalali: "1406-03-24", title_fa: "تاسوعا", basis: lunar}
+  - {date: "2027-06-15", jalali: "1406-03-25", title_fa: "عاشورا", basis: lunar}
+  - {date: "2027-07-25", jalali: "1406-05-03", title_fa: "اربعین", basis: lunar}
+  - {date: "2027-08-02", jalali: "1406-05-11", title_fa: "رحلت پیامبر و شهادت امام حسن", basis: lunar}
+  - {date: "2027-08-04", jalali: "1406-05-13", title_fa: "شهادت امام رضا", basis: lunar}
+  - {date: "2027-08-11", jalali: "1406-05-20", title_fa: "شهادت امام حسن عسکری", basis: lunar}
+  - {date: "2027-08-20", jalali: "1406-05-29", title_fa: "میلاد پیامبر و امام صادق", basis: lunar}
+  - {date: "2027-11-03", jalali: "1406-08-12", title_fa: "شهادت حضرت فاطمه", basis: lunar}
+  - {date: "2027-12-12", jalali: "1406-09-21", title_fa: "ولادت امام علی", basis: lunar}
+  - {date: "2027-12-26", jalali: "1406-10-05", title_fa: "مبعث", basis: lunar}
+  - {date: "2028-01-13", jalali: "1406-10-23", title_fa: "ولادت امام زمان", basis: lunar}
+  - {date: "2028-02-11", jalali: "1406-11-22", title_fa: "پیروزی انقلاب اسلامی", basis: solar}
+  - {date: "2028-02-17", jalali: "1406-11-28", title_fa: "شهادت امام علی", basis: lunar}
+  - {date: "2028-02-27", jalali: "1406-12-08", title_fa: "عید فطر", basis: lunar}
+  - {date: "2028-02-28", jalali: "1406-12-09", title_fa: "تعطیلی عید فطر", basis: lunar}
+  - {date: "2028-03-19", jalali: "1406-12-29", title_fa: "ملی شدن صنعت نفت", basis: solar}

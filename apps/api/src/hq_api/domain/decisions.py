@@ -9,17 +9,30 @@ change) -> follow-up work when needed. Authority is policy (OPA), not code.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import errands, hiring, mcp, notify, org, oversight, recurring, stars
+from hq_api.domain import (
+    errands,
+    gov_cards,
+    gov_outcomes,
+    hiring,
+    mcp,
+    notify,
+    org,
+    oversight,
+    recurring,
+    stars,
+)
+from hq_api.domain import substitutes as S
 from hq_api.domain import work as W
+from hq_api.domain.charter import CharterAmendmentPayload
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, Model, actor
@@ -45,6 +58,24 @@ KINDS = (
     "message_template",
     "lifecycle_rule",
     "support_go_live",
+    # ⟨1.5⟩ prompt 11 §1-§3 (contract §20.11): a meeting's draft, a charter
+    # amendment, a holding knowledge entry
+    "meeting_resolution",
+    "charter_amendment",
+    "knowledge_entry",
+    # ⟨1.5⟩ prompt 11 §5, §7, §8 (contract §20.11)
+    *gov_cards.KINDS,
+    # ⟨1.6⟩ prompt 13 (contract §22.6): a series sealed on its digest, an item to
+    # publish outside a sealed series, a role written on demand
+    "media_series",
+    "media_publish",
+    "role_new",
+    # ⟨1.6⟩ prompt 13 §3 (contract §22.4): the counsel's exact email, the owner's seal
+    "email_send",
+    # ⟨1.7⟩ prompt 14 (contract §23.11): an agent's proposed schema change of the
+    # archive (payload = the exact PUT body), the weekly disposal card
+    "archive_schema",
+    "archive_disposal",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -70,6 +101,21 @@ ACTION_CLASS = {
     "message_template": "A2",
     "lifecycle_rule": "A3",
     "support_go_live": "A3",
+    # ⟨1.5⟩ prompt 11: a resolution only by the owner's seal; the charter is the
+    # owner's (🔏); a holding entry the owner approves by its card
+    "meeting_resolution": "A1",
+    "charter_amendment": "A2",
+    "knowledge_entry": "A1",
+    **gov_cards.ACTION_CLASS,
+    # ⟨1.6⟩ the seal on a series is the owner's A3 approval in advance of its
+    # items (§22.0); a role is a new charter, sealed like a hire
+    "media_series": "A3",
+    "media_publish": "A3",
+    "role_new": "A2",
+    "email_send": "A3",
+    # ⟨1.7⟩ the schema is the owner's change; a disposal destroys files (irreversible)
+    "archive_schema": "A2",
+    "archive_disposal": "A3",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -89,9 +135,30 @@ STEP_UP_KINDS = (
     "message_template",
     "lifecycle_rule",
     "support_go_live",
+    # ⟨1.5⟩ prompt 11 §2: sealing an amendment seals the charter (🔏)
+    "charter_amendment",
+    # ⟨1.5⟩ prompt 11 (contract §20.11): 🔏 risk_acceptance, authority_change
+    *gov_cards.STEP_UP_KINDS,
+    # ⟨1.5⟩ prompt 12 §6: a monthly HR evaluation is the owner's seal (§21.12)
+    "evaluation",
+    # ⟨1.6⟩ all sealed with step-up (contract §22.6)
+    "media_series",
+    "media_publish",
+    "role_new",
+    # ⟨1.7⟩ both archive cards are sealed with step-up (contract §23.11)
+    "archive_schema",
+    "archive_disposal",
 )
+# ⟨1.6⟩ cards only code writes (series.propose, the media pipeline, a role
+# draft's gates); an agent's or the owner's `propose` of one is refused.
+SYSTEM_CARD_KINDS = ("media_series", "media_publish", "role_new", "archive_disposal")
+# ⟨1.7⟩ applied in the deciding transaction, bound to what they show (§23.11)
+ARCHIVE_CARD_KINDS = ("archive_schema", "archive_disposal")
 # ⟨1.5⟩ applied in the deciding transaction, bound to their payload (§19.9)
 SEALED_CARD_KINDS = ("message_template", "lifecycle_rule", "support_go_live")
+# ⟨1.5⟩ prompt 11 §2-§3: applied in the deciding transaction too (a card on a
+# version that is no longer current is superseded: 409 decision_not_pending)
+GOVERNANCE_CARD_KINDS = ("charter_amendment", "knowledge_entry")
 EFFECT_KINDS = (
     "hire",
     "dismissal",
@@ -101,8 +168,12 @@ EFFECT_KINDS = (
     "lesson_adoption",
     "protocol",
     "company_found",
+    "evaluation",  # ⟨1.5⟩ promote / demote / dismiss / confirm (prompt 12 §6)
+    "media_publish",  # ⟨1.6⟩ the item is published through the official APIs
+    "role_new",  # ⟨1.6⟩ the draft becomes an active charter
+    "email_send",  # ⟨1.6⟩ its one send, by the worker (legal.deliver), after the locks
 )
-FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action")
+FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action", "meeting_resolution")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
 
@@ -144,13 +215,32 @@ class RecurringPayload(Model):
     schedule: dict[str, Any] | None = None
 
 
+class DeployWindow(Model):
+    from_: datetime = Field(alias="from")
+    to: datetime
+
+
 class DeployPayload(Model):
+    """One definition of the deploy payload (contract §5.1, §21.6): ⟨1.5⟩
+    head_sha is required from prompt 11 (the proposer gives it); the window
+    puts it on the change calendar and the api writes its conflicts."""
+
     repo: str = Field(min_length=1, max_length=200)
     pr_url: str = Field(pattern=r"^https://", max_length=500)
+    # ⟨1.5⟩ the card is bound to it, diff or not (contract §21.6)
+    head_sha: str = Field(pattern=r"^[0-9a-f]{7,64}$")
     diff_stat: str = Field(default="", max_length=2000)
     ci: dict[str, Any] = Field(default_factory=dict)
     tests: dict[str, Any] = Field(default_factory=dict)
     rollout: str = Field(default="", max_length=2000)
+    window: DeployWindow | None = None
+    calendar_conflicts: list[dict[str, Any]] | None = Field(default=None, max_length=50)
+    # ⟨1.5⟩ written by the api from the repository, never by the proposer (§21.6)
+    diff: dict[str, Any] | None = None
+    diff_unavailable: Literal["no_access", "too_large", "fetch_failed"] | None = None
+    # ⟨1.5⟩ the substitute's second code review (§21.13), read from its call
+    # when the card is shown (the payload never changes); never the proposer's
+    second_review: dict[str, Any] | None = None
 
 
 class A3Payload(Model):
@@ -160,8 +250,10 @@ class A3Payload(Model):
     # owner sees recipients and amounts, their SHA-256 and the registration's).
     # Approving it runs that one call once, in the follow-up run.
     action: Literal[
-        "publish", "customer_message", "group_message", "restart", "price_change", "mcp_call"
-    ]
+        "publish", "customer_message", "group_message", "restart", "price_change", "mcp_call",
+        # ⟨1.6⟩ the counsel's form or portal values; the owner submits them (§22.4)
+        "form_submit",
+    ]  # fmt: skip
     target: str = Field(min_length=1, max_length=300)
     preview: str = Field(default="", max_length=20000)
     args_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -207,10 +299,30 @@ class BudgetChangePayload(Model):
     usd_limit: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=4)
 
 
+class EvaluationEvidence(Model):
+    kind: str = Field(min_length=1, max_length=40)
+    ref: str = Field(min_length=1, max_length=300)
+    note: str = Field(default="", max_length=1000)
+
+
+class EvaluationChange(Model):
+    model: str | None = Field(default=None, min_length=3, max_length=100)
+    effort: Effort | None = None
+    title_fa: str | None = Field(default=None, min_length=1, max_length=200)
+    quota_estimate_month: Quota | None = None
+
+
 class EvaluationPayload(Model):
+    """⟨1.5⟩ payload v2 (contract §21.5); a v1 card's `evidence` was a text."""
+
     employee: str = Field(pattern=EMP)
-    recommendation: Literal["promote", "demote", "dismiss"]
-    evidence: str = Field(default="", max_length=5000)
+    recommendation: Literal["promote", "demote", "dismiss", "confirm"]
+    change: EvaluationChange | None = None
+    transfer_to: str | None = Field(default=None, pattern=EMP)
+    round: str | None = Field(default=None, pattern=r"^HR-[0-9]{4,}$")
+    evidence: list[EvaluationEvidence] | str = Field(default_factory=list)
+    unflagged: bool | None = None
+    override_reason: str | None = Field(default=None, min_length=1, max_length=2000)
 
 
 class CodeSessionPayload(Model):
@@ -313,6 +425,24 @@ class ProtocolPayload(Model):
     status: Literal["active", "paused", "draft"] = "active"
 
 
+class MeetingResolutionPayload(Model):
+    """⟨1.5.1⟩ {meeting, item, text_md, votes, claims}: made by the meeting's
+    code from a draft (never by an agent's propose); the claims are the
+    item's SOURCED claims only."""
+
+    meeting: str = Field(pattern=r"^MT-[0-9]{4,}$")
+    item: int = Field(ge=1, le=50)
+    text_md: str = Field(min_length=1, max_length=8000)
+    votes: dict[str, int] = Field(default_factory=dict)
+    claims: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
+
+
+class KnowledgeEntryPayload(Model):
+    """⟨1.5.1⟩ {entry}: a holding knowledge entry after a passing review."""
+
+    entry: str = Field(pattern=r"^K-[0-9]{4,}@[0-9]+$")
+
+
 class MessageTemplatePayload(Model):
     """⟨1.5.1⟩ {template: Template, sha256}: an agent's proposal arrives as
     {template: {purpose, body_fa, variables?, ref?}} and the api writes the
@@ -343,6 +473,117 @@ class SupportGoLivePayload(Model):
     shadow_report: dict[str, Any]
 
 
+class MediaSeriesPayload(Model):
+    """⟨1.6⟩ A series proposed for the owner's seal (contract §22.2): sealed on
+    the series page on its digest (POST /media/series/{ref}/seal), never by
+    the cartable's approve."""
+
+    series: str = Field(pattern=r"^SR-[0-9]{4,}$")
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    title_fa: str = Field(min_length=1, max_length=200)
+    kind: Literal["reel", "story", "post", "carousel"]
+    auto_publish: bool = False
+    max_per_day: int = Field(ge=1, le=20)
+    schedule: str = Field(min_length=5, max_length=500)
+    targets: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
+
+
+class MediaPlacement(Model):
+    channel: Literal["telegram", "instagram"]
+    placement: Literal[
+        "telegram_post", "telegram_story", "instagram_reel", "instagram_story", "instagram_post"
+    ]
+    account: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]{1,40}$")
+    via: Literal["api", "manual"]
+    blocked: str | None = Field(default=None, max_length=40)
+
+
+class MediaPublishPayload(Model):
+    """⟨1.6.1⟩ An item to publish outside a sealed series or after a failed
+    check (contract §22.7): approving it publishes it (A3)."""
+
+    item: str = Field(pattern=r"^MI-[0-9]{4,}$")
+    series: str | None = Field(default=None, pattern=r"^SR-[0-9]{4,}$")
+    kind: Literal["reel", "story", "post", "carousel"]
+    title_fa: str = Field(min_length=1, max_length=300)
+    why: str = Field(default="", max_length=2000)
+    placements: list[MediaPlacement] = Field(default_factory=list, max_length=10)
+    render: dict[str, Any] | None = None
+    checks: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
+
+
+class RoleNewPayload(Model):
+    """⟨1.6.1⟩ A role written on demand for the owner's seal (contract §22.7)."""
+
+    draft: str = Field(pattern=r"^RD-[0-9]{4,}$")
+    company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+    department: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,11}$")
+    role: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    title_fa: str = Field(min_length=1, max_length=120)
+    model: str = Field(min_length=3, max_length=100)
+    effort: Effort
+    limits: dict[str, Any]
+    tools_count: int = Field(ge=0, le=200)
+    review: dict[str, Any] | None = None
+    eval_score: float | None = None
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class EmailAttachment(Model):
+    file_id: str = Field(pattern=r"^[0-9a-f-]{36}$")
+    name: str = Field(min_length=1, max_length=255)
+    mime: str = Field(min_length=3, max_length=100)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class EmailSendPayload(Model):
+    """⟨1.6⟩ The exact message of a case's email (contract §22.4, §22.7):
+    made by email.draft only; the seal is bound to `digest`."""
+
+    model_config = ConfigDict(extra="forbid", serialize_by_alias=True)
+
+    case: str = Field(pattern=r"^LC-[0-9]{4,}$")
+    email: str = Field(pattern=r"^[0-9a-f-]{36}$")
+    from_: str = Field(alias="from", max_length=320)
+    to: list[str] = Field(min_length=1, max_length=20)
+    cc: list[str] = Field(default_factory=list, max_length=20)
+    subject: str = Field(max_length=998)
+    body_md: str = Field(max_length=100000)
+    attachments: list[EmailAttachment] = Field(default_factory=list, max_length=10)
+    lang: Literal["fa", "en"]
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class ArchiveSchemaPayload(Model):
+    """⟨1.7⟩ An agent's proposed schema change (contract §23.12): the exact
+    PUT body; void once that schema row changed since `base_version`."""
+
+    part: Literal[
+        "classes", "folders", "levels", "clearance", "retention", "reminders", "party_kinds",
+        "link_kinds", "automations",
+    ]  # fmt: skip
+    key: str = Field(min_length=1, max_length=80)
+    base_version: int | None = Field(default=None, ge=1)
+    body: dict[str, Any]
+    impact: dict[str, Any] = Field(default_factory=dict)
+
+
+class ArchiveDisposalItem(Model):
+    ref: str = Field(pattern=r"^AR-[0-9]{6,}$")
+    class_: str | None = Field(default=None, alias="class")
+    title_fa: str = Field(max_length=300)
+    retention_rule: str | None = None
+    trigger_at: str | None = None
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, serialize_by_alias=True)
+
+
+class ArchiveDisposalPayload(Model):
+    """⟨1.7⟩ The weekly disposal card (contract §23.11), made by code only."""
+
+    records: list[ArchiveDisposalItem] = Field(min_length=1, max_length=500)
+
+
 PAYLOADS: dict[str, type[Model]] = {
     "hire": HirePayload,
     "dismissal": DismissalPayload,
@@ -362,6 +603,16 @@ PAYLOADS: dict[str, type[Model]] = {
     "message_template": MessageTemplatePayload,
     "lifecycle_rule": LifecycleRulePayload,
     "support_go_live": SupportGoLivePayload,
+    "meeting_resolution": MeetingResolutionPayload,
+    "charter_amendment": CharterAmendmentPayload,
+    "knowledge_entry": KnowledgeEntryPayload,
+    **gov_cards.PAYLOADS,
+    "media_series": MediaSeriesPayload,
+    "media_publish": MediaPublishPayload,
+    "role_new": RoleNewPayload,
+    "email_send": EmailSendPayload,
+    "archive_schema": ArchiveSchemaPayload,
+    "archive_disposal": ArchiveDisposalPayload,
 }
 
 
@@ -385,6 +636,19 @@ class DecisionIn(Model):
         "message_template",
         "lifecycle_rule",
         "support_go_live",
+        "meeting_resolution",
+        "charter_amendment",
+        "knowledge_entry",
+        # ⟨1.5⟩ prompt 11 (contract §20.11)
+        "okr",
+        "risk_acceptance",
+        "authority_change",
+        "media_series",
+        "media_publish",
+        "role_new",
+        "email_send",
+        "archive_schema",
+        "archive_disposal",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -396,6 +660,8 @@ class DecisionIn(Model):
     reversible: bool = True
     payload: dict[str, Any] = Field(default_factory=dict)
     expires_at: datetime | None = None
+    # ⟨1.5⟩ prompt 11 §6 (contract §20.6): what the proposer expects, and by when
+    expected: gov_outcomes.DecisionExpected | None = None
 
 
 # ------------------------------------------------------------------ output --
@@ -441,13 +707,37 @@ class Decision(BaseModel):
     resolution: str | None
     thread: str | None
     digital_ceo_prediction: dict[str, Any] | None = None
+    # ⟨1.5⟩ prompt 11 §6: {metric_fa, kpi, baseline, target, by_days}; warnings ["expected_missing"]
+    expected: dict[str, Any] | None = None
+    warnings: list[str] = Field(default_factory=list)
     effect_status: str
     version: int
     created_at: datetime
+    # ⟨1.5⟩ the advisor's memos on this card (contract §21.1), oldest first
+    memos: list[dict[str, Any]] = Field(default_factory=list)
+    # ⟨1.5⟩ cartable reminders (contract §21.8): hours waiting, the thresholds sent
+    waiting_h: float | None = None
+    reminders: list[dict[str, Any]] = Field(default_factory=list)
 
 
 DECISION_SQL = """
-    SELECT d.*, c.code AS company, r.ref AS resolution
+    SELECT d.*, c.code AS company, r.ref AS resolution,
+           (SELECT COALESCE(jsonb_agg(jsonb_build_object('ref', m.ref, 'mode', m.mode, 'state', m.state)
+                                      ORDER BY m.created_at), '[]'::jsonb)
+              FROM advisor.memos m WHERE m.decision_id = d.id) AS memos,
+           (SELECT COALESCE(jsonb_agg(jsonb_build_object('at', x.at, 'kind', x.kind) ORDER BY x.at), '[]')
+              FROM owner.decision_reminders x WHERE x.decision_id = d.id) AS reminders,
+           (SELECT jsonb_build_object('state', s.state, 'player', s.player, 'model', s.model,
+                                      'result', s.result)
+              FROM substitutes.calls s
+             WHERE d.kind = 'deploy' AND s.purpose_kind = 'decision' AND s.purpose_ref = d.ref
+               AND s.seat = 'code_review'
+             ORDER BY s.created_at DESC LIMIT 1) AS second_review_call,
+           (SELECT jsonb_build_object('verdict', p.verdict, 'confidence', p.confidence,
+                                      'method', p.method, 'correct', p.correct)
+              FROM dceo.predictions p
+             WHERE p.decision_id = d.id AND d.status <> 'pending' AND p.actual IS NOT NULL
+             ORDER BY p.method = 'model' DESC LIMIT 1) AS dceo_prediction
     FROM cartable.decisions d
     JOIN core.companies c ON c.id = d.company_id
     LEFT JOIN cartable.resolutions r ON r.id = d.resolution_id
@@ -473,7 +763,7 @@ def render(r: dict[str, Any]) -> Decision:
         risk=r["risk"],
         risk_note=r["risk_note"],
         reversible=r["reversible"],
-        payload=r["payload"],
+        payload=_with_review(r),
         amendments=r["amendments"],
         status=r["status"],
         expires_at=r["expires_at"],
@@ -486,10 +776,48 @@ def render(r: dict[str, Any]) -> Decision:
         reason_code=r["reason_code"],
         resolution=r["resolution"],
         thread=r["thread_code"],
+        # ⟨1.5⟩ prompt 12 §13 (contract §21.10): null until the owner decides
+        digital_ceo_prediction=_prediction(r.get("dceo_prediction")),
+        expected=r.get("expected"),
+        warnings=list(r.get("warnings") or []),
         effect_status=r["effect_status"],
         version=r["version"],
         created_at=r["created_at"],
+        memos=list(r.get("memos") or []),
+        waiting_h=_waiting_h(r),
+        reminders=list(r.get("reminders") or []),
     )
+
+
+def _prediction(v: Any) -> dict[str, Any] | None:
+    """The digital CEO's scored prediction {verdict, confidence, method, correct}."""
+    if isinstance(v, str):
+        v = json.loads(v)
+    if not isinstance(v, dict):
+        return None
+    return {**v, "confidence": float(v["confidence"])}
+
+
+def _with_review(r: dict[str, Any]) -> dict[str, Any]:
+    """A deploy card's payload with its `second_review` (prompt 12 §7 x §9.1):
+    the latest code_review call's findings, or null while there is none."""
+    if r["kind"] != "deploy":
+        return dict(r["payload"])
+    call = r.get("second_review_call")
+    if isinstance(call, str):
+        call = json.loads(call)
+    return {**r["payload"], "second_review": S.second_review_of(call)}
+
+
+def _waiting_h(r: dict[str, Any]) -> float | None:
+    """Hours the card waited for its decision (until now while pending)."""
+    end: datetime | None = r["decided_at"] or (
+        datetime.now(UTC) if r["status"] == "pending" else None
+    )
+    start: datetime | None = r.get("created_at")
+    if end is None or start is None:
+        return None
+    return round((end - start).total_seconds() / 3600, 1)
 
 
 async def load(tx: Tx, ref: str, *, lock: bool = False) -> dict[str, Any]:
@@ -517,7 +845,7 @@ def validate_payload(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
             for e in exc.errors()[:20]
         }
         raise ApiError(422, "validation_failed", fields=fields) from exc
-    out: dict[str, Any] = json.loads(model.model_dump_json(exclude_none=True))
+    out: dict[str, Any] = json.loads(model.model_dump_json(exclude_none=True, by_alias=True))
     return out
 
 
@@ -556,6 +884,14 @@ def check_hire_role(
         )
 
 
+async def company_charters(tx: Tx, charters: Any, company_id: Any) -> Any:
+    """⟨1.6⟩ The file charters plus the company's active role drafts (§22.5):
+    a hire may name either; a draft only in its own company and department."""
+    from hq_api.domain import role_drafts
+
+    return await role_drafts.overlay(tx, charters, company_id)
+
+
 async def known_model(tx: Tx, model: str) -> bool:
     return bool(
         await tx.scalar("SELECT EXISTS (SELECT 1 FROM llm.connections WHERE models ? :m)", m=model)
@@ -578,6 +914,8 @@ async def propose(
     await hiring.require_open(tx, who, body.kind)  # before any card exists (§18.11)
     payload = validate_payload(body.kind, body.payload)
     if body.kind == "hire":
+        # ⟨1.6⟩ a role written on demand is a charter of its company (§22.5)
+        charters = await company_charters(tx, charters, company_id)
         check_hire_role(payload, company_kind, charters, required=who.is_agent)
         if payload["company"] != company_code:
             raise ApiError(
@@ -618,6 +956,10 @@ async def propose(
             raise ApiError(
                 422, "validation_failed", fields={"payload.employee": "unknown in this company"}
             )
+    if body.kind == "evaluation":
+        from hq_api.domain import hr
+
+        payload = await hr.check_proposal(tx, payload, company_id)
     if body.kind == "recurring_approval":
         w = await tx.first(
             "SELECT company_id, kind FROM work.work WHERE id = :id", id=payload["work_id"]
@@ -658,6 +1000,12 @@ async def propose(
         raise ApiError(
             422, "validation_failed", fields={"kind": "a server plan comes from server.plan"}
         )
+    if body.kind in SYSTEM_CARD_KINDS and who.kind != "service":
+        # ⟨1.6⟩ series.propose, the media pipeline and a role draft's gates make
+        # these cards, each bound to what it shows (contract §22.6)
+        raise ApiError(
+            422, "validation_failed", fields={"kind": f"a {body.kind} card is made by code"}
+        )
     if body.kind == "support_go_live" and who.kind != "service":
         # ⟨1.5⟩ only a passed shadow run makes this card (contract §19.4)
         raise ApiError(409, "shadow_not_passed", "a go-live card comes from a passed shadow run")
@@ -671,6 +1019,46 @@ async def propose(
         from hq_api.domain import founding
 
         await founding.check_proposal(tx, payload, company_id)
+    if body.kind == "archive_schema":
+        # ⟨1.7⟩ checked against the closed vocabulary now; the impact is the server's
+        from hq_api.archive import cards as AC
+
+        payload = await AC.check_proposal(tx, payload)
+    if body.kind == "email_send" and not await tx.scalar(
+        """SELECT 1 FROM legal.emails WHERE id = CAST(:e AS uuid) AND company_id = :co
+             AND state = 'waiting_seal' AND decision_id IS NULL AND digest = :d""",
+        e=payload["email"],
+        co=company_id,
+        d=payload["digest"],
+    ):
+        # ⟨1.6⟩ only email.draft makes this card, for its own waiting email (§22.4)
+        raise ApiError(
+            422, "validation_failed", fields={"kind": "an email card comes from email.draft"}
+        )
+    if body.kind in ("meeting_resolution", "knowledge_entry") and who.is_owner:
+        # ⟨1.5⟩ made by the system from a meeting draft or a passed review
+        raise ApiError(
+            422, "validation_failed", fields={"kind": f"{body.kind} is made by the system"}
+        )
+    if body.kind == "charter_amendment":
+        from hq_api.domain import charter
+
+        holding_code = await tx.scalar(
+            "SELECT code FROM core.companies WHERE kind = 'holding' LIMIT 1"
+        )
+        await charter.check_amendment(tx, who, payload, company_code, str(holding_code))
+    if body.kind in gov_cards.KINDS:  # ⟨1.5⟩ prompt 11 §5, §7, §8
+        payload = await gov_cards.check_proposal(tx, who, body.kind, payload, company_id)
+    expected = body.expected.model_dump() if body.expected else None
+    warnings = await gov_outcomes.check_expected(tx, body.kind, company_id, expected)
+    risk_note, calendar = body.risk_note, None
+    if body.kind == "deploy":  # ⟨1.5⟩ prompt 11 §9: its window and conflicts
+        payload, note, calendar = await gov_cards.deploy_payload(
+            tx, company_id, body.title, payload, body.risk, who
+        )
+        if note:
+            risk_note = ((risk_note + "\n") if risk_note else "") + note
+            risk_note = risk_note[:2000]
     # Still open: no card yet, or its card came back without an answer
     # (returned, expired, withdrawn), so the lesson may be proposed again.
     if body.kind == "lesson_adoption" and not await tx.scalar(
@@ -703,10 +1091,13 @@ async def propose(
     row = await tx.one(
         """INSERT INTO cartable.decisions (company_id, kind, action_class, title, what, why,
                proposer_kind, proposer_code, work_id, quota_tokens, quota_usd, risk, risk_note,
-               reversible, payload, expires_at, thread_code, approver_kind, approver_code)
+               reversible, payload, expires_at, thread_code, approver_kind, approver_code, expected,
+               warnings)
            VALUES (:co, :kind, :cls, :title, :what, :why, :pk, :pc, :work, :qt, :qu, :risk, :rn, :rev,
-                   CAST(:payload AS jsonb), :exp, :thread, :ak, :ac)
+                   CAST(:payload AS jsonb), :exp, :thread, :ak, :ac, CAST(:expected AS jsonb), :warnings)
            RETURNING ref""",
+        expected=json.dumps(expected, ensure_ascii=False) if expected else None,
+        warnings=warnings,
         ak="agent" if approver else None,
         ac=approver,
         co=company_id,
@@ -721,13 +1112,21 @@ async def propose(
         qt=body.quota_estimate.tokens if body.quota_estimate else None,
         qu=body.quota_estimate.usd if body.quota_estimate else None,
         risk=body.risk,
-        rn=body.risk_note,
+        rn=risk_note,
         rev=body.reversible,
         payload=json.dumps(payload, ensure_ascii=False),
         exp=body.expires_at,
         thread=thread_code,
     )
     d = await load(tx, row["ref"])
+    if not approver:  # ⟨1.5⟩ prompt 12 §13: the digital CEO's baseline, sealed before any decision
+        from hq_api.domain import dceo
+
+        await dceo.on_proposed(tx, d)
+    if calendar is not None and calendar[0] is not None:
+        from hq_api.domain import gov_calendar
+
+        await gov_calendar.link(tx, calendar[0], d["ref"], calendar[1])
     await events.emit(
         tx,
         company_code,
@@ -744,6 +1143,10 @@ async def propose(
         from hq_api.domain import founding
 
         await founding.proposed(tx, d, payload)
+    if body.kind == "evaluation":
+        from hq_api.domain import hr
+
+        await hr.on_proposed(tx, d)
     if body.kind == "lesson_adoption":  # one answer per lesson and company
         await tx.exec(
             """UPDATE knowledge.lesson_adoptions SET decision_ref = :d, updated_at = now()
@@ -870,7 +1273,10 @@ async def decide(
     amendments: dict[str, Any] | None = None,
     step_up_id: UUID | None = None,
     charters: Any = None,
+    hub: Any = None,
 ) -> dict[str, Any]:
+    """`hub` (optional): the authority matrix's numbers are asked of OPA too
+    (prompt 11 §7); without it the database row alone decides."""
     if d["status"] != "pending":
         raise ApiError(409, "decision_not_pending", f"{d['ref']} is {d['status']}")
     if verdict == "approved":
@@ -880,9 +1286,16 @@ async def decide(
     if verdict == "approved" and d["kind"] == "hire":
         # Every approval, whoever approves (contract §18.11): refused with a
         # stable code before anything changes, so no employee is made.
+        charters = await company_charters(tx, charters, d["company_id"])
         await hiring.check_approval(
-            tx, d, amended("hire", d["payload"], amendments), charters, by_ceo=who.is_agent
+            tx, d, amended("hire", d["payload"], amendments), charters, by_ceo=who.is_agent, hub=hub
         )
+    if verdict == "approved" and d["kind"] == "evaluation":
+        # ⟨1.5⟩ prompt 12 §6: promote / demote under the hire checks of §18.11,
+        # before anything changes (409 envelope_exceeded)
+        from hq_api.domain import hr
+
+        await hr.check_approval(tx, d, amended("evaluation", d["payload"], amendments))
     if verdict in ("rejected", "returned") and d["kind"] == "company_found":
         from hq_api.domain import founding
 
@@ -898,7 +1311,7 @@ async def decide(
         await hiring.close_decide_items(tx, [d["ref"]], f"{d['ref']}: مالک خودش تصمیم گرفت")
     effect = "pending" if verdict == "approved" and d["kind"] in EFFECT_KINDS else "none"
     server = None
-    sealed_as_is = d["kind"] == "tool_enable" or (
+    sealed_as_is = d["kind"] in ("tool_enable", "email_send", *ARCHIVE_CARD_KINDS) or (
         d["kind"] == "a3_action" and (d["payload"] or {}).get("action") == "mcp_call"
     )
     if verdict == "approved" and amendments and sealed_as_is:
@@ -910,6 +1323,14 @@ async def decide(
         # Bound to the listing it shows: superseded (409) when the server changed.
         server = await mcp.sealed_listing(tx, d)
         effect = "applied"
+    archive_summary = ""
+    if verdict == "approved" and d["kind"] in ARCHIVE_CARD_KINDS:
+        # ⟨1.7⟩ applied here, bound to what the card shows (a schema row that
+        # changed since voids it: 409 decision_not_pending)
+        from hq_api.archive import cards as AC
+
+        archive_summary = await AC.apply(tx, d, who)
+        effect = "applied"
     if verdict == "approved" and d["kind"] in SEALED_CARD_KINDS:
         if amendments:
             raise ApiError(
@@ -920,6 +1341,24 @@ async def decide(
         from hq_api.domain import lifecycle
 
         await lifecycle.apply_card(tx, d, step_up_id)
+        effect = "applied"
+    if verdict == "approved" and d["kind"] in GOVERNANCE_CARD_KINDS:
+        if amendments:
+            raise ApiError(
+                422, "validation_failed", fields={"amendments": "this card is sealed as it is"}
+            )
+        if d["kind"] == "charter_amendment":
+            from hq_api.domain import charter
+
+            await charter.apply_amendment(tx, who, d, step_up_id)
+        else:
+            from hq_api.domain import knowledge
+
+            await knowledge.apply_card(tx, who, d)
+        effect = "applied"
+    if verdict == "approved" and d["kind"] in gov_cards.KINDS:
+        # ⟨1.5⟩ prompt 11: an okr, a risk's acceptance, a matrix change (409/422: nothing changes)
+        await gov_cards.apply(tx, d, amendments)
         effect = "applied"
     await tx.exec(
         """UPDATE cartable.decisions SET status = :st, decided_at = now(), decided_by_kind = :k,
@@ -941,6 +1380,16 @@ async def decide(
     )
     if server is not None:
         await mcp.enable_listing(tx, server)
+    await gov_cards.after_decided(tx, d, verdict)  # ⟨1.5⟩ outcome reviews, okr, the calendar
+    from hq_api.domain import (
+        dceo,  # ⟨1.5⟩ prompt 12 §13: the owner's verdict scores the predictions
+    )
+
+    await dceo.score(tx, who, d, verdict)
+    if d["kind"] == "email_send":  # ⟨1.6⟩ queued for its one send, or the case reopens
+        from hq_api.domain import legal
+
+        await legal.on_decided(tx, d, verdict, note)
     resolution = None
     if verdict == "approved":
         # Resolutions are append-only: the follow-up work (if any) exists first
@@ -954,7 +1403,9 @@ async def decide(
             who,
             company_id=d["company_id"],
             title=d["title"],
-            body=(d["what"] or "") + (f"\n\nیادداشت مدیر کل: {note}" if note else ""),
+            body=(d["what"] or "")
+            + (f"\n\nیادداشت مدیر کل: {note}" if note else "")
+            + (f"\n\n{archive_summary}" if archive_summary else ""),
             decision_id=d["id"],
             sent_to=[d["proposer_code"]] if d["proposer_kind"] == "agent" else [],
             ref=ref,
@@ -974,6 +1425,18 @@ async def decide(
         body += f"\n\n{note}"
     if d["kind"] == "errand_action":  # the errand goes on, whatever the verdict
         await errands.on_decided(tx, d, verdict)
+    if d["kind"] in ("media_series", "media_publish") and verdict != "approved":
+        from hq_api.domain import studio  # ⟨1.6⟩ the series back to draft, the item rejected
+
+        await studio.card_declined(tx, d, verdict, note)
+    if d["kind"] == "archive_disposal" and verdict != "approved":
+        from hq_api.archive import retention as RT
+
+        await RT.card_declined(tx, d, verdict)
+    if d["kind"] == "role_new" and verdict in ("rejected", "returned"):
+        from hq_api.domain import role_drafts
+
+        await role_drafts.card_decided(tx, {**d, "note": note}, verdict, who)
     links = {"decision": d["ref"]}
     if resolution:
         links["resolution"] = resolution["ref"]
@@ -1153,6 +1616,17 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
         from hq_api.domain import founding
 
         result = await founding.found_company(tx, d, p)
+    elif d["kind"] == "evaluation":
+        from hq_api.domain import hr
+
+        result = await hr.apply(tx, d, p)
+    elif d["kind"] == "email_send":
+        # ⟨1.6⟩ the send itself happened before (legal.deliver, outside any
+        # transaction); only a sent email's card is applied.
+        state = await tx.scalar("SELECT state FROM legal.emails WHERE decision_id = :d", d=d["id"])
+        if state != "sent":
+            raise ApiError(409, "validation_failed", f"{ref}: the email is {state}, not sent")
+        result = {"email": "sent"}
     elif d["kind"] == "code_session":
         # The seal is the grant; the decision's id is unique on the grant, so a
         # retried effect never makes a second one.
@@ -1182,6 +1656,17 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
                 {"decision": d["ref"], "grant": g["ref"]},
             )
         result = {"grant": g["ref"]}
+    elif d["kind"] == "media_publish":
+        # ⟨1.6⟩ the item goes out now through the official APIs (the worker
+        # publishes it after this commit; contract §22.7)
+        from hq_api.domain import studio_publish
+
+        result = await studio_publish.card_approved(tx, d, p)
+    elif d["kind"] == "role_new":
+        # ⟨1.6⟩ the draft the card showed becomes an active charter (§22.5)
+        from hq_api.domain import role_drafts
+
+        result = await role_drafts.apply_card(tx, d, actor_principal(d))
     await tx.exec(
         "UPDATE cartable.decisions SET effect_status = 'applied', effect_applied_at = now() WHERE id = :id",
         id=d["id"],

@@ -83,7 +83,37 @@ async def gather(tx: Tx, now: datetime, tz: str) -> dict[str, Any]:
         # Saturdays (prompt 10 §8.3): the week's support figures of a company
         # without a support lead, figures only.
         "support_week": await FB.morning_lines(tx, today) if today.weekday() == 5 else [],
+        # Prompt 12 §9.1.7: one line per substitute player (the month's use).
+        "substitutes": await _substitute_lines(tx),
+        # ⟨1.5⟩ prompt 12 §8, §11: rule-only lines (the waste of yesterday, the
+        # owner's waiting cards by age); no model, no outside call
+        **await _p12b_lines(tx, today, now),
+        # ⟨1.5⟩ prompt 12 §3: a weekly review skipped in the last week (one line, no nag)
+        "review_line": await _review_line(tx, now),
     }
+
+
+async def _review_line(tx: Tx, now: datetime) -> str | None:
+    from hq_api.domain import reviews
+
+    return await reviews.morning_line(tx, now)
+
+
+async def _p12b_lines(tx: Tx, today: date, now: datetime) -> dict[str, Any]:
+    from hq_api.domain import notes as NOTES
+    from hq_api.domain import waste as WASTE
+
+    yesterday = await WASTE.day_of(tx, today - timedelta(days=1), None)
+    return {
+        "waste_line": WASTE.morning_line(yesterday),
+        "reminders_line": await NOTES.morning_line(tx, now),
+    }
+
+
+async def _substitute_lines(tx: Tx) -> list[str]:
+    from hq_api.domain import substitutes
+
+    return [f"- {line}" for line in await substitutes.report_lines(tx)]
 
 
 def render(data: dict[str, Any]) -> tuple[str, str]:
@@ -114,6 +144,7 @@ def render(data: dict[str, Any]) -> tuple[str, str]:
         ),
         f"- **کارتابل خروجی:** {dl['new_24h']} خروجی در ۲۴ ساعت گذشته؛ {dl['unrated']} خروجی هنوز امتیاز ندارد",
         f"- **پیام‌ها:** {data['unread']} پیام نخوانده",
+        *[data[k] for k in ("reminders_line", "waste_line", "review_line") if data.get(k)],
         "",
         "## شرکت‌ها",
         "| شرکت | تصمیم در انتظار | کار باز | عقب‌افتاده | خروجی تازه "
@@ -137,6 +168,8 @@ def render(data: dict[str, Any]) -> tuple[str, str]:
         lines.append("- هیچ بودجه‌ای به آستانه‌ی هشدار (۷۰٪) نرسیده است.")
     if data.get("support_week"):
         lines += ["", "## پشتیبانی هفته (شرکت‌های بی‌سرپرست پشتیبانی)", *data["support_week"]]
+    if data.get("substitutes"):
+        lines += ["", "## بازیکن‌های ذخیره", *data["substitutes"]]
     engaged = [c["code"] for c in data["companies"] if c["kill_switch"] == "engaged"]
     if engaged:
         lines += ["", f"**کلید توقف فعال:** {', '.join(engaged)}"]

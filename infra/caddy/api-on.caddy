@@ -79,6 +79,30 @@ handle /intake/* {
 	respond 404
 }
 
+# The media studio's one public route (prompt 13 §2.3, contract §22.2): a
+# signed URL for one render file, valid ≤ 15 minutes, that Instagram fetches
+# to publish it. GET and HEAD only, no body; the api answers 404 for anything
+# else (an expired or forged token, another file). Anything else under
+# /public is an unknown path.
+@media_public {
+	path /public/v1/media/*
+	method GET HEAD
+}
+handle @media_public {
+	reverse_proxy api:8000 {
+		flush_interval -1
+		header_up X-Forwarded-For {remote_host}
+		transport http {
+			read_timeout 120s
+			write_timeout 600s
+		}
+	}
+}
+
+handle /public/* {
+	respond 404
+}
+
 # Everything else under /api: bodies capped and a normal read timeout.
 handle /api/* {
 	request_body {

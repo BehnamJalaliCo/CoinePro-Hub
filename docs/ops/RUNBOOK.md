@@ -47,6 +47,17 @@
 | `make audit-reanchor reason="..."` | فقط بعد از restore دیتابیس، **فقط در ترمینال**: لنگر تازه‌ی زنجیره‌ی Audit، با تأیید تایپی و ردیف audit (§۳) |
 | `make prompt-check role=<role>` | یک فراخوانی **واقعی** با prompt یک منشور (پیش‌فرض مشاور) از راه `hq-ops`؛ schema و پاسخ سنجیده میشوند؛ هیچ چیزی جز ledger ذخیره نمیشود |
 | `make bootstrap-month1` | کارهای راه‌اندازی ماه ۱ (`apps/api/seed/bootstrap/month1.yaml`) به نام سرویس `bootstrap`؛ **اجرای واقعی مدل بیدار میکند** (`docs/ops/AGENTS.md`) |
+| `make connection-secret KEY=<key>` | **فقط مالک، در ترمینال خودش** (پرامپت ۱۲ §۹): کلید API یک اتصال LLM تازه (ورودی پنهان، مستقیم به OpenBao)؛ روتر بی خرج توکن وارسیش میکند (§۳۰.۳) |
+| `make chatgpt-login`، `make gemini-login` | **فقط مالک، در ترمینال خودش:** ورود CLI بازیکن ذخیره (Codex با کد دستگاه، Gemini با کد تأیید)؛ همین از اپ هم هست (§۳۰.۴) |
+| `make chatgpt-web-login`، `make gemini-web-login`، `make deepseek-web-login` | **فقط مالک، با تونل SSH خودش:** ورود یک‌باره در پروفایل مرورگر هاب؛ noVNC فقط روی `127.0.0.1:6080`، حداکثر ۱۵ دقیقه (§۳۰.۴) |
+| `make tts-on`، `make tts-off`، `make tts-bench` | صدای فارسی گزارش‌ها (پرامپت ۱۲ §۴): روشن و خاموش کردن profile اختیاری `tts` و timer آن (بیرون از بودجه‌ی حافظه رد میشود)، و اندازه‌گیری RTF و RAM روی متن ثابت (§۳۰.۱۱، حافظه‌ی همه‌ی profileها در §۳۰.۶) |
+| `make tts-bakeoff [OUT=…]` | bake-off صدا (پرامپت ۱۳ §۴): هر صدای image روی متن‌های ثابت، RTF و peak هر ساخت، Ogg در `OUT`؛ بی‌شبکه (§۳۱.۱۳) |
+| `make account-secret KEY=mail` | **فقط مالک:** رمز صندوق ایمیل مشاور حقوقی (پرامپت ۱۳ §۳؛ §۳۱.۱۲) |
+| `make mcp-build`، `make mcp-test`، `make mcp-index` | MCP روی کانتینر (پرامپت ۱۲ §۱۴): ساخت تکرارپذیر imageها با digest فهرست مجاز، آزمون روی شبکه‌ی دورانداختنی، ایندکس CodeCortex (§۳۰.۵) |
+| `make media-on`، `make media-off`، `make media-bench` | render worker استودیوی رسانه (پرامپت ۱۳ §۲.۳): روشن و خاموش کردن profile اختیاری `media` و timer آن (بیرون از بودجه‌ی حافظه رد میشود)، و اندازه‌گیری یک ریلز ۳۰ ثانیه‌ای، یک عکس Lottie و یک صفحه‌ی طراحی در همان سندباکس بی‌شبکه (§۳۱.۵) |
+| `make account-secret KEY=telegram-<co>`، `KEY=instagram-<co>` | **فقط مالک، در ترمینال خودش:** توکن ربات کانال تلگرام و توکن حساب business اینستاگرام هر شرکت برای انتشار رسمی (§۳۱.۶) |
+| `make ocr-fetch [set=fast\|best]` | OCR بایگانی (پرامپت ۱۴ §۴): یک‌بار دانلود traineddataی پین‌شده‌ی `fas` و `eng` در volume ‏`ocr-models` با sha256 (§۳۲.۴) |
+| `make ocr-on`، `make ocr-off`، `make ocr-bench`، `make ocr-test` | روشن و خاموش کردن profile اختیاری `ocr` (بیرون از بودجه‌ی حافظه رد میشود)، اندازه‌گیری و آزمون Tesseract واقعی روی نمونه‌ی اسکن فارسی، بی‌شبکه (§۳۲.۴) |
 
 ## ۲. بالا آوردن و پایین آوردن
 
@@ -798,7 +809,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
      ثبت دوباره‌ی همان `key` با بدنه‌ی دیگر یک نسخه‌ی تازه است و وضعیتش دوباره `pending` میشود. ثبت دوباره‌ی **همان بدنه** هیچ چیز را عوض نمیکند (سرور روشن، روشن میماند). اگر host عوض شود، رمز قبلی دیگر فرستاده نمیشود (`has_secret: false`) تا مالک دوباره `make mcp-secret` بزند (7.1). URL سرور `http` فقط روی پورت 443 است و نقطه‌ی آخر نام میزبان برداشته میشود.
   2. **رمز سرور، اگر دارد:** مالک خودش در ترمینال میزند `make mcp-secret KEY=<key>` (ورودی بی‌نمایش). رمز در OpenBao در `kv/hq-api/tools/mcp/<key>` میرود. API فقط `has_secret` را نشان میدهد، هیچ‌وقت خود مقدار را.
      - **کلید JSON چندخطی** (مثل service account گوگل): `make mcp-secret KEY=<key> FILE=<path>`. اسکریپت بررسی میکند که فایل یک شیء JSON است، متن آن را همان‌طور ذخیره میکند و بعد پیشنهاد میدهد فایل پاک شود (`shred -u`). خود اسکریپت چیزی پاک نمیکند.
-  3. **روشن کردن** با `POST /api/v1/tools/mcp/<key>/enable` و 🔏 `mcp.enable` روی `key`. سرور `container` **هنوز اجراشدنی نیست** (شبکه‌ی `hq-mcp` و پل stdio→HTTP ساخته نشده‌اند): جواب `409 not_ready` است و `status_reason` همین را میگوید.
+  3. **روشن کردن** با `POST /api/v1/tools/mcp/<key>/enable` و 🔏 `mcp.enable` روی `key`. سرور `container` از پرامپت ۱۲ اجراشدنی است، فقط دقیقاً همان‌طور که فهرست مجاز میگوید و فقط وقتی پروفایل `mcp` روشن است (وگرنه `409 not_ready`): §۳۰.۵.
   4. **خاموش کردن** با `POST /api/v1/tools/mcp/<key>/disable`. فوری است و step-up نمیخواهد.
 
   هر سه POST `Idempotency-Key` میخواهند. کلید پیش از مصرف step-up گرفته میشود، پس تکرار همان درخواست همان جواب را با `Idempotent-Replay` میدهد.
@@ -823,7 +834,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **transport:**
   - **`http`:** فقط URL با https و نام میزبان عمومی؛ نه IP، نه نام داخلی، نه `hq.coinepro.com`، و بدون اعتبار داخل URL. Gateway آن را **فقط از پراکسی egress** میزند (`EGRESS_PROXY_URL` در env سرویس gateway). محافظ SSRF همان‌جا IP نهایی را چک میکند. بدون پراکسی، جواب `channel_not_configured` است و هرگز اتصال مستقیم برقرار نمیشود.
   - **`container`:** آدرس `http://mcp-<name>:<port>/...`. یک سرویس compose جدا روی شبکه‌ی internal ‏`hq-mcp`، که فقط با gateway مشترک است. سرورهای stdio پشت یک پل stdio→HTTP بازبینی‌شده اجرا میشوند. هیچ‌جا docker socket نیست.
-  - این سرویس و شبکه **وقتی مالک اولین سرور container را مُهر کند** اضافه میشوند (با قاعده‌های `compose-rules`). الان هیچ‌کدام وجود ندارد: سرور `container` ثبت میشود ولی **هنوز اجراشدنی نیست** (enable ← `409 not_ready`؛ در کاتالوگ `channel_not_configured` با «هنوز اجراشدنی نیست»).
+  - از پرامپت ۱۲ شبکه‌ی `hq-mcp`، پل stdio→HTTP و فهرست مجاز بازبینی‌شده ساخته شده‌اند (پروفایل اختیاری `mcp`، پیش‌فرض خاموش): §۳۰.۵.
 - **سرورهای پیشنهادی** (`apps/api/seed/mcp_proposals.yaml`؛ فقط پیشنهاد، هیچ‌کدام ثبت نشده):
 
   | key | سرور | ابزارها |
@@ -1319,3 +1330,902 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - هاب ← Chatwoot از egress، با حساب سرویس (`make account-secret`؛ `config` کانال `chatwoot` شامل `account` و `base_url` است).
   - Chatwoot ← هاب از `/intake/v1/chatwoot/<CO>`، با HMAC.
 - **راه دوم** (profile روی خود هاب) فقط وقتی است که gate حافظه با اندازه‌گیری واقعی پاس شود؛ امروز نمیشود.
+
+## ۲۹. حاکمیت (پرامپت ۱۱، قرارداد §۲۰)
+- **migration:** `0026` (اتاق جلسه، اساسنامه، دانشنامه؛ نیمه‌ی اول) و `0026_1` (کارت‌ها، OKR، نتیجه‌ی تصمیم‌ها، ماتریس اختیار، ریسک، تقویم، مُهر گروهی؛ نیمه‌ی دوم). schemaهای تازه: `meetings` و `governance`؛ دانشنامه در `knowledge`. همه‌ی جدول‌ها `company_id` و RLS **FORCE** دارند.
+- **هیچ سرویس همیشه‌روشن تازه‌ای نیست:** جلسه‌ها کد و اجراهای ایجنت در همان worker‌اند؛ جستجو همان LIKE/trgm با نرمال‌سازی فارسی Postgres است.
+- **دروازه:** هر چیزی از این بخش که خودش اجرا میشود (schedule جلسه‌ها، نوبت، اتاق جنگ، کالبدشکافی، استندآپ، کار بازبینی دانش) اول قفل هلدینگ را میپرسد و تا روشن است **هیچ کاری** نمیکند: نه جلسه‌ای میسازد، نه نوبتی، نه اجرای ایجنتی. فقط انقضای دانش (قاعده‌ی خالص) با قفل هم اجرا میشود.
+
+### ۲۹.۱ اتاق جلسه (پرامپت ۱۱ §۱، قرارداد §۲۰.۱)
+- **نوع‌ها** (داده، `meetings.types`؛ seed از `apps/api/seed/meetings/types.yaml`، فقط یک بار؛ مالک در اپ عوض میکند، `PUT /meetings/settings` 🔏 `meetings.settings` = هش بدنه، هر ردیف با `version` خودش):
+
+  | نوع | زمان | بودجه‌ی پیش‌فرض | حضور مالک |
+  |---|---|---|---|
+  | `board` | هفتگی، شنبه ۱۰:۰۰ (به وقت مالک) | ۱۲۰ هزار | زنده |
+  | `company` | هفتگی ۱۱:۰۰، یکی برای هر شرکت فعال، پخش‌شده بین شنبه تا چهارشنبه | ۴۰ هزار | خلاصه |
+  | `standup` | روزانه ۰۹:۰۰، هر دپارتمان، فقط کد | صفر | خلاصه |
+  | `war_room` | با حادثه‌ی `sev1` یا 🔴 `service_down` | بی‌سقف جلسه | زنده |
+  | `postmortem` | فردای بسته شدن هر حادثه، ۱۰:۰۰ | ۳۰ هزار | خلاصه |
+  | `strategy` | آخرین پنجشنبه‌ی ماه شمسی، ۱۰:۰۰ (`calendar: jalali`) | ۱۵۰ هزار | زنده |
+
+  سقف هر نوبت ۶ هزار، حداکثر ۲ دور و ۶ سخنگو برای هر دستور (مالک ۱ تا ۳ دور و ۲ تا ۸ سخنگو). مخالف‌خوان: بازرس کل (`members.devil: overseer` یعنی ناظر کل).
+- **پخش جلسه‌های `company`:** هر شرکت روز هفته‌ی آخرین جلسه‌ی `company` خودش را نگه میدارد؛ شرکت تازه به کم‌بارترین روز (کمترین شرکت، بعد زودترین روز هفته) میرود، به ترتیب کد. داده‌ی ثابت همیشه همان پخش را میدهد.
+- **چرخه:** `scheduled` (برنامه‌ریزی ۸ روز جلوتر، `hq-meetings` هر دقیقه) ← `prep` (T−۲۴ ساعت: دستور جلسه، سخنگوها، برآورد، trim) ← `live` ← `closing` ← `ended` (یا `cancelled`؛ جلسه‌ای که ۶ ساعت از وقتش گذشته و شروع نشده `missed`).
+- **برآورد و trim:** برآورد = سقف نوبت × (سخنگوها × دورها + چالش مخالف‌خوان + نجوای مشاور) برای هر دستور + خلاصه‌ی منشی (۲۰ هزار). بیشتر از بودجه: اول دور آخر کم‌اهمیت‌ترین دستورها، بعد سخنگوها (به بیانیه‌ی نوشته)، بعد نجوا؛ متن فارسی در `trimmed_fa`. مالک پیش از شروع فقط **کم** میکند (`PATCH`)؛ افزایش فقط `POST …/control` با `raise_budget`، فقط مالک.
+- **رزرو و حالت `written`:** موقع شروع، بودجه‌ی جلسه از سقف روزانه‌ی ایجنت‌ها (`AGENT_DAILY_TOKEN_CAP`) و از **سهم روزانه‌ی جلسه‌ها** (`MEETINGS_DAILY_SHARE`، پیش‌فرض `0.15`، در `.env`) رزرو میشود. اگر جا نشود، جلسه `written` است: فقط بیانیه‌های نوشته (رکوردهای خود شرکت، بی‌مدل)، بی‌دور بحث، و مالک یک اعلان `info` میگیرد. `war_room` بیرون از سهم است. llm-router هر دو را هم اجرا میکند (`meta.meeting`، `meeting_cap`، `meeting_kind`: ردیف `rejected_budget` با `meeting_budget` یا `meetings_share`).
+  - با سقف روزانه‌ی ۶۰۰ هزار و سهم ۰٫۱۵ (۹۰ هزار در روز)، `board` (۱۲۰ هزار) و `strategy` (۱۵۰ هزار) جا نمیشوند و نوشتاری برگزار میشوند تا مالک بودجه، سقف یا سهم را عوض کند.
+- **نوبت‌ها:** هر نوبت یک اجرای ایجنت با trigger `meeting` است (`meetings.queue_turn`). context را کد میسازد: دستور، منبع‌ها، ادعاهای همین دستور (نه کل متن)، حرف مالک، شرکت خود سخنگو؛ هیچ نجوایی. ابزارها: فقط ابزار همان نوبت (`meeting.statement`، `meeting.challenge`، `meeting.whisper`، `meeting.minutes`) و خواندنی‌های نقش؛ effort حداکثر `medium`؛ سقف توکن = سقف نوبت و آنچه از رزرو مانده. نوبتی که جا نشود اجرا نمیشود و جلسه به `closing` میرود.
+- **ادعاها** مثل citation بررسی میشوند (در scope خواندن سخنگو): بی‌منبع یا منبع ناخوانا ← `unsourced`؛ چالش‌شده ← `challenged`. فقط ادعای `sourced` به صورت‌جلسه و کارت میرسد. منبع دانش منقضی ← `422 knowledge_expired`.
+- **پایان:** صورت‌جلسه را کد میسازد (خروجی `O-…` در هلدینگ، تولیدکننده `HQ-SEC`)؛ منشی (`HQ-SEC`، نقش سیستمی، Haiku) از بودجه‌ی همان جلسه خلاصه مینویسد اگر دست‌کم ۲ هزار مانده باشد. هر پیش‌نویس یک کارت `meeting_resolution` (A1، مالک) میشود؛ فقط مُهر مالک مصوبه‌ی `M-…` و کار پیگیری میسازد.
+- **اتاق جنگ:** خط زمانی کدساز (حادثه، رویدادهای کار، Audit)؛ نوبت‌هایش همان اجراهای کار حادثه است (اتاق جنگ نوبت مدلی اضافه نمیسازد). با بسته شدن حادثه بسته میشود؛ اتاقی که با 🔴 بی‌حادثه باز شده بعد از ۶ ساعت. تمام شدن سقف روزانه وسط اتاق جنگ ← یک اعلان `urgent` برای مالک (ناظر سقف را بالا نمیبرد).
+- **استندآپ:** کار دیروز هر دپارتمان (انجام‌شده، در جریان، گیرکرده) در رشته‌ی دپارتمان؛ اگر چیزی عوض نشده، هیچ پیامی نمیرود (ردیف `cancelled`/`no_change`). خلاصه‌ی مدلی (`model_summary`) پیش‌فرض خاموش است.
+- **پلنر** جلسه‌ها را با `kind: "meeting"` نشان میدهد (بی استندآپ‌ها).
+
+### ۲۹.۲ اساسنامه و الحاقیه‌ها (پرامپت ۱۱ §۲، قرارداد §۲۰.۲)
+- نسخه‌ی ۱ هلدینگ از `agents/charter/HOLDING.md` با وضعیت **`proposed`** seed میشود. **فقط مالک** در اپ اصلاح (`PUT /charter/{scope}`) و مُهر میکند (`POST /charter/{scope}/versions/{v}/seal` 🔏 `charter.seal`، target = `body_sha256`).
+- `body_sha256` = SHA-256 JSON کانونی `{body_md, red_lines}` (کلیدهای مرتب، بی‌فاصله، UTF-8). سرور آن را دوباره حساب میکند؛ توکن نسخه‌ای با همان متن و خطوط قرمز دیگر رد میشود.
+- **سقف طول:** هلدینگ ۶۰۰۰ نویسه، الحاقیه‌ی هر شرکت ۳۰۰۰ (بیشتر ← `422`).
+- ایجنت‌ها فقط میخوانند: نسخه‌ی مُهرشده‌ی هلدینگ و الحاقیه‌ی شرکت بعد از `_common` و پیش از منشور نقش در system prompt؛ هر فراخوانی `charter_docs` (مثلاً `["holding@3", "TY@1"]`) در `llm.calls.meta` دارد. تا مُهر نشده، فقط چهار خط قرمز مدل عملیاتی §۱.۱۵ (از همان فایل seed) میرود. هر تلاش ایجنت برای نوشتن `403` و ردیف Audit `charter.write_denied` است. اصلاحیه = کارت `charter_amendment` 🔏؛ پایه‌ی کهنه ← `409 decision_not_pending`.
+- **خطوط قرمز `rule`:** روی هر پیام خروجی به مشتری (نگهبان §۱۹.۶، کد `red_line`، بی override) و روی خروجی‌ها، پیام‌ها و استوری‌های ایجنت‌ها (یافته‌ی `PR-115`، متن داخلی نگه داشته نمیشود). خطوط `sample` کار ناظر است.
+
+### ۲۹.۳ دانشنامه‌ی چهارلایه (پرامپت ۱۱ §۳، قرارداد §۲۰.۳)
+- لایه‌ها: هلدینگ (همه میخوانند)، شرکت، دپارتمان (همان دپارتمان، مدیرعامل، هلدینگ)، کارمند (= حافظه‌ی کارمند، فقط نمایش). مقاله‌های پشتیبانی پرامپت ۱۰ در لایه‌ی شرکت با kind `support` **فقط دیده میشوند** (view `knowledge.support_entries`، بی کپی)؛ ویرایش فقط در `/support/kb` (از `/knowledge`: `405`).
+- **منبع و انقضا اجباری:** دست‌کم یک منبع؛ سقف `valid_until`: `fact` ۹۰ روز، `faq` ۱۸۰، `playbook` و `policy` ۳۶۵، `principle` ۷۳۰ (دیتابیس هم چک میکند).
+- **job روزانه** (`hq-knowledge-daily`، ۰۶:۳۰ به وقت مالک): ورودی منقضی ← `expired` (قاعده‌ی خالص، با قفل هم)؛ ۱۴ روز پیش از انقضا یک کار بازبینی برای نگه‌دار لایه (مدیر دپارتمان، مدیرعامل، یا مدیر عملیات AI برای هلدینگ)؛ این کار تا قفل هلدینگ هست ساخته نمیشود.
+- **چرخه:** پیشنهاد ایجنت (`in_review`) ← بازبینی (AI safety، وگرنه ناظر کل؛ اول کد: تزریق، رمز، تطبیق با خط قرمز `rule`؛ هر کدام رد شد حکم `reject` است) ← تأیید مدیرعامل همان شرکت (`knowledge.approve`، ردیف ماتریس `knowledge.approve.company`؛ مالک میتواند به خودش برگرداند) یا برای هلدینگ کارت `knowledge_entry` مالک. نوشته‌ی خود مالک با همان کار تأییدشده است.
+- ورودی منقضی در جستجوی ایجنت‌ها نیست و به‌عنوان شاهد (`deliver`، ادعای جلسه) `422 knowledge_expired` میگیرد.
+- **پروتکل‌های این نیمه:** `PR-111` (دانش)، `PR-114` (قاعده‌های جلسه) با کد؛ `PR-115` (خطوط قرمز) نمونه‌ای و کار ناظر. هر سه با اولین seed بعد از deploy فعال میشوند (نسخه‌ی ۲، ردیف Audit `protocol.activate`)؛ اجرایشان مثل هر پروتکل پشت قفل هلدینگ است.
+- **متغیرهای تازه:** `MEETINGS_DAILY_SHARE` (worker و llm-router)؛ `HQ_MEETINGS_SCHEDULES` (پیش‌فرض `on`؛ `off` فقط در تست: schedule‌های `hq-meetings` و `hq-knowledge-daily` ساخته میشوند ولی متوقف میمانند).
+### ۲۹.۴ سه کارت و کارت امتیاز زنده (پرامپت ۱۱ §۴، قرارداد §۲۰.۴)
+- **جدول‌ها** (migration `0026_1`): `governance.kpis` (تعریف هر KPI برای هر شرکت)، `governance.kpi_values` (سری زمانی، فقط‌افزودنی)، `governance.kpi_sets` (نسخه‌ی If-Match)، `governance.kpi_changes` (هر تغییر تعریف).
+- **منبع فقط از رجیستری بسته‌ی کد** (`hq_api/domain/gov_kpis.py`، `REGISTRY`)، هرگز SQL آزاد از داده:
+  - سلامت: `health.uptime_24h`، `health.p95_latency_ms`، `health.open_incidents`، `health.tls_min_days`
+  - خزانه: `treasury.cost_month_usd`، `treasury.budget_use_pct`، `treasury.cost_per_accepted` (ماه شمسی مالک)
+  - کار و نظارت: `work.on_time_rate`، `work.overdue_open`، `oversight.compliance`، `oversight.findings_open_high`، `stars.company_score`
+  - از ۱۰: `revenue.commission_7d_usdt`، `revenue.new_invitees_7d`، `funnel.signups_7d`، `funnel.conversion_7d`، `support.csat_30d`
+  - خود هلدینگ: `hub.services_up_pct`، `hub.backup_age_hours`، `treasury.agents_cost_month_usd`
+  - KPI دستی (`{kind: "manual"}`، مثل `users.active`) فقط با `kpi.record` و منبع `{kind, ref, note}`؛ ثبت‌کننده مدیرعامل یا مدیر همان شرکت.
+- **seed:** `apps/api/seed/kpis/standard.yaml` (داده). شرکتی که از تأسیس آمده و `proposal.kpis` دارد، آن‌ها را KPI دستی کارت رشد میگیرد؛ کارت پایداری و ایمنی-هزینه استاندارد میماند. مالک هدف‌ها را در اپ عوض میکند: `PUT /api/v1/kpis/{company}` با `If-Match`.
+- **جمع‌آوری:** schedule `hq-kpi-collect` هر ۱۵ دقیقه در worker، **بی‌مدل و بی‌تماس بیرونی**. مقدار فقط وقتی عوض شده یا یک ساعت گذشته ردیف تازه میشود. تا قفل هلدینگ هست هیچ کاری نمیکند (`skipped: holding_locked`).
+- **وضعیت‌ها:** `ok`؛ `stale` («قدیمی»: کهنه‌تر از `freshness_hours`، با رویداد `kpi.stale` یک بار در هر دوره)؛ `no_source` («منبع وصل نیست»: منبعی ساخته نشده یا داده‌ای نیست). **عدد نبود هرگز صفر نیست.**
+- **کارت هلدینگ:** KPIهای خود هلدینگ به‌علاوه‌ی KPIهای شرکت‌ها، تجمیع‌شده با `aggregate` هر KPI (`sum`، `avg`، `min`، `max`). شرکتی که مقدار ندارد بیرون میماند.
+- **امتیاز شرکت** (۳۵٪ «تحقق KPI» فرمول پرامپت ۸): اگر OKR فصل جاری فعال است، پیشرفت وزنی KRها؛ وگرنه سهم KPIهای کارت امتیاز با مقدار و هدف که به هدف رسیده‌اند (`gov_kpis.attainment`).
+- **PR-090** فعال است: KPIِ کهنه یک یافته میشود؛ KPIِ بی‌منبع یافته نیست.
+
+### ۲۹.۵ OKR هر شرکت (پرامپت ۱۱ §۵، قرارداد §۲۰.۵)
+- فصل شمسی: `1405-Q3` یعنی مهر تا آذر. مدیرعامل در ماه آخر فصل با `okr.draft` (فصل جاری بی‌OKR یا فصل بعد) هدف‌ها و نتیجه‌های کلیدی را مینویسد. نتیجه **یک** کارت `okr` برای مالک است.
+- مالک کارت را با اصلاح (`amendments: {key_result_changes: [{ref, target?, weight?, title_fa?}], objective_changes: [{ref, title_fa?}]}`) یا بی‌اصلاح مُهر میکند؛ **فقط مُهر** OKR را `active` میکند و OKRهای فعال قبلی همان فصل بسته میشوند. کارتی که رد، برگشت یا منقضی شد، هدف‌ها را `draft` میکند.
+- KR یا به KPI وصل است (مقدار جاری همان KPI) یا سنجه‌ی دستی با `okr.checkin` و شاهد. check-in دست‌کم هر ۱۴ روز؛ دیرکرد = یافته‌ی **PR-116**. پیشنهاد نشدن OKR فصل بعد ۳۰ روز پیش از شروعش هم یافته‌ی PR-116 است.
+- `hq-governance-daily` (۰۶:۱۰ به وقت مالک، پشت قفل هلدینگ) در ماه آخر فصل برای هر مدیرعامل یک کار «OKR فصل بعد» میسازد (یک بار).
+- `Work.key_result` از `POST /work` و `work.delegate` (کار فرزند KR والد را به ارث میبرد)؛ پلنر برچسب KR را نشان میدهد.
+
+### ۲۹.۶ بازبینی نتیجه‌ی تصمیم‌ها (پرامپت ۱۱ §۶، قرارداد §۲۰.۶)
+- `Decision.expected = {metric_fa, kpi?, baseline, target, by_days: 30|60|90}`. برای `proposal`ی که بعد از deploy این پرامپت ساخته شود اجباری است: **۷ روز اول** فقط هشدار `warnings: ["expected_missing"]` روی کارت، بعد `422`. شروع این ۷ روز ردیف `governance.rollout` با کلید `p11.governance` است (زمان اجرای migration). کارت‌های قبلی دست نمیخورند.
+- با مُهر، برای روز ۳۰، ۶۰ و ۹۰ (تا `by_days`) ردیف `OR-…` ساخته میشود. در روز موعد (`hq-governance-daily` و PR-006):
+  - با KPI: حکم با کد (`met` در هدف، `partly` در نیمه‌ی راه یا بیشتر، وگرنه `missed`)، وضعیت `verified`.
+  - بی‌KPI: `unmeasurable`؛ پیشنهاددهنده `outcome.note` با شاهد میدهد؛ ناظر در PR-006 با `protocol.result` و فیلد `outcomes: [{ref, verdict, note_md}]` حکم میدهد. یادداشتی که ۷ روز بعد از موعد نیامده یافته‌ی PR-006 است.
+- دقت پیش‌بینی هر پیشنهاددهنده: `GET /api/v1/outcomes/accuracy` = (met + partly/۲) / حکم‌شده‌ها.
+- هیچ اجرای قبلی PR-006 حکمی ثبت نکرده بود (هلدینگ قفل بوده)، پس داده‌ای برای انتقال نبود.
+
+### ۲۹.۷ ماتریس اختیار (پرامپت ۱۱ §۷، قرارداد §۲۰.۷)
+- ردیف‌ها در `governance.authority` (بی‌شرکت، پیکربندی هلدینگ)، seed از `apps/api/seed/authority.yaml`. seed ردیف‌های قفل را هر بار از کد بازنویسی میکند؛ `actor` و `limit` ردیف‌های باز مال مالک است و میماند.
+- **ثابت‌های قفل** (`locked: true`، از کد، غیرقابل تغییر):
+  - `a4.never`: A4 هرگز برای هوش مصنوعی.
+  - `a3.owner_only`: A3 فقط مالک. **ارسال پیشاپیش مُهرشده** (قاعده‌ی `lifecycle_rule` مُهرشده با قالب مُهرشده‌ی جاری، `auto_send` کانالی که با `support_go_live` زنده شد) تأیید A3 خود مالک است و مجاز میماند؛ rego و کد این را از خود مُهرها میخوانند، نه از ماتریس.
+  - `a3.ceo_content_calendar`: انتشار پست تقویم محتوا با مدیرعامل خاموش است تا تقویم محتوا ساخته شود.
+  - `decision.proposer_not_approver`، `control.release_owner_only` (کلید توقف و hold)، `authority.owner_only` (هیچ ایجنتی ماتریس را تغییر نمیدهد)، `batch.never`.
+- **ردیف‌های باز و پیش‌فرض‌ها:** `hire.per_day` ۵ (۰ تا ۲۰)، `ceo.attention_per_day` ۶ (همان `owner.settings.ceo_daily_attention`)، `notify.urgent_per_hour` ۵ (۱ تا ۳۰)، `story.per_day` ۳ (۰ تا ۱۰)، `deploy.blackout_days` جمعه، `decision.recurring_approval.ceo` و `knowledge.approve.company` (مدیرعامل؛ مالک با `actor: "owner"` پس میگیرد)، `batch.max_usd` ۲ دلار (۰ تا ۲۰)، `batch.max_items` ۲۰ (۱ تا ۵۰)، `batch.kinds`.
+- **تغییر:** مالک `PUT /api/v1/authority` 🔏 `authority.update` روی SHA-256 بدنه، `{rules: [{key, actor?, limit, version}]}`. ردیف قفل یا عدد بیرون از `bounds` → `422`؛ نسخه‌ی کهنه → `409`. ایجنت‌ها فقط کارت `authority_change` 🔏 پیشنهاد میدهند و `authority.read` ردیف‌های شرکت خودشان را میخوانند.
+- **OPA:** api ردیف‌ها را به `data.hq.authority` میفرستد (`PUT /v1/data/hq/authority`، تنها نوشتن داده‌ای که `system.authz` اجازه میدهد): در اولین استفاده، بعد از هر تغییر، و هر وقت digest نسخه‌ی OPA (`POST /v1/data/hq/limits/version`) با پایگاه داده نخواند (مثلاً بعد از ری‌استارت OPA؛ حداکثر هر ۶۰ ثانیه در هر پروسه). package `hq.limits` هر عدد را در `bounds` فایل (`data.json` → `authority_bounds`، `authority_lists`، `never_batch`) نگه میدارد؛ پس داده‌ی جعلی فقط داخل همان مرزها حرکت میکند و ثابت‌های قفل اصلاً این داده را نمیخوانند.
+- **مرزها دو جا هستند** (seed و `infra/opa/policy/data.json`)؛ اگر یکی عوض شد، دیگری هم (تست `test_the_bounds_of_the_files_agree` همین را میسنجد).
+
+### ۲۹.۸ دفتر ریسک (پرامپت ۱۱ §۸، قرارداد §۲۰.۸)
+- `RK-…`، امتیاز = احتمال × اثر. نگه‌دار: بازرس کل (QC). سقف `review_at`: امتیاز ۱۵+ ← ۱۴ روز، ۸+ ← ۳۰، بقیه ۹۰.
+- `hq-governance-daily`: پذیرش منقضی ← `open`؛ بازبینی دیرکرده ← یک کار برای پاسخ‌گو (یک بار برای هر موعد)؛ یافته‌ی `critical` هفته‌ی اخیر ← پیش‌نویس ریسک (`draft: true`). **PR-112** بعد از آن یافته میسازد، و برای ریسک ۱۵+ بی‌راه کاهش و بی‌پذیرش.
+- پذیرش فقط با کارت `risk_acceptance` 🔏، حداکثر ۹۰ روز. بستن فقط با بازرس (یا مالک)؛ پاسخ‌گو خودش نمیبندد.
+- کالبدشکافی پیش‌نویس ریسک را با `gov_risks.draft_risk(..., origin="postmortem")` میسازد (نقطه‌ی ورود نیمه‌ی دیگر پرامپت).
+
+### ۲۹.۹ تقویم تغییرات و انتشارها (پرامپت ۱۱ §۹، قرارداد §۲۰.۹)
+- `CE-…`. کد پرش میکند: کارت deploy با `window` (پیش از ساختن کارت؛ `head_sha` از این پرامپت اجباری)، فریزها، پشتیبان شبانه‌ی هاب (۰۲:۳۰ UTC) و تست بازیابی هفتگی (یکشنبه ۰۶:۰۰ تهران)، جلسه‌ها (بی استندآپ‌ها؛ یک ساعت، `auto_key` = `meeting:MT-…`؛ جلسه‌ی `missed` از تقویم کنار میرود؛ پلنر خود جلسه را نشان میدهد، نه این رویداد را)، تعطیلات رسمی (`apps/api/seed/calendar/holidays.yaml`). کمپین و رویداد با `calendar.add` (مدیرعامل، مدیر رشد شرکت خودش، سرپرست‌های هلدینگ) یا مالک.
+- **تعطیلات:** روزهای خورشیدی دقیق‌اند؛ روزهای قمری تخمین جدولی‌اند و ممکن است یک روز با تقویم رسمی فرق کنند. هر سال با تقویم رسمی چک و فایل را اصلاح کن (seed فقط روز تازه اضافه میکند؛ روز اشتباهِ ثبت‌شده را با `PATCH /api/v1/calendar/{ref}` جابه‌جا یا `cancelled` کن).
+- **تداخل‌ها** (کد): انتشار داخل فریز و انتشار هم‌زمان با کمپین یا رویداد همان شرکت `high`؛ دو انتشار یک شرکت یا یک repo، روز ممنوع ماتریس، تعطیلی و نگه‌داری هم‌زمان `medium`. روی کارت در `payload.calendar_conflicts` و `risk_note` میآید و رویداد `calendar.conflict` میفرستد. **تقویم تصمیم نمیگیرد**؛ **PR-113** انتشار تأییدشده‌ی بی‌پنجره یا با تداخل `high` را یافته میکند.
+- پلنر رویدادهای تقویم را هم نشان میدهد (`kind: "calendar"`)؛ پلنر همچنان نما است.
+
+### ۲۹.۱۰ مُهر گروهی کارت‌های کم‌ریسک (پرامپت ۱۱ §۱۰، قرارداد §۲۰.۱۰)
+- **فهرست مجاز** (ردیف `batch.kinds`، مالک فقط کوتاه‌ترش میکند): `proposal`، `meeting_resolution`، `knowledge_entry`. شرط‌های دیگر: A1، ریسک low، برگشت‌پذیر، pending، تأییدکننده مالک، بی‌hold، بی‌اصلاح، `quota_estimate.usd ≤ batch.max_usd` (کارتی که برآورد توکن دارد ولی دلار ندارد شایسته نیست).
+- **هرگز گروهی** (ثابت قفل `batch.never`): هر A3، `hire`، `dismissal`، `budget_change`، `code_session`، `server_plan`، `deploy`، `company_found`، `tool_enable`، `protocol`، `errand_action`، `evaluation`، `charter_amendment`، `authority_change`، `risk_acceptance`، `okr`، `recurring_approval`، `lesson_adoption`، `message_template`، `lifecycle_rule`، `support_go_live`.
+- `GET /api/v1/decisions/batchable` ← `POST /api/v1/decisions/batch/approve` 🔏 `decision.batch` روی SHA-256 JSON کانونی `[{ref, version}]` مرتب‌شده بر اساس ref (`Idempotency-Key` اجباری). همه یا هیچ: `422 batch_not_eligible` با `fields.items: [{ref, reason}]`. هر کارت مصوبه، ردیف Audit (`batch: B-…`) و interaction خودش را دارد.
+
+### ۲۹.۱۱ دروازه‌ی راه‌اندازی برای کارهای حاکمیت (پرامپت ۱۱ §۴ تا §۱۰)
+- `hq-kpi-collect` و `hq-governance-daily` اول `gate.holding_lock` را میپرسند و تا کلید توقف هلدینگ روشن است **هیچ کاری** نمیکنند (نه ردیف، نه کار، نه مدل، نه تماس بیرونی). هیچ‌کدام مدل صدا نمیزند.
+- PR-006، PR-090، PR-112، PR-113 و PR-116 مثل همه‌ی پروتکل‌ها در قفل هلدینگ `skipped` میشوند (بی‌ردیف اجرا).
+- کاری که این jobها میسازند (بازبینی ریسک، OKR فصل بعد) تنها چیزی است که میتواند ایجنتی را بیدار کند، و فقط وقتی قفل نیست.
+## ۳۰. ابزار مدیریت (پرامپت ۱۲؛ قرارداد §۲۱)
+بخش A ‏(§۱، §۹، §۹.۱، §۱۴، §۱۵) در ۳۰.۱ تا ۳۰.۷، سه بخش ساخته‌شده روی پرامپت ۱۱ (§۲، §۳، §۱۳) در ۳۰.۸ تا ۳۰.۱۰، و بخش B ‏(§۴ تا §۸، §۱۰ تا §۱۲) در ۳۰.۱۱ تا ۳۰.۱۸.
+- **migration ‏`0027`** (`0027_management_tools_a.py`): دو schema تازه، `advisor` (یادداشت‌ها و محرک‌ها) و `substitutes` (بازیکن‌ها، جایگاه‌ها، فراخوانی‌ها، ورودها، creativeها). همه‌ی جدول‌ها `company_id` و RLS **FORCE** دارند؛ ردیف‌های مالک و هلدینگ با `company_id` هلدینگ. هیچ نوع کارت تازه‌ای اضافه نمیشود.
+  - همچنین: بلوک‌های `advisor` و `substitutes` در `owner.settings`، ستون `work.work.run_meta` (task class اجرا و پرچم سهم مالک، فقط با کدی که کار را میسازد)، وضعیت‌های تازه‌ی `llm.connections` (`pending_secret`، `verifying`، `ready`، `error`) و نوع `subscription`، task classهای تازه، سه اتصال بازیکن ذخیره و سه حساب پروفایل مرورگر.
+- **migration ‏`0027_1`** (`0027_1_management_reports.py`، بخش B، بعد از `0027`): schemaهای `reports` و `quality` و جدول‌های تازه‌ی `people`، `llm` و `owner` (۳۰.۱۱ تا ۳۰.۱۸).
+  - **زنجیره (روی پرامپت ۱۱):** `0025` ← `0026` ← `0026_1` ← `0027` ← `0027_1` ← `0027_2` (۳۰.۸).
+    `0027` حالا روی `0026_1` پرامپت ۱۱ مینشیند.
+- **دروازه‌ی راه‌اندازی:** هیچ چیزی از این بخش تا کلید توقف هلدینگ روشن است مدل یا سرویس بیرونی صدا نمیزند:
+  - یادداشت خودکار ساخته نمیشود و درخواست مالک ← `423 company_locked`.
+  - هر محرک تازه `deferred` (با `holding_locked`) ثبت میشود؛ خود قاعده‌ها فقط دیتابیس میخوانند.
+  - هر فراخوانی بازیکن ذخیره `skipped` میشود؛ `claim` هیچ کاری نمیدهد؛ worker هیچ کار وبی اجرا نمیکند.
+  - وارسی اتصال تازه صبر میکند (`verifying`).
+- **تصمیم‌های منتظر مالک (§۰.۸)، پیش‌فرض‌ها تا جواب او:** یادداشت خودکار روشن، حداکثر ۳ در روز؛ گزارش فعال ۳ در روز؛ `OWNER_ZONE_DAILY_SHARE=0.25`؛ رمز اتصال تازه از هر دو راه (`CONNECTION_SECRET_ROUTE=api`)؛ جایگاه‌ها و سقف‌های جدول §۹.۱، همه روشن؛ بازیکن پیش‌فرض عکس `gpt`؛ عکس و ویدیو فقط از مسیر وب؛ هیچ پروفایل اختیاری (MCP، runner، مرورگر وب) روشن نمیشود تا مالک بگوید.
+
+### ۳۰.۱ مشاور پریمیوم: یادداشت تصمیم، مخالف‌خوان، گزارش فعال (§۱، قرارداد §۲۱.۱)
+- **یادداشت تصمیم** (`advisor.memos`، شماره‌ی `DM-0001`):
+  - **درخواست مالک:** `POST /api/v1/decisions/{ref}/memo {mode: standard|devil}` ← `202`. همان کارت، mode و `version` همان یادداشت را برمیگرداند. کارت تصمیم‌گرفته ← `409 decision_not_pending`.
+  - **خودکار:** sweep مشاور در worker (`hq-advisor-sweep`، هر ۲ دقیقه) برای کارت‌های امروزِ مالک با `risk: high` یا نوع `deploy`، `company_found` یا `server_plan` یادداشت میسازد، به ترتیب ساخت و حداکثر `owner_settings.advisor.auto_memo.max_per_day` (۳) در روز مالک. اضافه‌ها به فردا نمیروند؛ فقط دکمه‌ی درخواست میماند.
+  - **اجرا:** یک کار برای `HQ-ADV` با بودجه‌ی ۸۰ هزار توکن، task class ‏`advisor_memo` و `owner_zone` برابر `auto` یا `direct`. بسته‌ی شاهد (کارت، ماسک‌شده) در brief است و در `advisor.memos.facts` میماند.
+  - **`memo.write`** (A1، فقط مشاور، فقط کارت `pending` و همان `version`): `against_md` خالی ← ۴۲۲؛ نسخه‌ی دیگر کارت ← `409 version_conflict`؛ هر ارجاع سمت سرور سنجیده میشود و ارجاع ساختگی حذف و در `citations_dropped` شمرده میشود. کار یادداشت با شاهد `DM-…` بسته میشود.
+  - **کارت قفل است:** trigger پایگاه‌داده (`advisor.stale_on_change`) یادداشت کارتی را که هنوز `pending` است و عوض شده `stale` میکند (ستون‌های دفتری مثل `reminded_at` حساب نیستند). نسخه‌ی تازه یادداشت تازه میگیرد؛ خودکار فقط اگر شرط خودکار برقرار باشد.
+  - یادداشتی که اجرایش بی `memo.write` تمام شد، بعد از ۵ دقیقه `failed` میشود.
+  - **نظر دوم و سوم:** کنار هر یادداشت، با کد، دو فراخوانی بازیکن ذخیره روی همان بسته‌ی شاهد ماسک‌شده و **بی دیدن یادداشت**: جایگاه `advisor_second_opinion` (GPT) و `third_opinion` (DeepSeek). `agrees` با کد است (همان `recommendation`). بازیکن خاموش، خارج‌شده یا بالای سقف روزانه ← نظر `null`.
+- **مخالف‌خوان:** پیام مالک در رشته‌ی `A` با `mode: "devil"` (در هر رشته‌ی دیگر ← ۴۲۲). runner دستور مخالف‌خوان را فقط برای همان اجرا به system prompt مشاور اضافه میکند و جواب `meta.mode: "devil"` میگیرد.
+- **گزارش فعال** (`advisor.triggers`): محرک‌ها با کد و بی مدل: بودجه‌ی ماه ≥ ۹۰٪، سهمیه‌ی اشتراک بیش از ۲ ساعت `limited`، افت انطباق ≥ ۱۰ امتیاز در یک روز، حادثه‌ی `sev1` باز بیش از ۳۰ دقیقه، هشدار افت کمیسیون رادار درآمد، ≥ ۳ کارت منتظر بیش از ۷۲ ساعت، یافته‌ی `critical` باز بیش از ۲۴ ساعت، و KR عقب از OKR (بعد از merge پرامپت ۱۱؛ تا جدولش نیست، چیزی نمیسازد).
+  - `key` هر محرک در هر روز یکتاست؛ همان محرک دوباره مشاور را بیدار نمیکند.
+  - مشاور با واقعیت‌های از پیش جمع‌شده بیدار میشود (۵۰ هزار توکن، `advisor_proactive`) و یک پیام کوتاه در `A` مینویسد (`meta.proactive: {kind, key}`) با یک اعلان سطح `report`؛ **هرگز `urgent`**.
+  - سقف `owner_settings.advisor.proactive_per_day` (۳)؛ بقیه `capped`. قفل هلدینگ یا پر بودن سهم مالک ← `deferred`.
+- **API:** `GET /decisions/{ref}/memo?mode`، `GET /advisor/memos?decision&cursor`، `GET /advisor/triggers?since&kind`؛ `Decision.memos`. stream: `memo.ready` و `advisor.proactive` روی topic ‏`advisor`.
+
+### ۳۰.۲ سهم توکن مالک و task classهای تازه (§۱۵، قرارداد §۲۱.۰)
+- **`OWNER_ZONE_DAILY_SHARE`** (در `.env`، خالی یعنی `0.25`): کارهای **خودکار** منطقه‌ی مالک (یادداشت خودکار، گزارش فعال، خلاصه‌ی مرور هفتگی، کتابدار، پیش‌بینی و اصول مدیر کل دیجیتال) روی هم حداکثر این سهم از `AGENT_DAILY_TOKEN_CAP` را در روز UTC مصرف میکنند (با ۶۰۰ هزار: ۱۵۰ هزار).
+  - LLM Router مثل سهم نظارت اجرایش میکند: فراخوانی task classهای منطقه با `meta.owner_zone` غیر از `direct` بعد از پر شدن سهم ← `429 budget_exhausted` (در دفتر `rejected_budget` / `owner_zone_share`). فراخوانی بی پرچم هم خودکار حساب میشود (سمت امن).
+  - **درخواست مستقیم مالک** (یادداشت به درخواست، پرسش، پیام) همیشه اجرا میشود، داخل سقف کل، و در منطقه شمرده میشود.
+  - api هم پیش از ساختن کار خودکار همین را میپرسد: یادداشت خودکار ساخته نمیشود و محرک `deferred` میشود.
+- **task classهای تازه** (seed روتر و migration ‏0027): `advisor_memo`، `advisor_proactive`، `advisor_review`، `ask_hub`، `ceo_letter`، `hr_eval`، `dceo_predict`، `dceo_principles`؛ و برای بازیکن‌های ذخیره `sub_code_review`، `sub_second_opinion`، `sub_cross_check`، `sub_errand`، `sub_draft`، `sub_long_read`، `sub_creative` (فقط در دفتر، با هزینه‌ی معادل؛ روتر هرگز آن‌ها را اجرا نمیکند).
+  - task class اجرای ایجنت از `work.work.run_meta` میآید (فقط کلاس‌های همین فهرست؛ هرگز انتخاب ایجنت).
+- **بازیکن‌های ذخیره** از هیچ سقف یا سهم Claude نمیخورند: سقفشان سهمیه‌ی اشتراک و سقف روزانه‌ی هر جایگاه است.
+
+### ۳۰.۳ افزودن اتصال تازه (§۹، قرارداد §۲۱.۷)
+- **ساخت:** `POST /api/v1/connections` با 🔏 `connection.create` روی SHA-256 بدنه و `Idempotency-Key` اجباری: `{key, provider, kind, display_name, base_url?, models[], default_model?, pricing{}, limits{}, fallback_priority?}`.
+  - provider فقط `anthropic`، `openai`، `google`، `deepseek`، `mistral` یا `openai_compatible`. `base_url` فقط برای `openai_compatible`، فقط `https` و نه آدرس خصوصی، loopback یا داخلی هاب (مثلاً `10.10.1.2` ← ۴۲۲). key تکراری ← `409 version_conflict`.
+  - `kind: subscription` اینجا ساخته نمیشود (`409 not_ready`): اشتراک‌ها با CLI خودشان کار میکنند و اشتراک‌های بازیکن ذخیره seed شده‌اند.
+  - نتیجه `pending_secret` است. اتصال تازه فقط با `PUT /assignments` 🔏 به کار میرود؛ تا وارسی نشده، روتر هیچ فراخوانی به آن نمیدهد و `PATCH status: enabled` ← `409 not_ready`.
+- **رمز، از دو راه:**
+  - مسیر API موجود `POST /connections/{id}/secret` 🔏 `connection.secret` (write-only) اتصال تازه را به `verifying` میبرد.
+  - ترمینال خود مالک: `make connection-secret KEY=<key>` (ورودی پنهان، مستقیم به OpenBao در `kv/llm-connections/<key>`). Claude سرور هرگز آن را اجرا نمیکند.
+  - با `CONNECTION_SECRET_ROUTE=terminal` (تصمیم مالک) مسیر API برای اتصال تازه `409 validation_failed` میدهد و دستور ترمینال را میگوید.
+- **وارسی:** روتر هر `LLM_CONNECTION_VERIFY_INTERVAL_S` (۳۰ ثانیه) اتصال‌های `pending_secret` را که رمزشان رسیده `verifying` میکند و هر `verifying` را با فهرست مدل‌های همان ارائه‌دهنده (`GET .../models`) میسنجد، **بی خرج هیچ توکنی** ← `ready` (با `verified_at`) یا `error` با `status_reason` کوتاه.
+  - پیش از تماس، نام میزبان resolve میشود و آدرس غیرعمومی رد میشود (قاعده‌ی محافظ egress).
+  - تا کلید توقف هلدینگ روشن است هیچ تماسی نمیرود.
+  - هیچ پاسخ، لاگ، رویداد یا ردیف Audit رمز را ندارد.
+
+### ۳۰.۴ بازیکن‌های ذخیره: ChatGPT، Gemini و DeepSeek (§۹.۱، قرارداد §۲۱.۱۳)
+#### api، worker و ابزار ایجنت
+- **قاعده‌ی نیمکت در کد:** هر فراخوانی جایگاه یک سؤال محدود است، با برچسب `source {player, model, connection, at}`، و **هرگز شاهد نیست** (هیچ مسیر نوشتنی ندارد و رکورد قابل ارجاع نیست). ورودی ماسک‌شده است؛ داده‌ی شخصی یا رمز (حتی داخل base64/hex) ← `policy_denied`. `quick_search` از کل محافظ `web.search` رد میشود (هیچ نام، ref یا کد کارمند داخلی). کد ریپو فقط در `code_review`.
+  - **هیچ جابه‌جایی پنهانی نیست:** بازیکن `limited`، خارج‌شده، منقضی یا `off`، یا جایگاهی که سقف روزانه‌اش پر است ← فراخوانی `skipped` (در `month.skipped`) و صداکننده با مدل خودش ادامه میدهد. اجرای Claude هرگز به بازیکن ذخیره نمیرود و برعکس.
+  - این فراخوانی‌ها از هیچ سقف یا سهم Claude نمیخورند؛ هر کدام یک ردیف در `llm.calls` (caller ‏`substitutes`، task class ‏`sub_*`) با هزینه‌ی معادل از جدول قیمت اتصال میگیرند. جدول قیمت اتصال‌های بازیکن ذخیره خالی است تا مالک پر کند؛ تا آن موقع `equiv_usd` صفر است و اعلان «عقب ماندن» نمیآید.
+- **صف کارها (api):** `substitutes.calls` هم صف CLI است و هم صف وب.
+  - CLI: `POST /internal/v1/substitutes/jobs/claim` (فقط principal سرویسی `substitutes`؛ یک کار در لحظه برای هر دو؛ تا قفل هست هیچ کاری) و `.../jobs/{id}/done` (idempotent). سهمیه‌ی تمام‌شده ← بازیکن `limited` با `limited_until` و جایگاه `skipped`. جوابی که بعد از `queued` رسید به‌صورت یک کار برای ایجنت صداکننده برمیگردد.
+  - وب: worker (`hq-substitute-web`، هر دقیقه) کارهای وب را از `POST egress /v1/substitutes/web` اجرا میکند: یکی در لحظه برای هر بازیکن و دست‌کم ۶۰ ثانیه فاصله؛ تا قفل هست هیچ. پروفایل منقضی ← `web.state: expired`، کارهای منتظرش `skipped` و **یک** اعلان `report`. recipe شکسته ← فراخوانی `failed` با شماره‌ی قدم، و اگر SRE پلتفرم هلدینگ استخدام شده باشد یک کار fallback برای او.
+- **جایگاه‌ها:** از جدول §۹.۱ seed شده‌اند (همه روشن، جز `code_review` جمنای). `PUT /api/v1/substitutes/{player}/seats` با 🔏 `substitute.seats` روی هش بدنه و `If-Match`؛ جایگاهی که در فهرست نیست خاموش میشود؛ `creative` و همه‌ی جایگاه‌های DeepSeek فقط `via: web`.
+  - مدل‌ها داده‌اند: روزی یک بار (`hq-substitute-daily`، ۰۹:۱۵ تهران) برای هر بازیکن CLI واردشده یک کار `models` (Gemini: یکی برای هر مدل). مدلی که CLI نمیدهد `available: false` و جایگاهش به نزدیک‌ترین مدل موجود همان ردیف میرود؛ گزارش صبحگاهی میگوید.
+  - روز ۱۵ ماه شمسی، بازیکن پولی واردشده‌ای که `value_ratio` آن زیر `owner_settings.substitutes.behind_ratio` (۰٫۴) است یک اعلان `report` میگیرد؛ هیچ چیز خودش گسترده نمیشود.
+- **creative (عکس و ویدیو، `CR-0001`):** `POST /api/v1/creatives` (مالک، `Idempotency-Key`؛ prompt با قالب خود هاب از brief و جای انتشار، با «هیچ متنی در تصویر نباشد») یا `substitute.call` با `seat: creative` (prompt را ایجنت مسئول مینویسد).
+  - دانلود از پردازش §۱۷.۱ رد میشود (نوع از روی بایت‌ها، حذف EXIF در child، سقف اندازه). **متن فارسی را خود هاب میگذارد:** IRANYekanX، راست‌به‌چپ، رنگ و نشان برند شرکت، داخل حاشیه‌ی امن همان جای انتشار (مثلاً استوری اینستاگرام: ۱۴٪ بالا و ۲۰٪ پایین خالی)، با resvg در child ← `composed` ← `review`. فونت از `design/fonts/static` فقط‌خواندنی (`HQ_FONTS_DIR`) در worker.
+  - مالک `accept` یا `reject` میکند. **پذیرفتن یعنی انتشار نیست:** انتشار در کانال یا استوری کار بیرونی است و کارت A3 میخواهد.
+- **ورود CLI از اپ:** `POST /api/v1/connections/{id}/login` با 🔏 `connection.login` روی id؛ تا runner خاموش است (یا برای DeepSeek) ← `409 not_ready` با دستور ترمینال. `GET .../login/{login_id}` برای poll؛ `POST .../login/{login_id}/code` فقط برای `auth_code`، write-only، حداکثر ۱۰ دقیقه، یک بار به runner داده و پاک میشود؛ در هیچ پاسخ، لاگ یا Audit نیست. خروج: `POST /connections/{id}/logout` 🔏 `connection.logout`؛ پاک کردن پروفایل وب: `POST /substitutes/{player}/web/logout` 🔏 `substitute.web_logout` (egress در دور بعد worker پاکش میکند).
+- **ابزار `substitute.call`** (A0): مشاور، ناظر، دستیار و مدیرعامل‌ها در جایگاه‌های خودشان و فقط در شرکت خودشان؛ مدیر فنی و QC فقط `code_review` (OPA ‏`advisor_substitutes.rego`). تا قفل هست ← ۴۲۳. ردها: `channel_not_configured`، `rate_limited`، `policy_denied`.
+- **بازبینی دوم کد:** یافته‌ها `verified: null` میمانند تا مدیر فنی یا QC بسنجد؛ هیچ یافته‌ی سنجیده‌نشده‌ای به `risk_note` کارت نمیرسد و تأیید کارت با یا بی آن همان است.
+
+#### runner، dispatcher، مرورگر وب و ورود
+- **همه خاموش است تا مالک بگوید:** دو profile اختیاری `substitutes` (runner CLIها) و `substitutes-web` (پروفایل‌های لاگین‌شده‌ی مرورگر) با `HQ_SUBSTITUTES=on` و `HQ_SUBSTITUTES_WEB=on` در `.env` روشن میشوند. `hq.sh` هر کدام را که با بودجه‌ی حافظه جا نشود رد میکند (exit 3)، مثل STT. api فقط وقتی runner روشن است `SUBSTITUTES_RUNNER=on` میگیرد (`hq.sh --print-substitutes-runner`). کلید توقف هلدینگ هم هر کار را متوقف میکند: api تا قفل هست هیچ کاری تحویل نمیدهد.
+- **runner:** image `coinepro-hq/substitutes` با OpenAI Codex CLI ‏0.160.0 و Google Gemini CLI ‏0.63.0 (هر دو Apache-2.0، از `services/substitutes/cli/package-lock.json` با hash). هر فراخوانی یک container یک‌بارمصرف است: Job روی stdin، prompt روی stdin خود CLI (هرگز در argv)، خروجی خط‌های JSON.
+  - ابزارهای خود CLI خاموش‌اند: Codex با `--sandbox read-only` در پوشه‌ی خالی tmpfs؛ Gemini با فایل تنظیمات سیستمی `/etc/gemini-cli/settings.json` که هیچ core tool ثبت نمیکند. فقط بازبینی کد (`code_review`) checkout فقط‌خواندنی را با ابزارهای خواندن فایل میبیند (`review.json`).
+  - ورود CLIها فقط در volume `hq-substitute-auth` است (فایل‌ها ۶۰۰، بیرون از backup). اگر گم شد، مالک دوباره وارد میشود.
+- **dispatcher:** `infra/substitutes/dispatch.sh` با `coinepro-hq-substitutes.timer` هر ۲۰ ثانیه، به نام کاربر Hub (نصب با `make install-systemd`). وقتی خاموش است همان لحظه بیرون میرود.
+  - یک کار در لحظه برای هر دو بازیکن (flock). با یک container موقت curl روی `hq-internal` کار را از `POST /internal/v1/substitutes/jobs/claim` میگیرد؛ توکنش (`kv/hq-api/config` → `service_tokens.substitutes`، خود توکن فقط در `~/.secrets/substitutes/api-auth` با دسترسی ۶۰۰) هرگز در خط فرمان نیست. `make up` یک بار آن را میسازد؛ بعدش api را restart کن.
+  - بازبینی کد: `git archive` همان `head_sha` از clone خود هاب (`HQ_SUBSTITUTE_REPOS`، پیش‌فرض `coinepro-hub=/home/Hub/CoinePro-Hub`)، فایل‌هایی که اسکن رمز (`hq_common.secret_files`) پیدا میکند کامل حذف، و mount فقط‌خواندنی. ریپو یا commit ناشناخته ← `no_access`.
+- **hostهای egress (فقط CONNECT روی 443):** runner روی `hq-subs` فقط به listener ‏`:3131` میرسد: `chatgpt.com`، `auth.openai.com`، `cloudcode-pa.googleapis.com`، `oauth2.googleapis.com`، `www.googleapis.com` (با زیردامنه‌ها؛ `EGRESS_SUBSTITUTES_HOSTS`). `api.openai.com` نه. مرورگر پروفایل روی `hq-browser-web` فقط به `:3132` میرسد و هر کار فقط به hostهای recipe خودش. پنجره‌ی ورود روی `hq-web-login` فقط به `:3133` (hostهای خود سایت‌ها و ورودشان).
+- **probe قابلیت‌ها (کار `models`):** Codex فهرست مدل‌های حساب را میدهد (`codex debug models`)؛ Gemini فهرستی ندارد و هر کار یک مدل را با یک کلمه امتحان میکند. فقط وقتی ورود هست و قفل نیست، و از سهمیه‌ی اشتراک (نه توکن Claude).
+- **ورود CLIها (فقط مالک، در ترمینال خودش):** `make chatgpt-login` (کد دستگاه: لینک و کد را روی گوشی میزنی) و `make gemini-login` (لینک را باز میکنی و کد را برمیگردانی، بعد `/quit`). همین از اپ هم هست (تنظیمات ← اتصال‌ها، با step-up). خروج از اپ: `POST /connections/{id}/logout` 🔏.
+- **مرورگر وب و ورود یک‌باره (فقط مالک):** `make chatgpt-web-login`، `make gemini-web-login` یا `make deepseek-web-login`.
+  - پروفایل در یک Chromium قابل دیدن باز میشود، حداکثر ۱۵ دقیقه. noVNC فقط روی `127.0.0.1:6080` سرور است (از راه `web-login-relay`). با تونل SSH خودت: `ssh -L 6080:127.0.0.1:6080 …`، بعد `http://127.0.0.1:6080/vnc.html` با رمز یک‌باره‌ای که همان ترمینال نشان میدهد. **تنظیم SSH سرور عوض نمیشود.**
+  - وارد شو و مرورگر را ببند. هاب رمزت را نمیبیند. پروفایل در volume `hq-substitute-web` است (فایل‌ها ۶۰۰، بیرون از backup) و فقط `browser-web` و همین پنجره mountش میکنند.
+  - پیش از روشن کردن `substitutes-web` وارد شو: پنجره‌ی ورود و مرورگر پروفایل با هم از جمع سقف‌های حافظه بیشترند.
+  - خروج از اپ: `POST /substitutes/{player}/web/logout` 🔏 که پروفایل را پاک میکند.
+- **recipeها و fallback:** `infra/egress/recipes/{chatgpt-web,gemini-web,deepseek-web}.yaml` فایل‌های بازبینی‌شده‌اند: گفت‌وگوی تازه (در ChatGPT موقت) ← چسباندن prompt ← صبر (عکس ≤ ۳ دقیقه، ویدیو ≤ ۱۰ دقیقه) ← خواندن جواب یا دانلود نسخه‌ی اصلی ← بستن. در DeepSeek فقط DeepThink و Search، همیشه روشن.
+  - صفحه‌ی ورود ← `expired` (هیچ ورود خودکاری نیست؛ مالک دوباره وارد میشود). قدمی که شکست بخورد ← `recipe_failed` با شماره‌ی قدم؛ این نشانه‌ی fallback یک اجرای Claude با `web.browse` روی همان پروفایل است که اصلاح recipe را به‌صورت تغییر بازبینی‌شده پیشنهاد میدهد. selectorها هنوز روی سایت واقعی سنجیده نشده‌اند (هیچ ورودی ساخته نشده).
+  - `web.browse` با حساب پروفایل همان قواعد مرور را دارد: POSTی که در `allow` حساب نیست `needs_owner` میشود. برای اینکه fallback بتواند پیام بفرستد، مالک باید فراخوان ارسال همان سایت را در `allow` حساب مُهر کند (🔏 `account.put`).
+  - هیچ screenshot، لاگ یا جوابی کوکی ندارد: جواب فقط متن خوانده‌شده یا فایل اصلی است و نوع فایل از روی محتوا تعیین میشود.
+- **بازبینی دوم کد:** checkout فقط‌خواندنی همان `head_sha`، بی فایل‌های رمزدار؛ Codex با `--output-schema` (`findings: [{path, line, severity, title_fa, detail_md}]`). یافته‌ها فقط پیشنهادند: مدیر فنی یا QC میسنجد، و هرگز تأیید یا مسدود نمیکنند.
+- **حافظه:** `MEM_SUBSTITUTE=512m`، `MEM_BROWSER_WEB=768m`، `MEM_BROWSER_LOGIN=1024m`، `MEM_WEB_LOGIN_RELAY=32m` (اندازه‌گیری‌ها در گزارش). در full هر دو profile با هم جا میشوند، ولی همراه STT نه. اولویت با مالک است.
+
+### ۳۰.۵ MCP روی کانتینر (پرامپت ۱۲ §۱۴، قرارداد §۲۱.۱۱)
+- **پروفایل اختیاری `mcp`، پیش‌فرض خاموش** (`HQ_MCP=` در `.env`). `hq.sh` فایل `infra/compose/mcp.yaml` را به همه‌ی فرمان‌ها اضافه میکند و پروفایل را فقط با `HQ_MCP=on` و وقتی در بودجه‌ی حافظه جا شود روشن میکند؛ وگرنه `up` با کد ۳ رد میشود (مثل STT). api فقط وقتی پروفایل روشن است `MCP_CONTAINERS=on` میگیرد.
+  - **عددها (۲۰۲۶-۱۰-۲۲):** `mcp-time` حدود ۹۲ مگ، پیک ۹۷ (`MEM_MCP_TIME=192m`)؛ CodeCortex روی ریپوی هاب ۷۶ مگ بیکار، ۱۳۳ بعد از چند فراخوانی، پیک ۳۰۷ (`MEM_MCP_CODECORTEX=384m`)؛ job ایندکس کامل پیک ۳۳۰ مگ در ۱۲ ثانیه (`MEM_MCP_CODECORTEX_INDEX=448m`).
+  - **بودجه:** full با mcp ‏11920 از 12288 مگ (جا میشود، ۳۶۸ مگ میماند)؛ lean با mcp ‏700 مگ بیشتر از بودجه. همراه STT جا نمیشود. اولویت با مالک است (§۰.۸ بند ۷).
+- **شبکه:** `hq-mcp` (internal، `172.30.12.0/24`): فقط سرورهای MCP و Tool Gateway. egress، api و دیتابیس روی آن نیستند. gateway مستقیم به `http://mcp-<key>:8080/mcp` وصل میشود (بی egress).
+- **هر سرور:** کاربر 10001، rootfs فقط‌خواندنی، `cap_drop: ALL`، `no-new-privileges`، فقط `hq-mcp`، هرگز socket داکر، بی رمز. پل stdio→HTTP: ‏`mcp-proxy` (MIT) داخل همان image.
+- **فهرست مجاز بازبینی‌شده:** `infra/mcp/servers.yaml` (key، image با digest، URL، دستور، لایسنس، منبع، ابزارهای بازبینی‌شده با کمترین کلاس، ابزارهای ممنوع، `mem_limit`، `needs_internet`/`needs_secret`).
+  - `POST /api/v1/tools/mcp` با `transport: container` فقط دقیقاً همان key، image و URL، بی `auth_header`، بی ابزار ممنوع یا بازبینی‌نشده‌ی روشن، و بی کلاس پایین‌تر از بازبینی‌شده پذیرفته میشود؛ وگرنه ۴۲۲ (پیش از مصرف مُهر). سروری که اینترنت یا رمز بخواهد ← `409 not_ready` (نسخه‌ی بعد).
+  - روشن کردن (🔏 `mcp.enable`) وقتی پروفایل خاموش است یا image مُهرشده دیگر همان بازبینی‌شده نیست ← `409 not_ready`؛ `mcp.call` همان وقت ← `503 channel_not_configured`. همه‌ی قواعد §۲۰ سر جایش است (pin فهرست، فهرست تغییرکرده ← خاموش + کارت `tool_enable`، کلاس مُهرشده، A3 به کارت، redaction، `mcp_calls`).
+- **image با digest ثابت:** imageها روی خود هاب ساخته میشوند و هرگز pull نمیشوند (`pull_policy: never`). `make mcp-build` آن‌ها را تکرارپذیر میسازد (`SOURCE_DATE_EPOCH=0`، timestamp بازنویسی‌شده، بی attestation)؛ digest هر ساخت باید همان فهرست مجاز باشد وگرنه خطا میدهد و هر دو را چاپ میکند. `make up` با `HQ_MCP=on` همین را اول اجرا میکند. compose هر سرور را با همان digest اجرا میکند، پس ساخت دیگری بالا نمیآید.
+  - به‌روزرسانی Debian (مثلاً git در image‌ی CodeCortex) digest را عوض میکند: digest تازه فقط با تغییر بازبینی‌شده‌ی `servers.yaml`، `mcp.yaml` و پیشنهاد در `apps/api/seed/mcp_proposals.yaml`.
+- **افزودن سرور تازه = یک PR بازبینی‌شده** روی فهرست مجاز (و image در `infra/mcp/<key>/` و سرویس در `infra/compose/mcp.yaml`)، بعد دو مُهر مالک در اپ (🔏 `mcp.add` روی بدنه، 🔏 `mcp.enable` روی key). هیچ سروری خودش ثبت یا روشن نمیشود.
+- **سرور مرجع `time`:** ‏`mcp-server-time` (MIT)، ابزارهای `get_current_time` و `convert_time` (A0)، منطقه‌ی زمانی Asia/Tehran؛ پیشنهاد آماده در `apps/api/seed/mcp_proposals.yaml`، منتظر مُهر مالک.
+- **CodeCortex** (پروژه‌ی خود مالک، Apache-2.0، بدون `semantic` و بدون `parsers`): فقط ابزارهای خواندنی A0؛ ویرایش، حافظه‌ی خودش، همگام‌سازی و `cortex_dependency_docs` در فهرست مجاز ممنوع و در ثبت `enabled: false` هستند.
+  - **ریپو:** ریپوی هاب فقط‌خواندنی به job یک‌بارمصرف `mcp-codecortex-index` (بی شبکه) mount میشود؛ job یک کپی git در HEAD ریپو (volume ‏`mcp-codecortex-repos`) و ایندکس را در volume وضعیت همان ریپو میسازد. سرور کپی را فقط‌خواندنی و فقط وضعیت را نوشتنی mount میکند؛ حین پاسخ‌گویی ایندکس نمیسازد.
+  - **زمان job:** با `make up` (اگر پروفایل روشن است)، هر شب ۰۳:۳۰ تهران (`coinepro-hq-mcp-index.timer`) و وقتی HEAD ریپوی هاب جابه‌جا شود (`coinepro-hq-mcp-index.path`)؛ هر دو تا `HQ_MCP` خاموش است کاری نمیکنند. دستی: `make mcp-index` (`FULL=1` یعنی از نو). فقط قاعده است (بی مدل، بی تماس بیرونی)، پس با کلید توقف هلدینگ هم اجرا میشود. نصب unitها: `make install-systemd` (با sudo، کار مالک).
+  - ریپوی workspaceها و تأسیس‌ها: برای هر ریپو یک mount فقط‌خواندنی و یک volume وضعیت (تغییر بازبینی‌شده‌ی `mcp.yaml`).
+- **آزمون‌ها:** `make mcp-test` روی imageهای ساخته‌شده و یک شبکه‌ی internal دورانداختنی: فهرست و ساعت تهران از `time`، PR intelligence روی ریپوی نمونه، کپی فقط‌خواندنی، بی اینترنت، بی `10.10.1.1`، بی سرویس هاب. `make verify-live` وقتی سرورها بالا هستند: gateway به آن‌ها میرسد، آن‌ها به هیچ‌جا نمیرسند، و digest در حال اجرا همان فهرست مجاز است.
+### ۳۰.۶ حافظه‌ی پروفایل‌های اختیاری پرامپت ۱۲ (همه پیش‌فرض خاموش)
+- **چهار profile اختیاری،** هر کدام با یک متغیر خالی در `.env`:
+  - `tts` (`HQ_TTS`): صدای فارسی، یک‌بارمصرف، `MEM_TTS=320m`
+  - `mcp` (`HQ_MCP`): `mcp-time` ‏192m، `mcp-codecortex` ‏384m و job ایندکس ‏448m، روی هم ‏1024 مگ
+  - `substitutes` (`HQ_SUBSTITUTES`): runner بازیکن‌های ذخیره، یک‌بارمصرف، `MEM_SUBSTITUTE=512m`
+  - `substitutes-web` (`HQ_SUBSTITUTES_WEB`): مرورگر پروفایل‌های لاگین‌شده، `MEM_BROWSER_WEB=768m`
+  - پنجره‌ی ورود `web-login` فقط با `make <x>-web-login` و حداکثر ۱۵ دقیقه: ‏1056 مگ (`MEM_BROWSER_LOGIN` و relay).
+- **بودجه‌ی full** (مرجع ‏15360 مگ، بودجه ‏12288): خود full ‏10896 مگ.
+  - **تنها، هر کدام جا میشود:** tts ‏11216، mcp ‏11920، substitutes ‏11408، substitutes-web ‏11664، web-login ‏11952.
+  - **دوتایی‌هایی که جا میشوند:** tts+mcp ‏12240، tts+substitutes ‏11728، tts+substitutes-web ‏11984، substitutes+substitutes-web ‏12176.
+  - **جا نمیشوند:** mcp+substitutes (۱۴۴ مگ بیشتر)، mcp+substitutes-web (۴۰۰)، tts+substitutes+substitutes-web (۲۰۸)، هر چهار با هم ‏13520 (۱۲۳۲). STT به‌تنهایی ۷۸۴ مگ بیشتر است.
+- **بودجه‌ی lean** (مرجع ‏7745، بودجه ‏6196): فقط tts جا میشود (‏6192)؛ بقیه نه.
+- **gate:** `hq.sh` profileها را به همین ترتیب روی هم میشمارد: `mcp`، `substitutes`، `substitutes-web`، `tts`. اولی که از بودجه بیرون بزند رد میشود و `up` با کد ۳ تمام میشود. هر کار یک‌بارمصرف با سقف کامل خودش شمرده میشود؛ قاعده‌ی «یک بار با بزرگ‌ترین سقف» هنوز در gate نیست، پس عددها محتاطانه‌اند.
+- **اولویت با مالک است** (§۰.۸ بند ۷): هیچ‌کدام روشن نمیشود تا مالک بگوید.
+
+### ۳۰.۷ پیوند دو بخش
+- **بازبینی دوم کد کارت deploy:** کارت `deploy` که diff واقعی دارد (۳۰.۱۵)، بعد از ساخت یک فراخوانی `code_review` میگیرد.
+  - صداکننده سرویس `deploy-review` است و ورودی همان diff ماسک‌شده‌ی کارت.
+  - checkout را dispatcher از کلون خود هاب میسازد. ریپویی که در `HQ_SUBSTITUTE_REPOS` نیست ← `no_access`.
+  - کارت `payload.second_review` را از همان فراخوانی میخواند: `{player, model, findings, verified}` یا null.
+  - هیچ‌وقت تأیید یا مسدود نمیکند. یافته‌ی سنجیده‌نشده به `risk_note` نمیرود. کارت بی‌diff بازبینی نمیگیرد.
+- **بررسی دوم ادعا:** ادعایی که با `protocol` ثبت شود (نمونه‌ی `PR-001` یا نمونه‌ی راستی‌آزما)، یک فراخوانی `overseer_cross_check` میگیرد.
+  - ورودی: متن ماسک‌شده‌ی ادعا، عنوان و خلاصه‌ی خروجی. رأی و یادداشت بررسی‌کننده در آن نیست.
+  - برای هر خروجی و متن ادعا فقط یک بار.
+  - اگر رأیش فرق کند، ادعا با یک کار برای ناظر کل برمیگردد (Audit ‏`claim.returned`).
+  - خودش هیچ ردیف `quality.claims` یا `claim.verdict` نمیسازد.
+- **حوزه‌ی فراخوانی ایجنت شرکت:** `substitute.call` در حوزه‌ی هاب اجرا میشود، چون بازیکن‌ها و جایگاه‌ها ردیف‌های هلدینگ‌اند و سقف روزانه همه‌ی شرکت‌ها را میشمارد. فراخوانی برای شرکت خود ایجنت ثبت میشود.
+- **یادداشت stale:** یادآوری کارتابل (۳۰.۱۷) ردیف `owner.decision_reminders` است و به خود کارت دست نمیزند. trigger فقط `version`، `updated_at` و `reminded_at` را کنار میگذارد.
+- **محرک OKR:** از `governance.key_results` و `governance.objectives` پرامپت ۱۱ میخواند. پیشرفت مثل خود پرامپت ۱۱ است: (current − start) ÷ (target − start)، بین ۰ و ۱. KR وصل به KPI مقدار `last_value` همان KPI را میگیرد. روی جدول‌های واقعی پرامپت ۱۱ با `gov_okr.progress` و فصل شمسی `gov_common.quarter_bounds` خود آن کار میکند.
+
+### ۳۰.۸ «از هاب بپرس» (پرامپت ۱۲ §۲، قرارداد §۲۱.۲)
+- **migration ‏`0027_2`** (`0027_2_owner_tools.py`، بعد از `0027_1`): جدول‌های `knowledge.corpus_sources`، `corpus_files`، `corpus_chunks` و `knowledge.asks` (`AK-0001`)، `owner.reviews` (۳۰.۹)، schema تازه‌ی `dceo` (۳۰.۱۰)، بلوک‌های `weekly_review` و `digital_ceo` در `owner.settings`، و فعال شدن `PR-121`. همه با `company_id` و RLS **FORCE**؛ ردیف corpus ریپوی یک workspace مال شرکت همان workspace است، و پیش‌بینی مال شرکت همان کارت. هیچ نوع کارت تازه‌ای نیست؛ CHECK نوع کارت اینجا validate نمیشود؛ head همه‌ی نوع‌ها را با هم validate میکند: روی ۱۳ `0028_1` (۳۱) و از پرامپت ۱۴ `0029` با نوع‌های ۱۱ تا ۱۴ (۳۲).
+- **منبع دانش (corpus)، بدون مدل:**
+  - **ریپوی خود هاب:** پوشه‌ی `.git` آن فقط‌خواندنی در worker (`../../.git:/hub-repo.git:ro`، متغیر `HQ_HUB_REPO`). فقط فایل‌های commit‌شده‌ی `HEAD` خوانده میشوند، نه فایل‌های ignore‌شده‌ی working tree (مثل `infra/compose/.env`). `docs/`، `contracts/`، `agents/` (و RUNBOOK) و README/CLAUDE.md ریشه نوع `doc`‌اند، بقیه `code`.
+  - **ریپوی هر workspace کارگاه:** `fetch --depth=1` شاخه‌ی پیش‌فرض در volume ‏`hq-git` (`/var/lib/hq-git/corpus/<WS>.git`)، با همان توکن workspace که `hq/<ref>` را push میکند (`hq-api/workshop/github/<WS>`؛ هیچ توکن تازه‌ای نیست). ریپویی که هاب نمیخواند ← `not_indexed` و هر جواب همین را میگوید.
+  - **فایل‌ها:** فقط متن، ≤ ۲۰۰ کیلوبایت. vendor، node_modules، dist، build، lockfileها و باینری‌ها نه. فایل رمزی با نامش (`.env`، کلید، `credentials`) یا فایلی که اسکن رمز (`hq_common.redact`) در آن چیزی پیدا کند، **کامل** کنار گذاشته میشود (`state: secret`، بی هیچ قطعه).
+  - **قطعه‌ها:** ۶۰ خط، با مسیر، شماره‌ی خط و commit. جستجو با `core.fa_normalize` (ی/ي، ک/ك، ZWNJ)، ایندکس pg_trgm و tsvector ساده؛ بدون embedding و vector DB.
+  - **رکوردها** (مصوبه، تصمیم، خروجی، کار، پیام) کپی نمیشوند؛ همان‌جا که هستند جستجو میشوند و همیشه تازه‌اند.
+  - **سندهای بایگانی** (`AR-…`، پرامپت ۱۴، §۳۲) هم کپی نمیشوند: `hq_api.archive.search.ask_hits` همان‌جا و **در مجوز پرسنده** میگردد (`archive.clearance.for_ask`). مجوز روی تراکنش گذاشته میشود و RLS سندِ بالاتر از آن را پیش از هر رتبه‌بندی حذف میکند، پس نه شمرده میشود، نه نقل. چون قطعه‌ها به کتابدار (یک مدل) میرسند، مجوز مالک در پرسش تا سطح `agents_max` (`confidential`) است: سند `secret` هرگز به مدل یا به `passages` ذخیره‌شده‌ی پرسش نمیرسد. متن فایل فقط وقتی محتوا دیدنی است تطبیق داده و نقل میشود؛ مقدار حساس فقط از `confidential` به بالا. نوع ارجاع: `record`.
+  - **ساخت:** `hq-corpus-nightly` هر شب ۰۳:۳۰ تهران، افزایشی (فایلی که blob آن عوض نشده دوباره خوانده نمیشود؛ همان commit هیچ کاری ندارد). تا کلید توقف هلدینگ روشن است **هیچ کاری** نمیکند (هیچ fetch)؛ پس پیش از راه‌اندازی، corpus خالی است و پرسش‌ها فقط رکوردها را پیدا میکنند.
+  - **پاک کردن:** corpus فقط ایندکس است. همه: `DELETE FROM knowledge.corpus_sources;` (با نقش مالک دیتابیس؛ فایل‌ها و قطعه‌ها cascade میشوند). یک ریپو: `... WHERE key = '<WS>'` (ریپوی هاب: `'hub'`). شب بعد از نو ساخته میشود.
+- **پرسش مالک:** `POST /ask {q, scope?: {companies?, kinds?}}` (فقط مالک، `Idempotency-Key`) ← `202 Ask`.
+  - جستجو کد است: ۲۰ قطعه‌ی برتر، حداکثر ۲۴ هزار توکن؛ کلمه‌ی کمیاب وزن بیشتری دارد.
+  - **چیزی پیدا نشد ← بدون مدل:** `found: 0`، «چیزی پیدا نشد» با کلیدواژه‌های نزدیک، صفر توکن؛ حتی وقتی هلدینگ قفل است.
+  - وگرنه یک کار برای `HQ-LIB` (task class `ask_hub`، `owner_zone: direct`، سقف ۶۰ هزار) با قطعه‌های ماسک‌شده در brief. کتابدار با `ask.answer` جواب میدهد. هر ارجاع با مجموعه‌ی بازیابی‌شده سنجیده میشود (رکورد با نوع و ref؛ سند و کد با ریپو، مسیر و خطوط هم‌پوشان). ارجاع بیرون از آن حذف و شمرده میشود؛ جواب بی هیچ ارجاع معتبر ← `failed` («جواب معتبری ساخته نشد»). اگر کتابدار یک بار دیگر جستجو کند، یافته‌هایش به همان مجموعه اضافه میشود.
+  - تا کلید توقف روشن است و جواب مدل لازم است ← `423 company_locked` (هیچ ردیفی نمیماند).
+  - `hq-ask-sweep` هر ۵ دقیقه: پرسشی که اجرای کتابدار بی `ask.answer` تمام شد، پس از ۵ دقیقه `failed`. در قفل هیچ کاری نمیکند.
+- **ایجنت‌ها (`knowledge.search`):** نوع‌های `docs` و `code` برای مشاور، ناظر، کتابدار و CTO (RLS، CTO را به ریپوهای شرکت خودش محدود میکند؛ نام شرکت دیگر ← `403`، مثل شرکتی که نیست). `notes` (یادداشت‌های سریع باز) و `messages` فقط برای مشاور؛ پیام‌ها فقط در پرسش خود مالک خوانده میشوند.
+- **کتابدار:** `HQ-LIB` (نقش system، منشور `agents/roles/librarian.md`) از قالب هلدینگ seed میشود، مثل منشی؛ استخدام، امتیاز و ستاره ندارد. از `0029` (پرامپت ۱۴) `agents.queue_run` نقش system دارای role را صف میکند و runner نقش system با منشور system را اجرا میکند: کتابدار برای پرسش، بایگان برای کارهایش، منشی فقط برای خلاصه‌ی جلسه، و سامانه‌ی گزارش (`HQ-SYS`، بی منشور) هرگز. (روی ۱۳ تنها، اجرای کتابدار رد میشد.)
+
+### ۳۰.۹ مرور هفتگی با مشاور (پرامپت ۱۲ §۳، قرارداد §۲۱.۳)
+- `owner.reviews` (`WR-0001`)، یکی برای هر هفته (شنبه‌ی آن، منطقه‌ی زمانی مالک). تنظیم `weekly_review: {enabled, day: "sa", at: "10:00"}`.
+- **`hq-weekly-review` هر ۱۵ دقیقه:**
+  - مرور هفته‌های گذشته که `done` نشده ← `skipped`، بی هیچ اعلان؛ فقط یک خط در گزارش صبحگاهی.
+  - ۳۰ دقیقه پیش از زمان مرور، دستور جلسه با کد، حداکثر ۱۲ مورد، به همین ترتیب: کارت‌های منتظر مالک (قدیمی‌ترها اول)، ریسک باز با امتیاز ≥ ۱۵، نتیجه‌ی کلیدی عقب (سرعت < ۷۰٪، بعد از ربع اول فصل)، یافته‌ی `critical` و `high` باز، بودجه‌ی ماه ≥ ۷۰٪، افت درآمد ۷ روز اخیر، بازبینی ۳۰/۶۰/۹۰ روزه‌ی رسیده، یادداشت سریع باز.
+  - یک کار برای مشاور: خلاصه‌ی یک‌صفحه‌ای (`advisor_review`، `owner_zone: auto`، سقف ۱۰۰ هزار). پیامش در `A` با `meta.review` میآید و مرور آن را نگه میدارد. اگر سهم مالک تمام شده، تیک بعدی دوباره میکوشد. یادداشت‌های باز را مشاور فقط همین‌جا میخواند.
+  - تا کلید توقف هلدینگ روشن است **هیچ کاری** نمیکند: نه مرور تازه، نه skip، نه کار.
+- **مالک:** `POST /reviews/weekly/{ref}/start`، `PATCH …/items/{n}` با `If-Match` (`done`، `deferred` یا دوباره `open`، و یادداشت)، `POST …/finish` ← صورت‌جلسه به‌صورت خروجی `O-…` از `HQ-ADV` (قاعده‌محور، بی مدل)، با فهرست موارد و `duration_s`. کارهایی که مالک در جلسه میکند (مُهر، رد، سفارش) رکوردهای عادی خودشان را دارند.
+
+### ۳۰.۱۰ مدیر کل دیجیتال، فقط پیش‌بینی (پرامپت ۱۲ §۱۳، قرارداد §۲۱.۱۰)
+- **خط قرمز:** یک سرویس (`service:dceo`)، نه ایجنت: بی ابزار Gateway، بی رشته، بی اعلان. OPA ‏(`owner_tools.rego`) هر عملیاتی جز `dceo.*` را برایش رد میکند (`dceo_never_acts`) و `decisions.rego` هیچ سرویسی را برای تصمیم نمیپذیرد. در تولید توکن سرویسی ندارد؛ فقط درون worker و api کار میکند.
+- **پیش‌بینی پایه (بی مدل، همیشه):** با خود کارت، در همان تراکنش پیشنهاددهنده: نرخ رأی‌های قبلی مالک برای همان (نوع، ریسک، نوع پیشنهاددهنده)، Laplace روی سه رأی، در همه‌ی شرکت‌ها (فقط شمارش، با تابع SECURITY DEFINER ‏`dceo.owner_verdicts`؛ حوزه‌ی پیشنهاددهنده آن را کوچک نمیکند). با `sealed_hash` (sha256 ‏JSON کانونی) و یک ردیف Audit که رأی را نشان نمیدهد. قاعده‌محور است و در قفل هلدینگ هم ثبت میشود (نه مدل، نه تماس بیرونی).
+- **پیش‌بینی مدل:** `hq-dceo` هر ۵ دقیقه، برای کارت‌های ریسک متوسط و بالا: Haiku 5.5 ‏`medium`، task class `dceo_predict`، حداکثر `digital_ceo.max_model_per_day` (۲۰) در روز مالک، هر کدام ≤ ۸ هزار توکن (کارت ماسک‌شده، اصول فعال، ۱۰ تصمیم مشابه با رأی و یادداشت مالک). سهم مالک تمام شد ← فقط پایه. تا کلید توقف روشن است **هیچ کاری** نمیکند؛ پایه‌ی جاافتاده هم در همین تیک ساخته میشود.
+- **پنهان تا تصمیم:** `digital_ceo.reveal: "after"` (پیش‌فرض) ← `Decision.digital_ceo_prediction` تا تصمیم null، بعد `{verdict, confidence, method, correct}`. با `before`، نمای کارت مالک آن را فوراً نشان میدهد و آن پیش‌بینی‌ها `seen_before: true` و بیرون از دقت تمیزند؛ تا ۳۰ پیش‌بینی پنهان نباشد، `GET /digital-ceo` هشدار میدهد.
+- **سنجش:** رأی مالک `actual` و `correct` را مینویسد و `dceo.scored` روی topic `dceo` میرود. پیش‌بینی‌ای که بعد از تصمیم برسد دور ریخته میشود. آمار ۳۰ و ۹۰ روزه و کل: دقت، پایه در برابر مدل، Brier، calibration در سطل‌های ۰.۱، و به تفکیک نوع.
+- **اصول:** `DP-001`، نسخه‌دار (هر ویرایش و بازنشستگی یک ردیف تازه؛ همه دیدنی‌اند). `hq-dceo-principles` شنبه ۱۱:۰۰ (منطقه‌ی مالک): Sonnet 5.5، `dceo_principles`، ≤ ۱۲۰ هزار توکن، حداکثر ۵ پیشنهاد `proposed` با منبع؛ مالک میپذیرد یا ویرایش میکند. در قفل هیچ کاری نمیکند؛ هفته‌ی بی داده هیچ مدلی صدا نمیزند.
+- **PR-121:** با migration ‏`0027_2` (یا seed پایگاه تازه) فعال است: هر پیش‌بینی امتیازخورده‌ی روز پیش از تصمیم مُهر شده (`made_at < decided_at` و hash درست) و (با `after`) دیده نشده.
+
+### ۳۰.۱۱ صدای فارسی گزارش‌ها: TTS (پرامپت ۱۲ §۴، قرارداد §۲۱.۴)
+- **موتور:**
+  - Piper 1.8.0 (`piper-tts`، GPL-3.0؛ espeak-ng درونش هم GPL-3.0). به‌صورت **برنامه‌ی جدا** اجرا میشود (`python -m piper`)، پس به کد ما link نمیشود.
+  - رمزگذاری Ogg/Opus با ‏32 kbps با `opusenc` (opus-tools، BSD؛ libopus، BSD-3)، نه ffmpeg. همان codec و ظرف است، ولی ۶ بسته به جای ۲۰۵ بسته‌ی ffmpeg (ایمیج ۵۹۰ مگ به جای ۱٫۲ گیگ).
+- **صدا:** `fa_IR-amir-medium` از `rhasspy/piper-voices` (لایسنس مخزن MIT) در revision ثابت `5041a7a4…`. sha256 هر فایل در `services/tts/voice.lock.json` و `ADD --checksum` در Dockerfile است.
+  - **لایسنس دیتاست** از `MODEL_CARD` خود صدا: **CC0** (datacula.com).
+    - `ganji` و `reza_ibrahim` هم CC0 اند.
+    - `gyro` «See URL» است و پیش‌فرض نیست.
+    - MMS-TTS متا (CC-BY-NC-4.0) پیش‌فرض نیست.
+  - صدا و لایسنسش در `/meta.tts` است.
+  - عوض کردن صدا: `HQ_TTS_VOICE` در `.env`، فقط از جدول `briefings.VOICES` (همه با لایسنس آزاد).
+- **کار یک‌بارمصرف، نه سرویس:** image `coinepro-hq/tts`، profile `tts`. timer `coinepro-hq-tts.timer` هر ۲ دقیقه `infra/tts/run-once.sh` را اجرا میکند:
+  - اگر `HQ_TTS` روشن نباشد، بی‌صدا تمام میشود.
+  - روی `/run/hq/oneshot.lock` حداکثر ۱۰ دقیقه منتظر میماند.
+    - این قفل مشترک با backup ساعتی است و `infra/systemd/coinepro-hq-oneshot.conf` آن را میسازد.
+    - backup هم پیش از کارش همین قفل را میگیرد (حداکثر ۱۵ دقیقه صبر).
+  - بعد `hq.sh run --rm --no-deps tts`: یک pass، حداکثر ۳ گزارش.
+    - کانتینر از `POST /internal/v1/tts/claim` کار میگیرد. ۲۰۴ یعنی کاری نیست، و **همیشه وقتی کلید توقف هلدینگ روشن است** همین ۲۰۴ است.
+    - صدا میسازد و Ogg را با `POST /internal/v1/tts/{id}/done` میفرستد.
+    - شکست با `/fail` گزارش میشود. بعد از ۳ بار `audio_state: "failed"`.
+  - **شبکه:** فقط `hq-tts` (internal، ‏172.30.21.0/24)، با api و OpenBao.
+    - نه اینترنت، نه Postgres، نه سرویس دیگر (probe در `live.sh`؛ `compose-rules`).
+    - principal سرویسی `tts`، با توکنی در `kv/tts/config` (AppRole `tts` روی همان subnet؛ `provision.sh` یک بار میسازد).
+    - اعتبار AppRole در `${HQ_SECRETS_DIR}/services/tts/approle.json` است.
+- **عددها** (اندازه‌گیری ۲۰۲۶-۱۰-۲۲ روی همین CPX42 با `make tts-bench`؛ ۱ thread، متن ثابت ۱۲۱ کلمه، ۵۱ ثانیه گفتار):
+  - RTF ‏0.09 تا 0.10
+  - peak RSS برنامه‌ی Piper ‏250 تا 253 مگ
+  - peak کانتینر (cgroup) ‏239 تا 241 مگ
+  - Ogg حدود ۲۰۵ کیلوبایت
+  - `MEM_TTS=320m` در هر دو profile
+  - راز حافظه: Piper هر خط را جدا میخواند. پس متن به جمله‌ها و بندهای ≤ ۸ کلمه شکسته میشود (`piper_lines`؛ پرامپت ۱۳ از ۱۴ به ۸، ۳۱.۱۳) و `MALLOC_ARENA_MAX=1`. بدون این دو، peak به ۳۴۰ تا ۳۸۴ مگ میرسید.
+- **gate حافظه:**
+  - full+tts: ‏11216 از 12288 مگ (جا میشود)
+  - lean+tts: ‏6192 از 6196
+  - gate هر یک‌بارمصرف را با سقف کامل خودش میشمارد (۳۲۰ مگ؛ قاعده‌ی «یک بار با بزرگ‌ترین سقف» هنوز در gate نیست). جمع همه‌ی profileهای اختیاری در ۳۰.۶ است.
+- **روشن و خاموش (تصمیم مالک، §۰.۸ بند ۷):** پیش‌فرض خاموش است، چون STT جا نمیشود و اولویت حافظه با مالک است.
+  - `make tts-on`: `HQ_TTS=on`، build، `up api worker` و فعال کردن timer. هر بار که بیرون از budget باشد، `hq.sh` رد میکند.
+  - `make tts-off`: برگشت به حالت پیش‌فرض.
+  - api فقط وقتی کار صوتی میسازد که `HQ_TTS_ACTIVE=on` باشد. وگرنه گزارش `audio_state: "off"` است و متن بی‌تغییر میماند.
+- **متن گفتاری** را api با کد میسازد (`hq_api.speech.fa_speech_script`):
+  - markdown حذف میشود.
+  - refها به عنوانشان و کد کارمندها به عنوان فارسی تبدیل میشوند.
+  - عدد، پول، درصد، تاریخ جلالی و ISO و ساعت به کلمه تبدیل میشوند.
+  - هیچ رقم لاتینی یا فارسی نمیماند (`assert_spoken`).
+
+### ۳۰.۱۲ گزارش صبحگاهی صوتی و نامه‌ی هفتگی مدیرعامل‌ها (پرامپت ۱۲ §۴.۲ و §۴.۳)
+- **صبحگاهی:** بعد از گزارش نوشته‌شده‌ی پرامپت ۵، یک `BR-…` نوع `morning` با همان متن ساخته میشود (نسخه‌ی خوش‌خوان، اگر ساخته شده باشد).
+  - صدا فقط با `owner_settings.audio_briefings.morning` و TTS روشن.
+  - **وقتی هلدینگ قفل است هیچ briefing ساخته نمیشود.**
+  - خود گزارش قاعده‌محور همچنان ساخته میشود و دو خط تازه دارد، هر دو فقط کد: «هدررفت دیروز» (§۸) و «یادآوری کارتابل» (§۱۱).
+- **نامه‌ی هفتگی:** schedule `hq-ceo-letters` هر ساعت اجرا میشود، ولی فقط در روز و ساعت `owner_settings.ceo_weekly_letter` کار میکند (پیش‌فرض شنبه ۰۹:۰۰ در منطقه‌ی مالک).
+  - برای هر شرکت عملیاتی فعال، یک کار برای مدیرعاملش با بسته‌ی واقعیت‌ها (JSON، با کد) و سقف ۴۰ هزار توکن.
+  - قفل هلدینگ یا قفل خود شرکت ← هیچ.
+  - **سنجش عدد** در `deliver`:
+    - بیش از ۶۰۰ کلمه ← ۴۲۲ (این تلاش شمرده نمیشود).
+    - عدد بی‌منبع، بار اول ← ۴۲۲ و `state: returned`.
+    - بار دوم منتشر میشود، عنوانش «عدد بی‌منبع» میگیرد و یک یافته‌ی PR-001 باز میشود.
+    - بعد یک `BR-…` نوع `ceo_letter` ساخته میشود.
+- API:
+  - `GET /briefings?kind&company&cursor`
+  - `GET /briefings/latest?kind&company` (۴۰۴ تا وقتی چیزی نیست)
+  - `GET /briefings/{ref}`
+  - stream `briefing.ready` روی `briefings`
+
+### ۳۰.۱۳ رتبه‌ی دپارتمان‌ها (پرامپت ۱۲ §۵)
+- همراه برآیند ستاره‌ها (`hq-stars-rollup`، هفتگی و ماه جلالی)، با کد:
+  - ۳۵٪ نیرو
+  - ۳۰٪ تحویل: کار سررسیده‌ی done یا delivered، با شاهد و به‌موقع
+  - ۲۰٪ کارایی: همان عدد برآیند
+  - ۱۵٪ امتیاز مالک
+- جزء بی‌داده کنار میرود و وزن‌ها دوباره تقسیم میشوند. دپارتمان بی کارمند فعال رتبه نمیگیرد.
+- `rank_holding` بین دپارتمان‌های هم‌کد است و وقتی فقط یکی هست null است.
+- `people.department_ranks` append-only است و هر دوره یک بار نوشته میشود.
+- این محاسبه‌ی قاعده‌محور داخل برآیند موجود است و با کلید توقف هم انجام میشود.
+- `GET /rankings/departments?period&key&company`، stream `rankings.updated` روی `stars`.
+
+### ۳۰.۱۴ ارزیابی ماهانه‌ی HR و PR-082 (پرامپت ۱۲ §۶)
+- **زمان:** schedule `hq-hr-rounds` هر روز ۱۰:۰۰ (منطقه‌ی مالک) اجرا میشود، ولی فقط روز یکم ماه جلالی برای هر شرکت عملیاتی فعال و هلدینگ `HR-…` میسازد.
+  - اسم دور، ماه جلالیِ اجراست؛ واقعیت‌ها مال ماه تمام‌شده‌اند.
+  - **با قفل هلدینگ هیچ.** قفل یک شرکت ← آن شرکت نه.
+- **ارزیاب:** `<CO>-HR-MGR`، وگرنه مدیرعامل؛ برای هلدینگ، `aiops_head`.
+  - OPA اجازه میدهد مدیر AIOPS هلدینگ `evaluation` پیشنهاد دهد.
+  - کار با مهلت ۲۰ ساعت و سقف ۱۰۰ هزار توکن.
+  - پرچم `coach` کارت ندارد؛ یک پیش‌نویس آموزش آکادمی برای مدیر AI Ops میسازد.
+- **کارت `evaluation` نسخه‌ی ۲:** `round` اجباری است. کارمند بی‌پرچم فقط با `evidence` و `override_reason` (`unflagged: true`). تأیید با 🔏 `decision.approve`.
+  - promote و demote: مدل باید یک اتصال enabled داشته باشد و پاکت جا شود، وگرنه `409 envelope_exceeded` و هیچ تغییری.
+  - dismiss: همان مسیر برکناری. کار باز به مدیر یا مدیرعامل میرود و حافظه به `transfer_to`.
+  - confirm: `probation_until` پاک میشود.
+- **PR-082:** نسخه‌ی ۲، `active`، `FREQ=MONTHLY;BYMONTHDAY=3;BYHOUR=10`، `calendar: jalali`، با متن check تازه (migration ‏0027_1 یا seed، با ردیف Audit).
+  - schedule آن روزانه ۱۰:۰۰ است و اجرا جز روز سوم ماه جلالی بی‌اثر تمام میشود (بی ردیف `protocol_runs`).
+  - checker آن کد است (`hr.hr_rounds_ran`).
+  - با قفل هلدینگ هیچ اجرایی نیست.
+- loader پروتکل‌ها کلید ناشناخته را با یک هشدار نادیده میگیرد.
+
+### ۳۰.۱۵ diff واقعی کارت deploy (پرامپت ۱۲ §۷)
+- **دسترسی:** همان دسترسی git فعلی هاب، یعنی توکن workspace کارگاه در OpenBao (`hq-api/workshop/github/<WS>`)، همان که `hq/<ref>` را push میکند. توکن تازه‌ای از مالک خواسته نمیشود.
+  - ریپو باید یک workspace **همان شرکت** باشد. وگرنه، یا وقتی توکن نیست ← `diff: null, diff_unavailable: "no_access"`.
+  - کارت همیشه به `head_sha` (اجباری) بسته است.
+- **ساخت:** api (git ‏1:2.47.3 در image) پیش از ساخت کارت `git fetch --depth=200` میکند: شاخه‌ی پیش‌فرض و `refs/pull/<n>/head`.
+  - mirrorها در volume ‏`hq-git` (`/var/lib/hq-git`) میمانند.
+  - توکن فقط در محیط git است (`GIT_CONFIG_*`)، نه در argv و نه روی دیسک.
+  - `head_sha` در ریپو نیست ← ۴۲۲.
+  - سقف‌ها: ۳۰۰ فایل، ۴۰۰ خط برای هر فایل، ۲۵۶ کیلوبایت کل. فایل باینری patch ندارد.
+  - هر خط patch که رمز دارد ماسک میشود (`secret_masked`).
+  - `diff` و `diff_unavailable` پیشنهاددهنده دور ریخته میشود.
+- **بستن به `head_sha`:** schedule `hq-deploy-recheck` هر ۱۵ دقیقه (`git ls-remote`؛ **با قفل هلدینگ هیچ**)، و یک بار پیش از مُهر مالک.
+  - push تازه ← کارت `withdrawn` («superseded: a new push»)، پیام سیستم و یک کار برای پیشنهاددهنده.
+  - مُهر ← `409 decision_not_pending`.
+- `GET /decisions/{ref}/diff?file=<path>`: patch کامل یک فایل تا ۲۰۰۰ خط، با همان ماسک.
+- **پاک کردن mirrorها:** فقط با تصمیم مالک (`docker volume rm coinepro-hq_hq-git` وقتی stack پایین است). اولین کارت بعدی دوباره fetch میکند.
+
+### ۳۰.۱۶ گزارش هدررفت روزانه و ROI (پرامپت ۱۲ §۸ و §۱۰)
+- **هدررفت:** schedule `hq-waste-daily` ساعت ۰۷:۴۵ (منطقه‌ی مالک) برای دیروز، با کد، در `llm.waste_daily`: یک ردیف برای هر شرکت و یکی برای کل هلدینگ.
+  - **با قفل هلدینگ چیزی ذخیره نمیشود.** `GET /treasury/waste` همان روز را با همان کد حساب میکند و نشان میدهد.
+  - **دسته‌ها:**
+    - failed_runs
+    - cancelled_work
+    - no_progress_runs
+    - retry_loops: ≥ ۳ اجرا روی یک کار
+    - router_errors
+    - duplicate_calls: همان `request_sha256` در ۱۰ دقیقه
+    - cache_miss: ورودی بیش از ۱۰ هزار، با همان `prefix_sha256` در یک ساعت و بدون cache read
+    - over_model: haiku < sonnet < opus در برابر assignment پیش‌فرض task class
+  - هر دسته جدا شمرده میشود. سهم روز، اجتماع فراخوانی‌های پرچم‌خورده است.
+  - llm-router فقط hash درخواست و prefix را در `llm.calls.meta` نگه میدارد، هرگز متن را.
+  - سهم بیش از ۱۵٪ ← اعلان `report`. کارایی ستاره‌ها همین عددها را میخواند (`waste.shares_between`).
+- **ROI:** `GET /treasury/roi?by=employee|department|company&period=week|month&key&company`، هنگام خواندن با کد.
+  - درآمد فقط برای شرکت است (`revenue.days`): `roi = revenue / cost`.
+  - شرکت بی‌درآمد ← null.
+  - کارمند و دپارتمان همیشه null.
+
+### ۳۰.۱۷ یادداشت سریع و یادآوری کارتابل (پرامپت ۱۲ §۱۱)
+- **یادداشت `NT-…`:**
+  - `POST /notes` (Idempotency-Key)
+  - `PATCH` (If-Match؛ متن، برچسب، `archived`). حذف وجود ندارد.
+  - `POST /notes/{ref}/promote {to, company?, title?}` از همان مسیرهای موجود (`POST /work`، `POST /orders`، `POST /errands`) میگذرد.
+  - `/transcribe?purpose=note&save=true` یادداشت صوتی میسازد و `note_ref` برمیگرداند.
+  - هیچ مدلی روی یادداشت اجرا نمیشود.
+- **یادآوری:** schedule `hq-cartable-reminders` هر ۱۵ دقیقه (**با قفل هلدینگ هیچ**).
+  - فقط کارت‌هایی که مالک تصمیم‌گیرنده است، و هر آستانه یک بار (`owner.decision_reminders`، append-only).
+  - آستانه‌ها: نیمه‌ی مهلت، ۶ ساعت پیش از انقضا، ۲۴ ساعت، ۷۲ ساعت و ۷ روز.
+  - اعلان سطح `decision`؛ در خلوت نگه داشته میشود.
+  - کارت `waiting_h` و `reminders[]` میگیرد. تنظیم در `owner_settings.reminders`.
+
+### ۳۰.۱۸ ادعاهای رد شده و تابلوی سلامت ایجنت‌ها (پرامپت ۱۲ §۱۲)
+- **ابزار `claim.verdict`** (A2؛ راستی‌آزما، ناظر، QC) ← `POST /internal/v1/claims`. OPA در `mgmt.rego`، A2 grant در `data.json`.
+  - ادعا ماسک‌شده و حداکثر ۳۰۰ نویسه است.
+  - `refuted` بی شاهد ← ۴۲۲.
+  - `quality.claims` (`CL-…`) append-only است. stream `claim.verdict` روی `quality`.
+- **تابلو:** `GET /runs/health?company&period=7d|30d`، با این پرچم‌ها:
+  - `truth`: ≥ ۲۰٪ رد شده، با دست‌کم ۵ ادعا
+  - `reliability`: ≥ ۲۵٪ شکست
+  - `loops`: ≥ ۲ حلقه
+- ادعاهای رد شده در بسته‌ی HR (§۶) هم میآیند. فهرست: `GET /claims?company&employee&verdict&cursor`.
+
+## ۳۱. استودیوی رسانه و مشاور حقوقی (پرامپت ۱۳؛ قرارداد §۲۲)
+بخش رسانه (§۱، §۱.۱، §۲، §۵ و §۶ پرامپت) در ۳۱.۱ تا ۳۱.۹. بخش حقوقی و صدا (§۳ و §۴) در ۳۱.۱۱ به بعد (کار شاخه‌ی r13b).
+- **migration ‏`0028`** (`0028_media_studio.py`، بعد از `0027_2` پرامپت ۱۲):
+  - ستون‌های `mandate` و `identity_md` روی `core.departments` و `identity_doc` روی `agents.runs`.
+  - schema تازه‌ی `media`: ‏`series`، `items`، `compositions` (append-only)، `render_jobs`، `publish_log` (append-only).
+  - جدول `people.role_drafts`.
+  - نوع استوری `role`.
+  - task classهای `media_script`، `media_direction`، `media_motion`، `media_review` و `ui_design` (همین‌ها در seed روتر).
+  - همه‌ی جدول‌ها `company_id` و RLS **FORCE** دارند و حذف نمیشوند.
+  - داده: دپارتمان `MEDIA` (با مدیر خوابش و دو رشته) برای هر شرکت عملیاتی؛ `LEGAL` و `HQ-LGL` (خواب، بی مدیر) برای هلدینگ. **هیچ کارمندی ساخته نمیشود.** رشته‌ی `L` و نوع رشته‌ی `legal` مال ۳۱.۱۱ است (رشته‌ی `L` را seed از `holding.yaml` میسازد).
+  - نوع‌های کارت `media_series`، `media_publish` و `role_new` از روی نوع‌هایی که CHECK الان دارد، `NOT VALID` اضافه میشوند. `email_send` مال `0028_1` است.
+  - **زنجیره (روی پرامپت ۱۲ نهایی):** `0025` ← `0026` ← `0026_1` ← `0027` ← `0027_1` ← `0027_2` ← `0028` ← `0028_1` (حقوقی و صدا) ← `0029` (بایگانی، پرامپت ۱۴، آخرین). فقط آخرین migration هر دو CHECK ‏`decisions_kind_check` و `threads_kind_check` را با همه‌ی نوع‌های ۱۱ تا ۱۴ validate میکند: تا پرامپت ۱۳ این کار `0028_1` بود (production همان را اجرا کرده و دست نمیخورد) و از پرامپت ۱۴ کار `0029` است (§۳۲). هر بازنویسی پیش از آن (۰۰۱۸، ۰۰۲۳، ۰۰۲۵، ۰۰۲۶، ۰۰۲۶_۱، ۰۰۲۸، ۰۰۲۸_۱) `NOT VALID` است و `0027_2` چیزی validate نمیکند، تا اجرای پایین و بالای migrationها (test_hiring) ردیف‌های بعدی را نگه دارد.
+- **دروازه‌ی راه‌اندازی:** تا کلید توقف هلدینگ روشن است، هیچ چیزی از این بخش مدل یا سرویس بیرونی صدا نمیزند:
+  - sweep رسانه (`hq-media-sweep`، هر ۵ دقیقه) هیچ کاری نمیکند (`skipped: holding_locked`): هیچ آیتمی از برنامه‌ها ساخته نمیشود، هیچ انتشاری نیست و بازسنجی هم نیست.
+  - `POST /internal/v1/media/render/claim` و `POST /internal/v1/voices/jobs/claim` (صف صدای ۳۱.۱۳) جواب `204` میدهند. کار شرکتی که قفل است هم منتظر میماند.
+  - انتشار بعد از مُهر کارت هم صبر میکند (اثر کارت تا قفل هست اجرا نمیشود).
+  - اجرای ایجنت‌ها مثل همیشه رد میشود (`locked`). کار هر گام فقط رکورد است.
+  - برداشتن پستی که قبلاً منتشر شده کار خود مالک است و با مُهر خودش اجرا میشود (فقط برمیدارد).
+- **پیش‌فرض‌های §۰.۹ تا جواب مالک:**
+  - مدل موشن‌گرافی Opus 5.5 (منشور `motion_designer`).
+  - صدا: ParsVoice-XTTS (۳۱.۱۱)؛ تا نصبش Piper `fa_IR`.
+  - بی GPU و بی کتابخانه‌ی موسیقی: `music` فقط `none`.
+  - سقف روزانه‌ی هر برنامه: ریلز ۲، استوری ۳، پست و کاروسل ۲.
+  - صندوق ایمیل: ندارد (۳۱.۱۱).
+
+### ۳۱.۱ مأموریت، شخصیت و تیم شروع هر دپارتمان (§۱، قرارداد §۲۲.۱)
+- **از قالب:** `apps/api/seed/templates/standard.yaml` و `holding.yaml` برای هر دپارتمان این‌ها را دارند:
+  - `mandate`: ‏`from_fa`، `to_fa`، `outputs_fa`، `boundaries_fa`، `tool_ceiling`، `model_ceiling`.
+  - `identity_md`.
+  - `team`.
+  - seed فقط جای خالی را پر میکند؛ ویرایش مالک میماند.
+- **سقف ابزار:** هیچ‌وقت `hire.decide`، `role.decide`، `message.owner`، قدرت نظارت، ابزار A3/A4 یا ابزار ناشناخته را نمیپذیرد (۴۲۲).
+  - MEDIA: سقف مدل Opus، ابزارهای `media.item`، `media.render`، `media.voice`. **`media.review` فقط مال مدیر رسانه است** و در سقف نیست.
+  - بقیه‌ی دپارتمان‌ها: Sonnet.
+- **تیم:** فقط نقش‌هایی که منشورشان در `agents/roles/` هست و در همان دپارتمان‌اند. نقش staged روزی که فعال شود، خودش در فهرست میآید.
+- **API:**
+  - `GET /companies/{code}/departments`: هر دپارتمان `mandate`، `identity_md` و `team` دارد.
+  - `GET /templates`: `blueprint` هر قالب.
+  - `company.state`: مأموریت و تیم هر دپارتمان، و شخصیت دپارتمان خود صداکننده.
+  - ویرایش: `PUT /companies/{code}/departments/{dept}/mandate` با 🔏 `department.mandate` روی SHA-256 بدنه و `If-Match`.
+- **runtime:** `identity_md` بعد از منشور و پیش از مهارت‌ها در system prompt مدیر و هر کارمند همان دپارتمان میآید. نسخه‌اش روی اجرا در `agents.runs.identity_doc` (مثلاً `TY-MEDIA@4`) ثبت میشود. CEO و نقش‌های بی دپارتمان هیچ شخصیتی نمیخوانند.
+
+### ۳۱.۲ نقش‌هایی که به‌موقع نوشته میشوند (§۱.۱، قرارداد §۲۲.۵)
+- **درخواست:**
+  - مالک: `POST /roles/drafts {company, department, brief_md}`. مدیر دپارتمان با یک کار بیدار میشود.
+  - یا خود مدیر با `role.draft` (A1) مینویسد.
+- **سقف با کد (۴۲۲ برای هر فیلد):**
+  - ابزارها داخل `tool_ceiling` دپارتمان؛ هیچ قدرت نظارت، اختیار استخدام، خط مالک یا ابزار A3/A4.
+  - مدل داخل `model_ceiling`؛ `limits` حداکثر به اندازه‌ی خود مدیر.
+  - دست‌کم ۳ مورد آزمون.
+- **دروازه‌ها به ترتیب:**
+  1. چک تکراری بودن (8-gram، بی مدل)
+  2. بازبینی ناظر روی متن کامل ماسک‌شده و sha256 (`skill.review` با ref `RD-…`، چک پنجم `ceiling`)
+  3. آزمون‌های خودش در آکادمی (قبولی ۷۰ از ۱۰۰، که baseline نقش میشود؛ تا قفل هست اجرا نمیشود)
+  4. تأیید
+- **تأیید:**
+  - با `role.decide` مدیرعامل همان شرکت، فقط وقتی استخدام `delegated` است.
+  - وگرنه، و همیشه برای هلدینگ، کارت `role_new` برای مُهر مالک (🔏).
+  - هر نقش تازه یک استوری `role` میسازد.
+- **کجا میماند:** نقش فعال یک منشور روی سرور است، برای همان شرکت و دپارتمان. `agents/` هرگز نوشته نمیشود. `_common.md` همیشه اول است.
+  - `GET /roles` هر دو را با `source: file|draft` نشان میدهد. استخدام هر دو را میپذیرد.
+  - بازنشسته کردن: `POST /roles/drafts/{ref}/retire` (بی مُهر؛ استخدام تازه نه، کارمندهای فعلی کار میکنند).
+
+### ۳۱.۳ برنامه‌ی انتشار (§۲، قرارداد §۲۲.۲)
+- **ساخت:**
+  - مالک: `POST /media/series` (`Idempotency-Key`) ← `draft`.
+  - یا مدیر رسانه با `series.propose` (A1) ← `proposed` با کارت `media_series` (A3).
+  - شکل: `targets` (حساب خود همان شرکت: `telegram-<co>` و `instagram-<co>`)، `schedule` (RRULE در منطقه‌ی مالک)، `topics.pool`، `format`، هر هفت چک، `auto_publish`، `max_per_day`.
+  - قالبی که خط تولید نمیتواند بسازد ۴۲۲ میگیرد؛ مثلاً ریلز غیر 9:16، موسیقی `library` یا حساب شرکت دیگر.
+- **مُهر:** `POST /media/series/{ref}/seal {digest}` با 🔏 `media.series` روی همان `digest`. digest دیگر ← `409 version_conflict`.
+  - مُهر کارت `media_series` منتظر را هم تأیید میکند و برنامه‌ی متوقف را ادامه میدهد.
+  - تأیید همان کارت از کارتابل ← `409 validation_failed` (مثل طرح سرور).
+- **ویرایش برنامه‌ی مُهرشده** (`PUT …` با `If-Match`) آن را به `proposed` برمیگرداند: مُهر قبلی دیگر آن را نمیپوشاند و تا مُهر دوباره هیچ چیز خودکار منتشر نمیشود.
+  - `POST …/pause` و `…/retire` بی مُهرند.
+- **زمان‌بندی:** sweep رسانه برای هر برنامه‌ی مُهرشده یک آیتم برای هر رخداد RRULE میسازد، با موضوع بعدی pool. برای هر رخداد فقط یک آیتم ساخته میشود، و حداکثر `max_per_day` در هر روز مالک.
+  - رخدادی که بیش از ۳۰ دقیقه پیش گذشته جبران نمیشود.
+  - `next_at[]` و `today {made, published}` را سرور حساب میکند.
+
+### ۳۱.۴ خط تولید (§۲.۳)
+هر گام یک کار برای نقش همان گام در دپارتمان رسانه‌ی همان شرکت است (کم‌کارترین کارمند). جابه‌جایی بین گام‌ها با کد است.
+- **ویدیو** (ریلز، استوری با مدت): سناریو (`scriptwriter`) ← کارگردانی (`video_director`) ← ترکیب‌بندی (`motion_designer`) ← صدا (`voice_producer`، اگر قالب صدا دارد) ← render (کد) ← چک‌ها (کد) ← بازبینی (`media_director`).
+- **تصویر** (پست، کاروسل، استوری تصویری): سناریو ← ترکیب‌بندی ← چک‌ها ← بازبینی. ترکیب‌بندی یکی از این دو است:
+  - فریم‌های `visual_designer` (creativeهای `substitute.call`، که با `deliver` و ref‌های `CR-…` تحویل میشوند)
+  - یا ترکیب‌بندی کد `motion_designer` که render worker به عکس تبدیل میکند: کاروسل با `data-slides="N"` و قاب k در [k-1, k) ثانیه؛ عکس تک در ثانیه‌ی ۳.
+- **طراحی UI** (`design`، `ui_designer`): بریف ← ترکیب‌بندی ← render (phone با 390×844 @2x و desktop با 1440×900، کل صفحه) ← بازبینی. هرگز منتشر نمیشود و به‌صورت خروجی برای CTO میماند.
+- **نقشی که استخدام نشده:** آیتم `held` میشود، با یادداشت. مدیر رسانه یک بار برای هر گام کار «نقش لازم است» میگیرد.
+- **ابزارها** (`agents/tools.md`):
+  - `media.item` (A1، گام جاری، فقط نقش همان گام؛ بعد از ثبت، کار گام با شاهد آیتم `done` میشود)
+  - `media.render` (A2، پیش‌نمایش؛ تا profile ‏`media` خاموش است ← `503 channel_not_configured`)
+  - `media.voice` (A2، فقط `voice_producer`)
+  - `media.review` (A2، **فقط مدیر رسانه**؛ `changes` آیتم را به زودترین گام نقشی که در یادداشت آمده برمیگرداند، `reject` تمامش میکند)
+  - `series.propose` (A1)
+- **schema ترکیب‌بندی** (`hq_common/composition.py`، یک بار در api پیش از ذخیره و یک بار در render worker):
+  - یک سند HTML با `lang="fa" dir="rtl"`.
+  - فقط `/lib/anime.min.js` (anime.js 3.2.2) و `/lib/lottie.min.js` (lottie-web 5.12.2 light).
+  - عکس فقط `/assets/<file id>` از فایل‌های همین شرکت (یا data:image).
+  - IRANYekanX تنها قلم.
+  - هیچ `fetch`، XHR، WebSocket، worker، import، URL با scheme، `<link>`، `<iframe>`، `<base>`، `<form>`، `@import`، `@font-face`، storage یا eval.
+  - یا یک Lottie بی expression.
+  - متن دیدنی نباید رمز یا ایمیل داشته باشد.
+  - رد ← `422` با نام قاعده. هر تغییر نسخه‌ی تازه با sha256 است (`media.compositions`).
+- **صدا:** `media.voice` متن گوینده را با `fa_speech_script` به کلمه تبدیل میکند و با صدای فعال رجیستری (یا صدایی که قالب نام میبرد) در صف رجیستری میگذارد (`media.speech_jobs`، کار `narration`؛ ۳۱.۱۳). TTS one-shot آن را از `POST /internal/v1/voices/jobs/claim` میگیرد.
+  - وقتی روایت آماده شد (`voices.ON_NARRATION`)، فایل روی آیتم میآید و آیتم به render میرود. روایتی که سه بار شکست خورد، آیتم را بی‌صدا و با زیرنویس جلو میبرد.
+  - روایت کار شرکتی که قفل است (کلید توقف یا freeze) تا باز شدن قفل گرفته نمیشود.
+  - تا profile ‏`tts` خاموش است، آیتم بی‌صدا و با زیرنویس ادامه میدهد. یادداشتش همین را میگوید.
+- **چک‌ها با کد** (`studio_checks.py`):
+  - `brand`: برند فعال، رنگ‌های ترکیب‌بندی از پالت (به‌علاوه‌ی سیاه و سفید)، فقط IRANYekanX، و نشان که خود render گذاشته.
+  - `red_lines`: الگوهای قاعده‌ای اساسنامه‌ی مُهرشده (`governance.charters` پرامپت ۱۱)، و تا مُهر نشده الگوهای `agents/charter/HOLDING.md`. روی سناریو، صدا، زیرنویس، متن صفحه، متن تصویر و کپشن.
+  - `risk_warning`: محتوای ترید هشدار ریسک را هم در صدا یا زیرنویس (برای تصویر: روی قاب) دارد و هم در کپشن.
+  - `facts`: هر عدد سناریو در یادداشت منبعی آمده (عدد «فرض کنید» حساب نیست).
+  - `rights`: فقط فایل خود شرکت یا ساخته‌ی هاب، و موسیقی `none`.
+  - `platform`: نسبت، مدت و حجم برای هر جای انتشار.
+  - `qc`: رأی مدیر رسانه.
+
+### ۳۱.۵ render worker (§۲.۳، §۶)
+- profile اختیاری `media`، **پیش‌فرض خاموش**، با دو یک‌بارمصرف که volume کارها (`hq-media-jobs`) را با هم دارند:
+  - `media-courier`: روی شبکه‌ی داخلی `hq-media` (172.30.23.0/24)، که فقط به api و OpenBao میرسد. کار را میگیرد و فایل‌ها را برمیگرداند. principal سرویسی `media` با توکنی در `kv/media/config` (AppRole `media`؛ `provision.sh` یک بار میسازد).
+  - `media-render`: **بی هیچ شبکه** (`network_mode: none`)، root فقط‌خواندنی، uid 10001، `cap_drop: ALL` و فقط `SYS_CHROOT`، seccomp خود Playwright، no-new-privileges، ۲ CPU، ۵۱۲ پردازه، tmpfs ‏256m، و مهلت ۶۰۰ ثانیه برای هر کار (container یک دقیقه بعد کشته میشود).
+  - Chromium بی‌سر ترکیب‌بندی را **قاب به قاب** با ساعت مجازی render میکند، نه ضبط زنده. هر درخواست صفحه بیرون از `/lib`، `/fonts` و `/assets` کار رد میشود و به‌صورت violation برمیگردد (api آیتم را با همان به سازنده‌اش برمیگرداند).
+  - ffmpeg: H.264 High، yuv420p، AAC (سکوت وقتی صدا نیست)، `+faststart`.
+  - نشان شرکت پایین چپ حاشیه‌ی امن است (۱۲٪ ضلع کوتاه). زیرنویس فارسی و CTA روی لایه‌ای جدا که ترکیب‌بندی به آن دسترسی ندارد.
+  - خروجی‌ها: ویدیو، poster، WebVTT. همه از بررسی نوع و حجم api (§۱۷.۱) رد میشوند. poster، `variant=poster` همان ویدیو است.
+- **روشن و خاموش (تصمیم حافظه با مالک):**
+  - `make install-systemd` یک بار، بعد `make media-on`: `HQ_MEDIA=on`، build، `up api worker`، و timer ‏`coinepro-hq-media.timer` (هر ۲ دقیقه، زیر قفل یک‌بارمصرف مشترک با backup و TTS).
+  - `make media-off` برمیگرداند. بیرون از budget، `hq.sh` رد میکند (exit 3).
+  - هر دور (`infra/media/run-once.sh`) حداکثر `MEDIA_MAX_JOBS=2` کار.
+  - تا خاموش است، render در صف میماند و آیتم همین را میگوید.
+- **عددها** (`make media-bench`، ۲۰۲۶-۱۰-۲۳ روی همین CPX42، سقف 960m، ۳ بار؛ ریلز ۳۰ ثانیه‌ای 1080×1920، ۹۰۰ قاب):
+  - زمان ۵۱ تا ۵۶ ثانیه
+  - peak کانتینر ۷۱۸ تا ۷۷۶ مگ
+  - Chromium ‏۲۸۴ تا ۲۹۱ مگ
+  - ریلز ۱٫۵ تا ۱٫۸ مگابایت
+  - عکس Lottie ‏۱٫۶ ثانیه / ۲۵۹ مگ؛ صفحه‌ی طراحی ۱٫۷ ثانیه / ۲۸۰ مگ
+  - `MEM_MEDIA_RENDER=960m` و `MEM_MEDIA_COURIER=64m` (۱۷ مگ اندازه‌گیری‌شده)
+- **gate حافظه:**
+  - full+media: ‏11920 از 12288 (جا میشود)؛ با TTS هم 12240 (جا میشود).
+  - با MCP، runner یا مرورگر وب بازیکن‌ها جا نمیشود.
+  - lean+media: ‏700 مگ بیشتر (رد میشود).
+- **probe زنده** (`make verify-live`): `hq-media` فقط api و OpenBao را میبیند. خود سرویس `media-render` جز loopback هیچ چیز نمیبیند. URL امضاشده‌ی ساختگی و هر مسیر دیگر `/public` در لبه `404` است.
+
+### ۳۱.۶ انتشار: تلگرام و اینستاگرام (§۲.۳)
+- **کی منتشر میشود:**
+  - **خودکار** فقط وقتی همه‌ی این‌ها برقرار است: برنامه مُهرشده و digest همان است که مُهر شد، `auto_publish`، هر هفت چک `pass`، همه‌ی جاها با API رسمی و حسابشان کلید دارد، و حالت نگهبان خاموش است. آیتم `scheduled` میشود، در رخداد بعدی برنامه منتشر میشود و حداکثر `max_per_day` در هر روز.
+  - **وگرنه** `waiting_owner` و کارت `media_publish` (A3). `why` یکی از این‌هاست: `one_off`، `check_failed`، `not_sealed`، `not_auto`، `no_api`، `account_not_configured`، `platform_limit`، `watch_mode` یا `publish_failed`.
+  - تأیید کارت (🔏 `decision.approve`، از کارتابل یا `POST /media/items/{ref}/publish`) همان آیتم را همان موقع منتشر میکند.
+  - **استوری کانال تلگرام Bot API ندارد:** همیشه کارت با فایل است. مالک خودش میگذارد (`external_id: "manual"`).
+- **مسیر:** worker از راه egress (`POST /v1/media/publish`) میفرستد:
+  - تلگرام: `sendVideo`، `sendPhoto`، `sendMediaGroup`. کپشن ساده، با برچسب «ساخته‌شده با کمک هوش مصنوعی».
+  - اینستاگرام: Graph API ‏(`graph.instagram.com/v23.0`): `me`، بررسی نام کاربری، `limit`، container (`REELS`، `STORIES`، `IMAGE`، `CAROUSEL`) با `is_ai_generated: true`، بررسی وضعیت، بعد `media_publish` و `permalink`.
+  - اینستاگرام فایل را از **URL امضاشده‌ی همان یک فایل، حداکثر ۱۵ دقیقه** میگیرد: `https://hq.coinepro.com/public/v1/media/<token>` (HMAC، فقط فایل‌های ساخته‌ی render یا creative). هر چیز دیگر `404` است. Caddy فقط GET/HEAD این مسیر را به api میدهد.
+  - هیچ انتشاری از مرورگر یا کوکی نیست.
+- **متوقف میشود با:** قفل هلدینگ (هیچ)، کلید توقف یا deploy freeze شرکت (آیتم `scheduled` میماند)، hold روی کار گام‌ها یا کارت، و حالت نگهبان (کارت).
+- **سقف خود پلتفرم:** اینستاگرام ۵۰ پست API در ۲۴ ساعت برای هر حساب ← `429 platform_limit` با `Retry-After`. انتشار خودکار هم پس میافتد.
+  - `GET /media/limits`: هر حساب `per_24h`، `used_24h`، `resets_at` و `note_fa` دارد.
+- **برداشتن:** `POST /media/items/{ref}/unpublish` با 🔏 `media.unpublish` روی ref.
+  - پیام کانال تلگرام با `deleteMessage` برداشته میشود (`removed`).
+  - اینستاگرام از API حذف ندارد، پس `remove_by_hand`.
+  - آیتم `rejected` میشود. همه در `media.publish_log` ثبت میشود.
+- **کار مالک برای هر شرکت (`<co>` با حرف کوچک):**
+  1. در اپ، حساب `telegram-<co>` بساز:
+     - `site: api.telegram.org`
+     - `companies: [<CO>]`
+     - `policy.inject.username`: کانال (`@name` یا `-100…`)
+     - ربات باید مدیر کانال با اجازه‌ی ارسال و حذف باشد.
+  2. در ترمینال خودت: `make account-secret KEY=telegram-<co>` (توکن ربات).
+  3. در اپ، حساب `instagram-<co>` بساز:
+     - `site: graph.instagram.com`
+     - `policy.inject.username`: نام کاربری صفحه‌ی business یا creator
+  4. در ترمینال خودت: `make account-secret KEY=instagram-<co>` (توکن long-lived).
+  - اینستاگرام دامنه و HTTPS میخواهد (`HQ_SITE_ADDRESS`، و egress با `EGRESS_PUBLIC_HOST`).
+  - تا این‌ها نیست، هر جا `account_not_configured` است و چیزی منتشر نمیشود.
+
+### ۳۱.۷ بازسنجی روزانه‌ی پست‌های منتشرشده (§۲.۶)
+- sweep رسانه پست‌هایی را که دست‌کم یک ساعت از انتشارشان گذشته، **با کد و بی مدل** دوباره میسنجد: خطوط قرمز، هشدار ریسک، عدد بی‌منبع و برند. حداکثر ۵ پست در روز برای هر شرکت. تا قفل هست، هیچ.
+- **پست مشکل‌دار:**
+  - یافته‌ی `high` برای ناظر با `dedupe_key` همان آیتم
+  - برنامه‌اش `paused` با یادداشت «ناظر کل… متوقفش کرد»، تا مالک
+- پروتکل نمونه‌گیری با مدل ناظر در `agents/protocols` نیست. اضافه کردنش کار Claude سشن مشورت است.
+
+### ۳۱.۸ API و stream
+- **مالک:**
+  - `GET|POST /media/series`، `GET|PUT /media/series/{ref}`، `POST …/seal|pause|retire`
+  - `GET|POST /media/items`، `GET /media/items/{ref}`، `POST …/publish|unpublish`
+  - `GET /media/limits`
+- **ایجنت‌ها:** `POST /internal/v1/media/item|render|voice|review` و `/media/series/propose`.
+- **one-shotها:**
+  - `POST /internal/v1/media/render/claim`، `GET …/{id}/files/{file_id}`، `POST …/{id}/output|done|fail` (سرویس `media`)
+  - `POST /internal/v1/voices/jobs/claim|{id}/done|{id}/fail` (سرویس `tts`؛ روایت آیتم‌ها و نمونه‌های bake-off، ۳۱.۱۳)
+- **عمومی:** فقط `GET|HEAD /public/v1/media/{token}`.
+- **stream:** `media.item` و `media.series` روی topic ‏`media`؛ `role.updated` روی `people`.
+- **کدهای خطا:** `series_not_sealed` (409) و `platform_limit` (429).
+
+### ۳۱.۹ حافظه و هزینه (§۶)
+- render worker: ۹۶۰ مگ، و فقط وقتی مالک روشنش کند (۳۱.۵). poller، چک‌ها و انتشار داخل worker موجودند و سرویس تازه نیستند.
+- **پاکت توکن:** هر ریلز از پاکت ماهانه‌ی همان شرکت پرداخت میشود و در ستاره‌ی کارایی دیده میشود.
+  - prompt ثابت هر گام اندازه گرفته شد: سناریست ۵٫۴، کارگردان ۵٫۲، موشن ۵٫۶، صدا ۴٫۸ و مدیر رسانه ۷٫۱ هزار توکن.
+  - برآورد هر ریلز ۱۳۰ تا ۲۸۵ هزار توکن (بیشترش Opus ترکیب‌بندی). جزئیاتش در گزارش `PROMPT_13.md`.
+  - **این عدد با سقف روزانه‌ی ۶۰۰ هزار توکن ایجنت‌ها جور نیست** (۲ تا ۴ ریلز در روز برای همه‌ی هاب). سقف با مالک است.
+
+### ۳۱.۱۱ مشاور حقوقی: پرونده، ایمیل مُهرشده، پاسخ‌ها (پرامپت ۱۳ §۳، قرارداد §۲۲.۴)
+- **جایگاه:** دپارتمان `LEGAL` («حقوقی») در قالب هلدینگ، **بی‌مدیر** (`manager: false` در `seed/templates/holding.yaml`)، و کارمند seed‌شده‌ی **`HQ-LGL`** (منشور `legal_counsel`، scope هلدینگ) با رشته‌ی **`L`** (kind `legal`). خواب است تا کار برسد:
+  - پیام مالک در رشته‌ی `L` (با P2، مثل A، N و P)؛
+  - کار مدیرعامل یک شرکت: `work.request {company: HQ, department: LEGAL}` (تنها مسیر میان‌شرکتی غیر از CEO به CEO؛ OPA در `legal_voice.rego`)؛
+  - پاسخی که به یکی از پرونده‌هایش رسید.
+- **پرونده `LC-0001`** (`legal.cases`، با `company_id` همان شرکتی که پرونده درباره‌ی آن است؛ کار هلدینگ مال هلدینگ است):
+  - `GET /legal/cases?company&status&cursor` (تازه‌ترین اول)، `GET /legal/cases/{ref}` (timeline کامل و همه‌ی ایمیل‌ها).
+  - `POST /legal/cases {company, title_fa, kind, brief_md, file_ids?}` (مالک، Idempotency-Key) ← پرونده و یک کار P2 برای مشاور (`run_meta.task_class: legal_case`).
+  - `POST /legal/cases/{ref}/close {note_fa?}`؛ تا وقتی ایمیلی منتظر مُهر یا ارسال است ← ۴۰۹.
+  - timeline در `legal.case_events` (append-only): `note`، `form`، `decision`، `email_out`، `email_in`.
+  - stream: `legal.case` روی topic `legal`.
+- **ابزارهای مشاور** (Tool Gateway، فقط منشور `legal_counsel`؛ هر کدام فقط روی پرونده‌های خود همان مشاور، وگرنه ۴۰۴):
+  - `case.open`، `case.note` (با `deadline {at, what_fa}` و وضعیت `open | waiting_reply | resolved`)،
+  - `email.draft` (A1): پیام دقیق ← کارت **`email_send`** (A3)،
+  - `mail.read` (A0): ایمیل‌های ماسک‌شده‌ی پرونده.
+  - فرم و پورتال: `propose` با `a3_action` و `action: "form_submit"` (مقدار هر فیلد در `preview`)؛ مالک خودش میفرستد.
+- **ایمیل، دقیقاً همان، یک بار:**
+  - `digest` = SHA-256 شکل canonical پیام: JSON با کلیدهای مرتب و بی‌فاصله از `{from, to, cc, subject, body_md, attachments: [sha256…], lang}` (`hq_api.domain.legal.canonical`). کارت همین را نشان میدهد و مُهرش (step-up `decision.approve`) روی **همین digest** است، نه روی ref کارت.
+  - تأیید: اصلاحیه (amendments) ← ۴۲۲. ایمیل تغییرکرده یا کنار رفته ← ۴۰۹ `decision_not_pending`. صندوق وصل نیست ← ۴۰۹ `account_not_configured` و کارت همان کارت میماند (تصمیم مالک §۰.۹ بند ۶).
+  - بعد از مُهر، ایمیل `queued` است. effect کارت در worker (`decision_apply_effect`) **بعد از چک قفل‌ها** (کلید توقف هلدینگ و شرکت، hold) آن را میفرستد:
+    - ادعا (`sending`) در تراکنش خودش، ارسال از egress، ثبت `sent` یا `failed`.
+    - ادعایی که با crash در `sending` مانده هرگز دوباره فرستاده نمیشود (`unknown_outcome`). شکست هم خودکار تکرار نمیشود: پیش‌نویس تازه، کارت تازه.
+  - پیش‌نویس تازه وقتی یکی منتظر است ← قبلی `superseded` و کارتش `withdrawn`.
+  - رد یا برگشت کارت ← ایمیل `rejected`، پرونده دوباره `open` و یک کار برای مشاور با یادداشت مالک.
+  - stateهای ایمیل: `waiting_seal`، `queued`، `sending`، `sent`، `failed`، `received`، `superseded`، `rejected`.
+- **پاسخ‌ها:** schedule `hq-legal-mail-poll` هر ۵ دقیقه (`LegalMailPoll` ← `legal_mail_poll`):
+  - **با قفل هلدینگ هیچ کاری نمیکند** (نه صندوق، نه کار). بی‌صندوق: `account_not_configured` در `legal.mailbox.last_result`.
+  - از آخرین UID به بعد میخواند (`BODY.PEEK`، پرچم‌های صندوق دست نمیخورند؛ UIDVALIDITY تازه ← از اول، تکراری‌ها با Message-ID کنار میروند).
+  - فقط پیامی که `In-Reply-To` یا `References` آن یکی از پیام‌های فرستاده‌ی ما را نام ببرد وارد پرونده میشود. بقیه ذخیره نمیشوند (فقط شمرده میشوند).
+  - متن و موضوع ماسک میشوند (`hq_common.redact.scrub`). نشانی فرستنده دست نمیخورد تا مشاور آن را با دامنه‌های رسمی بسنجد.
+  - پیوست‌ها از §۱۷.۱ رد میشوند: نوع از روی بایت‌ها، عکس بی‌متادیتا (در child)، متن PDF بیرون از تراکنش. بقیه فقط نامشان در timeline میآید. پیوست‌ها در هلدینگ نگه داشته میشوند تا `files.read` مشاور به آن‌ها برسد.
+  - مشاور با یک کار P2 بیدار میشود (`run_meta.task_class: legal_email`).
+- **هیچ ایمیلی خودکار فرستاده نمیشود.** تنها راه ارسال، effect کارت مُهرشده است.
+
+### ۳۱.۱۲ صندوق ایمیل مشاور (کار مالک)
+- **حساب سرویس `mail`** در `/tools/accounts` (اپ، 🔏 `account.put`):
+  - `site`: دامنه‌ی سرویس (مثلاً `gmail.com` برای Gmail و Workspace).
+  - `policy.inject: {kind: "basic", username: "<نشانی صندوق>"}`.
+  - `policy.ports: [465, 993]` (یا `587` با STARTTLS اجباری).
+  - `policy.mail: {imap_host, smtp_host}` فقط وقتی سرورها `imap.<site>` و `smtp.<site>` نیستند. هر دو باید روی همان site باشند، وگرنه ۴۲۲.
+- **رمز:** `make account-secret KEY=mail` (app password؛ ورودی پنهان، `kv/tools/accounts/mail`). هیچ‌جا چاپ، لاگ یا پاسخ نمیشود. فقط برای همان یک فراخوانی به egress میرود.
+- **egress** (`hq_egress/mail_out.py`): `POST /v1/mail/send` و `/v1/mail/fetch`، فقط از worker:
+  - فقط hostهای همان site و فقط portهای خود حساب (۴۶۵ یا ۵۸۷ برای SMTP، ۹۹۳ برای IMAP).
+  - TLS همیشه، با گواهی بررسی‌شده برای همان نام. اتصال به نشانیِ بررسی‌شده‌ی guard (نه نشانی خصوصی یا خود هاب).
+  - فرستنده‌ی envelope همیشه خود صندوق است. هر entry در `egress.log` با ابزار `mail.send` (A3) یا `mail.fetch` (A0).
+- تا مالک وصل نکند، پیش‌نویس‌ها فقط کارت‌اند و poller هیچ نمیخواند.
+
+### ۳۱.۱۳ صدا: رجیستری `media.voices` و bake-off (پرامپت ۱۳ §۴، قرارداد §۲۲.۳)
+- **یک رجیستری برای همه:**
+  - گزارش‌های صوتی §۲۱.۴ با صدای فعال رجیستری حرف میزنند (وقتی image آن را دارد؛ وگرنه `HQ_TTS_VOICE`).
+  - روایت آیتم‌های رسانه (`media.voice`، A2، فقط `voice_producer` در شرکت خودش) هم همین‌طور.
+  - صدای غیرتجاری که مالک انتخاب نکرده ← ۴۰۹ با `voice_id: licence_not_chosen`.
+- **ردیف‌ها** (هر موتور و گوینده یک ردیف؛ seed یک بار، بعد عدد اندازه‌گیری و انتخاب مالک میماند):
+  - `piper-amir` (فعال، پیش‌فرض تا انتخاب مالک)، `piper-ganji`، `piper-ganji-adabi`، `piper-reza-ibrahim`: MIT و دیتاست CC0، در image.
+  - `piper-gyro`: لایسنس دیتاست روی کارتش نیامده («See URL»): غیرتجاری حساب میشود و در image نیست.
+  - `manatts-piper`: هنوز آموزش ندیده (پایین را ببین).
+  - `parsvoice-xtts`، `parsvoice-xtts-owner`: CPML، غیرتجاری. دانلودش gated است (حساب Hugging Face مالک) و XTTS-v2 روی CPU حدود ۲٫۵ تا ۳ گیگ میخواهد. نصب نیست.
+  - `chatterbox-fa`، `chatterbox-fa-owner`: CC BY-NC 4.0، gated، بیرون از بودجه. نصب نیست.
+  - مدل چندزبانه‌ی آزاد با فارسی روی کارت پیدا نشد (Kokoro‏ Apache-2.0 فارسی ندارد؛ Chatterbox چندزبانه MIT فارسی ندارد؛ MMS-TTS‏ fas‏ CC-BY-NC است).
+- **API مالک:**
+  - `GET /media/voices`: با `licence`، `licence_commercial`، `rtf`، `mem_mb`، `installed`، `samples[]`.
+  - `POST /media/voices/{id}/score {score: 1..10}`.
+  - `POST /media/voices/{id}/activate` 🔏 `voice.activate` (target = id):
+    - غیرتجاری بی `{accept_non_commercial: true}` ← ۴۲۲.
+    - نصب‌نشده یا اندازه‌نگرفته ← ۴۰۹ `not_ready`.
+    - همیشه یک صدای فعال.
+  - `GET /media/voices/reference` (۴۰۴ وقتی نیست)، `POST /media/voices/reference {file_id}`:
+    - فقط فایل صوتی خود مالک، ۶۰ تا ۱۸۰ ثانیه، که به هیچ پیامی پیوست نشده.
+    - هیچ ایجنتی آن را نمیخواند (حتی ایجنت‌های هلدینگ) و به هیچ‌جا فرستاده نمیشود.
+    - موتور کلون‌کننده‌ای روی هاب نصب نیست، پس فعلاً فقط نگه داشته میشود.
+- **bake-off روی هاب:**
+  - schedule `hq-voice-bakeoff` روزانه ۰۳:۴۰ (منطقه‌ی مالک): برای هر صدای نصب‌شده و هر متن ثابت، کار `sample` میسازد (یک بار برای هر round). **با قفل هلدینگ هیچ.**
+  - TTS one-shot (همان timer `coinepro-hq-tts`، فقط با `HQ_TTS=on`): بعد از گزارش‌ها از `POST /internal/v1/voices/jobs/claim` کار میگیرد (۲۰۴ وقتی کاری نیست، و **همیشه با قفل هلدینگ**).
+  - هر کار صدای خودش را نام میبرد. صدایی که image ندارد ← `voice not installed`، هرگز صدای دیگر.
+  - Ogg با `?duration_s&synth_s&peak_mb` برمیگردد و از §۱۷.۱ رد میشود: نوع از بایت‌ها، طول از ffprobe، ردیف processing برای worker رسانه (بی pass نشانه‌گذاری مدل).
+  - نام فایل خنثی است (`voice-xxxxxxxx.ogg`) تا شنیدن کور بماند. `rtf` صدا = جمع زمان کار ÷ جمع ثانیه‌های گفتار همان round؛ `mem_mb` بیشترین peak.
+- **متن‌های ثابت** (`hq_api.domain.voices.SCRIPTS`؛ صدا همان شکل گفتاری `fa_speech_script` را میخواند و image همان را در `services/tts/bakeoff_scripts.json` دارد):
+  - `numbers`: عدد، دلار و درصد
+  - `latin`: RSI، MACD، Bitcoin، Ethereum، Fibonacci
+  - `crypto`: کلمه‌های کریپتو
+  - `long`: یک جمله‌ی ۶۶ کلمه‌ای
+  - `reel60`: متن ریلز با هشدار ریسک (۱۵۹ کلمه، ۶۴ تا ۷۶ ثانیه)
+- **اجرای اپراتور:** `make tts-bakeoff [OUT=/tmp/hq-bakeoff]`: همان image، بی‌شبکه، با سقف `MEM_TTS`. خروجی JSON است و Ogg‌ها در `OUT`.
+- **عددها** (۲۰۲۶-۱۰-۲۳، همین CPX42، سقف ۳۲۰ مگ، ۱ thread، بی‌شبکه، پنج متن، ۱۴۴ تا ۱۷۷ ثانیه گفتار برای هر صدا):
+
+| صدا | RTF | peak یک ساخت | لایسنس |
+|---|---|---|---|
+| piper-amir | 0.177 | 236.3 مگ | MIT + CC0 (تجاری) |
+| piper-ganji | 0.170 | 254.5 مگ | MIT + CC0 (تجاری) |
+| piper-ganji-adabi | 0.187 | 270.5 مگ | MIT + CC0 (تجاری) |
+| piper-reza-ibrahim | 0.185 | 269.8 مگ | MIT + CC0 (تجاری) |
+  - peak کانتینر (cgroup) ‏264.8 مگ.
+  - RTF شامل بار کردن مدل در هر کار است.
+  - با خط‌های ۱۴ کلمه‌ای، دو صدای سنگین‌تر به ۳۳۷ مگ میرسیدند و کانتینر به سقف ۳۲۰ میخورد. پس `CLAUSE_WORDS` از ۱۴ به ۸ آمد (۱۰ کلمه: ۳۰۷ مگ). `MEM_TTS=320m` همان میماند.
+- **ManaTTS (برنامه و برآورد؛ کرایه‌ی GPU تصمیم مالک، §۰.۹ بند ۳):**
+  - fine-tune صدای Piper/VITS از `fa_IR-amir-medium` روی ۸۶ ساعت ManaTTS (CC0، یک گوینده‌ی زن)؛ متن‌ها با همان normaliser.
+  - برآورد: یک GPU ‏24GB حدود ۲۴ تا ۴۸ ساعت، ۱۵ تا ۷۰ دلار کرایه.
+  - خروجی ONNX با sha256 در `voice.lock.json`، بعد همین bake-off و شنیدن کور مالک.
+
+### ۳۱.۱۴ حافظه و هزینه‌ی بخش حقوقی و صدا (پرامپت ۱۳ §۶)
+- **poller ایمیل:** داخل worker موجود، سرویس تازه ندارد. **ارسال ایمیل:** effect همان worker. **صندوق:** از egress موجود (بی سرویس و بی پورت تازه).
+- **TTS:** همان one-shot پروفایل `tts` (خاموش)، `MEM_TTS=320m`، قفل مشترک با backup. سه صدای تازه در image: روی هم ۱۹۰ مگ دیسک (۳ × ۶۳٫۵)، بی اثر روی حافظه (هر کار یک صدا را بار میکند).
+  - gate: full+tts ‏11216 از 12288؛ lean+tts ‏6192 از 6196. هیچ‌کدام تغییر نکرد.
+- **ParsVoice-XTTS و Chatterbox:** به بودجه نمیخورند (≈۲٫۵ تا ۳ گیگ؛ full+tts فقط حدود ۱ گیگ جا دارد). اندازه‌گیری نشدند (دانلود gated، حساب مالک).
+- **توکن:** کار مشاور با پاکت هلدینگ است (task classهای `legal_case` و `legal_email`، هرگز روی provider دیگر). سقف منشور: ۸ گام و ۲۰۰ هزار توکن در هر اجرا. تا راه‌اندازی هاب هیچ اجرایی نیست.
+
+## ۳۲. بایگانی رسمی هلدینگ و شرکت‌ها، لایه‌باز (پرامپت ۱۴؛ قرارداد §۲۳)
+- **migration ‏`0029`** (`0029_archive.py`، بعد از `0028_1`؛ **آخرین**):
+  - schema تازه‌ی `archive`: لایه‌ی باز (`levels`، `clearance`، `classes` با `class_versions`، `fields`، `folders`، `party_kinds`، `parties`، `link_kinds`، `retention_rules`، `reminder_rules`، `automations` و `automation_runs`، `sources`) و سندها (`records`، `record_versions`، `record_files`، `intake`، `links`، `holds`، `reminders`، `access_log`، `fixity_runs`، `tombstones`، `destroy_queue`).
+  - همه `company_id` و RLS **FORCE** دارند و DELETE هیچ‌جا نیست. `class_versions`، `automation_runs`، `access_log`، `fixity_runs` و `tombstones` فقط‌افزودنی‌اند.
+  - نسخه‌ی مُهرشده و فایلش با trigger تغییرناپذیرند (SQLSTATE ‏`HQR01` ← `409 sealed_record`).
+  - نوع‌های کارت `archive_schema` و `archive_disposal` (CHECK از روی نوع‌های موجود `NOT VALID` و بعد **validate**، چون `0029` آخرین است؛ `threads_kind_check` هم validate میشود).
+  - task class ‏`archive` (همین در seed روتر)؛ `agents.queue_run` کارمند `system` دارای منشور را بیدار میکند (`HQ-ARC`؛ `HQ-SYS` منشور ندارد و هرگز بیدار نمیشود).
+  - `GRANT UPDATE (transcript)` روی `files.processing` برای api، و CHECK ‏`auth.step_ups.action` یک بخش سوم میپذیرد (`archive.hold.release`).
+  - **زنجیره (روی ۱۳ deploy‌شده):** `0025` ← `0026` ← `0026_1` ← `0027` ← `0027_1` ← `0027_2` ← `0028` ← `0028_1` ← `0029`. `0029` آخرین است و تنها migrationی است که CHECKهای kind را (با همه‌ی نوع‌های ۱۱ تا ۱۴) validate میکند؛ `0028_1` دیگر validate نمیکند (production آن را پیش‌تر اجرا کرده و دست نمیخورد).
+- **قانون‌های قطعی:**
+  1. هیچ رمزی وارد بایگانی نمیشود: `422 secret_in_document`؛ فایل نگه داشته نمیشود و هیچ بخشی از آن لاگ نمیشود.
+  2. هیچ چیزی بی مُهر مالک پاک نمیشود: امحا فقط با کارت مُهرشده‌ی `archive_disposal`. سند توقیف‌شده هرگز.
+  3. سطح دیدن نشت نمیکند، و این را RLS پایگاه داده تضمین میکند.
+  4. مدل فقط پیشنهاد میدهد.
+
+### ۳۲.۱ سطح‌ها و مجوز دیدن در خود پایگاه داده (§۲۳.۴)
+- هر تراکنشی که بایگانی را میخواند اول `app.clearance` را با `set_config(..., true)` میگذارد (`hq_api.archive.clearance`). بدون آن هیچ سندی دیده نمیشود.
+  - مالک و jobهای خود هاب: `{"all": true}`.
+  - ایجنت: `{"code", "grants": {<company uuid>|"*": rank}, "meta": rank}` از ردیف `employee:<code>`، وگرنه `role:<charter>`، وگرنه `role:*`.
+- `archive.can_see(rank, scope)` (محتوا) و `archive.can_see(rank, scope, filed_by)` (metadata؛ استثنای بایگان برای چیزی که خودش ثبت کرده تا `metadata_level`) در policyهای `records`، `record_files` (فقط محتوا)، `record_versions`، `links`، `reminders`، `access_log` و `tombstones`.
+- seed: `public` 0، `internal` 10، `confidential` 20 (واترمارک، `agents_max`)، `secret` 30 (واترمارک، رمزنگاری، step-up برای دیدن). هر نقش ایجنت `internal` در شرکت خودش؛ مشاور حقوقی `confidential` در همه؛ بایگان `confidential` برای محتوا و `secret` برای metadata. مجوز ایجنت هیچ‌وقت از سطح `agents_max` بالاتر نمیرود.
+- metadata‌ی حساس زیر `confidential` پنهان است؛ `id_code` و `iban` برای هر ایجنت تا ۴ رقم آخر.
+- رویدادهای stream (موضوع `archive`: `record.filed`، `record.updated`، `record.sealed`، `reminder.due`، `hold.changed`، `fixity.failed`، `schema.changed`) فقط ref، سطح، رده و وضعیت دارند؛ نه عنوان، نه مقدار.
+- آزمون: «RLS حتی با SQL مستقیم نقش api» در `tests/test_p14_archive.py`.
+
+### ۳۲.۲ لایه‌ی باز: طرح بایگانی (§۲۳.۲، §۲۳.۳، §۲۳.۷، §۲۳.۱۰، §۲۳.۱۲)
+- **seed:** `infra/seed/archive/*.yaml`، که در api، worker و api-migrate روی `/app/seed/archive` (فقط‌خواندنی، `HQ_ARCHIVE_SEED`) سوار است. seed هر `make up` اجرا میشود و فقط چیزی را که نیست اضافه میکند. **هر چیزی که مالک عوض یا بازنشسته کرده دوباره نوشته نمیشود.** پوشه‌های هر scope هم وقتی اولین سند آن scope ثبت میشود ساخته میشوند.
+- `GET /archive/schema`: همه‌ی ردیف‌ها با شمار استفاده، `vocab` بسته (رویدادها، اقدام‌ها، عملگرها، نوع‌های ref، ارزها، mimeها) و `owner_settings.agents_max`.
+- `PUT /archive/schema/{part}/{key}`:
+  - 🔏 `archive.schema` (برای `clearance`: `archive.clearance`) روی SHA-256 بدنه.
+  - `If-Match`؛ برای کلید تازه `If-None-Match: *`. پوشه، قاعده‌ی نگهداری، یادآور و اتوماسیون با کلید `new` ساخته میشوند و ref را سرور میدهد.
+  - `?dry_run=1` فقط اثر را میگوید و passkey نمیخواهد.
+  - خطا: `422 schema_invalid` با `fields`. فیلد هیچ‌وقت حذف نمیشود (فقط `status: retired`)، نوعش عوض نمیشود و گزینه‌ی enum کم نمیشود. rank سطحی که سند دارد ثابت است.
+  - تغییر رده = نسخه‌ی تازه‌ی رده (`class_versions`)؛ سند نسخه‌ای را نگه میدارد که با آن ثبت شده. اگر فیلد اجباری تازه سندهای ثبت‌شده را ناقص کند، بایگان یک کار «تکمیل N سند» میگیرد.
+- `POST …/retire` با همان 🔏 روی hash بدنه‌ی `{part, key, version}`.
+- **پیشنهاد ایجنت:** کارت `archive_schema` با payload ‏`{part, key, base_version, body, impact}` (بدنه همان بدنه‌ی PUT است و موقع پیشنهاد اعتبارسنجی میشود). مالک با step-up معمول `decision.approve` (target = ref کارت) مُهر میکند و همان بدنه در همان تراکنش اعمال میشود. اگر آن ردیف از `base_version` به بعد عوض شده باشد، کارت باطل است (`409 decision_not_pending`).
+- **اتوماسیون:** فقط قاعده، هرگز مدل. رویدادهای بسته، شرط‌های ساده، و اقدام‌ها: `notify` (هرگز urgent)، `work_item` (نقش هاب؛ تا هلدینگ یا آن شرکت قفل است `deferred`)، `link`، `move_to_folder`، `raise_level` (فقط بالا؛ سطحی که رمزنگاری دارد کار PATCH مالک است)، `add_reminder`. هر اجرا یک ردیف `automation_runs` و یک ردیف audit است.
+
+### ۳۲.۳ سند، نسخه، فایل (§۲۳.۱، §۲۳.۱۲)
+- فایل از همان مسیر §۱۷.۱ میآید (`POST /files`). بعد `POST /archive/intake {file_ids}` (یا هر ساخت سند از file id) **پیش از هر تراکنش**:
+  1. متن: لایه‌ی متن PDF در child process؛ عکس و اسکن از OCR worker (اگر profile روشن است، تا `HQ_ARCHIVE_OCR_WAIT_S`=60 ثانیه منتظر میماند، وگرنه در صف میرود).
+  2. اسکن رمز روی نام و متن (`hq_api.archive.scan`): قاعده‌های credential در `hq_common.redact` (همان شکل‌های gitleaks و نگهبان خروجی §۱۹.۶)، عبارت بازیابی BIP-39 و کلید خصوصی `customer_mask`، و `otpauth://`، کلید hex برچسب‌دار و کدهای پشتیبان. مقدارها، عنوان و یادداشت هم اسکن میشوند.
+  3. اگر رمز پیدا شد: `422 secret_in_document`. فایل مالک که هنوز در هلدینگ منتظر است (bytes، نسخه‌های کوچک‌شده و متن استخراج‌شده) همان‌جا نابود میشود و چیزی از آن لاگ نمیشود.
+  4. وگرنه ردیف `archive.intake` با hash، صفحه‌ها، متن و پیشنهاد قاعده‌محور.
+- **ذخیره:** هر سند نسخه‌ی خودش را در همان file store (volume ‏`hq-files`) دارد. وقتی سند ثبت شد، فایل منتظر مالک از آن بایگانی است و bytes و variantهایش برداشته میشوند. **فایلی که مالک در رشته‌ای پیوست کرده با همان پیام میماند.**
+- **`secret`:** AES-256-GCM با کلید داده‌ی تازه از OpenBao transit ‏`archive-secret` (`datakey/plaintext`). فقط کلید wrapشده در پایگاه داده میماند و کلید transit هرگز از OpenBao بیرون نمیآید. کلید را `provision.sh` میسازد (exportable نیست، حذف نمیشود). api و worker فقط `datakey/plaintext` و `decrypt` همین کلید را دارند.
+  - دیدن فایل 🔏 `archive.view` (target = ref) میخواهد.
+  - بالا رفتن سطح به `secret` (یا پایین آمدن از آن) فایل‌ها را دوباره ذخیره میکند؛ نسخه‌ی قبلی بعد از commit از `destroy_queue` پاک میشود.
+- **دانلود** (`GET /archive/records/{ref}/files/{file_id}`): hash ذخیره و hash plaintext سنجیده میشوند (ناهمخوانی ← `409`). سطح دارای `watermark` نسخه‌ی نشانه‌دار میگیرد (PDF با pypdf، عکس با Pillow، در child process؛ اصل دست‌نخورده). هر دیدن، دانلود، خواندن metadata و تغییر سطح یک ردیف `access_log` است (`GET …/access` فقط مالک).
+- **مُهر:** `POST …/seal {manifest_sha256}` با 🔏 `archive.seal` روی همان manifest (SHA-256 خط‌های مرتب `"<sha256>  <name>"`). سرور آن را دوباره حساب میکند (`409 seal_mismatch`).
+  - سند مُهرشده به هر PATCH جز `level` جواب `409 sealed_record` میدهد. بالا بردن سطح آزاد است و پایین آوردن 🔏 `archive.declassify` با target ‏`ref@version:level` میخواهد (`version` = نسخه‌ی ردیف، همان If-Match). مُهر دست‌نخورده میماند.
+  - `POST …/versions` نسخه‌ی قبلی را `superseded` میکند و سند دوباره `filed` میشود.
+- **draft:** کار ایجنت (`archive.file`)، import مالک (`POST /archive/import`: یک draft برای هر فایل و یک کار برای بایگان)، یا مالک با `file: false`. `POST …/file` (با `If-Match`) draft کامل را `filed` میکند.
+
+### ۳۲.۴ OCR و جستجو (§۲۳.۹)
+- **profile اختیاری `ocr`، پیش‌فرض خاموش:** Tesseract 5.5.0 با tessdata_fast پین‌شده‌ی `fas` و `eng` (`services/ocr/model.lock.json`). روی شبکه‌ی داخلی `hq-ocr` (172.30.24.0/24) که فقط worker در آن است؛ بی اینترنت، بی پورت، بی رمز، و یک کار در هر لحظه (درخواست دوم ← 429).
+  - روشن کردن: یک‌بار `make ocr-fetch` (تنها دانلود از اینترنت)، بعد `make ocr-on`. خاموش: `make ocr-off`. `hq.sh` بیرون از بودجه‌ی حافظه `up` را رد میکند (exit 3).
+  - بودجه: روی full تنها جا میشود، ولی نه همراه media یا mcp، و نه روی lean.
+  - عددها: هر صفحه‌ی عکس ۰٫۲ تا ۰٫۵ ثانیه و حداکثر 61 MiB؛ هر صفحه‌ی PDF اسکن حدود ۱٫۳ ثانیه و حداکثر 149 MiB؛ `MEM_OCR=320m`. `make ocr-bench` و `make ocr-test` دوباره بی‌شبکه میسنجند.
+  - حدها: ۳۰ مگ برای هر فایل، ۴۰ مگاپیکسل برای عکس، پیش‌فرض ۵۰ صفحه، ۱۲۰ ثانیه برای هر کار.
+- **تا خاموش است** worker ‏`HQ_OCR_URL` ندارد و اسکن‌ها با `text_state: "none"` و `ocr_wanted` میمانند، بی هیچ خطا. وقتی روشن شود، صف (`hq-archive-ocr`، هر ۲ دقیقه، یک فایل در هر لحظه) آن‌ها را میخواند.
+  - متن OCR هم اسکن رمز میشود. اگر رمز داشت، فایل `quarantined` میشود: دیگر سرو و جستجو نمیشود، متنش نگه داشته نمیشود و مالک یک اعلان report میگیرد. امحا با تصمیم خودش است.
+  - صفحه‌ی با اطمینان کمتر از ۰٫۶ در `low_confidence_pages` علامت میخورد.
+- **جستجو** (`GET /archive/search`): Postgres FTS (`simple` روی `hq_common.persian` و `core.fa_normalize`) روی سه بردار: `meta_tsv` (عنوان، ref، فیلدهای searchable، نام طرف‌ها)، `text_tsv` (متن فایل، فقط با مجوز محتوا) و `sens_tsv` (فیلدهای حساس، فقط از `confidential` به بالا)، به‌علاوه‌ی `pg_trgm` روی عنوان (`archive.title_similarity`). رتبه بعد از فیلتر مجوز است و snippet فقط از متنی است که خواننده مجاز است ببیند.
+- `knowledge.search` نوع `records` میگیرد (هر نقش، در مجوز خودش)، کنار `knowledge` چهارلایه‌ی پرامپت ۱۱ و `docs`/`code`/`notes` پرامپت ۱۲. «از هاب بپرس» (§۲۱.۲، ۳۰.۸) سندها را در مجوز پرسنده میگردد (`archive.search.ask_hits`، فیلتر مجوز پیش از رتبه‌بندی)؛ مجوز مالک آنجا تا `agents_max` است، چون قطعه‌ها به کتابدار میرسند.
+- **پیشنهاد قاعده‌محور:** تاریخ جلالی و میلادی، مبلغ با واحد، شبا، کد ملی، شماره‌ی ثبت، رده از روی کلیدواژه و طرف‌های رجیستری. فقط نشان داده میشود و هیچ‌وقت خودش ثبت نمیشود.
+
+### ۳۲.۵ نگهداری، امحا، توقیف و پشتیبان (§۲۳.۵)
+- **قاعده‌ی seed** (پیش‌فرض‌هایی که مالک بازبینی میکند، **نه مشاوره‌ی حقوقی**):
+  - قرارداد و توافق: ۷ سال بعد از `end`
+  - فاکتور: ۷ سال بعد از `date`
+  - مجوز و دامنه: ۲ سال بعد از `expires_at`
+  - مکاتبه‌ی حقوقی: ۱۰ سال بعد از بسته شدن پرونده
+  - ثبت، سیاست مُهرشده، نشان و مصوبه‌ها: دائمی
+  - سایر: بازبینی بعد از ۳ سال
+- **job روزانه** (`hq-archive-daily`، ۰۴:۳۰ منطقه‌ی مالک؛ قاعده‌محور):
+  - `then: review`: در هر اجرا **یک** کار برای بایگان، و فقط وقتی هلدینگ باز است.
+  - `then: dispose_card`: حداکثر یک کارت `archive_disposal` در حال انتظار و یکی در هفته، برای مالک، **بی هیچ سند توقیف‌شده‌ای**.
+  - رویداد `retention_due` اتوماسیون، یک بار برای هر سند.
+- **بعد از مُهر کارت** (همان تراکنش تصمیم):
+  - سندی که در این فاصله توقیف شده یا دیگر سررسید نیست کنار میماند و در مصوبه نام برده میشود.
+  - برای بقیه: ردیف فایل‌ها `destroyed` میشود (کلید wrapشده‌ی `secret` هم)، سنگ‌نوشته با ref، رده، عنوان، تاریخ‌ها، hash هر فایل و ref کارت ثبت میشود، و metadata و متن پاک میشوند.
+  - bytes بعد از commit از `destroy_queue` برداشته میشوند. job روزانه هم هر کلید جامانده را برمیدارد.
+  - رد کارت یعنی مالک نگهشان داشته (`disposal_kept`؛ زیر همان قاعده دوباره پیشنهاد نمیشوند). برگشت، انقضا یا withdrawn یعنی کارت هفته‌ی بعد.
+- **توقیف قانونی:**
+  - مشاور حقوقی با `archive.hold` (A2، فقط برای پرونده‌ی خودش) یا مالک با `POST /archive/holds`.
+  - scope: یا فهرست صریح `records`، یا facetهای `folders`، `classes`، `parties` و `from`/`to` که همه باید بخوانند.
+  - سند توقیف‌شده به هر تغییری جز نسخه‌ی تازه `423 held` میدهد.
+  - آزاد کردن فقط کار مالک است: `POST /archive/holds/{ref}/release` با 🔏 `archive.hold.release` روی ref.
+- **پشتیبان:** فایل‌های بایگانی در همان volume ‏`hq-files` هستند، پس هر ساعت در restic میروند و با Drive همگام میشوند.
+  - آزمون بازیابی (`make restore-test` و آزمون هفتگی) جدیدترین فایل بایگانیِ امحانشده را برمیگرداند و sha256 آن را با `stored_sha256` پایگاه داده‌ی بازیابی‌شده میسنجد. خط PASS نام سند را دارد (`archive=AR-…`).
+  - نتیجه‌ی اولین آزمون هر ماه جلالی به منبع `backup_restore_test` بایگانی میشود.
+- **امحا و snapshotهای قدیم:** امحا فایل را از هاب برمیدارد، ولی snapshotهای restic که پیش از آن گرفته شده‌اند هنوز آن را دارند (رمزنگاری‌شده با کلید restic). این snapshotها طبق retention خود restic پیر میشوند (§۱۸.۹: ساعتی، روزانه، هفتگی، ماهانه، سالانه) و `prune` آن‌ها را برمیدارد. **هیچ snapshotی برای یک امحا دستی پاک نمیشود.**
+  - فایل `secret` در snapshot هم بی کلید wrapشده‌اش (که امحا شده) خواندنی نیست. بازیابی کامل پایگاه داده از snapshot قبل از امحا آن کلید را برمیگرداند. پس بازیابی کامل هم تصمیم مالک است.
+
+### ۳۲.۶ یادآورها (§۲۳.۶)
+- seed: پایان قرارداد ۶۰/۳۰/۷ روز، انقضای مجوز و دامنه ۹۰/۳۰/۷، بازبینی توافق افیلیت ۳۰/۷. همه به مالک، در کارتابل.
+- job روزانه: برای هر قاعده و هر سند، **نزدیک‌ترین** مهلتی که رسیده یک یادآور است، یک بار برای هر (سند، فیلد، تاریخ، مهلت).
+  - کارتابل: اعلان سطح `decision` (§۲۱.۸؛ در خلوت نگه داشته میشود، در digest).
+  - digest: اعلان سطح `report`.
+  - نقش یا مدیرعامل شرکت: کار؛ تا هلدینگ یا آن شرکت قفل است `pending` میماند و هیچ اجرایی بیدار نمیشود.
+- بستن: `POST /archive/reminders/{id}/done`. اگر تاریخ سند عوض شود، یادآور قدیمش خودش بسته میشود.
+
+### ۳۲.۷ منبع‌های سیستمی (§۲۳.۸)
+- `GET /archive/sources` و `PUT /archive/sources {<key>: on}`. پیش‌فرض همه روشن‌اند.
+- job ‏`hq-archive-sources` (هر ۱۵ دقیقه، قاعده‌محور) رخداد تازه‌ی هر منبع را **یک بار** (`source_ref` یکتا) به‌صورت سند `filed` با `source.kind: "system"` ثبت میکند:
+  - `charter_sealed`: از `governance.charters` (پرامپت ۱۱)؛ تا آن جدول نیست هیچ.
+  - `resolution_month`: مصوبه‌های یک ماه جلالیِ تمام‌شده‌ی هر شرکت.
+  - `brand_sealed`، `founding_registration`، `server_plan_sealed`، `backup_restore_test`.
+  - `legal_email`: هر ایمیل ارسال‌شده‌ی پرونده.
+  - `case_closed`: پرونده‌ی بسته با روندش، پیوندخورده به پرونده؛ و ماشه‌ی نگهداری `case_closed`.
+- PDF با کتابخانه‌های خود هاب ساخته میشود: resvg-py صفحه‌ی A4 را با IRANYekanX راست‌به‌چپ میکشد و Pillow صفحه‌ها را یک PDF میکند. این کار در child process است. متن همان منبع با `text_state: text_layer` ذخیره میشود.
+- فیلد اجباری که منبع نمیداند (مثلاً شماره‌ی ثبت پیشنهاد تأسیس) خالی میماند و `impact` آن را میشمارد. موردی که الگوی رمز دارد ثبت نمیشود و فقط در `note_fa` منبع میآید.
+
+### ۳۲.۸ سلامت فایل (fixity)
+- `hq-archive-fixity` (۰۳:۲۰ منطقه‌ی مالک) هر شب یک‌هفتم فایل‌ها را دوباره hash میکند. برش هر فایل با id آن ثابت است، پس در یک هفته همه‌ی فایل‌ها سنجیده میشوند. `kind: manual` یا `weekly` همه را میسنجد. هر اجرا یک ردیف `fixity_runs` است و `GET /archive/fixity` جواب `{at, checked, failed, next_at}` میدهد.
+- **ناهمخوانی یا فایل گم‌شده = هشدار از دست رفتن داده:** یک اعلان `urgent` (دسته‌ی data loss؛ تنها urgent بایگانی)، رویداد `fixity.failed`، و یک کار P1 برای SRE پلتفرم هاب (فقط وقتی هلدینگ باز است).
+- **اقدام:** فایل را از آخرین snapshot سالم برگردان (§۱۸.۹). هیچ ردیف بایگانی را دستی عوض نکن.
+
+### ۳۲.۹ ایجنت‌ها، OPA و gateway (§۲۳.۱۱)
+- ابزارها (gateway: `hq_gateway/archive.py`؛ OPA: `archive.rego`):
+  - `archive.search` و `archive.read` (A0)
+  - `archive.file` و `archive.link` (A1)
+  - `archive.hold` (A2، فقط مشاور حقوقی با پرونده‌ی خودش)
+  - فقط بایگان و مشاور حقوقی، هر دو نقش هلدینگ. api نقش و مجوز را دوباره میسنجد.
+- **بایگان** (`HQ-ARC`، kind ‏`system`، منشور `archivist`): نقش سیستمی هلدینگ است؛ استخدام، امتیاز یا ستاره ندارد و تا کاری برسد خواب است.
+  - `archive.file` روی draft واردشده‌ی مالک فقط پیشنهاد (`suggestion.by: archivist`) مینویسد، و در بقیه‌ی موارد یک draft تازه. **هیچ‌وقت ثبت، مُهر، پایین آوردن سطح، آزاد کردن توقیف یا امحا نمیکند**؛ مسیرهای مالک برایش ۴۰۳ است.
+  - تغییر طرح را فقط با کارت `archive_schema` پیشنهاد میدهد.
+- تا کلید توقف هلدینگ روشن است، runner بایگان را اجرا نمیکند (`locked`). ثبت دستی مالک و همه‌ی jobهای قاعده‌محور کار میکنند.
+
+### ۳۲.۱۰ زمان‌بندی‌ها و دروازه‌ی راه‌اندازی
+| schedule | زمان | نوع |
+|---|---|---|
+| `hq-archive-daily` | روزانه ۰۴:۳۰ | قاعده‌محور: نگهداری، یادآور، صف نابودی، گزارش هفتگی بایگان (شنبه) |
+| `hq-archive-fixity` | روزانه ۰۳:۲۰ | قاعده‌محور: hash محلی |
+| `hq-archive-ocr` | هر ۲ دقیقه | قاعده‌محور: Tesseract خود هاب، بی شبکه؛ تا profile خاموش است هیچ |
+| `hq-archive-sources` | هر ۱۵ دقیقه | قاعده‌محور: خواندن پایگاه داده و PDF |
+- هیچ‌کدام مدل یا سرویس بیرونی صدا نمیزند، پس با کلید توقف هم اجرا میشوند (هشدار fixity، یادآور و کارت امحا برای مالک).
+- هر چیزی که ایجنتی را بیدار کند (کار بازبینی بایگان، یادآور نقش، کار SRE، کار `work_item` اتوماسیون، گزارش هفتگی) با `gate.holding_lock` یا `gate.automation_lock` منتظر میماند: کار ساخته نمیشود و اجرایی صف نمیشود.
+- آزمون: `test_the_archive_jobs_are_rule_only_and_wake_no_agent_while_the_holding_is_locked`.
+
+### ۳۲.۱۱ عیب‌یابی
+| علامت | کار |
+|---|---|
+| `503 channel_not_configured` موقع ثبت سند `secret` | transit یا کلید `archive-secret` در OpenBao آماده نیست: `provision.sh` آن را در هر `make up` میسازد (یا `make llm-provision`)؛ policyهای تازه‌ی api و worker هم همان‌جا نوشته میشوند |
+| اسکن‌ها `text_state: none` میمانند | profile ‏`ocr` خاموش است (پیش‌فرض)؛ با `make ocr-fetch` و `make ocr-on` روشن کن؛ صف خودش میخواند |
+| `409 seal_mismatch` موقع دانلود | fixity: فایل ذخیره‌شده با hash نمیخواند؛ ۳۲.۸ |
+| کارت امحا نمیآید | یکی هنوز منتظر است، یا کمتر از یک هفته از قبلی گذشته، یا همه‌ی سررسیدها توقیف یا `disposal_kept` هستند (`GET /archive/retention/due`) |
+| `423 held` | توقیف قانونی؛ فقط نسخه‌ی تازه، یا آزاد کردن با مُهر مالک |

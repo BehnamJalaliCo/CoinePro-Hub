@@ -11,6 +11,7 @@ single insert after the policy allowed it.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from datetime import datetime
 from decimal import Decimal
@@ -23,7 +24,7 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, workflows_client
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
-from hq_api.domain import control, errands, founding, hiring, inquiries, notify, org
+from hq_api.domain import control, errands, founding, gov_authority, hiring, inquiries, notify, org
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
 from hq_api.domain import work as W
@@ -41,7 +42,10 @@ from hq_api.routes.messages import (
 from hq_api.schemas import EMPLOYEE_CODE, Evidence, FileRef, Model
 from hq_api.workshop import service as workshop_service
 
+log = logging.getLogger("hq_api.routes.internal")
+
 router = APIRouter(tags=["internal"])
+log = logging.getLogger("hq_api.internal")
 E = responses(401, 403, 404, 409, 422, 423)
 Priority = Literal["P0", "P1", "P2", "P3", "P4"]
 MIME = re.compile(r"^[a-z0-9.+-]+/[a-z0-9.+-]+$")
@@ -60,6 +64,7 @@ class Delegate(Model):
     priority: Priority | None = None
     due_at: datetime | None = None
     budget: W.BudgetIn | None = None
+    key_result: str | None = Field(default=None, pattern=r"^KR-[0-9]{4,}$")  # ⟨1.5⟩ prompt 11 §5.3
 
 
 class UsageIn(Model):
@@ -265,6 +270,66 @@ OP_CLASS: dict[str, str] = {
     "support.draft": "A2",
     "support.handoff": "A2",
     "support.mystery": "A2",
+    # prompt 11 §1-§3 (agents/tools.md v1.5): the meeting room and the knowledge base
+    "meeting.statement": "A1",
+    "meeting.challenge": "A1",
+    "meeting.whisper": "A1",
+    "meeting.item": "A1",
+    "meeting.minutes": "A1",
+    "knowledge.propose": "A1",
+    "knowledge.review": "A2",
+    "knowledge.approve": "A2",
+    # prompt 11 §4-§10 (governance.rego): cards, OKRs, outcomes, risks, the calendar, the matrix
+    "kpi.record": "A2",
+    "okr.draft": "A1",
+    "okr.checkin": "A2",
+    "outcome.note": "A1",
+    "risk.raise": "A1",
+    "risk.update": "A2",
+    "calendar.read": "A0",
+    "calendar.add": "A2",
+    "authority.read": "A0",
+    "governance.read": "A0",
+    # prompt 12 part A (advisor_substitutes.rego): the advisor's memo, the
+    # substitute players' seat calls, and the runner's job queue (service)
+    "memo.write": "A1",
+    "substitute.call": "A0",
+    "substitutes.jobs": "A0",
+    # prompt 12 part B (mgmt.rego): the TTS one-shot, the fact check of a claim
+    "tts.claim": "A0",
+    "tts.done": "A1",
+    "claim.verdict": "A2",
+    # prompt 12 §2, §13 (owner_tools.rego): the librarian's answer; the digital
+    # CEO's own rows (a service; nothing else is ever granted to it)
+    "ask.answer": "A1",
+    "dceo.predict": "A0",
+    "dceo.principles": "A1",
+    # prompt 13, the media half (media.rego): the media studio's tools and the
+    # render one-shot's queue (service media)
+    "media.item": "A1",
+    "media.render": "A2",
+    "media.review": "A2",
+    "series.propose": "A1",
+    "media.jobs": "A0",
+    # prompt 13 §1.1 (roles.rego): roles written on demand
+    "role.draft": "A1",
+    "role.decide": "A2",
+    # prompt 13, the legal and voice half (legal_voice.rego): the counsel's
+    # tools, a media item's narration (media.voice, into the registry's queue),
+    # the TTS one-shot's voice jobs
+    "legal.case_open": "A1",
+    "legal.case_note": "A1",
+    "legal.email_draft": "A1",
+    "legal.mail_read": "A0",
+    "media.voice": "A2",
+    "voices.claim": "A0",
+    "voices.done": "A1",
+    # prompt 14 (archive.rego): the archive's agent tools
+    "archive.search": "A0",
+    "archive.read": "A0",
+    "archive.file": "A1",
+    "archive.link": "A1",
+    "archive.hold": "A2",
 }
 
 
@@ -333,6 +398,13 @@ async def allow(
             escrow_classes=escrow_classes or [],
             incident=incident,
         )
+
+
+async def _counsel_code(tx: Tx) -> str:
+    """⟨1.6⟩ the holding's legal counsel (HQ-LGL), who receives a CEO's ask."""
+    from hq_api.domain import legal
+
+    return str((await legal.counsel(tx))["code"])
 
 
 async def escrow_of(tx: Tx, w: dict[str, Any]) -> list[str]:
@@ -445,6 +517,7 @@ async def delegate_work(
             priority=body.priority,
             due_at=body.due_at,
             budget=body.budget,
+            key_result=body.key_result,
         )
         await _audit_work(
             ctx, tx, child, "work.delegate", f"from {w['ref']} to {body.to}", cls="A2"
@@ -555,6 +628,11 @@ async def deliver_work(
 ) -> Any:
     """Creates the Deliverable (cartable of outputs) and marks the work
     delivered; its delivered children become done. Requires `Idempotency-Key`."""
+    from hq_api.domain import briefings as BR
+    from hq_api.domain import hr as HR
+
+    # ⟨1.5⟩ a CEO's weekly letter: an unsourced figure sends it back once
+    unsourced_mark = await BR.letter_gate(ctx, id, body.body or "")
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
@@ -570,6 +648,10 @@ async def deliver_work(
             )
             if n != len(set(body.attachments)):
                 raise ApiError(422, "validation_failed", fields={"attachments": "unknown files"})
+        # ⟨1.5⟩ an expired knowledge entry or support article is no evidence (§20.3)
+        from hq_api.domain import knowledge as K
+
+        await K.require_citable(tx, [e.ref for e in body.evidence])
         pw = body.produced_with.model_dump(exclude_none=True)
         u = body.usage
         if ctx.who.run_id is not None:
@@ -587,7 +669,7 @@ async def deliver_work(
             co=w["company_id"],
             w=w["id"],
             p=ctx.who.employee_id,
-            title=body.title,
+            title=BR.marked(body.title, unsourced_mark),
             summary=body.summary,
             body=body.body,
             att=[str(a) for a in body.attachments],
@@ -614,6 +696,13 @@ async def deliver_work(
         await founding.on_delivered(
             tx, w, dl["ref"], body.body or "", [e.model_dump(mode="json") for e in body.evidence]
         )
+        # ⟨1.5⟩ prompt 12: a CEO's letter becomes its briefing; an HR round's report
+        await BR.on_delivered(tx, ctx.hub.settings, w, dl, body.body or "", unsourced_mark)
+        await HR.on_delivered(tx, w, dl["ref"])
+        # ⟨1.6⟩ prompt 13: a media step's frames (creatives) or a design's deliverable
+        from hq_api.domain import studio
+
+        await studio.on_delivered(tx, ctx.hub, w, dl, body.body or "")
         await ctx.emit(
             tx,
             w["company"],
@@ -639,6 +728,13 @@ async def deliver_work(
         )
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
+    # ⟨1.5⟩ prompt 11 §2.6: a `rule` red line in a deliverable is a finding (PR-115)
+    from hq_api.domain import charter as CH
+
+    await CH.scan_after(
+        ctx.hub, company_id=w["company_id"], company_code=w["company"], kind="deliverable", ref=dl["ref"],
+        text="\n".join(x for x in (body.title, body.summary, body.body or "") if x),
+    )  # fmt: skip
     return result
 
 
@@ -684,13 +780,17 @@ async def request_work(
             return idem.replay
         assert ctx.who.company_id is not None
         cross = company_code != ctx.who.company
+        holding_code = (await ctx.hub.companies.holding()).code
+        # ⟨1.6⟩ a CEO asks the holding's legal counsel (contract §22.4): the
+        # holding's LEGAL department, never a named employee there.
+        to_legal = cross and company_code == holding_code and body.department == "LEGAL"
         # The policy decides BEFORE anything outside the agent's company is
         # looked up, so a refusal never tells whether a code exists elsewhere.
         if cross:
-            if body.to or body.department:  # CEO to CEO only: addressed to the company
+            if body.to or (body.department and not to_legal):  # CEO to CEO only
                 raise ApiError(403, "policy_denied", "work.create_not_permitted")
-            to_role: str | None = "ceo"
-            to_dept: str | None = None
+            to_role: str | None = "employee" if to_legal else "ceo"
+            to_dept: str | None = "LEGAL" if to_legal else None
         else:
             to_role, to_dept = "ceo", body.department
             if body.to:
@@ -710,6 +810,7 @@ async def request_work(
                 "kind": body.kind,
                 "to_role": to_role,
                 "to_department": to_dept,
+                "to_holding": company_code == holding_code,
             },
         )
         # Looked up only now: a missing and a forbidden company both answer 403.
@@ -739,7 +840,7 @@ async def request_work(
             kind=body.kind,
             priority=body.priority,
             department_code=body.department,
-            assignee_code=body.to,
+            assignee_code=(await _counsel_code(tx)) if to_legal else body.to,
             due_at=body.due_at,
             budget=budget,
             escrow=body.escrow,
@@ -801,6 +902,14 @@ async def propose_decision(
         raise ApiError(403, "policy_denied", "agents only")
     assert ctx.who.company is not None
     assert ctx.who.company_id is not None
+    if body.kind == "deploy":
+        # ⟨1.5⟩ prompt 12 §7: the real diff, read with the hub's existing git
+        # access before the card exists (its payload never changes after)
+        from hq_api.domain import deploy_diff
+
+        body = body.model_copy(
+            update={"payload": await deploy_diff.attach(ctx.hub, body.payload, ctx.who.company_id)}
+        )
     async with ctx.tx() as tx:
         # The key first: a retried request gets the answer it already got.
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
@@ -828,7 +937,7 @@ async def propose_decision(
             body=body,
             thread_code=await tx.scalar(
                 """SELECT code FROM msg.threads WHERE code = :c
-                     OR (employee_id = :e AND kind IN ('advisor', 'overseer', 'assistant'))
+                     OR (employee_id = :e AND kind IN ('advisor', 'overseer', 'assistant', 'legal'))
                    ORDER BY code = :c DESC LIMIT 1""",
                 c=ctx.who.code,
                 e=ctx.who.employee_id,
@@ -838,6 +947,7 @@ async def propose_decision(
         )
         if body.kind == "errand_action":  # ⟨1.4⟩ the errand waits for the owner
             await errands.on_proposed(tx, payload["errand"], d["id"])
+
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,
@@ -850,8 +960,25 @@ async def propose_decision(
         result = D.render(d)
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
+    if body.kind == "deploy":
+        await _review_deploy(ctx, d)
     await workflows_client.decision_created(ctx.hub, result.ref)
     return result
+
+
+async def _review_deploy(ctx: Ctx, d: dict[str, Any]) -> None:
+    """⟨1.5⟩ Prompt 12 §7 x §9.1: a deploy card's real diff gets its second
+    code review (seat code_review), after the card exists. The players and
+    seats are the holding's, so it runs in the hub's scope. Skipped while the
+    holding is locked or the seat is off; it never approves or blocks, and the
+    card is the same without it (a failure here is logged, never the card's)."""
+    from hq_api.domain import substitutes
+
+    try:
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+            await substitutes.review_deploy(tx, ctx.hub, d)
+    except Exception:
+        log.exception("the deploy card's second review was not queued", extra={"ref": d["ref"]})
 
 
 async def _agent_decide(
@@ -867,6 +994,7 @@ async def _agent_decide(
             return idem.replay
         d = await D.load(tx, ref, lock=True)
         quota_ok = await D.within_quota(tx, d)
+        await gov_authority.ensure(ctx.hub)  # ⟨1.5⟩ the matrix may take a kind back (prompt 11 §7)
         await allow(
             ctx,
             "decision.approve",
@@ -921,9 +1049,11 @@ async def agent_message(
         if idem and idem.replay:
             return idem.replay
         t = await tx.one(
-            """SELECT t.code, t.kind, c.code AS company, d.code AS department, t.company_id
+            """SELECT t.code, t.kind, c.code AS company, d.code AS department, t.company_id,
+                      e.code AS employee
                FROM msg.threads t JOIN core.companies c ON c.id = t.company_id
-               LEFT JOIN core.departments d ON d.id = t.department_id WHERE t.code = :c""",
+               LEFT JOIN core.departments d ON d.id = t.department_id
+               LEFT JOIN core.employees e ON e.id = t.employee_id WHERE t.code = :c""",
             c=code,
         )
         await allow(
@@ -934,6 +1064,8 @@ async def agent_message(
                 "thread_kind": t["kind"],
                 "thread_company": t["company"],
                 "thread_department": t["department"],
+                # ⟨1.6⟩ thread L is its own counsel's (legal_voice.rego)
+                "thread_employee": t["employee"],
             },
         )
         await ctx.ensure_unlocked(tx, t["company_id"])
@@ -945,6 +1077,12 @@ async def agent_message(
 
             async with read_tx(ctx) as rtx:
                 kept, dropped = await validate_citations(rtx, body.citations)
+        # ⟨1.5⟩ the advisor's reply in A: a proactive note or a devil's answer (§21.1).
+        from hq_api.domain import advisor as ADV
+
+        meta: dict[str, Any] = await ADV.reply_meta(tx, ctx.who, code)
+        if body.citations:
+            meta["citations_dropped"] = dropped
         m = await post_message(
             ctx,
             tx,
@@ -953,13 +1091,21 @@ async def agent_message(
             links,
             body.attachments,
             citations=kept,
-            meta={"citations_dropped": dropped} if body.citations else None,
+            meta=meta or None,
         )
+        await ADV.after_reply(tx, ctx.who, m, meta)
         result = (
             await render_messages(tx, [await tx.one(MESSAGE_SQL + " WHERE m.id = :id", id=m["id"])])
         )[0]
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
+    # ⟨1.5⟩ prompt 11 §2.6: a message to the owner that breaks a `rule` red line (PR-115)
+    from hq_api.domain import charter as CH
+
+    await CH.scan_after(
+        ctx.hub, company_id=t["company_id"], company_code=t["company"], kind="message", ref=result.ref,
+        text=body.body,
+    )  # fmt: skip
     return result
 
 
@@ -1038,7 +1184,10 @@ async def raise_notification(
                     "SELECT pg_advisory_xact_lock(:k)", k=advisory_key("urgent", company.id)
                 )
                 n = await notify.counts(tx, datetime.now().astimezone(), ctx.who.code, company.id)
-                if n["company_urgent_hour"] >= notify.AGENT_URGENT_PER_HOUR:
+                cap = await gov_authority.limit_value(  # ⟨1.5⟩ the matrix's row
+                    tx, "notify.urgent_per_hour", notify.AGENT_URGENT_PER_HOUR
+                )
+                if n["company_urgent_hour"] >= cap:
                     if locked:
                         raise ApiError(
                             429,
@@ -1093,6 +1242,15 @@ async def raise_notification(
             target_ref=str(n["id"]),
             summary=level if level == body.level else f"{body.level} -> {level}",
         )
+    if level == "urgent" and body.category == "service_down":
+        # ⟨1.5⟩ prompt 11 §1.8: the company's war room opens at once (P0), unless locked
+        from hq_api.domain import meeting_flow as MF
+
+        try:  # the alert itself never waits for, or fails with, its war room
+            async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as wtx:
+                await MF.war_room_for_alert(wtx, company.id, company.code)
+        except Exception:
+            log.exception("war room not opened", extra={"company": company.code})
     return NotificationOut(id=n["id"], level=n["level"], state=n["state"])
 
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The browser service's tests against a real Chromium (prompt 7.1 §1.4, §1.5):
-# egress/tests/test_browser.py in a throwaway image built from the pinned
+# egress/tests/test_browser.py (and test_browser_web.py, the substitute
+# players' profile browser, prompt 12 §9.1) in a throwaway image built from the pinned
 # Playwright image of egress/Dockerfile.browser, with the browser's own lock
 # and the few test packages it needs from requirements-test.lock (all
 # hash-pinned). The source is mounted read-only and the container has no
@@ -50,4 +51,4 @@ docker run --rm --network none --tmpfs /tmp:size=256m,mode=1777 --shm-size 256m 
   --user 10001:10001 --read-only --cap-drop ALL --cap-add SYS_CHROOT \
   --security-opt no-new-privileges:true --security-opt "seccomp=$SECCOMP" \
   -e BROWSER_SANDBOX=1 -v "$SERVICES_DIR:/w:ro" "$IMAGE" \
-  python3 -m pytest -p no:cacheprovider egress/tests/test_browser.py "$@"
+  python3 -m pytest -p no:cacheprovider egress/tests/test_browser.py egress/tests/test_browser_web.py "$@"

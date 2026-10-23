@@ -50,12 +50,17 @@ def _kinds(table: str, constraint: str, kinds: str) -> str:
 
 
 def upgrade() -> None:
+    # ⟨1.6⟩ the thread constraints NOT VALID: a later revision's threads (thread
+    # L, kind legal, of 0028_1) stay when the migrations run down and up again;
+    # 0028_1 rewrites both and validates them.
     execute_script(
         _kinds("core.employees", "employees_kind_check", f"{EMPLOYEE_KINDS}, 'overseer', 'assistant'")
-        + _kinds("msg.threads", "threads_kind_check", f"{THREAD_KINDS}, 'overseer', 'assistant'")
+        + _kinds("msg.threads", "threads_kind_check", f"{THREAD_KINDS}, 'overseer', 'assistant'").replace(
+            ");", ") NOT VALID;"
+        )
         + f"""
         ALTER TABLE msg.threads DROP CONSTRAINT threads_code_check;
-        ALTER TABLE msg.threads ADD CONSTRAINT threads_code_check CHECK (code ~ '{THREAD_CODE_V2}');
+        ALTER TABLE msg.threads ADD CONSTRAINT threads_code_check CHECK (code ~ '{THREAD_CODE_V2}') NOT VALID;
         """
         + WAKE.format(
             kinds="'advisor', 'overseer', 'assistant', 'ceo', 'manager', 'employee'",

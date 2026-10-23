@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
@@ -30,6 +30,7 @@ from hq_api import audit, idempotency
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
 from hq_api.domain import backups, hiring, oversight
+from hq_api.domain import departments as DM
 from hq_api.domain import files as F
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
@@ -221,15 +222,30 @@ class HoldingState(BaseModel):
     hiring: Literal["closed", "open"] = "closed"
 
 
-async def _company_state(tx: Tx, co: Any) -> CompanyState:
-    depts = await tx.all(
-        """SELECT d.code, d.name_en, m.code AS manager, m.activity AS manager_activity
+async def _company_state(
+    tx: Tx, co: Any, charters: Any = None, own_department: str | None = None
+) -> CompanyState:
+    rows = await tx.all(
+        """SELECT d.code, d.name_en, m.code AS manager, m.activity AS manager_activity,
+                  d.mandate, d.identity_md, d.version
            FROM core.departments d
            LEFT JOIN core.employees m ON m.department_id = d.id AND m.kind IN ('manager', 'inspector')
                 AND m.status <> 'dismissed'
            WHERE d.company_id = :co AND d.status = 'active' ORDER BY d.sort, d.code""",
         co=co.id,
     )
+    # ⟨1.6⟩ each department's mandate and starting team (contract §22.1); the
+    # identity only for the caller's own department (the others' tone is theirs)
+    key = co.template or ("holding" if co.kind == "holding" else "standard")
+    depts = []
+    for r in rows:
+        d: dict[str, Any] = {k: r[k] for k in ("code", "name_en", "manager", "manager_activity")}
+        d["mandate"] = r["mandate"]
+        d["team"] = [t.model_dump() for t in DM.team(key, r["code"], charters)]
+        if own_department and r["code"] == own_department:
+            d["identity_md"] = r["identity_md"]
+            d["identity_version"] = r["version"]
+        depts.append(d)
     emps = await tx.all(
         """SELECT kind, count(*) AS n FROM core.employees
            WHERE company_id = :co AND status = 'active' GROUP BY kind""",
@@ -309,12 +325,16 @@ async def tool_company_state(
         await allow(ctx, "company.read", {"company": ctx.who.company})
         async with read_tx(ctx) as tx:
             return HoldingState(
-                companies=[await _company_state(tx, c) for c in await ctx.hub.companies.all()],
+                companies=[
+                    await _company_state(tx, c, ctx.hub.charters, ctx.who.department)
+                    for c in await ctx.hub.companies.all()
+                ],
                 hiring=await hiring.state(tx),
             )
     co = await _company(ctx, "company.read", company)
+    own = ctx.who.department if co.id == ctx.who.company_id else None
     async with read_tx(ctx) as tx:
-        return await _company_state(tx, co)
+        return await _company_state(tx, co, ctx.hub.charters, own)
 
 
 # -------------------------------------------------------------- health.sites --
@@ -506,7 +526,22 @@ def _plain(row: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------- knowledge.search --
-KINDS = ("resolutions", "deliverables", "decisions", "work", "messages")
+KINDS = (
+    "resolutions",
+    "deliverables",
+    "decisions",
+    "work",
+    "messages",
+    "knowledge",
+    # ⟨1.5⟩ prompt 12 §2.3: the hub's documents and the repositories' code
+    # (advisor, overseer, librarian; a CTO only its own company's code), and
+    # the owner's open quick notes (the advisor only)
+    "docs",
+    "code",
+    "notes",
+    # ⟨1.7⟩ prompt 14: archive records within the role's clearance (§23.9)
+    "records",
+)
 
 
 class Hit(BaseModel):
@@ -516,6 +551,15 @@ class Hit(BaseModel):
     title: str
     snippet: str
     at: datetime
+    # ⟨1.5⟩ kind `knowledge` (prompt 11 §3.5): the layer, the expiry and the sources
+    layer: str | None = None
+    valid_until: date | None = None
+    sources: list[dict[str, Any]] | None = None
+    # ⟨1.5⟩ kinds `docs` and `code` (prompt 12 §2): the passage's place
+    repo: str | None = None
+    path: str | None = None
+    lines: list[int] | None = None
+    commit: str | None = None
 
 
 @router.get("/knowledge/search", response_model=list[Hit], responses=E)
@@ -524,10 +568,14 @@ async def tool_knowledge_search(
     kinds: list[str] | None = Query(default=None),
     company: str | None = Query(default=None, pattern=CODE),
     limit: int = Query(default=20, ge=1, le=50),
+    layer: Literal["holding", "company", "department", "employee"] | None = None,
+    kind: Literal["principle", "policy", "fact", "faq", "playbook", "support"] | None = None,
     ctx: Ctx = Depends(internal_ctx),
 ) -> list[Hit]:
     """knowledge.search: resolutions, deliverables, decisions and work the role
-    may read (message bodies: the advisor only). Refs and short snippets."""
+    may read (message bodies: the advisor only). Refs and short snippets.
+    ⟨1.5⟩ kind `knowledge`: approved, unexpired entries of the four layers and
+    the support articles, with `layer` and `kind` filters (prompt 11 §3.5)."""
     _agent(ctx)
     wanted = [
         k for k in (kinds or ["resolutions", "deliverables", "decisions", "work"]) if k in KINDS
@@ -535,9 +583,10 @@ async def tool_knowledge_search(
     if not wanted:
         raise ApiError(422, "validation_failed", fields={"kinds": f"some of {', '.join(KINDS)}"})
     every = company is None and ctx.who.scope == "holding"
+    target = {"kinds": wanted, "charter": ctx.who.charter}
     if every:
-        await allow(ctx, "knowledge.read", {"company": ctx.who.company, "kinds": wanted})
-    co = None if every else await _company(ctx, "knowledge.read", company, kinds=wanted)
+        await allow(ctx, "knowledge.read", {"company": ctx.who.company, **target})
+    co = None if every else await _company(ctx, "knowledge.read", company, **target)
     queries = {
         "resolutions": """SELECT 'resolution' AS kind, r.ref, c.code AS company, r.title,
                               left(r.body, 400) AS body, r.sealed_at AS at
@@ -555,6 +604,13 @@ async def tool_knowledge_search(
                        w.created_at AS at
                    FROM work.work w JOIN core.companies c ON c.id = w.company_id
                    WHERE core.fa_normalize(w.title || ' ' || w.brief) LIKE :pat""",
+        # ⟨1.7⟩ archive records within the role's clearance (contract §23.9):
+        # the database's policies filter them by the clearance set below
+        "records": """SELECT 'record' AS kind, r.ref, c.code AS company, r.title_fa AS title,
+                          r.title_fa AS body, r.created_at AS at
+                      FROM archive.records r JOIN core.companies c ON c.id = r.company_id
+                      WHERE r.state <> 'disposed'
+                        AND core.fa_normalize(r.title_fa || ' ' || r.ref) LIKE :pat""",
         "messages": """SELECT 'message' AS kind, m.ref, c.code AS company, t.title_fa AS title,
                            left(m.body, 400) AS body, m.created_at AS at
                        FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
@@ -562,9 +618,38 @@ async def tool_knowledge_search(
                        WHERE core.fa_normalize(m.body) LIKE :pat""",
     }
     hits: list[dict[str, Any]] = []
+    clearance = None
+    if "records" in wanted:
+        from hq_api.archive import clearance as CL
+
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as t0:
+            await t0.exec("SET TRANSACTION READ ONLY")
+            clearance = await CL.of_agent(t0, ctx.who)
     async with read_tx(ctx) as tx:
+        if clearance is not None:
+            from hq_api.archive import clearance as CL
+
+            await CL.apply(tx, clearance)
         pat = "%" + await tx.scalar("SELECT core.like_escape(core.fa_normalize(:q))", q=q) + "%"
-        for k in wanted:
+        if "knowledge" in wanted:
+            from hq_api.domain import knowledge as K
+
+            for r in await K.search(
+                tx,
+                ctx.who,
+                q,
+                layer=layer,
+                kind=kind,
+                company_id=co.id if co else None,
+                limit=limit,
+            ):
+                hits.append(
+                    {"kind": r["hit"], "ref": f"{r['ref']}@{r['version']}", "company": r["company"],
+                     "title": r["title_fa"], "body": r["body"], "at": r["at"], "layer": r["layer"],
+                     "valid_until": r["valid_until"], "sources": list(r["sources"] or [])}
+                )  # fmt: skip
+        hits += await _p12_hits(tx, q, wanted, co.id if co else None, limit)
+        for k in (k for k in wanted if k in queries):
             hits += await tx.all(
                 queries[k]
                 + " AND (CAST(:co AS uuid) IS NULL OR c.id = :co) ORDER BY at DESC LIMIT :lim",
@@ -573,7 +658,7 @@ async def tool_knowledge_search(
                 lim=limit,
             )
     hits.sort(key=lambda h: h["at"], reverse=True)
-    return [
+    out = [
         Hit(
             kind=h["kind"],
             ref=h["ref"],
@@ -581,9 +666,59 @@ async def tool_knowledge_search(
             title=h["title"],
             snippet=(h["body"] or "")[:SNIPPET],
             at=h["at"],
+            layer=h.get("layer"),
+            valid_until=h.get("valid_until"),
+            sources=h.get("sources"),
+            repo=h.get("repo"),
+            path=h.get("path"),
+            lines=[h["line_from"], h["line_to"]] if h.get("line_from") else None,
+            commit=h.get("commit"),
         )
         for h in hits[:limit]
     ]
+    # ⟨1.7⟩ a record it found (within its own clearance) joins as well
+    files = [
+        {**h, "text": h.get("text") or h.get("body")}
+        for h in hits[:limit]
+        if h["kind"] in ("doc", "code", "record")
+    ]
+    if ctx.who.charter == "librarian" and files:
+        # Its own search in an ask's run joins the retrieved set (prompt 12 §2.2).
+        from hq_api.domain import ask as AK
+
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as wtx:
+            await AK.extend(wtx, ctx.who, files)
+    return out
+
+
+async def _p12_hits(
+    tx: Tx, q: str, wanted: list[str], company_id: Any, limit: int
+) -> list[dict[str, Any]]:
+    """Kinds `docs`, `code` (the corpus; RLS keeps a CTO to its own company's
+    repositories) and `notes` (the owner's open quick notes)."""
+    from hq_api.domain import corpus
+
+    out: list[dict[str, Any]] = []
+    files = [{"docs": "doc", "code": "code"}[k] for k in wanted if k in ("docs", "code")]
+    if files:
+        words = await corpus.terms(tx, q)
+        cos = [company_id] if company_id else None
+        for r in await corpus.chunk_hits(tx, words, files, cos, limit):
+            place = {"kind": r["kind"], "repo": r["repo"], "path": r["path"],
+                     "lines": [r["line_from"], r["line_to"]]}  # fmt: skip
+            out.append({**r, "ref": corpus.cite_key(place), "body": r["text"]})
+    if "notes" in wanted:
+        pat = "%" + await tx.scalar("SELECT core.like_escape(core.fa_normalize(:q))", q=q) + "%"
+        out += await tx.all(
+            """SELECT 'note' AS kind, n.ref, c.code AS company, left(n.text_md, 80) AS title,
+                      left(n.text_md, 400) AS body, n.created_at AS at
+               FROM owner.notes n JOIN core.companies c ON c.id = n.company_id
+               WHERE n.status = 'open' AND core.fa_normalize(n.text_md) LIKE :pat
+               ORDER BY n.created_at DESC LIMIT :lim""",
+            pat=pat,
+            lim=limit,
+        )
+    return out
 
 
 # -------------------------------------------------------------- audit.recent --
@@ -712,6 +847,33 @@ async def tool_memory_write(
 
 
 # ------------------------------------------------------- the run's own gate --
+MEETING_ONLY = ("meeting.statement", "meeting.challenge", "meeting.whisper", "meeting.minutes")
+
+
+async def _meeting_turn_tools(ctx: Ctx, tx: Any, run: dict[str, Any], tool: str) -> None:
+    """⟨1.5⟩ prompt 11 §11: a meeting turn has its slot's meeting tool and the
+    role's read (A0) tools only; the meeting tools exist only inside a turn."""
+    if run["trigger"] != "meeting":
+        if tool in MEETING_ONLY:
+            raise ApiError(403, "policy_denied", f"{tool} is only for a meeting turn")
+        return
+    from hq_api.domain import meeting_flow as MF
+
+    async with ctx.hub.db.tx(
+        await ctx.hub.companies.ids()
+    ) as all_tx:  # the meeting may be another company's
+        pending = await MF.pending_of(all_tx, run["id"])
+    slot_tool = MF.SLOT_TOOL.get(str((pending["pending"] or {}).get("kind"))) if pending else None
+    lib = ctx.hub.charters
+    read = lib is not None and tool in lib.tools and lib.tools[tool].cls == "A0"
+    if tool != slot_tool and not read:
+        raise ApiError(
+            403,
+            "policy_denied",
+            f"a meeting turn has only {slot_tool or 'no tool'} and the read tools",
+        )
+
+
 class ReserveIn(Model):
     tool: str = Field(pattern=r"^[a-z][a-z_]*(\.[a-z_]+)?$", max_length=40)
     step: int = Field(ge=1, le=50)
@@ -741,6 +903,10 @@ class Gate(BaseModel):
     # ⟨1.4⟩ the overseer's open holds on this run (its employee, its work, or
     # `tool:<name>` for one tool): the gateway refuses every action but reads.
     held: list[str] = Field(default_factory=list)
+    # ⟨1.6⟩ a role written on demand (contract §22.5): its charter lives on the
+    # server, so the gateway checks the run's tools against this list instead
+    # of agents/roles (null for a file charter)
+    tools: list[str] | None = None
 
 
 @router.post("/runs/self/reserve", response_model=Gate, responses=E)
@@ -760,7 +926,7 @@ async def run_reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> Gate
                   AND :step >= current_step AND tool_calls < tool_calls_cap
                   AND (current_step <> :step OR step_tool_calls < step_tool_calls_cap)
                 RETURNING id, work_id, model, effort, charter_version, tool_calls, tool_calls_cap,
-                          current_step, step_tool_calls, step_tool_calls_cap""",
+                          current_step, step_tool_calls, step_tool_calls_cap, trigger""",
             run=ctx.who.run_id,
             e=ctx.who.employee_id,
             step=body.step,
@@ -772,15 +938,27 @@ async def run_reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> Gate
                 "tool-call cap of this run or step reached",
                 headers={"Retry-After": str(CAP_RETRY_AFTER_S)},
             )
+        await _meeting_turn_tools(ctx, tx, row, body.tool)
         w = await W.load(tx, row["work_id"]) if row["work_id"] else None
         escrow = await escrow_of(tx, w) if w else []
         lock = await tx.scalar("SELECT control.lock_state(:co)", co=ctx.who.company_id)
         thread = await tx.scalar(
             """SELECT code FROM msg.threads WHERE employee_id = :e
-                 AND kind IN ('advisor', 'overseer', 'assistant', 'ceo', 'manager', 'employee')
-               ORDER BY kind IN ('advisor', 'overseer', 'assistant') DESC LIMIT 1""",
+                 AND kind IN ('advisor', 'overseer', 'assistant', 'legal', 'ceo', 'manager', 'employee')
+               ORDER BY kind IN ('advisor', 'overseer', 'assistant', 'legal') DESC LIMIT 1""",
             e=ctx.who.employee_id,
         )
+        draft_tools = None
+        lib = ctx.hub.charters
+        if lib is not None and ctx.who.charter and lib.get(ctx.who.charter) is None:
+            tools = await tx.scalar(
+                """SELECT tools FROM people.role_drafts
+                   WHERE company_id = :co AND role = :r AND state IN ('active', 'retired')
+                   ORDER BY (state = 'active') DESC, activated_at DESC NULLS LAST LIMIT 1""",
+                co=ctx.who.company_id,
+                r=ctx.who.charter,
+            )
+            draft_tools = list(tools or [])
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as all_tx:
         held = await oversight.holds_for_run(all_tx, ctx.who.code, w["ref"] if w else None)
     assert ctx.who.company is not None
@@ -806,6 +984,7 @@ async def run_reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> Gate
         step_tool_calls=row["step_tool_calls"],
         step_tool_calls_cap=row["step_tool_calls_cap"],
         held=held,
+        tools=draft_tools,
     )
 
 

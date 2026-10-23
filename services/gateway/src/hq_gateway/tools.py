@@ -30,7 +30,7 @@ from hq_common.redact import MAX_DEPTH, redact_async, scrub
 WORK_REF = r"^W-[0-9]{6,}$"
 CODE = r"^[A-Z][A-Z0-9]{1,9}$"
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
-THREAD = r"^(A|N|P|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
+THREAD = r"^(A|N|P|L|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
 UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 MIME_OK = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}/[a-z0-9][a-z0-9!#$&^_.+-]{0,63}$")
 NS = uuid.UUID("6a0f1c3e-5b7d-4e21-9c3a-0d7f2b6e8a41")  # idempotency keys per action
@@ -201,9 +201,28 @@ class UsageIn(In):
 
 class SearchIn(In):
     q: str = Field(min_length=2, max_length=200)
-    kinds: list[Literal["resolutions", "deliverables", "decisions", "work", "messages"]] | None = (
-        None
-    )
+    # ⟨1.5⟩ prompt 12 §2.3: `docs` and `code` (the corpus), `notes` (the advisor's)
+    # ⟨1.7⟩ `records`: archive records within the role's clearance (prompt 14)
+    kinds: (
+        list[
+            Literal[
+                "resolutions",
+                "deliverables",
+                "decisions",
+                "work",
+                "messages",
+                "knowledge",
+                "docs",
+                "code",
+                "notes",
+                "records",
+            ]
+        ]
+        | None
+    ) = None
+    # Filters of kind `knowledge` (prompt 11 §3.5, contract §20.3): approved, unexpired entries.
+    layer: Literal["holding", "company", "department", "employee"] | None = None
+    kind: Literal["principle", "policy", "fact", "faq", "playbook", "support"] | None = None
 
 
 class AuditIn(CompanyIn):
@@ -245,6 +264,16 @@ class QuotaIn(In):
     usd: Usd | None = None
 
 
+class ExpectedIn(In):
+    """What a proposal promises (contract §20.6): the 30/60/90-day reviews."""
+
+    metric_fa: str = Field(min_length=1, max_length=300)
+    kpi: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{1,60}$")
+    baseline: float = Field(allow_inf_nan=False)
+    target: float = Field(allow_inf_nan=False)
+    by_days: Literal[30, 60, 90]
+
+
 class ProposeIn(In):
     kind: Literal[
         "hire",
@@ -263,8 +292,14 @@ class ProposeIn(In):
         # ⟨1.5⟩ prompt 10 §7: a template or a lifecycle rule for the owner's seal
         "message_template",
         "lifecycle_rule",
-    ]  # every API kind but server_plan (only server.plan makes it), tool_enable (the api's)
-    # and support_go_live (only a passed shadow run makes it)
+        # ⟨1.5⟩ prompt 11 §2: a charter amendment for the owner's seal (🔏)
+        "charter_amendment",
+        # ⟨1.5⟩ prompt 11 §7, §8: a change of the authority matrix, a risk's acceptance
+        "authority_change",
+        "risk_acceptance",
+    ]  # every API kind but server_plan (only server.plan makes it), tool_enable (the api's),
+    # support_go_live (only a passed shadow run makes it), okr (okr.draft makes it), and
+    # meeting_resolution and knowledge_entry (the system makes them)
     title_fa: str = Field(min_length=1, max_length=300)
     what_md: str = Field(default="", max_length=20000)
     why_md: str = Field(default="", max_length=20000)
@@ -272,6 +307,8 @@ class ProposeIn(In):
     reversible: bool = True
     quota_estimate: QuotaIn | Tokens | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
+    # ⟨1.5⟩ prompt 11 §6: required for kind `proposal` (contract §20.6)
+    expected: ExpectedIn | None = None
 
     @field_validator("payload")
     @classmethod
@@ -297,6 +334,7 @@ class LinksIn(In):
     corrects: str | None = Field(default=None, max_length=40)
     inquiry: str | None = Field(default=None, pattern=r"^Q-[0-9]{4,}$")
     errand: str | None = Field(default=None, pattern=r"^E-[0-9]{4,}$")
+    case: str | None = Field(default=None, pattern=r"^LC-[0-9]{4,}$")  # ⟨1.6⟩ §22.7
 
 
 class CitationIn(In):
@@ -354,6 +392,7 @@ class DelegateIn(In):
     title_fa: str = Field(min_length=1, max_length=300)
     brief_md: str = Field(default="", max_length=50000)
     budget: BudgetIn | Tokens | None = None
+    key_result: str | None = Field(default=None, pattern=r"^KR-[0-9]{4,}$")  # ⟨1.5⟩ prompt 11
 
 
 class RequestIn(In):
@@ -506,7 +545,7 @@ async def treasury_usage(api: Api, call: Call, a: UsageIn) -> Result:
 
 
 async def knowledge_search(api: Api, call: Call, a: SearchIn) -> Result:
-    params: dict[str, Any] = {"q": a.q, "kinds": a.kinds}
+    params: dict[str, Any] = {"q": a.q, "kinds": a.kinds, "layer": a.layer, "kind": a.kind}
     return from_response(
         await api.request("GET", "/internal/v1/knowledge/search", call.token, params=params), None
     )
@@ -604,12 +643,19 @@ async def propose(api: Api, call: Call, a: ProposeIn) -> Result:
             "quota_estimate": quota,
             "payload": await _text(a.payload),
             **({"work_id": work_id} if work_id else {}),
+            **(
+                {"expected": await _text(a.expected.model_dump(exclude_none=True))}
+                if a.expected
+                else {}
+            ),
         },
         idem=call.idem("propose"),
     )
     r = from_response(resp)
     if r.outcome == "ok" and isinstance(r.data, dict):
-        r.data = {"decision": r.ref, "status": r.data.get("status"), "kind": a.kind}
+        warnings = r.data.get("warnings") or []
+        r.data = {"decision": r.ref, "status": r.data.get("status"), "kind": a.kind,
+                  **({"warnings": warnings} if warnings else {})}  # fmt: skip
     return r
 
 
@@ -733,6 +779,7 @@ async def work_delegate(api: Api, call: Call, a: DelegateIn) -> Result:
             "title": await _text(a.title_fa),
             "brief": await _text(a.brief_md),
             **({"budget": budget} if budget else {}),
+            **({"key_result": a.key_result} if a.key_result else {}),
         },
         idem=call.idem("work.delegate"),
     )
@@ -818,7 +865,7 @@ async def notify(api: Api, call: Call, a: NotifyIn) -> Result:
 
 
 # ------------------------------------------- skills and academy (p08 §6-§7) --
-SKILL_OR_TEACHING = r"^(SK-[0-9]{3,6}|TE-[0-9]{4,8})$"
+SKILL_OR_TEACHING = r"^(SK-[0-9]{3,6}|TE-[0-9]{4,8}|RD-[0-9]{4,8})$"  # ⟨1.6⟩ RD: a role draft
 
 
 class SkillReviewIn(In):
@@ -858,6 +905,9 @@ async def skill_review(api: Api, call: Call, a: SkillReviewIn) -> Result:
     path = (
         f"/internal/v1/skills/{a.ref}/review"
         if a.ref.startswith("SK-")
+        # ⟨1.6⟩ a role written on demand (contract §22.5): the same review, five checks
+        else f"/internal/v1/roles/drafts/{a.ref}/review"
+        if a.ref.startswith("RD-")
         else f"/internal/v1/academy/teach/{a.ref}/review"
     )
     resp = await api.request(

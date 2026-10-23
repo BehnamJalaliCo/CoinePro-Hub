@@ -4,6 +4,7 @@ record of their own interactions (contract §6, §1.8)."""
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import re
 from datetime import UTC, datetime, time, timedelta
@@ -12,7 +13,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
@@ -115,6 +116,53 @@ class AwaySummary(BaseModel):
     companies: list[CompanyAway]
 
 
+class AutoMemoSettings(BaseModel):
+    enabled: bool = True
+    max_per_day: int = 3
+
+
+class AdvisorSettings(BaseModel):
+    """⟨1.5⟩ the premium advisor (contract §21.12; §0.8 #1-#2 defaults)."""
+
+    auto_memo: AutoMemoSettings = Field(default_factory=AutoMemoSettings)
+    proactive_per_day: int = 3
+
+
+class SubstituteSettings(BaseModel):
+    """⟨1.5⟩ the substitute players (contract §21.13; §0.8 #11 default)."""
+
+    behind_ratio: float = 0.4
+    creative_default_image: Literal["gpt", "gemini"] = "gpt"
+
+
+class AutoMemoIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool | None = None
+    max_per_day: int | None = Field(default=None, ge=0, le=20)
+
+
+class AdvisorSettingsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    auto_memo: AutoMemoIn | None = None
+    proactive_per_day: int | None = Field(default=None, ge=0, le=20)
+
+
+class SubstituteSettingsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    behind_ratio: float | None = Field(default=None, ge=0, le=1)
+    creative_default_image: Literal["gpt", "gemini"] | None = None
+
+
+def _merged(cur: dict[str, Any] | None, patch: BaseModel | None) -> str | None:
+    """A §21.12 block with the fields sent (a nested block merged too)."""
+    if patch is None:
+        return None
+    out = dict(cur or {})
+    for k, v in patch.model_dump(exclude_none=True).items():
+        out[k] = {**(out.get(k) or {}), **v} if isinstance(v, dict) else v
+    return json.dumps(out)
+
+
 class OwnerSettings(BaseModel):
     timezone: str
     morning_report_at: str
@@ -127,7 +175,55 @@ class OwnerSettings(BaseModel):
     # ⟨1.4⟩ prompt 09: the owner's addresses SSH may come from on a new server
     # (a server plan never opens SSH to the whole internet)
     provision_ssh_sources: list[str] = Field(default_factory=list)
+    # ⟨1.5⟩ prompt 12 part A (contract §21.12)
+    advisor: AdvisorSettings = Field(default_factory=AdvisorSettings)
+    substitutes: SubstituteSettings = Field(default_factory=SubstituteSettings)
     version: int
+    # ⟨1.5⟩ prompt 12 part B (contract §21.12)
+    audio_briefings: dict[str, Any] | None = None
+    ceo_weekly_letter: dict[str, Any] | None = None
+    reminders: dict[str, Any] | None = None
+    # ⟨1.5⟩ prompt 12 §3, §13 (contract §21.12)
+    weekly_review: dict[str, Any] | None = None
+    digital_ceo: dict[str, Any] | None = None
+
+
+class WeeklyReviewIn(BaseModel):
+    enabled: bool | None = None
+    day: Literal["sa", "su", "mo", "tu", "we", "th", "fr"] | None = None
+    at: str | None = Field(default=None, pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+
+
+class DigitalCeoIn(BaseModel):
+    enabled: bool | None = None
+    reveal: Literal["after", "before"] | None = None
+    model_predictions: bool | None = None
+    max_model_per_day: int | None = Field(default=None, ge=0, le=100)
+
+
+class AudioBriefingsIn(BaseModel):
+    morning: bool | None = None
+    ceo_letters: bool | None = None
+
+
+class CeoWeeklyLetterIn(BaseModel):
+    enabled: bool | None = None
+    day: Literal["sa", "su", "mo", "tu", "we", "th", "fr"] | None = None
+    at: str | None = Field(default=None, pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+
+
+class RemindersIn(BaseModel):
+    enabled: bool | None = None
+    fraction: float | None = Field(default=None, ge=0.1, le=0.9)
+    before_expiry_h: int | None = Field(default=None, ge=1, le=72)
+    ages_h: list[int] | None = Field(default=None, min_length=1, max_length=5)
+
+    @field_validator("ages_h")
+    @classmethod
+    def _ages(cls, v: list[int] | None) -> list[int] | None:
+        if v is not None and any(not 1 <= h <= 720 for h in v):
+            raise ValueError("each age is 1..720 hours")
+        return sorted(set(v)) if v is not None else v
 
 
 class OwnerSettingsIn(BaseModel):
@@ -143,6 +239,14 @@ class OwnerSettingsIn(BaseModel):
     )
     watch_after_hours: int | None = Field(default=None, ge=1, le=72)
     provision_ssh_sources: list[str] | None = Field(default=None, max_length=20)
+    advisor: AdvisorSettingsIn | None = None
+    substitutes: SubstituteSettingsIn | None = None
+    # ⟨1.5⟩ a block (whole or in part; the fields left out keep their value)
+    audio_briefings: AudioBriefingsIn | None = None
+    ceo_weekly_letter: CeoWeeklyLetterIn | None = None
+    reminders: RemindersIn | None = None
+    weekly_review: WeeklyReviewIn | None = None
+    digital_ceo: DigitalCeoIn | None = None
 
     @field_validator("provision_ssh_sources")
     @classmethod
@@ -302,14 +406,29 @@ def _settings_out(row: dict[str, Any]) -> OwnerSettings:
         calendars=row["calendars"],
         watch_after_hours=row["watch_after_hours"],
         provision_ssh_sources=list(row["provision_ssh_sources"] or []),
+        advisor=AdvisorSettings.model_validate(row.get("advisor") or {}),
+        substitutes=SubstituteSettings.model_validate(row.get("substitutes") or {}),
         version=row["version"],
+        audio_briefings=row.get("audio_briefings"),
+        ceo_weekly_letter=row.get("ceo_weekly_letter"),
+        reminders=row.get("reminders"),
+        weekly_review=row.get("weekly_review"),
+        digital_ceo=row.get("digital_ceo"),
     )
 
 
 SETTINGS_COLS = (
     "timezone, morning_report_at, digest_minutes, ceo_daily_attention, learning_daily_cap, "
-    "calendars, watch_after_hours, provision_ssh_sources, version"
+    "calendars, watch_after_hours, provision_ssh_sources, advisor, substitutes, version"
+    ", audio_briefings, ceo_weekly_letter, reminders, weekly_review, digital_ceo"
 )
+
+
+def _block(b: BaseModel | None) -> str | None:
+    """A §21.12 block as the fields it sets (jsonb merged over the current)."""
+    if b is None:
+        return None
+    return json.dumps(b.model_dump(exclude_none=True))
 
 
 @router.get("/owner/settings", response_model=OwnerSettings, responses=responses(401))
@@ -332,6 +451,9 @@ async def put_owner_settings(
     holding = await ctx.hub.companies.holding()
     changes = body.model_dump(exclude_none=True)
     async with ctx.tx() as tx:
+        blocks = await tx.one(
+            "SELECT advisor, substitutes FROM owner.settings WHERE id = 1 FOR UPDATE"
+        )
         row = await tx.first(
             f"""UPDATE owner.settings SET
                    timezone = COALESCE(:tz, timezone),
@@ -341,8 +463,17 @@ async def put_owner_settings(
                    learning_daily_cap = COALESCE(:ldc, learning_daily_cap),
                    calendars = COALESCE(CAST(:cal AS text[]), calendars),
                    watch_after_hours = COALESCE(:wah, watch_after_hours),
-                   provision_ssh_sources = COALESCE(CAST(:pss AS text[]), provision_ssh_sources)
+                   provision_ssh_sources = COALESCE(CAST(:pss AS text[]), provision_ssh_sources),
+                   advisor = COALESCE(CAST(:adv AS jsonb), advisor),
+                   substitutes = COALESCE(CAST(:subs AS jsonb), substitutes),
+                   audio_briefings = audio_briefings || COALESCE(CAST(:ab AS jsonb), '{{}}'),
+                   ceo_weekly_letter = ceo_weekly_letter || COALESCE(CAST(:cwl AS jsonb), '{{}}'),
+                   reminders = reminders || COALESCE(CAST(:rem AS jsonb), '{{}}'),
+                   weekly_review = weekly_review || COALESCE(CAST(:wr AS jsonb), '{{}}'),
+                   digital_ceo = digital_ceo || COALESCE(CAST(:dc AS jsonb), '{{}}')
                WHERE id = 1 AND version = :v RETURNING {SETTINGS_COLS}""",  # noqa: S608 - constant column list, values are bound
+            adv=_merged(blocks["advisor"], body.advisor),
+            subs=_merged(blocks["substitutes"], body.substitutes),
             tz=body.timezone,
             mra=time.fromisoformat(body.morning_report_at) if body.morning_report_at else None,
             dm=body.digest_minutes,
@@ -351,6 +482,11 @@ async def put_owner_settings(
             cal=list(dict.fromkeys(body.calendars)) if body.calendars else None,
             wah=body.watch_after_hours,
             pss=body.provision_ssh_sources,
+            ab=_block(body.audio_briefings),
+            cwl=_block(body.ceo_weekly_letter),
+            rem=_block(body.reminders),
+            wr=_block(body.weekly_review),
+            dc=_block(body.digital_ceo),
             v=version,
         )
         if row is None:

@@ -84,13 +84,23 @@ class InjectPolicy(BaseModel):
 
 class BrowsePolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["cookie", "header", "form"]
+    # ⟨1.5⟩ "profile" (contract §21.13): a signed-in browser profile of the
+    # profile browser (chatgpt-web, gemini-web, deepseek-web); no secret at all.
+    kind: Literal["cookie", "header", "form", "profile"]
     name: str | None = Field(default=None, max_length=100, pattern=r"^[A-Za-z0-9_-]{1,100}$")
     login_url: str | None = Field(default=None, max_length=2000, pattern=r"^https://")
     username: str | None = Field(default=None, max_length=200)
     user_selector: str | None = Field(default=None, max_length=200)
     pass_selector: str | None = Field(default=None, max_length=200)
     submit_selector: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def _profile_alone(self) -> BrowsePolicy:
+        extra = (self.name, self.login_url, self.username, self.user_selector,
+                 self.pass_selector, self.submit_selector)  # fmt: skip
+        if self.kind == "profile" and any(v is not None for v in extra):
+            raise ValueError("a profile takes nothing but its kind")
+        return self
 
 
 class AllowRule(BaseModel):
@@ -102,12 +112,29 @@ class AllowRule(BaseModel):
     note_fa: str | None = Field(default=None, max_length=300)
 
 
+class MailPolicy(BaseModel):
+    """⟨1.6⟩ the `mail` account's servers (prompt 13 §3.2) when they are not
+    imap.<site> and smtp.<site>; both must be the account's own site."""
+
+    model_config = ConfigDict(extra="forbid")
+    imap_host: str | None = Field(default=None, pattern=r"^[a-z0-9]([a-z0-9.-]{1,251}[a-z0-9])?$")
+    smtp_host: str | None = Field(default=None, pattern=r"^[a-z0-9]([a-z0-9.-]{1,251}[a-z0-9])?$")
+
+
 class AccountPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
     inject: InjectPolicy = Field(default_factory=InjectPolicy)
     browse: BrowsePolicy | None = None
     allow: list[AllowRule] = Field(default_factory=list, max_length=50)
     ports: list[int] = Field(default_factory=list, max_length=5)
+    mail: MailPolicy | None = None
+
+    @model_validator(mode="after")
+    def _profile_injects_nothing(self) -> AccountPolicy:
+        profile = self.browse is not None and self.browse.kind == "profile"
+        if profile and (self.inject.kind == "signer" or self.ports):
+            raise ValueError("a profile account injects nothing and opens no port")
+        return self
 
 
 class ServiceAccount(Model):
@@ -128,6 +155,15 @@ class AccountIn(BaseModel):
     title_fa: str = Field(min_length=1, max_length=200)
     companies: Literal["all"] | list[str] = "all"
     policy: AccountPolicy = Field(default_factory=AccountPolicy)
+
+    @model_validator(mode="after")
+    def _mail_hosts_on_the_site(self) -> AccountIn:
+        # ⟨1.6⟩ egress reaches only the account's own site (prompt 13 §3.2)
+        m = self.policy.mail
+        for host in (m.imap_host, m.smtp_host) if m else ():
+            if host and host != self.site and not host.endswith("." + self.site):
+                raise ValueError(f"{host} is not on the account's site {self.site}")
+        return self
 
 
 class ReserveIn(BaseModel):
@@ -408,6 +444,10 @@ async def reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str
         # A signer's account (prompt 10 §2.2) serves the worker's connector only.
         acct = None
         await refuse("policy_denied", ApiError(403, "policy_denied", "a connector's account"))
+    if acct is not None and G.is_profile(acct) and body.tool != "web.browse":
+        # A signed-in profile (contract §21.13) is a browser's: web.browse only.
+        acct = None
+        await refuse("policy_denied", ApiError(403, "policy_denied", "a browser profile's account"))
     if (
         left["requests"] <= 0
         or left["bytes"] <= 0

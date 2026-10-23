@@ -36,7 +36,7 @@ import html
 import logging
 import os
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
@@ -165,7 +165,6 @@ class Browserd:
 
     async def _session(self, browser: Browser, a: RunIn) -> dict[str, Any]:
         deadline = time.monotonic() + a.time_s
-        secrets = a.account.secrets() if a.account else []
         ctx = await browser.new_context(
             proxy=a.proxy.model_dump(),
             accept_downloads=True,
@@ -174,42 +173,64 @@ class Browserd:
             locale="fa-IR",
             ignore_https_errors=self.insecure_tls,
         )
-        out: dict[str, Any] = {"steps": [], "files": [], "files_bytes": 0, "blocked": None}
-        mask_selectors = ["input[type=password]"]
-        at = {"step": 0}
         try:
-            try:  # the owner's own login form (its URL is the policy's, on the account's site)
-                await _sign_in(ctx, a.account, deadline, mask_selectors)
-            except (Error, ValueError) as exc:  # PwTimeout is an Error
-                log.warning("sign-in failed: %s", type(exc).__name__)
-                return {"code": "sign_in_failed", "steps": [], "files": [],
-                        "error": type(exc).__name__}  # fmt: skip
-            await ctx.route("**/*", _route(a.account, deadline, out, at))
-            page = await ctx.new_page()
-            for i, step in enumerate(a.steps):
-                at["step"] = i
-                left = deadline - time.monotonic()
-                if left <= 0.5:
-                    out["steps"].append(
-                        {"i": i, "do": step.get("do"), "ok": False, "error": "time_up"}
-                    )
-                    break
-                res = await _step(page, ctx, i, step, min(left, 10) * 1000, a, mask_selectors, out)
-                if (out["blocked"] or {}).get("step") == i:  # a request the route stopped
-                    res = {**res, "ok": False, "error": "needs_owner"}
-                out["steps"].append(res)
-                if out["blocked"] or not res.get("ok"):
-                    break
-            out["final_url"] = page.url
-            with contextlib.suppress(Error):
-                out["title"] = scrub_cut(await page.title(), secrets, TITLE_CHARS)[0]
+            return await steps_in(ctx, a, deadline)
         finally:
             await ctx.close()
-        files = out.pop("files")
-        out.pop("files_bytes", None)
-        clean = scrub(out, secrets)
-        clean["files"] = files
-        return dict(clean)
+
+
+async def steps_in(
+    ctx: BrowserContext,
+    a: RunIn,
+    deadline: float,
+    *,
+    allowed: Callable[[str], bool] | None = None,
+) -> dict[str, Any]:
+    """The steps of one call in `ctx` (a fresh context here; a signed-in
+    profile's persistent one in hq_egress.browser_web, prompt 12 §9.1):
+    sign-in, the route's checks (and `allowed`: the only hosts a profile may
+    reach), each step, then every text scrubbed of the account's secret."""
+    secrets = a.account.secrets() if a.account else []
+    out: dict[str, Any] = {"steps": [], "files": [], "files_bytes": 0, "blocked": None}
+    mask_selectors = ["input[type=password]"]
+    at = {"step": 0}
+    try:  # the owner's own login form (its URL is the policy's, on the account's site)
+        await _sign_in(ctx, a.account, deadline, mask_selectors)
+    except (Error, ValueError) as exc:  # PwTimeout is an Error
+        log.warning("sign-in failed: %s", type(exc).__name__)
+        return {"code": "sign_in_failed", "steps": [], "files": [],
+                "error": type(exc).__name__}  # fmt: skip
+    await ctx.route("**/*", _route(a.account, deadline, out, at, allowed))
+    page = await ctx.new_page()
+    for i, step in enumerate(a.steps):
+        at["step"] = i
+        left = deadline - time.monotonic()
+        if left <= 0.5:
+            out["steps"].append({"i": i, "do": step.get("do"), "ok": False, "error": "time_up"})
+            break
+        if allowed is not None and isinstance(step.get("url"), str):
+            host = (urlsplit(str(step["url"])).hostname or "").lower()
+            if not allowed(host):
+                out["steps"].append(
+                    {"i": i, "do": step.get("do"), "ok": False, "error": "host_not_allowed"}
+                )
+                break
+        res = await _step(page, ctx, i, step, min(left, 10) * 1000, a, mask_selectors, out)
+        if (out["blocked"] or {}).get("step") == i:  # a request the route stopped
+            res = {**res, "ok": False, "error": "needs_owner"}
+        out["steps"].append(res)
+        if out["blocked"] or not res.get("ok"):
+            break
+    out["final_url"] = page.url
+    with contextlib.suppress(Error):
+        out["title"] = scrub_cut(await page.title(), secrets, TITLE_CHARS)[0]
+    with contextlib.suppress(Error):
+        await page.close()
+    files = out.pop("files")
+    out.pop("files_bytes", None)
+    clean = scrub(out, secrets)
+    clean["files"] = files
+    return dict(clean)
 
 
 async def _sign_in(
@@ -261,18 +282,27 @@ def _account_header(account: Account | None) -> str | None:
 
 
 def _route(
-    account: Account | None, deadline: float, out: dict[str, Any], at: dict[str, int]
+    account: Account | None,
+    deadline: float,
+    out: dict[str, Any],
+    at: dict[str, int],
+    allowed: Callable[[str], bool] | None = None,
 ) -> Any:
     """Every request the session sends (contract §18.13, 7.1): a GET that
     commits is aborted; while signed in, so is a call the account's policy
     does not list, and the account's header goes to its own host over https,
-    one hop at a time."""
+    one hop at a time. A signed-in profile's session (prompt 12 §9.1) reaches
+    only its site's own hosts (`allowed`), like egress's proxy."""
     header = _account_header(account)
 
     async def handle(route: Route) -> None:
         req = route.request
         method = req.method.upper()
         reason = None
+        host = (urlsplit(req.url).hostname or "").lower().rstrip(".")
+        if allowed is not None and req.url.startswith(("http:", "https:")) and not allowed(host):
+            await route.abort("blockedbyclient")
+            return
         if account is not None and not account.allows(method, req.url):
             reason = "commitment_request"
         elif method in READ_METHODS:

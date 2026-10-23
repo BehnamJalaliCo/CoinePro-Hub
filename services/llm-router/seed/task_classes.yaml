@@ -20,3 +20,38 @@ task_classes:
   - {key: academy_eval, transferable: false, description: An academy eval case answered by the role under test}
   - {key: academy_judge, transferable: false, description: The judge's score of an academy eval answer}
   - {key: order_routing, transferable: false, description: "Where an order of the owner goes (prompt 06 §5; the owner's words stay on Claude)"}
+  # prompt 12 (contract §21.0, §21.13): the owner zone (the advisor's memos,
+  # proactive notes and weekly brief, the librarian, the digital CEO), the CEOs'
+  # letters, the HR evaluation; never on an alternative provider. The sub_*
+  # classes are the substitute players' calls (ChatGPT, Gemini, DeepSeek on the
+  # owner's subscriptions), recorded at their equivalent cost; the router never
+  # routes them (api migration 0027 inserts the same rows).
+  - {key: advisor_memo, transferable: false, description: "The advisor's decision memo on a pending card (prompt 12 §1)"}
+  - {key: advisor_proactive, transferable: false, description: "The advisor's proactive note on a rule trigger (prompt 12 §1.3)"}
+  - {key: advisor_review, transferable: false, description: "The advisor's weekly review brief (prompt 12 §3)"}
+  - {key: ask_hub, transferable: false, description: "The librarian's answer to ask the hub (prompt 12 §2)"}
+  - {key: ceo_letter, transferable: false, description: "A CEO's weekly letter to the owner (prompt 12 §4.3)"}
+  - {key: hr_eval, transferable: false, description: "The monthly HR evaluation (prompt 12 §6)"}
+  - {key: dceo_predict, transferable: false, description: "The digital CEO's model prediction (prompt 12 §13)"}
+  - {key: dceo_principles, transferable: false, description: "The digital CEO's weekly principles (prompt 12 §13)"}
+  - {key: sub_code_review, transferable: false, description: "A substitute player's second code review (subscription only)"}
+  - {key: sub_second_opinion, transferable: false, description: "A substitute player's second opinion on a memo (subscription only)"}
+  - {key: sub_cross_check, transferable: false, description: "A substitute player's cross-check of sampled claims (subscription only)"}
+  - {key: sub_errand, transferable: false, description: "A substitute player's errand draft (subscription only)"}
+  - {key: sub_draft, transferable: false, description: "A substitute player's first draft of content (subscription only)"}
+  - {key: sub_long_read, transferable: false, description: "A substitute player's summary of a long read (subscription only)"}
+  - {key: sub_creative, transferable: false, description: "A substitute player's image or video (subscription only)"}
+  # prompt 13, the media half (contract §22.0): the media studio's steps; api
+  # migration 0028 inserts the same rows.
+  - {key: media_script, transferable: false, description: "A media item's script (prompt 13 §2)"}
+  - {key: media_direction, transferable: false, description: "A media item's direction: shots, timing, on-screen text (prompt 13 §2)"}
+  - {key: media_motion, transferable: false, description: "A media item's motion graphics as code (prompt 13 §2; Opus 5.5 by default)"}
+  - {key: media_review, transferable: false, description: "The media director's review of an item (prompt 13 §2)"}
+  - {key: ui_design, transferable: false, description: "A site's UI redesign as HTML mockups (prompt 13 §2.4)"}
+  # prompt 13 §3 (contract §22.0): the legal counsel's work and its reading of
+  # a reply; never on an alternative provider (api migration 0028_1 inserts them).
+  - {key: legal_case, transferable: false, description: "The legal counsel's work on a case (prompt 13 §3; never on an alternative)"}
+  - {key: legal_email, transferable: false, description: "The legal counsel's reading of a reply and its next step (prompt 13 §3)"}
+  # prompt 14 (contract §23.11): the archivist's work; never on an alternative
+  # provider (api migration 0029 inserts it).
+  - {key: archive, transferable: false, description: "The archivist's work: classify drafts, complete metadata, links, the weekly gaps (prompt 14)"}

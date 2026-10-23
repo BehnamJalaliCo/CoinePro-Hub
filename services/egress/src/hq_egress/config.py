@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 from dataclasses import dataclass, field
 
 Net = ipaddress.IPv4Network | ipaddress.IPv6Network
@@ -48,6 +49,53 @@ class Settings:
     )
     browser_proxy_clients: tuple[Net, ...] = field(
         default_factory=lambda: _nets("EGRESS_BROWSER_PROXY_CLIENTS", "172.30.9.0/24")
+    )
+    # Prompt 12 §9.1 (contract §21.13), the substitute players. The runner's
+    # listener: hq-subs, CONNECT on 443 to the hosts its two CLIs need (Codex
+    # signed in with ChatGPT: chatgpt.com and auth.openai.com; Gemini CLI
+    # signed in with Google: Code Assist and Google's OAuth token hosts),
+    # their subdomains included. Never api.openai.com (an API key's host).
+    substitutes_proxy_port: int = field(
+        default_factory=lambda: int(os.environ.get("EGRESS_SUBSTITUTES_PROXY_PORT", "3131"))
+    )
+    substitutes_proxy_clients: tuple[Net, ...] = field(
+        default_factory=lambda: _nets("EGRESS_SUBSTITUTES_PROXY_CLIENTS", "172.30.13.0/24")
+    )
+    substitutes_hosts: frozenset[str] = field(
+        default_factory=lambda: _hosts(
+            "EGRESS_SUBSTITUTES_HOSTS",
+            "chatgpt.com,auth.openai.com,cloudcode-pa.googleapis.com,"
+            "oauth2.googleapis.com,www.googleapis.com",
+        )
+    )
+    # The profile browser (browser-web, profile substitutes-web): its API, its
+    # listener (hq-browser-web; a bucket per job, the site's own hosts only)
+    # and the owner's sign-in window's listener (hq-web-login; the three
+    # sites' own and sign-in hosts, from the recipes).
+    web_browser_url: str = field(
+        default_factory=lambda: os.environ.get("EGRESS_WEB_BROWSER_URL", "http://browser-web:8096")
+    )
+    web_proxy_port: int = field(
+        default_factory=lambda: int(os.environ.get("EGRESS_WEB_PROXY_PORT", "3132"))
+    )
+    web_proxy_url: str = field(
+        default_factory=lambda: os.environ.get("EGRESS_WEB_PROXY_URL", "http://egress:3132")
+    )
+    web_proxy_clients: tuple[Net, ...] = field(
+        default_factory=lambda: _nets("EGRESS_WEB_PROXY_CLIENTS", "172.30.14.0/24")
+    )
+    login_proxy_port: int = field(
+        default_factory=lambda: int(os.environ.get("EGRESS_LOGIN_PROXY_PORT", "3133"))
+    )
+    login_proxy_clients: tuple[Net, ...] = field(
+        default_factory=lambda: _nets("EGRESS_LOGIN_PROXY_CLIENTS", "172.30.15.0/24")
+    )
+    recipes_dir: str = field(
+        default_factory=lambda: os.environ.get("EGRESS_RECIPES_DIR", "/recipes")
+    )
+    # One web job's file (an image, a video of at most 10 s).
+    web_file_bytes: int = field(
+        default_factory=lambda: int(os.environ.get("EGRESS_WEB_FILE_BYTES", str(25 * 1024 * 1024)))
     )
     searxng_url: str = field(
         default_factory=lambda: os.environ.get("EGRESS_SEARXNG_URL", "http://searxng:8080")
@@ -96,4 +144,32 @@ class Settings:
     connector_wait_s: float = field(
         default_factory=lambda: float(os.environ.get("EGRESS_CONNECTOR_WAIT_S", "8"))
     )
+    # Prompt 13 §2.3 (contract §22.2, §22.7): publishing. The hub's public
+    # name (compose: HQ_SITE_ADDRESS): the only host an Instagram media URL may
+    # name (its one signed file URL); empty or not a name = Instagram refused.
+    public_host: str = field(
+        default_factory=lambda: public_host(os.environ.get("EGRESS_PUBLIC_HOST", ""))
+    )
+    # One publish call's whole time: a 50 MB video to Telegram, or a Graph call.
+    media_deadline_s: float = field(
+        default_factory=lambda: float(os.environ.get("EGRESS_MEDIA_DEADLINE_S", "120"))
+    )
     log_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL", "info"))
+
+
+_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_HOSTNAME = re.compile(rf"^(?=.{{4,253}}$){_LABEL}(?:\.{_LABEL})+$")
+
+
+def public_host(raw: str) -> str:
+    """The hub's public host name from a Caddy site address ("hq.example.com",
+    "https://hq.example.com", "hq.example.com:443"); "" for none (":80", empty)."""
+    value = raw.strip().lower()
+    for prefix in ("https://", "http://"):
+        if value.startswith(prefix):
+            value = value[len(prefix) :]
+    value = value.split("/", 1)[0]
+    host, _, port = value.partition(":")
+    if port and port != "443":
+        return ""
+    return host if _HOSTNAME.match(host) else ""

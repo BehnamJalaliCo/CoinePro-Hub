@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import dataclasses
 import json
 import logging
 import time
@@ -45,9 +46,13 @@ from hq_api.agents import protocol as P
 from hq_api.agents.clients import Gateway, LivePush, ModelCall, Router
 from hq_api.db import Tx
 from hq_api.domain import academy as AC
+from hq_api.domain import charter as CH
 from hq_api.domain import decisions as D
+from hq_api.domain import departments as DM
 from hq_api.domain import files as F
+from hq_api.domain import meeting_flow as MF
 from hq_api.domain import oversight as O
+from hq_api.domain import role_drafts as RD
 from hq_api.domain import skills as SK
 from hq_api.errors import sqlstate_of
 from hq_api.hub import Hub
@@ -104,6 +109,14 @@ def prompt_tokens(system: str, messages: list[dict[str, Any]]) -> int:
     return chars // 4 + images * IMAGE_TOKENS
 
 
+def meeting_tools(lib: Any, charter: Charter, tool: str | None) -> tuple[str, ...]:
+    """A meeting turn's tools: its slot's meeting tool and the role's A0 reads."""
+    reads = tuple(
+        t for t in charter.tools if lib is not None and t in lib.tools and lib.tools[t].cls == "A0"
+    )
+    return ((tool,) if tool and tool in charter.tools else ()) + reads
+
+
 FINAL = ("done", "failed", "refused")
 CONTEXT_CHARS = 24_000
 THREAD_MESSAGES = 12
@@ -111,6 +124,32 @@ THREAD_MESSAGES = 12
 # agents/roles), never from a role name (contract hard rule 1).
 TASK_CLASS_OF_KIND = {"advisor": "advisor"}
 ALERT_TASK = "ops_alert"
+# ⟨1.5⟩ the classes work.run_meta may name (prompt 12 §15, contract §21.0).
+RUN_TASK_CLASSES = frozenset(
+    {
+        "advisor_memo",
+        "advisor_proactive",
+        "advisor_review",
+        "ask_hub",
+        "ceo_letter",
+        "hr_eval",
+        "dceo_predict",
+        "dceo_principles",
+        # ⟨1.6⟩ the media studio's steps (prompt 13 §2)
+        "media_script",
+        "media_direction",
+        "media_motion",
+        "media_review",
+        "ui_design",
+        # ⟨1.6⟩ prompt 13 §3: a case's work, a reply's reading (legal.wake)
+        "legal_case",
+        "legal_email",
+        # ⟨1.7⟩ prompt 14: the archivist's work
+        "archive",
+    }
+)
+# ⟨1.6⟩ a role's own class when nothing more specific names one.
+TASK_CLASS_OF_ROLE = {"legal_counsel": "legal_case", "archivist": "archive"}
 HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
 MIN_OUTPUT_TOKENS = 256  # a step needs at least this much room to answer at all
 LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked for context
@@ -142,6 +181,16 @@ class RunCtx:
     # An oversight protocol run's ref and severity (prompt 08 §2.3): llm-router
     # lets a `critical` one go on once the oversight share is spent.
     oversight: dict[str, str] = field(default_factory=dict)
+    # ⟨1.5⟩ prompt 11: the sealed charter documents in the system prompt
+    # ("holding@3", "TY@1") and a meeting turn's context, meta and tool
+    charter_docs: list[str] = field(default_factory=list)
+    meeting: dict[str, Any] = field(default_factory=dict)
+    # ⟨1.5⟩ what the code that made the run's work tells it (work.run_meta):
+    # its router task class and the owner-zone flag (prompt 12 §15), a memo's mode.
+    run_meta: dict[str, Any] = field(default_factory=dict)
+    # ⟨1.6⟩ the charters of the run's company: the files plus its role drafts
+    # (contract §22.5); None = the files only
+    lib: Any = None
 
     @property
     def token_cap(self) -> int:
@@ -186,11 +235,23 @@ class Runner:
             if run["state"] in FINAL:
                 return Claim("final", run["state"], run["error_code"])
             emp = await self._employee(tx, run["employee_id"])
+            if lib is not None and lib.get(emp["role"]) is None:
+                # ⟨1.6⟩ a role written on demand runs from its draft (§22.5)
+                lib = await RD.overlay(tx, lib, emp["company_id"], running=True)
             charter = lib.get(emp["role"]) if lib is not None else None
             refuse = None
+            # A system employee runs only with a system charter (the rule-based
+            # report system HQ-SYS has none and never runs): ⟨1.5⟩ the secretary
+            # only for a meeting's summary; the librarian (HQ-LIB, its ask) and
+            # ⟨1.7⟩ the archivist (HQ-ARC, its work items) when code gives them work.
+            system_ok = (
+                charter is not None
+                and charter.kind == "system"
+                and (emp["role"] != "secretary" or run["trigger"] == "meeting")
+            )
             if charter is None:
                 refuse = "no_charter"
-            elif emp["status"] != "active" or emp["kind"] == "system":
+            elif emp["status"] != "active" or (emp["kind"] == "system" and not system_ok):
                 refuse = "employee_inactive"
             else:
                 lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])
@@ -213,13 +274,26 @@ class Runner:
             if refuse is None:
                 assert charter is not None
                 caps = await self._caps(tx, run, charter)
-                if caps["token_cap"] <= 0:
+                if run["trigger"] == "meeting":
+                    # A turn's cap is its meeting's turn cap (and what is left of
+                    # its reservation): a turn that does not fit is not run.
+                    turn = await MF.turn_context(tx, run, emp)
+                    if turn is None:
+                        refuse = "meeting_gone"
+                    else:
+                        caps["token_cap"] = min(caps["token_cap"], int(turn["token_cap"]))
+                if refuse is None and caps["token_cap"] <= 0:
                     refuse = "budget_used_up"
             if refuse is not None:
                 await self._finish(tx, run, emp, "refused", refuse, note=None, start=False)
                 return Claim("final", "refused", refuse)
             assert charter is not None
             model, effort = await self._model(tx, emp, charter)
+            steps_cap = charter.limits.steps_per_run
+            if run["trigger"] == "meeting":
+                # In a meeting the effort is at most medium (prompt 11 §1.4), a few steps.
+                effort = effort if effort in MF.EFFORTS else "medium"
+                steps_cap = min(steps_cap, 3)
             ttl = min(agent_tokens.MAX_TTL_S, self.s.agent_max_run_s + 120)
             await tx.exec(
                 """UPDATE agents.runs SET state = 'running', started_at = now(), priority = :prio,
@@ -234,7 +308,7 @@ class Runner:
                 ver=charter.version,
                 model=model,
                 effort=effort,
-                steps=charter.limits.steps_per_run,
+                steps=steps_cap,
                 tokens=caps["token_cap"],
                 calls=self.s.agent_tool_calls_per_run,
                 per_step=self.s.agent_actions_per_step,
@@ -368,6 +442,8 @@ class Runner:
             if run["state"] != "running":
                 return {"state": run["state"], "skipped": True}
             emp = await self._employee(tx, run["employee_id"])
+            if lib is not None and lib.get(run["charter_role"]) is None:
+                lib = await RD.overlay(tx, lib, emp["company_id"], running=True)
         charter = lib.get(run["charter_role"]) if lib is not None else None
         if charter is None:
             return await self.finish(run_id, "failed", "no_charter")
@@ -378,7 +454,13 @@ class Runner:
             str(run["id"]),
             ttl_s=max(60, int((expires - datetime.now(UTC)).total_seconds())),
         )
-        rc = RunCtx(run=run, emp=emp, charter=charter, token=token)
+        rc = RunCtx(run=run, emp=emp, charter=charter, token=token, lib=lib)
+        if run["work_id"] is not None:
+            async with await self._tx() as tx:
+                meta = await tx.scalar(
+                    "SELECT run_meta FROM work.work WHERE id = :id", id=run["work_id"]
+                )
+            rc.run_meta = dict(meta) if isinstance(meta, dict) else {}
         deadline = time.monotonic() + self.s.agent_max_run_s
         try:
             outcome = await self._steps(rc, deadline)
@@ -392,14 +474,32 @@ class Runner:
 
     async def _steps(self, rc: RunCtx, deadline: float) -> tuple[str, str | None, str | None]:
         run, charter = rc.run, rc.charter
+        # ⟨1.6⟩ the files plus the company's role drafts (contract §22.5)
+        lib = rc.lib or self.hub.charters
+        async with await self._tx() as tx:
+            # ⟨1.5⟩ the sealed charter and the company's addendum (prompt 11 §2.5)
+            charter_text, rc.charter_docs = await CH.prompt_section(
+                tx, rc.emp["company"], str(lib.root) if lib is not None else ""
+            )
+            if run["trigger"] == "meeting":
+                rc.meeting = await MF.turn_context(tx, run, rc.emp) or {}
+        if run["trigger"] == "meeting":
+            # A meeting turn has only its turn's tool and the role's read tools.
+            if not rc.meeting:
+                return "refused", "meeting_gone", "the meeting moved on"
+            charter = dataclasses.replace(
+                charter, tools=meeting_tools(lib, charter, rc.meeting.get("tool"))
+            )
+            rc.charter = charter
         system = P.system_prompt(
-            self.hub.charters,
+            lib,  # _common first, then the charter (file or draft)
             charter,
             await self._values(rc.emp),
             max_actions=self.s.agent_actions_per_step,
             answer_phase=charter.kind == "advisor" and run["trigger"] == "message",
-            payloads=D.PAYLOADS,
+            payloads=None if run["trigger"] == "meeting" else D.PAYLOADS,
             after_charter=await self._skills(rc),
+            before_charter=charter_text,
         )
         # The owner's sealed standing orders (prompt 08 §2.7): the overseer's own
         # and those for every role, after the charter; a proposed one never.
@@ -419,6 +519,10 @@ class Runner:
                     }
         if orders:
             system += "\n\n" + orders
+        if await self._devil(rc):
+            from hq_api.domain.advisor import DEVIL_INSTRUCTION
+
+            system += "\n\n" + DEVIL_INSTRUCTION
         text, image_ids = await self._context(rc)
         rc.messages = [{"role": "user", "content": await self._with_images(rc, text, image_ids)}]
         live_thread = await self._reply_thread(rc)
@@ -558,7 +662,10 @@ class Runner:
                 "trigger": run["trigger"],
                 "skills": rc.skills,
                 "addenda": rc.addenda,
+                "charter_docs": rc.charter_docs,
                 **rc.oversight,
+                **(rc.meeting.get("meta") or {}),
+                **self._zone(rc),
             },
         }
         if max_output:
@@ -570,9 +677,41 @@ class Runner:
         return await self._with_heartbeat(self.router.run(body, self.s.agent_step_timeout_s))
 
     def _task_class(self, rc: RunCtx) -> str:
+        # ⟨1.5⟩ a run the code made for one purpose names its class (prompt 12:
+        # advisor_memo, advisor_proactive...); never one an agent chose.
+        named = rc.run_meta.get("task_class")
+        if isinstance(named, str) and named in RUN_TASK_CLASSES:
+            return named
         if rc.charter.kind in TASK_CLASS_OF_KIND:
             return TASK_CLASS_OF_KIND[rc.charter.kind]
+        if rc.charter.role in TASK_CLASS_OF_ROLE:
+            return TASK_CLASS_OF_ROLE[rc.charter.role]
         return ALERT_TASK if rc.run["trigger"] == "alert" else "general"
+
+    @staticmethod
+    def _zone(rc: RunCtx) -> dict[str, str]:
+        """The owner-zone flag llm-router reads (prompt 12 §15): `auto` stops
+        at the zone's share, `direct` (the owner asked) always runs."""
+        zone = rc.run_meta.get("owner_zone")
+        return {"owner_zone": zone} if zone in ("auto", "direct") else {}
+
+    async def _devil(self, rc: RunCtx) -> bool:
+        """The advisor's devil's advocate for this run only (contract §21.1):
+        a devil memo, or the owner's latest message in thread A asked for it."""
+        if rc.charter.kind != "advisor":
+            return False
+        if rc.run_meta.get("mode") == "devil":
+            return True
+        if rc.run["trigger"] != "message" or rc.run["thread_id"] is None:
+            return False
+        async with await self._tx() as tx:
+            mode = await tx.scalar(
+                """SELECT m.meta->>'mode' FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
+                   WHERE m.thread_id = :t AND t.code = 'A' AND m.author_kind = 'owner'
+                   ORDER BY m.seq DESC LIMIT 1""",
+                t=rc.run["thread_id"],
+            )
+        return bool(mode == "devil")
 
     async def _with_heartbeat(self, aw: Awaitable[ModelCall]) -> ModelCall:
         """A model call (a step, or the advisor's streamed answer) beating the
@@ -668,6 +807,7 @@ class Runner:
                     "purpose": "answer",
                     "skills": rc.skills,
                     "addenda": rc.addenda,
+                    **self._zone(rc),
                 },
             }
             if rc.run["model"]:
@@ -712,6 +852,8 @@ class Runner:
 
     async def _partial(self, rc: RunCtx, n: int) -> tuple[str, str | None, str | None]:
         """Out of steps or tokens before `done`: what was done so far, delivered."""
+        if rc.run["trigger"] == "meeting":  # a turn delivers nothing; the meeting moves on
+            return "done", "limit_reached", None
         work_ref = await self._scalar_work_ref(rc.run["work_id"])
         if rc.delivered or work_ref is None or "deliver" not in rc.charter.tools:
             return ("done" if rc.delivered else "failed"), "limit_reached", None
@@ -747,13 +889,24 @@ class Runner:
             sec = SK.prompt_section(active, addenda)
             rc.skills = sec.skills
             rc.addenda = [str(a["ref"]) for a in sec.addenda]  # teaching refs (llm meta)
+            # ⟨1.6⟩ the department's identity comes first in this section: after
+            # the charter, before the skills (contract §22.1); its version is kept.
+            identity, identity_doc = await DM.identity(
+                tx,
+                await tx.scalar(
+                    "SELECT department_id FROM core.employees WHERE id = :e",
+                    e=rc.run["employee_id"],
+                ),
+            )
             await tx.exec(
-                "UPDATE agents.runs SET skills = :s, addenda = :a WHERE id = :id",
+                """UPDATE agents.runs SET skills = :s, addenda = :a, identity_doc = :doc
+                   WHERE id = :id""",
                 s=rc.skills,
                 a=[a["id"] for a in sec.addenda],
+                doc=identity_doc,
                 id=rc.run["id"],
             )
-        return sec.text
+        return "\n\n".join(x for x in (identity, sec.text) if x)
 
     async def _values(self, emp: dict[str, Any]) -> dict[str, str]:
         holding = await self.hub.companies.holding()
@@ -781,7 +934,10 @@ class Runner:
         """The companies a run may read: its charter's scope (prompt 5.1 §1.1),
         every company for a holding charter in the holding, else its own."""
         holding = await self.hub.companies.holding()
-        if rc.charter.scope == "holding" and rc.emp["company_id"] == holding.id:
+        # ⟨1.6⟩ a role draft reads its own company only, whatever its scope says
+        # (as its principal does: security/deps.py reads the files only)
+        filed = self.hub.charters is not None and rc.charter.role in self.hub.charters.roles
+        if rc.charter.scope == "holding" and filed and rc.emp["company_id"] == holding.id:
             return await self.hub.companies.ids()
         return [rc.emp["company_id"]]
 
@@ -792,6 +948,9 @@ class Runner:
         every record a message points at is filtered by that scope too."""
         run, emp = rc.run, rc.emp
         images: list[UUID] = []
+        if run["trigger"] == "meeting" and rc.meeting:
+            # The turn's context is the code's (prompt 11 §1.4): nothing more.
+            return P.trim(await scrub_async(str(rc.meeting["text"])), CONTEXT_CHARS), []
         parts = [f"# Trigger\n{run['trigger']} ({run['reason']})"]
         scope = await self.read_scope(rc)
         async with self.hub.db.tx(scope) as tx:
@@ -1202,3 +1361,6 @@ class Runner:
             str(run["id"]),
             {"employee": emp["code"], "state": state, "code": code, "partial": partial},
         )
+        if run["trigger"] == "meeting":
+            # ⟨1.5⟩ the meeting books the turn's tokens and queues the next (prompt 11 §1.4)
+            await MF.turn_finished(tx, run)

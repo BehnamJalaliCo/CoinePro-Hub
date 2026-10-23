@@ -1,0 +1,17 @@
+[Unit]
+Description=CoinePro HQ: the Persian voice of the briefings (one TTS pass, prompt 12 §4)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+# Does nothing unless HQ_TTS=on; waits on /run/hq/oneshot.lock (shared with the
+# backups) and runs the tts one-shot, which asks the api for work (204 while
+# the holding is locked: nothing is spoken then).
+ExecStart=/home/Hub/CoinePro-Hub/infra/tts/run-once.sh
+TimeoutStartSec=20min
+Nice=10
+NoNewPrivileges=yes
+PrivateTmp=yes

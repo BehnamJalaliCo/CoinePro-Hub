@@ -36,10 +36,20 @@ META_KEYS = frozenset(
         # `critical` one still runs once the oversight share is spent)
         "protocol",
         "severity",
+        # prompt 11 §1-§2 (contract §20.1, §20.2): a meeting turn's meeting, its
+        # reserved cap (tokens; none for a war room) and kind, and the sealed
+        # charter documents in an agent's system prompt (a list: "holding@3", "TY@1")
+        "meeting",
+        "meeting_cap",
+        "meeting_kind",
+        "charter_docs",
+        # prompt 12 §15: an owner-zone call is "auto" (stops at the owner zone
+        # share) or "direct" (the owner asked: always runs inside the cap)
+        "owner_zone",
     }
 )
-# Keys whose value is a list of short refs ("SK-001@3", "TE-0001").
-META_LISTS = frozenset({"skills", "addenda"})
+# Keys whose value is a list of short refs ("SK-001@3", "TE-0001", "holding@3").
+META_LISTS = frozenset({"skills", "addenda", "charter_docs"})
 META_LIST_MAX = 30
 
 

@@ -1,0 +1,14 @@
+[Unit]
+Description=CoinePro HQ: refresh CodeCortex's index of the hub repository (MCP profile only; rule-only, no network)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+ExecStart=/home/Hub/CoinePro-Hub/infra/mcp/index.sh
+TimeoutStartSec=1800
+Nice=10
+NoNewPrivileges=yes
+PrivateTmp=yes

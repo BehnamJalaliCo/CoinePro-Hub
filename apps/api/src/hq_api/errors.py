@@ -163,6 +163,39 @@ CODES: dict[str, tuple[int, str, str]] = {
     "send_blocked": (422, "Send blocked", "نگهبان خروجی این پیام را رد کرد؛ دلیل‌ها را ببین."),
     "opted_out": (409, "Opted out", "این مشتری پیام‌ها را لغو کرده است."),
     "send_limit": (429, "Send limit", "سقف ارسال امروز یا این ساعت پر شده است."),
+    # prompt 11 (contract §20.11)
+    "meeting_not_live": (409, "Meeting not live", "این جلسه الان زنده نیست."),
+    "knowledge_expired": (
+        422,
+        "Knowledge expired",
+        "این دانش منقضی شده است و به‌عنوان منبع پذیرفته نمیشود؛ نسخه‌ی تازه‌اش را بخواه.",
+    ),
+    # ⟨1.5⟩ prompt 11 §10 (contract §20.11): fields.items [{ref, reason}]
+    "batch_not_eligible": (
+        422,
+        "Batch not eligible",
+        "همه‌ی کارت‌های این مُهر گروهی شایسته نیستند؛ هیچ‌کدام مُهر نشد. دلیل هر کارت را ببین.",
+    ),
+    # ⟨1.6⟩ prompt 13 (contract §22.6)
+    "series_not_sealed": (
+        409,
+        "Series not sealed",
+        "این برنامه‌ی انتشار مُهر نشده است؛ بی مُهر چیزی خودکار منتشر نمیشود.",
+    ),
+    "platform_limit": (429, "Platform limit", "سقف انتشار خود پلتفرم برای این حساب پر شده است."),
+    # ⟨1.7⟩ prompt 14 (contract §23.11): the archive
+    "clearance": (403, "Clearance", "این سند بالاتر از سطح دسترسی توست."),
+    "sealed_record": (
+        409,
+        "Sealed record",
+        "این سند مُهر شده است و تغییر نمیکند؛ اصلاح، نسخه‌ی تازه است.",
+    ),
+    "schema_invalid": (422, "Schema invalid", "این تعریف با واژگان بسته‌ی بایگانی نمیخواند."),
+    "secret_in_document": (
+        422,
+        "Secret in document",
+        "در این فایل الگوی رمز، کلید خصوصی یا عبارت بازیابی پیدا شد؛ فایل نگه داشته نشد.",
+    ),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 
@@ -176,6 +209,7 @@ SQLSTATE_CODES: dict[str, str] = {
     "HQI01": "validation_failed",
     "HQV01": "validation_failed",
     "HQN01": "not_found",
+    "HQR01": "sealed_record",  # ⟨1.7⟩ a sealed archive version or a disposed record
 }
 
 
@@ -186,7 +220,8 @@ class Problem(BaseModel):
     code: str
     detail: str | None = None
     message_fa: str
-    fields: dict[str, str] | None = None
+    # field -> message; ⟨1.5⟩ batch_not_eligible: "items" -> [{ref, reason}] (contract §20.10)
+    fields: dict[str, Any] | None = None
     request_id: str | None = None
     # ⟨1.4.6⟩ 409 not_ready: what is still missing (§18.8, e.g. ["brand"])
     missing: list[str] | None = None
@@ -199,7 +234,7 @@ class ApiError(Exception):
         code: str,
         detail: str | None = None,
         *,
-        fields: dict[str, str] | None = None,
+        fields: dict[str, Any] | None = None,
         message_fa: str | None = None,
         headers: dict[str, str] | None = None,
         missing: list[str] | None = None,

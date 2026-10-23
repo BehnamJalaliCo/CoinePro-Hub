@@ -1,0 +1,38 @@
+{
+  "comment": "What the render image carries besides Python (prompt 13 §2.3). The JavaScript libraries are the only scripts a composition may load (/lib/...), extracted from their npm tarballs, each checked by sha256 at build time (ADD --checksum, then sha256sum -c). IRANYekanX comes from design/fonts/static (the project's licence, design/fonts/FontLicense.txt, licence no. 136710).",
+  "libraries": {
+    "anime.min.js": {
+      "package": "animejs",
+      "version": "3.2.2",
+      "license": "MIT",
+      "tarball": "https://registry.npmjs.org/animejs/-/animejs-3.2.2.tgz",
+      "tarball_sha256": "a1a952d2265ff27a500945443a0752157d021c193b47ca2e5bf4ada61a6ff8b6",
+      "file": "package/lib/anime.min.js",
+      "sha256": "b5ce1be3c3f530f192e0f2571d1942846096d66119cbada34bfdc912c4873f35"
+    },
+    "lottie.min.js": {
+      "package": "lottie-web",
+      "version": "5.12.2",
+      "license": "MIT",
+      "tarball": "https://registry.npmjs.org/lottie-web/-/lottie-web-5.12.2.tgz",
+      "tarball_sha256": "8600b50a5cecc3d327f32e62f744812f4dbe9279469280117d7e64f59fb343c2",
+      "file": "package/build/player/lottie_light.min.js",
+      "sha256": "23cd2c01be3d4da8bb664645d03afaff40879c62dc5f8dfe075ab3aa35c108f3",
+      "note": "the light build: the SVG renderer without expressions (no eval)"
+    }
+  },
+  "fonts": {
+    "IRANYekanX-Regular.woff2": "f8b0d2709e643391cc9890c7447fc904e54b882213a3d16c3be7ac0a65821a86",
+    "IRANYekanX-Medium.woff2": "d2469f6037e48f35fec918a5b2a65cb19ab77768b8dacc4d62b80f8352523ab8",
+    "IRANYekanX-DemiBold.woff2": "c99b73a9f47358cb7ffba1c151f12f4f1a91ff9513fb59518efb1657cfb9083c",
+    "IRANYekanX-Bold.woff2": "936a60fd882c1292303898e65be6ac26b4ac7781d703188df9204cd852615416",
+    "IRANYekanX-Regular.ttf": "09e10ff46992174c024b87ebebdbf6e8a1684f882a26d133fa3c114bfec87c4d",
+    "IRANYekanX-Medium.ttf": "0066e48b127b984e5c9e2afd3b582cf917cac2e878c621a5357e3c8b0919a0a0",
+    "IRANYekanX-DemiBold.ttf": "ab4829d4a0790d66d78221276cbda97cb8d99780a6c9e103f43ad3511daf4a5c",
+    "IRANYekanX-Bold.ttf": "9d6176a6b2f6b60b6954df1af6166f875d543398b2d6233b1d7c257b9c2a32d5"
+  },
+  "system": {
+    "base": "mcr.microsoft.com/playwright/python:v1.63.0-noble@sha256:72bd171a9ffc2b4b59532aaa6210e21014d07093120dc25528870c0b840da1f0",
+    "ffmpeg": "7:6.1.1-3ubuntu5 (Ubuntu noble; LGPL/GPL, libx264 GPL-2.0, run as a separate program)"
+  }
+}

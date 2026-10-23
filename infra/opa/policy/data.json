@@ -34,7 +34,13 @@
           "hire.decide",
           "finding.update",
           "oversight.finding_update",
-          "kill_switch.engage"
+          "kill_switch.engage",
+          "knowledge.approve",
+          "kpi.record",
+          "okr.checkin",
+          "risk.update",
+          "calendar.add",
+          "role.decide"
         ],
         "manager": [
           "work.delegate",
@@ -52,7 +58,12 @@
           "academy.eval",
           "finding.update",
           "oversight.finding_update",
-          "feedback.tag"
+          "feedback.tag",
+          "kpi.record",
+          "okr.checkin",
+          "risk.update",
+          "calendar.add",
+          "media.review"
         ],
         "inspector": [
           "work.delegate",
@@ -70,7 +81,9 @@
           "challenge.score",
           "oversight.challenge_score",
           "protocol.result",
-          "oversight.protocol_result"
+          "oversight.protocol_result",
+          "risk.update",
+          "claim.verdict"
         ],
         "employee": [
           "work.accept",
@@ -88,7 +101,12 @@
           "rescue.update",
           "feedback.tag",
           "support.draft",
-          "support.handoff"
+          "support.handoff",
+          "knowledge.review",
+          "claim.verdict",
+          "media.render",
+          "media.voice",
+          "archive.hold"
         ],
         "assistant": [
           "errand.step",
@@ -124,9 +142,102 @@
           "kill_switch.set",
           "deploy.freeze",
           "deploy_freeze.set",
-          "support.mystery"
+          "support.mystery",
+          "knowledge.review",
+          "claim.verdict"
         ]
-      }
+      },
+      "authority_bounds": {
+        "hire.per_day": {
+          "field": "count_day",
+          "min": 0,
+          "max": 20,
+          "default": 5
+        },
+        "ceo.attention_per_day": {
+          "field": "count_day",
+          "min": 0,
+          "max": 100,
+          "default": 6
+        },
+        "notify.urgent_per_hour": {
+          "field": "count_hour",
+          "min": 1,
+          "max": 30,
+          "default": 5
+        },
+        "story.per_day": {
+          "field": "count_day",
+          "min": 0,
+          "max": 10,
+          "default": 3
+        },
+        "batch.max_usd": {
+          "field": "usd",
+          "min": 0,
+          "max": 20,
+          "default": 2
+        },
+        "batch.max_items": {
+          "field": "items",
+          "min": 1,
+          "max": 50,
+          "default": 20
+        }
+      },
+      "authority_lists": {
+        "deploy.blackout_days": {
+          "field": "days",
+          "allowed": [
+            "sat",
+            "sun",
+            "mon",
+            "tue",
+            "wed",
+            "thu",
+            "fri"
+          ],
+          "default": [
+            "fri"
+          ]
+        },
+        "batch.kinds": {
+          "field": "kinds",
+          "allowed": [
+            "proposal",
+            "meeting_resolution",
+            "knowledge_entry"
+          ],
+          "default": [
+            "proposal",
+            "meeting_resolution",
+            "knowledge_entry"
+          ]
+        }
+      },
+      "never_batch": [
+        "hire",
+        "dismissal",
+        "budget_change",
+        "code_session",
+        "server_plan",
+        "deploy",
+        "company_found",
+        "tool_enable",
+        "protocol",
+        "errand_action",
+        "evaluation",
+        "charter_amendment",
+        "authority_change",
+        "risk_acceptance",
+        "okr",
+        "recurring_approval",
+        "lesson_adoption",
+        "message_template",
+        "lifecycle_rule",
+        "support_go_live",
+        "a3_action"
+      ]
     }
   }
 }

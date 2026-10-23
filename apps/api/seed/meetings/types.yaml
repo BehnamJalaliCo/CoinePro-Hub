@@ -1,0 +1,72 @@
+# The meeting types (prompt 11 §1.1-§1.2, contract §20.1; OPERATING_MODEL §1.14). Data, not code:
+# seeded once into meetings.types for the holding; the owner changes every row in the app
+# (PUT /meetings/settings, 🔏 meetings.settings). The seed never overwrites an edit.
+#
+# schedule   RRULE in the owner's time zone (null: opened by an event). `company`: BYDAY lists the
+#            working days the companies' weekly meetings are spread over by rule (companies in code
+#            order, Saturday to Wednesday; a new company goes to the lightest day). `strategy`:
+#            calendar jalali, the last Thursday of each Jalali month.
+# members    roles that take part, which companies ("all" | "concerned") and the devil's advocate
+#            (inspector, or overseer when the owner asks).
+# budget     prompt 11 §1.2 defaults, lower than the D2 board's examples because the daily cap is
+#            600K (the owner's decision is pending, §0.7): board 120K, company 40K, postmortem 30K,
+#            strategy 150K, standup 0 (code only), war room no meeting cap (null). A meeting that does
+#            not fit MEETINGS_DAILY_SHARE (default 0.15 of the daily cap) runs `written`.
+# presence   board, strategy and the war room live; the rest a summary (D2).
+types:
+  - key: board
+    title_fa: هیئت‌مدیره‌ی هلدینگ
+    schedule: "FREQ=WEEKLY;BYDAY=SA;BYHOUR=10;BYMINUTE=0"
+    members: {roles: [ceo, inspector, aiops_head], companies: all, devil: inspector}
+    max_rounds: 2
+    max_speakers: 6
+    budget_tokens: 120000
+    turn_cap_tokens: 6000
+    owner_presence: live
+  - key: company
+    title_fa: مدیریت شرکت
+    schedule: "FREQ=WEEKLY;BYDAY=SA,SU,MO,TU,WE;BYHOUR=11;BYMINUTE=0"
+    members: {roles: [ceo, manager, inspector], companies: concerned, devil: inspector}
+    max_rounds: 2
+    max_speakers: 6
+    budget_tokens: 40000
+    turn_cap_tokens: 6000
+    owner_presence: summary
+  - key: standup
+    title_fa: استندآپ دپارتمان
+    schedule: "FREQ=DAILY;BYHOUR=9;BYMINUTE=0"
+    members: {roles: [manager], companies: concerned, devil: inspector}
+    max_rounds: 1
+    max_speakers: 2
+    budget_tokens: 0
+    turn_cap_tokens: 5000
+    owner_presence: summary
+    model_summary: false
+  - key: war_room
+    title_fa: اتاق جنگ
+    schedule: null
+    members: {roles: [ceo, cto, sre], companies: concerned, devil: inspector}
+    max_rounds: 3
+    max_speakers: 8
+    budget_tokens: null
+    turn_cap_tokens: 6000
+    owner_presence: live
+  - key: postmortem
+    title_fa: کالبدشکافی
+    schedule: null
+    members: {roles: [ceo, cto, sre, inspector], companies: concerned, devil: inspector}
+    max_rounds: 1
+    max_speakers: 6
+    budget_tokens: 30000
+    turn_cap_tokens: 6000
+    owner_presence: summary
+  - key: strategy
+    title_fa: استراتژی ماهانه
+    schedule: "FREQ=MONTHLY;BYDAY=-1TH;BYHOUR=10;BYMINUTE=0"
+    calendar: jalali
+    members: {roles: [ceo, aiops_head, inspector], companies: all, devil: inspector}
+    max_rounds: 2
+    max_speakers: 6
+    budget_tokens: 150000
+    turn_cap_tokens: 6000
+    owner_presence: live

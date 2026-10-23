@@ -78,7 +78,7 @@ class Snapshot:
         alts = [
             c
             for c in self.connections.values()
-            if c.fallback_priority is not None and c.status == "enabled"
+            if c.fallback_priority is not None and c.status in ("enabled", "ready")
         ]
         return sorted(alts, key=lambda c: (c.fallback_priority or 0, c.key))
 

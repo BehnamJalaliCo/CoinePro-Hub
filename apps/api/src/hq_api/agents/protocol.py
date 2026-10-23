@@ -112,8 +112,10 @@ def _first_json_object(text: str) -> Any:
 
 # ---------------------------------------------------------------- prompt --
 def tool_table(lib: Library, charter: Charter) -> str:
+    """The charter's tools (a meeting turn's charter carries only its turn's)."""
     rows = ["| tool | class | input | what it does |", "|---|---|---|---|"]
-    for t in lib.tool_rows(charter.role):
+    allowed = set(charter.tools)
+    for t in (t for name, t in lib.tools.items() if name in allowed):
         rows.append(f"| `{t.name}` | {t.cls} | `{t.input}` | {t.description} |")
     return "\n".join(rows)
 
@@ -213,10 +215,13 @@ def system_prompt(
     answer_phase: bool = False,
     payloads: Mapping[str, type[BaseModel]] | None = None,
     after_charter: str = "",
+    before_charter: str = "",
 ) -> str:
-    """_common + the charter, then `after_charter` (the role's sealed skills and
-    the owner's sealed rules, prompt 08 §6-§7), then the runtime's own parts."""
-    out = lib.system_prompt(charter.role, values)
+    """_common, `before_charter` (the sealed holding charter and the company's
+    addendum, prompt 11 §2.5), the role's charter, then `after_charter` (the
+    role's sealed skills and the owner's sealed rules, prompt 08 §6-§7), then
+    the runtime's own parts."""
+    out = lib.system_prompt(charter.role, values, before_charter)
     if after_charter:
         out += "\n\n" + after_charter
     out += "\n\n" + runtime_section(

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -48,6 +48,24 @@ SCHEMAS = (
     "growth",
     "feedback",
     "intake",
+    # prompt 11 §1-§2: the meeting room and the charter (knowledge.entries is in "knowledge");
+    # §4-§10: the cards, OKRs, outcomes, risks, the calendar, batches
+    "meetings",
+    "governance",
+    # prompt 12 part A: the advisor's memos and triggers, the substitute players
+    "advisor",
+    "substitutes",
+    # prompt 12 part B: briefings and letters; checked claims
+    "reports",
+    "quality",
+    # prompt 12 §13: the digital CEO (its predictions and principles)
+    "dceo",
+    # prompt 13: the counsel's cases (legal and voice); the media studio and
+    # the voice registry (people.role_drafts is in people)
+    "legal",
+    "media",
+    # prompt 14: the archive of record (its open layer is the holding's)
+    "archive",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.
@@ -484,6 +502,313 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+# Prompt 12 part A: the holding's own configuration of the substitute players
+# (one row per player and seat, the holding's company_id under forced RLS):
+# no other company ever has a row there, so the check cannot fill them for B.
+HOLDING_ONLY = {
+    "substitutes.players",
+    "substitutes.seats",
+    # prompt 13: the holding's mailbox cursor and its one voice registry
+    "legal.mailbox",
+    "media.voices",
+    "media.voice_samples",
+    "media.voice_references",
+    # prompt 14: the archive's open layer, its holds and its fixity runs are
+    # the holding's; records, files and their rows belong to their scope
+    "archive.levels",
+    "archive.clearance",
+    "archive.classes",
+    "archive.class_versions",
+    "archive.fields",
+    "archive.party_kinds",
+    "archive.parties",
+    "archive.link_kinds",
+    "archive.retention_rules",
+    "archive.reminder_rules",
+    "archive.automations",
+    "archive.automation_runs",
+    "archive.sources",
+    "archive.fixity_runs",
+    "archive.holds",
+}
+
+
+async def _fill_p12a(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 12 part A (migration 0027): one row of company `co` in every
+    table of advisor and substitutes but the holding-only two."""
+    c = co["id"]
+    d = await su.fetchrow(
+        """INSERT INTO cartable.decisions (company_id, kind, action_class, title, proposer_kind, proposer_code)
+           VALUES ($1, 'proposal', 'A1', 'rls', 'owner', 'owner') RETURNING id, ref""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO advisor.memos (company_id, decision_id, decision_ref, decision_version, mode, trigger,
+               created_by_kind, created_by_code) VALUES ($1, $2, $3, 1, 'standard', 'owner', 'owner', 'owner')""",
+        c, d["id"], d["ref"],
+    )  # fmt: skip
+    await su.execute(
+        """INSERT INTO advisor.triggers (company_id, key, kind, day, state)
+           VALUES ($1, 'budget:' || $2 || ':rls-' || gen_random_uuid(), 'budget', current_date, 'deferred')""",
+        c, co["code"],
+    )  # fmt: skip
+    call = await su.fetchval(
+        """INSERT INTO substitutes.calls (company_id, player, seat, via, caller_kind, caller_code, day, month_key,
+               state) VALUES ($1, 'gpt', 'content_draft', 'cli', 'owner', 'owner', current_date, '1405-08',
+               'skipped') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO substitutes.logins (company_id, player, connection_key, expires_at, call_id)
+           VALUES ($1, 'gpt', 'chatgpt-plus', now(), $2)""",
+        c, call,
+    )  # fmt: skip
+    await su.execute(
+        """INSERT INTO substitutes.creatives (company_id, kind, brief_md, placement, aspect, player, model,
+               requested_by_kind, requested_by_code)
+           VALUES ($1, 'image', 'rls', 'banner', '16:9', 'gpt', 'gpt-5.5', 'owner', 'owner')""",
+        c,
+    )
+
+
+async def _fill_p12f(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 12 §2, §3, §13 (migration 0027_2): one row of company `co` in
+    each new table (the corpus, asks, a weekly review, the digital CEO's)."""
+    import random
+
+    c = co["id"]
+    src = await su.fetchval(
+        """INSERT INTO knowledge.corpus_sources (company_id, key, kind, repo, branch)
+           VALUES ($1, $2, 'workspace', 'acme/rls', 'main') RETURNING id""",
+        c,
+        f"{co['code']}-RLS",
+    )
+    f = await su.fetchval(
+        """INSERT INTO knowledge.corpus_files (company_id, source_id, path, blob_sha, size, kind, state, chunks,
+               commit) VALUES ($1, $2, 'a.py', $3, 1, 'code', 'indexed', 1, 'abcdef1') RETURNING id""",
+        c,
+        src,
+        "a" * 40,
+    )
+    await su.execute(
+        """INSERT INTO knowledge.corpus_chunks (company_id, file_id, source_id, kind, repo, path, line_from,
+               line_to, commit, body) VALUES ($1, $2, $3, 'code', 'acme/rls', 'a.py', 1, 1, 'abcdef1', 'x = 1')""",
+        c,
+        f,
+        src,
+    )
+    await su.execute(
+        """INSERT INTO knowledge.asks (company_id, q, state, created_by_kind, created_by_code)
+           VALUES ($1, 'rls', 'queued', 'owner', 'owner')""",
+        c,
+    )
+    week = date(2060, 1, 3) + timedelta(weeks=random.randint(0, 5000))
+    await su.execute(
+        "INSERT INTO owner.reviews (company_id, week, scheduled_at) VALUES ($1, $2, now())", c, week
+    )
+    d = await su.fetchrow(
+        """INSERT INTO cartable.decisions (company_id, kind, action_class, title, proposer_kind, proposer_code)
+           VALUES ($1, 'proposal', 'A1', 'rls', 'owner', 'owner') RETURNING id, ref""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO dceo.predictions (company_id, decision_id, decision_ref, decision_kind, decision_title,
+               decision_risk, proposer_kind, method, verdict, confidence, sealed, sealed_hash)
+           VALUES ($1, $2, $3, 'proposal', 'rls', 'low', 'owner', 'baseline', 'approve', 0.5, '{}', $4)""",
+        c,
+        d["id"],
+        d["ref"],
+        "0" * 64,
+    )
+    await su.execute(
+        """INSERT INTO dceo.principles (company_id, ref, version, text_fa, status, created_by_kind,
+               created_by_code) VALUES ($1, $2, 1, 'اصل', 'active', 'owner', 'owner')""",
+        c,
+        f"DP-{random.randint(100000, 999999)}",
+    )
+
+
+async def _fill_p12b(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 12 part B (migration 0027_1): one row of company `co` in each new
+    table (reports, quality; people.department_ranks/hr_rounds; owner.notes,
+    owner.decision_reminders; llm.waste_daily)."""
+    c = co["id"]
+    emp = await su.fetchrow(
+        "SELECT id, department_id FROM core.employees WHERE company_id = $1 AND kind = 'manager' LIMIT 1",
+        c,
+    )
+    work = await su.fetchval(
+        """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code)
+           VALUES ($1, 'one_off', 'p12b', 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    dl = await su.fetchrow(
+        """INSERT INTO cartable.deliverables (company_id, work_id, producer_id, title)
+           VALUES ($1, $2, $3, 'p12b') RETURNING id, ref""",
+        c,
+        work,
+        emp["id"],
+    )
+    await su.execute(
+        """INSERT INTO reports.briefings (company_id, kind, period_from, period_to, deliverable_id,
+               deliverable_ref, text_md, audio_state)
+           VALUES ($1, 'ceo_letter', current_date, current_date, $2, $3, 't', 'off')""",
+        c,
+        dl["id"],
+        dl["ref"],
+    )
+    await su.execute(
+        """INSERT INTO reports.ceo_letters (company_id, week, ceo_code, facts)
+           VALUES ($1, current_date - ((extract(isodow FROM current_date)::int + 1) % 7), 'X-CEO', '{}')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO people.department_ranks (company_id, period, key, department_id, department, score,
+               parts, employees, rank_company)
+           SELECT $1, 'week', '2000-01-01', id, code, 50, '{}', 1, 1 FROM core.departments
+           WHERE company_id = $1 LIMIT 1""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO people.hr_rounds (company_id, month, evaluator_kind, evaluator_code, due_at, employees)
+           VALUES ($1, '1405-08', 'agent', 'X-HR-MGR', now(), '[]')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO llm.waste_daily (company_id, scope, day, total_tokens, total_usd, waste_tokens, waste_usd,
+               share, items)
+           VALUES ($1, 'company', current_date, 0, 0, 0, 0, 0, '[]')""",
+        c,
+    )
+    await su.execute(
+        "INSERT INTO owner.notes (company_id, text_md, source) VALUES ($1, 'n', 'text')", c
+    )
+    d = await su.fetchval(
+        """INSERT INTO cartable.decisions (company_id, kind, action_class, title, proposer_kind, proposer_code)
+           VALUES ($1, 'proposal', 'A1', 'p12b', 'agent', 'x') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        "INSERT INTO owner.decision_reminders (company_id, decision_id, kind) VALUES ($1, $2, 'age_24h')",
+        c,
+        d,
+    )
+    await su.execute(
+        """INSERT INTO quality.claims (company_id, deliverable_id, deliverable_ref, claim_md, verdict,
+               checked_by_kind, checked_by_code)
+           VALUES ($1, $2, $3, 'c', 'confirmed', 'agent', 'HQ-OVR')""",
+        c,
+        dl["id"],
+        dl["ref"],
+    )
+
+
+async def _fill_p13b(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 13, legal and voice (migration 0028_1): a case of company `co`,
+    its timeline and an email; a narration job of `co` (the registry, the
+    samples, the reference and the mailbox cursor are the holding's)."""
+    c = co["id"]
+    lgl = await su.fetchval("SELECT id FROM core.employees WHERE code = 'HQ-LGL'")
+    case = await su.fetchval(
+        """INSERT INTO legal.cases (company_id, title_fa, kind, counsel_id, counsel_code, opened_by_kind,
+               opened_by_code) VALUES ($1, 'rls', 'other', $2, 'HQ-LGL', 'owner', 'owner') RETURNING id""",
+        c,
+        lgl,
+    )
+    await su.execute(
+        """INSERT INTO legal.case_events (company_id, case_id, kind, summary_fa, by_kind, by_code)
+           VALUES ($1, $2, 'note', 'rls', 'owner', 'owner')""",
+        c,
+        case,
+    )
+    await su.execute(
+        """INSERT INTO legal.emails (company_id, case_id, direction, state, from_addr, to_addrs, subject,
+               body_md, lang, digest, message_id)
+           VALUES ($1, $2, 'out', 'waiting_seal', '', ARRAY['a@example.com'], 's', 'b', 'en', $3, $4)""",
+        c,
+        case,
+        "0" * 64,
+        f"<rls-{case}@example.com>",
+    )
+    await su.execute(
+        """INSERT INTO media.speech_jobs (company_id, kind, voice_id, subject_ref, script, state,
+               created_by_kind, created_by_code)
+           VALUES ($1, 'narration', 'piper-amir', 'MI-0001', 'سلام.', 'cancelled', 'service', 'rls')""",
+        c,
+    )
+
+
+async def _fill_p14(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 14 (migration 0029): a record of company `co` with its version,
+    file, link, reminder, access row, tombstone, intake, folder and a queued
+    destruction (the open layer, holds and fixity runs are the holding's)."""
+    c = co["id"]
+    folder = await su.fetchval(
+        "INSERT INTO archive.folders (company_id, title_fa) VALUES ($1, 'rls') RETURNING id", c
+    )
+    rec = await su.fetchrow(
+        """INSERT INTO archive.records (company_id, class_key, class_version, title_fa, folder_id, level, level_rank,
+               state, source_kind, created_by_kind, created_by_code, filed_at, disposed_at)
+           VALUES ($1, 'other', 1, 'rls', $2, 'internal', 10, 'disposed', 'owner', 'owner', 'owner', now(), now())
+           RETURNING id, ref""",
+        c,
+        folder,
+    )
+    await su.execute(
+        """INSERT INTO archive.record_versions (company_id, record_id, n, manifest_sha256, created_by_kind,
+               created_by_code) VALUES ($1, $2, 1, $3, 'owner', 'owner')""",
+        c,
+        rec["id"],
+        "a" * 64,
+    )
+    await su.execute(
+        """INSERT INTO archive.record_files (company_id, record_id, version_n, file_id, name, mime, size_bytes,
+               sha256, stored_sha256, storage_key, encrypted)
+           VALUES ($1, $2, 1, gen_random_uuid(), 'rls.pdf', 'application/pdf', 1, $3, $3, $4, false)""",
+        c,
+        rec["id"],
+        "a" * 64,
+        "b" * 32,
+    )
+    await su.execute(
+        """INSERT INTO archive.links (company_id, record_id, kind, to_kind, to_ref, by_kind, by_code)
+           VALUES ($1, $2, 'about', 'company', $3, 'owner', 'owner')""",
+        c,
+        rec["id"],
+        co["code"],
+    )
+    await su.execute(
+        """INSERT INTO archive.reminders (company_id, record_id, field, at, lead_days, due_at, channel, to_whom)
+           VALUES ($1, $2, 'date', CURRENT_DATE, 0, CURRENT_DATE, 'digest', '"owner"')""",
+        c,
+        rec["id"],
+    )
+    await su.execute(
+        """INSERT INTO archive.access_log (company_id, record_id, level_rank, actor_kind, actor_code, action)
+           VALUES ($1, $2, 10, 'owner', 'owner', 'metadata')""",
+        c,
+        rec["id"],
+    )
+    await su.execute(
+        """INSERT INTO archive.tombstones (company_id, record_id, ref, title_fa, level_rank, dates, hashes,
+               decision_ref) VALUES ($1, $2, $3, 'rls', 10, '{}', '[]', 'D-000001')""",
+        c,
+        rec["id"],
+        rec["ref"],
+    )
+    await su.execute(
+        """INSERT INTO archive.intake (company_id, file_id, name, mime, size_bytes, sha256, text_state, by_kind,
+               by_code) VALUES ($1, gen_random_uuid(), 'rls', 'application/pdf', 1, $2, 'none', 'owner', 'owner')""",
+        c,
+        "c" * 64,
+    )
+    await su.execute(
+        "INSERT INTO archive.destroy_queue (company_id, storage_key, why, done_at) VALUES ($1, $2, 'intake', now())",
+        c,
+        "d" * 32,
+    )
+
+
 async def _fill_p10(su: Any, co: dict[str, Any]) -> None:
     """Prompt 10 §1.1: one row of company `co` in every table of revenue,
     support, growth, feedback and intake (migration 0025)."""
@@ -676,6 +1001,211 @@ async def _fill_p10(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p11a(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 11 §1-§3 (migration 0026): a row of company `co` in every table of
+    the meeting room, its addendum and a knowledge entry."""
+    c = co["id"]
+    await su.execute(
+        """INSERT INTO meetings.types (company_id, key, title_fa, schedule, budget_tokens)
+           VALUES ($1, 'company', 'مدیریت شرکت', 'FREQ=WEEKLY;BYDAY=SA;BYHOUR=11', 40000)
+           ON CONFLICT DO NOTHING""",
+        c,
+    )
+    m = await su.fetchval(
+        """INSERT INTO meetings.meetings (company_id, type, title_fa, starts_at, budget_cap)
+           VALUES ($1, 'company', 'جلسه', now(), 40000) RETURNING id""",
+        c,
+    )
+    item = await su.fetchval(
+        "INSERT INTO meetings.items (company_id, meeting_id, n, title_fa) VALUES ($1, $2, 1, 'دستور') RETURNING id",
+        c,
+        m,
+    )
+    turn = await su.fetchval(
+        """INSERT INTO meetings.turns (company_id, meeting_id, item_id, n, round, speaker_kind, speaker_code, kind,
+               statement_md)
+           VALUES ($1, $2, $3, 1, 1, 'agent', $4, 'statement', 'بیانیه') RETURNING id""",
+        c,
+        m,
+        item,
+        f"{co['code']}-CEO",
+    )
+    await su.execute(
+        """INSERT INTO meetings.claims (company_id, meeting_id, item_id, turn_id, text_fa, status)
+           VALUES ($1, $2, $3, $4, 'ادعا', 'unsourced')""",
+        c,
+        m,
+        item,
+        turn,
+    )
+    await su.execute(
+        """INSERT INTO meetings.whispers (company_id, meeting_id, item_id, round, text_md)
+           VALUES ($1, $2, $3, 1, 'نجوا')""",
+        c,
+        m,
+        item,
+    )
+    await su.execute(
+        """INSERT INTO meetings.drafts (company_id, meeting_id, item_id, turn_id, text_md, proposer_code)
+           VALUES ($1, $2, $3, $4, 'پیش‌نویس', $5)""",
+        c,
+        m,
+        item,
+        turn,
+        f"{co['code']}-CEO",
+    )
+    await su.execute(
+        """INSERT INTO meetings.requests (company_id, type, for_company_id, title_fa, by_kind, by_code)
+           VALUES ($1, 'company', $1, 'دستور پیشنهادی', 'agent', $2)""",
+        c,
+        f"{co['code']}-CEO",
+    )
+    await su.execute(
+        """INSERT INTO governance.charters (company_id, scope, version, body_md, body_sha256, source,
+               created_by_kind, created_by_code)
+           VALUES ($1, $2, 1, 'الحاقیه', repeat('a', 64), 'owner', 'owner', 'owner')""",
+        c,
+        co["code"],
+    )
+    await su.execute(
+        """INSERT INTO knowledge.entries (company_id, layer, kind, title_fa, body_md, sources, valid_until,
+               created_by_kind, created_by_code)
+           VALUES ($1, 'company', 'fact', 'دانش', 'متن', '[{"kind": "work", "ref": "W-000001"}]',
+                   CURRENT_DATE + 30, 'owner', 'owner')""",
+        c,
+    )
+
+
+async def _fill_p11b(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 11 §4-§10's company tables: a row of `co` in each (superuser)."""
+    c = co["id"]
+    await su.execute(
+        "INSERT INTO governance.kpi_sets (company_id, seeded_from) VALUES ($1, 'standard') ON CONFLICT DO NOTHING",
+        c,
+    )
+    kpi = await su.fetchval(
+        """INSERT INTO governance.kpis (company_id, key, card, name_fa, direction, source, freshness_hours, origin)
+           VALUES ($1, 'rls.k', 'growth', 'سنجه', 'up', '{"kind": "manual"}', 24, 'owner') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO governance.kpi_values (company_id, kpi_id, at, value, source_ref, recorded_by_kind,
+               recorded_by_code)
+           VALUES ($1, $2, now(), 1, '{"kind": "metric", "ref": "x"}', 'owner', 'owner')""",
+        c,
+        kpi,
+    )
+    await su.execute(
+        """INSERT INTO governance.kpi_changes (company_id, kpi_id, version, change, by_kind, by_code)
+           VALUES ($1, $2, 1, '{}', 'owner', 'owner')""",
+        c,
+        kpi,
+    )
+    ob = await su.fetchval(
+        """INSERT INTO governance.objectives (company_id, quarter, title_fa, owner_kind, owner_code,
+               created_by_kind, created_by_code)
+           VALUES ($1, '1405-Q3', 'هدف', 'owner', 'owner', 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    kr = await su.fetchval(
+        """INSERT INTO governance.key_results (company_id, objective_id, title_fa, metric_fa, start, target)
+           VALUES ($1, $2, 'نتیجه', 'سنجه', 0, 1) RETURNING id""",
+        c,
+        ob,
+    )
+    await su.execute(
+        """INSERT INTO governance.okr_checkins (company_id, key_result_id, by_kind, by_code, confidence, note_md)
+           VALUES ($1, $2, 'owner', 'owner', 0.5, 'x')""",
+        c,
+        kr,
+    )
+    d = await su.fetchval(
+        """INSERT INTO cartable.decisions (company_id, kind, action_class, title, proposer_kind, proposer_code)
+           VALUES ($1, 'proposal', 'A1', 'rls', 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO governance.outcome_reviews (company_id, decision_id, decision_ref, day, due_at, expected,
+               proposer_kind, proposer_code)
+           SELECT $1, $2, ref, 30, now(), '{}', 'owner', 'owner' FROM cartable.decisions WHERE id = $2""",
+        c,
+        d,
+    )
+    risk = await su.fetchval(
+        """INSERT INTO governance.risks (company_id, title_fa, category, likelihood, impact, owner_kind, owner_code,
+               review_at, origin, created_by_kind, created_by_code)
+           VALUES ($1, 'ریسک', 'ops', 2, 2, 'owner', 'owner', now(), 'owner', 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO governance.risk_history (company_id, risk_id, by_kind, by_code, change)
+           VALUES ($1, $2, 'owner', 'owner', '{}')""",
+        c,
+        risk,
+    )
+    await su.execute(
+        """INSERT INTO governance.calendar_events (company_id, kind, title_fa, starts_at, ends_at, created_by_kind,
+               created_by_code)
+           VALUES ($1, 'event', 'رویداد', now(), now() + interval '1 hour', 'owner', 'owner')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO governance.batches (company_id, items, target_sha256, step_up_id)
+           VALUES ($1, '[{"ref": "D-000001", "version": 1}]', repeat('a', 64), gen_random_uuid())""",
+        c,
+    )
+
+
+async def _fill_p13a_roles(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 13 §1.1 (migration 0028): a role draft of company `co`."""
+    await su.execute(
+        """INSERT INTO people.role_drafts (company_id, department_id, brief_md, requested_by_kind,
+               requested_by_code)
+           SELECT $1, id, 'یه تدوینگر پادکست', 'owner', 'owner' FROM core.departments
+           WHERE company_id = $1 AND code = 'GROWTH'""",
+        co["id"],
+    )
+
+
+async def _fill_p13a_media(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 13 §2 (migration 0028): one row of company `co` in every table of media."""
+    c = co["id"]
+    series = await su.fetchval(
+        """INSERT INTO media.series (company_id, title_fa, kind, targets, schedule, format, checks,
+               max_per_day, digest, proposed_by_kind, proposed_by_code)
+           VALUES ($1, 'ریلز', 'reel', '[]', 'FREQ=DAILY;BYHOUR=9;BYMINUTE=0', '{}', '{brand}', 2,
+                   repeat('a', 64), 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    item = await su.fetchval(
+        """INSERT INTO media.items (company_id, series_id, kind, title_fa, state, created_by_kind,
+               created_by_code) VALUES ($1, $2, 'reel', 'آیتم', 'composing', 'owner', 'owner') RETURNING id""",
+        c,
+        series,
+    )
+    comp = await su.fetchval(
+        """INSERT INTO media.compositions (company_id, item_id, n, format, sha256, source, by_kind, by_code)
+           VALUES ($1, $2, 1, 'html', repeat('b', 64), '<html lang="fa" dir="rtl"></html>', 'agent', 'X')
+           RETURNING id""",
+        c,
+        item,
+    )
+    await su.execute(
+        """INSERT INTO media.render_jobs (company_id, item_id, composition_id, purpose, spec, requested_by)
+           VALUES ($1, $2, $3, 'preview', '{}', 'X')""",
+        c,
+        item,
+        comp,
+    )
+    await su.execute(
+        """INSERT INTO media.publish_log (company_id, item_id, action, channel, placement, account, via,
+               outcome, by_kind, by_code)
+           VALUES ($1, $2, 'publish', 'telegram', 'telegram_post', 'telegram-x', 'api', 'error', 'service', 'media')""",
+        c,
+        item,
+    )
+
+
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_no_table_leaks_between_companies(
     client: httpx.AsyncClient,
@@ -688,6 +1218,15 @@ async def test_no_table_leaks_between_companies(
     await _fill(client, hub, owner_session, b["code"])
     await _fill_agents(su, b)
     await _fill_p10(su, b)
+    await _fill_p11a(su, b)
+    await _fill_p11b(su, b)
+    await _fill_p12a(su, b)
+    await _fill_p12b(su, b)
+    await _fill_p12f(su, b)
+    await _fill_p13a_roles(su, b)
+    await _fill_p13a_media(su, b)
+    await _fill_p13b(su, b)
+    await _fill_p14(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
@@ -724,17 +1263,26 @@ async def test_no_table_leaks_between_companies(
         if in_b:
             populated.append(name)
         async with hub.db.tx([a["id"]]) as tx:
+            # ⟨1.7⟩ the archive also needs a clearance: the widest, so only the
+            # company scope is what keeps B's rows away
+            await tx.exec("SELECT set_config('app.clearance', '{\"all\": true}', true)")
             seen = await tx.scalar(f"SELECT count(*) FROM {name} WHERE company_id = :b", b=b["id"])
         assert seen == 0, f"{name}: {seen} row(s) of another company visible"
         async with hub.db.tx([b["id"]]) as tx:
+            await tx.exec("SELECT set_config('app.clearance', '{\"all\": true}', true)")
             assert (
                 await tx.scalar(f"SELECT count(*) FROM {name} WHERE company_id = :b", b=b["id"])
                 == in_b
             ), name
     # Nearly every tenant table really held rows of B during the check.
-    assert len(populated) >= len(tables) - 2, sorted(
+    assert len(populated) >= len(tables) - 2 - len(HOLDING_ONLY), sorted(
         {f"{r['s']}.{r['t']}" for r in tables} - set(populated)
     )
+    # The holding-only tables hold the holding's rows and nobody else's.
+    holding = await su.fetchval("SELECT id FROM core.companies WHERE kind = 'holding'")
+    for name in sorted(HOLDING_ONLY):
+        others = await su.fetchval(f"SELECT count(*) FROM {name} WHERE company_id <> $1", holding)
+        assert others == 0, name
 
 
 async def test_every_tenant_policy_evaluates_the_scope_once_per_query(su: Any) -> None:

@@ -22,7 +22,10 @@ import yaml
 
 DEFAULT_DIR = "/app/agents"
 CLASSES = ("A0", "A1", "A2", "A3", "A4")
-KINDS = ("ceo", "manager", "employee", "advisor", "inspector", "overseer", "assistant")
+# ⟨1.7⟩ `system`: a holding role that is never hired, rated or starred and
+# sleeps until code gives it work (the archivist, prompt 14; the secretary and
+# the librarian use it too).
+KINDS = ("ceo", "manager", "employee", "advisor", "inspector", "overseer", "assistant", "system")
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 PRIORITIES = ("P0", "P1", "P2", "P3", "P4")
 ROLE = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
@@ -122,10 +125,13 @@ class Library:
         allowed = set(self.allowed(role))
         return [t for name, t in self.tools.items() if name in allowed]
 
-    def system_prompt(self, role: str, values: dict[str, str]) -> str:
-        """_common.md + <role>.md with the template variables filled in."""
+    def system_prompt(self, role: str, values: dict[str, str], between: str = "") -> str:
+        """_common.md + <role>.md with the template variables filled in;
+        `between` (the sealed charter and addendum, prompt 11 §2.5) sits after
+        _common and before the role's charter, inside the cached prefix."""
         c = self.roles[role]
-        return fill(self.common, values) + "\n\n" + fill(c.body, values)
+        mid = "\n\n" + between if between else ""
+        return fill(self.common, values) + mid + "\n\n" + fill(c.body, values)
 
 
 def fill(text: str, values: dict[str, str]) -> str:

@@ -99,6 +99,10 @@ async def main(stop: asyncio.Event | None = None) -> None:
         temporal=client,
     )
     hub.charters = charters.load()
+    # ⟨1.6⟩ the worker's own OpenBao client for the secrets it reads per call
+    # (kv/tools/accounts/*: a publishing account's token, prompt 13 §2.3; the
+    # support channels' tokens, prompt 10), never kept on the hub's secrets.
+    hub.bao = bao
     acts = Activities(hub, client)
     try:
         result = await acts.reconcile_schedules()

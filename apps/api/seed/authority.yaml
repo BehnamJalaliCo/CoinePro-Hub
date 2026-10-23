@@ -1,0 +1,163 @@
+# The authority matrix (prompt 11 §7, contract §20.7): the numbers and the
+# "who approves" tables that were in rego or in code, as data the owner edits
+# in the app (PUT /authority, 🔏 authority.update; only unlocked rows, only
+# inside `bounds`). OPA reads the rows as data.hq.authority (the api pushes
+# them); the bounds of every numeric row are also in infra/opa/policy/data.json
+# (hq.config.authority_bounds), so a forged push can never leave them.
+#
+# Locked rows (locked: true) come from code: the seed rewrites them on every
+# run and the policy enforces them whatever the data says.
+#
+# limit keys: tokens_month, usd, count_day, count_hour, days (weekdays: sat,
+# sun, mon, tue, wed, thu, fri), items, kinds. bounds: {min, max} of the one
+# numeric limit; `kinds` and `days` may only be a subset of the seeded list.
+rules:
+  # ------------------------------------------------------------- locked --
+  - key: a4.never
+    title_fa: "اقدام A4 برای هوش مصنوعی هرگز"
+    action: "*"
+    actor: none
+    scope: holding
+    class: A4
+    locked: true
+    note_fa: "قفل کد: هیچ ایجنتی، با هیچ داده‌ای، اقدام A4 نمیکند."
+  - key: a3.owner_only
+    title_fa: "اقدام A3 فقط با مُهر مالک"
+    action: a3
+    actor: owner
+    scope: holding
+    class: A3
+    step_up: true
+    locked: true
+    note_fa: >-
+      قفل کد. ارسالی که مالک پیشاپیش مُهر کرده (قاعده‌ی lifecycle_rule مُهرشده با قالب مُهرشده، و auto_send کانالی که با
+      support_go_live زنده شده) تأیید A3 خود مالک است و مجاز میماند.
+  - key: a3.ceo_content_calendar
+    title_fa: "انتشار پست تقویم محتوا با مدیرعامل"
+    action: a3_action.publish
+    actor: owner
+    scope: own_company
+    class: A3
+    locked: true
+    note_fa: "تا تقویم محتوا ساخته نشده خاموش است (مدل عملیاتی §۱.۱۲)."
+  - key: decision.proposer_not_approver
+    title_fa: "پیشنهاددهنده تأییدکننده‌ی کارت خودش نیست"
+    action: decision.approve
+    actor: owner
+    scope: holding
+    class: A2
+    locked: true
+  - key: control.release_owner_only
+    title_fa: "آزاد کردن کلید توقف و hold فقط با مالک"
+    action: kill_switch.release
+    actor: owner
+    scope: holding
+    class: A3
+    step_up: true
+    locked: true
+  - key: authority.owner_only
+    title_fa: "هیچ ایجنتی ماتریس اختیار را تغییر نمیدهد"
+    action: authority.update
+    actor: owner
+    scope: holding
+    class: A2
+    step_up: true
+    locked: true
+    note_fa: "ایجنت‌ها فقط با کارت authority_change پیشنهاد میدهند؛ مُهر با مالک است."
+  - key: batch.never
+    title_fa: "کارت‌هایی که هرگز گروهی مُهر نمیشوند"
+    action: decision.batch
+    actor: owner
+    scope: holding
+    class: A1
+    locked: true
+    limit:
+      kinds: [hire, dismissal, budget_change, code_session, server_plan, deploy, company_found, tool_enable, protocol,
+              errand_action, evaluation, charter_amendment, authority_change, risk_acceptance, okr, recurring_approval,
+              lesson_adoption, message_template, lifecycle_rule, support_go_live, a3_action]
+    note_fa: "و هر A3 و هر چیز برگشت‌ناپذیر."
+  # ----------------------------------------------------------- unlocked --
+  - key: hire.per_day
+    title_fa: "سقف استخدام روزانه‌ی هر شرکت"
+    action: hire
+    actor: ceo
+    scope: own_company
+    class: A2
+    limit: {count_day: 5}
+    bounds: {min: 0, max: 20}
+    note_fa: "قفل حلقه: بیش از این در یک روز (منطقه‌ی مالک) تأیید نمیشود."
+  - key: decision.recurring_approval.ceo
+    title_fa: "تأیید کار دائمی در سهمیه‌ی شرکت با مدیرعامل"
+    action: decision.approve.recurring_approval
+    actor: ceo
+    scope: own_company
+    class: A2
+    note_fa: "مالک میتواند آن را به خودش برگرداند (actor: owner)."
+  - key: ceo.attention_per_day
+    title_fa: "سهمیه‌ی توجه روزانه‌ی هر مدیرعامل"
+    action: message.owner
+    actor: ceo
+    scope: own_company
+    class: A1
+    limit: {count_day: 6}
+    bounds: {min: 0, max: 100}
+    note_fa: "همان owner.settings.ceo_daily_attention؛ بیشتر از این تا خلاصه‌ی بعدی منتظر میماند."
+  - key: notify.urgent_per_hour
+    title_fa: "اعلان فوری ایجنت‌های هر شرکت در ساعت"
+    action: notify.urgent
+    actor: agent
+    scope: own_company
+    class: A1
+    limit: {count_hour: 5}
+    bounds: {min: 1, max: 30}
+  - key: story.per_day
+    title_fa: "استوری روزانه‌ی هر شرکت"
+    action: story.post
+    actor: ceo
+    scope: own_company
+    class: A1
+    limit: {count_day: 3}
+    bounds: {min: 0, max: 10}
+  - key: deploy.blackout_days
+    title_fa: "روزهای ممنوع انتشار"
+    action: deploy
+    actor: owner
+    scope: own_company
+    class: A3
+    limit: {days: [fri]}
+    allowed_days: [sat, sun, mon, tue, wed, thu, fri]
+    note_fa: "انتشار در این روزها تداخل medium در تقویم تغییرات است؛ تقویم تصمیم نمیگیرد."
+  - key: knowledge.approve.company
+    title_fa: "تأیید دانش لایه‌ی شرکت و دپارتمان"
+    action: knowledge.approve
+    actor: ceo
+    scope: own_company
+    class: A2
+    note_fa: "بعد از بازبینی pass ناظر؛ مالک میتواند آن را به خودش برگرداند (actor: owner)."
+  - key: batch.max_usd
+    title_fa: "سقف برآورد دلاری هر کارت در مُهر گروهی"
+    action: decision.batch
+    actor: owner
+    scope: holding
+    class: A1
+    step_up: true
+    limit: {usd: 2}
+    bounds: {min: 0, max: 20}
+  - key: batch.max_items
+    title_fa: "حداکثر کارت در هر مُهر گروهی"
+    action: decision.batch
+    actor: owner
+    scope: holding
+    class: A1
+    step_up: true
+    limit: {items: 20}
+    bounds: {min: 1, max: 50}
+  - key: batch.kinds
+    title_fa: "نوع کارت‌های مجاز مُهر گروهی"
+    action: decision.batch
+    actor: owner
+    scope: holding
+    class: A1
+    step_up: true
+    limit: {kinds: [proposal, meeting_resolution, knowledge_entry]}
+    note_fa: "مالک فقط میتواند این فهرست را کوتاه‌تر کند."

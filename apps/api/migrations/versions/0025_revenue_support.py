@@ -1038,7 +1038,10 @@ def upgrade() -> None:
     grants.append("DROP TRIGGER intake_nonces_no_delete ON intake.nonces;")
     grants.append(f"GRANT DELETE ON intake.nonces TO {APP_ROLES};")
     execute_script("\n".join(grants))
-    execute_script(_kinds_sql(NEW_KINDS, (), valid=True))
+    # NOT VALID since prompt 11: a later revision's cards (0026, 0026_1, 0028 and
+    # 0028_1's email_send) stay when the migrations run down and up again; the
+    # head (0028_1) validates every kind at once.
+    execute_script(_kinds_sql(NEW_KINDS, (), valid=False))
 
 
 def downgrade() -> None:

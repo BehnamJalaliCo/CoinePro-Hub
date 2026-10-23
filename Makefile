@@ -11,7 +11,9 @@ ENV_FILE := infra/compose/.env
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
-	hetzner-token owner-ssh-key intake-secret telegram-bot-token
+	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret \
+	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login
+.PHONY: mcp-build mcp-test mcp-index
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -39,6 +41,8 @@ up: $(ENV_FILE) ## Start every service of the active profile and wait until heal
 	@infra/openbao/unseal.sh
 	@infra/openbao/provision.sh
 	@infra/backup/anchor-dir.sh --check
+	@# Prompt 12 §14: the MCP container servers (by digest, never pulled), only while HQ_MCP=on.
+	@infra/mcp/build.sh --if-on
 	$(HQ) up -d --build --remove-orphans --wait --wait-timeout 300
 	@# The hourly backup's image (own profile, nothing depends on it): built and checked here.
 	$(HQ) --profile backup-tools build backup-tools
@@ -94,6 +98,96 @@ tracing-off: ## Switch traces off again (the default): Tempo and the collector s
 	HQ_ALL_PROFILES=1 $(HQ) stop tempo otel-collector
 	$(HQ) up -d --wait prometheus
 
+# Prompt 12 §4: the Persian voice (opt-in profile "tts"; a one-shot run by the
+# coinepro-hq-tts timer). Off until the owner orders the memory (§0.8 #7).
+.PHONY: tts-on tts-off tts-bench tts-bakeoff
+tts-on: ## Switch the Persian voice on (profile "tts", refused over the memory budget) and start its timer
+	@infra/compose/set-env.sh HQ_TTS on
+	$(HQ) build tts
+	$(HQ) up -d --wait api worker
+	sudo systemctl enable --now coinepro-hq-tts.timer
+
+tts-off: ## Switch the Persian voice off again (the default): briefings stay text, audio_state "off"
+	@infra/compose/set-env.sh HQ_TTS off
+	-sudo systemctl disable --now coinepro-hq-tts.timer
+	$(HQ) up -d --wait api worker
+
+tts-bench: ## The voice's acceptance numbers: 120 words -> Ogg, RTF < 0.5, peak RSS < 300 MB (no network)
+	HQ_TTS=off $(HQ) --profile tts build tts
+	docker run --rm --read-only --tmpfs /tmp:size=64m,mode=1777 --network none --cap-drop ALL \
+	  --memory "$$(sed -n 's/^MEM_TTS=\([0-9]*m\).*/\1/p' infra/compose/profiles/$$($(HQ) --print-profile).env)" \
+	  coinepro-hq/tts:0.1.0 python -m hq_tts.bench
+
+tts-bakeoff: ## Prompt 13 §4.2: every shipped voice on the fixed scripts (RTF, peak RAM; Ogg in OUT=/tmp/hq-bakeoff; no network)
+	HQ_TTS=off $(HQ) --profile tts build tts
+	mkdir -p "$${OUT:-/tmp/hq-bakeoff}" && chmod 777 "$${OUT:-/tmp/hq-bakeoff}"
+	docker run --rm --read-only --tmpfs /tmp:size=64m,mode=1777 --network none --cap-drop ALL \
+	  --memory "$$(sed -n 's/^MEM_TTS=\([0-9]*m\).*/\1/p' infra/compose/profiles/$$($(HQ) --print-profile).env)" \
+	  -v "$${OUT:-/tmp/hq-bakeoff}:/out" coinepro-hq/tts:0.1.0 python -m hq_tts.bakeoff --out /out
+
+# Prompt 13 §2.3: the media studio's render worker (opt-in profile "media"; the
+# courier and the network-less renderer, run by the coinepro-hq-media timer).
+# Off until the owner orders the memory between the opt-ins.
+.PHONY: media-on media-off media-bench
+media-on: ## Switch the render worker on (profile "media", refused over the memory budget) and start its timer
+	@infra/compose/set-env.sh HQ_MEDIA on
+	$(HQ) build media-courier
+	$(HQ) up -d --wait api worker
+	sudo systemctl enable --now coinepro-hq-media.timer
+
+media-off: ## Switch the render worker off again (the default): renders wait, items stay in their step
+	@infra/compose/set-env.sh HQ_MEDIA off
+	-sudo systemctl disable --now coinepro-hq-media.timer
+	$(HQ) up -d --wait api worker
+
+MEDIA_SANDBOX_FLAGS = --network none --read-only --tmpfs /tmp:size=256m,mode=1777 --cap-drop ALL \
+	--cap-add SYS_CHROOT --security-opt no-new-privileges:true \
+	--security-opt seccomp=infra/browser/seccomp_profile.json --pids-limit 512 --cpus 2 --user 10001:10001
+media-bench: ## The render worker's numbers, offline, in its sandbox: a 30 s reel, a Lottie still, a design page, a blocked request; and no network
+	HQ_MEDIA=off $(HQ) --profile media build media-courier
+	docker volume create hq-media-bench >/dev/null
+	@for kind in reel lottie design sneak; do \
+	  docker run --rm $(MEDIA_SANDBOX_FLAGS) -v hq-media-bench:/jobs \
+	    --memory "$$(sed -n 's/^MEM_MEDIA_RENDER=\([0-9]*m\).*/\1/p' infra/compose/profiles/$$($(HQ) --print-profile).env)" \
+	    coinepro-hq/media-render:0.1.0 bench $$kind || exit 1; \
+	done
+	docker run --rm $(MEDIA_SANDBOX_FLAGS) coinepro-hq/media-render:0.1.0 probe
+	docker volume rm hq-media-bench >/dev/null
+
+# Prompt 14 §4: the archive's OCR (opt-in profile "ocr": Tesseract with the
+# pinned fas + eng traineddata, on the internal hq-ocr with the worker only).
+# Off until the owner orders the memory between the opt-ins.
+.PHONY: ocr-fetch ocr-on ocr-off ocr-bench ocr-test
+OCR_SANDBOX_FLAGS = --network none --read-only --tmpfs /tmp:size=128m,mode=1777 --cap-drop ALL \
+	--security-opt no-new-privileges:true --pids-limit 64 --cpus 2 --user 10001:10001 \
+	-v coinepro-hq_ocr-models:/models:ro
+ocr-fetch: ## Download the pinned OCR traineddata into the ocr-models volume (sha256-checked; set=fast|best)
+	HQ_OCR=off $(HQ) --profile ocr build ocr-fetch
+	HQ_OCR=off $(HQ) --profile ocr run --rm -e OCR_MODEL="$(set)" ocr-fetch
+
+ocr-on: ## Switch the archive's OCR on (profile "ocr", refused over the memory budget); the worker gets HQ_OCR_URL
+	@infra/compose/set-env.sh HQ_OCR on
+	$(HQ) build ocr
+	$(HQ) up -d --wait ocr worker
+
+ocr-off: ## Switch the archive's OCR off again (the default): scanned files keep text_state "none"
+	@infra/compose/set-env.sh HQ_OCR off
+	HQ_ALL_PROFILES=1 $(HQ) stop ocr
+	$(HQ) up -d --wait worker
+
+ocr-bench: ## The OCR's numbers, offline, in its sandbox: the Persian sample scan and its PDF (seconds, confidence, peak memory)
+	HQ_OCR=off $(HQ) --profile ocr build ocr
+	@for f in scan_fa.png scan_fa.pdf; do \
+	  docker run --rm $(OCR_SANDBOX_FLAGS) -v "$(abspath services/ocr/tests/samples):/s:ro" \
+	    --memory "$$(sed -n 's/^MEM_OCR=\([0-9]*m\).*/\1/p' infra/compose/profiles/$$($(HQ) --print-profile).env)" \
+	    coinepro-hq/ocr:0.1.0 python -m hq_ocr.bench /s/$$f || exit 1; \
+	done
+
+ocr-test: ## The OCR's tests with real Tesseract and the pinned traineddata (needs make ocr-fetch once)
+	HQ_OCR=off $(HQ) --profile ocr build ocr
+	docker run --rm $(OCR_SANDBOX_FLAGS) -v "$(abspath services/ocr/tests):/app/ocr/tests:ro" \
+	  coinepro-hq/ocr:0.1.0 python -m unittest discover -s tests -v
+
 stt-fetch: ## Download the pinned speech model into the stt-models volume (sha256-checked; model=large-v3-turbo)
 	HQ_STT=off $(HQ) --profile stt build stt-fetch
 	HQ_STT=off $(HQ) --profile stt run --rm -e STT_MODEL="$(or $(model),large-v3-turbo)" stt-fetch
@@ -134,8 +228,37 @@ claude-token: ## OWNER: store the token from `claude setup-token` in OpenBao (hi
 mcp-secret: ## OWNER: the secret of one MCP server, KEY=<server key> [FILE=<json key file>] (-> OpenBao)
 	@infra/openbao/mcp-secret.sh "$(KEY)" "$(FILE)"
 
+mcp-build: ## Build the MCP container servers reproducibly; each must give its digest in infra/mcp/servers.yaml
+	@infra/mcp/build.sh
+
+mcp-test: ## The MCP container servers' own test on the built images, in a throwaway network (prompt 12 §14)
+	@infra/mcp/selftest.sh
+
+mcp-index: ## Refresh CodeCortex's index of the hub repository now (only while HQ_MCP=on; FULL=1 rebuilds it)
+	@infra/mcp/index.sh $(if $(FULL),--full,)
+
 account-secret: ## OWNER: the secret of one holding service account (KEY=<key>; hidden input)
 	@infra/openbao/account-secret.sh "$(KEY)"
+
+connection-secret: ## OWNER: a new LLM connection's API key (KEY=<key>; hidden input -> OpenBao)
+	@infra/openbao/connection-secret.sh "$(KEY)"
+
+# Prompt 12 §9.1 (contract §21.13): the substitute players' sign-ins, by the
+# owner in their own terminal only (never Claude); also from the app.
+chatgpt-login: ## OWNER: sign the Codex CLI in with ChatGPT (device code; your own terminal)
+	@infra/substitutes/cli-login.sh codex
+
+gemini-login: ## OWNER: sign the Gemini CLI in with Google (paste the code back; your own terminal)
+	@infra/substitutes/cli-login.sh gemini
+
+chatgpt-web-login: ## OWNER: sign in to ChatGPT in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh chatgpt-web
+
+gemini-web-login: ## OWNER: sign in to Gemini in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh gemini-web
+
+deepseek-web-login: ## OWNER: sign in to DeepSeek in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh deepseek-web
 
 hetzner-token: ## OWNER: the Hetzner project's API token for new servers (hidden input -> OpenBao)
 	@infra/openbao/hetzner-token.sh

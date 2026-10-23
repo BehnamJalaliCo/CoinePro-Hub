@@ -113,11 +113,18 @@ async def approver_for(tx: Tx, company_id: UUID, company_kind: str) -> str | Non
     return ceo
 
 
-MAX_HIRES_PER_DAY = 5  # per company: a loop guard (contract §18.11)
+MAX_HIRES_PER_DAY = 5  # per company: a loop guard (contract §18.11); ⟨1.5⟩ the
+# authority matrix's row hire.per_day since prompt 11 (this is its default)
 
 
 async def check_approval(
-    tx: Tx, d: dict[str, Any], payload: dict[str, Any], charters: Any, *, by_ceo: bool
+    tx: Tx,
+    d: dict[str, Any],
+    payload: dict[str, Any],
+    charters: Any,
+    *,
+    by_ceo: bool,
+    hub: Any = None,
 ) -> None:
     """The hard checks of every hire approval, whoever approves, in the
     approving transaction (contract §18.11); a refusal is a stable code and
@@ -170,8 +177,11 @@ async def check_approval(
         co=d["company_id"],
         tz=tz,
     )
-    if int(today) >= MAX_HIRES_PER_DAY:
-        raise ApiError(429, "rate_limited", f"at most {MAX_HIRES_PER_DAY} hires a day per company")
+    from hq_api.domain import gov_authority
+
+    if not await gov_authority.within(hub, tx, "hire.per_day", int(today), MAX_HIRES_PER_DAY):
+        cap = int(await gov_authority.limit_value(tx, "hire.per_day", MAX_HIRES_PER_DAY))
+        raise ApiError(429, "rate_limited", f"at most {cap} hires a day per company")
 
 
 def jalali_month_start(today: date) -> date:

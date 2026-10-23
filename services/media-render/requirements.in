@@ -1,0 +1,6 @@
+# media-render dependencies (exact pins; resolved + hashed in requirements.lock).
+# Playwright (Apache-2.0) must match the image's browsers:
+# mcr.microsoft.com/playwright/python:v1.63.0-noble (as the egress browser).
+# httpx (BSD-3) is the courier's client of the api and OpenBao.
+playwright==1.63.0
+httpx==0.28.1

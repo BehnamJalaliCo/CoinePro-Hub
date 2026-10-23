@@ -88,6 +88,23 @@ async def support(hub: Any, workflow: str, arg: str) -> None:
         log.warning("could not start a support workflow", extra={"workflow": workflow})
 
 
+async def media(hub: Any, workflow: str, arg: str) -> None:
+    """⟨1.6⟩ MediaPublish(item ref) / MediaUnpublish(item ref), best effort
+    after commit: the media sweep catches up with anything left."""
+    client = _client(hub)
+    if client is None:
+        return
+    try:
+        await client.start_workflow(
+            workflow,
+            arg,
+            id=f"{workflow.lower()}-{arg}-{uuid.uuid4().hex[:8]}",
+            task_queue=hub.settings.task_queue,
+        )
+    except Exception:  # noqa: BLE001 - the sweep catches up
+        log.warning("could not start a media workflow", extra={"workflow": workflow})
+
+
 async def route_order(
     hub: Any, req: dict[str, Any], timeout_s: float = 60.0
 ) -> dict[str, Any] | None:
@@ -182,6 +199,22 @@ async def brand_trace(hub: Any, brand_id: str) -> None:
         )
     except Exception:  # noqa: BLE001 - reconcile_decisions resumes versions still processing
         log.warning("could not start a brand trace", extra={"brand": brand_id})
+
+
+async def archive_ocr(hub: Any, storage_key: str, mime: str, timeout_s: int) -> dict[str, Any]:
+    """⟨1.7⟩ One upload's OCR on the worker (prompt 14 §4), awaited by an
+    archive intake; the api never reaches the OCR service itself."""
+    client = _client(hub)
+    if client is None:
+        raise RuntimeError("no Temporal client")
+    result: dict[str, Any] = await client.execute_workflow(
+        "ArchiveOcr",
+        args=[storage_key, mime],
+        id=f"archive-ocr-{storage_key}",
+        task_queue=hub.settings.task_queue,
+        execution_timeout=timedelta(seconds=timeout_s),
+    )
+    return result
 
 
 async def transcribe(hub: Any, file_id: str, timeout_s: int) -> dict[str, Any]:

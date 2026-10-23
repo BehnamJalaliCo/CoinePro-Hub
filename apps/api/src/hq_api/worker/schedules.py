@@ -21,6 +21,47 @@ Schedule ids:
     hq-support-sweep          every SUPPORT_HANDOFF_DIGEST_MIN (30) min  SupportSweep (prompt 10
                               §4-§7: expiry, reminders, the handoff line, lifecycle, NPS);
                               its activity does nothing while the holding is locked
+    hq-meetings               every minute  MeetingsTick (prompt 11 §1: plan, prepare, start,
+                              advance, war rooms, postmortems, standups); nothing while locked
+    hq-knowledge-daily        daily 06:30 (owner's zone)  KnowledgeDaily (prompt 11 §3.3: expiry,
+                              rule-only; the 14-day review work waits while locked)
+    hq-kpi-collect            every 15 min  KpiCollect (prompt 11 §4.3; no model)
+    hq-governance-daily       daily 06:10 (owner's zone)  GovernanceDaily (prompt 11 §5, §6, §8, §9)
+                              (both ask the launch gate and do nothing while locked)
+    hq-advisor-sweep          every 2 min   AdvisorSweep (prompt 12 §1: automatic memos,
+                              proactive triggers; no memo and every trigger `deferred` while locked)
+    hq-substitute-web         every minute  SubstituteWebJobs (prompt 12 §9.1; nothing while locked)
+    hq-substitute-daily       daily 09:15 Asia/Tehran  SubstituteDaily (the Jalali 15th's value
+                              ratio; the CLIs' model lists, not while locked)
+    hq-waste-daily            daily 07:45 (owner's zone)  WasteDaily (prompt 12 §8)
+    hq-cartable-reminders     every 15 min  CartableReminders (prompt 12 §11)
+    hq-deploy-recheck         every 15 min  DeployRecheck (prompt 12 §7)
+    hq-hr-rounds              daily 10:00 (owner's zone)  HrRounds: the 1st of a Jalali month
+    hq-ceo-letters            hourly        CeoLetters: at the owner's day and hour
+                              (prompt 12 part B: each asks the launch gate and does
+                              nothing while the holding is locked)
+    hq-corpus-nightly         daily 03:30 Asia/Tehran  CorpusNightly (prompt 12 §2.1)
+    hq-ask-sweep              every 5 min   AskSweep (prompt 12 §2.2: a run without an answer)
+    hq-weekly-review          every 15 min  WeeklyReviewTick (prompt 12 §3)
+    hq-dceo                   every 5 min   DceoSweep (prompt 12 §13: predictions)
+    hq-dceo-principles        Saturday 11:00 (owner's zone)  DceoPrinciples (prompt 12 §13.5)
+                              (prompt 12 §2, §3, §13: each asks the launch gate and does
+                              nothing at all while the holding is locked)
+    hq-media-sweep            every 5 min   MediaSweep (prompt 13 §2: the sealed series'
+                              schedules, due publishing, the rule re-check; nothing
+                              at all while the holding is locked)
+    hq-legal-mail-poll        every 5 min   LegalMailPoll (prompt 13 §3.2: replies to the cases)
+    hq-voice-bakeoff          daily 03:40 (owner's zone)  VoiceBakeoff (prompt 13 §4.2:
+                              queue the missing samples; both do nothing while locked)
+    hq-archive-daily          daily 04:30 (owner's zone)  ArchiveDaily (prompt 14 §5, §6:
+                              retention, reminders, the destroy queue, the weekly report)
+    hq-archive-fixity         daily 03:20 (owner's zone)  ArchiveFixity (prompt 14 §8: a seventh
+                              of the files a night, all of them in a week)
+    hq-archive-ocr            every 2 min   ArchiveOcrQueue (prompt 14 §4: one OCR job at a time;
+                              nothing while the ocr profile is off)
+    hq-archive-sources        every 15 min  ArchiveSources (prompt 14 §7: system sources)
+                              (rule-only: no model, no outside call; what would wake an
+                              agent inside them waits while the holding is locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -69,6 +110,31 @@ FEEDBACK_BATCH = "hq-feedback-batch"
 SUPPORT_WEEKLY = "hq-support-weekly"
 TEHRAN = "Asia/Tehran"  # the exchange's settlement times are real times, not the owner's view
 SUPPORT_SWEEP = "hq-support-sweep"
+MEETINGS = "hq-meetings"
+KNOWLEDGE_DAILY = "hq-knowledge-daily"
+KPI_COLLECT = "hq-kpi-collect"
+GOVERNANCE_DAILY = "hq-governance-daily"
+WASTE_DAILY = "hq-waste-daily"
+CARTABLE_REMINDERS = "hq-cartable-reminders"
+DEPLOY_RECHECK = "hq-deploy-recheck"
+HR_ROUNDS = "hq-hr-rounds"
+CEO_LETTERS = "hq-ceo-letters"
+P12B = (WASTE_DAILY, CARTABLE_REMINDERS, DEPLOY_RECHECK, HR_ROUNDS, CEO_LETTERS)
+CORPUS_NIGHTLY = "hq-corpus-nightly"
+ASK_SWEEP = "hq-ask-sweep"
+WEEKLY_REVIEW = "hq-weekly-review"
+DCEO = "hq-dceo"
+DCEO_PRINCIPLES = "hq-dceo-principles"
+OWNER_TOOLS = (CORPUS_NIGHTLY, ASK_SWEEP, WEEKLY_REVIEW, DCEO, DCEO_PRINCIPLES)
+MEDIA_SWEEP = "hq-media-sweep"  # prompt 13 §2
+LEGAL_MAIL_POLL = "hq-legal-mail-poll"
+VOICE_BAKEOFF = "hq-voice-bakeoff"
+P13B = (LEGAL_MAIL_POLL, VOICE_BAKEOFF)
+ARCHIVE_DAILY = "hq-archive-daily"  # prompt 14
+ARCHIVE_FIXITY = "hq-archive-fixity"
+ARCHIVE_OCR = "hq-archive-ocr"
+ARCHIVE_SOURCES = "hq-archive-sources"
+P14 = (ARCHIVE_DAILY, ARCHIVE_FIXITY, ARCHIVE_OCR, ARCHIVE_SOURCES)
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -86,6 +152,18 @@ FIXED = (
     RESCUE,
     FEEDBACK_BATCH,
     SUPPORT_WEEKLY,
+    MEETINGS,
+    KNOWLEDGE_DAILY,
+    KPI_COLLECT,
+    GOVERNANCE_DAILY,
+    "hq-advisor-sweep",
+    "hq-substitute-web",
+    "hq-substitute-daily",
+    *P12B,
+    *OWNER_TOOLS,
+    MEDIA_SWEEP,
+    *P13B,
+    *P14,
 )
 
 
@@ -169,7 +247,12 @@ def every(minutes: int) -> ScheduleSpec:
 
 
 def fixed(
-    morning_at: time, tz: str, *, ceo_daily: bool = False, support_sweep_min: int = 30
+    morning_at: time,
+    tz: str,
+    *,
+    ceo_daily: bool = False,
+    support_sweep_min: int = 30,
+    meetings_paused: bool = False,
 ) -> list[Desired]:
     return [
         Desired(
@@ -242,6 +325,232 @@ def fixed(
             timedelta(minutes=30),
         ),
         *revenue_fixed(),
+        *governance_fixed(tz, meetings_paused=meetings_paused),
+        *management_fixed(),
+        *p12b_fixed(tz),
+        *owner_tools_fixed(tz),
+        *studio_fixed(),
+        *p13b_fixed(tz),
+        *p14_fixed(tz),
+    ]
+
+
+def owner_tools_fixed(tz: str) -> list[Desired]:
+    """Prompt 12 §2, §3, §13: each activity asks the launch gate first."""
+    return [
+        Desired(
+            CORPUS_NIGHTLY,
+            "CorpusNightly",
+            (),
+            daily_at(time(3, 30), TEHRAN),
+            timedelta(hours=6),
+            timedelta(hours=1),
+        ),
+        Desired(ASK_SWEEP, "AskSweep", (), every(5), timedelta(minutes=5), timedelta(minutes=3)),
+        Desired(
+            WEEKLY_REVIEW,
+            "WeeklyReviewTick",
+            (),
+            every(15),
+            timedelta(minutes=10),
+            timedelta(minutes=6),
+        ),
+        Desired(DCEO, "DceoSweep", (), every(5), timedelta(minutes=5), timedelta(minutes=12)),
+        Desired(
+            DCEO_PRINCIPLES,
+            "DceoPrinciples",
+            (),
+            weekly_at(6, time(11, 0), tz),
+            timedelta(hours=12),
+            timedelta(minutes=12),
+        ),
+    ]
+
+
+def governance_fixed(tz: str, *, meetings_paused: bool = False) -> list[Desired]:
+    """Prompt 11: they gate themselves (hq_api.domain.gate). §1-§3's two are
+    paused only when HQ_MEETINGS_SCHEDULES=off (tests); §4-§10's never."""
+    return [
+        Desired(
+            MEETINGS,
+            "MeetingsTick",
+            (),
+            every(1),
+            timedelta(minutes=2),
+            timedelta(minutes=5),
+            paused=meetings_paused,
+        ),
+        Desired(
+            KNOWLEDGE_DAILY,
+            "KnowledgeDaily",
+            (),
+            daily_at(time(6, 30), tz),
+            timedelta(hours=12),
+            timedelta(minutes=15),
+            paused=meetings_paused,
+        ),
+        Desired(
+            KPI_COLLECT, "KpiCollect", (), every(15), timedelta(minutes=15), timedelta(minutes=5)
+        ),
+        Desired(
+            GOVERNANCE_DAILY,
+            "GovernanceDaily",
+            (),
+            daily_at(time(6, 10), tz),
+            timedelta(hours=12),
+            timedelta(minutes=15),
+        ),
+    ]
+
+
+ADVISOR_SWEEP = "hq-advisor-sweep"
+SUBSTITUTE_WEB = "hq-substitute-web"
+SUBSTITUTE_DAILY = "hq-substitute-daily"
+
+
+def management_fixed() -> list[Desired]:
+    """Prompt 12 part A (contract §21.1, §21.13): they gate themselves."""
+    return [
+        Desired(
+            ADVISOR_SWEEP, "AdvisorSweep", (), every(2), timedelta(minutes=5), timedelta(minutes=6)
+        ),
+        Desired(
+            SUBSTITUTE_WEB,
+            "SubstituteWebJobs",
+            (),
+            every(1),
+            timedelta(minutes=2),
+            timedelta(minutes=16),
+        ),
+        Desired(
+            SUBSTITUTE_DAILY,
+            "SubstituteDaily",
+            (),
+            daily_at(time(9, 15), TEHRAN),
+            timedelta(hours=6),
+            timedelta(minutes=10),
+        ),
+    ]
+
+
+def p12b_fixed(tz: str) -> list[Desired]:
+    """Prompt 12 part B: each activity asks the launch gate first."""
+    hourly = ScheduleSpec(
+        calendars=[
+            ScheduleCalendarSpec(
+                second=[ScheduleRange(start=0, end=0)],
+                minute=[ScheduleRange(start=0, end=0)],
+                hour=[ScheduleRange(start=0, end=23)],
+            )
+        ],
+        time_zone_name=tz,
+    )
+    return [
+        Desired(
+            WASTE_DAILY,
+            "WasteDaily",
+            (),
+            daily_at(time(7, 45), tz),
+            timedelta(hours=12),
+            timedelta(minutes=30),
+        ),
+        Desired(
+            CARTABLE_REMINDERS,
+            "CartableReminders",
+            (),
+            every(15),
+            timedelta(minutes=10),
+            timedelta(minutes=10),
+        ),
+        Desired(
+            DEPLOY_RECHECK,
+            "DeployRecheck",
+            (),
+            every(15),
+            timedelta(minutes=10),
+            timedelta(minutes=15),
+        ),
+        Desired(
+            HR_ROUNDS,
+            "HrRounds",
+            (),
+            daily_at(time(10, 0), tz),
+            timedelta(hours=12),
+            timedelta(minutes=30),
+        ),
+        Desired(
+            CEO_LETTERS, "CeoLetters", (), hourly, timedelta(minutes=50), timedelta(minutes=15)
+        ),
+    ]
+
+
+def studio_fixed() -> list[Desired]:
+    """Prompt 13 §2: the media sweep gates itself (hq_api.domain.gate)."""
+    return [
+        Desired(
+            MEDIA_SWEEP, "MediaSweep", (), every(5), timedelta(minutes=10), timedelta(minutes=25)
+        )
+    ]
+
+
+def p13b_fixed(tz: str) -> list[Desired]:
+    """Prompt 13, legal and voice: each activity asks the launch gate first."""
+    return [
+        Desired(
+            LEGAL_MAIL_POLL,
+            "LegalMailPoll",
+            (),
+            every(5),
+            timedelta(minutes=5),
+            timedelta(minutes=5),
+        ),
+        Desired(
+            VOICE_BAKEOFF,
+            "VoiceBakeoff",
+            (),
+            daily_at(time(3, 40), tz),
+            timedelta(hours=12),
+            timedelta(minutes=5),
+        ),
+    ]
+
+
+def p14_fixed(tz: str) -> list[Desired]:
+    """Prompt 14, the archive: rule-only jobs (no model, no outside call); the
+    parts that would wake an agent gate themselves (hq_api.domain.gate)."""
+    return [
+        Desired(
+            ARCHIVE_DAILY,
+            "ArchiveDaily",
+            (),
+            daily_at(time(4, 30), tz),
+            timedelta(hours=12),
+            timedelta(minutes=30),
+        ),
+        Desired(
+            ARCHIVE_FIXITY,
+            "ArchiveFixity",
+            ("nightly",),
+            daily_at(time(3, 20), tz),
+            timedelta(hours=12),
+            timedelta(hours=3),
+        ),
+        Desired(
+            ARCHIVE_OCR,
+            "ArchiveOcrQueue",
+            (),
+            every(2),
+            timedelta(minutes=5),
+            timedelta(minutes=15),
+        ),
+        Desired(
+            ARCHIVE_SOURCES,
+            "ArchiveSources",
+            (),
+            every(15),
+            timedelta(minutes=20),
+            timedelta(minutes=14),
+        ),
     ]
 
 

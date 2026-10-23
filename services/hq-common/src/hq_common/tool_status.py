@@ -81,6 +81,55 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "support.draft",
         "support.handoff",
         "support.mystery",
+        # prompt 11 §1-§3 (contract §20.1-§20.3): the meeting room and the knowledge base
+        "meeting.statement",
+        "meeting.challenge",
+        "meeting.whisper",
+        "meeting.item",
+        "meeting.minutes",
+        "knowledge.propose",
+        "knowledge.review",
+        "knowledge.approve",
+        # prompt 11 §4-§10 (contract §20.11): cards, OKRs, outcomes, risks, the calendar, the matrix
+        "kpi.record",
+        "okr.draft",
+        "okr.checkin",
+        "outcome.note",
+        "risk.raise",
+        "risk.update",
+        "calendar.read",
+        "calendar.add",
+        "authority.read",
+        "governance.read",
+        # prompt 12 part A (contract §21.1, §21.13): the advisor's memo; the
+        # substitute players (refused channel_not_configured while signed out)
+        "memo.write",
+        "substitute.call",
+        # prompt 12 §12 (contract §21.9): a fact check of one claim
+        "claim.verdict",
+        # prompt 12 §2 (contract §21.2): the librarian's answer to the owner's ask
+        "ask.answer",
+        # prompt 13 §1.1 (contract §22.5): roles written on demand
+        "role.draft",
+        "role.decide",
+        # prompt 13 §2 (contract §22.2): the media studio
+        "media.item",
+        "media.render",
+        "media.voice",  # the narration, in the voice registry's queue (§22.3)
+        "media.review",
+        "series.propose",
+        # prompt 13 (contract §22.3, §22.4): the legal counsel's tools (email.draft
+        # only makes a card)
+        "case.open",
+        "case.note",
+        "email.draft",
+        "mail.read",
+        # prompt 14 (contract §23.11): the archive (archive.file only makes a draft)
+        "archive.search",
+        "archive.read",
+        "archive.file",
+        "archive.link",
+        "archive.hold",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

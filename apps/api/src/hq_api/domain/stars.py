@@ -11,8 +11,9 @@ no stars; the owner's 1-10 rating stays its own part of the employee score
 
 Every part is 0..100; a part without data is left out and the weights are
 renormalised (the same rule as the employee score), so a company is never
-punished for a missing feed: no KPI store exists yet, and challenges and
-compliance come from the overseer's tables (prompt 08 §2) when they exist.
+punished for a missing feed. KPI attainment comes from the cards (prompt 11
+§4.6: domain/gov_kpis.attainment), challenges and compliance from the
+overseer's tables (prompt 08 §2) when they exist.
 
 Efficiency comes from the ledger only (agents.runs, llm.calls, the owner's
 ratings), never from what an agent reports:
@@ -38,7 +39,7 @@ from zoneinfo import ZoneInfo
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import hiring
+from hq_api.domain import gov_kpis, hiring
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -518,6 +519,11 @@ async def rollup(tx: Tx, period: str, key: str, start_day: date, end_day: date) 
     stars_of: dict[UUID, list[float]] = {}
     for s in star_rows:
         stars_of.setdefault(s["employee_id"], []).append(float(s["stars"]))
+    # ⟨1.5⟩ the waste part reads the daily waste report's figures (prompt 12 §8):
+    # one day has one waste figure; a company without ledger tokens keeps the runs'.
+    from hq_api.domain import waste as WASTE
+
+    waste_of = await WASTE.shares_between(tx, start_day, end_day)
     previous = await tx.all(
         """SELECT data FROM people.star_rollups WHERE period = :p ORDER BY starts_on DESC LIMIT :n""",
         p=period,
@@ -533,9 +539,13 @@ async def rollup(tx: Tx, period: str, key: str, start_day: date, end_day: date) 
             for v in vs
         ]
         people = round(sum(mine) / len(mine) * 20, 1) if mine else None
-        waste_share = (
-            float(c["waste"]) / float(c["run_tokens"]) if float(c["run_tokens"] or 0) > 0 else None
-        )
+        waste_share = waste_of.get(c["id"])
+        if waste_share is None:
+            waste_share = (
+                float(c["waste"]) / float(c["run_tokens"])
+                if float(c["run_tokens"] or 0) > 0
+                else None
+            )
         cost = float(c["cost_usd"]) / int(c["accepted"]) if int(c["accepted"] or 0) > 0 else None
         efficiency = company_efficiency(
             used=float(c["used_month"]),
@@ -546,7 +556,9 @@ async def rollup(tx: Tx, period: str, key: str, start_day: date, end_day: date) 
         )
         challenges, compliance = await _oversight_parts(tx, c["id"], start, end)
         parts = {
-            "kpi": None,  # no KPI store yet: left out (contract note)
+            # ⟨1.5⟩ prompt 11 §4.6 (contract §20.4): the active OKR's key results,
+            # else the scorecard KPIs at target; None (left out) without either
+            "kpi": await gov_kpis.attainment(tx, c["id"]),
             "challenges": challenges,
             "compliance": compliance,
             "people": people,
@@ -631,7 +643,19 @@ async def rollup(tx: Tx, period: str, key: str, start_day: date, end_day: date) 
     )
     for code in inflation:
         await star_inflation(tx, code, period, key)
-    return {"created": True, "best_company": best, "key": key, "data": data}
+    # ⟨1.5⟩ department ranks, with the roll-up (prompt 12 §5; code only)
+    from hq_api.domain import rankings
+
+    ranks = await rankings.compute(
+        tx, period, key, start, end, {i: e.get("efficiency") for i, e in emps.items()}
+    )
+    return {
+        "created": True,
+        "best_company": best,
+        "key": key,
+        "data": data,
+        "departments": len(ranks),
+    }
 
 
 async def star_inflation(tx: Tx, company_code: str, period: str, key: str) -> None:

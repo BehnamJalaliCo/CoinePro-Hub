@@ -44,7 +44,8 @@ WORK_SQL = f"""
            sc.rrule AS sc_rrule, sc.timezone AS sc_timezone, sc.next_at AS sc_next_at,
            sc.status AS sc_status,
            ARRAY(SELECT dl.id FROM cartable.deliverables dl WHERE dl.work_id = w.id ORDER BY dl.created_at)
-               AS deliverable_ids
+               AS deliverable_ids,
+           (SELECT kr.ref FROM governance.key_results kr WHERE kr.id = w.key_result_id) AS key_result_ref
     FROM work.work w
     JOIN core.companies c ON c.id = w.company_id
     LEFT JOIN core.departments d ON d.id = w.department_id
@@ -80,6 +81,8 @@ class Work(BaseModel):
     evidence: list[dict[str, Any]]
     progress_note: str | None
     progress_pct: int | None
+    # ⟨1.5⟩ prompt 11 §5.3 (contract §20.5): the key result this work serves
+    key_result: str | None = None
     version: int
     created_at: datetime
     updated_at: datetime
@@ -156,6 +159,7 @@ def render(r: dict[str, Any]) -> Work:
         evidence=list(r["evidence"] or []),
         progress_note=r["progress_note"],
         progress_pct=r["progress_pct"],
+        key_result=r.get("key_result_ref"),
         version=r["version"],
         created_at=r["created_at"],
         updated_at=r["updated_at"],
@@ -221,9 +225,22 @@ async def create(
     schedule: ScheduleIn | None = None,
     parent: dict[str, Any] | None = None,
     requested_by_work_id: UUID | None = None,
+    key_result: str | None = None,
 ) -> dict[str, Any]:
     """A root work item (or a child when `parent` is given). Without an
-    assignee it goes to the department's manager, else to the CEO."""
+    assignee it goes to the department's manager, else to the CEO.
+    ⟨1.5⟩ `key_result`: a KR-… of the same company (prompt 11 §5.3)."""
+    kr_id = None
+    if key_result:
+        kr_id = await tx.scalar(
+            "SELECT id FROM governance.key_results WHERE ref = :r AND company_id = :co",
+            r=key_result,
+            co=company_id,
+        )
+        if kr_id is None:
+            raise ApiError(
+                422, "validation_failed", fields={"key_result": "a key result of this company"}
+            )
     dept_id = None
     if department_code:
         dept_id = await tx.scalar(
@@ -278,10 +295,11 @@ async def create(
     row = await tx.one(
         """INSERT INTO work.work (company_id, department_id, kind, title, brief, priority,
                created_by_kind, created_by_code, assignee_id, parent_id, depth, requested_by_work_id,
-               due_at, budget_tokens, budget_usd)
+               due_at, budget_tokens, budget_usd, key_result_id)
            VALUES (:co, :dept, :kind, :title, :brief, :prio, :ck, :cc, :assignee, :parent, :depth,
-                   :req, :due, :bt, :bu)
+                   :req, :due, :bt, :bu, :kr)
            RETURNING id, ref""",
+        kr=kr_id,
         co=company_id,
         dept=dept_id,
         kind=kind,
@@ -348,6 +366,7 @@ async def delegate(
     priority: str | None,
     due_at: datetime | None,
     budget: BudgetIn | None,
+    key_result: str | None = None,
 ) -> dict[str, Any]:
     if parent["status"] in CLOSED:
         raise ApiError(409, "validation_failed", "the work is closed")
@@ -364,6 +383,7 @@ async def delegate(
         due_at=due_at or parent["due_at"],
         budget=budget,
         parent=parent,
+        key_result=key_result or parent.get("key_result_ref"),
     )
     if parent["status"] in ("queued", "in_progress"):
         await tx.exec("UPDATE work.work SET status = 'waiting' WHERE id = :id", id=parent["id"])

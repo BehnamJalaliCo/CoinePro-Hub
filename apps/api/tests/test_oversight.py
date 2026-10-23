@@ -229,6 +229,13 @@ async def test_every_code_checker_runs(
         out = await acts.protocol_run(ref)
         if out.get("skipped") == "paused":
             continue  # seeded paused (prompt 10 §11: PR-103); its own test runs its checker
+        if (
+            out.get("skipped") == "not_its_jalali_day"
+        ):  # ⟨1.5⟩ PR-082 off its day: its SQL still runs
+            async with whub.db.tx(await whub.companies.ids()) as tx:
+                ctx = C.CheckCtx(tx, holding.id, holding.code, companies, datetime.now(UTC), {})
+                assert isinstance(await C.CHECKS[ref](ctx), C.Checked), ref
+            continue
         assert out.get("result") in ("pass", "fail"), (ref, out)
         results[ref] = out["result"]
     assert (
@@ -702,13 +709,19 @@ async def test_paused_protocols_have_no_schedule_run_or_finding_and_do_not_count
 ) -> None:
     from temporalio.service import RPCError
 
+    from hq_api.domain import gov_checks as GV
+    from hq_api.domain import governance_checks as GC
     from hq_api.principal import Principal
     from hq_api.worker import oversight_activities as OA
     from hq_api.worker import schedules
 
     lib_file = O.protocol_file(charters.load().root)
-    paused = {p["ref"] for p in lib_file if p["status"] == "paused"}
-    assert {"PR-043", "PR-053", "PR-082", "PR-090"} <= paused
+    # Seeded paused; prompt 11 switches its own on (a new active version) once
+    # built: PR-111/114/115 and PR-090/112/113/116 (the reconcile below does);
+    # ⟨1.5⟩ prompt 12 §6.7: PR-082 is seeded paused and activated (version 2)
+    on = set(GC.SWITCHED_ON) | set(GV.ACTIVATED) | {O.PR082, "PR-121"}
+    paused = {p["ref"] for p in lib_file if p["status"] == "paused"} - on
+    assert {"PR-043", "PR-053"} <= paused and not paused & on
     rows = await su.fetch(
         "SELECT ref, status FROM oversight.current_protocols WHERE ref = ANY($1)", list(paused)
     )
@@ -722,6 +735,7 @@ async def test_paused_protocols_have_no_schedule_run_or_finding_and_do_not_count
     assert f"{OA.PROTOCOL_PREFIX}PR-043" in out["deleted"]
     assert not {f"{OA.PROTOCOL_PREFIX}{ref}" for ref in paused} & set(out["protocols"])
     assert f"{OA.PROTOCOL_PREFIX}PR-033" in out["protocols"]  # an active one has its schedule
+    assert f"{OA.PROTOCOL_PREFIX}PR-090" in out["protocols"]  # activated by the reconcile (p11)
     for ref in paused:
         with pytest.raises(RPCError):
             await client.get_schedule_handle(f"{OA.PROTOCOL_PREFIX}{ref}").describe()

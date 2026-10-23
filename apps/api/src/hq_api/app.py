@@ -28,6 +28,7 @@ from hq_api.routes import (
     auth,
     backups,
     brands,
+    charter,
     decisions,
     deliverables,
     egress,
@@ -35,15 +36,19 @@ from hq_api.routes import (
     feedback,
     files,
     founding,
+    governance,
     growth,
     growth_funnel,
     inbox,
     inquiries,
     intake,
     internal,
+    knowledge,
     lifecycle,
+    meetings,
     messages,
     meta,
+    mgmt,
     notifications,
     orders,
     org,
@@ -60,6 +65,17 @@ from hq_api.routes import (
     work,
     workshop,
 )
+from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
+from hq_api.routes import archive as archive_routes  # prompt 14: the archive
+from hq_api.routes import archive_agents as archive_agent_routes  # prompt 14: its agent tools
+from hq_api.routes import ask as ask_routes  # prompt 12 §2, §3, §13 (on prompt 11)
+from hq_api.routes import dceo as dceo_routes
+from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
+from hq_api.routes import media as media_routes  # prompt 13, the media half
+from hq_api.routes import reviews as review_routes
+from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
+from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
+from hq_api.routes import voices as voice_routes  # prompt 13: the voice registry
 
 log = logging.getLogger("hq_api.access")
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
@@ -68,6 +84,10 @@ UPLOAD_PATHS = ("/internal/v1/files", "/api/v1/files", "/api/v1/transcribe")
 
 
 def upload_limit(path: str, max_file: int, max_body: int) -> int:
+    if path.startswith("/internal/v1/tts/") and path.endswith("/done"):
+        return mgmt.MAX_AUDIO  # ⟨1.5⟩ a briefing's Ogg from the TTS one-shot
+    if path.startswith("/internal/v1/media/render/") and path.endswith("/output"):
+        return media_routes.MAX_OUTPUT  # ⟨1.6⟩ a render's file from the render one-shot
     if path == "/api/v1/files":
         return media.VIDEO.max_bytes  # the largest kind; each kind is held to its own
     if path == "/api/v1/transcribe":
@@ -137,11 +157,14 @@ def create_app(
         )
         return response
 
+    # ⟨1.5⟩ prompt 12 part B: first, so /runs/health is not read as /runs/{id}
+    app.include_router(mgmt.first_router, prefix="/api/v1")
     for module in (
         meta,
         auth,
         org,
         work,
+        governance,  # prompt 11 §4-§10; before decisions: /decisions/batchable is no ref
         decisions,
         deliverables,
         files,
@@ -174,6 +197,11 @@ def create_app(
         feedback,
         intake,
         lifecycle,  # /growth/templates, /growth/rules, /growth/nps (prompt 10 §7)
+        # prompt 11 §1-§3 (contract §20.1-§20.3): meetings, the charter, knowledge
+        meetings,
+        charter,
+        knowledge,
+        mgmt,  # prompt 12 part B (contract §21.4-§21.9)
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
@@ -188,10 +216,39 @@ def create_app(
     app.include_router(skills.internal_router, prefix="/internal/v1")
     app.include_router(academy.internal_router, prefix="/internal/v1")
     app.include_router(founding.internal_router, prefix="/internal/v1")
+    app.include_router(mgmt.internal_router, prefix="/internal/v1")
     for p10 in (revenue, support, growth, growth_funnel, feedback):
         app.include_router(p10.internal_router, prefix="/internal/v1")
+    for p11 in (meetings, charter, knowledge):  # prompt 11 §1-§3
+        app.include_router(p11.internal_router, prefix="/internal/v1")
+    app.include_router(governance.internal_router, prefix="/internal/v1")  # prompt 11 §4-§10
+    # Prompt 12 part A (contract §21.1, §21.13): the advisor's memos and the
+    # substitute players.
+    for p12a in (advisor_routes, substitute_routes):
+        app.include_router(p12a.router, prefix="/api/v1")
+        app.include_router(p12a.internal_router, prefix="/internal/v1")
+    # Prompt 12 §2, §3, §13 (contract §21.2, §21.3, §21.10): ask the hub, the
+    # weekly review, the digital CEO's predictions.
+    for p12f in (ask_routes, review_routes, dceo_routes):
+        app.include_router(p12f.router, prefix="/api/v1")
+    app.include_router(ask_routes.internal_router, prefix="/internal/v1")
+    # Prompt 13 §1.1 (contract §22.5): roles written on demand.
+    app.include_router(role_draft_routes.router, prefix="/api/v1")
+    app.include_router(role_draft_routes.internal_router, prefix="/internal/v1")
+    # Prompt 13, the legal and voice half (contract §22.3, §22.4).
+    for p13b in (legal_routes, voice_routes):
+        app.include_router(p13b.router, prefix="/api/v1")
+        app.include_router(p13b.internal_router, prefix="/internal/v1")
     # The only public routes prompt 10 adds (webhooks; never /internal).
     app.include_router(intake.webhook_router, prefix="/intake/v1")
+    # ⟨1.6⟩ prompt 13, the media half (contract §22.2): the media studio, and the
+    # one public route it adds (a signed 15-minute file URL Instagram fetches).
+    app.include_router(media_routes.router, prefix="/api/v1")
+    app.include_router(media_routes.internal_router, prefix="/internal/v1")
+    app.include_router(media_routes.public_router, prefix="/public/v1")
+    # ⟨1.7⟩ prompt 14 (contract §23): the archive of record and its agent tools.
+    app.include_router(archive_routes.router, prefix="/api/v1")
+    app.include_router(archive_agent_routes.internal_router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

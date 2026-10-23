@@ -10,8 +10,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # ffmpeg/ffprobe (LGPL/GPL, Debian trixie, exact version): posters, key frames
 # and sound tracks of owner videos, and media durations (prompt 6 §2).
+# git (prompt 12 §7): the deploy card's diff, tested on local bare repositories.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg=7:7.1.5-0+deb13u1 \
+       git=1:2.47.3-0+deb13u1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements-test.lock /tmp/requirements-test.lock

@@ -1,0 +1,7 @@
+# tts dependencies (exact pins; resolved + hashed in requirements.lock)
+# Piper (OHF-Voice/piper1-gpl, GPL-3.0-or-later; espeak-ng inside, GPL-3.0) runs
+# as a separate program (python -m piper) and is never linked into our code;
+# onnxruntime (MIT) runs the voice. httpx (BSD-3) talks to the api and OpenBao.
+piper-tts==1.8.0
+onnxruntime==1.30.0
+httpx==0.28.1

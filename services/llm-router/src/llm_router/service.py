@@ -16,14 +16,14 @@ import logging
 import time
 from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
 import asyncpg
 
-from hq_common import oversight_share
-from llm_router import anomaly, events, ledger
+from hq_common import meetings_share, oversight_share, owner_zone
+from llm_router import anomaly, events, hashes, ledger
 from llm_router.assignment import AssignmentError, apply_request, resolve, scope_chain
 from llm_router.backends.base import (
     ERROR,
@@ -59,6 +59,19 @@ from llm_router.uuid7 import uuid7
 
 log = logging.getLogger("llm_router.service")
 SUPPORT_DRAFT_ROLE = "support_agent"  # prompt 10 §4.3: its drafts are the support_draft scope
+# Prompt 11 §1.2 (contract §20.1): the tokens of meeting turns, every company's
+# calls (input + output + cache, as every budget counts them): one meeting's
+# ($1 its ref, since $2), and every meeting's but the war room's ($2) since $1.
+MEETING_TOKENS_SQL = """
+    SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                        + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+    FROM llm.calls WHERE started_at >= $2 AND meta->>'meeting' = $1"""
+MEETINGS_DAY_SQL = """
+    SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                        + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+    FROM llm.calls WHERE started_at >= $1 AND meta->>'meeting' IS NOT NULL
+      AND meta->>'meeting_kind' IS DISTINCT FROM $2"""
+MEETING_WINDOW = timedelta(days=7)  # the longest a meeting's turns may span
 
 
 class RouterError(Exception):
@@ -104,6 +117,12 @@ class Plan:
         return {self.company.id, self.holding.id}
 
 
+# Statuses a connection takes calls in (prompt 12 §9: `ready` = a new
+# connection verified; `quota_exhausted` is the breaker's to decide).
+ROUTABLE = frozenset({"enabled", "ready", "quota_exhausted"})
+SUBSTITUTE_KIND = "subscription"
+
+
 def _usage_scopes(
     chain: list[tuple[str, str]], company: Company, holding: Company
 ) -> list[ledger.ScopeKey]:
@@ -116,6 +135,16 @@ def _usage_scopes(
             owner = holding
         keys.append(ledger.ScopeKey(owner.id, scope_type, ref))
     return keys
+
+
+def _meeting_cap(value: Any) -> int:
+    """meta.meeting_cap as tokens; what is not a whole number counts as 0 (refused)."""
+    if isinstance(value, bool):
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _sse(event: str, data: Mapping[str, Any]) -> str:
@@ -260,6 +289,8 @@ class RouterService:
                 **(req.meta or {}),
                 # how many images the model saw (never their bytes)
                 **({"images": len(req.images())} if req.images() else {}),
+                # ⟨1.5⟩ prompt 12 §8: the request's and its prefix's hashes (never the text)
+                **hashes.of(req, model),
             },
         )
         scopes = _usage_scopes(chain, company, holding)
@@ -286,6 +317,8 @@ class RouterService:
 
         await self._check_budgets(snap, req, company, chain, row, rls, now)
         await self._check_oversight_share(req, company, holding, row, rls, now)
+        await self._check_meeting(snap, req, company, row, rls, now)
+        await self._check_owner_zone(req, holding, row, rls, now)
         await self._check_support_draft(req, company, row, rls, now)
 
         try:
@@ -409,6 +442,109 @@ class RouterService:
             call_id=row.id,
         )
 
+    async def _check_meeting(
+        self,
+        snap: Snapshot,
+        req: RunRequest,
+        company: Company,
+        row: ledger.CallRow,
+        rls: set[str],
+        now: datetime,
+    ) -> None:
+        """A meeting turn's two limits (prompt 11 §1.2, contract §20.1), only on
+        a call whose meta names a meeting (the api's runner sends it):
+        - the meeting's own cap, the scope `meeting:<ref>` (meta.meeting_cap, the
+          budget the api reserved; a war room has none): every company's calls
+          of that meeting in the last 7 days together; a cap of 0 refuses at once;
+        - the meetings' daily share: every meeting turn of the UTC day but the
+          war room's, over every company, stops at MEETINGS_DAILY_SHARE of
+          AGENT_DAILY_TOKEN_CAP (like the oversight share, for every priority)."""
+        meta = req.meta or {}
+        ref = meta.get("meeting")
+        if not isinstance(ref, str) or not ref:
+            return
+        everyone = set(snap.companies_by_id) | rls  # a meeting spans the companies
+        if "meeting_cap" in meta:
+            cap = _meeting_cap(meta["meeting_cap"])
+            used = 0
+            if cap > 0:
+                async with self.db.scoped(everyone) as conn:
+                    used = int(await conn.fetchval(MEETING_TOKENS_SQL, ref, now - MEETING_WINDOW))
+            if used >= cap:
+                await self._refuse(req, company, row, rls, "meeting_budget")
+                raise RouterError(
+                    429,
+                    "budget_exhausted",
+                    f"meeting:{ref} is used up ({used}/{cap})",
+                    call_id=row.id,
+                )
+        if meta.get("meeting_kind") == meetings_share.WAR_ROOM:
+            return
+        share = self.s.meetings_daily_share
+        cap = meetings_share.limit(self.s.agent_daily_token_cap, share)
+        day_end = next_period_start("day", now)
+        async with self.db.scoped(everyone) as conn:
+            used = int(
+                await conn.fetchval(
+                    MEETINGS_DAY_SQL, day_end - timedelta(days=1), meetings_share.WAR_ROOM
+                )
+            )
+        if not meetings_share.spent(used, self.s.agent_daily_token_cap, share):
+            return
+        await self._refuse(req, company, row, rls, "meetings_share")
+        raise RouterError(
+            429,
+            "budget_exhausted",
+            f"the meetings' share of today's token cap is used up ({used}/{cap})",
+            retry_after=max(1, int((day_end - now).total_seconds())),
+            call_id=row.id,
+        )
+
+    async def _refuse(
+        self, req: RunRequest, company: Company, row: ledger.CallRow, rls: set[str], why: str
+    ) -> None:
+        """A call refused by a meeting limit: counted and on the ledger (rejected_budget)."""
+        self.metrics.budget_rejections.labels(company.code).inc()
+        self.metrics.calls.labels(
+            company.code, "-", row.model or "-", "rejected_budget", f"P{req.priority}"
+        ).inc()
+        async with self.db.scoped(rls) as conn:
+            await ledger.record_decision(conn, row, "rejected_budget", why)
+
+    async def _check_owner_zone(
+        self,
+        req: RunRequest,
+        holding: Company,
+        row: ledger.CallRow,
+        rls: set[str],
+        now: datetime,
+    ) -> None:
+        """The owner zone's share (prompt 12 §15, contract §21.0): the zone's
+        automatic runs (meta owner_zone != "direct" on one of its task
+        classes) stop at OWNER_ZONE_DAILY_SHARE of AGENT_DAILY_TOKEN_CAP per
+        UTC day; what the owner asked for directly always goes (and counts)."""
+        zone = (req.meta or {}).get("owner_zone")
+        if not owner_zone.applies(req.task_class, zone if isinstance(zone, str) else None):
+            return
+        cap = owner_zone.limit(self.s.agent_daily_token_cap, self.s.owner_zone_daily_share)
+        keys = [("task_class", tc, "day") for tc in owner_zone.TASK_CLASSES]
+        async with self.db.scoped({holding.id}) as conn:
+            usage = await ledger.load_usage(conn, keys, now)
+        used = sum(c.tokens for c in usage.values())
+        if not owner_zone.spent(used, self.s.agent_daily_token_cap, self.s.owner_zone_daily_share):
+            return
+        self.metrics.budget_rejections.labels(holding.code).inc()
+        async with self.db.scoped(rls) as conn:
+            await ledger.record_decision(conn, row, "rejected_budget", "owner_zone_share")
+        retry = max(1, int((next_period_start("day", now) - now).total_seconds()))
+        raise RouterError(
+            429,
+            "budget_exhausted",
+            f"the owner zone's share of today's token cap is used up ({used}/{cap})",
+            retry_after=retry,
+            call_id=row.id,
+        )
+
     async def _check_support_draft(
         self,
         req: RunRequest,
@@ -507,9 +643,12 @@ class RouterService:
                 fallback_from,
             )
 
-        if connection.status == "disabled":
+        # Prompt 12 §9: a connection that is not switched on or verified yet
+        # (pending_secret, verifying, error), and a substitute player's account
+        # (kind subscription, contract §21.13), never takes a call.
+        if connection.status not in ROUTABLE or connection.kind == SUBSTITUTE_KIND:
             raise RouterError(
-                503, "connection_disabled", f"connection {connection.key} is disabled"
+                503, "connection_disabled", f"connection {connection.key} is {connection.status}"
             )
         breaker = self.breaker_for(connection)
         permit = breaker.allow()

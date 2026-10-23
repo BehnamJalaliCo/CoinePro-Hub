@@ -82,6 +82,17 @@ class MediaActivities:
             )
         return row
 
+    async def _synthetic(self, f: dict[str, Any]) -> bool:
+        """⟨1.6⟩ made by the hub's TTS one-shot (a bake-off sample, a narration)."""
+        async with self._tx() as tx:
+            return bool(
+                await tx.scalar(
+                    """SELECT created_by_kind = 'service' AND created_by_code = 'tts'
+                       FROM files.files WHERE id = :id""",
+                    id=f["id"],
+                )
+            )
+
     async def _start(self, f: dict[str, Any]) -> int:
         """This attempt, counted before any work (06.1 §2)."""
         async with self._tx() as tx:
@@ -135,16 +146,20 @@ class MediaActivities:
             )
 
     # ------------------------------------------------------------ speech --
-    async def speech(self, wav: Path, busy_wait_s: float = BUSY_WAIT_FILE_S) -> dict[str, Any]:
+    async def speech(
+        self, wav: Path, busy_wait_s: float = BUSY_WAIT_FILE_S, *, punctuate: bool = True
+    ) -> dict[str, Any]:
         """Whisper (stt), the normaliser (there and again here), then the
-        punctuation pass; both texts are kept for the quality log."""
+        punctuation pass; both texts are kept for the quality log.
+        ⟨1.6⟩ `punctuate=False`: the hub's own synthetic voice (prompt 13 §4)
+        is checked by its transcript only; no model reads it."""
         s = self.hub.settings
         res = await M.transcribe(
             s.stt_url, wav, busy_wait_s=busy_wait_s, transport=self.stt_transport
         )
         normalised = persian.normalise(res.get("text") or "")
         final, punctuation, ratio = normalised, "off", None
-        if normalised and s.stt_punctuation and self.hub.secrets.llm_router_token:
+        if punctuate and normalised and s.stt_punctuation and self.hub.secrets.llm_router_token:
             if scrub(normalised) != normalised:
                 punctuation = "off"  # a secret was spoken: no model reads it
             else:
@@ -252,7 +267,7 @@ class MediaActivities:
                 with M.temp_file(root, ".wav") as wav:
                     if await M.sound_track(src, wav, f["kind"]):
                         try:
-                            sp = await self.speech(wav)
+                            sp = await self.speech(wav, punctuate=not await self._synthetic(f))
                         except M.SttUnavailable as exc:
                             out["transcript"] = f"unavailable ({exc})"
                         except M.SttBusy as exc:

@@ -1,0 +1,10 @@
+# The file plan every scope (the holding and each company) starts with
+# (contract §23.3). The first folder of a scope whose classes include a class
+# is that class's default there.
+folders:
+  - {key: legal, title_fa: حقوقی و قراردادها, classes: [contract, affiliate_agreement, legal_correspondence], order: 10}
+  - {key: registration, title_fa: ثبت و مجوزها, classes: [company_registration, license, domain], order: 20}
+  - {key: finance, title_fa: مالی, classes: [invoice], order: 30}
+  - {key: governance, title_fa: مصوبه‌ها و سیاست‌ها, classes: [sealed_policy, resolution_bundle], order: 40}
+  - {key: brand, title_fa: برند, classes: [brand_asset], order: 50}
+  - {key: other, title_fa: سایر, classes: [other], order: 90}

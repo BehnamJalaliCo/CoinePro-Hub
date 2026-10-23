@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
+from hq_api.domain import dceo, gov_authority
 from hq_api.domain import decisions as D
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import Model, Page
@@ -67,6 +68,23 @@ async def list_decisions(
         "tool_enable",
         "company_found",
         "server_plan",
+        # ⟨1.5⟩ prompt 10 and 11
+        "message_template",
+        "lifecycle_rule",
+        "support_go_live",
+        "meeting_resolution",
+        "charter_amendment",
+        "knowledge_entry",
+        "okr",
+        "risk_acceptance",
+        "authority_change",
+        # ⟨1.6⟩ prompt 13
+        "media_series",
+        "media_publish",
+        "role_new",
+        "email_send",
+        "archive_schema",
+        "archive_disposal",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,
@@ -102,15 +120,19 @@ async def list_decisions(
             after_id=after_id,
             lim=limit + 1,
         )
-    items, nxt = pagination.page(rows, limit, ("created_at", "id"))
-    return Page(items=[D.render(r) for r in items], next_cursor=nxt)
+        items, nxt = pagination.page(rows, limit, ("created_at", "id"))
+        out = [D.render(r) for r in items]
+        await dceo.reveal(tx, out)  # ⟨1.5⟩ only with reveal "before" (prompt 12 §13)
+    return Page(items=out, next_cursor=nxt)
 
 
 @router.get("/decisions/{ref}", response_model=D.Decision, responses=E)
 async def get_decision(ref: str, ctx: Ctx = Depends(owner_ctx)) -> D.Decision:
     """One decision card: what, why, quota, risk, reversibility, payload and its seal."""
     async with ctx.tx() as tx:
-        return D.render(await D.load(tx, ref))
+        out = D.render(await D.load(tx, ref))
+        await dceo.reveal(tx, [out])
+        return out
 
 
 async def _decide(
@@ -137,14 +159,34 @@ async def _decide(
                 "validation_failed",
                 f"seal it at /provisioning/plans/{d['payload'].get('plan')}/seal (its digest)",
             )
+        if verdict == "approved" and d["kind"] == "media_series":
+            # ⟨1.6.1⟩ sealed on the series page, on its digest (contract §22.7)
+            raise ApiError(
+                409,
+                "validation_failed",
+                f"seal it at /media/series/{d['payload'].get('series')}/seal (its digest)",
+            )
         final = D.amended(d["kind"], d["payload"], amendments)  # 422 when amended badly
         if verdict == "approved" and d["kind"] == "hire":
             # The new employee needs a real charter, else approving is refused.
             company = await ctx.hub.companies.by_id(d["company_id"])
-            D.check_hire_role(final, company.kind, ctx.hub.charters, required=True)
+            lib = await D.company_charters(tx, ctx.hub.charters, d["company_id"])
+            D.check_hire_role(final, company.kind, lib, required=True)
         step_up_id = None
+        target = ref
+        if verdict == "approved" and d["kind"] == "email_send":
+            # ⟨1.6⟩ bound to the exact message (contract §22.6): the seal's
+            # target is its digest; a changed email or no mailbox -> 409
+            from hq_api.domain import legal
+
+            if amendments:
+                raise ApiError(
+                    422, "validation_failed", fields={"amendments": "this card is sealed as it is"}
+                )
+            await legal.check_seal(tx, ctx.hub, d)
+            target = str((d["payload"] or {}).get("digest") or "")
         if verdict == "approved" and needs_step_up(d):
-            step_up_id = await stepup.consume(tx, request, ctx.who, "decision.approve", ref)
+            step_up_id = await stepup.consume(tx, request, ctx.who, "decision.approve", target)
         await ctx.hub.policy.require("decisions", D.opa_input(ctx.who, d, quota_ok=False))
         out = await D.decide(
             tx,
@@ -156,6 +198,7 @@ async def _decide(
             amendments=amendments,
             step_up_id=step_up_id,
             charters=ctx.hub.charters,
+            hub=ctx.hub,
         )
         action = {
             "approved": "decision.approve",
@@ -194,6 +237,14 @@ async def _decide(
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
     await workflows_client.decision_decided(ctx.hub, ref)
+    if verdict == "approved" and d["kind"] == "authority_change":
+        await gov_authority.ensure(ctx.hub, force=True)  # ⟨1.5⟩ OPA enforces it at once
+    if verdict == "approved" and result.kind == "archive_disposal":
+        # ⟨1.7⟩ the sealed disposal committed: the destroyed files' bytes go now
+        from hq_api.archive import retention as RT
+        from hq_api.archive.common import wide_txf
+
+        await RT.destroy_queued(ctx.hub, wide_txf(ctx.hub))
     return result
 
 
@@ -205,7 +256,11 @@ async def approve_decision(
     `tool_enable` (step-up action `decision.approve`, target = the ref; a
     `tool_enable` card whose server changed since is superseded: 409
     decision_not_pending). Creates the resolution (M-…), tells
-    the proposer, and hands the effect to the worker. Requires `Idempotency-Key`."""
+    the proposer, and hands the effect to the worker. Requires `Idempotency-Key`.
+    ⟨1.5⟩ A deploy card whose PR branch moved since is set aside first (409)."""
+    from hq_api.domain import deploy_diff
+
+    await deploy_diff.before_seal(ctx.hub, ref)
     return await _decide(ctx, request, ref, "approved", note=body.note, amendments=body.amendments)
 
 

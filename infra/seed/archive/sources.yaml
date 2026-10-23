@@ -1,0 +1,12 @@
+# What the hub files by itself (contract §23.8, a closed list): each lands as
+# a `filed` record of its class with source.kind "system". On by default; the
+# owner switches each with PUT /archive/sources.
+sources:
+  - {key: charter_sealed, title_fa: "نسخه‌ی مُهرشده‌ی اساسنامه", class: sealed_policy}
+  - {key: resolution_month, title_fa: "PDF ماهانه‌ی مصوبه‌ها", class: resolution_bundle}
+  - {key: brand_sealed, title_fa: "نشان مُهرشده", class: brand_asset}
+  - {key: founding_registration, title_fa: "پیشنهاد مُهرشده‌ی تأسیس", class: company_registration}
+  - {key: legal_email, title_fa: "ایمیل ارسال‌شده‌ی حقوقی", class: legal_correspondence}
+  - {key: case_closed, title_fa: "بسته شدن پرونده‌ی حقوقی", class: legal_correspondence}
+  - {key: server_plan_sealed, title_fa: "طرح سرور مُهرشده", class: other}
+  - {key: backup_restore_test, title_fa: "نتیجه‌ی آزمون بازیابی ماهانه", class: other}

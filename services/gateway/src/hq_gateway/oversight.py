@@ -44,11 +44,19 @@ class FindingUpdateIn(T.In):
     evidence: list[EvidenceIn] = Field(default_factory=list, max_length=20)
 
 
+class OutcomeVerdictIn(T.In):
+    ref: str = Field(pattern=r"^OR-[0-9]{4,}$")
+    verdict: Literal["met", "partly", "missed", "unmeasurable"]
+    note_md: str = Field(min_length=1, max_length=5000)
+
+
 class ProtocolResultIn(T.In):
     protocol: str = Field(pattern=r"^PR-[0-9]{3,}$")
     result: Literal["pass", "fail", "partial"]
     findings: list[str] = Field(default_factory=list, max_length=50)
     notes: str = Field(default="", max_length=20000)
+    # ⟨1.5⟩ prompt 11 §6.3: PR-006's verdicts on answered outcome reviews
+    outcomes: list[OutcomeVerdictIn] = Field(default_factory=list, max_length=50)
 
 
 class CriterionIn(T.In):

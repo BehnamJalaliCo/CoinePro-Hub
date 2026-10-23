@@ -1,0 +1,74 @@
+{
+  "repo": "rhasspy/piper-voices",
+  "repo_license": "MIT",
+  "revision": "5041a7a49ae5b3a0f30e6837769eb03fdbb231bd",
+  "voices": {
+    "fa_IR-amir-medium": {
+      "path": "fa/fa_IR/amir/medium",
+      "dataset": "https://datacula.com/tts-databases",
+      "dataset_license": "CC0-1.0",
+      "model_card_sha256": "0d7d315699945ac830162f82d485d79af51a33081a7649e8992726bd4bba2384",
+      "files": {
+        "fa_IR-amir-medium.onnx": {
+          "size": 63531379,
+          "sha256": "fb815380d969ea372b0b21b0de14421f58fe481047e153e69685d079b6e1a9d1"
+        },
+        "fa_IR-amir-medium.onnx.json": {
+          "size": 4958,
+          "sha256": "75f918a3bf0f57a9179abe725af529f2a5c79d6c899e2a84aec76c685d5dfb9a"
+        }
+      }
+    },
+    "fa_IR-ganji-medium": {
+      "path": "fa/fa_IR/ganji/medium",
+      "dataset": "https://tts.datacula.com/",
+      "dataset_license": "CC0-1.0",
+      "model_card_sha256": "8ad13000ccc8fa6e249b00659aa5b4a938661fa4ac272baf3a2d50faa2504c69",
+      "files": {
+        "fa_IR-ganji-medium.onnx": {
+          "size": 63516050,
+          "sha256": "6a98504bb77dc2fd3a863c977d37e67a6a525fdf661917385d569a3ff78e6cae"
+        },
+        "fa_IR-ganji-medium.onnx.json": {
+          "size": 4958,
+          "sha256": "9d3e0c0cf00156d8bf38fb7f96bdfbcb21911b37e062a328da0632e3c2cbc465"
+        }
+      }
+    },
+    "fa_IR-ganji_adabi-medium": {
+      "path": "fa/fa_IR/ganji_adabi/medium",
+      "dataset": "https://tts.datacula.com/",
+      "dataset_license": "CC0-1.0",
+      "model_card_sha256": "9d4b44c97de206ab47d770ea6f3bbea3963a72c2b1b4306630aa88312a6ad575",
+      "files": {
+        "fa_IR-ganji_adabi-medium.onnx": {
+          "size": 63516050,
+          "sha256": "e9073b41ae65759dcf95778e569c8f3780406dac99549436f6ab8e7d2336ed72"
+        },
+        "fa_IR-ganji_adabi-medium.onnx.json": {
+          "size": 4964,
+          "sha256": "aa430ceebaa7c96d9cd6b1e73231a393901cabb23a1b7f53e8d85178a5ae70c9"
+        }
+      }
+    },
+    "fa_IR-reza_ibrahim-medium": {
+      "path": "fa/fa_IR/reza_ibrahim/medium",
+      "dataset": "https://huggingface.co/datasets/mah92/Hedayatfar-Persian-Quran-Audio-Dataset",
+      "dataset_license": "CC0-1.0",
+      "model_card_sha256": "eec97d7df2143f981debaa929fced55086667e5ff1f61a3e1eda7b7f51f89a53",
+      "files": {
+        "fa_IR-reza_ibrahim-medium.onnx": {
+          "size": 63511038,
+          "sha256": "99f0c31464a2120831ca87d079e10a9a2b3e426cc1ee662d80ff9042df15cd3c"
+        },
+        "fa_IR-reza_ibrahim-medium.onnx.json": {
+          "size": 4967,
+          "sha256": "e9866c88c16245f8b8f4d0eaeaa6eab4f2e193db69a2ab4683d83fe78a30b6ca"
+        }
+      }
+    }
+  },
+  "not_installed": {
+    "fa_IR-gyro-medium": "its MODEL_CARD states no dataset licence (\"See URL\"): not shipped (prompt 13 §4)"
+  }
+}

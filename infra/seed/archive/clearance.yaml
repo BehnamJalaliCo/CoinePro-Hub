@@ -1,0 +1,12 @@
+# Who reads what (contract §23.4, §23.12). `role:*` is every agent role whose
+# own row is missing. Scopes: own (the agent's company), holding, all, or a
+# company code. The owner sees everything and has no row.
+clearance:
+  - subject: "role:*"
+    grants: [{scope: own, level: internal}]
+  - subject: role:legal_counsel
+    grants: [{scope: all, level: confidential}]
+  # content up to confidential; the metadata of what it files at every level
+  - subject: role:archivist
+    grants: [{scope: all, level: confidential}]
+    metadata_level: secret

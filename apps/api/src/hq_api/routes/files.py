@@ -449,6 +449,8 @@ class Transcript(BaseModel):
     segments: list[Segment]
     file_id: UUID
     engine: Engine
+    # ⟨1.5⟩ purpose=note&save=true: the quick note it became (§21.8)
+    note_ref: str | None = None
 
 
 @router.post(
@@ -460,6 +462,7 @@ class Transcript(BaseModel):
 async def transcribe(
     request: Request,
     purpose: Literal["message", "order", "note"] = Query(default="message"),
+    save: bool = Query(default=False),
     ctx: Ctx = Depends(owner_ctx),
 ) -> Any:
     """Owner only. Raw audio (types and limits as for uploads: ≤ 25 MB, ≤ 15 min)
@@ -510,6 +513,30 @@ async def transcribe(
         file_id=fid,
         engine=Engine(**{"name": "", "model": "", "version": "", **out["engine"]}),
     )
+    if purpose == "note" and save and result.text.strip():
+        # ⟨1.5⟩ prompt 12 §11: the voice becomes a quick note at once (no model)
+        from hq_api.domain import notes as N
+
+        holding = await ctx.hub.companies.holding()
+        async with ctx.tx() as tx:
+            note = await N.create(
+                tx,
+                holding.id,
+                holding.code,
+                text_md=result.text[:20000],
+                source="voice",
+                file_id=fid,
+            )
+            await ctx.audit(
+                tx,
+                company_id=holding.id,
+                action="note.create",
+                action_class="A1",
+                target_kind="note",
+                target_ref=note["ref"],
+                summary="voice",
+            )
+        result.note_ref = note["ref"]
     if idem:
         async with ctx.tx() as tx:
             await idem.store(tx, 200, result.model_dump(mode="json"))

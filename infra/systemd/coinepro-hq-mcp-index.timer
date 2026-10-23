@@ -1,0 +1,9 @@
+[Unit]
+Description=CoinePro HQ: CodeCortex's nightly index refresh, 03:30 Asia/Tehran (nothing while HQ_MCP is off)
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Tehran
+Persistent=true
+
+[Install]
+WantedBy=timers.target

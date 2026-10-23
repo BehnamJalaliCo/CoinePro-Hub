@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
-from hq_common import oversight_share
+from hq_common import meetings_share, oversight_share, owner_zone
 
 
 def _int(name: str, default: int) -> int:
@@ -59,6 +59,12 @@ class Settings:
     )
     # How long POST /transcribe waits for the worker (a 15-minute recording on CPU).
     transcribe_wait_s: int = field(default_factory=lambda: _int("HQ_TRANSCRIBE_WAIT_S", 600))
+    # Prompt 14 §4: OCR on the hub (Tesseract 5, the opt-in `ocr` profile), reached
+    # by the worker only on the internal hq-ocr network (empty: the profile is
+    # off; scans stay text_state "none"); how long an archive intake waits for an
+    # image's OCR through the worker before the queue takes it.
+    ocr_url: str = field(default_factory=lambda: _env("HQ_OCR_URL"))
+    archive_ocr_wait_s: int = field(default_factory=lambda: _int("HQ_ARCHIVE_OCR_WAIT_S", 60))
     # The academy (prompt 08 §7): the judge of eval answers (a lighter model;
     # QC's for a case marked sensitive) and the monthly cap, a share of the
     # holding's budget (every company's monthly envelope), else a fixed default.
@@ -131,6 +137,43 @@ class Settings:
     oversight_daily_share: float = field(
         default_factory=lambda: oversight_share.parse_share(_env("OVERSIGHT_DAILY_SHARE"))
     )
+    # The meetings' share (prompt 11 §1.2, contract §20.1): all meeting
+    # reservations of one UTC day together use at most this share of
+    # AGENT_DAILY_TOKEN_CAP (a meeting that does not fit runs `written`; the war
+    # room is outside it). llm-router enforces it on every meeting turn too.
+    meetings_daily_share: float = field(
+        default_factory=lambda: meetings_share.parse_share(_env("MEETINGS_DAILY_SHARE"))
+    )
+    # Off: the meeting room's schedules (hq-meetings, hq-knowledge-daily) exist
+    # but stay paused (tests: a test drives the meeting room by hand).
+    meetings_schedules: bool = field(
+        default_factory=lambda: _env("HQ_MEETINGS_SCHEDULES", "on") == "on"
+    )
+    # Prompt 12 §15 (contract §21.0): the owner zone's automatic runs together
+    # stop at this share of AGENT_DAILY_TOKEN_CAP (llm-router enforces it; the
+    # api defers automatic memos and proactive notes once it is spent).
+    owner_zone_daily_share: float = field(
+        default_factory=lambda: owner_zone.parse_share(_env("OWNER_ZONE_DAILY_SHARE"))
+    )
+    # Prompt 12 §9 (contract §21.7): "api" (the app's write-only secret route and
+    # the terminal) or "terminal" (`make connection-secret` only).
+    connection_secret_route: str = field(
+        default_factory=lambda: (
+            "terminal" if _env("CONNECTION_SECRET_ROUTE", "api") == "terminal" else "api"
+        )
+    )
+    # Prompt 12 §9.1: the substitutes' CLI runner (opt-in profile "substitutes";
+    # hq.sh sets on only while it is on and fits the memory budget). Off: the
+    # app's CLI sign-in answers 409 not_ready (the owner's terminal still works).
+    substitutes_runner: bool = field(
+        default_factory=lambda: _env("SUBSTITUTES_RUNNER", "off") == "on"
+    )
+    # The Persian overlay of a creative: IRANYekanX (design/fonts, read-only).
+    fonts_dir: str = field(default_factory=lambda: _env("HQ_FONTS_DIR", "/app/fonts"))
+    # How long substitute.call waits for an answer before it says `queued` (kept
+    # under the gateway's 10-s api timeout); a later answer goes back to the
+    # calling agent as a work item.
+    substitute_wait_s: int = field(default_factory=lambda: _int("SUBSTITUTE_WAIT_S", 6))
     # Off: the protocols' schedules exist but stay paused (tests).
     oversight_schedules: bool = field(
         default_factory=lambda: _env("HQ_OVERSIGHT_SCHEDULES", "on") == "on"
@@ -175,6 +218,10 @@ class Settings:
     # Prompt 09: the provisioner's small API (pricing, the project's servers,
     # wake); empty while its opt-in profile is off (hq.sh sets it).
     provisioner_url: str = field(default_factory=lambda: _env("PROVISIONER_URL", ""))
+    # Prompt 12 §14: the MCP servers in containers run only while the opt-in
+    # profile `mcp` is on and fits the memory budget (hq.sh exports
+    # MCP_CONTAINERS=on then); off, a container server is not runnable here.
+    mcp_containers: bool = field(default_factory=lambda: _env("MCP_CONTAINERS", "off") == "on")
     # Review 9.2 §2.3: a running build the provisioner said nothing about for
     # this long is failed (its callback wait of 60 minutes plus a margin).
     provision_quiet_s: float = field(
@@ -223,6 +270,26 @@ class Settings:
     # Intake calls per source and minute before 429 (Caddy's stock image has no
     # rate limiter: the api counts them, before any row is written).
     intake_rate_per_min: int = field(default_factory=lambda: _int("INTAKE_RATE_PER_MIN", 120))
+    # ⟨1.5⟩ prompt 12 part B. The Persian voice (§21.4) is an opt-in profile:
+    # while HQ_TTS is not `on` no audio job is queued (audio_state "off").
+    tts: bool = field(default_factory=lambda: _env("HQ_TTS", "off") == "on")
+    # ⟨1.6⟩ prompt 13 §2.3: the sandboxed render worker is the opt-in profile
+    # "media": while it is off a render waits in its queue (the item says so)
+    # and an agent's preview answers channel_not_configured.
+    media: bool = field(default_factory=lambda: _env("HQ_MEDIA", "off") == "on")
+    tts_voice: str = field(default_factory=lambda: _env("HQ_TTS_VOICE", "fa_IR-amir-medium"))
+    # The deploy card's diff (§21.6): fetched with the hub's existing git access
+    # (a workspace's token in OpenBao) into mirrors under this directory; the
+    # remote of a repository `owner/name` (tests use file:// bare repositories).
+    git_mirrors: str = field(default_factory=lambda: _env("HQ_GIT_MIRRORS", "/var/lib/hq-git"))
+    git_remote: str = field(
+        default_factory=lambda: _env("HQ_GIT_REMOTE", "https://github.com/{repo}.git")
+    )
+    git_timeout_s: int = field(default_factory=lambda: _int("HQ_GIT_TIMEOUT_S", 120))
+    # Prompt 12 §2.1: the hub's own repository for the corpus of «از هاب بپرس»,
+    # a read-only mount of its git directory (the worker; committed files only,
+    # never the working tree's ignored ones). Empty or missing: `not_indexed`.
+    hub_repo: str = field(default_factory=lambda: _env("HQ_HUB_REPO", "/hub-repo.git"))
 
     @property
     def login_configured(self) -> bool:

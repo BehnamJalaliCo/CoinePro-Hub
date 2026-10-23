@@ -145,7 +145,7 @@ class Story(BaseModel):
     id: UUID
     ref: str
     company: str
-    kind: Literal["hire", "deliverable", "stars", "milestone", "post"]
+    kind: Literal["hire", "deliverable", "stars", "milestone", "post", "role"]
     author: Actor | None
     title_fa: str
     body_fa: str
@@ -668,6 +668,13 @@ async def agent_story(body: StoryIn, request: Request, ctx: Ctx = Depends(intern
         result = (await _stories(tx, [row]))[0]
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
+    # ⟨1.5⟩ prompt 11 §2.6: a story that breaks a `rule` red line is a finding (PR-115)
+    from hq_api.domain import charter as CH
+
+    await CH.scan_after(
+        ctx.hub, company_id=row["company_id"], company_code=ctx.who.company or "", kind="story",
+        ref=row["ref"], text=f"{body.title_fa}\n{body.body_fa}",
+    )  # fmt: skip
     return result
 
 
@@ -706,9 +713,12 @@ async def agent_hire_decide(
         }[body.verdict]  # type: ignore[assignment]
         if verdict == "approved":
             company = await ctx.hub.companies.by_id(d["company_id"])
-            D.check_hire_role(d["payload"], company.kind, ctx.hub.charters, required=True)
+            lib = await D.company_charters(tx, ctx.hub.charters, d["company_id"])
+            D.check_hire_role(d["payload"], company.kind, lib, required=True)
         await ctx.ensure_unlocked(tx, d["company_id"])
-        out = await D.decide(tx, ctx.who, d, verdict, note=body.note, charters=ctx.hub.charters)
+        out = await D.decide(
+            tx, ctx.who, d, verdict, note=body.note, charters=ctx.hub.charters, hub=ctx.hub
+        )
         await ctx.audit(
             tx,
             company_id=d["company_id"],

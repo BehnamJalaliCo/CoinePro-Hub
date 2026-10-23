@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fa" dir="rtl"><head><meta charset="utf-8">
+<!-- The bench's 30-second reel (make media-bench): CSS animation, SMIL, anime.js,
+     an image asset (@ASSET@), Persian text with isolated Latin figures. -->
+<style>
+html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #0E1116;
+  font-family: IRANYekanX; color: #FFFFFF; }
+.bg { position: absolute; inset: 0; background-image: url('/assets/@ASSET@'); background-size: cover;
+  opacity: 0.35; animation: pan 30s linear both; }
+@keyframes pan { from { transform: scale(1.15); } to { transform: scale(1); } }
+.shot { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 0 110px; text-align: center; opacity: 0;
+  animation: show 5s ease-out both; }
+@keyframes show { 0% { opacity: 0; transform: translateY(60px); } 10% { opacity: 1; transform: none; }
+  90% { opacity: 1; } 100% { opacity: 0; } }
+h1 { font-weight: 700; font-size: 104px; line-height: 1.35; margin: 0; }
+p { font-weight: 500; font-size: 58px; line-height: 1.6; margin: 28px 0 0; }
+.accent { color: #F2B705; }
+.bar { height: 26px; width: 0; margin-top: 48px; border-radius: 13px; background: #F2B705; align-self: stretch; }
+</style>
+<script src="/lib/anime.min.js"></script></head>
+<body>
+<div class="bg"></div>
+<svg width="1080" height="1920" viewBox="0 0 1080 1920" style="position:absolute;inset:0" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="540" cy="960" r="420" fill="none" stroke="#F2B705" stroke-width="6" stroke-dasharray="2640"
+    stroke-dashoffset="2640"><animate attributeName="stroke-dashoffset" from="2640" to="0" dur="30s" fill="freeze"/></circle>
+</svg>
+<div class="shot" style="animation-delay:0s"><h1>بیت‌کوین چیست؟</h1><p>در <bdi>30</bdi> ثانیه، بدون پیچیدگی</p></div>
+<div class="shot" style="animation-delay:5s"><h1>یک دفتر حساب عمومی</h1><p>هر <bdi>10</bdi> دقیقه یک بلوک تازه به آن اضافه میشود</p></div>
+<div class="shot" style="animation-delay:10s"><h1><bdi class="accent">BTC/USDT</bdi></h1><p>یعنی قیمت بیت‌کوین بر حسب تتر</p></div>
+<div class="shot" style="animation-delay:15s"><h1>عرضه‌ی محدود</h1><p>حداکثر <span id="n">0</span> میلیون سکه</p><div class="bar"></div></div>
+<div class="shot" style="animation-delay:20s"><h1>هشدار ریسک</h1><p>معامله‌ی رمزارز پرریسک است و ممکن است بخشی یا همه‌ی سرمایه از دست برود.</p></div>
+<div class="shot" style="animation-delay:25s"><h1>کوینه‌پرو</h1><p>هر روز یک درس کوتاه در کانال ما</p></div>
+<script>
+const counter = { v: 0 };
+anime({ targets: counter, v: 21, round: 1, duration: 3000, delay: 15500, easing: 'easeOutQuad',
+  update: () => { document.getElementById('n').textContent = String(counter.v); } });
+anime({ targets: '.bar', width: ['0%', '100%'], duration: 3500, delay: 15500, easing: 'easeInOutSine' });
+</script>
+</body></html>

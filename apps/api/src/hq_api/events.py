@@ -54,7 +54,7 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "inquiries": ("inquiry.",),
     "errands": ("errand.",),
     # ⟨1.4⟩ prompt 08: stars.rollup (stars), story.created (stories), contract §18.10
-    "stars": ("stars.",),
+    "stars": ("stars.", "rankings."),  # ⟨1.5⟩ rankings.updated (prompt 12 §5)
     "stories": ("story.",),
     # ⟨1.4⟩ the skill library and the academy (contract §18.10): skill.updated;
     # academy.eval (and academy.teaching)
@@ -73,6 +73,35 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "feedback": ("feedback.",),
     # ⟨1.4.6⟩ prompt 9.1: brand.updated (contract §18.14)
     "companies": ("brand.",),
+    # ⟨1.5⟩ prompt 11 (contract §20.11): meeting.scheduled, .started, .turn, .claim,
+    # .whisper (metadata only; the text is the owner's to read), .ended; the
+    # governance topic; knowledge.updated, knowledge.expiring
+    "meetings": ("meeting.",),
+    "governance": ("charter.", "kpi.", "okr.", "outcome.", "risk.", "calendar."),
+    "knowledge": ("knowledge.",),
+    # ⟨1.5⟩ prompt 12 part A (contract §21.12): memo.ready, advisor.proactive;
+    # substitute.updated; creative.updated
+    "advisor": ("memo.", "advisor."),
+    "treasury": ("substitute.",),
+    "creatives": ("creative.",),
+    # ⟨1.5⟩ prompt 12 part B (contract §21.12): briefing.ready, hr.round,
+    # note.created, claim.verdict (decision.reminded is on `decisions`)
+    "briefings": ("briefing.",),
+    "people": ("hr.", "role."),  # ⟨1.6⟩ role.updated (contract §22.5)
+    "notes": ("note.",),
+    "quality": ("claim.",),
+    # ⟨1.5⟩ prompt 12 §2, §3, §13 (contract §21.12): ask.answered, review.updated,
+    # dceo.scored (after the owner's decision only)
+    "ask": ("ask.",),
+    "reviews": ("review.",),
+    "dceo": ("dceo.",),
+    # ⟨1.6⟩ prompt 13 (contract §22.6): media.item (and media.series)
+    "media": ("media.",),
+    # ⟨1.6⟩ prompt 13 (contract §22.6): legal.case
+    "legal": ("legal.",),
+    # ⟨1.7⟩ prompt 14 (contract §23.11): record.filed, record.updated,
+    # record.sealed, reminder.due, hold.changed, fixity.failed, schema.changed
+    "archive": ("record.", "reminder.", "hold.", "fixity.", "schema."),
 }
 
 

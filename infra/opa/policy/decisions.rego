@@ -23,10 +23,37 @@ kinds := {
 	"tool_enable",
 	# ⟨1.5⟩ prompt 10 (contract §19.9): sealed by the owner only
 	"message_template", "lifecycle_rule", "support_go_live",
+	# ⟨1.5⟩ prompt 11 §1-§3 (contract §20.11): the owner's only
+	"meeting_resolution", "charter_amendment", "knowledge_entry",
+	# ⟨1.5⟩ prompt 11 §5, §7, §8 (contract §20.11): the owner's
+	"okr", "risk_acceptance", "authority_change",
+	# ⟨1.6⟩ prompt 13 §1.1 (contract §22.5): a role written on demand, the owner's seal
+	"role_new",
+	# ⟨1.6⟩ prompt 13 §2 (contract §22.6): a series sealed on its page, an item to publish
+	"media_series", "media_publish",
+	# ⟨1.6⟩ prompt 13 §3: the counsel's exact email (the owner's seal)
+	"email_send",
+	# ⟨1.7⟩ prompt 14 (contract §23.11): an agent's proposed schema change, the
+	# weekly disposal card; both the owner's seal only
+	"archive_schema", "archive_disposal",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).
-ceo_kinds := {"recurring_approval", "a3_action"}
+# ⟨1.5⟩ prompt 11 §7: the authority matrix may only take one back for the owner
+# (data.hq.authority, row decision.recurring_approval.ceo with actor "owner");
+# no data ever adds a kind here.
+static_ceo_kinds := {"recurring_approval", "a3_action"}
+
+ceo_kinds := static_ceo_kinds - taken_back
+
+matrix := lib.obj(object.get(x, "rules", {})) if {
+	x := data.hq.authority
+	is_object(x)
+} else := {}
+
+taken_back contains "recurring_approval" if {
+	object.get(lib.obj(object.get(matrix, "decision.recurring_approval.ceo", {})), "actor", "ceo") == "owner"
+}
 
 action_classes := {"A1", "A2", "A3"}
 

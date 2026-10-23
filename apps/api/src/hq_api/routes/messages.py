@@ -30,7 +30,7 @@ from hq_api.schemas import Actor, FileRef, Model, Page, actor
 router = APIRouter(tags=["messages"])
 E = responses(401, 403, 404, 409, 422)
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
-THREAD = r"^(A|N|P|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
+THREAD = r"^(A|N|P|L|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
 
 
 class Thread(BaseModel):
@@ -58,6 +58,8 @@ class Links(Model):
     # ⟨1.4⟩ a formal inquiry's answer (§18.2) and an errand of thread P (§18.3)
     inquiry: str | None = Field(default=None, pattern=r"^Q-[0-9]{4,}$")
     errand: str | None = Field(default=None, pattern=r"^E-[0-9]{4,}$")
+    # ⟨1.6⟩ a legal case (contract §22.7)
+    case: str | None = Field(default=None, pattern=r"^LC-[0-9]{4,}$")
 
 
 class Citation(Model):
@@ -100,6 +102,8 @@ class MessageIn(Model):
     body: str = Field(default="", max_length=100000)
     links: Links | None = None
     attachments: list[UUID] = Field(default_factory=list, max_length=F.MAX_ATTACHMENTS)
+    # ⟨1.5⟩ the advisor's devil's advocate (contract §21.1): thread A only.
+    mode: Literal["devil"] | None = None
 
     @model_validator(mode="after")
     def _something(self) -> MessageIn:
@@ -148,7 +152,7 @@ MESSAGE_SQL = """
            m.kind, m.created_at, m.seq, m.citations, m.meta
     FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
 """
-META_KEYS = ("citations_dropped",)
+META_KEYS = ("citations_dropped", "mode", "proactive", "review")  # ⟨1.5⟩ §21.14
 # How each cited kind is found (refs are global: D-, M-, O-, W-, <thread>-<seq>, audit seq).
 CITED = {
     "decision": "SELECT 1 FROM cartable.decisions WHERE ref = :r",
@@ -223,7 +227,9 @@ async def render_messages(tx: Tx, rows: list[dict[str, Any]]) -> list[Message]:
 
 @router.get("/threads", response_model=list[Thread], responses=E)
 async def list_threads(
-    kind: Literal["advisor", "overseer", "assistant", "ceo", "manager", "department", "employee"]
+    kind: Literal[
+        "advisor", "overseer", "assistant", "legal", "ceo", "manager", "department", "employee"
+    ]
     | None = None,
     company: list[str] | None = Query(default=None),
     ctx: Ctx = Depends(owner_ctx),
@@ -470,6 +476,12 @@ async def send_message(
     message wakes that agent: `reply` is its queued run; the reply arrives as a
     message (and live on GET /threads/{code}/live). Requires `Idempotency-Key`."""
     links = body.links.model_dump(exclude_none=True) if body.links else {}
+    if body.mode is not None and code != "A":
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"mode": "the devil's advocate is the advisor's (thread A)"},
+        )
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
@@ -483,7 +495,14 @@ async def send_message(
                 tx, holding.id, links, body.body, body.attachments, voice
             )
         m = await post_message(
-            ctx, tx, code, body.body, links, body.attachments, checked=("errand",)
+            ctx,
+            tx,
+            code,
+            body.body,
+            links,
+            body.attachments,
+            meta={"mode": body.mode} if body.mode else None,
+            checked=("errand",),
         )
         if code == errands.THREAD:
             await errands.opened_by(tx, links["errand"], m["ref"])

@@ -43,6 +43,23 @@ SCHEMAS = (
     "growth",
     "feedback",
     "intake",
+    # prompt 11 §1-§2: the meeting room and the charter (knowledge.entries is in "knowledge")
+    "meetings",
+    "governance",
+    # prompt 12 part A: the advisor's memos and triggers, the substitute players
+    "advisor",
+    "substitutes",
+    # prompt 12 part B: briefings and letters; checked claims
+    "reports",
+    "quality",
+    # prompt 12 §13: the digital CEO (its predictions and principles)
+    "dceo",
+    # prompt 13: the counsel's cases (legal and voice); the media studio and
+    # the voice registry (people.role_drafts is in people)
+    "legal",
+    "media",
+    # prompt 14: the archive
+    "archive",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.

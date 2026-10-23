@@ -31,7 +31,10 @@ from hq_api.worker import report, schedules
 from hq_api.worker.academy_activities import AcademyActivities
 from hq_api.worker.brand_activities import BrandActivities
 from hq_api.worker.desk_activities import DeskActivities
+from hq_api.worker.governance_activities import GovernanceActivities
 from hq_api.worker.media_activities import MediaActivities
+from hq_api.worker.meeting_activities import MeetingActivities
+from hq_api.worker.mgmt_activities import MgmtActivities
 from hq_api.worker.oversight_activities import OversightActivities
 from hq_api.worker.people_activities import PeopleActivities
 from hq_api.worker.revenue_activities import RevenueActivities
@@ -77,10 +80,37 @@ class Activities:
         self.support = SupportActivities(hub, self._tx)
         self.revenue = RevenueActivities(hub, self._tx, router=self.router)
         self.desk = DeskActivities(hub, self.router, self._tx)  # prompt 10 §4-§7, §11
+        self.meetings = MeetingActivities(hub, self._tx)  # prompt 11 §1-§3
+        self.governance = GovernanceActivities(hub, self._tx)  # prompt 11 §4-§10
+        # prompt 12 part A: the advisor's sweep and the substitute players
+        from hq_api.worker.management_activities import ManagementActivities
+
+        self.management = ManagementActivities(hub, self._tx)
+        self.mgmt = MgmtActivities(hub, self._tx)  # prompt 12 part B
+        # prompt 12 §2, §3, §13: the corpus, asks, the weekly review, the digital CEO
+        from hq_api.worker.owner_tools_activities import OwnerToolsActivities
+
+        self.owner_tools = OwnerToolsActivities(hub, self._tx, router=self.router)
+        from hq_api.worker.studio_activities import StudioActivities
+
+        self.studio = StudioActivities(hub, self._tx)  # prompt 13: the media studio
+        from hq_api.worker.legal_activities import LegalVoiceActivities
+
+        self.legal_voice = LegalVoiceActivities(hub, self._tx)  # prompt 13, legal and voice
+        from hq_api.worker.archive_activities import ArchiveActivities
+
+        self.archive = ArchiveActivities(hub, self._tx)  # prompt 14, the archive (rule-only)
 
     def all(self) -> list[Any]:
         return [
+            *self.meetings.all(),
+            *self.studio.all(),
+            *self.management.all(),
             *self.desk.all(),
+            *self.mgmt.all(),
+            *self.owner_tools.all(),
+            *self.legal_voice.all(),
+            *self.archive.all(),
             *self.media.all(),
             *self.brand.all(),
             *self.people.all(),
@@ -88,6 +118,7 @@ class Activities:
             *self.oversight.all(),
             *self.support.all(),
             *self.revenue.all(),
+            *self.governance.all(),
             self.decision_state,
             self.decision_expire,
             self.holding_locked,
@@ -188,6 +219,21 @@ class Activities:
                 raise ApplicationError("the company kill switch is engaged", type=HOLDING_LOCKED)
             if await oversight.held(tx, "decision", ref):  # held for the owner: waits the same way
                 raise ApplicationError("the decision is held by the overseer", type=HOLDING_LOCKED)
+            if await tx.scalar(
+                "SELECT kind = 'email_send' AND effect_status = 'pending' FROM cartable.decisions WHERE ref = :r",
+                r=ref,
+            ):
+                # ⟨1.6⟩ the sealed email's one send (prompt 13 §3), in its own
+                # transactions: claimed, sent, recorded; never sent twice.
+                from hq_api.domain import legal
+
+                sent = await legal.deliver(self.hub, self._tx, ref)
+                if sent.get("email") == "failed":
+                    raise ApplicationError(
+                        f"email_not_sent: {sent.get('error')}"[:300],
+                        type=EFFECT_REJECTED,
+                        non_retryable=True,
+                    )
             try:
                 result = await D.apply_effect(tx, ref, SYSTEM)
             except ApiError as exc:
@@ -210,6 +256,15 @@ class Activities:
                         f"{k}={v}" for k, v in result.items() if k not in ("ref", "changed")
                     )[:500],
                 )
+        if result.get("changed") and result.get("item") and result.get("state") == "scheduled":
+            # ⟨1.6⟩ an approved media_publish card: published now (after commit),
+            # through the official APIs; the media sweep catches up otherwise.
+            from hq_api.domain import studio_publish
+
+            try:
+                await studio_publish.publish_due(self.hub, only=str(result["item"]))
+            except Exception:  # noqa: BLE001 - the item stays scheduled for the sweep
+                log.warning("media publish after the card failed", extra={"ref": ref})
         return {k: (str(v) if isinstance(v, UUID) else v) for k, v in result.items()}
 
     @activity.defn(name="decision_effect_failed")
@@ -391,6 +446,7 @@ class Activities:
             owner["timezone"],
             ceo_daily=self.hub.settings.ceo_daily_reports,
             support_sweep_min=self.hub.settings.support_handoff_digest_min,
+            meetings_paused=not self.hub.settings.meetings_schedules,
         ):
             out["fixed"][d.id] = await schedules.upsert(client, d, tq)
         wanted: set[str] = set()
@@ -723,12 +779,18 @@ class Activities:
                 )
             )
         rhythm = await notify.flush_rhythm(self.hub)
+        # ⟨1.5⟩ prompt 12 §4: its voice (BR-…), same text; nothing while the holding is locked
+        voiced = {"id": pdl["id"], "ref": pdl["ref"]} if polished is not None else dl
+        briefing = await self.mgmt.morning_briefing(
+            voiced, polished[0] if polished is not None else body
+        )
         return {
             "created": True,
             "deliverable": dl["ref"],
             "rewritten": link if link != dl["ref"] else None,
             "work": w["ref"],
             "rhythm": _plain(rhythm),
+            "briefing": briefing,
         }
 
     async def _polish_report(self, holding_code: str, body: str) -> tuple[str, Any] | None:

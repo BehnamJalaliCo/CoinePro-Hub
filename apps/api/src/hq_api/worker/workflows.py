@@ -16,6 +16,12 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy, SearchAttributeKey
 from temporalio.exceptions import ActivityError, ApplicationError
 
+from hq_api.worker.archive_workflows import P14_WORKFLOWS
+from hq_api.worker.legal_workflows import P13B_WORKFLOWS
+from hq_api.worker.mgmt_workflows import P12B_WORKFLOWS
+from hq_api.worker.owner_tools_workflows import OWNER_TOOLS_WORKFLOWS
+from hq_api.worker.studio_workflows import STUDIO_WORKFLOWS
+
 SCHEDULED_START = SearchAttributeKey.for_datetime("TemporalScheduledStartTime")
 SHORT = timedelta(seconds=30)
 LONG = timedelta(minutes=5)
@@ -214,6 +220,44 @@ class SupportRetention:
 ONCE = RetryPolicy(maximum_attempts=1)  # a long pull is never run twice at once
 
 
+# ------------------------------------------- prompt 12 part A (§1, §9.1) --
+# The advisor's sweep is rule-only until it would wake the advisor (the
+# launch gate decides); the web jobs and the daily pass ask the gate too.
+ONCE_P12 = RetryPolicy(maximum_attempts=1)  # a web job is never sent twice
+
+
+@workflow.defn(name="AdvisorSweep")
+class AdvisorSweep:
+    """Every 2 min: failed memos, automatic memos, proactive triggers."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("advisor_sweep", limit=timedelta(minutes=5))
+        return result
+
+
+@workflow.defn(name="SubstituteWebJobs")
+class SubstituteWebJobs:
+    """Every minute: the substitutes' queued web calls through egress."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act(
+            "substitute_web_jobs", limit=timedelta(minutes=15), retry=ONCE_P12
+        )
+        return result
+
+
+@workflow.defn(name="SubstituteDaily")
+class SubstituteDaily:
+    """Daily 09:15 Tehran: the value-ratio notice (Jalali 15th), the model lists."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("substitute_daily", limit=timedelta(minutes=5))
+        return result
+
+
 @workflow.defn(name="RevenuePulls")
 class RevenuePulls:
     """07:00 Tehran (`scheduled`: the day before, or the first 90-day
@@ -273,6 +317,28 @@ class SupportWeekly:
         return result
 
 
+# ⟨1.5⟩ prompt 11 §4-§10: the cards' KPIs and the governance rules. Both
+# activities ask the launch gate first and do nothing while the holding is locked.
+@workflow.defn(name="KpiCollect")
+class KpiCollect:
+    """Every 15 minutes: the cards' query KPIs by code (no model)."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("kpi_collect", limit=LONG)
+        return result
+
+
+@workflow.defn(name="GovernanceDaily")
+class GovernanceDaily:
+    """Daily: outcome reviews, the risk register, the change calendar, OKR cards."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("governance_daily", limit=timedelta(minutes=15))
+        return result
+
+
 # ⟨1.5⟩ the support desk (prompt 10 §4-§7, §11): every activity asks the launch
 # gate first and does nothing while the holding or the company is locked.
 @workflow.defn(name="SupportInbound")
@@ -313,6 +379,28 @@ class SupportShadow:
     @workflow.run
     async def run(self, run_id: str) -> dict[str, Any]:
         result: dict[str, Any] = await _act("support_shadow_run", run_id, limit=timedelta(hours=3))
+        return result
+
+
+@workflow.defn(name="MeetingsTick")
+class MeetingsTick:
+    """Every minute: the meeting room by code (prompt 11 §1); gated by the lock."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act(
+            "meetings_tick", limit=timedelta(minutes=4), retry=RetryPolicy(maximum_attempts=1)
+        )
+        return result
+
+
+@workflow.defn(name="KnowledgeDaily")
+class KnowledgeDaily:
+    """Daily: knowledge expiry (rule-only) and the 14-day review work (gated)."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("knowledge_daily", limit=timedelta(minutes=10))
         return result
 
 
@@ -513,6 +601,8 @@ class OrderRouting:
 
 
 WORKFLOWS = [
+    MeetingsTick,
+    KnowledgeDaily,
     SupportInbound,
     SupportSend,
     SupportSweep,
@@ -543,4 +633,14 @@ WORKFLOWS = [
     RescueFollowUps,
     FeedbackBatch,
     SupportWeekly,
+    KpiCollect,
+    GovernanceDaily,
+    AdvisorSweep,
+    SubstituteWebJobs,
+    SubstituteDaily,
+    *P12B_WORKFLOWS,  # prompt 12 part B (mgmt_workflows.py)
+    *OWNER_TOOLS_WORKFLOWS,  # prompt 12 §2, §3, §13 (owner_tools_workflows.py)
+    *STUDIO_WORKFLOWS,  # prompt 13: the media studio (studio_workflows.py)
+    *P13B_WORKFLOWS,  # prompt 13, legal and voice (legal_workflows.py)
+    *P14_WORKFLOWS,  # prompt 14, the archive (archive_workflows.py)
 ]

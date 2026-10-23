@@ -46,6 +46,8 @@ class WorkCreate(Model):
     budget: W.BudgetIn | None = None
     escrow: W.EscrowIn | None = None
     schedule: W.ScheduleIn | None = None
+    # ⟨1.5⟩ prompt 11 §5.3: the key result this work serves
+    key_result: str | None = Field(default=None, pattern=r"^KR-[0-9]{4,}$")
 
 
 class WorkPatch(Model):
@@ -99,8 +101,13 @@ class PlannerItem(BaseModel):
     recurring: bool
     # ⟨1.4⟩ "reminder": a dated item of the owner's own (the assistant's
     # planner.add, contract §18.3), PL-…; it never wakes or escalates anyone.
-    kind: Literal["work", "reminder"] = "work"
+    # ⟨1.5⟩ "meeting": a meeting MT-… (prompt 11 §1.10), its state as status;
+    # "calendar": a change-calendar event CE-… (§9.4), its kind in calendar_kind.
+    kind: Literal["work", "reminder", "meeting", "calendar"] = "work"
     note: str | None = None
+    # ⟨1.5⟩ prompt 11: the work's key result (§5.3); a calendar event's kind (§9.4)
+    key_result: str | None = None
+    calendar_kind: str | None = None
 
 
 class PlannerDay(BaseModel):
@@ -263,6 +270,7 @@ async def create_work(body: WorkCreate, request: Request, ctx: Ctx = Depends(own
             budget=body.budget,
             escrow=body.escrow,
             schedule=body.schedule,
+            key_result=body.key_result,
         )
         if body.kind == "recurring":
             await recurring.activate(tx, w, ctx.who)
@@ -466,6 +474,32 @@ async def planner(
             s=start,
             e=end,
         )
+        # ⟨1.5⟩ the meetings (prompt 11 §1.10): the planner stays a view over data
+        meetings = await tx.all(
+            """SELECT m.ref, m.title_fa, m.starts_at, m.state, m.type, m.department, c.code AS company
+               FROM meetings.meetings m JOIN core.companies c ON c.id = m.company_id
+               WHERE m.starts_at >= :s AND m.starts_at < :e AND m.state <> 'cancelled' AND m.type <> 'standup'
+                 AND (CAST(:co AS text) IS NULL OR c.code = :co)
+                 AND (CAST(:dept AS text) IS NULL OR m.department = :dept)
+               ORDER BY m.starts_at LIMIT 500""",
+            s=start,
+            e=end,
+            co=company_code,
+            dept=dept_code,
+        )
+        # ⟨1.5⟩ prompt 11 §9.4: the change calendar's events (the planner stays a view;
+        # a meeting's own event is left out, the meeting above is its row)
+        calendar = await tx.all(
+            """SELECT e.ref, e.title_fa, e.starts_at, e.kind, e.status, c.code AS company
+               FROM governance.calendar_events e JOIN core.companies c ON c.id = e.company_id
+               WHERE e.starts_at >= :s AND e.starts_at < :e AND e.status <> 'cancelled'
+                 AND e.kind <> 'meeting'
+                 AND (CAST(:co AS text) IS NULL OR c.code = :co OR c.kind = 'holding')
+               ORDER BY e.starts_at LIMIT 500""",
+            s=start,
+            e=end,
+            co=company_code,
+        )
     items: list[PlannerItem] = [
         PlannerItem(
             ref=r["ref"],
@@ -476,6 +510,7 @@ async def planner(
             at=r["due_at"],
             assignee=r["a_code"],
             recurring=r["recurrence_of"] is not None,
+            key_result=r.get("key_result_ref"),
         )
         for r in due
     ]
@@ -510,6 +545,37 @@ async def planner(
                     recurring=False,
                     kind="reminder",
                     note=r["note"],
+                )
+            )
+    for m in meetings:
+        items.append(
+            PlannerItem(
+                ref=m["ref"],
+                title=m["title_fa"],
+                company=m["company"],
+                status=m["state"],
+                priority="P0" if m["type"] == "war_room" else "P2",
+                at=m["starts_at"],
+                assignee=None,
+                recurring=m["type"] in ("board", "company", "strategy"),
+                kind="meeting",
+                note=m["type"],
+            )
+        )
+    if dept_code is None:
+        for r in calendar:
+            items.append(
+                PlannerItem(
+                    ref=r["ref"],
+                    title=r["title_fa"],
+                    company=r["company"],
+                    status=r["status"],
+                    priority="P3",
+                    at=r["starts_at"],
+                    assignee=None,
+                    recurring=False,
+                    kind="calendar",
+                    calendar_kind=r["kind"],
                 )
             )
     days: dict[date, list[PlannerItem]] = {}
