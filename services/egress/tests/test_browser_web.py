@@ -265,3 +265,16 @@ async def test_profile_jobs_hide_the_automation_flag(tmp_path: Path) -> None:
     assert seen["ignore_default_args"] == ["--enable-automation"]
     assert "--disable-blink-features=AutomationControlled" in seen["args"]
     assert seen["user_data_dir"] == str(tmp_path / "chatgpt-web")
+
+
+# A dead window's or job's Chromium lock is cleared once it is stale (20 min).
+def test_a_stale_profile_lock_is_cleared_and_a_fresh_one_kept(tmp_path: Path) -> None:
+    from hq_egress.browser_web import STALE_LOCK_S, clear_stale_lock
+
+    (tmp_path / "SingletonLock").symlink_to("deadhost-34")
+    (tmp_path / "Default").mkdir()
+    lstat_mtime = (tmp_path / "SingletonLock").lstat().st_mtime
+    clear_stale_lock(tmp_path, now=lstat_mtime + 60)
+    assert (tmp_path / "SingletonLock").is_symlink()
+    clear_stale_lock(tmp_path, now=lstat_mtime + STALE_LOCK_S + 1)
+    assert not (tmp_path / "SingletonLock").is_symlink() and (tmp_path / "Default").is_dir()

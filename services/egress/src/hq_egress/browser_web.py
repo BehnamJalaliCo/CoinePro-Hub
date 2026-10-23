@@ -110,6 +110,20 @@ def fail(error: str, detail: str, step: str | None = None) -> dict[str, Any]:
     return {"ok": False, "error": error, "detail": detail[:300], "step": step}
 
 
+STALE_LOCK_S = 20 * 60
+
+
+def clear_stale_lock(profile: Path, now: float | None = None) -> None:
+    """A window or job that died leaves Chromium's Singleton* lock behind (it
+    names the dead container), and Chromium then refuses the profile. A lock
+    older than 20 minutes is stale: a job or a sign-in window lasts at most 15."""
+    now = time.time() if now is None else now
+    for p in profile.glob("Singleton*"):
+        with contextlib.suppress(OSError):
+            if now - p.lstat().st_mtime > STALE_LOCK_S:
+                p.unlink()
+
+
 class Webd:
     def __init__(
         self,
@@ -144,8 +158,10 @@ class Webd:
         return d
 
     async def open(self, account: str, proxy: Proxy, *, headless: bool = True) -> BrowserContext:
+        profile = self.profile_dir(account)
+        clear_stale_lock(profile)
         ctx: BrowserContext = await self._pw.chromium.launch_persistent_context(
-            str(self.profile_dir(account)),
+            str(profile),
             headless=headless,
             # 14.1 §1.5: no automation banner or flag the sites can see.
             ignore_default_args=["--enable-automation"],
