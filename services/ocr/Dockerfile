@@ -21,7 +21,7 @@ RUN apt-get update \
     && mkdir -p /models && chown 10001:10001 /models
 
 COPY hq-common/src /app/hq-common/src
-COPY ocr/model.lock.json /app/ocr/model.lock.json
+COPY --chmod=0644 ocr/model.lock.json /app/ocr/model.lock.json
 COPY ocr/src /app/ocr/src
 
 USER 10001

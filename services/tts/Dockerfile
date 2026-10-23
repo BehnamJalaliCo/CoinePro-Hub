@@ -57,8 +57,8 @@ ADD --chmod=644 --checksum=sha256:e9866c88c16245f8b8f4d0eaeaa6eab4f2e193db69a2ab
 RUN chmod 0755 /voices
 
 COPY hq-common/src /app/hq-common/src
-COPY tts/voice.lock.json /app/tts/voice.lock.json
-COPY tts/bakeoff_scripts.json /app/tts/bakeoff_scripts.json
+COPY --chmod=0644 tts/voice.lock.json /app/tts/voice.lock.json
+COPY --chmod=0644 tts/bakeoff_scripts.json /app/tts/bakeoff_scripts.json
 COPY tts/src /app/tts/src
 
 USER 10001

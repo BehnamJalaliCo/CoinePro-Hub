@@ -147,7 +147,9 @@ class Webd:
         ctx: BrowserContext = await self._pw.chromium.launch_persistent_context(
             str(self.profile_dir(account)),
             headless=headless,
-            args=B.ARGS,
+            # 14.1 §1.5: no automation banner or flag the sites can see.
+            ignore_default_args=["--enable-automation"],
+            args=[*B.ARGS, "--disable-blink-features=AutomationControlled"],
             chromium_sandbox=self.sandbox,
             proxy=proxy.model_dump(exclude_none=True),
             accept_downloads=True,

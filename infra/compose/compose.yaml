@@ -1459,7 +1459,8 @@ services:
     networks: [hq-browser-web]
     environment:
       BROWSER_SANDBOX: "1"
-      BROWSER_JS_HEAP_MB: ${BROWSER_JS_HEAP_MB:-192}
+      # 14.1 §1.2: the signed-in sites' apps need more than the read tool's 192.
+      BROWSER_JS_HEAP_MB: ${BROWSER_WEB_JS_HEAP_MB:-384}
       BROWSER_WEB_PROFILES: /profiles
       PORT: "8096"
     user: "10001:10001"
@@ -1500,6 +1501,7 @@ services:
       BROWSER_SANDBOX: "1"
       BROWSER_WEB_PROFILES: /profiles
       BROWSER_WEB_LOGIN_PROXY: http://egress:3133
+      BROWSER_LOGIN_JS_HEAP_MB: ${BROWSER_LOGIN_JS_HEAP_MB:-512}
       HQ_WEB_LOGIN_SECONDS: "900"
     user: "10001:10001"
     read_only: true

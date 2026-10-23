@@ -22,6 +22,7 @@ hosts:
 # providers ChatGPT offers).
 login_hosts:
   - accounts.google.com
+  - gstatic.com
   - appleid.apple.com
   - login.live.com
   - login.microsoftonline.com

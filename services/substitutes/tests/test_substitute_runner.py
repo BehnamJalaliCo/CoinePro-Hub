@@ -44,6 +44,7 @@ def s(tmp_path: Path) -> R.Settings:
         work_dir=work,
         checkout_dir=tmp_path / "checkout",
         schema_dir=SCHEMAS,
+        gemini_cli_gone=False,  # the dormant CLI paths stay tested (⟨1.7.2⟩)
     )
 
 
@@ -379,3 +380,20 @@ def test_the_login_waits_for_the_code_line_while_the_cli_waits(s: R.Settings) ->
     events = list(R.run(j, s, (line.strip() for line in reader)))
     t.join()
     assert events[-1]["ok"] is True
+
+
+def test_the_gemini_cli_player_is_unavailable_and_never_asks_for_a_key(tmp_path: Path) -> None:
+    """Contract ⟨1.7.2⟩ (14.1 §2.2): Google ended the Gemini CLI's sign-in for
+    individuals; every kind of Gemini CLI job answers unavailable at once,
+    starts no CLI and asks for no API key."""
+    s = R.Settings(gemini_bin=str(tmp_path / "no-such-gemini"), auth_dir=tmp_path / "auth",
+                   work_dir=tmp_path, checkout_dir=tmp_path, schema_dir=SCHEMAS)  # fmt: skip
+    assert s.gemini_cli_gone
+    for kind in ("call", "models", "logout"):
+        out = one(job(kind=kind, runner="gemini_cli", player="gemini", model="gemini-3.8",
+                      seat="long_read"), s)  # fmt: skip
+        assert out["ok"] is False and out["error"] == "unavailable"
+        assert "discontinued by Google" in out["status_reason"]
+        assert "gemini-web-login" in out["status_reason"]
+        assert "key" not in out["status_reason"].lower()
+    assert R.Settings.from_env().gemini_cli_gone

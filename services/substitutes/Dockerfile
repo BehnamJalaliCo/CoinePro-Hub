@@ -27,8 +27,11 @@ COPY --from=cli /usr/local/bin/node /usr/local/bin/node
 COPY --from=cli /opt/cli /opt/cli
 # Gemini's system settings (above every user setting): no core tool at all, or
 # the read-only file tools of a code review (review.json); no MCP, extension,
-# telemetry or update. Root-owned: Gemini refuses a writable settings dir.
-COPY substitutes/etc/gemini-cli/ /etc/gemini-cli/
+# telemetry or update. Root-owned, 0644 whatever the checkout's umask (14.1
+# §2.1: Gemini skips a group-writable system settings file without a word).
+# The directory first: COPY --chmod would give a directory it creates 0644 too.
+RUN install -d -m 0755 /etc/gemini-cli
+COPY --chmod=0644 substitutes/etc/gemini-cli/settings.json substitutes/etc/gemini-cli/review.json /etc/gemini-cli/
 COPY substitutes/schemas /app/substitutes/schemas
 COPY hq-common/src /app/hq-common/src
 COPY substitutes/src /app/substitutes/src
@@ -37,6 +40,10 @@ RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hq \
     && node --version \
     && HOME=/tmp codex --version \
     && HOME=/tmp gemini --version \
+    && for f in settings.json review.json; do \
+         out="$(HOME=/tmp GEMINI_CLI_SYSTEM_SETTINGS_PATH=/etc/gemini-cli/$f gemini --version 2>&1)"; \
+         if printf '%s' "$out" | grep -q 'Skipping system settings'; then echo "gemini skips $f" >&2; exit 1; fi; \
+       done \
     && rm -rf /tmp/.codex /tmp/.gemini
 USER 10001
 WORKDIR /work

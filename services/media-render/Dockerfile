@@ -72,7 +72,7 @@ RUN chmod 0644 /opt/hq-media/fonts/* /usr/share/fonts/truetype/iranyekanx/* \
     && fc-list : family | grep IRANYekanX >/dev/null
 
 COPY hq-common/src /app/hq-common/src
-COPY media-render/assets.lock.json /app/media-render/assets.lock.json
+COPY --chmod=0644 media-render/assets.lock.json /app/media-render/assets.lock.json
 COPY media-render/src /app/media-render/src
 
 USER 10001

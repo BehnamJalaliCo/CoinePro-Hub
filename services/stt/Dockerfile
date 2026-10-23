@@ -21,7 +21,7 @@ RUN pip install --require-hashes --no-deps -r /tmp/requirements.lock \
     && mkdir -p /models && chown 10001:10001 /models
 
 COPY hq-common/src /app/hq-common/src
-COPY stt/model.lock.json /app/stt/model.lock.json
+COPY --chmod=0644 stt/model.lock.json /app/stt/model.lock.json
 COPY stt/src /app/stt/src
 
 USER 10001

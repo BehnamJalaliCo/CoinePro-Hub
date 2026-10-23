@@ -117,7 +117,8 @@ DEFAULT_PLAYERS: dict[str, dict[str, Any]] = {
         "models": [
             {"id": "gemini-3.8", "label": "Gemini 3.8", "tier": "strong", "available": True}
         ],
-        "capabilities": {"text": "cli", "image": "web", "video": "web"},
+        # ⟨1.7.2⟩: Google ended the Gemini CLI for individuals; text runs on the web.
+        "capabilities": {"text": "web", "image": "web", "video": "web"},
     },
     "deepseek": {
         "connection": "deepseek-free",
@@ -142,9 +143,10 @@ DEFAULT_SEATS: dict[str, list[dict[str, Any]]] = {
          "per_day_video": 0},
     ],
     "gemini": [
-        {"seat": "code_review", "via": "cli", "model": "gemini-3.8", "enabled": False, "per_day": 10},
-        {"seat": "content_draft", "via": "cli", "model": "gemini-3.8", "enabled": True, "per_day": 30},
-        {"seat": "long_read", "via": "cli", "model": "gemini-3.8", "enabled": True, "per_day": 10},
+        # ⟨1.7.2⟩: every Gemini seat runs via the signed-in web profile.
+        {"seat": "code_review", "via": "web", "model": "gemini-3.8", "enabled": False, "per_day": 10},
+        {"seat": "content_draft", "via": "web", "model": "gemini-3.8", "enabled": True, "per_day": 30},
+        {"seat": "long_read", "via": "web", "model": "gemini-3.8", "enabled": True, "per_day": 10},
         {"seat": "creative", "via": "web", "model": "gemini-3.8", "enabled": True, "per_day": 20,
          "per_day_video": 3},
     ],
@@ -313,7 +315,10 @@ class DoneIn(Model):
     findings: list[dict[str, Any]] | None = Field(default=None, max_length=200)
     usage: dict[str, Any] | None = None
     error: (
-        Literal["limited", "signed_out", "timeout", "failed", "no_access", "not_ready"] | None
+        Literal[
+            "limited", "signed_out", "timeout", "failed", "no_access", "not_ready", "unavailable"
+        ]
+        | None
     ) = None
     limited_until: datetime | None = None
     status_reason: str | None = Field(default=None, max_length=300)
@@ -838,6 +843,14 @@ async def finish(
             u=body.limited_until or datetime.now(UTC) + timedelta(hours=5),
             p=c["player"],
         )
+    elif not body.ok and body.error == "unavailable":  # ⟨1.7.2⟩ the Gemini CLI player
+        state = "skipped"
+        await tx.exec(
+            """UPDATE substitutes.players SET status = 'off', status_reason = :r, updated_at = now()
+               WHERE player = :p""",
+            r=reason,
+            p=c["player"],
+        )
     elif not body.ok and body.error == "signed_out":
         state = "skipped"
         await tx.exec(
@@ -1104,7 +1117,7 @@ async def start_login(
 
 
 def _make(player: str) -> str:
-    return {"gpt": "chatgpt-login", "gemini": "gemini-login"}.get(player, "deepseek-web-login")
+    return {"gpt": "chatgpt-login", "gemini": "gemini-web-login"}.get(player, "deepseek-web-login")
 
 
 def render_login(r: dict[str, Any]) -> SubstituteLogin:

@@ -248,8 +248,8 @@ connection-secret: ## OWNER: a new LLM connection's API key (KEY=<key>; hidden i
 chatgpt-login: ## OWNER: sign the Codex CLI in with ChatGPT (device code; your own terminal)
 	@infra/substitutes/cli-login.sh codex
 
-gemini-login: ## OWNER: sign the Gemini CLI in with Google (paste the code back; your own terminal)
-	@infra/substitutes/cli-login.sh gemini
+gemini-login: ## Gemini CLI for individuals is discontinued by Google (contract ⟨1.7.2⟩); use make gemini-web-login
+	@echo "Gemini CLI for individuals is discontinued by Google; Gemini runs through make gemini-web-login"
 
 chatgpt-web-login: ## OWNER: sign in to ChatGPT in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
 	@infra/substitutes/web-login.sh chatgpt-web
