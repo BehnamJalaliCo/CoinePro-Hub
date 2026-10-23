@@ -624,7 +624,9 @@ async def seat_call(
     else:
         p, s_row = found
         p_name = p["player"]
-        reason = gate.REASONS.get(lock, lock) if lock is not None else _skip_reason(p, s_row, now)
+        reason = _skip_reason(p, s_row, now)
+    if lock is not None:  # the launch gate first: nothing is called while locked
+        reason = gate.REASONS.get(lock, lock)
     if reason is None and s_row is not None:
         cap = s_row["per_day_video"] if task == "video" else s_row["per_day"]
         n = int(
