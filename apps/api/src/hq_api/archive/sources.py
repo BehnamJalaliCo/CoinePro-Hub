@@ -30,6 +30,7 @@ import hashlib
 import json
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -50,10 +51,18 @@ LOOKBACK_MONTHS = 12
 async def listing(tx: Tx) -> list[dict[str, Any]]:
     rows = await tx.all("SELECT * FROM archive.sources ORDER BY key")
     return [
-        {"key": r["key"], "title_fa": r["title_fa"], "class": r["class_key"], "enabled": r["enabled"],
-         "filed": r["filed"], "last_at": r["last_at"], "note_fa": r["note_fa"], "version": r["version"]}
+        {
+            "key": r["key"],
+            "title_fa": r["title_fa"],
+            "class": r["class_key"],
+            "enabled": r["enabled"],
+            "filed": r["filed"],
+            "last_at": r["last_at"],
+            "note_fa": r["note_fa"],
+            "version": r["version"],
+        }
         for r in rows
-    ]  # fmt: skip
+    ]
 
 
 async def put(tx: Tx, switches: dict[str, Any]) -> list[dict[str, Any]]:
@@ -92,7 +101,8 @@ async def file_system(
     async with txf() as tx:
         await CL.full(tx)
         if await tx.scalar(
-            "SELECT 1 FROM archive.records WHERE source_kind = 'system' AND source_ref = :s", s=source_ref
+            "SELECT 1 FROM archive.records WHERE source_kind = 'system' AND source_ref = :s",
+            s=source_ref,
         ):
             return None
         src = await tx.first("SELECT * FROM archive.sources WHERE key = :k", k=source)
@@ -106,8 +116,9 @@ async def file_system(
         async with txf() as tx:
             await tx.exec(
                 """UPDATE archive.sources SET note_fa = :n WHERE key = :k""",
-                k=source, n=f"یک مورد ({source_ref.split(':')[0]}) الگوی رمز داشت و بایگانی نشد"[:500],
-            )  # fmt: skip
+                k=source,
+                n=f"یک مورد ({source_ref.split(':')[0]}) الگوی رمز داشت و بایگانی نشد"[:500],
+            )
         log.warning("a system source item held a secret pattern", extra={"source": source})
         return None
     data, pages = await pdf.render(hub, pdf_title, pdf_body, footer=f"CoinePro HQ · {source_ref}")
@@ -123,14 +134,24 @@ async def file_system(
         blob = ST.encrypt(dek, data, str(fid).encode())
     key, stored_sha = await hub.storage.put(blob)
     it = ST.Intake(
-        file_id=fid, name=file_name, mime="application/pdf", size=len(data), sha256=sha, storage_key=key,
-        pages=pages, text_state="text_layer", text=text[:400_000], ocr_confidence=None,
-    )  # fmt: skip
+        file_id=fid,
+        name=file_name,
+        mime="application/pdf",
+        size=len(data),
+        sha256=sha,
+        storage_key=key,
+        pages=pages,
+        text_state="text_layer",
+        text=text[:400_000],
+        ocr_confidence=None,
+    )
     stored = [ST.Stored(it, key, stored_sha, bool(lv["encrypt"]), wrapped)]
     try:
         async with txf() as tx:
             await CL.full(tx)
-            co = await tx.one("SELECT id, code, kind FROM core.companies WHERE id = :c", c=company_id)
+            co = await tx.one(
+                "SELECT id, code, kind FROM core.companies WHERE id = :c", c=company_id
+            )
             cls = await R.resolve_class(tx, src["class_key"], co["code"])
             folder = await R.default_folder(tx, co["id"], co["code"], cls)
             fields = list(cls["fields"]) if cls else []
@@ -140,14 +161,26 @@ async def file_system(
                 fields, {k: v for k, v in metadata.items() if k in known}, complete=False
             )
             r = await R.create(
-                tx, SYSTEM, scope=co, cls=cls, title_fa=title_fa[:300], metadata=meta, lv=lv, folder=folder,
-                stored=stored, parties=None, links=links, file_now=False, source_kind="system",
+                tx,
+                SYSTEM,
+                scope=co,
+                cls=cls,
+                title_fa=title_fa[:300],
+                metadata=meta,
+                lv=lv,
+                folder=folder,
+                stored=stored,
+                parties=None,
+                links=links,
+                file_now=False,
+                source_kind="system",
                 source_ref=source_ref,
-            )  # fmt: skip
+            )
             # Filed by the hub itself: what the source knows (a required field
             # it cannot know stays missing for the archivist).
             await tx.exec(
-                "UPDATE archive.records SET state = 'filed', filed_at = now() WHERE id = :id", id=r["id"]
+                "UPDATE archive.records SET state = 'filed', filed_at = now() WHERE id = :id",
+                id=r["id"],
             )
             r = await R.load(tx, r["ref"])
             from hq_api.archive import automations as AU
@@ -182,7 +215,10 @@ async def _charters(hub: Any, txf: Any) -> int:
         out = []
         for x in rows:
             ref = f"charter:{x['scope']}@{x['version']}"
-            if await tx.scalar("SELECT 1 FROM archive.records WHERE source_kind = 'system' AND source_ref = :s", s=ref):
+            if await tx.scalar(
+                "SELECT 1 FROM archive.records WHERE source_kind = 'system' AND source_ref = :s",
+                s=ref,
+            ):
                 continue
             code = x["scope"]
             co = await tx.first(
@@ -195,17 +231,28 @@ async def _charters(hub: Any, txf: Any) -> int:
     for ref, cid, x in out[:PER_RUN]:
         name = "اساسنامه‌ی هلدینگ" if x["scope"] == "holding" else f"الحاقیه‌ی {x['scope']}"
         red = J(x["red_lines"], []) or []
-        body = (x["body_md"] or "") + "\n\nخطوط قرمز:\n" + "\n".join(
-            f"- {r.get('text_fa', '')}" for r in red if isinstance(r, dict)
+        body = (
+            (x["body_md"] or "")
+            + "\n\nخطوط قرمز:\n"
+            + "\n".join(f"- {r.get('text_fa', '')}" for r in red if isinstance(r, dict))
         )
         got = await file_system(
-            hub, txf, source="charter_sealed", source_ref=ref, company_id=cid,
+            hub,
+            txf,
+            source="charter_sealed",
+            source_ref=ref,
+            company_id=cid,
             title_fa=f"{name}، نسخه‌ی {x['version']} (مُهرشده)",
-            metadata={"policy": name, "version": int(x["version"]), "sealed_at": x["sealed_at"].date().isoformat(),
-                      "digest": x["body_sha256"]},
-            pdf_title=f"{name} — نسخه‌ی {x['version']}", pdf_body=body,
+            metadata={
+                "policy": name,
+                "version": int(x["version"]),
+                "sealed_at": x["sealed_at"].date().isoformat(),
+                "digest": x["body_sha256"],
+            },
+            pdf_title=f"{name} — نسخه‌ی {x['version']}",
+            pdf_body=body,
             file_name=f"charter-{x['scope']}-v{x['version']}.pdf",
-        )  # fmt: skip
+        )
         n += 1 if got else 0
     return n
 
@@ -237,16 +284,29 @@ async def _resolutions(hub: Any, txf: Any, today: date) -> int:
         if n >= PER_RUN:
             break
         ref = f"resolutions:{code}:{month}"
-        body = _md([
-            f"{x['ref']} · {x['sealed_at'].date().isoformat()} · {x['title']}\n{(x['body'] or '')[:1500]}\n"
-            for x in items
-        ])  # fmt: skip
+        body = _md(
+            [
+                f"{x['ref']} · {x['sealed_at'].date().isoformat()} · {x['title']}\n{(x['body'] or '')[:1500]}\n"
+                for x in items
+            ]
+        )
         got = await file_system(
-            hub, txf, source="resolution_month", source_ref=ref, company_id=cid,
+            hub,
+            txf,
+            source="resolution_month",
+            source_ref=ref,
+            company_id=cid,
             title_fa=f"مصوبه‌های {month} ({code})",
-            metadata={"month": month, "count": len(items), "first_ref": items[0]["ref"], "last_ref": items[-1]["ref"]},
-            pdf_title=f"مصوبه‌های ماه {month} — {code}", pdf_body=body, file_name=f"resolutions-{code}-{month}.pdf",
-        )  # fmt: skip
+            metadata={
+                "month": month,
+                "count": len(items),
+                "first_ref": items[0]["ref"],
+                "last_ref": items[-1]["ref"],
+            },
+            pdf_title=f"مصوبه‌های ماه {month} — {code}",
+            pdf_body=body,
+            file_name=f"resolutions-{code}-{month}.pdf",
+        )
         n += 1 if got else 0
     return n
 
@@ -262,17 +322,26 @@ async def _brands(hub: Any, txf: Any) -> int:
     for x in rows:
         if n >= PER_RUN:
             break
-        palette = ", ".join(str(p.get("hex") if isinstance(p, dict) else p) for p in J(x["palette"], []) or [])
+        palette = ", ".join(
+            str(p.get("hex") if isinstance(p, dict) else p) for p in J(x["palette"], []) or []
+        )
         got = await file_system(
-            hub, txf, source="brand_sealed", source_ref=f"brand:{x['code']}@{x['version']}",
-            company_id=x["company_id"], title_fa=f"نشان مُهرشده‌ی {x['code']}، نسخه‌ی {x['version']}",
-            metadata={"version": int(x["version"]), "sealed_at": x["activated_at"].date().isoformat(),
-                      "digest": x["digest"] or ""},
+            hub,
+            txf,
+            source="brand_sealed",
+            source_ref=f"brand:{x['code']}@{x['version']}",
+            company_id=x["company_id"],
+            title_fa=f"نشان مُهرشده‌ی {x['code']}، نسخه‌ی {x['version']}",
+            metadata={
+                "version": int(x["version"]),
+                "sealed_at": x["activated_at"].date().isoformat(),
+                "digest": x["digest"] or "",
+            },
             pdf_title=f"نشان و مُهر {x['code']} — نسخه‌ی {x['version']}",
             pdf_body=f"رنگ متن: {x['ink']}\nرنگ تأکید: {x['accent'] or '-'}\nپالت: {palette or '-'}\n"
             f"چکیده‌ی مُهر: {x['digest'] or '-'}",
             file_name=f"brand-{x['code']}-v{x['version']}.pdf",
-        )  # fmt: skip
+        )
         n += 1 if got else 0
     return n
 
@@ -288,7 +357,11 @@ async def _foundings(hub: Any, txf: Any) -> int:
         for x in rows:
             p = J(x["payload"], {})
             code = p.get("code") or p.get("company")
-            co = await tx.first("SELECT id FROM core.companies WHERE code = :c", c=code) if code else None
+            co = (
+                await tx.first("SELECT id FROM core.companies WHERE code = :c", c=code)
+                if code
+                else None
+            )
             out.append((x, co["id"] if co else x["company_id"]))
     n = 0
     for x, cid in out:
@@ -296,14 +369,20 @@ async def _foundings(hub: Any, txf: Any) -> int:
             break
         p = J(x["payload"], {})
         got = await file_system(
-            hub, txf, source="founding_registration", source_ref=f"founding:{x['ref']}", company_id=cid,
+            hub,
+            txf,
+            source="founding_registration",
+            source_ref=f"founding:{x['ref']}",
+            company_id=cid,
             title_fa=f"پیشنهاد مُهرشده‌ی تأسیس: {x['title']}"[:300],
             metadata={"registered_at": x["decided_at"].date().isoformat()},
             pdf_title=f"پیشنهاد تأسیس — {x['ref']}",
-            pdf_body=(x["what"] or "") + "\n\n" + json.dumps(p, ensure_ascii=False, indent=1, default=str)[:20000],
+            pdf_body=(x["what"] or "")
+            + "\n\n"
+            + json.dumps(p, ensure_ascii=False, indent=1, default=str)[:20000],
             file_name=f"founding-{x['ref']}.pdf",
             links=[{"kind": "evidence_for", "to": {"kind": "decision", "ref": x["ref"]}}],
-        )  # fmt: skip
+        )
         n += 1 if got else 0
     return n
 
@@ -321,7 +400,9 @@ async def _emails(hub: Any, txf: Any) -> int:
         if n >= PER_RUN:
             break
         mid = hashlib.sha256(x["message_id"].encode()).hexdigest()[:24]
-        atts = "\n".join(f"- {a.get('name')} (sha256 {a.get('sha256')})" for a in J(x["attachments"], []) or [])
+        atts = "\n".join(
+            f"- {a.get('name')} (sha256 {a.get('sha256')})" for a in J(x["attachments"], []) or []
+        )
         body = (
             f"از: {x['from_addr']}\nبه: {', '.join(x['to_addrs'] or [])}\n"
             + (f"رونوشت: {', '.join(x['cc_addrs'] or [])}\n" if x["cc_addrs"] else "")
@@ -329,12 +410,22 @@ async def _emails(hub: Any, txf: Any) -> int:
             + (f"\n\nپیوست‌ها:\n{atts}" if atts else "")
         )
         got = await file_system(
-            hub, txf, source="legal_email", source_ref=f"email:{mid}", company_id=x["company_id"],
+            hub,
+            txf,
+            source="legal_email",
+            source_ref=f"email:{mid}",
+            company_id=x["company_id"],
             title_fa=f"ایمیل حقوقی {x['case_ref']}: {x['subject']}"[:300],
-            metadata={"case": {"kind": "case", "ref": x["case_ref"]}, "direction": "out",
-                      "date": x["sent_at"].date().isoformat(), "subject": x["subject"][:500]},
-            pdf_title=f"ایمیل ارسال‌شده — {x['case_ref']}", pdf_body=body, file_name=f"email-{x['case_ref']}-{mid[:8]}.pdf",
-        )  # fmt: skip
+            metadata={
+                "case": {"kind": "case", "ref": x["case_ref"]},
+                "direction": "out",
+                "date": x["sent_at"].date().isoformat(),
+                "subject": x["subject"][:500],
+            },
+            pdf_title=f"ایمیل ارسال‌شده — {x['case_ref']}",
+            pdf_body=body,
+            file_name=f"email-{x['case_ref']}-{mid[:8]}.pdf",
+        )
         n += 1 if got else 0
     return n
 
@@ -348,22 +439,33 @@ async def _cases(hub: Any, txf: Any) -> int:
         events_of = {}
         for x in rows:
             events_of[x["id"]] = await tx.all(
-                "SELECT at, kind, summary_fa FROM legal.case_events WHERE case_id = :c ORDER BY at, id", c=x["id"]
+                "SELECT at, kind, summary_fa FROM legal.case_events WHERE case_id = :c ORDER BY at, id",
+                c=x["id"],
             )
     n = 0
     for x in rows:
         if n >= PER_RUN:
             break
-        timeline = "\n".join(f"- {e['at'].date().isoformat()} · {e['kind']} · {e['summary_fa']}" for e in events_of[x["id"]])
+        timeline = "\n".join(
+            f"- {e['at'].date().isoformat()} · {e['kind']} · {e['summary_fa']}"
+            for e in events_of[x["id"]]
+        )
         got = await file_system(
-            hub, txf, source="case_closed", source_ref=f"case:{x['ref']}", company_id=x["company_id"],
+            hub,
+            txf,
+            source="case_closed",
+            source_ref=f"case:{x['ref']}",
+            company_id=x["company_id"],
             title_fa=f"پرونده‌ی بسته‌شده {x['ref']}: {x['title_fa']}"[:300],
-            metadata={"case": {"kind": "case", "ref": x["ref"]}, "date": x["closed_at"].date().isoformat(),
-                      "subject": x["title_fa"][:500]},
+            metadata={
+                "case": {"kind": "case", "ref": x["ref"]},
+                "date": x["closed_at"].date().isoformat(),
+                "subject": x["title_fa"][:500],
+            },
             pdf_title=f"پرونده‌ی {x['ref']} — {x['title_fa']}",
             pdf_body=f"نوع: {x['kind']}\n\n{x['brief_md']}\n\nروند پرونده:\n{timeline}",
             file_name=f"case-{x['ref']}.pdf",
-        )  # fmt: skip
+        )
         n += 1 if got else 0
     return n
 
@@ -385,11 +487,20 @@ async def _plans(hub: Any, txf: Any) -> int:
             f"فایروال: {json.dumps(J(x['firewall'], []), ensure_ascii=False)}\nچکیده‌ی مُهر: {x['sealed_digest']}"
         )
         got = await file_system(
-            hub, txf, source="server_plan_sealed", source_ref=f"server_plan:{x['ref']}", company_id=x["company_id"],
+            hub,
+            txf,
+            source="server_plan_sealed",
+            source_ref=f"server_plan:{x['ref']}",
+            company_id=x["company_id"],
             title_fa=f"طرح سرور مُهرشده {x['ref']} ({x['company_code']})",
-            metadata={"date": x["sealed_at"].date().isoformat(), "subject": f"{x['name']} {x['type']}"[:500]},
-            pdf_title=f"طرح سرور {x['ref']}", pdf_body=body, file_name=f"server-plan-{x['ref']}.pdf",
-        )  # fmt: skip
+            metadata={
+                "date": x["sealed_at"].date().isoformat(),
+                "subject": f"{x['name']} {x['type']}"[:500],
+            },
+            pdf_title=f"طرح سرور {x['ref']}",
+            pdf_body=body,
+            file_name=f"server-plan-{x['ref']}.pdf",
+        )
         n += 1 if got else 0
     return n
 
@@ -415,11 +526,17 @@ async def _restore_tests(hub: Any, txf: Any) -> int:
             + json.dumps(detail, ensure_ascii=False, indent=1, default=str)[:8000]
         )
         got = await file_system(
-            hub, txf, source="backup_restore_test", source_ref=f"restore:{month}", company_id=x["company_id"],
+            hub,
+            txf,
+            source="backup_restore_test",
+            source_ref=f"restore:{month}",
+            company_id=x["company_id"],
             title_fa=f"نتیجه‌ی آزمون بازیابی ماه {month}: {'موفق' if x['ok'] else 'ناموفق'}",
             metadata={"date": x["at"].date().isoformat(), "subject": f"restore test {month}"},
-            pdf_title=f"آزمون بازیابی — {month}", pdf_body=body, file_name=f"restore-test-{month}.pdf",
-        )  # fmt: skip
+            pdf_title=f"آزمون بازیابی — {month}",
+            pdf_body=body,
+            file_name=f"restore-test-{month}.pdf",
+        )
         n += 1 if got else 0
     return n
 
@@ -429,7 +546,7 @@ async def run(hub: Any, txf: Any, today: date | None = None) -> dict[str, Any]:
     today = today or datetime.now(UTC).date()
     async with txf() as tx:
         enabled = {r["key"] for r in await tx.all("SELECT key FROM archive.sources WHERE enabled")}
-    jobs = {
+    jobs: dict[str, Callable[[], Awaitable[int]]] = {
         "charter_sealed": lambda: _charters(hub, txf),
         "resolution_month": lambda: _resolutions(hub, txf, today),
         "brand_sealed": lambda: _brands(hub, txf),

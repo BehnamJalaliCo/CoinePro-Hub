@@ -145,6 +145,14 @@ leadership:
       thread: L
       thread_kind: legal
       thread_title_fa: مشاور حقوقی
+    # ⟨1.7⟩ the archivist (contract §23.11): a system role of the holding, never
+    # hired, rated or starred; asleep until code gives it work (drafts to
+    # classify, retention reviews, a class change's gaps, the weekly report).
+    - code_suffix: ARC
+      kind: system
+      role: archivist
+      title_fa: بایگان
+      title_en: Archivist
     - code_suffix: SYS
       kind: system
       title_fa: سامانه‌ی گزارش

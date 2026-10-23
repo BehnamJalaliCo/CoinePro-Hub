@@ -170,6 +170,19 @@ CODES: dict[str, tuple[int, str, str]] = {
         "این برنامه‌ی انتشار مُهر نشده است؛ بی مُهر چیزی خودکار منتشر نمیشود.",
     ),
     "platform_limit": (429, "Platform limit", "سقف انتشار خود پلتفرم برای این حساب پر شده است."),
+    # ⟨1.7⟩ prompt 14 (contract §23.11): the archive
+    "clearance": (403, "Clearance", "این سند بالاتر از سطح دسترسی توست."),
+    "sealed_record": (
+        409,
+        "Sealed record",
+        "این سند مُهر شده است و تغییر نمیکند؛ اصلاح، نسخه‌ی تازه است.",
+    ),
+    "schema_invalid": (422, "Schema invalid", "این تعریف با واژگان بسته‌ی بایگانی نمیخواند."),
+    "secret_in_document": (
+        422,
+        "Secret in document",
+        "در این فایل الگوی رمز، کلید خصوصی یا عبارت بازیابی پیدا شد؛ فایل نگه داشته نشد.",
+    ),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 
@@ -183,6 +196,7 @@ SQLSTATE_CODES: dict[str, str] = {
     "HQI01": "validation_failed",
     "HQV01": "validation_failed",
     "HQN01": "not_found",
+    "HQR01": "sealed_record",  # ⟨1.7⟩ a sealed archive version or a disposed record
 }
 
 

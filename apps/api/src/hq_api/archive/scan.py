@@ -21,9 +21,7 @@ from typing import Any
 
 from hq_common import customer_mask, redact
 
-PRIVATE_ARMOUR = re.compile(
-    r"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----", re.I
-)
+PRIVATE_ARMOUR = re.compile(r"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----", re.I)
 B58 = "1-9A-HJ-NP-Za-km-z"
 WIF = re.compile(rf"(?<![{B58}])(?:5[HJK][{B58}]{{49}}|[KL][{B58}]{{51}})(?![{B58}])")
 XPRV = re.compile(rf"(?<![{B58}])[xyzt]prv[{B58}]{{100,112}}(?![{B58}])")

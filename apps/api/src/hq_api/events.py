@@ -88,6 +88,9 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "media": ("media.",),
     # ⟨1.6⟩ prompt 13 (contract §22.6): legal.case
     "legal": ("legal.",),
+    # ⟨1.7⟩ prompt 14 (contract §23.11): record.filed, record.updated,
+    # record.sealed, reminder.due, hold.changed, fixity.failed, schema.changed
+    "archive": ("record.", "reminder.", "hold.", "fixity.", "schema."),
 }
 
 

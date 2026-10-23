@@ -201,6 +201,22 @@ async def brand_trace(hub: Any, brand_id: str) -> None:
         log.warning("could not start a brand trace", extra={"brand": brand_id})
 
 
+async def archive_ocr(hub: Any, storage_key: str, mime: str, timeout_s: int) -> dict[str, Any]:
+    """⟨1.7⟩ One upload's OCR on the worker (prompt 14 §4), awaited by an
+    archive intake; the api never reaches the OCR service itself."""
+    client = _client(hub)
+    if client is None:
+        raise RuntimeError("no Temporal client")
+    result: dict[str, Any] = await client.execute_workflow(
+        "ArchiveOcr",
+        args=[storage_key, mime],
+        id=f"archive-ocr-{storage_key}",
+        task_queue=hub.settings.task_queue,
+        execution_timeout=timedelta(seconds=timeout_s),
+    )
+    return result
+
+
 async def transcribe(hub: Any, file_id: str, timeout_s: int) -> dict[str, Any]:
     """Runs the transcription on the worker and waits for its result."""
     client = _client(hub)

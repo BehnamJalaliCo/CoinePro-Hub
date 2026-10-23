@@ -39,6 +39,15 @@ Schedule ids:
     hq-legal-mail-poll        every 5 min   LegalMailPoll (prompt 13 §3.2: replies to the cases)
     hq-voice-bakeoff          daily 03:40 (owner's zone)  VoiceBakeoff (prompt 13 §4.2:
                               queue the missing samples; both do nothing while locked)
+    hq-archive-daily          daily 04:30 (owner's zone)  ArchiveDaily (prompt 14 §5, §6:
+                              retention, reminders, the destroy queue, the weekly report)
+    hq-archive-fixity         daily 03:20 (owner's zone)  ArchiveFixity (prompt 14 §8: a seventh
+                              of the files a night, all of them in a week)
+    hq-archive-ocr            every 2 min   ArchiveOcrQueue (prompt 14 §4: one OCR job at a time;
+                              nothing while the ocr profile is off)
+    hq-archive-sources        every 15 min  ArchiveSources (prompt 14 §7: system sources)
+                              (rule-only: no model, no outside call; what would wake an
+                              agent inside them waits while the holding is locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -97,6 +106,11 @@ MEDIA_SWEEP = "hq-media-sweep"  # prompt 13 §2
 LEGAL_MAIL_POLL = "hq-legal-mail-poll"
 VOICE_BAKEOFF = "hq-voice-bakeoff"
 P13B = (LEGAL_MAIL_POLL, VOICE_BAKEOFF)
+ARCHIVE_DAILY = "hq-archive-daily"  # prompt 14
+ARCHIVE_FIXITY = "hq-archive-fixity"
+ARCHIVE_OCR = "hq-archive-ocr"
+ARCHIVE_SOURCES = "hq-archive-sources"
+P14 = (ARCHIVE_DAILY, ARCHIVE_FIXITY, ARCHIVE_OCR, ARCHIVE_SOURCES)
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -120,6 +134,7 @@ FIXED = (
     *P12B,
     MEDIA_SWEEP,
     *P13B,
+    *P14,
 )
 
 
@@ -280,6 +295,7 @@ def fixed(
         *p12b_fixed(tz),
         *studio_fixed(),
         *p13b_fixed(tz),
+        *p14_fixed(tz),
     ]
 
 
@@ -391,6 +407,45 @@ def p13b_fixed(tz: str) -> list[Desired]:
             daily_at(time(3, 40), tz),
             timedelta(hours=12),
             timedelta(minutes=5),
+        ),
+    ]
+
+
+def p14_fixed(tz: str) -> list[Desired]:
+    """Prompt 14, the archive: rule-only jobs (no model, no outside call); the
+    parts that would wake an agent gate themselves (hq_api.domain.gate)."""
+    return [
+        Desired(
+            ARCHIVE_DAILY,
+            "ArchiveDaily",
+            (),
+            daily_at(time(4, 30), tz),
+            timedelta(hours=12),
+            timedelta(minutes=30),
+        ),
+        Desired(
+            ARCHIVE_FIXITY,
+            "ArchiveFixity",
+            ("nightly",),
+            daily_at(time(3, 20), tz),
+            timedelta(hours=12),
+            timedelta(hours=3),
+        ),
+        Desired(
+            ARCHIVE_OCR,
+            "ArchiveOcrQueue",
+            (),
+            every(2),
+            timedelta(minutes=5),
+            timedelta(minutes=15),
+        ),
+        Desired(
+            ARCHIVE_SOURCES,
+            "ArchiveSources",
+            (),
+            every(15),
+            timedelta(minutes=20),
+            timedelta(minutes=14),
         ),
     ]
 

@@ -44,7 +44,9 @@ def slice_of(now: datetime) -> int:
     return now.weekday()
 
 
-async def run(hub: Any, txf: Any, kind: str = "nightly", now: datetime | None = None) -> dict[str, Any]:
+async def run(
+    hub: Any, txf: Any, kind: str = "nightly", now: datetime | None = None
+) -> dict[str, Any]:
     from hq_api.archive import clearance as CL
     from hq_api.domain import notify
 
@@ -65,8 +67,14 @@ async def run(hub: Any, txf: Any, kind: str = "nightly", now: datetime | None = 
     for f in files:
         got = await asyncio.to_thread(_hash, hub.storage.local_path(f["storage_key"]))
         if got != f["stored_sha256"]:
-            failed.append({"ref": f["ref"], "file_id": str(f["id"]), "name": f["name"],
-                           "why": "missing" if got is None else "mismatch"})  # fmt: skip
+            failed.append(
+                {
+                    "ref": f["ref"],
+                    "file_id": str(f["id"]),
+                    "name": f["name"],
+                    "why": "missing" if got is None else "mismatch",
+                }
+            )
     next_at = (now + timedelta(days=1)).replace(hour=3, minute=20, second=0, microsecond=0)
     async with txf() as tx:
         await CL.full(tx)
@@ -74,28 +82,54 @@ async def run(hub: Any, txf: Any, kind: str = "nightly", now: datetime | None = 
         await tx.exec(
             """INSERT INTO archive.fixity_runs (company_id, at, kind, slice, checked, failed, seconds, next_at)
                VALUES (:co, :at, :k, :s, :n, CAST(:f AS jsonb), :sec, :nx)""",
-            co=h["id"], at=now, k=kind, s=sl, n=len(files), f=dumps(failed),
-            sec=round(time.monotonic() - started, 3), nx=next_at,
-        )  # fmt: skip
+            co=h["id"],
+            at=now,
+            k=kind,
+            s=sl,
+            n=len(files),
+            f=dumps(failed),
+            sec=round(time.monotonic() - started, 3),
+            nx=next_at,
+        )
         pushed = []
         if failed:
             refs = sorted({x["ref"] for x in failed})
             row = await notify.raise_notification(
-                tx, company_id=h["id"], company_code=h["code"], level="urgent",
+                tx,
+                company_id=h["id"],
+                company_code=h["code"],
+                level="urgent",
                 title_fa=f"هشدار از دست رفتن داده: {len(failed)} فایل بایگانی با hash خود نمیخواند",
                 body_fa=("دسته: از دست رفتن داده (data loss). " + "، ".join(refs[:20]))[:500],
-                link_kind="archive_fixity", link_ref=refs[0], source_kind="service", source_code="archive-fixity",
-            )  # fmt: skip
+                link_kind="archive_fixity",
+                link_ref=refs[0],
+                source_kind="service",
+                source_code="archive-fixity",
+            )
             pushed.append(row)
-            await events.emit(tx, h["code"], "fixity.failed", refs[0], {"failed": len(failed), "refs": refs[:50]})
+            await events.emit(
+                tx, h["code"], "fixity.failed", refs[0], {"failed": len(failed), "refs": refs[:50]}
+            )
             await audit.record(
-                tx, SERVICE, company_id=h["id"], action="archive.fixity_failed", action_class="A1",
-                target_kind="archive_fixity", target_ref=refs[0], summary=f"{len(failed)} file(s): {', '.join(refs[:10])}"[:300],
-            )  # fmt: skip
+                tx,
+                SERVICE,
+                company_id=h["id"],
+                action="archive.fixity_failed",
+                action_class="A1",
+                target_kind="archive_fixity",
+                target_ref=refs[0],
+                summary=f"{len(failed)} file(s): {', '.join(refs[:10])}"[:300],
+            )
         sre_work = await _sre_item(tx, h)
     if pushed:
         await notify.deliver_pending(hub, [r["id"] for r in pushed if r.get("push_now")])
-    return {"kind": kind, "slice": sl, "checked": len(files), "failed": failed, "sre_work": sre_work}
+    return {
+        "kind": kind,
+        "slice": sl,
+        "checked": len(files),
+        "failed": failed,
+        "sre_work": sre_work,
+    }
 
 
 async def _sre_item(tx: Any, h: dict[str, Any]) -> str | None:
@@ -118,22 +152,30 @@ async def _sre_item(tx: Any, h: dict[str, Any]) -> str | None:
     sre = await tx.first(
         """SELECT e.code, e.company_id FROM core.employees e WHERE e.company_id = :co AND e.role = :r
              AND e.status = 'active' ORDER BY e.created_at LIMIT 1""",
-        co=h["id"], r=SRE_ROLE,
-    )  # fmt: skip
+        co=h["id"],
+        r=SRE_ROLE,
+    )
     if sre is None:
         return None
     w = await W.create(
-        tx, SERVICE, company_id=h["id"], company_code=h["code"],
+        tx,
+        SERVICE,
+        company_id=h["id"],
+        company_code=h["code"],
         title=f"بایگانی: {len(refs)} سند با hash ذخیره‌شده نمیخواند (از دست رفتن داده)",
         brief="The archive's fixity check found stored files that no longer match their SHA-256: "
-        + ", ".join(refs[:50]) + ". Find out why (disk, restore, tampering) and restore them from the hourly "
+        + ", ".join(refs[:50])
+        + ". Find out why (disk, restore, tampering) and restore them from the hourly "
         "backup (RUNBOOK §32); report what you found. Never change an archive row.",
-        kind="one_off", priority="P1", assignee_code=sre["code"],
-    )  # fmt: skip
+        kind="one_off",
+        priority="P1",
+        assignee_code=sre["code"],
+    )
     await tx.exec(
         "UPDATE work.work SET run_meta = COALESCE(run_meta, CAST('{}' AS jsonb)) || CAST(:m AS jsonb) WHERE id = :id",
-        m=dumps({"archive_fixity": marker}), id=w["id"],
-    )  # fmt: skip
+        m=dumps({"archive_fixity": marker}),
+        id=w["id"],
+    )
     return str(w["ref"])
 
 

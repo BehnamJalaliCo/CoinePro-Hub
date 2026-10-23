@@ -52,3 +52,6 @@ task_classes:
   # a reply; never on an alternative provider (api migration 0028_1 inserts them).
   - {key: legal_case, transferable: false, description: "The legal counsel's work on a case (prompt 13 §3; never on an alternative)"}
   - {key: legal_email, transferable: false, description: "The legal counsel's reading of a reply and its next step (prompt 13 §3)"}
+  # prompt 14 (contract §23.11): the archivist's work; never on an alternative
+  # provider (api migration 0029 inserts it).
+  - {key: archive, transferable: false, description: "The archivist's work: classify drafts, complete metadata, links, the weekly gaps (prompt 14)"}

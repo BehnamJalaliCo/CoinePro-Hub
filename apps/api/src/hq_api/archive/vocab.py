@@ -17,9 +17,25 @@ from typing import Any
 from hq_api import media
 
 FIELD_TYPES = (
-    "text", "long_text", "number", "money", "percent", "date", "date_range", "enum", "multi_enum",
-    "boolean", "party", "company", "ref", "url", "email", "phone", "id_code", "iban",
-)  # fmt: skip
+    "text",
+    "long_text",
+    "number",
+    "money",
+    "percent",
+    "date",
+    "date_range",
+    "enum",
+    "multi_enum",
+    "boolean",
+    "party",
+    "company",
+    "ref",
+    "url",
+    "email",
+    "phone",
+    "id_code",
+    "iban",
+)
 REF_KINDS = ("decision", "resolution", "case", "work", "record", "employee", "revenue_account")
 CURRENCIES = ("USD", "USDT", "EUR", "IRR", "IRT", "AED", "TRY", "GBP", "BTC", "ETH")
 EVENTS = ("filed", "sealed", "reminder_due", "retention_due", "hold_set", "version_added")
@@ -27,9 +43,15 @@ ACTIONS = ("notify", "work_item", "link", "move_to_folder", "raise_level", "add_
 OPS = ("eq", "lt", "gt", "contains")
 NOTIFY_LEVELS = ("info", "report", "decision")  # never urgent (contract §23.7)
 SOURCES = (
-    "charter_sealed", "resolution_month", "brand_sealed", "founding_registration", "legal_email",
-    "case_closed", "server_plan_sealed", "backup_restore_test",
-)  # fmt: skip
+    "charter_sealed",
+    "resolution_month",
+    "brand_sealed",
+    "founding_registration",
+    "legal_email",
+    "case_closed",
+    "server_plan_sealed",
+    "backup_restore_test",
+)
 # What a record may be linked to (a link kind names a subset).
 LINK_TO_KINDS = (*REF_KINDS, "party", "company")
 MIMES = tuple(sorted(media.ALLOWED))
@@ -37,9 +59,16 @@ TRIGGERS_FIXED = ("filed", "case_closed", "superseded")
 THEN = ("review", "dispose_card")
 CHANNELS = ("cartable", "digest")
 PARTS = (
-    "classes", "folders", "levels", "clearance", "retention", "reminders", "party_kinds",
-    "link_kinds", "automations",
-)  # fmt: skip
+    "classes",
+    "folders",
+    "levels",
+    "clearance",
+    "retention",
+    "reminders",
+    "party_kinds",
+    "link_kinds",
+    "automations",
+)
 # Parts keyed by a ref the server assigns (created with key `new`).
 REF_PARTS = {"folders": "FP", "retention": "RR", "reminders": "RM", "automations": "AU"}
 

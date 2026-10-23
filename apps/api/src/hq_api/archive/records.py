@@ -46,7 +46,9 @@ HELD_MESSAGE = "این سند زیر توقیف قانونی است؛ جز نس�
 async def load(tx: Tx, ref: str, *, lock: bool = False) -> dict[str, Any]:
     """A record the reader may see (RLS); one it may not is 404, or 403
     clearance where the reader already knows the ref (a link names it)."""
-    row = await tx.first(RECORD_SQL + " WHERE r.ref = :r" + (" FOR UPDATE OF r" if lock else ""), r=ref)
+    row = await tx.first(
+        RECORD_SQL + " WHERE r.ref = :r" + (" FOR UPDATE OF r" if lock else ""), r=ref
+    )
     if row is not None:
         return row
     known = await tx.scalar(
@@ -98,10 +100,19 @@ async def render_links(tx: Tx, r: dict[str, Any]) -> list[dict[str, Any]]:
         r=r["id"],
     )
     for x in rows:
-        out.append({"kind": x["kind"], "to_kind": x["to_kind"], "to_ref": x["to_ref"],
-                    "to": {"kind": x["to_kind"], "ref": x["to_ref"]}, "title_fa": x["title_fa"],
-                    "at": x["created_at"], "by": _actor(x["by_kind"], x["by_code"]), "sealed": x["sealed"],
-                    "inverse": False})  # fmt: skip
+        out.append(
+            {
+                "kind": x["kind"],
+                "to_kind": x["to_kind"],
+                "to_ref": x["to_ref"],
+                "to": {"kind": x["to_kind"], "ref": x["to_ref"]},
+                "title_fa": x["title_fa"],
+                "at": x["created_at"],
+                "by": _actor(x["by_kind"], x["by_code"]),
+                "sealed": x["sealed"],
+                "inverse": False,
+            }
+        )
     # Links of other (visible) records to this one, with the inverse name.
     for x in await tx.all(
         """SELECT l.kind, l.created_at, l.by_kind, l.by_code, l.sealed, k.inverse_fa, s.ref, s.title_fa
@@ -110,16 +121,24 @@ async def render_links(tx: Tx, r: dict[str, Any]) -> list[dict[str, Any]]:
            WHERE l.to_kind = 'record' AND l.to_ref = :ref AND l.removed_at IS NULL ORDER BY l.created_at""",
         ref=r["ref"],
     ):
-        out.append({"kind": x["kind"], "to_kind": "record", "to_ref": x["ref"],
-                    "to": {"kind": "record", "ref": x["ref"]}, "title_fa": x["title_fa"],
-                    "at": x["created_at"], "by": _actor(x["by_kind"], x["by_code"]), "sealed": x["sealed"],
-                    "inverse": True, "inverse_fa": x["inverse_fa"]})  # fmt: skip
+        out.append(
+            {
+                "kind": x["kind"],
+                "to_kind": "record",
+                "to_ref": x["ref"],
+                "to": {"kind": "record", "ref": x["ref"]},
+                "title_fa": x["title_fa"],
+                "at": x["created_at"],
+                "by": _actor(x["by_kind"], x["by_code"]),
+                "sealed": x["sealed"],
+                "inverse": True,
+                "inverse_fa": x["inverse_fa"],
+            }
+        )
     return out
 
 
-async def render_versions(
-    tx: Tx, r: dict[str, Any], *, content: bool
-) -> list[dict[str, Any]]:
+async def render_versions(tx: Tx, r: dict[str, Any], *, content: bool) -> list[dict[str, Any]]:
     versions = await tx.all(
         "SELECT * FROM archive.record_versions WHERE record_id = :r ORDER BY n", r=r["id"]
     )
@@ -135,23 +154,37 @@ async def render_versions(
     )
     out = []
     for v in versions:
-        out.append({
-            "n": v["n"],
-            "files": [{
-                "file_id": f["file_id"], "name": f["name"], "mime": f["mime"], "size_bytes": int(f["size_bytes"]),
-                "sha256": f["sha256"], "pages": f["pages"], "text_state": f["text_state"],
-                "ocr_confidence": float(f["ocr_confidence"]) if f["ocr_confidence"] is not None else None,
-                "low_confidence_pages": list(f["low_conf_pages"] or []),
-                "quarantined": f["quarantined"], "destroyed": f["destroyed_at"] is not None,
-            } for f in files if f["version_n"] == v["n"]],
-            "manifest_sha256": v["manifest_sha256"],
-            "note_fa": v["note_fa"],
-            "created_by": _actor(v["created_by_kind"], v["created_by_code"]),
-            "created_at": v["created_at"],
-            "sealed": v["sealed"],
-            "sealed_at": v["sealed_at"],
-            "state": v["state"],
-        })  # fmt: skip
+        out.append(
+            {
+                "n": v["n"],
+                "files": [
+                    {
+                        "file_id": f["file_id"],
+                        "name": f["name"],
+                        "mime": f["mime"],
+                        "size_bytes": int(f["size_bytes"]),
+                        "sha256": f["sha256"],
+                        "pages": f["pages"],
+                        "text_state": f["text_state"],
+                        "ocr_confidence": float(f["ocr_confidence"])
+                        if f["ocr_confidence"] is not None
+                        else None,
+                        "low_confidence_pages": list(f["low_conf_pages"] or []),
+                        "quarantined": f["quarantined"],
+                        "destroyed": f["destroyed_at"] is not None,
+                    }
+                    for f in files
+                    if f["version_n"] == v["n"]
+                ],
+                "manifest_sha256": v["manifest_sha256"],
+                "note_fa": v["note_fa"],
+                "created_by": _actor(v["created_by_kind"], v["created_by_code"]),
+                "created_at": v["created_at"],
+                "sealed": v["sealed"],
+                "sealed_at": v["sealed_at"],
+                "state": v["state"],
+            }
+        )
     return out
 
 
@@ -201,17 +234,28 @@ async def render(
         out["versions"] = await render_versions(tx, r, content=content)
         out["links"] = await render_links(tx, r)
         out["reminders"] = [
-            {"id": x["id"], "field": x["field"], "at": x["at"], "lead_days": x["lead_days"],
-             "state": x["state"], "due_at": x["due_at"]}
+            {
+                "id": x["id"],
+                "field": x["field"],
+                "at": x["at"],
+                "lead_days": x["lead_days"],
+                "state": x["state"],
+                "due_at": x["due_at"],
+            }
             for x in await tx.all(
-                "SELECT * FROM archive.reminders WHERE record_id = :r ORDER BY at, lead_days DESC", r=r["id"]
+                "SELECT * FROM archive.reminders WHERE record_id = :r ORDER BY at, lead_days DESC",
+                r=r["id"],
             )
-        ]  # fmt: skip
+        ]
     if r["state"] == "disposed":
         t = await tx.first("SELECT * FROM archive.tombstones WHERE record_id = :r", r=r["id"])
         if t is not None:
-            out["tombstone"] = {"decision": t["decision_ref"], "at": t["at"], "hashes": J(t["hashes"], []),
-                                "dates": J(t["dates"], {})}  # fmt: skip
+            out["tombstone"] = {
+                "decision": t["decision_ref"],
+                "at": t["at"],
+                "hashes": J(t["hashes"], []),
+                "dates": J(t["dates"], {}),
+            }
     return out
 
 
@@ -231,17 +275,23 @@ async def resolve_class(tx: Tx, key: str | None, scope_code: str) -> dict[str, A
 async def resolve_level(
     tx: Tx, key: str | None, cls: dict[str, Any] | None, folder: dict[str, Any] | None
 ) -> dict[str, Any]:
-    chosen = key or (folder or {}).get("default_level") or (cls or {}).get("default_level") or "internal"
+    chosen = (
+        key or (folder or {}).get("default_level") or (cls or {}).get("default_level") or "internal"
+    )
     lv = await SC.level(tx, chosen)
     if lv is None or lv["status"] != "active":
         raise invalid({"level": "an active level"})
     return lv
 
 
-async def default_folder(tx: Tx, company_id: UUID, scope_code: str, cls: dict[str, Any] | None) -> dict[str, Any] | None:
+async def default_folder(
+    tx: Tx, company_id: UUID, scope_code: str, cls: dict[str, Any] | None
+) -> dict[str, Any] | None:
     """The first folder of the scope whose classes include the class; else the
     class's default folder if it lies in that scope (contract §23.12)."""
-    if not await tx.scalar("SELECT 1 FROM archive.folders WHERE company_id = :c LIMIT 1", c=company_id):
+    if not await tx.scalar(
+        "SELECT 1 FROM archive.folders WHERE company_id = :c LIMIT 1", c=company_id
+    ):
         await SC.seed_folders(tx, company_id, scope_code)
     if cls is None:
         return None
@@ -265,7 +315,9 @@ async def resolve_folder(
 ) -> dict[str, Any] | None:
     if ref is None:
         return await default_folder(tx, company_id, scope_code, cls)
-    row = await tx.first("SELECT * FROM archive.folders WHERE ref = :r AND status = 'active'", r=ref)
+    row = await tx.first(
+        "SELECT * FROM archive.folders WHERE ref = :r AND status = 'active'", r=ref
+    )
     if row is None or row["company_id"] != company_id:
         raise invalid({"folder": "an active folder of this scope"})
     if cls is not None and row["classes"] and cls["key"] not in row["classes"]:
@@ -273,7 +325,9 @@ async def resolve_folder(
     return row
 
 
-async def check_parties(tx: Tx, parties: list[dict[str, Any]] | None) -> tuple[list[dict[str, Any]], list[str]]:
+async def check_parties(
+    tx: Tx, parties: list[dict[str, Any]] | None
+) -> tuple[list[dict[str, Any]], list[str]]:
     out, refs = [], []
     for i, p in enumerate(parties or []):
         ref = p.get("party") if isinstance(p, dict) else None
@@ -299,7 +353,9 @@ def doc_date_of(fields: list[dict[str, Any]], metadata: dict[str, Any]) -> date 
     return None
 
 
-def watch_dates_of(cls: dict[str, Any] | None, fields: list[dict[str, Any]], metadata: dict[str, Any]) -> list[date]:
+def watch_dates_of(
+    cls: dict[str, Any] | None, fields: list[dict[str, Any]], metadata: dict[str, Any]
+) -> list[date]:
     if cls is None:
         return []
     by_key = {f["key"]: f for f in fields}
@@ -347,7 +403,8 @@ async def search_vectors(tx: Tx, r: dict[str, Any], fields: list[dict[str, Any]]
         """UPDATE archive.records SET
                meta_tsv = to_tsvector('simple', core.fa_normalize(:m)),
                sens_tsv = to_tsvector('simple', core.fa_normalize(:s)),
-               text_tsv = (SELECT to_tsvector('simple', core.fa_normalize(left(COALESCE(string_agg(f.text, ' '), ''), 400000)))
+               text_tsv = (SELECT to_tsvector('simple', core.fa_normalize(
+                                      left(COALESCE(string_agg(f.text, ' '), ''), 400000)))
                            FROM archive.record_files f
                            WHERE f.record_id = :id AND f.version_n = :v AND f.destroyed_at IS NULL
                              AND NOT f.quarantined)
@@ -359,7 +416,9 @@ async def search_vectors(tx: Tx, r: dict[str, Any], fields: list[dict[str, Any]]
     )
 
 
-async def insert_files(tx: Tx, r: dict[str, Any], n: int, stored: list[ST.Stored], ocr_on: bool) -> str:
+async def insert_files(
+    tx: Tx, r: dict[str, Any], n: int, stored: list[ST.Stored], ocr_on: bool
+) -> str:
     rows = []
     for s in stored:
         it = s.intake
@@ -369,14 +428,27 @@ async def insert_files(tx: Tx, r: dict[str, Any], n: int, stored: list[ST.Stored
                    ocr_confidence, low_conf_pages, text)
                VALUES (:co, :r, :n, :f, :name, :mime, :size, :sha, :ssha, :key, :enc, :dek, :pages, :ts, :ow,
                        :oc, :lp, :text)""",
-            co=r["company_id"], r=r["id"], n=n, f=it.file_id, name=it.name[:255], mime=it.mime, size=it.size,
-            sha=it.sha256, ssha=s.stored_sha256, key=s.storage_key, enc=s.encrypted, dek=s.wrapped_dek,
-            pages=it.pages, ts=it.text_state, ow=bool(ocr_on and it.ocr_wanted), oc=it.ocr_confidence,
-            lp=it.low_pages, text=it.text,
-        )  # fmt: skip
+            co=r["company_id"],
+            r=r["id"],
+            n=n,
+            f=it.file_id,
+            name=it.name[:255],
+            mime=it.mime,
+            size=it.size,
+            sha=it.sha256,
+            ssha=s.stored_sha256,
+            key=s.storage_key,
+            enc=s.encrypted,
+            dek=s.wrapped_dek,
+            pages=it.pages,
+            ts=it.text_state,
+            ow=bool(ocr_on and it.ocr_wanted),
+            oc=it.ocr_confidence,
+            lp=it.low_pages,
+            text=it.text,
+        )
         rows.append({"sha256": it.sha256, "name": it.name})
-    m = ST.manifest(rows)
-    return m
+    return ST.manifest(rows)
 
 
 async def create(
@@ -401,7 +473,7 @@ async def create(
     """A record and its first version, in the caller's transaction (the files
     are already stored: ST.ingest)."""
     fields = list(cls["fields"]) if cls else []
-    clean, missing, errors = V.validate_metadata(fields, metadata, complete=file_now)
+    clean, _missing, errors = V.validate_metadata(fields, metadata, complete=file_now)
     if errors:
         raise invalid(errors)
     no_secret({"title_fa": title_fa, "metadata": clean, "note_fa": note_fa or ""})
@@ -416,20 +488,38 @@ async def create(
            VALUES (:co, :ck, :cv, :t, :fo, :lv, :lr, :st, CAST(:m AS jsonb), :dd, CAST(:p AS jsonb), :pr, :wd,
                    :sk, :sr, CAST(:sg AS jsonb), :bk, :bc, CASE WHEN :st = 'filed' THEN now() END)
            RETURNING ref""",
-        co=scope["id"], ck=cls["key"] if cls else None, cv=cls["version"] if cls else None, t=title_fa,
-        fo=folder["id"] if folder else None, lv=lv["key"], lr=lv["rank"], st="filed" if file_now else "draft",
-        m=dumps(clean), dd=dd, p=dumps(party_rows), pr=party_refs,
-        wd=watch_dates_of(cls, fields, clean), sk=source_kind, sr=source_ref,
-        sg=dumps(suggestion) if suggestion is not None and not file_now else None, bk=kind, bc=code,
-    )  # fmt: skip
+        co=scope["id"],
+        ck=cls["key"] if cls else None,
+        cv=cls["version"] if cls else None,
+        t=title_fa,
+        fo=folder["id"] if folder else None,
+        lv=lv["key"],
+        lr=lv["rank"],
+        st="filed" if file_now else "draft",
+        m=dumps(clean),
+        dd=dd,
+        p=dumps(party_rows),
+        pr=party_refs,
+        wd=watch_dates_of(cls, fields, clean),
+        sk=source_kind,
+        sr=source_ref,
+        sg=dumps(suggestion) if suggestion is not None and not file_now else None,
+        bk=kind,
+        bc=code,
+    )
     r = await load(tx, row["ref"])
     manifest = await insert_files(tx, r, 1, stored, bool(cls is None or cls.get("ocr", True)))
     await tx.exec(
         """INSERT INTO archive.record_versions (company_id, record_id, n, manifest_sha256, note_fa,
                created_by_kind, created_by_code)
            VALUES (:co, :r, 1, :m, :note, :bk, :bc)""",
-        co=r["company_id"], r=r["id"], m=manifest, note=(note_fa or None) and note_fa[:2000], bk=kind, bc=code,
-    )  # fmt: skip
+        co=r["company_id"],
+        r=r["id"],
+        m=manifest,
+        note=(note_fa or None) and note_fa[:2000],
+        bk=kind,
+        bc=code,
+    )
     for i, link in enumerate(links or []):
         await add_link(tx, who, r, link.get("kind"), link.get("to") or {}, path=f"links.{i}")
     if cls is not None:
@@ -443,10 +533,15 @@ async def create(
     r = await load(tx, row["ref"])
     await search_vectors(tx, r, fields)
     await audit.record(
-        tx, who, company_id=r["company_id"], action="archive.record_create", action_class="A1",
-        target_kind="archive_record", target_ref=r["ref"],
+        tx,
+        who,
+        company_id=r["company_id"],
+        action="archive.record_create",
+        action_class="A1",
+        target_kind="archive_record",
+        target_ref=r["ref"],
         summary=f"{r['class_key'] or 'unclassified'} {r['state']} {r['level']}",
-    )  # fmt: skip
+    )
     await emit(tx, r, "record.filed" if file_now else "record.updated", change="created")
     if file_now:
         await AU.fire(tx, "filed", r)
@@ -478,23 +573,27 @@ async def emit(tx: Tx, r: dict[str, Any], type_: str, **data: Any) -> None:
     )
 
 
+def _s(v: Any) -> str | None:
+    return None if v is None else str(v)
+
+
 async def link_title(tx: Tx, kind: str, ref: str) -> str | None:
     if kind == "record":
-        return await tx.scalar("SELECT title_fa FROM archive.records WHERE ref = :r", r=ref)
+        return _s(await tx.scalar("SELECT title_fa FROM archive.records WHERE ref = :r", r=ref))
     if kind == "decision":
-        return await tx.scalar("SELECT title FROM cartable.decisions WHERE ref = :r", r=ref)
+        return _s(await tx.scalar("SELECT title FROM cartable.decisions WHERE ref = :r", r=ref))
     if kind == "resolution":
-        return await tx.scalar("SELECT title FROM cartable.resolutions WHERE ref = :r", r=ref)
+        return _s(await tx.scalar("SELECT title FROM cartable.resolutions WHERE ref = :r", r=ref))
     if kind == "case":
-        return await tx.scalar("SELECT title_fa FROM legal.cases WHERE ref = :r", r=ref)
+        return _s(await tx.scalar("SELECT title_fa FROM legal.cases WHERE ref = :r", r=ref))
     if kind == "work":
-        return await tx.scalar("SELECT title FROM work.work WHERE ref = :r", r=ref)
+        return _s(await tx.scalar("SELECT title FROM work.work WHERE ref = :r", r=ref))
     if kind == "employee":
-        return await tx.scalar("SELECT title_fa FROM core.employees WHERE code = :r", r=ref)
+        return _s(await tx.scalar("SELECT title_fa FROM core.employees WHERE code = :r", r=ref))
     if kind == "party":
-        return await tx.scalar("SELECT name_fa FROM archive.parties WHERE ref = :r", r=ref)
+        return _s(await tx.scalar("SELECT name_fa FROM archive.parties WHERE ref = :r", r=ref))
     if kind == "company":
-        return await tx.scalar("SELECT name_fa FROM core.companies WHERE code = :r", r=ref)
+        return _s(await tx.scalar("SELECT name_fa FROM core.companies WHERE code = :r", r=ref))
     return None
 
 
@@ -508,7 +607,13 @@ async def add_link(
     path: str = "link",
     quiet: bool = False,
 ) -> dict[str, Any] | None:
-    k = await tx.first("SELECT * FROM archive.link_kinds WHERE key = :k AND status = 'active'", k=kind) if isinstance(kind, str) else None
+    k = (
+        await tx.first(
+            "SELECT * FROM archive.link_kinds WHERE key = :k AND status = 'active'", k=kind
+        )
+        if isinstance(kind, str)
+        else None
+    )
     to_kind, to_ref = to.get("kind"), to.get("ref")
     errors: dict[str, str] = {}
     if k is None:
@@ -523,7 +628,14 @@ async def add_link(
     title = None
     if not errors:
         title = await link_title(tx, str(to_kind), str(to_ref))
-        if title is None and to_kind in ("record", "decision", "resolution", "case", "party", "company"):
+        if title is None and to_kind in (
+            "record",
+            "decision",
+            "resolution",
+            "case",
+            "party",
+            "company",
+        ):
             errors[f"{path}.to.ref"] = f"unknown {to_kind}"
     if errors:
         if quiet:
@@ -534,34 +646,51 @@ async def add_link(
         """INSERT INTO archive.links (company_id, record_id, kind, to_kind, to_ref, title_fa, by_kind, by_code)
            VALUES (:co, :r, :k, :tk, :tr, :t, :bk, :bc)
            ON CONFLICT (record_id, kind, to_kind, to_ref) WHERE removed_at IS NULL DO NOTHING RETURNING *""",
-        co=r["company_id"], r=r["id"], k=kind, tk=to_kind, tr=to_ref, t=(title or "")[:300] or None, bk=kind_, bc=code,
-    )  # fmt: skip
+        co=r["company_id"],
+        r=r["id"],
+        k=kind,
+        tk=to_kind,
+        tr=to_ref,
+        t=(title or "")[:300] or None,
+        bk=kind_,
+        bc=code,
+    )
     if got is None:
         got = await tx.one(
             """SELECT * FROM archive.links WHERE record_id = :r AND kind = :k AND to_kind = :tk AND to_ref = :tr
                  AND removed_at IS NULL""",
-            r=r["id"], k=kind, tk=to_kind, tr=to_ref,
-        )  # fmt: skip
-        return got
+            r=r["id"],
+            k=kind,
+            tk=to_kind,
+            tr=to_ref,
+        )
+        existing: dict[str, Any] = got
+        return existing
     if kind == "supersedes" and to_kind == "record":
         await RT.superseded(tx, str(to_ref))
     return got
 
 
-async def remove_link(tx: Tx, who: Principal, r: dict[str, Any], kind: str, to_kind: str, to_ref: str) -> None:
+async def remove_link(
+    tx: Tx, who: Principal, r: dict[str, Any], kind: str, to_kind: str, to_ref: str
+) -> None:
     link = await tx.first(
         """SELECT * FROM archive.links WHERE record_id = :r AND kind = :k AND to_kind = :tk AND to_ref = :tr
              AND removed_at IS NULL FOR UPDATE""",
-        r=r["id"], k=kind, tk=to_kind, tr=to_ref,
-    )  # fmt: skip
+        r=r["id"],
+        k=kind,
+        tk=to_kind,
+        tr=to_ref,
+    )
     if link is None:
         raise ApiError(404, "not_found", "no such link")
     if link["sealed"]:
         raise ApiError(409, "sealed_record", "a sealed link is never removed")
     await tx.exec(
         "UPDATE archive.links SET removed_at = now(), removed_by = :b WHERE id = :id",
-        id=link["id"], b=who.code[:64],
-    )  # fmt: skip
+        id=link["id"],
+        b=who.code[:64],
+    )
 
 
 async def patch(
@@ -579,7 +708,9 @@ async def patch(
         if r["state"] != "draft":
             raise invalid({"class": "only a draft takes a class"})
         cls = await resolve_class(tx, body["class"], r["scope"])
-        sets["class_key"], sets["class_version"] = (cls["key"], cls["version"]) if cls else (None, None)
+        sets["class_key"], sets["class_version"] = (
+            (cls["key"], cls["version"]) if cls else (None, None)
+        )
     elif r["class_key"]:  # the record keeps the class version it was filed under
         cls = await SC.class_at(tx, r["class_key"], r["class_version"])
     fields = list(cls["fields"]) if cls else []
@@ -587,7 +718,9 @@ async def patch(
     if "metadata" in body:
         merged = {**meta, **(body["metadata"] or {})}
         merged = {k: v for k, v in merged.items() if v is not None}
-        clean, _missing, errors = V.validate_metadata(fields, merged, complete=r["state"] != "draft", keep=meta)
+        clean, _missing, errors = V.validate_metadata(
+            fields, merged, complete=r["state"] != "draft", keep=meta
+        )
         if errors:
             raise invalid(errors)
         no_secret({"metadata": clean})
@@ -600,7 +733,11 @@ async def patch(
         no_secret({"title_fa": t})
         sets["title_fa"] = t.strip()
     if "folder" in body:
-        f = await resolve_folder(tx, body["folder"], r["company_id"], r["scope"], cls) if body["folder"] else None
+        f = (
+            await resolve_folder(tx, body["folder"], r["company_id"], r["scope"], cls)
+            if body["folder"]
+            else None
+        )
         sets["folder_id"] = f["id"] if f else None
     if "parties" in body:
         rows, refs = await check_parties(tx, body["parties"])
@@ -625,9 +762,15 @@ async def patch(
         await RT.compute(tx, r, cls, fields)
     await search_vectors(tx, r, fields)
     await audit.record(
-        tx, who, company_id=r["company_id"], action="archive.record_update", action_class="A1",
-        target_kind="archive_record", target_ref=r["ref"], summary=",".join(sorted(sets))[:300],
-    )  # fmt: skip
+        tx,
+        who,
+        company_id=r["company_id"],
+        action="archive.record_update",
+        action_class="A1",
+        target_kind="archive_record",
+        target_ref=r["ref"],
+        summary=",".join(sorted(sets))[:300],
+    )
     await emit(tx, r, "record.updated", change="metadata", fields=sorted(sets))
     return await load(tx, r["ref"])
 
@@ -647,8 +790,9 @@ async def file_draft(tx: Tx, who: Principal, r: dict[str, Any]) -> dict[str, Any
     cls = await SC.class_at(tx, r["class_key"], r["class_version"])
     n = await tx.scalar(
         "SELECT count(*) FROM archive.record_files WHERE record_id = :r AND version_n = :v",
-        r=r["id"], v=r["current_version"],
-    )  # fmt: skip
+        r=r["id"],
+        v=r["current_version"],
+    )
     if int(n or 0) < int(cls.get("required_files") or 0):
         raise invalid({"file_ids": f"{cls['key']} needs at least {cls['required_files']} file(s)"})
     await tx.exec(
@@ -659,9 +803,15 @@ async def file_draft(tx: Tx, who: Principal, r: dict[str, Any]) -> dict[str, Any
     await RT.compute(tx, r, cls, fields)
     r = await load(tx, r["ref"])
     await audit.record(
-        tx, who, company_id=r["company_id"], action="archive.record_file", action_class="A1",
-        target_kind="archive_record", target_ref=r["ref"], summary=f"{r['class_key']} filed",
-    )  # fmt: skip
+        tx,
+        who,
+        company_id=r["company_id"],
+        action="archive.record_file",
+        action_class="A1",
+        target_kind="archive_record",
+        target_ref=r["ref"],
+        summary=f"{r['class_key']} filed",
+    )
     await emit(tx, r, "record.filed", change="filed")
     await AU.fire(tx, "filed", r)
     return r
@@ -689,21 +839,34 @@ async def add_version(
         """INSERT INTO archive.record_versions (company_id, record_id, n, manifest_sha256, note_fa,
                created_by_kind, created_by_code)
            VALUES (:co, :r, :n, :m, :note, :bk, :bc)""",
-        co=r["company_id"], r=r["id"], n=n, m=manifest, note=(note_fa or None) and note_fa[:2000], bk=kind, bc=code,
-    )  # fmt: skip
+        co=r["company_id"],
+        r=r["id"],
+        n=n,
+        m=manifest,
+        note=(note_fa or None) and note_fa[:2000],
+        bk=kind,
+        bc=code,
+    )
     await tx.exec(
         """UPDATE archive.records SET current_version = :n,
                state = CASE WHEN state = 'sealed' THEN 'filed' ELSE state END,
                sealed_at = CASE WHEN state = 'sealed' THEN NULL ELSE sealed_at END
            WHERE id = :id""",
-        id=r["id"], n=n,
-    )  # fmt: skip
+        id=r["id"],
+        n=n,
+    )
     r = await load(tx, r["ref"])
     await search_vectors(tx, r, list(cls["fields"]) if cls else [])
     await audit.record(
-        tx, who, company_id=r["company_id"], action="archive.record_version", action_class="A1",
-        target_kind="archive_record", target_ref=r["ref"], summary=f"version {n}, manifest {manifest[:12]}",
-    )  # fmt: skip
+        tx,
+        who,
+        company_id=r["company_id"],
+        action="archive.record_version",
+        action_class="A1",
+        target_kind="archive_record",
+        target_ref=r["ref"],
+        summary=f"version {n}, manifest {manifest[:12]}",
+    )
     await emit(tx, r, "record.updated", change="version", n=n)
     await AU.fire(tx, "version_added", r)
     return r
@@ -712,8 +875,9 @@ async def add_version(
 async def current_manifest(tx: Tx, r: dict[str, Any]) -> str:
     rows = await tx.all(
         """SELECT sha256, name FROM archive.record_files WHERE record_id = :r AND version_n = :v""",
-        r=r["id"], v=r["current_version"],
-    )  # fmt: skip
+        r=r["id"],
+        v=r["current_version"],
+    )
     return ST.manifest(rows)
 
 
@@ -721,29 +885,41 @@ async def seal(
     tx: Tx, who: Principal, r: dict[str, Any], manifest_sha256: str, step_up_id: UUID
 ) -> dict[str, Any]:
     if r["state"] != "filed":
-        raise ApiError(409, "validation_failed", f"{r['ref']} is {r['state']}: only a filed record is sealed")
+        raise ApiError(
+            409, "validation_failed", f"{r['ref']} is {r['state']}: only a filed record is sealed"
+        )
     v = await tx.one(
         "SELECT * FROM archive.record_versions WHERE record_id = :r AND n = :n FOR UPDATE",
-        r=r["id"], n=r["current_version"],
-    )  # fmt: skip
+        r=r["id"],
+        n=r["current_version"],
+    )
     again = await current_manifest(tx, r)
     if manifest_sha256 != again or v["manifest_sha256"] != again:
         raise ApiError(409, "seal_mismatch", "the manifest changed since you saw it")
     await tx.exec(
         "UPDATE archive.record_versions SET sealed = true, sealed_at = now(), seal_step_up_id = :s WHERE id = :id",
-        id=v["id"], s=step_up_id,
-    )  # fmt: skip
+        id=v["id"],
+        s=step_up_id,
+    )
     await tx.exec(
         "UPDATE archive.records SET state = 'sealed', sealed_at = now() WHERE id = :id", id=r["id"]
     )
     await tx.exec(
-        "UPDATE archive.links SET sealed = true WHERE record_id = :r AND removed_at IS NULL", r=r["id"]
+        "UPDATE archive.links SET sealed = true WHERE record_id = :r AND removed_at IS NULL",
+        r=r["id"],
     )
     r = await load(tx, r["ref"])
     await audit.record(
-        tx, who, company_id=r["company_id"], action="archive.seal", action_class="A2",
-        target_kind="archive_record", target_ref=r["ref"], summary=f"manifest {again[:16]}", step_up=True,
-    )  # fmt: skip
+        tx,
+        who,
+        company_id=r["company_id"],
+        action="archive.seal",
+        action_class="A2",
+        target_kind="archive_record",
+        target_ref=r["ref"],
+        summary=f"manifest {again[:16]}",
+        step_up=True,
+    )
     await emit(tx, r, "record.sealed", n=r["current_version"])
     await AU.fire(tx, "sealed", r)
     return r
@@ -767,9 +943,19 @@ async def log_access(
         """INSERT INTO archive.access_log (company_id, record_id, level_rank, actor_kind, actor_code, action,
                file_id, version_n, step_up, watermarked, level_from, level_to)
            VALUES (:co, :r, :lr, :ak, :ac, :a, :f, :v, :su, :w, :lf, :lt)""",
-        co=r["company_id"], r=r["id"], lr=r["level_rank"], ak=kind, ac=code, a=action, f=file_id,
-        v=version_n, su=step_up, w=watermarked, lf=level_from, lt=level_to,
-    )  # fmt: skip
+        co=r["company_id"],
+        r=r["id"],
+        lr=r["level_rank"],
+        ak=kind,
+        ac=code,
+        a=action,
+        f=file_id,
+        v=version_n,
+        su=step_up,
+        w=watermarked,
+        lf=level_from,
+        lt=level_to,
+    )
 
 
 def watermark_text(who: Principal, ref: str) -> str:

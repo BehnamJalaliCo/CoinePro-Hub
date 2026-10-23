@@ -29,7 +29,7 @@ from dateutil.relativedelta import relativedelta
 
 from hq_api import audit, events
 from hq_api.archive import vocab as V
-from hq_api.archive.common import LIVE, OWNER, SERVICE, J, actor_of, dumps, holding, invalid
+from hq_api.archive.common import OWNER, SERVICE, J, actor_of, dumps, holding, invalid
 from hq_api.db import Tx
 from hq_api.domain import gate
 from hq_api.errors import ApiError
@@ -45,7 +45,9 @@ ARCHIVIST = "archivist"
 def due_of(trigger_at: date | None, keep: Any) -> date | None:
     if trigger_at is None or keep == "permanent" or not isinstance(keep, dict):
         return None
-    return trigger_at + relativedelta(years=int(keep.get("years") or 0), months=int(keep.get("months") or 0))
+    return trigger_at + relativedelta(
+        years=int(keep.get("years") or 0), months=int(keep.get("months") or 0)
+    )
 
 
 async def _case_closed_at(tx: Tx, r: dict[str, Any], fields: list[dict[str, Any]]) -> date | None:
@@ -64,7 +66,8 @@ async def _case_closed_at(tx: Tx, r: dict[str, Any], fields: list[dict[str, Any]
     if not refs:
         return None
     at = await tx.scalar(
-        "SELECT max(closed_at) FROM legal.cases WHERE ref = ANY(:r) AND status = 'closed'", r=list(set(refs))
+        "SELECT max(closed_at) FROM legal.cases WHERE ref = ANY(:r) AND status = 'closed'",
+        r=list(set(refs)),
     )
     return at.date() if at is not None else None
 
@@ -76,7 +79,8 @@ async def compute(
     rr = None
     if cls is not None and cls.get("retention"):
         rr = await tx.first(
-            "SELECT * FROM archive.retention_rules WHERE ref = :r AND status = 'active'", r=cls["retention"]
+            "SELECT * FROM archive.retention_rules WHERE ref = :r AND status = 'active'",
+            r=cls["retention"],
         )
     if rr is None or r["state"] in ("draft", "disposed"):
         await tx.exec(
@@ -96,8 +100,10 @@ async def compute(
     elif trig == "case_closed":
         trigger_at = await _case_closed_at(tx, r, fields)
     elif trig == "superseded":
-        trigger_at = r["trigger_at"] if r["state"] == "superseded" and r["trigger_at"] else (
-            datetime.now(UTC).date() if r["state"] == "superseded" else None
+        trigger_at = (
+            r["trigger_at"]
+            if r["state"] == "superseded" and r["trigger_at"]
+            else (datetime.now(UTC).date() if r["state"] == "superseded" else None)
         )
     keep = J(rr["keep"])
     due = due_of(trigger_at, keep)
@@ -105,14 +111,19 @@ async def compute(
     await tx.exec(
         """UPDATE archive.records SET retention_rule_id = :rr, trigger_at = :t, due_at = :d, disposable = :x
            WHERE id = :id""",
-        id=r["id"], rr=rr["id"], t=trigger_at, d=due, x=disposable,
-    )  # fmt: skip
+        id=r["id"],
+        rr=rr["id"],
+        t=trigger_at,
+        d=due,
+        x=disposable,
+    )
 
 
 async def superseded(tx: Tx, ref: str) -> None:
     """Another record supersedes `ref` (a link of kind supersedes)."""
     r = await tx.first(
-        "SELECT * FROM archive.records WHERE ref = :r AND state IN ('filed', 'sealed') FOR UPDATE", r=ref
+        "SELECT * FROM archive.records WHERE ref = :r AND state IN ('filed', 'sealed') FOR UPDATE",
+        r=ref,
     )
     if r is None:
         return
@@ -155,22 +166,32 @@ async def place(tx: Tx, who: Principal, body: dict[str, Any]) -> dict[str, Any]:
         errors["case"] = "the counsel places a hold with its case"
     recs = list(scope.get("records") or [])
     for i, ref in enumerate(recs):
-        if not isinstance(ref, str) or not await tx.scalar("SELECT 1 FROM archive.records WHERE ref = :r", r=ref):
+        if not isinstance(ref, str) or not await tx.scalar(
+            "SELECT 1 FROM archive.records WHERE ref = :r", r=ref
+        ):
             errors[f"scope.records.{i}"] = "a record you can see"
     folder_ids: list[UUID] = []
     for i, ref in enumerate(scope.get("folders") or []):
-        fid = await tx.scalar("SELECT id FROM archive.folders WHERE ref = :r", r=ref) if isinstance(ref, str) else None
+        fid = (
+            await tx.scalar("SELECT id FROM archive.folders WHERE ref = :r", r=ref)
+            if isinstance(ref, str)
+            else None
+        )
         if fid is None:
             errors[f"scope.folders.{i}"] = "an existing folder"
         else:
             folder_ids.append(fid)
     classes = list(scope.get("classes") or [])
     for i, k in enumerate(classes):
-        if not isinstance(k, str) or not await tx.scalar("SELECT 1 FROM archive.classes WHERE key = :k", k=k):
+        if not isinstance(k, str) or not await tx.scalar(
+            "SELECT 1 FROM archive.classes WHERE key = :k", k=k
+        ):
             errors[f"scope.classes.{i}"] = "an existing class"
     parties = list(scope.get("parties") or [])
     for i, p in enumerate(parties):
-        if not isinstance(p, str) or not await tx.scalar("SELECT 1 FROM archive.parties WHERE ref = :r", r=p):
+        if not isinstance(p, str) or not await tx.scalar(
+            "SELECT 1 FROM archive.parties WHERE ref = :r", r=p
+        ):
             errors[f"scope.parties.{i}"] = "an existing party"
     dates: dict[str, date | None] = {}
     for k in ("from", "to"):
@@ -185,21 +206,39 @@ async def place(tx: Tx, who: Principal, body: dict[str, Any]) -> dict[str, Any]:
     if errors:
         raise invalid(errors)
     h = await holding(tx)
-    kind, code = actor_of(who)
+    _kind, code = actor_of(who)
     row = await tx.one(
         """INSERT INTO archive.holds (company_id, title_fa, case_ref, reason_md, scope, record_refs, folder_ids,
                classes, party_refs, from_date, to_date, placed_by_kind, placed_by_code)
            VALUES (:co, :t, :c, :rs, CAST(:sc AS jsonb), :rr, :fi, :cl, :pr, :fd, :td, :bk, :bc) RETURNING *""",
-        co=h["id"], t=title.strip(), c=case, rs=reason.strip(),
-        sc=dumps({k: v for k, v in scope.items() if v not in (None, [], "")}), rr=recs, fi=folder_ids,
-        cl=classes, pr=parties, fd=dates["from"], td=dates["to"], bk="owner" if who.is_owner else "agent", bc=code,
-    )  # fmt: skip
+        co=h["id"],
+        t=str(title).strip(),
+        c=case,
+        rs=str(reason).strip(),
+        sc=dumps({k: v for k, v in scope.items() if v not in (None, [], "")}),
+        rr=recs,
+        fi=folder_ids,
+        cl=classes,
+        pr=parties,
+        fd=dates["from"],
+        td=dates["to"],
+        bk="owner" if who.is_owner else "agent",
+        bc=code,
+    )
     covered = await covered_records(tx, row["ref"])
     await audit.record(
-        tx, who, company_id=h["id"], action="archive.hold", action_class="A2", target_kind="archive_hold",
-        target_ref=row["ref"], summary=f"{case or 'owner'}: {len(covered)} record(s)",
-    )  # fmt: skip
-    await events.emit(tx, h["code"], "hold.changed", row["ref"], {"state": "active", "records": len(covered)})
+        tx,
+        who,
+        company_id=h["id"],
+        action="archive.hold",
+        action_class="A2",
+        target_kind="archive_hold",
+        target_ref=row["ref"],
+        summary=f"{case or 'owner'}: {len(covered)} record(s)",
+    )
+    await events.emit(
+        tx, h["code"], "hold.changed", row["ref"], {"state": "active", "records": len(covered)}
+    )
     from hq_api.archive import automations as AU
     from hq_api.archive import records as R
 
@@ -240,13 +279,21 @@ async def release(tx: Tx, h: dict[str, Any], step_up_id: UUID) -> dict[str, Any]
     row = await tx.one(
         """UPDATE archive.holds SET state = 'released', released_at = now(), release_step_up_id = :s
            WHERE id = :id RETURNING *""",
-        id=h["id"], s=step_up_id,
-    )  # fmt: skip
+        id=h["id"],
+        s=step_up_id,
+    )
     hq = await holding(tx)
     await audit.record(
-        tx, OWNER, company_id=hq["id"], action="archive.hold_release", action_class="A2",
-        target_kind="archive_hold", target_ref=h["ref"], summary=h["case_ref"] or "", step_up=True,
-    )  # fmt: skip
+        tx,
+        OWNER,
+        company_id=hq["id"],
+        action="archive.hold_release",
+        action_class="A2",
+        target_kind="archive_hold",
+        target_ref=h["ref"],
+        summary=h["case_ref"] or "",
+        step_up=True,
+    )
     await events.emit(tx, hq["code"], "hold.changed", h["ref"], {"state": "released"})
     return row
 
@@ -263,15 +310,26 @@ async def due(tx: Tx, today: date | None = None, *, limit: int = 500) -> list[di
            JOIN archive.retention_rules x ON x.id = r.retention_rule_id
            WHERE r.state IN ('filed', 'sealed', 'superseded') AND r.due_at IS NOT NULL AND r.due_at <= :d
            ORDER BY r.due_at, r.ref LIMIT :lim""",
-        d=today, lim=limit,
-    )  # fmt: skip
+        d=today,
+        lim=limit,
+    )
     return [
-        {"ref": x["ref"], "title_fa": x["title_fa"], "scope": x["scope"], "class": x["class_key"],
-         "rule": x["rule"], "trigger_at": x["trigger_at"], "due_at": x["due_at"], "then": x["then_do"],
-         "holds": list(x["holds"] or []), "decision_ref": x["disposal_ref"], "review_work": x["review_work_ref"],
-         "kept": x["disposal_kept"]}
+        {
+            "ref": x["ref"],
+            "title_fa": x["title_fa"],
+            "scope": x["scope"],
+            "class": x["class_key"],
+            "rule": x["rule"],
+            "trigger_at": x["trigger_at"],
+            "due_at": x["due_at"],
+            "then": x["then_do"],
+            "holds": list(x["holds"] or []),
+            "decision_ref": x["disposal_ref"],
+            "review_work": x["review_work_ref"],
+            "kept": x["disposal_kept"],
+        }
         for x in rows
-    ]  # fmt: skip
+    ]
 
 
 async def _recompute_pending(tx: Tx) -> int:
@@ -311,9 +369,16 @@ async def archivist_work(tx: Tx, title: str, brief: str, *, priority: str = "P3"
     if a is None:
         return None
     w = await W.create(
-        tx, SERVICE, company_id=a["company_id"], company_code=a["company"], title=title[:300],
-        brief=brief[:50000], kind="one_off", priority=priority, assignee_code=a["code"],
-    )  # fmt: skip
+        tx,
+        SERVICE,
+        company_id=a["company_id"],
+        company_code=a["company"],
+        title=title[:300],
+        brief=brief[:50000],
+        kind="one_off",
+        priority=priority,
+        assignee_code=a["code"],
+    )
     await tx.exec(
         """UPDATE work.work SET run_meta = COALESCE(run_meta, CAST('{}' AS jsonb)) || CAST(:m AS jsonb)
            WHERE id = :id""",
@@ -330,7 +395,13 @@ async def sweep(hub: Any, txf: Any, today: date | None = None) -> dict[str, Any]
     from hq_api.archive import records as R
 
     today = today or datetime.now(UTC).date()
-    out: dict[str, Any] = {"recomputed": 0, "due": 0, "review_items": 0, "card": None, "deferred": 0}
+    out: dict[str, Any] = {
+        "recomputed": 0,
+        "due": 0,
+        "review_items": 0,
+        "card": None,
+        "deferred": 0,
+    }
     async with txf() as tx:
         await CL.full(tx)
         out["recomputed"] = await _recompute_pending(tx)
@@ -339,7 +410,8 @@ async def sweep(hub: Any, txf: Any, today: date | None = None) -> dict[str, Any]
         out["due"] = len(rows)
         for x in rows:  # retention_due, once per record
             n = await tx.exec(
-                "UPDATE archive.records SET due_seen_at = now() WHERE ref = :r AND due_seen_at IS NULL", r=x["ref"]
+                "UPDATE archive.records SET due_seen_at = now() WHERE ref = :r AND due_seen_at IS NULL",
+                r=x["ref"],
             )
             if n:
                 await AU.fire(tx, "retention_due", await R.load(tx, x["ref"]))
@@ -347,7 +419,9 @@ async def sweep(hub: Any, txf: Any, today: date | None = None) -> dict[str, Any]
         if review and lock is not None:
             out["deferred"] = len(review)  # waking the archivist waits for the launch
         elif review:
-            lines = "\n".join(f"- {x['ref']} ({x['class']}, {x['scope']}): {x['title_fa']}" for x in review)
+            lines = "\n".join(
+                f"- {x['ref']} ({x['class']}, {x['scope']}): {x['title_fa']}" for x in review
+            )
             ref = await archivist_work(
                 tx,
                 f"بازبینی نگهداری {len(review)} سند بایگانی",
@@ -358,13 +432,18 @@ async def sweep(hub: Any, txf: Any, today: date | None = None) -> dict[str, Any]
             if ref:
                 await tx.exec(
                     "UPDATE archive.records SET review_work_ref = :w WHERE ref = ANY(:r)",
-                    w=ref, r=[x["ref"] for x in review],
-                )  # fmt: skip
+                    w=ref,
+                    r=[x["ref"] for x in review],
+                )
                 out["review_items"] = 1
         disposable = [
-            x for x in rows
-            if x["then"] == "dispose_card" and not x["decision_ref"] and not x["kept"] and not x["holds"]
-        ]  # fmt: skip
+            x
+            for x in rows
+            if x["then"] == "dispose_card"
+            and not x["decision_ref"]
+            and not x["kept"]
+            and not x["holds"]
+        ]
         if disposable:
             out["card"] = await disposal_card(tx, disposable[:CARD_MAX])
     if out["card"]:
@@ -388,13 +467,19 @@ async def disposal_card(tx: Tx, rows: list[dict[str, Any]]) -> str | None:
     h = await holding(tx)
     payload = {
         "records": [
-            {"ref": x["ref"], "class": x["class"], "title_fa": x["title_fa"], "retention_rule": x["rule"],
-             "trigger_at": x["trigger_at"].isoformat() if x["trigger_at"] else None}
+            {
+                "ref": x["ref"],
+                "class": x["class"],
+                "title_fa": x["title_fa"],
+                "retention_rule": x["rule"],
+                "trigger_at": x["trigger_at"].isoformat() if x["trigger_at"] else None,
+            }
             for x in rows
         ]
-    }  # fmt: skip
+    }
     what = "\n".join(
-        f"- {x['ref']} · {x['class']} · {x['scope']} · {x['title_fa']} (پایان نگهداری {x['due_at']})" for x in rows
+        f"- {x['ref']} · {x['class']} · {x['scope']} · {x['title_fa']} (پایان نگهداری {x['due_at']})"
+        for x in rows
     )
     d = await D.propose(
         tx,
@@ -404,18 +489,23 @@ async def disposal_card(tx: Tx, rows: list[dict[str, Any]]) -> str | None:
         body=D.DecisionIn(
             kind="archive_disposal",
             title=f"امحای {len(rows)} سند بایگانی (پایان دوره‌ی نگهداری)",
-            what=("با مُهر این کارت، فایل‌های این سندها نابود میشوند و فقط سنگ‌نوشته (ارجاع، رده، عنوان، "
-                  "تاریخ‌ها و hash فایل‌ها) میماند. سند توقیف‌شده هرگز امحا نمیشود.\n\n" + what)[:20000],
+            what=(
+                "با مُهر این کارت، فایل‌های این سندها نابود میشوند و فقط سنگ‌نوشته (ارجاع، رده، عنوان، "
+                "تاریخ‌ها و hash فایل‌ها) میماند. سند توقیف‌شده هرگز امحا نمیشود.\n\n" + what
+            )[:20000],
             why="قاعده‌های نگهداری بایگانی (dispose_card)",
             risk="high",
             reversible=False,
             payload=payload,
-        ),  # fmt: skip
+        ),
         thread_code=None,
         company_kind="holding",
     )
-    await tx.exec("UPDATE archive.records SET disposal_ref = :d WHERE ref = ANY(:r)",
-                  d=d["ref"], r=[x["ref"] for x in rows])  # fmt: skip
+    await tx.exec(
+        "UPDATE archive.records SET disposal_ref = :d WHERE ref = ANY(:r)",
+        d=d["ref"],
+        r=[x["ref"] for x in rows],
+    )
     return str(d["ref"])
 
 
@@ -446,7 +536,8 @@ async def apply_disposal(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
             skipped.append({"ref": r["ref"], "why": "no longer due"})
             continue
         files = await tx.all(
-            "SELECT id, name, sha256, storage_key FROM archive.record_files WHERE record_id = :r ORDER BY version_n, name",
+            """SELECT id, name, sha256, storage_key FROM archive.record_files WHERE record_id = :r
+               ORDER BY version_n, name""",
             r=r["id"],
         )
         for f in files:
@@ -454,8 +545,10 @@ async def apply_disposal(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
                 await tx.exec(
                     """INSERT INTO archive.destroy_queue (company_id, storage_key, why, ref)
                        VALUES (:co, :k, 'disposal', :ref)""",
-                    co=r["company_id"], k=f["storage_key"], ref=r["ref"],
-                )  # fmt: skip
+                    co=r["company_id"],
+                    k=f["storage_key"],
+                    ref=r["ref"],
+                )
         await tx.exec(
             """UPDATE archive.record_files SET destroyed_at = now(), storage_key = NULL, wrapped_dek = NULL,
                    text = NULL, ocr_wanted = false WHERE record_id = :r AND destroyed_at IS NULL""",
@@ -465,32 +558,61 @@ async def apply_disposal(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
             """INSERT INTO archive.tombstones (company_id, record_id, ref, class_key, title_fa, level_rank, dates,
                    hashes, decision_ref)
                VALUES (:co, :r, :ref, :c, :t, :lr, CAST(:dt AS jsonb), CAST(:h AS jsonb), :d)""",
-            co=r["company_id"], r=r["id"], ref=r["ref"], c=r["class_key"], t=r["title_fa"], lr=r["level_rank"],
-            dt=dumps({"created_at": r["created_at"], "filed_at": r["filed_at"], "sealed_at": r["sealed_at"],
-                      "trigger_at": r["trigger_at"], "due_at": r["due_at"], "disposed_at": datetime.now(UTC)}),
-            h=dumps([{"name": f["name"], "sha256": f["sha256"]} for f in files]), d=d["ref"],
-        )  # fmt: skip
+            co=r["company_id"],
+            r=r["id"],
+            ref=r["ref"],
+            c=r["class_key"],
+            t=r["title_fa"],
+            lr=r["level_rank"],
+            dt=dumps(
+                {
+                    "created_at": r["created_at"],
+                    "filed_at": r["filed_at"],
+                    "sealed_at": r["sealed_at"],
+                    "trigger_at": r["trigger_at"],
+                    "due_at": r["due_at"],
+                    "disposed_at": datetime.now(UTC),
+                }
+            ),
+            h=dumps([{"name": f["name"], "sha256": f["sha256"]} for f in files]),
+            d=d["ref"],
+        )
         await tx.exec(
             """UPDATE archive.records SET state = 'disposed', disposed_at = now(), sealed_at = NULL,
                    metadata = '{}', parties = '[]', party_refs = '{}', watch_dates = '{}', suggestion = NULL,
                    meta_tsv = NULL, sens_tsv = NULL, text_tsv = NULL, disposal_ref = :d
                WHERE id = :id""",
-            id=r["id"], d=d["ref"],
-        )  # fmt: skip
+            id=r["id"],
+            d=d["ref"],
+        )
         await tx.exec(
-            "UPDATE archive.reminders SET state = 'done', done_at = now(), done_by = 'disposal' WHERE record_id = :r AND state <> 'done'",
+            """UPDATE archive.reminders SET state = 'done', done_at = now(), done_by = 'disposal'
+               WHERE record_id = :r AND state <> 'done'""",
             r=r["id"],
         )
         await tx.exec(
             "UPDATE archive.intake SET text = NULL, updated_at = now() WHERE file_id = ANY(:f)",
-            f=[x["id"] for x in await tx.all("SELECT file_id AS id FROM archive.record_files WHERE record_id = :r", r=r["id"])],
-        )  # fmt: skip
+            f=[
+                x["id"]
+                for x in await tx.all(
+                    "SELECT file_id AS id FROM archive.record_files WHERE record_id = :r", r=r["id"]
+                )
+            ],
+        )
         await audit.record(
-            tx, OWNER, company_id=r["company_id"], action="archive.dispose", action_class="A2",
-            target_kind="archive_record", target_ref=r["ref"], summary=f"{d['ref']}: {len(files)} file(s)",
+            tx,
+            OWNER,
+            company_id=r["company_id"],
+            action="archive.dispose",
+            action_class="A2",
+            target_kind="archive_record",
+            target_ref=r["ref"],
+            summary=f"{d['ref']}: {len(files)} file(s)",
             step_up=True,
-        )  # fmt: skip
-        await events.emit(tx, r["scope"], "record.updated", r["ref"], {"state": "disposed", "change": "disposed"})
+        )
+        await events.emit(
+            tx, r["scope"], "record.updated", r["ref"], {"state": "disposed", "change": "disposed"}
+        )
         disposed.append(r["ref"])
     # Records left on the card but not disposed may come on a later card.
     await tx.exec(
@@ -507,8 +629,9 @@ async def card_declined(tx: Tx, d: dict[str, Any], verdict: str) -> None:
         """UPDATE archive.records SET disposal_ref = NULL,
                disposal_kept = disposal_kept OR CAST(:kept AS boolean)
            WHERE disposal_ref = :d""",
-        d=d["ref"], kept=verdict == "rejected",
-    )  # fmt: skip
+        d=d["ref"],
+        kept=verdict == "rejected",
+    )
 
 
 async def destroy_queued(hub: Any, txf: Any, limit: int = 500) -> int:
@@ -522,6 +645,8 @@ async def destroy_queued(hub: Any, txf: Any, limit: int = 500) -> int:
     for x in rows:
         await hub.storage.destroy(x["storage_key"])
         async with txf() as tx:
-            await tx.exec("UPDATE archive.destroy_queue SET done_at = now() WHERE id = :id", id=x["id"])
+            await tx.exec(
+                "UPDATE archive.destroy_queue SET done_at = now() WHERE id = :id", id=x["id"]
+            )
         n += 1
     return n

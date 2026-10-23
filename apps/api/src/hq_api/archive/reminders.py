@@ -37,15 +37,22 @@ async def _deliver(tx: Tx, rem: dict[str, Any], r: dict[str, Any], title: str) -
     text = f"{r['ref']} · {title}: {rem['field']} در {rem['at'].isoformat()} ({days} روز دیگر)"
     if to == "owner" or to is None:
         row = await notify.raise_notification(
-            tx, company_id=r["company_id"], company_code=r["scope"],
+            tx,
+            company_id=r["company_id"],
+            company_code=r["scope"],
             level="decision" if rem["channel"] == "cartable" else "report",
-            title_fa=f"یادآور بایگانی: {text}"[:200], body_fa=text[:500], link_kind="archive_record",
-            link_ref=r["ref"], source_kind="service", source_code="archive",
-        )  # fmt: skip
+            title_fa=f"یادآور بایگانی: {text}"[:200],
+            body_fa=text[:500],
+            link_kind="archive_record",
+            link_ref=r["ref"],
+            source_kind="service",
+            source_code="archive",
+        )
         await tx.exec(
             "UPDATE archive.reminders SET state = 'sent', sent_at = now(), notification_id = :n WHERE id = :id",
-            id=rem["id"], n=row["id"],
-        )  # fmt: skip
+            id=rem["id"],
+            n=row["id"],
+        )
         return "sent"
     if await gate.automation_lock(tx, r["company_id"]) is not None:
         return "pending"
@@ -63,20 +70,28 @@ async def _deliver(tx: Tx, rem: dict[str, Any], r: dict[str, Any], title: str) -
                JOIN core.companies c ON c.id = e.company_id
                WHERE e.role = :role AND e.status = 'active' AND (e.company_id = :co OR c.kind = 'holding')
                ORDER BY (e.company_id = :co) DESC LIMIT 1""",
-            role=role, co=r["company_id"],
-        )  # fmt: skip
+            role=role,
+            co=r["company_id"],
+        )
     if who is None:
         return "pending"
     w = await W.create(
-        tx, SERVICE, company_id=who["company_id"], company_code=who["company"], title=f"یادآور: {text}"[:300],
+        tx,
+        SERVICE,
+        company_id=who["company_id"],
+        company_code=who["company"],
+        title=f"یادآور: {text}"[:300],
         brief=f"Archive reminder for {r['ref']}: its field `{rem['field']}` is {rem['at']}. Read it with archive.read "
         "if you hold that tool, and do what the date asks.",
-        kind="one_off", priority="P3", assignee_code=who["code"],
-    )  # fmt: skip
+        kind="one_off",
+        priority="P3",
+        assignee_code=who["code"],
+    )
     await tx.exec(
         "UPDATE archive.reminders SET state = 'sent', sent_at = now(), work_ref = :w WHERE id = :id",
-        id=rem["id"], w=w["ref"],
-    )  # fmt: skip
+        id=rem["id"],
+        w=w["ref"],
+    )
     return "sent"
 
 
@@ -91,15 +106,18 @@ async def run(hub: Any, txf: Any, today: date | None = None) -> dict[str, Any]:
     out = {"created": 0, "sent": 0, "pending": 0, "closed": 0}
     async with txf() as tx:
         await CL.full(tx)
-        for rule in await tx.all("SELECT * FROM archive.reminder_rules WHERE status = 'active' ORDER BY ref"):
+        for rule in await tx.all(
+            "SELECT * FROM archive.reminder_rules WHERE status = 'active' ORDER BY ref"
+        ):
             leads = sorted(int(x) for x in rule["lead_days"])
             horizon = today + timedelta(days=max(leads))
             for x in await tx.all(
                 """SELECT r.ref FROM archive.records r
                    WHERE r.class_key = :c AND r.state IN ('filed', 'sealed') AND r.metadata ? :f
                    ORDER BY r.ref LIMIT 5000""",
-                c=rule["class_key"], f=rule["field"],
-            ):  # fmt: skip
+                c=rule["class_key"],
+                f=rule["field"],
+            ):
                 r = await R.load(tx, x["ref"])
                 fields = await R.class_fields(tx, r)
                 f = next((y for y in fields if y["key"] == rule["field"]), None)
@@ -114,17 +132,28 @@ async def run(hub: Any, txf: Any, today: date | None = None) -> dict[str, Any]:
                            channel, to_whom)
                        VALUES (:co, :r, :rule, :f, :at, :ld, :due, :ch, CAST(:to AS jsonb))
                        ON CONFLICT (record_id, field, at, lead_days) DO NOTHING RETURNING *""",
-                    co=r["company_id"], r=r["id"], rule=rule["id"], f=rule["field"], at=at, ld=lead,
-                    due=at - timedelta(days=lead), ch=rule["channel"],
+                    co=r["company_id"],
+                    r=r["id"],
+                    rule=rule["id"],
+                    f=rule["field"],
+                    at=at,
+                    ld=lead,
+                    due=at - timedelta(days=lead),
+                    ch=rule["channel"],
                     to=dumps(J(rule["to_whom"])),
-                )  # fmt: skip
+                )
                 if rem is None:
                     continue
                 out["created"] += 1
                 state = await _deliver(tx, rem, r, r["title_fa"])
                 out[state] += 1
-                await events.emit(tx, r["scope"], "reminder.due", r["ref"],
-                                  {"field": rule["field"], "lead_days": lead, "state": state})  # fmt: skip
+                await events.emit(
+                    tx,
+                    r["scope"],
+                    "reminder.due",
+                    r["ref"],
+                    {"field": rule["field"], "lead_days": lead, "state": state},
+                )
                 await AU.fire(tx, "reminder_due", r)
         # Pending ones (locked before) are delivered once they can be.
         for rem in await tx.all(
@@ -157,7 +186,9 @@ async def run(hub: Any, txf: Any, today: date | None = None) -> dict[str, Any]:
     return out
 
 
-async def due_list(tx: Tx, today: date | None = None, *, scope: str | None = None) -> list[dict[str, Any]]:
+async def due_list(
+    tx: Tx, today: date | None = None, *, scope: str | None = None
+) -> list[dict[str, Any]]:
     """DueReminder rows (§23.12) the reader may see (RLS through the record)."""
     today = today or datetime.now(UTC).date()
     rows = await tx.all(
@@ -170,12 +201,23 @@ async def due_list(tx: Tx, today: date | None = None, *, scope: str | None = Non
         s=scope,
     )
     return [
-        {"id": x["id"], "record": x["record"], "title_fa": x["title_fa"], "scope": x["scope"],
-         "class": x["class_key"], "field": x["field"], "at": x["at"], "lead_days": x["lead_days"],
-         "days_left": (x["at"] - today).days, "state": x["state"], "rule": x["rule"], "to": J(x["to_whom"]),
-         "channel": x["channel"]}
+        {
+            "id": x["id"],
+            "record": x["record"],
+            "title_fa": x["title_fa"],
+            "scope": x["scope"],
+            "class": x["class_key"],
+            "field": x["field"],
+            "at": x["at"],
+            "lead_days": x["lead_days"],
+            "days_left": (x["at"] - today).days,
+            "state": x["state"],
+            "rule": x["rule"],
+            "to": J(x["to_whom"]),
+            "channel": x["channel"],
+        }
         for x in rows
-    ]  # fmt: skip
+    ]
 
 
 async def done(tx: Tx, who: Any, rem_id: UUID) -> dict[str, Any]:
@@ -189,10 +231,17 @@ async def done(tx: Tx, who: Any, rem_id: UUID) -> dict[str, Any]:
     if row["state"] != "done":
         await tx.exec(
             "UPDATE archive.reminders SET state = 'done', done_at = now(), done_by = :b WHERE id = :id",
-            id=rem_id, b=(who or OWNER).code[:64],
-        )  # fmt: skip
+            id=rem_id,
+            b=(who or OWNER).code[:64],
+        )
         await audit.record(
-            tx, who or OWNER, company_id=row["rco"], action="archive.reminder_done", action_class="A1",
-            target_kind="archive_record", target_ref=row["ref"], summary=f"{row['field']} {row['at']}",
-        )  # fmt: skip
+            tx,
+            who or OWNER,
+            company_id=row["rco"],
+            action="archive.reminder_done",
+            action_class="A1",
+            target_kind="archive_record",
+            target_ref=row["ref"],
+            summary=f"{row['field']} {row['at']}",
+        )
     return {"id": rem_id, "state": "done"}

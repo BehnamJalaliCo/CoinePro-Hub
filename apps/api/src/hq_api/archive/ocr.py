@@ -21,6 +21,7 @@ any other before it is kept.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Any
 
@@ -56,10 +57,8 @@ async def run(settings: Any, data: bytes, mime: str) -> dict[str, Any]:
         return {"state": "busy"}
     if resp.status_code != 200:
         code = ""
-        try:
+        with contextlib.suppress(ValueError):
             code = str(resp.json().get("error") or "")[:40]
-        except ValueError:
-            pass
         return {"state": "failed", "error": code or f"http_{resp.status_code}"}
     body = resp.json()
     return {"state": "ok", **body}

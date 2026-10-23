@@ -8,6 +8,7 @@ itself (red line 4).
 
 from __future__ import annotations
 
+import contextlib
 import re
 from datetime import date
 from typing import Any
@@ -15,28 +16,55 @@ from typing import Any
 from hq_api.db import Tx
 
 _FA = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
-JALALI = re.compile(r"(?<![0-9])(1[34][0-9]{2})[/\-.](0?[1-9]|1[0-2])[/\-.](0?[1-9]|[12][0-9]|3[01])(?![0-9])")
-GREG = re.compile(r"(?<![0-9])(20[0-9]{2}|19[0-9]{2})[/\-.](0?[1-9]|1[0-2])[/\-.](0?[1-9]|[12][0-9]|3[01])(?![0-9])")
-GREG_DMY = re.compile(r"(?<![0-9])(0?[1-9]|[12][0-9]|3[01])[/.](0?[1-9]|1[0-2])[/.](20[0-9]{2})(?![0-9])")
+JALALI = re.compile(
+    r"(?<![0-9])(1[34][0-9]{2})[/\-.](0?[1-9]|1[0-2])[/\-.](0?[1-9]|[12][0-9]|3[01])(?![0-9])"
+)
+GREG = re.compile(
+    r"(?<![0-9])(20[0-9]{2}|19[0-9]{2})[/\-.](0?[1-9]|1[0-2])[/\-.](0?[1-9]|[12][0-9]|3[01])(?![0-9])"
+)
+GREG_DMY = re.compile(
+    r"(?<![0-9])(0?[1-9]|[12][0-9]|3[01])[/.](0?[1-9]|1[0-2])[/.](20[0-9]{2})(?![0-9])"
+)
 UNITS = {
-    "usdt": "USDT", "تتر": "USDT", "usd": "USD", "$": "USD", "دلار": "USD", "eur": "EUR", "€": "EUR",
-    "یورو": "EUR", "ریال": "IRR", "rial": "IRR", "irr": "IRR", "تومان": "IRT", "toman": "IRT",
-    "درهم": "AED", "aed": "AED", "لیر": "TRY", "try": "TRY",
-}  # fmt: skip
+    "usdt": "USDT",
+    "تتر": "USDT",
+    "usd": "USD",
+    "$": "USD",
+    "دلار": "USD",
+    "eur": "EUR",
+    "€": "EUR",
+    "یورو": "EUR",
+    "ریال": "IRR",
+    "rial": "IRR",
+    "irr": "IRR",
+    "تومان": "IRT",
+    "toman": "IRT",
+    "درهم": "AED",
+    "aed": "AED",
+    "لیر": "TRY",
+    "try": "TRY",
+}
 AMOUNT = re.compile(
     r"(?:(\$|€)\s?([0-9][0-9,٬]*(?:\.[0-9]+)?)|([0-9][0-9,٬]*(?:\.[0-9]+)?)\s?"
     r"(usdt|usd|eur|irr|aed|try|rial|toman|دلار|یورو|ریال|تومان|تتر|درهم|لیر))",
     re.I,
 )
 IBAN = re.compile(r"(?<![A-Z0-9])IR\s?([0-9]{2}(?:\s?[0-9]){22})(?![0-9])", re.I)
-NATIONAL = re.compile(r"(?:کد\s?ملی|شناسه\s?ملی|national\s?(?:id|code))\D{0,6}([0-9]{10,11})(?![0-9])", re.I)
-REGISTRATION = re.compile(r"(?:شماره\s?ثبت|ثبت\s?شده\s?به\s?شماره|registration\s?(?:no|number))\D{0,6}([0-9]{3,12})", re.I)
+NATIONAL = re.compile(
+    r"(?:کد\s?ملی|شناسه\s?ملی|national\s?(?:id|code))\D{0,6}([0-9]{10,11})(?![0-9])", re.I
+)
+REGISTRATION = re.compile(
+    r"(?:شماره\s?ثبت|ثبت\s?شده\s?به\s?شماره|registration\s?(?:no|number))\D{0,6}([0-9]{3,12})", re.I
+)
 CLASS_WORDS = (
     ("affiliate_agreement", ("افیلیت", "affiliate", "referral", "رفرال", "همکاری در فروش")),
     ("invoice", ("فاکتور", "صورتحساب", "رسید پرداخت", "invoice", "receipt")),
     ("license", ("مجوز", "پروانه", "license", "licence")),
     ("domain", ("دامنه", "domain", "registrar")),
-    ("company_registration", ("آگهی تاسیس", "آگهی تأسیس", "ثبت شرکت", "اساسنامه شرکت", "certificate of incorporation")),
+    (
+        "company_registration",
+        ("آگهی تاسیس", "آگهی تأسیس", "ثبت شرکت", "اساسنامه شرکت", "certificate of incorporation"),
+    ),
     ("legal_correspondence", ("اخطاریه", "اظهارنامه", "notice of", "takedown", "appeal")),
     ("contract", ("قرارداد", "contract", "agreement", "طرفین")),
 )
@@ -60,15 +88,11 @@ def dates(text: str) -> list[str]:
         if g:
             out.append(g)
     for m in GREG.finditer(t):
-        try:
+        with contextlib.suppress(ValueError):
             out.append(date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat())
-        except ValueError:
-            pass
     for m in GREG_DMY.finditer(t):
-        try:
+        with contextlib.suppress(ValueError):
             out.append(date(int(m.group(3)), int(m.group(2)), int(m.group(1))).isoformat())
-        except ValueError:
-            pass
     return list(dict.fromkeys(out))[:20]
 
 
@@ -129,7 +153,9 @@ async def rules(tx: Tx, text: str, name: str = "") -> dict[str, Any] | None:
     if found_dates:
         note.append("تاریخ‌ها: " + "، ".join(found_dates[:5]))
     if found_amounts:
-        note.append("مبلغ‌ها: " + "، ".join(f"{a['amount']} {a['currency']}" for a in found_amounts[:3]))
+        note.append(
+            "مبلغ‌ها: " + "، ".join(f"{a['amount']} {a['currency']}" for a in found_amounts[:3])
+        )
     if ibans:
         note.append(f"شبا: {len(ibans)} مورد")
     if national:
@@ -143,6 +169,11 @@ async def rules(tx: Tx, text: str, name: str = "") -> dict[str, Any] | None:
         "parties": parties[:10],
         "by": "rules",
         "note_fa": " · ".join(note) or "از متن چیزی برای پیشنهاد پیدا نشد",
-        "found": {"dates": found_dates, "amounts": found_amounts, "ibans": len(ibans),
-                  "national_codes": len(national), "registration_numbers": registration},  # fmt: skip
+        "found": {
+            "dates": found_dates,
+            "amounts": found_amounts,
+            "ibans": len(ibans),
+            "national_codes": len(national),
+            "registration_numbers": registration,
+        },
     }

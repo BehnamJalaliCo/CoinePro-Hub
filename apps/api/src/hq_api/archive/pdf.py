@@ -56,7 +56,7 @@ def page_svg(lines: list[tuple[str, bool]], n: int, total: int, footer: str) -> 
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
         f'<rect width="{w}" height="{h}" fill="#FFFFFF"/>',
     ]
-    y = MARGIN
+    y: float = MARGIN
     for text, bold in lines:
         y += SIZE * LEADING
         if not text:
@@ -104,8 +104,13 @@ async def render(hub: Any, title: str, body: str, footer: str = "CoinePro HQ") -
     try:
         got = await untrusted.run(
             "hq_api.archive.pdf:render_job",
-            kwargs={"title": title, "body": body, "footer": footer, "out": str(out),
-                    "font_dir": hub.settings.fonts_dir},  # fmt: skip
+            kwargs={
+                "title": title,
+                "body": body,
+                "footer": footer,
+                "out": str(out),
+                "font_dir": hub.settings.fonts_dir,
+            },
             limits=LIMITS,
         )
         if not got.ok or not isinstance(got.value, dict):

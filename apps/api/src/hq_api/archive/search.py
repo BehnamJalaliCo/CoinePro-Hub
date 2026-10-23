@@ -81,17 +81,31 @@ async def search(
                   OR (archive.can_see(GREATEST(r.level_rank, :conf), r.company_id) AND r.sens_tsv @@ q.tq))
            ORDER BY score DESC, r.created_at DESC, r.id
            LIMIT :lim OFFSET :off""",
-        q=qn, scope=scope, cls=cls, lv=level, party=party, df=date_from, dt=date_to,
-        conf=await conf_rank(tx), lim=limit + 1, off=offset,
-    )  # fmt: skip
+        q=qn,
+        scope=scope,
+        cls=cls,
+        lv=level,
+        party=party,
+        df=date_from,
+        dt=date_to,
+        conf=await conf_rank(tx),
+        lim=limit + 1,
+        off=offset,
+    )
     items = []
     for r in rows[:limit]:
-        items.append({
-            "ref": r["ref"], "title_fa": r["title_fa"], "class": r["class_key"], "scope": r["scope"],
-            "level": r["level"], "state": r["state"],
-            "snippet_fa": await snippet(tx, r, qn) if qn else "",
-            "score": round(float(r["score"] or 0), 4),
-        })  # fmt: skip
+        items.append(
+            {
+                "ref": r["ref"],
+                "title_fa": r["title_fa"],
+                "class": r["class_key"],
+                "scope": r["scope"],
+                "level": r["level"],
+                "state": r["state"],
+                "snippet_fa": await snippet(tx, r, qn) if qn else "",
+                "score": round(float(r["score"] or 0), 4),
+            }
+        )
     nxt = pagination.encode([offset + limit]) if len(rows) > limit else None
     return {"items": items, "next_cursor": nxt}
 
@@ -107,8 +121,9 @@ async def snippet(tx: Tx, r: dict[str, Any], qn: str) -> str:
                      WHERE f.record_id = :r AND f.version_n = x.current_version AND f.destroyed_at IS NULL
                        AND NOT f.quarantined) s
                WHERE t <> '' AND to_tsvector('simple', t) @@ plainto_tsquery('simple', core.fa_normalize(:q))""",
-            r=r["id"], q=qn,
-        )  # fmt: skip
+            r=r["id"],
+            q=qn,
+        )
         if got:
             return str(got)[:SNIPPET]
     return str(r["title_fa"])[:SNIPPET]
@@ -135,10 +150,12 @@ async def listing(
 
     before_t, before_id = pagination.time_id(cursor)
     today = datetime.now(UTC).date()
-    horizon = today + timedelta(days=expiring_within_days) if expiring_within_days is not None else None
+    horizon = (
+        today + timedelta(days=expiring_within_days) if expiring_within_days is not None else None
+    )
     qn = norm(q) if q else None
     rows = await tx.all(
-        RECORD_SQL
+        RECORD_SQL  # noqa: S608 - a module constant; every value is a bound parameter
         + """ WHERE (CAST(:scope AS text) IS NULL OR co.code = :scope)
                 AND (CAST(:cls AS text) IS NULL OR r.class_key = :cls)
                 AND (CAST(:folder AS text) IS NULL OR f.ref = :folder)
@@ -157,9 +174,22 @@ async def listing(
                 AND (CAST(:bt AS timestamptz) IS NULL
                      OR (r.created_at, r.id) < (CAST(:bt AS timestamptz), CAST(:bid AS uuid)))
               ORDER BY r.created_at DESC, r.id DESC LIMIT :lim""",
-        scope=scope, cls=cls, folder=folder, lv=level, st=state, party=party, df=date_from, dt=date_to,
-        hz=horizon, today=today, held=held, q=qn, bt=before_t, bid=before_id, lim=limit + 1,
-    )  # fmt: skip
+        scope=scope,
+        cls=cls,
+        folder=folder,
+        lv=level,
+        st=state,
+        party=party,
+        df=date_from,
+        dt=date_to,
+        hz=horizon,
+        today=today,
+        held=held,
+        q=qn,
+        bt=before_t,
+        bid=before_id,
+        lim=limit + 1,
+    )
     return pagination.page(rows, limit, ("created_at", "id"))
 
 
@@ -169,11 +199,19 @@ async def text_of(tx: Tx, r: dict[str, Any], version: int | None) -> str | None:
         """SELECT string_agg(f.name || E':\n' || COALESCE(f.text, ''), E'\n\n' ORDER BY f.name)
            FROM archive.record_files f
            WHERE f.record_id = :r AND f.version_n = :v AND f.destroyed_at IS NULL AND NOT f.quarantined""",
-        r=r["id"], v=version or r["current_version"],
-    )  # fmt: skip
+        r=r["id"],
+        v=version or r["current_version"],
+    )
     return str(got) if got else None
 
 
 def brief(r: dict[str, Any]) -> dict[str, Any]:
-    return {"ref": r["ref"], "title_fa": r["title_fa"], "class": r["class_key"], "scope": r["scope"],
-            "level": r["level"], "state": r["state"], "metadata": J(r["metadata"], {})}  # fmt: skip
+    return {
+        "ref": r["ref"],
+        "title_fa": r["title_fa"],
+        "class": r["class_key"],
+        "scope": r["scope"],
+        "level": r["level"],
+        "state": r["state"],
+        "metadata": J(r["metadata"], {}),
+    }

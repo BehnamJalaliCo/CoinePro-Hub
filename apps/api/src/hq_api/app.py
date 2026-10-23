@@ -62,6 +62,8 @@ from hq_api.routes import (
     workshop,
 )
 from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
+from hq_api.routes import archive as archive_routes  # prompt 14: the archive
+from hq_api.routes import archive_agents as archive_agent_routes  # prompt 14: its agent tools
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import media as media_routes  # prompt 13, the media half
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
@@ -224,6 +226,9 @@ def create_app(
     app.include_router(media_routes.router, prefix="/api/v1")
     app.include_router(media_routes.internal_router, prefix="/internal/v1")
     app.include_router(media_routes.public_router, prefix="/public/v1")
+    # ⟨1.7⟩ prompt 14 (contract §23): the archive of record and its agent tools.
+    app.include_router(archive_routes.router, prefix="/api/v1")
+    app.include_router(archive_agent_routes.internal_router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

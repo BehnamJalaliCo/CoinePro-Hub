@@ -19,9 +19,10 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from hq_api import http, idempotency
+from hq_api.archive import cards as AC
 from hq_api.archive import clearance as CL
 from hq_api.archive import fixity as FX
 from hq_api.archive import records as R
@@ -76,7 +77,7 @@ class RecordIn(Model):
     file: bool = False
     note_fa: str | None = Field(default=None, max_length=2000)
 
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 class RecordPatch(Model):
@@ -87,7 +88,7 @@ class RecordPatch(Model):
     level: str | None = Field(default=None, pattern=KEY)
     class_: str | None = Field(default=None, alias="class", pattern=KEY)
 
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 class VersionIn(Model):
@@ -104,7 +105,7 @@ class ImportIn(Model):
     file_ids: list[UUID] = Field(min_length=1, max_length=50)
     class_: str | None = Field(default=None, alias="class", pattern=KEY)
 
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 class IntakeIn(Model):
@@ -135,7 +136,7 @@ class HoldScope(Model):
     from_: date | None = Field(default=None, alias="from")
     to: date | None = None
 
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 class HoldIn(Model):
@@ -154,7 +155,7 @@ class RetireIn(Model):
 class Record(BaseModel):
     """Record (contract §23.1, §23.12): what the reader may see of it."""
 
-    model_config = {"extra": "allow"}
+    model_config = ConfigDict(extra="allow")
     ref: str
     scope: str
     title_fa: str
@@ -183,12 +184,9 @@ class IntakeOut(BaseModel):
 
 
 # ----------------------------------------------------------------- helpers --
-async def _owner_tx(ctx: Ctx) -> Any:
-    return ctx.tx()
-
-
 def _render_ok(x: dict[str, Any]) -> dict[str, Any]:
-    return json.loads(dumps(x))
+    out: dict[str, Any] = json.loads(dumps(x))
+    return out
 
 
 async def _record_out(ctx: Ctx, tx: Any, ref: str, *, full: bool = True) -> dict[str, Any]:
@@ -197,10 +195,18 @@ async def _record_out(ctx: Ctx, tx: Any, ref: str, *, full: bool = True) -> dict
 
 
 def _intake_out(it: ST.Intake) -> dict[str, Any]:
-    return {"file_id": str(it.file_id), "name": it.name, "mime": it.mime, "size_bytes": it.size,
-            "sha256": it.sha256, "pages": it.pages, "text_state": it.text_state,
-            "ocr_confidence": it.ocr_confidence, "low_confidence_pages": it.low_pages,
-            "ocr_queued": it.ocr_wanted}  # fmt: skip
+    return {
+        "file_id": str(it.file_id),
+        "name": it.name,
+        "mime": it.mime,
+        "size_bytes": it.size,
+        "sha256": it.sha256,
+        "pages": it.pages,
+        "text_state": it.text_state,
+        "ocr_confidence": it.ocr_confidence,
+        "low_confidence_pages": it.low_pages,
+        "ocr_queued": it.ocr_wanted,
+    }
 
 
 def _txf(ctx: Ctx) -> Any:
@@ -256,10 +262,21 @@ async def list_records(
     async with ctx.tx() as tx:
         await CL.full(tx)
         rows, nxt = await SE.listing(
-            tx, scope=scope, cls=class_, folder=folder, level=level, state=state, party=party, q=q,
-            date_from=from_, date_to=to, expiring_within_days=expiring_within_days, held=held,
-            limit=limit, cursor=cursor,
-        )  # fmt: skip
+            tx,
+            scope=scope,
+            cls=class_,
+            folder=folder,
+            level=level,
+            state=state,
+            party=party,
+            q=q,
+            date_from=from_,
+            date_to=to,
+            expiring_within_days=expiring_within_days,
+            held=held,
+            limit=limit,
+            cursor=cursor,
+        )
         items = [_render_ok(await R.render(tx, r, CL.EVERYTHING, full=False)) for r in rows]
     return {"items": items, "next_cursor": nxt}
 
@@ -284,7 +301,9 @@ async def create_record(body: RecordIn, request: Request, ctx: Ctx = Depends(own
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
-        scope = await tx.first("SELECT id, code, kind FROM core.companies WHERE code = :c", c=body.scope)
+        scope = await tx.first(
+            "SELECT id, code, kind FROM core.companies WHERE code = :c", c=body.scope
+        )
         if scope is None:
             raise invalid({"scope": "unknown company"})
         cls = await R.resolve_class(tx, body.class_, body.scope)
@@ -300,11 +319,21 @@ async def create_record(body: RecordIn, request: Request, ctx: Ctx = Depends(own
                 await ST.discard(ctx.hub, stored)
                 return idem.replay
             r = await R.create(
-                tx, ctx.who, scope=scope, cls=cls, title_fa=body.title_fa, metadata=body.metadata, lv=lv,
-                folder=folder, stored=stored, parties=[p.model_dump() for p in body.parties],
-                links=[link.model_dump() for link in body.links], file_now=body.file, source_kind="owner",
+                tx,
+                ctx.who,
+                scope=scope,
+                cls=cls,
+                title_fa=body.title_fa,
+                metadata=body.metadata,
+                lv=lv,
+                folder=folder,
+                stored=stored,
+                parties=[p.model_dump() for p in body.parties],
+                links=[link.model_dump() for link in body.links],
+                file_now=body.file,
+                source_kind="owner",
                 note_fa=body.note_fa,
-            )  # fmt: skip
+            )
             out = _render_ok(await R.render(tx, r, CL.EVERYTHING))
             if idem:
                 await idem.store(tx, 201, out)
@@ -339,9 +368,10 @@ async def patch_record(
             if lv is None or lv["status"] != "active":
                 raise invalid({"level": "an active level"})
             cur = await SC.level(tx, r["level"])
-            if bool(lv["encrypt"]) != bool(cur["encrypt"]) if cur else False:
+            if cur is not None and bool(lv["encrypt"]) != bool(cur["encrypt"]):
                 restore = await tx.all(
-                    "SELECT * FROM archive.record_files WHERE record_id = :r AND destroyed_at IS NULL", r=r["id"]
+                    "SELECT * FROM archive.record_files WHERE record_id = :r AND destroyed_at IS NULL",
+                    r=r["id"],
                 )
     new_objects: list[tuple[dict[str, Any], str, str, str | None]] = []
     if lv is not None and restore:
@@ -369,11 +399,14 @@ async def patch_record(
             http.check_version(r["version"], expected)
             step_up = False
             if lv is not None:
-                if r["state"] == "draft" or True:
-                    await R.require_not_held(tx, r)
+                await R.require_not_held(tx, r)
                 if lv["rank"] < r["level_rank"]:
                     await stepup.consume(
-                        tx, request, ctx.who, "archive.declassify", f"{ref}@{r['version']}:{lv['key']}"
+                        tx,
+                        request,
+                        ctx.who,
+                        "archive.declassify",
+                        f"{ref}@{r['version']}:{lv['key']}",
                     )
                     step_up = True
             if data:
@@ -383,25 +416,44 @@ async def patch_record(
                     await tx.exec(
                         """INSERT INTO archive.destroy_queue (company_id, storage_key, why, ref)
                            VALUES (:co, :k, 'restore', :r)""",
-                        co=r["company_id"], k=f["storage_key"], r=ref,
-                    )  # fmt: skip
+                        co=r["company_id"],
+                        k=f["storage_key"],
+                        r=ref,
+                    )
                     await tx.exec(
                         """UPDATE archive.record_files SET storage_key = :k, stored_sha256 = :s, encrypted = :e,
                                wrapped_dek = :w WHERE id = :id""",
-                        id=f["id"], k=key, s=sha, e=bool(lv["encrypt"]), w=wrapped,
-                    )  # fmt: skip
+                        id=f["id"],
+                        k=key,
+                        s=sha,
+                        e=bool(lv["encrypt"]),
+                        w=wrapped,
+                    )
                 await tx.exec(
                     "UPDATE archive.records SET level = :l, level_rank = :lr WHERE id = :id",
-                    l=lv["key"], lr=lv["rank"], id=r["id"],
-                )  # fmt: skip
-                await R.log_access(tx, ctx.who, r, "level", step_up=step_up, level_from=r["level"],
-                                   level_to=lv["key"])  # fmt: skip
-                await ctx.audit(
-                    tx, company_id=r["company_id"],
-                    action="archive.declassify" if step_up else "archive.raise_level", action_class="A2",
-                    target_kind="archive_record", target_ref=ref, summary=f"{r['level']} -> {lv['key']}",
+                    l=lv["key"],
+                    lr=lv["rank"],
+                    id=r["id"],
+                )
+                await R.log_access(
+                    tx,
+                    ctx.who,
+                    r,
+                    "level",
                     step_up=step_up,
-                )  # fmt: skip
+                    level_from=r["level"],
+                    level_to=lv["key"],
+                )
+                await ctx.audit(
+                    tx,
+                    company_id=r["company_id"],
+                    action="archive.declassify" if step_up else "archive.raise_level",
+                    action_class="A2",
+                    target_kind="archive_record",
+                    target_ref=ref,
+                    summary=f"{r['level']} -> {lv['key']}",
+                    step_up=step_up,
+                )
                 r = await R.load(tx, ref)
                 await R.emit(tx, r, "record.updated", change="level")
             out = _render_ok(await R.render(tx, await R.load(tx, ref), CL.EVERYTHING))
@@ -461,7 +513,9 @@ async def add_version(
 
 
 @router.post("/archive/records/{ref}/seal", response_model=Record, responses=E)
-async def seal_record(ref: str, body: SealIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def seal_record(
+    ref: str, body: SealIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """🔏 `archive.seal`, target = the current version's `manifest_sha256`; the
     server recomputes it and refuses a mismatch (409 seal_mismatch)."""
     async with ctx.tx() as tx:
@@ -470,16 +524,23 @@ async def seal_record(ref: str, body: SealIn, request: Request, ctx: Ctx = Depen
         R.require_live(r)
         await R.require_not_held(tx, r)
         if r["state"] != "filed":
-            raise ApiError(409, "validation_failed", f"{ref} is {r['state']}: only a filed record is sealed")
+            raise ApiError(
+                409, "validation_failed", f"{ref} is {r['state']}: only a filed record is sealed"
+            )
         again = await R.current_manifest(tx, r)
         if body.manifest_sha256 != again:
             raise ApiError(409, "seal_mismatch", "the manifest changed since you saw it")
         su = await stepup.consume(tx, request, ctx.who, "archive.seal", body.manifest_sha256)
         await R.seal(tx, ctx.who, r, body.manifest_sha256, su)
         await ctx.interaction(
-            tx, company_id=r["company_id"], kind="archive", action="archive.seal",
-            target_kind="archive_record", target_ref=ref, data={"manifest": again},
-        )  # fmt: skip
+            tx,
+            company_id=r["company_id"],
+            kind="archive",
+            action="archive.seal",
+            target_kind="archive_record",
+            target_ref=ref,
+            data={"manifest": again},
+        )
         return await _record_out(ctx, tx, ref)
 
 
@@ -496,13 +557,20 @@ async def add_link(ref: str, body: LinkIn, request: Request, ctx: Ctx = Depends(
         await R.require_not_held(tx, r)
         await R.add_link(tx, ctx.who, r, body.kind, body.to.model_dump())
         await ctx.audit(
-            tx, company_id=r["company_id"], action="archive.link", action_class="A1",
-            target_kind="archive_record", target_ref=ref, summary=f"{body.kind} {body.to.kind}:{body.to.ref}",
-        )  # fmt: skip
+            tx,
+            company_id=r["company_id"],
+            action="archive.link",
+            action_class="A1",
+            target_kind="archive_record",
+            target_ref=ref,
+            summary=f"{body.kind} {body.to.kind}:{body.to.ref}",
+        )
         r = await R.load(tx, ref)
         await R.emit(tx, r, "record.updated", change="link")
         links = await R.render_links(tx, r)
-        out = _render_ok(next(x for x in links if x["kind"] == body.kind and x["to_ref"] == body.to.ref))
+        out = _render_ok(
+            next(x for x in links if x["kind"] == body.kind and x["to_ref"] == body.to.ref)
+        )
         if idem:
             await idem.store(tx, 201, out)
     return out
@@ -524,9 +592,14 @@ async def remove_link(
         await R.require_not_held(tx, r)
         await R.remove_link(tx, ctx.who, r, kind, to_kind, to_ref)
         await ctx.audit(
-            tx, company_id=r["company_id"], action="archive.unlink", action_class="A1",
-            target_kind="archive_record", target_ref=ref, summary=f"{kind} {to_kind}:{to_ref}",
-        )  # fmt: skip
+            tx,
+            company_id=r["company_id"],
+            action="archive.unlink",
+            action_class="A1",
+            target_kind="archive_record",
+            target_ref=ref,
+            summary=f"{kind} {to_kind}:{to_ref}",
+        )
         await R.emit(tx, r, "record.updated", change="unlink")
     return Response(status_code=204)
 
@@ -551,7 +624,11 @@ async def get_file(
         r = await R.load(tx, ref)
         f = await ST.file_row(tx, r["id"], file_id, version)
         if f["quarantined"]:
-            raise ApiError(409, "secret_in_document", "a secret pattern was found in this file; it is not served")
+            raise ApiError(
+                409,
+                "secret_in_document",
+                "a secret pattern was found in this file; it is not served",
+            )
         lv = await SC.level(tx, r["level"])
         step_up = False
         if lv and lv["step_up_to_view"]:
@@ -559,8 +636,16 @@ async def get_file(
             step_up = True
         # The row first: a download that fails after it is still a view.
         inline = f["mime"].startswith("image/")
-        await R.log_access(tx, ctx.who, r, "view" if inline else "download", file_id=file_id,
-                           version_n=f["version_n"], step_up=step_up, watermarked=bool(lv and lv["watermark"]))  # fmt: skip
+        await R.log_access(
+            tx,
+            ctx.who,
+            r,
+            "view" if inline else "download",
+            file_id=file_id,
+            version_n=f["version_n"],
+            step_up=step_up,
+            watermarked=bool(lv and lv["watermark"]),
+        )
     data = await ST.read(ctx.hub, f)
     mime = f["mime"]
     if lv and lv["watermark"]:
@@ -586,15 +671,25 @@ async def access_log(ref: str, ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, 
         await CL.full(tx)
         r = await R.load(tx, ref)
         rows = await tx.all(
-            "SELECT * FROM archive.access_log WHERE record_id = :r ORDER BY at DESC, id DESC LIMIT 500", r=r["id"]
+            "SELECT * FROM archive.access_log WHERE record_id = :r ORDER BY at DESC, id DESC LIMIT 500",
+            r=r["id"],
         )
     return [
-        _render_ok({"at": x["at"], "actor": {"kind": x["actor_kind"], "code": x["actor_code"]},
-                    "action": x["action"], "file_id": x["file_id"], "version": x["version_n"],
-                    "step_up": x["step_up"], "watermarked": x["watermarked"], "level_from": x["level_from"],
-                    "level_to": x["level_to"]})
+        _render_ok(
+            {
+                "at": x["at"],
+                "actor": {"kind": x["actor_kind"], "code": x["actor_code"]},
+                "action": x["action"],
+                "file_id": x["file_id"],
+                "version": x["version_n"],
+                "step_up": x["step_up"],
+                "watermarked": x["watermarked"],
+                "level_from": x["level_from"],
+                "level_to": x["level_to"],
+            }
+        )
         for x in rows
-    ]  # fmt: skip
+    ]
 
 
 # ------------------------------------------------------------ intake, import --
@@ -617,7 +712,9 @@ async def import_files(body: ImportIn, request: Request, ctx: Ctx = Depends(owne
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
-        scope = await tx.first("SELECT id, code, kind FROM core.companies WHERE code = :c", c=body.scope)
+        scope = await tx.first(
+            "SELECT id, code, kind FROM core.companies WHERE code = :c", c=body.scope
+        )
         if scope is None:
             raise invalid({"scope": "unknown company"})
         cls = await R.resolve_class(tx, body.class_, body.scope)
@@ -637,10 +734,21 @@ async def import_files(body: ImportIn, request: Request, ctx: Ctx = Depends(owne
                 all_stored += stored
                 sug = it.suggestion
                 r = await R.create(
-                    tx, ctx.who, scope=scope, cls=cls, title_fa=((sug or {}).get("title_fa") or it.name)[:300],
-                    metadata={}, lv=lv, folder=folder, stored=stored, parties=None, links=None, file_now=False,
-                    source_kind="owner", suggestion=sug,
-                )  # fmt: skip
+                    tx,
+                    ctx.who,
+                    scope=scope,
+                    cls=cls,
+                    title_fa=((sug or {}).get("title_fa") or it.name)[:300],
+                    metadata={},
+                    lv=lv,
+                    folder=folder,
+                    stored=stored,
+                    parties=None,
+                    links=None,
+                    file_now=False,
+                    source_kind="owner",
+                    suggestion=sug,
+                )
                 refs.append(r["ref"])
             work = await RT.archivist_work(
                 tx,
@@ -652,9 +760,14 @@ async def import_files(body: ImportIn, request: Request, ctx: Ctx = Depends(owne
                 priority="P3",
             )
             await ctx.audit(
-                tx, company_id=scope["id"], action="archive.import", action_class="A1",
-                target_kind="archive_record", target_ref=refs[0], summary=f"{len(refs)} draft(s)",
-            )  # fmt: skip
+                tx,
+                company_id=scope["id"],
+                action="archive.import",
+                action_class="A1",
+                target_kind="archive_record",
+                target_ref=refs[0],
+                summary=f"{len(refs)} draft(s)",
+            )
             out = {"records": refs, "work": work}
             if idem:
                 await idem.store(tx, 201, out)
@@ -683,10 +796,20 @@ async def search(
     text, clearance-filtered before ranking."""
     async with ctx.tx() as tx:
         await CL.full(tx)
-        return _render_ok(await SE.search(
-            tx, q=q, scope=scope, cls=class_, level=level, party=party, date_from=from_, date_to=to,
-            limit=limit, cursor=cursor,
-        ))  # fmt: skip
+        return _render_ok(
+            await SE.search(
+                tx,
+                q=q,
+                scope=scope,
+                cls=class_,
+                level=level,
+                party=party,
+                date_from=from_,
+                date_to=to,
+                limit=limit,
+                cursor=cursor,
+            )
+        )
 
 
 # ------------------------------------------------------------------ schema --
@@ -720,43 +843,44 @@ async def put_schema(
         checked = await SC.check(tx, part, key, body, row)
         impact = await SC.impact(tx, part, key, checked)
         if dry_run:
-            return {"part": part, "key": key, "version": row["version"] if row else None, "impact": impact,
-                    "row": _render_ok(await SC.render_row(tx, part, row)) if row else None, "dry_run": True}  # fmt: skip
+            return {
+                "part": part,
+                "key": key,
+                "version": row["version"] if row else None,
+                "impact": impact,
+                "row": _render_ok(await SC.render_row(tx, part, row)) if row else None,
+                "dry_run": True,
+            }
         if row is None:
             if part not in V.REF_PARTS and request.headers.get("if-none-match", "").strip() != "*":
-                raise ApiError(428, "precondition_required", fields={"If-None-Match": "* for a new key"})
+                raise ApiError(
+                    428, "precondition_required", fields={"If-None-Match": "* for a new key"}
+                )
         else:
             http.check_version(row["version"], http.if_match(request))
         action = "archive.clearance" if part == "clearance" else "archive.schema"
-        su = await stepup.consume(tx, request, ctx.who, action, hashlib.sha256(raw).hexdigest())
+        await stepup.consume(tx, request, ctx.who, action, hashlib.sha256(raw).hexdigest())
         new = await SC.apply(tx, ctx.who, part, key, checked, row)
         new_key = SC.row_key(part, new)
-        await after_schema(tx, ctx.who, part, new_key, impact)
+        await AC.after_change(tx, part, new_key, impact)
         await ctx.audit(
-            tx, company_id=new["company_id"], action=action, action_class="A2", target_kind=f"archive_{part}",
-            target_ref=new_key, summary=f"v{new['version']} records {impact['records']}", step_up=True,
-        )  # fmt: skip
-        del su
-        return {"part": part, "key": new_key, "version": new["version"], "impact": impact,
-                "row": _render_ok(await SC.render_row(tx, part, new)), "dry_run": False}  # fmt: skip
-
-
-async def after_schema(tx: Any, who: Any, part: str, key: str, impact: dict[str, int]) -> None:
-    """The stream's schema.changed; a class that left records without a newly
-    required field gets the archivist one work item «تکمیل N سند»."""
-    from hq_api import events
-    from hq_api.archive.common import holding
-
-    h = await holding(tx)
-    await events.emit(tx, h["code"], "schema.changed", key, {"part": part})
-    if part == "classes" and impact.get("missing_required"):
-        await RT.archivist_work(
             tx,
-            f"تکمیل {impact['missing_required']} سند بایگانی ({key})",
-            f"The class `{key}` has a new required field; {impact['missing_required']} filed record(s) miss it. "
-            "Fill it from each document (archive.read, archive.file on a new draft is not needed: tell the owner "
-            "the value and its source in your deliverable).",
+            company_id=new["company_id"],
+            action=action,
+            action_class="A2",
+            target_kind=f"archive_{part}",
+            target_ref=new_key,
+            summary=f"v{new['version']} records {impact['records']}",
+            step_up=True,
         )
+        return {
+            "part": part,
+            "key": new_key,
+            "version": new["version"],
+            "impact": impact,
+            "row": _render_ok(await SC.render_row(tx, part, new)),
+            "dry_run": False,
+        }
 
 
 @router.post("/archive/schema/{part}/{key}/retire", response_model=SchemaPut, responses=E)
@@ -777,18 +901,34 @@ async def retire_schema(
         await stepup.consume(tx, request, ctx.who, action, hashlib.sha256(raw).hexdigest())
         new = await SC.retire(tx, part, row)
         impact = await SC.impact(tx, part, key, None)
-        await after_schema(tx, ctx.who, part, key, {"records": impact["records"], "missing_required": 0})
+        await AC.after_change(tx, part, key, {"records": impact["records"], "missing_required": 0})
         await ctx.audit(
-            tx, company_id=new["company_id"], action=f"{action}_retire", action_class="A2",
-            target_kind=f"archive_{part}", target_ref=key, summary=f"v{new['version']} retired", step_up=True,
-        )  # fmt: skip
-        return {"part": part, "key": key, "version": new["version"], "impact": impact,
-                "row": _render_ok(await SC.render_row(tx, part, new)), "dry_run": False}  # fmt: skip
+            tx,
+            company_id=new["company_id"],
+            action=f"{action}_retire",
+            action_class="A2",
+            target_kind=f"archive_{part}",
+            target_ref=key,
+            summary=f"v{new['version']} retired",
+            step_up=True,
+        )
+        return {
+            "part": part,
+            "key": key,
+            "version": new["version"],
+            "impact": impact,
+            "row": _render_ok(await SC.render_row(tx, part, new)),
+            "dry_run": False,
+        }
 
 
 # ----------------------------------------------------------------- parties --
-async def _check_party(tx: Any, kind: str, identifiers: dict[str, Any], scopes: list[str]) -> dict[str, Any]:
-    pk = await tx.first("SELECT * FROM archive.party_kinds WHERE key = :k AND status = 'active'", k=kind)
+async def _check_party(
+    tx: Any, kind: str, identifiers: dict[str, Any], scopes: list[str]
+) -> dict[str, Any]:
+    pk = await tx.first(
+        "SELECT * FROM archive.party_kinds WHERE key = :k AND status = 'active'", k=kind
+    )
     if pk is None:
         raise invalid({"kind": "an active party kind"})
     fields = J(pk["identifier_fields"], [])
@@ -815,8 +955,9 @@ async def list_parties(
                  AND (CAST(:q AS text) IS NULL OR core.fa_normalize(name_fa || ' ' || COALESCE(name_en, ''))
                       LIKE '%' || core.like_escape(core.fa_normalize(:q)) || '%')
                ORDER BY ref LIMIT 500""",
-            k=kind, q=q,
-        )  # fmt: skip
+            k=kind,
+            q=q,
+        )
         return [_render_ok(await SC.render_party(tx, r)) for r in rows]
 
 
@@ -835,10 +976,22 @@ async def create_party(body: PartyIn, request: Request, ctx: Ctx = Depends(owner
             """INSERT INTO archive.parties (company_id, kind, name_fa, name_en, identifiers, scopes,
                    created_by_kind, created_by_code)
                VALUES (:co, :k, :n, :ne, CAST(:i AS jsonb), :s, 'owner', 'owner') RETURNING *""",
-            co=h["id"], k=body.kind, n=body.name_fa.strip(), ne=body.name_en, i=dumps(ids), s=body.scopes,
-        )  # fmt: skip
-        await ctx.audit(tx, company_id=h["id"], action="archive.party_create", action_class="A1",
-                        target_kind="archive_party", target_ref=row["ref"], summary=body.kind)  # fmt: skip
+            co=h["id"],
+            k=body.kind,
+            n=body.name_fa.strip(),
+            ne=body.name_en,
+            i=dumps(ids),
+            s=body.scopes,
+        )
+        await ctx.audit(
+            tx,
+            company_id=h["id"],
+            action="archive.party_create",
+            action_class="A1",
+            target_kind="archive_party",
+            target_ref=row["ref"],
+            summary=body.kind,
+        )
         out = _render_ok(await SC.render_party(tx, row))
         if idem:
             await idem.store(tx, 201, out)
@@ -846,7 +999,9 @@ async def create_party(body: PartyIn, request: Request, ctx: Ctx = Depends(owner
 
 
 @router.patch("/archive/parties/{ref}", responses=E)
-async def patch_party(ref: str, body: PartyPatch, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def patch_party(
+    ref: str, body: PartyPatch, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """`If-Match`."""
     expected = http.if_match(request)
     async with ctx.tx() as tx:
@@ -858,17 +1013,33 @@ async def patch_party(ref: str, body: PartyPatch, request: Request, ctx: Ctx = D
         data = body.model_dump(exclude_unset=True)
         ids = J(row["identifiers"], {})
         if "identifiers" in data or "scopes" in data:
-            ids = await _check_party(tx, row["kind"], data.get("identifiers", ids) or {}, data.get("scopes") or list(row["scopes"] or []))
+            ids = await _check_party(
+                tx,
+                row["kind"],
+                data.get("identifiers", ids) or {},
+                data.get("scopes") or list(row["scopes"] or []),
+            )
         R.no_secret({"name_fa": data.get("name_fa") or "", "identifiers": ids})
         new = await tx.one(
             """UPDATE archive.parties SET name_fa = COALESCE(:n, name_fa), name_en = COALESCE(:ne, name_en),
                    identifiers = CAST(:i AS jsonb), scopes = COALESCE(:s, scopes), status = COALESCE(:st, status)
                WHERE id = :id RETURNING *""",
-            id=row["id"], n=data.get("name_fa"), ne=data.get("name_en"), i=dumps(ids), s=data.get("scopes"),
+            id=row["id"],
+            n=data.get("name_fa"),
+            ne=data.get("name_en"),
+            i=dumps(ids),
+            s=data.get("scopes"),
             st=data.get("status"),
-        )  # fmt: skip
-        await ctx.audit(tx, company_id=row["company_id"], action="archive.party_update", action_class="A1",
-                        target_kind="archive_party", target_ref=ref, summary=",".join(sorted(data)))  # fmt: skip
+        )
+        await ctx.audit(
+            tx,
+            company_id=row["company_id"],
+            action="archive.party_update",
+            action_class="A1",
+            target_kind="archive_party",
+            target_ref=ref,
+            summary=",".join(sorted(data)),
+        )
         return _render_ok(await SC.render_party(tx, new))
 
 
@@ -880,7 +1051,9 @@ async def list_holds(
     async with ctx.tx() as tx:
         await CL.full(tx)
         rows = await tx.all(
-            RT.HOLD_SQL + " WHERE (CAST(:s AS text) IS NULL OR h.state = :s) ORDER BY h.placed_at DESC", s=state
+            RT.HOLD_SQL
+            + " WHERE (CAST(:s AS text) IS NULL OR h.state = :s) ORDER BY h.placed_at DESC",
+            s=state,
         )
         return [_render_ok(await RT.render_hold(tx, h)) for h in rows]
 
@@ -893,7 +1066,9 @@ async def place_hold(body: HoldIn, request: Request, ctx: Ctx = Depends(owner_ct
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
-        h = await RT.place(tx, ctx.who, body.model_dump(mode="json", by_alias=True, exclude_none=True))
+        h = await RT.place(
+            tx, ctx.who, body.model_dump(mode="json", by_alias=True, exclude_none=True)
+        )
         out = _render_ok(await RT.render_hold(tx, h))
         if idem:
             await idem.store(tx, 201, out)
@@ -935,7 +1110,9 @@ async def retention_due(ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, Any]]:
     async with ctx.tx() as tx:
         await CL.full(tx)
         rows = await RT.due(tx)
-    return [_render_ok({k: v for k, v in x.items() if k not in ("review_work", "kept")}) for x in rows]
+    return [
+        _render_ok({k: v for k, v in x.items() if k not in ("review_work", "kept")}) for x in rows
+    ]
 
 
 @router.get("/archive/fixity", responses=E)
@@ -961,7 +1138,13 @@ async def put_sources(body: dict[str, bool], ctx: Ctx = Depends(owner_ctx)) -> l
         await CL.full(tx)
         out = await SRC.put(tx, body)
         h = await tx.one("SELECT id FROM core.companies WHERE kind = 'holding' LIMIT 1")
-        await ctx.audit(tx, company_id=h["id"], action="archive.sources", action_class="A1",
-                        target_kind="archive_sources", target_ref="sources",
-                        summary=", ".join(f"{k}={'on' if v else 'off'}" for k, v in sorted(body.items())))  # fmt: skip
+        await ctx.audit(
+            tx,
+            company_id=h["id"],
+            action="archive.sources",
+            action_class="A1",
+            target_kind="archive_sources",
+            target_ref="sources",
+            summary=", ".join(f"{k}={'on' if v else 'off'}" for k, v in sorted(body.items())),
+        )
     return [_render_ok(x) for x in out]

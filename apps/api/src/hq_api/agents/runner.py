@@ -133,10 +133,12 @@ RUN_TASK_CLASSES = frozenset(
         # ⟨1.6⟩ prompt 13 §3: a case's work, a reply's reading (legal.wake)
         "legal_case",
         "legal_email",
+        # ⟨1.7⟩ prompt 14: the archivist's work
+        "archive",
     }
 )
 # ⟨1.6⟩ a role's own class when nothing more specific names one.
-TASK_CLASS_OF_ROLE = {"legal_counsel": "legal_case"}
+TASK_CLASS_OF_ROLE = {"legal_counsel": "legal_case", "archivist": "archive"}
 HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
 MIN_OUTPUT_TOKENS = 256  # a step needs at least this much room to answer at all
 LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked for context
@@ -225,7 +227,11 @@ class Runner:
             refuse = None
             if charter is None:
                 refuse = "no_charter"
-            elif emp["status"] != "active" or emp["kind"] == "system":
+            elif emp["status"] != "active" or (
+                # ⟨1.7⟩ a system role with a system charter runs (the archivist,
+                # HQ-ARC); the rule-based report system (no charter) never does
+                emp["kind"] == "system" and charter.kind != "system"
+            ):
                 refuse = "employee_inactive"
             else:
                 lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])

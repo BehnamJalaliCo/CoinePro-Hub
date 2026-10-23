@@ -23,7 +23,7 @@ def doc_text_job(path: str) -> dict[str, Any]:
         pages = len(reader.pages)
         parts: list[str] = []
         total = 0
-        for page in reader.pages[: MAX_PDF_PAGES]:
+        for page in reader.pages[:MAX_PDF_PAGES]:
             t = (page.extract_text() or "").strip()
             if t:
                 parts.append(t)
@@ -43,16 +43,15 @@ def _pdf_overlay(width: float, height: float, text: str) -> bytes:
     safe = safe.replace("(", "[").replace(")", "]")
     size = max(10.0, min(width, height) / 30)
     stream = (
-        "q 0.55 g /GS1 gs BT /F1 %.1f Tf 0.7071 0.7071 -0.7071 0.7071 %.1f %.1f Tm (%s) Tj ET "
-        "BT /F1 8 Tf 1 0 0 1 18 12 Tm (%s) Tj ET Q"
-        % (size, width * 0.15, height * 0.2, safe, safe)
+        f"q 0.55 g /GS1 gs BT /F1 {size:.1f} Tf 0.7071 0.7071 -0.7071 0.7071 {width * 0.15:.1f} "
+        f"{height * 0.2:.1f} Tm ({safe}) Tj ET BT /F1 8 Tf 1 0 0 1 18 12 Tm ({safe}) Tj ET Q"
     ).encode()
     objs = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         (
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.2f %.2f] /Contents 4 0 R "
-            "/Resources << /Font << /F1 5 0 R >> /ExtGState << /GS1 6 0 R >> >> >>" % (width, height)
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width:.2f} {height:.2f}] /Contents 4 0 R "
+            "/Resources << /Font << /F1 5 0 R >> /ExtGState << /GS1 6 0 R >> >> >>"
         ).encode(),
         b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
@@ -68,7 +67,9 @@ def _pdf_overlay(width: float, height: float, text: str) -> bytes:
     out.write(b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1))
     for off in offsets:
         out.write(b"%010d 00000 n \n" % off)
-    out.write(b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, xref))
+    out.write(
+        b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, xref)
+    )
     return out.getvalue()
 
 
@@ -111,5 +112,3 @@ def watermark_job(src: str, out: str, mime: str, text: str, font_dir: str) -> di
         marked = marked.convert("RGB")
     marked.save(out, format=fmt, quality=90) if fmt != "PNG" else marked.save(out, format=fmt)
     return {"mime": {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}[fmt]}
-
-

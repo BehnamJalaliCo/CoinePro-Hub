@@ -89,6 +89,9 @@ class Activities:
         from hq_api.worker.legal_activities import LegalVoiceActivities
 
         self.legal_voice = LegalVoiceActivities(hub, self._tx)  # prompt 13, legal and voice
+        from hq_api.worker.archive_activities import ArchiveActivities
+
+        self.archive = ArchiveActivities(hub, self._tx)  # prompt 14, the archive (rule-only)
 
     def all(self) -> list[Any]:
         return [
@@ -97,6 +100,7 @@ class Activities:
             *self.desk.all(),
             *self.mgmt.all(),
             *self.legal_voice.all(),
+            *self.archive.all(),
             *self.media.all(),
             *self.brand.all(),
             *self.people.all(),

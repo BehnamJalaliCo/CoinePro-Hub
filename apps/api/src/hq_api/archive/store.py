@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import io
 import logging
 import os
 from dataclasses import dataclass, field
@@ -37,7 +36,6 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from hq_api import media
 from hq_api.archive import ocr as OCR
 from hq_api.archive import scan
 from hq_api.archive.common import J
@@ -108,9 +106,7 @@ UPLOAD_SQL = """
 def waiting_upload(f: dict[str, Any]) -> bool:
     """An owner upload still in the holding, attached nowhere: the archive may
     take it over (or destroy it when it holds a secret)."""
-    return (
-        f["created_by_kind"] == "owner" and f["company_kind"] == "holding" and not f["attached"]
-    )
+    return f["created_by_kind"] == "owner" and f["company_kind"] == "holding" and not f["attached"]
 
 
 @dataclass
@@ -133,8 +129,14 @@ class Intake:
 
 async def _text_of(hub: Any, f: dict[str, Any], path: Path) -> dict[str, Any]:
     """(text, text_state, pages, confidence, low pages, ocr_wanted) of one upload."""
-    out: dict[str, Any] = {"text": None, "text_state": "none", "pages": None,
-                           "confidence": None, "low": [], "ocr_wanted": False}  # fmt: skip
+    out: dict[str, Any] = {
+        "text": None,
+        "text_state": "none",
+        "pages": None,
+        "confidence": None,
+        "low": [],
+        "ocr_wanted": False,
+    }
     if f["mime"] == "application/pdf":
         got = await untrusted.run(
             "hq_api.archive.jobs:doc_text_job", kwargs={"path": str(path)}, limits=DOC_LIMITS
@@ -200,16 +202,30 @@ async def intake(
             raise ApiError(409, "not_ready", f"file {fid} is still being processed")
         waiting = waiting_upload(f)
         if waiting and not holding_ok:
-            raise ApiError(422, "validation_failed", fields={"file_ids": f"not yours to file: {fid}"})
+            raise ApiError(
+                422, "validation_failed", fields={"file_ids": f"not yours to file: {fid}"}
+            )
         if done is not None:
-            out.append(Intake(
-                file_id=fid, name=done["name"], mime=done["mime"], size=int(done["size_bytes"]),
-                sha256=done["sha256"], storage_key=f["storage_key"], pages=done["pages"],
-                text_state=done["text_state"], text=done["text"],
-                ocr_confidence=float(done["ocr_confidence"]) if done["ocr_confidence"] is not None else None,
-                low_pages=list(done["low_conf_pages"] or []), suggestion=J(done["suggestion"]),
-                waiting=waiting, ocr_wanted=done["text_state"] == "none" and f["kind"] in ("image", "document"),
-            ))  # fmt: skip
+            out.append(
+                Intake(
+                    file_id=fid,
+                    name=done["name"],
+                    mime=done["mime"],
+                    size=int(done["size_bytes"]),
+                    sha256=done["sha256"],
+                    storage_key=f["storage_key"],
+                    pages=done["pages"],
+                    text_state=done["text_state"],
+                    text=done["text"],
+                    ocr_confidence=float(done["ocr_confidence"])
+                    if done["ocr_confidence"] is not None
+                    else None,
+                    low_pages=list(done["low_conf_pages"] or []),
+                    suggestion=J(done["suggestion"]),
+                    waiting=waiting,
+                    ocr_wanted=done["text_state"] == "none" and f["kind"] in ("image", "document"),
+                )
+            )
             continue
         path = hub.storage.local_path(f["storage_key"])
         if not await asyncio.to_thread(path.exists):
@@ -234,17 +250,39 @@ async def intake(
                        text_state, ocr_confidence, low_conf_pages, text, suggestion, by_kind, by_code)
                    VALUES (:co, :f, :n, :m, :s, :h, :p, :ts, :oc, :lp, :t, CAST(:sg AS jsonb), :bk, :bc)
                    ON CONFLICT (file_id) DO NOTHING""",
-                co=f["company_id"], f=fid, n=f["name"][:255], m=f["mime"], s=int(f["size"]), h=f["sha256"],
-                p=t["pages"], ts=t["text_state"], oc=t["confidence"], lp=t["low"], t=t["text"],
-                sg=_dumps(sug), bk=who.kind if who.kind in ("owner", "agent", "service") else "system",
+                co=f["company_id"],
+                f=fid,
+                n=f["name"][:255],
+                m=f["mime"],
+                s=int(f["size"]),
+                h=f["sha256"],
+                p=t["pages"],
+                ts=t["text_state"],
+                oc=t["confidence"],
+                lp=t["low"],
+                t=t["text"],
+                sg=_dumps(sug),
+                bk=who.kind if who.kind in ("owner", "agent", "service") else "system",
                 bc=who.code[:64],
-            )  # fmt: skip
-        out.append(Intake(
-            file_id=fid, name=f["name"], mime=f["mime"], size=int(f["size"]), sha256=f["sha256"],
-            storage_key=f["storage_key"], pages=t["pages"], text_state=t["text_state"], text=t["text"],
-            ocr_confidence=t["confidence"], low_pages=t["low"], suggestion=sug, waiting=waiting,
-            ocr_wanted=t["ocr_wanted"],
-        ))  # fmt: skip
+            )
+        out.append(
+            Intake(
+                file_id=fid,
+                name=f["name"],
+                mime=f["mime"],
+                size=int(f["size"]),
+                sha256=f["sha256"],
+                storage_key=f["storage_key"],
+                pages=t["pages"],
+                text_state=t["text_state"],
+                text=t["text"],
+                ocr_confidence=t["confidence"],
+                low_pages=t["low"],
+                suggestion=sug,
+                waiting=waiting,
+                ocr_wanted=t["ocr_wanted"],
+            )
+        )
     return out
 
 
@@ -283,6 +321,7 @@ async def ingest(hub: Any, items: list[Intake], *, encrypt_it: bool) -> list[Sto
                 raise ApiError(409, "seal_mismatch", f"file {it.file_id} changed since its intake")
             wrapped = None
             if encrypt_it:
+                assert v is not None
                 dek, wrapped = await v.new_key()
                 data = encrypt(dek, data, str(it.file_id).encode())
                 del dek
@@ -311,7 +350,7 @@ async def read(hub: Any, f: dict[str, Any]) -> bytes:
     if f["destroyed_at"] is not None or not f["storage_key"]:
         raise ApiError(404, "not_found", "the file was destroyed")
     try:
-        blob = await hub.storage.get(f["storage_key"])
+        blob: bytes = await hub.storage.get(f["storage_key"])
     except OSError as exc:
         raise ApiError(404, "not_found", "file content missing") from exc
     if hashlib.sha256(blob).hexdigest() != f["stored_sha256"]:
@@ -338,8 +377,13 @@ async def watermarked(hub: Any, data: bytes, mime: str, text: str) -> tuple[byte
         await asyncio.to_thread(src.write_bytes, data)
         got = await untrusted.run(
             "hq_api.archive.jobs:watermark_job",
-            kwargs={"src": str(src), "out": str(dst), "mime": mime, "text": text,
-                    "font_dir": hub.settings.fonts_dir},  # fmt: skip
+            kwargs={
+                "src": str(src),
+                "out": str(dst),
+                "mime": mime,
+                "text": text,
+                "font_dir": hub.settings.fonts_dir,
+            },
             limits=MARK_LIMITS,
         )
         if not got.ok or not isinstance(got.value, dict):

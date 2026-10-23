@@ -118,6 +118,9 @@ propose_kinds := {
 	# errand's external commitment is the owner's decision (§5)
 	"overseer": {"proposal", "protocol"},
 	"assistant": {"proposal", "errand_action"},
+	# ⟨1.7⟩ prompt 14: a system role of the holding (the archivist) proposes a
+	# schema change of the archive, never applies one
+	"system": {"archive_schema"},
 }
 
 # Data, not code (data.json). Without it nothing that depends on it is allowed.

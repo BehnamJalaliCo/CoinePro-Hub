@@ -297,6 +297,12 @@ OP_CLASS: dict[str, str] = {
     "media.voice": "A2",
     "voices.claim": "A0",
     "voices.done": "A1",
+    # prompt 14 (archive.rego): the archive's agent tools
+    "archive.search": "A0",
+    "archive.read": "A0",
+    "archive.file": "A1",
+    "archive.link": "A1",
+    "archive.hold": "A2",
 }
 
 

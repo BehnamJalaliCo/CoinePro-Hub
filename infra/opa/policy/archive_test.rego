@@ -72,3 +72,19 @@ test_any_agent_may_ask_knowledge_for_records if {
 	allowed(f.ty_growth_01, "knowledge.read", {"company": "TY", "kinds": ["records", "work"]})
 	allowed(hq_arc, "knowledge.read", {"company": "FX", "kinds": ["records"]})
 }
+
+# The archivist proposes a schema change (a card), never another kind; only
+# the owner decides either archive card.
+test_the_archivist_proposes_only_a_schema_card if {
+	allowed(hq_arc, "decision.propose", {"company": "HQ", "kind": "archive_schema"})
+	not allowed(hq_arc, "decision.propose", {"company": "HQ", "kind": "archive_disposal"})
+	not allowed(hq_arc, "decision.propose", {"company": "HQ", "kind": "hire"})
+	not allowed(f.ty_ceo, "decision.propose", {"company": "TY", "kind": "archive_schema"})
+}
+
+test_only_the_owner_decides_the_archive_cards if {
+	data.hq.decisions.allow with input as {"principal": f.owner, "decision": {"kind": "archive_disposal", "company": "HQ", "action_class": "A3", "proposer": {"kind": "service", "code": "archive"}}}
+	data.hq.decisions.allow with input as {"principal": f.owner, "decision": {"kind": "archive_schema", "company": "HQ", "action_class": "A2", "proposer": {"kind": "agent", "code": "HQ-ARC"}}}
+	not data.hq.decisions.allow with input as {"principal": hq_arc, "decision": {"kind": "archive_schema", "company": "HQ", "action_class": "A2", "proposer": {"kind": "agent", "code": "HQ-ARC"}}}
+	not data.hq.decisions.allow with input as {"principal": f.ty_ceo, "decision": {"kind": "archive_disposal", "company": "TY", "action_class": "A3", "proposer": {"kind": "service", "code": "archive"}}}
+}

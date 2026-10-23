@@ -58,6 +58,23 @@ async def company(tx: Tx, code: str) -> dict[str, Any]:
     return row
 
 
+def wide_txf(hub: Any) -> Any:
+    """A factory of transactions over every company, with the full clearance
+    (the hub's own rule-only work and the owner's after-commit steps)."""
+
+    class _Tx:
+        async def __aenter__(self) -> Tx:
+            self._cm = hub.db.tx(await hub.companies.ids())
+            tx: Tx = await self._cm.__aenter__()
+            await tx.exec("SELECT set_config('app.clearance', '{\"all\": true}', true)")
+            return tx
+
+        async def __aexit__(self, *exc: Any) -> Any:
+            return await self._cm.__aexit__(*exc)
+
+    return lambda: _Tx()
+
+
 def actor_of(who: Principal) -> tuple[str, str]:
     kind = who.kind if who.kind in ("owner", "agent", "service") else "system"
     return kind, (who.code or "system")[:64]
