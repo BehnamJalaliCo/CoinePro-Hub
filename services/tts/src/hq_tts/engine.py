@@ -23,7 +23,7 @@ OPUS_KBPS = "32"
 OPUSENC = "/usr/bin/opusenc"  # opus-tools (Debian)
 PIPER_TIMEOUT_S = 900
 ENCODE_TIMEOUT_S = 300
-CLAUSE_WORDS = 14  # a line Piper reads at once: memory grows with its length
+CLAUSE_WORDS = 8  # a line Piper reads at once: memory grows with its length (prompt 13 §4: 14 -> 8)
 _BREAK = re.compile(r"(?<=[.!?؟؛،,:])\s+")
 CGROUP_PEAK = Path("/sys/fs/cgroup/memory.peak")
 

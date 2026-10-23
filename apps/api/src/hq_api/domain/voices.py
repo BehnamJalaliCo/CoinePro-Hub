@@ -294,8 +294,16 @@ SEED: tuple[dict[str, Any], ...] = (
     },
 )
 # The hub's own measurements of the Piper voices (the bake-off of 2026-10-23
-# on this CPX42, the image coinepro-hq/tts; RUNBOOK §31.6): voice -> (rtf, peak MiB).
-MEASURED: dict[str, tuple[float, float]] = {}
+# 02:50 UTC on this CPX42 under the production limits: 320 MiB, 1 thread, no
+# network; python -m hq_tts.bakeoff on the five scripts, RUNBOOK §31.6):
+# voice -> (rtf over all five, the highest peak RSS of one synthesis in MiB).
+# The container's own peak was 264.8 MiB.
+MEASURED: dict[str, tuple[float, float]] = {
+    "piper-amir": (0.177, 236.3),
+    "piper-ganji": (0.17, 254.5),
+    "piper-ganji-adabi": (0.187, 270.5),
+    "piper-reza-ibrahim": (0.185, 269.8),
+}
 MEASURED_AT = datetime(2026, 10, 23, tzinfo=UTC)
 
 # Called when a narration is ready (the media studio moves its item on):
@@ -312,8 +320,6 @@ async def seed(tx: Tx, holding_id: UUID) -> int:
     has_active = bool(await tx.scalar("SELECT 1 FROM media.voices WHERE status = 'active'"))
     for v in SEED:
         rtf, mem = MEASURED.get(v["id"], (None, None))
-        if v["id"] == "piper-amir" and rtf is None:
-            rtf, mem = 0.1, 253.0  # prompt 12 §4's measurement (RUNBOOK §30)
         active = bool(v.get("active")) and not has_active and rtf is not None
         row = await tx.first(
             """INSERT INTO media.voices (id, company_id, engine, name_fa, licence, licence_commercial,
