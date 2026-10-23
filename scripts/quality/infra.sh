@@ -9,6 +9,11 @@
 #               leaves no partial set; a busy lock records nothing
 #   stt         an opt-in profile over the memory budget: shown while off, a
 #               gate failure and an hq.sh refusal while on; STT_URL follows it
+#   ocr         the archive's OCR (prompt 14 §4): off by default, on where it
+#               fits (the worker alone gets HQ_OCR_URL), refused without room
+#   transit     OpenBao transit and the key archive-secret (prompt 14 §3): made
+#               once, not exportable, never deletable; the services' policies
+#               reach only its data key and decrypt
 #   anchor-dir  the backup root is 0700 whatever Hub's umask; status/ is 0755
 #   reanchor    audit-reanchor.sh needs a terminal, even with HQ_REANCHOR_CONFIRM
 #   owner-only  make gdrive-auth, backup-password and openbao-snapshot-token
@@ -88,6 +93,52 @@ elif [[ "$(kv_code llm-router/config)" != 404 || "$(kv_code claude-runtime/confi
 else
   pass "provision: without sudo it stops before any KV write a file install depends on"
 fi
+
+# --------------------------------------------------------------- transit ----
+# Prompt 14 §3: the run above (as the non-root admin token it made) enabled
+# transit and made archive-secret: aes256-gcm96, not exportable, no plaintext
+# backup, not deletable. hq-api's policy reaches a data key and its
+# decryption and nothing else of transit; a rerun keeps the same key.
+ta="$T/transit.auth"
+(umask 077 && printf 'X-Vault-Token: %s\n' "$dev_token" >"$ta")
+tkey() { curl -s -H @"$ta" "$bao/v1/transit/keys/archive-secret"; }
+# hq-api's policy plus OpenBao's default one (for sys/capabilities-self; it
+# grants nothing on transit).
+api_token="$(curl -s -H @"$ta" -d '{"policies": ["hq-api"], "ttl": "5m"}' \
+  "$bao/v1/auth/token/create" | jq -r '.auth.client_token // empty')"
+(umask 077 && printf 'X-Vault-Token: %s\n' "$api_token" >"$T/transit-api.auth")
+unset api_token
+caps="$(curl -s -H @"$T/transit-api.auth" -d '{"paths": ["transit/datakey/plaintext/archive-secret",
+  "transit/decrypt/archive-secret", "transit/export/encryption-key/archive-secret", "transit/keys/archive-secret",
+  "transit/encrypt/archive-secret", "transit/datakey/plaintext/other"]}' "$bao/v1/sys/capabilities-self" |
+  jq -c '[.["transit/datakey/plaintext/archive-secret"], .["transit/decrypt/archive-secret"],
+    .["transit/export/encryption-key/archive-secret"], .["transit/keys/archive-secret"],
+    .["transit/encrypt/archive-secret"], .["transit/datakey/plaintext/other"]]')"
+# One envelope round trip as the api would make it (values compared, never printed).
+dk="$(curl -s -H @"$T/transit-api.auth" -X POST "$bao/v1/transit/datakey/plaintext/archive-secret")"
+round="$(jq -c '{ciphertext: .data.ciphertext}' <<<"$dk" |
+  curl -s -H @"$T/transit-api.auth" -d @- "$bao/v1/transit/decrypt/archive-secret" | jq -r '.data.plaintext // empty')"
+same=no
+if [[ -n "$round" && "$round" == "$(jq -r '.data.plaintext // empty' <<<"$dk")" ]]; then same=yes; fi
+unset dk round
+version_before="$(tkey | jq -r '.data.latest_version')"
+PATH="$SAFE_PATH" HQ_SECRETS_DIR="$S" HQ_BAO_ADDR="$bao" "$REPO_DIR/infra/openbao/provision.sh" >/dev/null 2>&1 || true
+delete_code="$(curl -s -o /dev/null -w '%{http_code}' -H @"$ta" -X DELETE "$bao/v1/transit/keys/archive-secret")"
+if ! tkey | jq -e '.data.type == "aes256-gcm96" and .data.exportable == false
+    and .data.allow_plaintext_backup == false and .data.deletion_allowed == false' >/dev/null; then
+  fail "transit: archive-secret is missing, exportable, backed up or deletable"
+elif [[ "$caps" != '[["update"],["update"],["deny"],["deny"],["deny"],["deny"]]' ]]; then
+  fail "transit: hq-api's policy reaches more (or less) of transit than a data key and its decryption ($caps)"
+elif [[ "$same" != yes ]]; then
+  fail "transit: a data key did not decrypt back to itself"
+elif [[ "$(tkey | jq -r '.data.latest_version')" != "$version_before" || "$version_before" != 1 ]]; then
+  fail "transit: a rerun of provision.sh changed the key"
+elif [[ "$delete_code" == 204 ]] || ! tkey | jq -e '.data.name == "archive-secret"' >/dev/null; then
+  fail "transit: the key could be deleted"
+else
+  pass "transit: archive-secret made once (not exportable, not deletable); the api reaches only a data key and decrypt"
+fi
+rm -f "$ta" "$T/transit-api.auth"
 
 # ------------------------------------------------------------ kv-once ----
 # Prompt 10 §1.2: kv/support/pseudonym is made once (cas 0) and kept on every
@@ -489,6 +540,32 @@ elif ((media_pass_rc != 0)) || [[ -n "$media_pass" ]]; then
   fail "media: the render pass did something while HQ_MEDIA is off"
 else
   pass "media: off by default; on where it fits (HQ_MEDIA=on); refused without room; the pass is a no-op while off"
+fi
+# ------------------------------------------- the archive's OCR (prompt 14 §4) --
+# Off by default (no ocr service, an empty HQ_OCR_URL); on where it fits
+# (full: the service, and the worker - only the worker - told where it is);
+# where it does not fit (lean) the memory gate fails once switched on, hq.sh
+# refuses to start it, and a command that starts nothing runs without it.
+ocr_of() { # ocr_of PROFILE HQ_OCR -> "<has ocr>,<worker HQ_OCR_URL>,<api has HQ_OCR_URL>"
+  HQ_PROFILE="$1" HQ_OCR="$2" "$HQ" config --format json 2>/dev/null |
+    jq -r '[(.services | has("ocr")), (.services.worker.environment.HQ_OCR_URL // ""),
+            (.services.api.environment | has("HQ_OCR_URL"))] | map(tostring) | join(",")'
+}
+ocr_gate="$(HQ_OCR=on CI=1 "$REPO_DIR/scripts/quality/memory-budget.sh" 2>&1)" && ocr_gate_rc=0 || ocr_gate_rc=$?
+ocr_refusal="$(HQ_PROFILE=lean HQ_OCR=on "$HQ" --dry-run up --no-start 2>&1)" && ocr_up_rc=0 || ocr_up_rc=$?
+if [[ "$(ocr_of full off)" != "false,,false" ]]; then
+  fail "ocr: on by default ($(ocr_of full off))"
+elif [[ "$(ocr_of full on)" != "true,http://ocr:8088,false" ]] ||
+  [[ "$(HQ_PROFILE=full HQ_OCR=on "$HQ" --print-ocr)" != on ]]; then
+  fail "ocr: HQ_OCR=on within the budget (full) does not run it or tell the worker ($(ocr_of full on))"
+elif ((ocr_gate_rc == 0)) || ! grep -q 'lean+ocr OVER (' <<<"$ocr_gate"; then
+  fail "ocr: the memory gate with HQ_OCR=on passed lean+ocr over the budget"
+elif ((ocr_up_rc != 3)) || ! grep -q 'HQ_OCR=on refused' <<<"$ocr_refusal"; then
+  fail "ocr: hq.sh 'up' accepted HQ_OCR=on over the memory budget (lean, exit $ocr_up_rc)"
+elif [[ "$(ocr_of lean on)" != "false,,false" ]]; then
+  fail "ocr: over the budget, a command that starts nothing did not run without ocr"
+else
+  pass "ocr: off by default; on where it fits (the worker alone gets HQ_OCR_URL); refused without room"
 fi
 
 exit "$failed"
