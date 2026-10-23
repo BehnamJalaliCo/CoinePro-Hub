@@ -22,6 +22,30 @@ PROMPT_13 REPORT (the media studio of every company and the holding's legal coun
   - Rule-only work: the re-check of published items touches no model and no outside service, and it still sits behind the holding gate inside the sweep. The TTS output's transcription skips the model punctuation pass (synthetic speech). Nothing rule-only runs while the holding is locked.
   - Tests: test_nothing_runs_while_the_holding_is_locked, test_the_company_kill_switch_holds_scheduled_publishing, test_the_poller_does_nothing_while_the_holding_is_locked, test_the_bakeoff_and_the_tts_job_do_nothing_while_the_holding_is_locked, test_a_narration_given_up_lets_the_item_go_on_silent (the company lock).
 
+## Merged on 12 (r13f)
+- **Merged on 12:** branch **r13f** = r12f d23b5c8 (prompt 11 deployed + prompt 12 parts A and B + §2, §3, §13) + r13j 5824aec + origin/server/p12-management-tools up to 5ea5f18 (ae878d4: 0027's `verified_at` IF NOT EXISTS; e6bec54: a deterministic revenue refusal test; 5ea5f18: the infra/mcp scripts executable). **Not deployed**; the parent runs `make check` and deploys.
+- **Chain:** `0025` → `0026` → `0026_1` → `0027` → `0027_1` → `0027_2` → **`0028`** (down_revision now `0027_2`) → **`0028_1`** (the head).
+  - `0028_1` is the only revision that validates `decisions_kind_check` and `threads_kind_check`, holding every kind of 11, 12 and 13. `0026_1` and `0027_2` no longer VALIDATE (each did while it was the head); every earlier re-add stays NOT VALID.
+  - These edits do not touch a deployed database (0026_1 and 0027_2 already ran there); production upgrades from 0027_2 with 0028 and 0028_1.
+  - test_hiring's round trip (down to 0009, up to the head, then r12f's re-seed) passes. test_p13f_join runs one more round trip, with a card of each of 11's and 13's kinds and thread L: all kept, both CHECKs validated.
+- **Conflicts** resolved as unions: decision kinds, action classes and payloads, the GET /decisions kind filter (13's four kinds beside 11's), routers, error codes, stream topics (`ask`, `reviews`, `dceo`, `media`, `legal`), internal tool classes, the OPA lists and data.json, the fixed schedules (12's owner tools, then 13's media sweep, mail poll and bake-off), workflows, activities, gateway modules, tool_status, test fixtures (12's dceo token and 13's media token; the RLS and schema-rule lists; 11's, 12's and 13's fills). RUNBOOK: §29 is 11's, §30 is 12's, §31 is 13's; §30 and §31 now name the chain above.
+- **The system prompt** keeps the contract's order: `_common` → the sealed holding charter and the company's addendum (§20.2; the four red lines until one is sealed) → the role's charter (a file, or the company's role draft, §22.5) → the department's identity (§22.1) → the skills. The runner uses one library for the run: the files plus the company's drafts, for the prompt, the charter section and a meeting turn's tools.
+- **Fixed where 11, 12 and 13 meet:**
+  - test_p12f_join's chain test now ends at `0028_1`.
+  - The advisor's tools test (test_the_advisor_v2_has_its_read_tools) passes with 11's tools live. The charter-order test (test_agents_more) passes.
+  - Template departments: 13's MEDIA and LEGAL mandates sit beside 11's `HQ-SEC` and 12's `HQ-LIB`. Every department's tool ceiling is a live gateway tool, 11's governance tools among them.
+  - test_untrusted_files counted spawned children by the length of `untrusted._spawned`, which keeps only the newest 64; the joined suite spawns more before it runs. It now finds the one child after the last pid seen.
+  - The import order in app.py.
+- **New test:** test_p13f_join (5): one validating head; every kind there and validated; the round trip above; a MEDIA run's prompt order; the templates.
+- **Gates on r13f** (test name p13b, image tag p13b):
+  - api, full suite on a fresh database (fuzz 8, coverage), run on a02792b: 802 passed, 1 failed (the `_spawned` cap above, fixed in b183518). Coverage 84.5% overall (gate 80%); the domain files about 91% (gate 85%).
+  - After the fix, targeted: 77 passed (test_files_media, test_p13a_media, test_p13b_voices and test_tools_mcp before test_untrusted_files, so the cap is reached; test_p10_revenue with e6bec54).
+  - services (hq-common, gateway, egress, llm-router, tts, media-render): 987 passed.
+  - lint clean (ruff, format, mypy --strict; services and api). OpenAPI regenerated: **494 operations** (12's 447 and 13's 416, none removed).
+  - OPA 170/170 at 100% coverage; shellcheck (80 scripts); compose-config and compose-rules (lean, full); infra.sh (38 checks); gitleaks (history and working tree) all clean.
+  - memory-budget ok: full 10896 MiB ≤ 11673; full+media 11920 ≤ 12288; full+tts 11216 ≤ 12288. Still over: full+stt by 784 MiB, lean+media by 700 MiB (both off).
+- **Test-order note:** test_founding's auditor claim answers `busy` when the test runs after test_p11_charter_knowledge or test_p13a_roles in one session (`agent_headers` leaves HQ-AIOPS-MGR a running run). In the suite's own order it runs first and passes. This is not a defect of the join.
+
 ## Items
 - §0 ok (before starting):
   - The p13 charters and `tools.md` are seeded from `agents/` as they are.
@@ -227,7 +251,7 @@ PROMPT_13 REPORT (the media studio of every company and the holding's legal coun
 - The ManaTTS voice is not trained: it needs a rented GPU (owner decision §0.9 #3). The plan and estimate are in RUNBOOK §31.13.
 - No bake-off audio is in the production registry yet: the hub's queue runs only with `HQ_TTS=on` and the holding unlocked.
 - The §0.5 real sample reel and story were not made: no real model call before launch, per the run sheet.
-- The full api suite is the parent's, after prompt 12's final branch is laid under r13j.
+- The full api suite is the parent's, after prompt 12's final branch is laid under r13j (run once on r13f: see Merged on 12).
 
 ### Owner tasks
 1. §0.9's six decisions. The defaults hold until you answer:
