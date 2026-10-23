@@ -371,11 +371,16 @@ def upgrade() -> None:
     grants.append(f"GRANT USAGE ON SEQUENCE {', '.join(SEQUENCES)} TO {APP_ROLES};")
     execute_script("\n".join(grants))
     execute_script(
-        # NOT VALID (the task's rule for the decision kind CHECK); 'legal' is
-        # only added to the thread kinds, so that one stays VALID.
+        # Added NOT VALID, then validated in its own statement (the head
+        # validates: 0025 and 0018 leave theirs NOT VALID, so a down-and-up run
+        # of the migrations keeps every later revision's rows).
         _kinds_sql("cartable.decisions", "decisions_kind_check", ("email_send",), (), False)
-        + _kinds_sql("msg.threads", "threads_kind_check", ("legal",), (), True)
+        + _kinds_sql("msg.threads", "threads_kind_check", ("legal",), (), False)
         + WAKE.format(kinds=WAKE_KINDS + ", 'legal'", p2=WAKE_P2 + ", 'legal'")
+    )
+    execute_script(
+        """ALTER TABLE cartable.decisions VALIDATE CONSTRAINT decisions_kind_check;
+           ALTER TABLE msg.threads VALIDATE CONSTRAINT threads_kind_check;"""
     )
     classes = ",\n".join(
         "('{}', false, '{}')".format(k, d.replace("'", "''")) for k, d in TASK_CLASSES

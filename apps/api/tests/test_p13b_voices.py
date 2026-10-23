@@ -25,6 +25,32 @@ from .test_files_media import audio, upload
 TTS = {"Authorization": f"Bearer {TTS_TOKEN}"}
 
 
+@pytest.fixture(autouse=True)
+async def _seeded(hub: Hub) -> None:
+    """The registry's rows (the seed's; a migration test may have run the
+    migrations down and up again, which empties media.voices)."""
+    holding = await hub.companies.holding()
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await V.seed(tx, holding.id)
+
+@pytest.fixture(autouse=True)
+async def _end_test_runs(su: Any) -> AsyncIterator[None]:
+    """The holding's agents these tests gave a running run (agent tokens)
+    end it afterwards, and the runs their work queued for them end too:
+    other modules claim runs of the same agents."""
+    yield
+    await su.execute(
+        """UPDATE agents.runs r SET state = 'done', finished_at = now()
+           FROM core.employees e WHERE e.id = r.employee_id AND r.state = 'running'
+             AND r.reason = 'test' AND e.code IN ('HQ-ADV', 'HQ-PA', 'HQ-LGL', 'HQ-LEGAL-77')"""
+    )
+    await su.execute(
+        """UPDATE agents.runs r SET state = 'refused', finished_at = now(), error_code = 'test_cleanup'
+           FROM core.employees e WHERE e.id = r.employee_id AND r.state = 'queued'
+             AND e.code IN ('HQ-LGL', 'HQ-LEGAL-77')"""
+    )
+
+
 @pytest.fixture
 async def quiet_queue(su: Any) -> AsyncIterator[None]:
     """Only this test's jobs wait (the test database outlives a run), and

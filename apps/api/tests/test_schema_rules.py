@@ -49,6 +49,9 @@ SCHEMAS = (
     # prompt 12 part B: briefings and letters; checked claims
     "reports",
     "quality",
+    # prompt 13 (legal and voice): the counsel's cases; the voice registry
+    "legal",
+    "media",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.

@@ -30,6 +30,24 @@ from .p10_support import holding_switch
 ADDRESS = "legal@example.org"
 
 
+@pytest.fixture(autouse=True)
+async def _end_test_runs(su: Any) -> AsyncIterator[None]:
+    """The holding's agents these tests gave a running run (agent tokens)
+    end it afterwards, and the runs their work queued for them end too:
+    other modules claim runs of the same agents."""
+    yield
+    await su.execute(
+        """UPDATE agents.runs r SET state = 'done', finished_at = now()
+           FROM core.employees e WHERE e.id = r.employee_id AND r.state = 'running'
+             AND r.reason = 'test' AND e.code IN ('HQ-ADV', 'HQ-PA', 'HQ-LGL', 'HQ-LEGAL-77')"""
+    )
+    await su.execute(
+        """UPDATE agents.runs r SET state = 'refused', finished_at = now(), error_code = 'test_cleanup'
+           FROM core.employees e WHERE e.id = r.employee_id AND r.state = 'queued'
+             AND e.code IN ('HQ-LGL', 'HQ-LEGAL-77')"""
+    )
+
+
 class FakeMail:
     """The mailbox: a fake SMTP that records every message, and a fake IMAP
     inbox the test fills."""
