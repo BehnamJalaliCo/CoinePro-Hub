@@ -36,6 +36,8 @@ RUN python3 -m pip install --require-hashes --no-deps --break-system-packages -r
     && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hq \
     && install -d -o 10001 -g 10001 -m 0700 /jobs
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # The only scripts a composition may load (/lib/anime.min.js, /lib/lottie.min.js).
 ADD --checksum=sha256:a1a952d2265ff27a500945443a0752157d021c193b47ca2e5bf4ada61a6ff8b6 \
     https://registry.npmjs.org/animejs/-/animejs-3.2.2.tgz /tmp/animejs.tgz
@@ -67,7 +69,7 @@ COPY --from=design fonts/static/IRANYekanX-Regular.ttf fonts/static/IRANYekanX-M
      /usr/share/fonts/truetype/iranyekanx/
 RUN chmod 0644 /opt/hq-media/fonts/* /usr/share/fonts/truetype/iranyekanx/* \
     && fc-cache -f >/dev/null \
-    && fc-list | grep -q IRANYekanX
+    && fc-list : family | grep IRANYekanX >/dev/null
 
 COPY hq-common/src /app/hq-common/src
 COPY media-render/assets.lock.json /app/media-render/assets.lock.json

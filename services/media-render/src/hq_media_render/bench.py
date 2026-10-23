@@ -1,4 +1,4 @@
-"""`bench reel|lottie|design`: the render worker's acceptance numbers on this
+"""`bench reel|lottie|design|sneak`: the render worker's acceptance numbers on this
 server (prompt 13 §6, §8), offline, in the real image with no network
 (`make media-bench`): a 30-second 1080x1920 reel (CSS animation, SMIL,
 anime.js, Persian text with isolated Latin figures, an image asset, a voice,
@@ -142,6 +142,28 @@ def _design() -> dict[str, Any]:
     }
 
 
+def _sneak() -> dict[str, Any]:
+    """A still that passes the rule check here (any well-formed asset path) but
+    asks for a file that is not the job's: the page's request is aborted and
+    recorded, and no output is made."""
+    other = "0b4a5c6d-0000-4000-8000-000000000000"
+    source = (
+        '<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"></head>'
+        f'<body style="font-family: IRANYekanX"><img src="/assets/{other}" alt=""></body></html>'
+    )
+    return {
+        "kind": "post",
+        "duration_s": None,
+        "safe_zone": SAFE_POST,
+        "composition": _composition("html", source),
+        "overlay": {"mark": False, "cta_fa": None},
+        "outputs": [_output("post", "instagram_post", 1080, 1350, video=False, max_bytes=8 * MB)],
+    }
+
+
+FIXTURE_KINDS = ("reel", "lottie", "design", "sneak")
+
+
 def fixture(kind: str, root: Path) -> tuple[dict[str, Any], Path]:
     jid = str(uuid.uuid4())
     d = root / jid
@@ -159,7 +181,8 @@ def fixture(kind: str, root: Path) -> tuple[dict[str, Any], Path]:
         "brand": BRAND,
         "limits": {"timeout_s": 600},
     }
-    base.update(_reel(d) if kind == "reel" else _lottie() if kind == "lottie" else _design())
+    parts = {"lottie": _lottie, "design": _design, "sneak": _sneak}
+    base.update(_reel(d) if kind == "reel" else parts[kind]())
     (d / "job.json").write_text(json.dumps(base, ensure_ascii=False), encoding="utf-8")
     return base, d
 
@@ -207,6 +230,9 @@ async def bench(kind: str, root: Path) -> int:
         "outputs": [],
     }
     ok = res.status == "done" and not res.violations
+    if kind == "sneak":  # the runtime filter's proof: a violation and nothing made
+        rules = {v["rule"] for v in res.violations}
+        ok = res.status == "done" and rules == {"network_request"} and not res.outputs
     for o in res.outputs:
         row = {"name": o["name"], "kind": o["kind"], "bytes": o["bytes"]}
         if o["kind"] in ("video", "poster", "image"):
@@ -224,8 +250,8 @@ async def bench(kind: str, root: Path) -> int:
 
 def main(argv: list[str]) -> int:
     kind = argv[0] if argv else "reel"
-    if kind not in ("reel", "lottie", "design"):
-        print("bench reel|lottie|design [dir]", file=sys.stderr)
+    if kind not in FIXTURE_KINDS:
+        print("bench reel|lottie|design|sneak [dir]", file=sys.stderr)
         return 2
     root = Path(argv[1]) if len(argv) > 1 else Path("/jobs")
     return asyncio.run(bench(kind, root))

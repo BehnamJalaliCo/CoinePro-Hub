@@ -3,7 +3,7 @@
 courier claim          claim one job into the job volume; prints its id (nothing: no job)
 courier send <id>      send a rendered job's outputs (or its failure) back; clear it
 render <id>            draw one job (no network); writes out/manifest.json
-bench reel|lottie|design [dir]   the acceptance numbers, offline
+bench reel|lottie|design|sneak [dir]   the acceptance numbers, offline
 probe                  proves this container has no network (exit 1 if it has)
 """
 
