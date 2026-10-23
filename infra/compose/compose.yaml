@@ -798,6 +798,9 @@ services:
       # The hub's name and its own addresses (hq.sh: the host's global
       # addresses and what the domain resolves to; prompt 7.1).
       EGRESS_HUB_HOSTS: ${HQ_WEBAUTHN_RP_ID:-hq.coinepro.com},${HQ_HUB_ADDRESSES:-}
+      # Prompt 13 §2.3: the only host an Instagram media URL may name (the api's
+      # signed URL of one file); empty (no domain yet) = Instagram refused.
+      EGRESS_PUBLIC_HOST: ${HQ_SITE_ADDRESS:-}
       # Parse children at once (each up to 192 MiB, inside MEM_EGRESS).
       EGRESS_PARSE_SLOTS: ${EGRESS_PARSE_SLOTS:-2}
       # The fixed subnets below: the gateway's network and the browser's.
