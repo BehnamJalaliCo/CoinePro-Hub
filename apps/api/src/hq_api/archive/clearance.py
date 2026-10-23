@@ -128,6 +128,17 @@ async def of_agent(tx: Tx, who: Principal) -> Clearance:
     return Clearance(everything=False, code=who.code, grants=grants, meta=meta, agent=True)
 
 
+async def for_ask(tx: Tx, who: Principal) -> Clearance:
+    """⟨1.7⟩ «از هاب بپرس» (contract §21.2, §23.9): records within the asker's
+    clearance. The passages go to the Hub Librarian, a model, so the owner's
+    own clearance is capped at the level marked `agents_max` here: a record
+    above it (`secret`: encrypted, a passkey to view) never reaches a model or
+    an ask's stored passages. An agent's clearance is capped already."""
+    if who.is_agent:
+        return await of_agent(tx, who)
+    return Clearance(everything=False, grants={"*": await agents_max(tx)})
+
+
 async def for_principal(tx: Tx, who: Principal) -> Clearance:
     if who.is_agent:
         return await apply(tx, await of_agent(tx, who))

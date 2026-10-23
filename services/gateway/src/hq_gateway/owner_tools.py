@@ -20,7 +20,10 @@ from hq_gateway import tools as T
 
 
 class AskCitationIn(T.In):
-    kind: Literal["resolution", "decision", "deliverable", "work", "message", "doc", "code"]
+    # ⟨1.7⟩ `record`: an archive record (AR-…) of the passages (prompt 14, §23.9)
+    kind: Literal[
+        "resolution", "decision", "deliverable", "work", "message", "record", "doc", "code"
+    ]
     ref: str | None = Field(default=None, max_length=60)
     repo: str | None = Field(default=None, max_length=200)
     path: str | None = Field(default=None, max_length=1000)

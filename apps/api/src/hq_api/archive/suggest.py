@@ -72,10 +72,11 @@ MAX_TEXT = 60_000
 
 
 def _jalali(y: int, m: int, d: int) -> str | None:
-    from hq_api.domain.advisor import jalali_to_gregorian
+    # Prompt 11's Jalali calendar (gov_common; the advisor's own copy went with 11).
+    from hq_api.domain.gov_common import from_jalali
 
     try:
-        return jalali_to_gregorian(y, m, d).isoformat()
+        return from_jalali(y, m, d).isoformat()
     except ValueError:
         return None
 

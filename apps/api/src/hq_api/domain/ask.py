@@ -3,7 +3,9 @@ answer with exact citations. Rules first, AI last:
 
   1. Retrieval is code (hq_api.domain.corpus): the top 20 passages, at most
      24K tokens, over the records (resolutions, decisions, deliverables, work,
-     and the owner's messages: only in the owner's own ask) and the nightly
+     and the owner's messages: only in the owner's own ask), ⟨1.7⟩ the
+     archive's records within the asker's clearance (capped at `agents_max`:
+     the passages go to a model; prompt 14, contract §23.9) and the nightly
      corpus (the hub's documents and the code of the hub's and the
      workspaces' repositories).
   2. Nothing found -> NO model call: `found: 0`, «چیزی پیدا نشد» with words
@@ -50,13 +52,16 @@ ASK_TOKENS = 60_000
 FAILED_AFTER = timedelta(minutes=5)
 NOTHING_FOUND = "چیزی پیدا نشد."
 NO_VALID_ANSWER = "جواب معتبری ساخته نشد."
-CiteKind = Literal["resolution", "decision", "deliverable", "work", "message", "doc", "code"]
+# ⟨1.7⟩ `record`: an archive record (AR-…) within the asker's clearance (§23.9)
+CiteKind = Literal[
+    "resolution", "decision", "deliverable", "work", "message", "record", "doc", "code"
+]
 
 
 # ------------------------------------------------------------------ shapes --
 class AskScope(Model):
     companies: list[str] | None = Field(default=None, max_length=50)
-    kinds: list[CiteKind] | None = Field(default=None, max_length=7)
+    kinds: list[CiteKind] | None = Field(default=None, max_length=8)
 
     @field_validator("companies")
     @classmethod
@@ -218,7 +223,14 @@ async def create(tx: Tx, hub: Any, who: Principal, body: AskIn) -> tuple[dict[st
         ck=who.kind,
         cc=who.code,
     )
-    passages, words = await corpus.retrieve(tx, body.q, kinds=kinds, company_ids=company_ids)
+    clearance = None
+    if corpus.ARCHIVE_KIND in kinds:
+        from hq_api.archive import clearance as CL
+
+        clearance = await CL.for_ask(tx, who)
+    passages, words = await corpus.retrieve(
+        tx, body.q, kinds=kinds, company_ids=company_ids, clearance=clearance
+    )
     missing = (
         await corpus.not_indexed(tx, company_ids)
         if any(k in corpus.FILE_KINDS for k in kinds)

@@ -124,7 +124,10 @@ CHARS_PER_TOKEN = 2.5  # Persian text is dense; an estimate on the safe side
 PASSAGE_CHARS = 2400
 RECORD_KINDS = ("resolution", "decision", "deliverable", "work", "message")
 FILE_KINDS = ("doc", "code")
-ALL_KINDS = (*RECORD_KINDS, *FILE_KINDS)
+# ⟨1.7⟩ archive records (AR-…, contract §23.9): searched where they live, under
+# the asker's clearance (hq_api.archive.search.ask_hits)
+ARCHIVE_KIND = "record"
+ALL_KINDS = (*RECORD_KINDS, ARCHIVE_KIND, *FILE_KINDS)
 
 
 # ------------------------------------------------------------- the files --
@@ -704,12 +707,22 @@ async def retrieve(
     *,
     kinds: list[str],
     company_ids: list[UUID] | None,
+    clearance: Any = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """The owner's ask: the top passages (<= 20, <= 24K tokens), by code."""
+    """The owner's ask: the top passages (<= 20, <= 24K tokens), by code.
+    ⟨1.7⟩ Archive records only with a clearance (archive.clearance.for_ask),
+    set on the transaction before the first archive read: the database's
+    policies drop a record above it before anything is ranked."""
     words = await terms(tx, q)
     if not words:
         return [], words
     rows = await record_hits(tx, words, [k for k in kinds if k in RECORD_KINDS], company_ids, 40)
+    if ARCHIVE_KIND in kinds and clearance is not None:
+        from hq_api.archive import clearance as CL
+        from hq_api.archive import search as AS
+
+        await CL.apply(tx, clearance)
+        rows += await AS.ask_hits(tx, words, company_ids, 40)
     rows += await chunk_hits(tx, words, kinds, company_ids, 60)
     rank_rows(rows)
     floor = need(len(words))

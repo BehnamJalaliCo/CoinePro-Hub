@@ -676,7 +676,12 @@ async def tool_knowledge_search(
         )
         for h in hits[:limit]
     ]
-    files = [h for h in hits[:limit] if h["kind"] in ("doc", "code")]
+    # ⟨1.7⟩ a record it found (within its own clearance) joins as well
+    files = [
+        {**h, "text": h.get("text") or h.get("body")}
+        for h in hits[:limit]
+        if h["kind"] in ("doc", "code", "record")
+    ]
     if ctx.who.charter == "librarian" and files:
         # Its own search in an ask's run joins the retrieved set (prompt 12 §2.2).
         from hq_api.domain import ask as AK

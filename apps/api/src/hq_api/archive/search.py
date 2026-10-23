@@ -110,6 +110,83 @@ async def search(
     return {"items": items, "next_cursor": nxt}
 
 
+ASK_SQL = """
+    WITH w AS (SELECT t, to_tsquery('simple', t || ':*') AS tq,
+                      '%' || core.like_escape(t) || '%' AS pat
+               FROM unnest(CAST(:words AS text[])) t WHERE t <> ''),
+         qq AS (SELECT to_tsquery('simple', :tsq) AS tq)
+    SELECT 'record' AS kind, r.id, r.ref, co.code AS company, r.company_id, r.title_fa AS title,
+           r.class_key, r.level, r.doc_date, COALESCE(r.filed_at, r.created_at) AS at,
+           archive.can_see(r.level_rank, r.company_id) AS content, m.hits, m.matched,
+           ts_rank_cd(COALESCE(r.meta_tsv, ''::tsvector), qq.tq) * 2
+             + CASE WHEN archive.can_see(r.level_rank, r.company_id)
+                    THEN ts_rank_cd(COALESCE(r.text_tsv, ''::tsvector), qq.tq) ELSE 0 END AS rank
+    FROM archive.records r JOIN core.companies co ON co.id = r.company_id, qq,
+    LATERAL (
+        SELECT count(*) AS hits, COALESCE(array_agg(w.pat), '{}') AS matched FROM w
+        WHERE COALESCE(r.meta_tsv, ''::tsvector) @@ w.tq
+           OR core.fa_normalize(r.title_fa) LIKE w.pat
+           OR (archive.can_see(r.level_rank, r.company_id)
+               AND COALESCE(r.text_tsv, ''::tsvector) @@ w.tq)
+           OR (archive.can_see(GREATEST(r.level_rank, :conf), r.company_id)
+               AND COALESCE(r.sens_tsv, ''::tsvector) @@ w.tq)
+    ) m
+    WHERE r.state <> 'disposed' AND m.hits > 0
+      AND (CAST(:cos AS uuid[]) IS NULL OR r.company_id = ANY(:cos))
+    ORDER BY m.hits DESC, rank DESC, at DESC LIMIT :lim
+"""
+
+
+async def ask_hits(
+    tx: Tx, words: list[str], company_ids: list[Any] | None, limit: int
+) -> list[dict[str, Any]]:
+    """⟨1.7⟩ «از هاب بپرس» (contract §21.2, §23.9): the records matching the
+    question's words, as the corpus ranks its candidates (`hits`, `matched`,
+    `rank`). The caller has set the asker's clearance on `tx` (clearance.apply):
+    a record above it is no candidate at all (RLS), so it is never counted,
+    ranked or quoted; the file text is matched and quoted only where the
+    content is visible, a sensitive value matched only from `confidential` up."""
+    import re
+
+    safe = [s for s in (re.sub(r"[^\w]", "", w) for w in words) if s]
+    if not safe:
+        return []
+    rows = await tx.all(
+        ASK_SQL,
+        words=safe,
+        tsq=" | ".join(f"{w}:*" for w in safe),
+        conf=await conf_rank(tx),
+        cos=company_ids,
+        lim=limit,
+    )
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        head = " · ".join(
+            str(x) for x in (r["class_key"] or "draft", r["level"], r["doc_date"]) if x
+        )
+        body = await _ask_text(tx, r["id"], safe) if r["content"] else None
+        out.append({**dict(r), "text": head + ("\n" + body if body else "")})
+    return out
+
+
+async def _ask_text(tx: Tx, record_id: Any, words: list[str]) -> str | None:
+    """Up to three fragments of the current version's file text around the
+    question's words (the content clearance only: RLS hides the files)."""
+    got = await tx.scalar(
+        """SELECT ts_headline('simple', t, to_tsquery('simple', :tsq),
+                              'MaxWords=60, MinWords=15, StartSel=«, StopSel=», MaxFragments=3,
+                               FragmentDelimiter=" … "')
+           FROM (SELECT left(core.fa_normalize(COALESCE(string_agg(f.text, ' '), '')), 60000) AS t
+                 FROM archive.record_files f JOIN archive.records x ON x.id = f.record_id
+                 WHERE f.record_id = :r AND f.version_n = x.current_version AND f.destroyed_at IS NULL
+                   AND NOT f.quarantined) s
+           WHERE t <> ''""",
+        r=record_id,
+        tsq=" | ".join(f"{w}:*" for w in words),
+    )
+    return str(got) if got else None
+
+
 async def snippet(tx: Tx, r: dict[str, Any], qn: str) -> str:
     """From the file text when the reader may see the content, else the title."""
     if r["content"]:
