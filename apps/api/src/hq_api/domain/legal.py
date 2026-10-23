@@ -257,7 +257,8 @@ async def wake(
         assignee_code=case["counsel_code"],
     )
     await tx.exec(
-        "UPDATE work.work SET run_meta = run_meta || CAST(:m AS jsonb) WHERE id = :id",
+        """UPDATE work.work SET run_meta = COALESCE(run_meta, CAST('{}' AS jsonb)) || CAST(:m AS jsonb)
+           WHERE id = :id""",
         m=json.dumps({"task_class": task_class, "case": case["ref"]}),
         id=w["id"],
     )

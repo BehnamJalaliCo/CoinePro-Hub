@@ -377,7 +377,9 @@ def upgrade() -> None:
         + _kinds_sql("msg.threads", "threads_kind_check", ("legal",), (), True)
         + WAKE.format(kinds=WAKE_KINDS + ", 'legal'", p2=WAKE_P2 + ", 'legal'")
     )
-    classes = ",\n".join(f"('{k}', false, '{d}')" for k, d in TASK_CLASSES)
+    classes = ",\n".join(
+        "('{}', false, '{}')".format(k, d.replace("'", "''")) for k, d in TASK_CLASSES
+    )
     execute_script(
         f"""INSERT INTO llm.task_classes (key, transferable, description)
             VALUES {classes} ON CONFLICT (key) DO NOTHING;"""

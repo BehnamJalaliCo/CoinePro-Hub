@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -292,7 +293,7 @@ SEED: tuple[dict[str, Any], ...] = (
 # The hub's own measurements of the Piper voices (the bake-off of 2026-10-23
 # on this CPX42, the image coinepro-hq/tts; RUNBOOK §31.6): voice -> (rtf, peak MiB).
 MEASURED: dict[str, tuple[float, float]] = {}
-MEASURED_AT = "2026-10-23T00:00:00+00:00"
+MEASURED_AT = datetime(2026, 10, 23, tzinfo=UTC)
 
 # Called when a narration is ready (the media studio moves its item on):
 # (tx, job row, file id). The voice side knows no media item.
