@@ -123,6 +123,7 @@ async def list_drafts(
 
 @router.get("/roles/drafts/{ref}", response_model=RD.RoleDraft, responses=E)
 async def get_draft(ref: str, ctx: Ctx = Depends(owner_ctx)) -> RD.RoleDraft:
+    """One role draft with its review, eval run and approval (§22.5, §22.7)."""
     async with ctx.tx() as tx:
         return RD.render(await RD.load(tx, ref))
 

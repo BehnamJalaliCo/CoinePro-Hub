@@ -467,6 +467,7 @@ async def create_series(body: SeriesIn, request: Request, ctx: Ctx = Depends(own
 
 @router.get("/media/series/{ref}", response_model=Series, responses=E)
 async def get_series(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Series:
+    """One series with its next runs and today's count (§22.7)."""
     async with ctx.tx() as tx:
         return _series(await S.series_view(tx, await S.load_series(tx, ref)))
 
@@ -547,6 +548,7 @@ async def pause_series(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Series:
 
 @router.post("/media/series/{ref}/retire", response_model=Series, responses=E)
 async def retire_series(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Series:
+    """No step-up: a retired series makes nothing and stays for the record."""
     async with ctx.tx() as tx:
         s = await S.load_series(tx, ref, lock=True)
         out = await S.set_series_status(tx, s, "retired", None)
@@ -588,6 +590,7 @@ async def list_items(
 
 @router.get("/media/items/{ref}", response_model=MediaItem, responses=E)
 async def get_item(ref: str, ctx: Ctx = Depends(owner_ctx)) -> MediaItem:
+    """One item: every step's record, its files, checks, review and publish rows."""
     async with ctx.tx() as tx:
         return await _item(tx, await S.load_item(tx, ref))
 
@@ -1054,6 +1057,7 @@ async def narration_done(
     "/tts/media/{id}/fail", status_code=204, response_class=Response, responses=IE
 )
 async def narration_fail(id: UUID, body: RenderFail, ctx: Ctx = Depends(internal_ctx)) -> Response:
+    """The narration could not be made; after three tries the item goes on silent."""
     await _service(ctx, "tts", "media.narration")
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         await S.narration_failed(tx, ctx.hub, id, body.error)

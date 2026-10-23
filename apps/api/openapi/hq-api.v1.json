@@ -48514,6 +48514,7 @@
     },
     "/api/v1/media/items/{ref}": {
       "get": {
+        "description": "One item: every step's record, its files, checks, review and publish rows.",
         "operationId": "get_item",
         "parameters": [
           {
@@ -49746,6 +49747,7 @@
     },
     "/api/v1/media/series/{ref}": {
       "get": {
+        "description": "One series with its next runs and today's count (§22.7).",
         "operationId": "get_series",
         "parameters": [
           {
@@ -50237,6 +50239,7 @@
     },
     "/api/v1/media/series/{ref}/retire": {
       "post": {
+        "description": "No step-up: a retired series makes nothing and stays for the record.",
         "operationId": "retire_series",
         "parameters": [
           {
@@ -58838,6 +58841,7 @@
     },
     "/api/v1/roles/drafts/{ref}": {
       "get": {
+        "description": "One role draft with its review, eval run and approval (§22.5, §22.7).",
         "operationId": "get_draft",
         "parameters": [
           {
@@ -84978,6 +84982,7 @@
     },
     "/internal/v1/tts/media/{id}/fail": {
       "post": {
+        "description": "The narration could not be made; after three tries the item goes on silent.",
         "operationId": "narration_fail",
         "parameters": [
           {

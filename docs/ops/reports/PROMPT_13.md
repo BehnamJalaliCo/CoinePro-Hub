@@ -65,7 +65,7 @@ PROMPT_13 REPORT (the media studio of every company and the holding's legal coun
     - test_review_changes_go_back_to_the_named_role_and_a_reject_ends_it
     - test_a_runtime_violation_sends_the_item_back_to_its_composer
     - test_captions_follow_the_shots_or_the_narration
-    - hq-common test_composition.py (40 cases)
+    - hq-common test_composition.py (34 cases)
 - §2.3 ok (the render worker, fork R; numbers below):
   - Service `services/media-render` in the opt-in profile `media`, off by default.
   - `media-courier` runs on the internal `hq-media` network (api and OpenBao only; AppRole `media` and a token in `kv/media/config`).
@@ -116,7 +116,14 @@ PROMPT_13 REPORT (the media studio of every company and the holding's legal coun
   - python lint: ruff, format and mypy --strict for the api (182 files) and services (133 files)
   - opa 131/131 at 100% coverage; yamllint; shellcheck (80 scripts)
   - OpenAPI regenerated
-  - api tests: test_p13a_departments, test_p13a_media, test_p13a_prompt_sizes and test_p13a_roles all pass, plus the full api run (below)
+  - api tests: test_p13a_departments (7), test_p13a_media (14), test_p13a_prompt_sizes (1) and test_p13a_roles (8) pass.
+  - The full api run on a fresh database (test_hiring alone on another fresh one) has one failure, not this half's: test_inquiries_errands::test_the_advisor_v2_has_its_read_tools. The advisor's charter on main already lists prompt 11's tools (authority.read, governance.read, meeting.item, meeting.whisper, calendar.read), which the gateway gets with prompt 11. The base fails it the same way.
+  - Fixed on the way:
+    - test_p10_foundation expected the kind CHECK validated; 0028 adds it NOT VALID, so the test now checks that every row fits it.
+    - test_org_work and test_agents_more counted 8 departments and the pre-media hireable list.
+    - Fork D's EV ref allocation broke on prompt 10's `support-shadow-…` suites.
+    - Missing route docstrings for test_openapi.
+  - services: the full suite of every service passes (gateway, hq-common, llm-router, claude-runtime, stt, egress, provisioner, substitutes, tts, media-render), after adding the media tools to `hq_common.tool_status.GATEWAY_TOOLS`.
   - services: gateway, hq-common, tts, egress and media-render
   - fork R also ran compose-config, compose-rules, memory-budget, hadolint and infra.sh
 
@@ -175,6 +182,8 @@ PROMPT_13 REPORT (the media studio of every company and the holding's legal coun
 17. From fork D: the overseer reviews a draft with `skill.review` and its RD- ref (a fifth check `ceiling`). A draft's eval passes at 70/100. A draft role reads only its own company, even in the holding. `role.draft` takes an optional `ref`, and a draft's charter text is capped at 7,000 characters.
 18. tests/test_hiring.py runs migrations down and up. With rows of the new decision kinds present, 0025's upgrade re-checks the kind CHECK; run it on a fresh database (alphabetical order does).
 19. The company's monthly envelope and the hub's 600 K daily cap do not fit a daily reel per company (see the token estimate); the cap is the owner's.
+20. The worker never held its OpenBao client (`hub.bao` was set in the api only), so its per-call secrets could not be read: a publishing account's token here, and prompt 10's support-channel tokens and prompt 12's deploy-diff tokens as well. The worker now sets `hub.bao` to its own AppRole client; its policy already reads `kv/tools/accounts/*`.
+21. `media` fits the full profile (also with TTS). It stays off by the prompt 12 rule: the memory priority among the opt-in profiles is the owner's, and it needs `make install-systemd`.
 
 ### Owner tasks
 1. §0.9's six decisions. The defaults hold until you answer:

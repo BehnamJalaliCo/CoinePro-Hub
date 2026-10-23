@@ -863,8 +863,10 @@ async def ensure_suite(tx: Tx, r: dict[str, Any]) -> str:
         return str(ev["suite"])
     await tx.exec("SELECT pg_advisory_xact_lock(hashtextextended('academy:draft-suites', 0))")
     n = await tx.scalar(
-        """SELECT COALESCE(max(substring(ref FROM 4)::int), 9000) + 1 FROM academy.eval_suites
-           WHERE substring(ref FROM 4)::int >= 9000"""
+        """SELECT COALESCE(max(n), 9000) + 1 FROM (
+               SELECT CASE WHEN ref ~ '^EV-[0-9]{1,9}$' THEN substring(ref FROM 4)::int END AS n
+               FROM academy.eval_suites) s
+           WHERE n >= 9000"""
     )
     ref = f"EV-{int(n)}"
     holding = await tx.scalar("SELECT id FROM core.companies WHERE kind = 'holding' LIMIT 1")
