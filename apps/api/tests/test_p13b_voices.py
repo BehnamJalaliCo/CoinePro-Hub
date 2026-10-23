@@ -386,7 +386,9 @@ async def test_media_voice_queues_the_narration_with_the_active_voice(
             assert done.status_code == 200, done.text
             file_id = UUID(done.json()["file"])
             assert seen == [(ref, file_id)]
-            owner_of = await su.fetchval("SELECT company_id FROM files.files WHERE id = $1", file_id)
+            owner_of = await su.fetchval(
+                "SELECT company_id FROM files.files WHERE id = $1", file_id
+            )
             assert owner_of == co["id"]
             # The pipeline's hook: the narration is on the item, and the render follows.
             x = await su.fetchrow(
@@ -446,7 +448,9 @@ async def test_a_narration_given_up_lets_the_item_go_on_silent(
                 f"/internal/v1/voices/jobs/{job['id']}/fail", headers=TTS, json={"error": "engine"}
             )
             assert fail.status_code == 204
-    x = await su.fetchrow("SELECT state, voice_file_id, narration FROM media.items WHERE ref = $1", ref)
+    x = await su.fetchrow(
+        "SELECT state, voice_file_id, narration FROM media.items WHERE ref = $1", ref
+    )
     assert x["state"] == "rendering" and x["voice_file_id"] is None
     assert json.loads(x["narration"])["state"] == "failed"
 

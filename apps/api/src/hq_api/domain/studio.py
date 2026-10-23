@@ -1852,7 +1852,9 @@ async def on_narration_failed(tx: Tx, hub: Any, job: dict[str, Any], error: str)
     if item is None:
         return
     n = dict(item.get("narration") or {})
-    n.update({"state": "failed", "error": re.sub(r"[^A-Za-z0-9 _.:-]", "", error)[:200] or "failed"})
+    n.update(
+        {"state": "failed", "error": re.sub(r"[^A-Za-z0-9 _.:-]", "", error)[:200] or "failed"}
+    )
     await tx.exec(
         "UPDATE media.items SET narration = CAST(:n AS jsonb) WHERE id = :id",
         id=item["id"],
