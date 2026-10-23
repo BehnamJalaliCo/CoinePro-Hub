@@ -185,10 +185,8 @@ async def agent_file(body: AgentFileIn, request: Request, ctx: Ctx = Depends(int
     await _allow(ctx, "archive.file", scope=body.scope)
     c = await clearance_of(ctx)
     data = body.model_dump(by_alias=True, mode="json")
+    idempotency.read_key(request, required=True)
     async with _Wide(ctx, c) as tx:
-        idem = await idempotency.claim(tx, request, ctx.who, required=True)
-        if idem and idem.replay:
-            return idem.replay
         await ctx.ensure_unlocked(tx, _co(ctx))
         scope = await tx.first(
             "SELECT id, code, kind FROM core.companies WHERE code = :c", c=body.scope
@@ -205,13 +203,17 @@ async def agent_file(body: AgentFileIn, request: Request, ctx: Ctx = Depends(int
                LIMIT 1""",
             ids=sorted(str(x) for x in body.file_ids),
         )
-        if draft is not None:
-            out = await _suggest(ctx, tx, draft["ref"], cls, data)
-        else:
+        if draft is None:
             await _usable(ctx, tx, body.file_ids)
-            out = None
-    if out is None:
-        out = await _new_draft(ctx, c, body, cls, data, request)
+    if draft is None:
+        return await _new_draft(ctx, c, body, cls, data, request)
+    async with _Wide(ctx, c) as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        out = await _suggest(ctx, tx, draft["ref"], cls, data)
+        if idem:
+            await idem.store(tx, 201, out)
     return out
 
 

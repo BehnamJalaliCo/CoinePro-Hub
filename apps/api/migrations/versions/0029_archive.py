@@ -183,6 +183,14 @@ $$;
 GRANT EXECUTE ON FUNCTION archive.clearance(), archive.rank_in(uuid), archive.can_see(int, uuid),
     archive.can_see(int, uuid, text) TO @APP@;
 
+-- pg_trgm's word similarity for ranking titles (the app roles have no USAGE on
+-- schema public, where the extension lives; its LIKE support needs none).
+CREATE FUNCTION archive.title_similarity(p_q text, p_title text) RETURNS real
+    LANGUAGE sql STABLE PARALLEL SAFE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    SELECT word_similarity(p_q, p_title)
+$$;
+GRANT EXECUTE ON FUNCTION archive.title_similarity(text, text) TO @APP@;
+
 -- ======================================================= the open layer ==
 CREATE TABLE archive.levels (
     key             text PRIMARY KEY CHECK (key ~ '^[a-z][a-z0-9_]{1,30}$'),
@@ -920,6 +928,9 @@ def upgrade() -> None:
     grants.append(f"GRANT USAGE ON SEQUENCE {', '.join(SEQUENCES)} TO {APP_ROLES};")
     execute_script("\n".join(grants))
     execute_script(_queue_run(QUEUE_RUN_NEW))
+    # An owner upload the archive took over (or refused for a secret) loses
+    # its extracted text and transcript with its bytes (prompt 14 §3).
+    execute_script("GRANT UPDATE (transcript) ON files.processing TO hq_api;")
     execute_script(
         # Added NOT VALID, then validated in its own statement (the head
         # validates: every earlier re-add is NOT VALID, so a down-and-up run
@@ -957,5 +968,6 @@ def downgrade() -> None:
             False,
         )
         + _queue_run(QUEUE_RUN_OLD)
+        + "REVOKE UPDATE (transcript) ON files.processing FROM hq_api;"
         + "DROP SCHEMA archive CASCADE;"
     )

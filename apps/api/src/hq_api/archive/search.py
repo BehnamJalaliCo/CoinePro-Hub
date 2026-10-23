@@ -63,7 +63,7 @@ async def search(
                     ts_rank_cd(COALESCE(r.meta_tsv, ''::tsvector), q.tq) * 2
                     + CASE WHEN archive.can_see(r.level_rank, r.company_id)
                            THEN ts_rank_cd(COALESCE(r.text_tsv, ''::tsvector), q.tq) ELSE 0 END
-                    + word_similarity(q.nq, core.fa_normalize(r.title_fa))
+                    + archive.title_similarity(q.nq, core.fa_normalize(r.title_fa))
                   END AS score
            FROM archive.records r JOIN core.companies co ON co.id = r.company_id, q
            WHERE r.state <> 'disposed'
@@ -76,7 +76,7 @@ async def search(
              AND (:q = ''
                   OR r.meta_tsv @@ q.tq
                   OR core.fa_normalize(r.title_fa) LIKE '%' || core.like_escape(q.nq) || '%'
-                  OR q.nq <% core.fa_normalize(r.title_fa)
+                  OR archive.title_similarity(q.nq, core.fa_normalize(r.title_fa)) >= 0.6
                   OR (archive.can_see(r.level_rank, r.company_id) AND r.text_tsv @@ q.tq)
                   OR (archive.can_see(GREATEST(r.level_rank, :conf), r.company_id) AND r.sens_tsv @@ q.tq))
            ORDER BY score DESC, r.created_at DESC, r.id

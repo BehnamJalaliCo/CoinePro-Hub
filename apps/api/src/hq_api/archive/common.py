@@ -19,10 +19,16 @@ LIVE = ("filed", "sealed", "superseded")  # records retention and reminders read
 
 
 def J(v: Any, default: Any = None) -> Any:
-    """A jsonb column as Python (asyncpg hands it over as text)."""
+    """A jsonb column as Python: decoded already (the driver's codec), or its
+    text; a decoded JSON string ("permanent", "owner") stays what it is."""
     if v is None:
         return default
-    return json.loads(v) if isinstance(v, str) else v
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except ValueError:
+            return v
+    return v
 
 
 def dumps(v: Any) -> str:

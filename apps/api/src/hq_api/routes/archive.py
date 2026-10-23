@@ -297,10 +297,8 @@ async def create_record(body: RecordIn, request: Request, ctx: Ctx = Depends(own
     """`file: true` files it at once (complete: every required field and file);
     else a draft. Requires `Idempotency-Key`."""
     txf = _txf(ctx)
+    idempotency.read_key(request, required=True)
     async with txf() as tx:
-        idem = await idempotency.claim(tx, request, ctx.who, required=True)
-        if idem and idem.replay:
-            return idem.replay
         scope = await tx.first(
             "SELECT id, code, kind FROM core.companies WHERE code = :c", c=body.scope
         )
@@ -484,10 +482,8 @@ async def add_version(
     """A new version (also under a legal hold); on a sealed record the old one
     is superseded and the record goes back to `filed`. Requires `Idempotency-Key`."""
     txf = _txf(ctx)
+    idempotency.read_key(request, required=True)
     async with txf() as tx:
-        idem = await idempotency.claim(tx, request, ctx.who, required=True)
-        if idem and idem.replay:
-            return idem.replay
         r = await R.load(tx, ref)
         R.require_live(r)
         lv = await SC.level(tx, r["level"])
@@ -535,7 +531,7 @@ async def seal_record(
         await ctx.interaction(
             tx,
             company_id=r["company_id"],
-            kind="archive",
+            kind="decision",
             action="archive.seal",
             target_kind="archive_record",
             target_ref=ref,
@@ -708,10 +704,8 @@ async def import_files(body: ImportIn, request: Request, ctx: Ctx = Depends(owne
     """Owner · one `draft` per file for the archivist to classify, and one work
     item for it. Requires `Idempotency-Key`."""
     txf = _txf(ctx)
+    idempotency.read_key(request, required=True)
     async with txf() as tx:
-        idem = await idempotency.claim(tx, request, ctx.who, required=True)
-        if idem and idem.replay:
-            return idem.replay
         scope = await tx.first(
             "SELECT id, code, kind FROM core.companies WHERE code = :c", c=body.scope
         )
