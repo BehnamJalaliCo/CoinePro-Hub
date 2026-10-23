@@ -1038,7 +1038,9 @@ def upgrade() -> None:
     grants.append("DROP TRIGGER intake_nonces_no_delete ON intake.nonces;")
     grants.append(f"GRANT DELETE ON intake.nonces TO {APP_ROLES};")
     execute_script("\n".join(grants))
-    execute_script(_kinds_sql(NEW_KINDS, (), valid=True))
+    # NOT VALID since prompt 11: the head (0026_1) validates every kind at once,
+    # so a round trip with cards of a later kind passes (0023's re-add drops them).
+    execute_script(_kinds_sql(NEW_KINDS, (), valid=False))
 
 
 def downgrade() -> None:
