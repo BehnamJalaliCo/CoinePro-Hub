@@ -43,6 +43,7 @@ from hq_common.redact import fit_async, mask_secrets
 from hq_gateway import (
     founding,  # noqa: F401 - registers server.plan (prompt 09)
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
+    legal,  # noqa: F401 - prompt 13: case.open/note, email.draft, mail.read, media.voice
     management,  # noqa: F401 - prompt 12 part A: memo.write, substitute.call
     mgmt,  # noqa: F401 - prompt 12 part B: claim.verdict
     oversight,  # noqa: F401 - registers the overseer's tools (prompt 08)
