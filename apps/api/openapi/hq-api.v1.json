@@ -28310,6 +28310,7 @@
     },
     "/api/v1/advisor/memos": {
       "get": {
+        "description": "The advisor's memos, newest first (one card's with `?decision`).",
         "operationId": "list_memos",
         "parameters": [
           {
@@ -32637,6 +32638,7 @@
     },
     "/api/v1/connections/{id}/login/{login_id}": {
       "get": {
+        "description": "A CLI sign-in, polled while `waiting` (its URL and user code; never a secret).",
         "operationId": "get_login",
         "parameters": [
           {
@@ -33582,6 +33584,7 @@
     },
     "/api/v1/creatives": {
       "get": {
+        "description": "Ad images and videos, newest first; every one `ai_generated`.",
         "operationId": "list_creatives",
         "parameters": [
           {
@@ -33995,6 +33998,7 @@
     },
     "/api/v1/creatives/{ref}": {
       "get": {
+        "description": "One creative: its brief, prompt, files, the composed picture and its source.",
         "operationId": "get_creative",
         "parameters": [
           {
@@ -34325,6 +34329,7 @@
     },
     "/api/v1/creatives/{ref}/reject": {
       "post": {
+        "description": "The owner turns a creative in review down (with an optional note).",
         "operationId": "reject_creative",
         "parameters": [
           {
@@ -70832,6 +70837,7 @@
     },
     "/internal/v1/substitutes/jobs/{id}/done": {
       "post": {
+        "description": "A CLI job's result (idempotent): the call, the player's state, the ledger.",
         "operationId": "job_done",
         "parameters": [
           {
@@ -71127,6 +71133,7 @@
     },
     "/internal/v1/substitutes/logins/{id}/started": {
       "post": {
+        "description": "The CLI's headless sign-in has started: its verification URL (and user code).",
         "operationId": "login_started",
         "parameters": [
           {

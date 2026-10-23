@@ -6,11 +6,12 @@ from __future__ import annotations
 
 import json
 import random
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+import pytest
 
 from hq_api.agents.runner import RunCtx, Runner
 from hq_api.domain import advisor as A
@@ -19,6 +20,27 @@ from hq_api.hub import Hub
 
 from .conftest import agent_headers, idem
 from .p10_fakes import holding_switch
+
+
+@pytest.fixture(autouse=True)
+async def _end_test_runs(su: Any) -> AsyncIterator[None]:
+    """The holding's agents a test gave a running run (agent tokens) end it
+    afterwards: other modules claim runs of the same agents."""
+    yield
+    await su.execute(
+        """UPDATE agents.runs r SET state = 'done', finished_at = now()
+           FROM core.employees e WHERE e.id = r.employee_id AND r.state = 'running'
+             AND r.reason = 'test' AND e.code IN ('HQ-ADV', 'HQ-PA')"""
+    )
+    # The work these tests gave them (memos, notes, a substitute's late answer)
+    # queued runs nobody executes here: they end too, and their work with them.
+    await su.execute(
+        """UPDATE agents.runs r SET state = 'refused', finished_at = now(), error_code = 'test_cleanup'
+           FROM core.employees e, work.work w
+           WHERE e.id = r.employee_id AND w.id = r.work_id AND r.state = 'queued'
+             AND e.code IN ('HQ-ADV', 'HQ-PA')
+             AND w.created_by_code IN ('advisor-rules', 'substitutes')"""
+    )
 
 
 async def _card(

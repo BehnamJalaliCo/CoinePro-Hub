@@ -180,6 +180,7 @@ async def _login(tx: Any, id: UUID, login_id: UUID) -> dict[str, Any]:
 
 @router.get("/connections/{id}/login/{login_id}", response_model=S.SubstituteLogin, responses=E)
 async def get_login(id: UUID, login_id: UUID, ctx: Ctx = Depends(owner_ctx)) -> S.SubstituteLogin:
+    """A CLI sign-in, polled while `waiting` (its URL and user code; never a secret)."""
     async with ctx.tx() as tx:
         return S.render_login(await _login(tx, id, login_id))
 
@@ -283,6 +284,7 @@ async def list_creatives(
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[S.Creative]:
+    """Ad images and videos, newest first; every one `ai_generated`."""
     after_t, after_id = pagination.time_id(cursor)
     async with ctx.tx() as tx:
         rows = await tx.all(
@@ -351,6 +353,7 @@ async def create_creative(
 
 @router.get("/creatives/{ref}", response_model=S.Creative, responses=E)
 async def get_creative(ref: str, ctx: Ctx = Depends(owner_ctx)) -> S.Creative:
+    """One creative: its brief, prompt, files, the composed picture and its source."""
     async with ctx.tx() as tx:
         row = await tx.first(S.CREATIVE_SQL + " WHERE r.ref = :ref", ref=ref)
         if row is None:
@@ -373,6 +376,7 @@ async def accept_creative(ref: str, body: S.NoteIn, ctx: Ctx = Depends(owner_ctx
 
 @router.post("/creatives/{ref}/reject", response_model=S.Creative, responses=E)
 async def reject_creative(ref: str, body: S.NoteIn, ctx: Ctx = Depends(owner_ctx)) -> S.Creative:
+    """The owner turns a creative in review down (with an optional note)."""
     return await _decide(ctx, ref, False, body)
 
 
@@ -480,6 +484,7 @@ async def claim_job(ctx: Ctx = Depends(internal_ctx)) -> dict[str, Any]:
 
 @internal_router.post("/substitutes/jobs/{id}/done", responses=E)
 async def job_done(id: UUID, body: S.DoneIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str, Any]:
+    """A CLI job's result (idempotent): the call, the player's state, the ledger."""
     await _service(ctx)
     async with ctx.tx() as tx:
         row = await S.finish(tx, ctx.hub, id, body)
@@ -490,6 +495,7 @@ async def job_done(id: UUID, body: S.DoneIn, ctx: Ctx = Depends(internal_ctx)) -
 async def login_started(
     id: UUID, body: S.LoginStarted, ctx: Ctx = Depends(internal_ctx)
 ) -> dict[str, Any]:
+    """The CLI's headless sign-in has started: its verification URL (and user code)."""
     await _service(ctx)
     async with ctx.tx() as tx:
         row = await S.login_started(tx, id, body)

@@ -85,6 +85,7 @@ async def list_memos(
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[A.DecisionMemo]:
+    """The advisor's memos, newest first (one card's with `?decision`)."""
     after_t, after_id = pagination.time_id(cursor)
     async with ctx.tx() as tx:
         rows = await tx.all(

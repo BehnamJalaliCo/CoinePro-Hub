@@ -24,6 +24,7 @@ from hq_api.hub import Hub
 
 from .conftest import agent_headers, body_bytes, idem, step_up, substitutes_headers
 from .p10_fakes import holding_switch
+from .test_p12a_advisor import _end_test_runs  # noqa: F401 - an autouse fixture here too
 
 
 @asynccontextmanager

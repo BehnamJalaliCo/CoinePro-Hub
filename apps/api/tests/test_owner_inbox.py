@@ -59,6 +59,9 @@ async def test_owner_settings_validation_and_versions(
         "calendars",
         "watch_after_hours",
         "provision_ssh_sources",
+        # ⟨1.5⟩ prompt 12 part A (contract §21.12)
+        "advisor",
+        "substitutes",
         "version",
     }
     v = {"If-Match": str(s["version"])}
