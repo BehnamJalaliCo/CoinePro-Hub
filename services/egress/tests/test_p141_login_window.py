@@ -64,5 +64,5 @@ def test_google_sign_in_hosts_are_in_every_recipe() -> None:
         hosts = loaded[account].sign_in_hosts()
         for host in ("accounts.google.com", "www.gstatic.com", "ssl.gstatic.com",
                      "fonts.gstatic.com", "gds.google.com", "consent.google.com",
-                     "ogs.google.com"):  # fmt: skip
+                     "ogs.google.com", "accounts.google.de"):  # fmt: skip
             assert covered(host, hosts), (account, host)

@@ -21,6 +21,8 @@ login_hosts:
   - gds.google.com
   - consent.google.com
   - ogs.google.com
+  # Google sets the sign-in cookie on the country domain of the hub's IP too (Germany)
+  - accounts.google.de
   - gstatic.com
   - appleid.apple.com
 features: [deep_thinking, web_search]
