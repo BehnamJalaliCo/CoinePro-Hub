@@ -45,8 +45,8 @@ test_only_the_media_director_reviews_and_proposes_series if {
 test_the_one_shots_take_only_their_own_queues if {
 	allowed(media_svc, "media.jobs", {})
 	not allowed(tts, "media.jobs", {})
-	allowed(tts, "media.narration", {})
-	not allowed(media_svc, "media.narration", {})
+	allowed(tts, "voices.claim", {})
+	not allowed(media_svc, "voices.claim", {})
 	not allowed(f.svc, "media.jobs", {})
 	not allowed(ty_media_01, "media.jobs", {"company": "TY"})
 }

@@ -12,6 +12,8 @@ hq-egress-api; a client from anywhere else is refused).
     POST /v1/support/send  a support message on Telegram or Chatwoot (the worker; support_out.py)
     POST /v1/media/publish one publish call of the Telegram Bot API or the Instagram Graph API
                            (the worker; prompt 13 §2.3; media_out.py)
+    POST /v1/mail/send     the legal mailbox: one sealed message out (SMTP; the worker; mail_out.py)
+    POST /v1/mail/fetch    ... its new messages in (IMAP, read-only)
     POST /v1/substitutes/web          one web job of a substitute player in its signed-in
                                       browser profile (prompt 12 §9.1; substitutes_web.py)
     POST /v1/substitutes/web/logout   that profile wiped
@@ -51,7 +53,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from hq_common import untrusted
-from hq_egress import __version__, media_out, substitutes_web, support_out
+from hq_egress import __version__, mail_out, media_out, substitutes_web, support_out
 from hq_egress import connectors as K
 from hq_egress import extract as X
 from hq_egress import recipes as RC
@@ -486,6 +488,7 @@ def build_app(state: State) -> FastAPI:
     app.include_router(support_out.router)  # POST /v1/support/send (prompt 10 §4.2, §10)
     app.include_router(substitutes_web.router)  # POST /v1/substitutes/web (prompt 12 §9.1)
     app.include_router(media_out.router)  # POST /v1/media/publish (prompt 13 §2.3; media_out.py)
+    app.include_router(mail_out.router)  # POST /v1/mail/send, /v1/mail/fetch (prompt 13 §3.2)
     return app
 
 

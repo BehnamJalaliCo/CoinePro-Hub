@@ -75,7 +75,8 @@ departments:
       - سکو باید کار کند حتی وقتی کسی نگاه نمیکند: پایش، پشتیبان و راه برگشت.
     team:
       - {role: hub_platform_sre, why_fa: پایداری و پشتیبان‌گیری سکوی هاب, first: true}
-  # ⟨1.6⟩ prompt 13 (contract §22.1, §22.4): one legal counsel for every company.
+  # ⟨1.6⟩ prompt 13 (contract §22.1, §22.4): one legal counsel for every
+  # company; the department has no manager (manager: false), only HQ-LGL below.
   - code: LEGAL
     name_fa: حقوقی
     name_en: Legal
@@ -133,15 +134,18 @@ leadership:
       thread: P
       thread_kind: assistant
       thread_title_fa: دستیار شخصی
-    - code_suffix: SYS
-      kind: system
-      title_fa: سامانه‌ی گزارش
-      title_en: Report system
-    # ⟨1.6⟩ the legal counsel of every company (contract §22.1), asleep until
-    # work arrives; its thread L is §22.4's.
+    # ⟨1.6⟩ the legal counsel (thread L, contract §22.4): asleep until work
+    # arrives (the owner in thread L, a CEO's work item, a reply to a case).
     - code_suffix: LGL
       kind: employee
       role: legal_counsel
       department: LEGAL
       title_fa: مشاور حقوقی
       title_en: Legal Counsel
+      thread: L
+      thread_kind: legal
+      thread_title_fa: مشاور حقوقی
+    - code_suffix: SYS
+      kind: system
+      title_fa: سامانه‌ی گزارش
+      title_en: Report system

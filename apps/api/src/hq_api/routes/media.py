@@ -11,11 +11,14 @@ The owner (prefix /api/v1):
     POST        /media/items/{ref}/unpublish   🔏 media.unpublish on the ref
     GET         /media/limits                  each publishing account's own limit and use
 The agents' tools (prefix /internal/v1, through the gateway):
-    POST /media/item · /media/render · /media/voice · /media/review · /media/series/propose
-The one-shots (prefix /internal/v1, service tokens):
+    POST /media/item · /media/render · /media/review · /media/series/propose
+    (media.voice, POST /media/voice, is the voice registry's: routes/voices.py)
+The one-shot (prefix /internal/v1, service token):
     POST /media/render/claim · GET /media/render/{id}/files/{file_id}
     POST /media/render/{id}/output · /done · /fail          (service `media`)
-    POST /tts/media/claim · /tts/media/{id}/done · /fail    (service `tts`)
+    (an item's narration is a job of the voice registry's queue, spoken by the
+    TTS one-shot from /internal/v1/voices/jobs/*; studio.on_narration moves
+    the item on when it is ready)
 The one public route (prefix /public/v1, through Caddy only with the domain):
     GET  /media/{token}   one file for ≤ 15 minutes (Instagram fetches it); else 404
 """
@@ -71,7 +74,6 @@ ItemState = Literal[
 ]
 ACCOUNT = r"^[a-z0-9][a-z0-9_.-]{1,40}$"
 MAX_OUTPUT = 100 * 1024 * 1024
-MAX_AUDIO = 20 * 1024 * 1024
 OUTPUT_TYPES = {
     "video": ("video/mp4",),
     "image": ("image/jpeg", "image/png"),
@@ -245,12 +247,6 @@ class RefIn(Model):
     ref: str = Field(pattern=r"^MI-[0-9]{4,}$")
 
 
-class VoiceIn(Model):
-    ref: str = Field(pattern=r"^MI-[0-9]{4,}$")
-    text_fa: str = Field(min_length=1, max_length=20000)
-    voice_id: str | None = Field(default=None, max_length=80)
-
-
 class MediaReviewIn(Model):
     ref: str = Field(pattern=r"^MI-[0-9]{4,}$")
     verdict: Literal["pass", "changes", "reject"]
@@ -291,13 +287,6 @@ class RenderDone(Model):
 
 class RenderFail(Model):
     error: str = Field(min_length=1, max_length=500)
-
-
-class NarrationJob(BaseModel):
-    id: UUID
-    ref: str
-    script: str
-    voice: str | None
 
 
 class OutputOut(BaseModel):
@@ -742,21 +731,6 @@ async def tool_render(body: RefIn, ctx: Ctx = Depends(internal_ctx)) -> ToolOut:
     )
 
 
-@internal_router.post("/media/voice", response_model=ToolOut, responses=IE)
-async def tool_voice(body: VoiceIn, ctx: Ctx = Depends(internal_ctx)) -> ToolOut:
-    """media.voice (A2): the item's narration with the hub's own voice."""
-    co_id = _agent(ctx)
-    await allow(ctx, "media.voice", {"company": ctx.who.company, "charter": ctx.who.charter})
-    async with ctx.tx() as tx:
-        out = await S.request_voice(tx, ctx.hub, ctx.who, body.model_dump(mode="json"))
-        await _audit(ctx, tx, co_id, "media.voice", "A2", "media_item", body.ref)
-    return ToolOut(
-        ref=body.ref,
-        detail={"narration": out["narration"], "voice_id": out["voice_id"]},
-        hint_fa=out["hint"],
-    )
-
-
 @internal_router.post("/media/review", response_model=ToolOut, responses=IE)
 async def tool_review(body: MediaReviewIn, ctx: Ctx = Depends(internal_ctx)) -> ToolOut:
     """media.review (A2, the media director only): the `qc` check. Never publishes."""
@@ -986,81 +960,6 @@ async def render_fail(id: UUID, body: RenderFail, ctx: Ctx = Depends(internal_ct
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         j = await S.job_for(tx, id)
         await S.render_failed(tx, ctx.hub, j, body.error)
-    return Response(status_code=204)
-
-
-# ---------------------------------------------------- the narrations --
-@internal_router.post(
-    "/tts/media/claim",
-    response_model=NarrationJob,
-    responses={**IE, 204: {"description": "nothing to say"}},
-)
-async def narration_claim(ctx: Ctx = Depends(internal_ctx)) -> Any:
-    """The oldest pending narration of a media item; 204 while there is none or
-    while the holding (or the item's company) is locked."""
-    await _service(ctx, "tts", "media.narration")
-    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
-        job = await S.claim_narration(tx)
-    if job is None:
-        return Response(status_code=204)
-    return NarrationJob(**job)
-
-
-@internal_router.post(
-    "/tts/media/{id}/done",
-    status_code=204,
-    response_class=Response,
-    responses=IE,
-    openapi_extra={
-        "requestBody": {
-            "required": True,
-            "content": {
-                "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
-            },
-        }
-    },
-)
-async def narration_done(
-    id: UUID,
-    request: Request,
-    duration_s: float | None = Query(default=None, ge=0, le=7200),
-    ctx: Ctx = Depends(internal_ctx),
-) -> Response:
-    """The item's narration (raw Ogg/Opus body, ≤ 20 MB); the render follows."""
-    await _service(ctx, "tts", "media.narration")
-    mime = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
-    if mime != "audio/ogg":
-        raise ApiError(415, "validation_failed", fields={"Content-Type": "audio/ogg"})
-    scratch = ctx.hub.storage.scratch()
-    head = b""
-    try:
-        size = 0
-        with await asyncio.to_thread(open, scratch, "wb") as fh:
-            async for chunk in request.stream():
-                size += len(chunk)
-                if size > MAX_AUDIO:
-                    raise ApiError(413, "validation_failed", "audio too large")
-                if len(head) < 4:
-                    head += chunk[:4]
-                await asyncio.to_thread(fh.write, chunk)
-        if not head.startswith(b"OggS"):
-            raise ApiError(422, "validation_failed", fields={"body": "not an Ogg stream"})
-        key, sha, size = await ctx.hub.storage.commit(scratch)
-    finally:
-        await asyncio.to_thread(scratch.unlink, missing_ok=True)
-    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
-        await S.narration_done(tx, ctx.hub, id, key=key, sha=sha, size=size, duration_s=duration_s)
-    return Response(status_code=204)
-
-
-@internal_router.post(
-    "/tts/media/{id}/fail", status_code=204, response_class=Response, responses=IE
-)
-async def narration_fail(id: UUID, body: RenderFail, ctx: Ctx = Depends(internal_ctx)) -> Response:
-    """The narration could not be made; after three tries the item goes on silent."""
-    await _service(ctx, "tts", "media.narration")
-    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
-        await S.narration_failed(tx, ctx.hub, id, body.error)
     return Response(status_code=204)
 
 

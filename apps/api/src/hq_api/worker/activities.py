@@ -86,6 +86,9 @@ class Activities:
         from hq_api.worker.studio_activities import StudioActivities
 
         self.studio = StudioActivities(hub, self._tx)  # prompt 13: the media studio
+        from hq_api.worker.legal_activities import LegalVoiceActivities
+
+        self.legal_voice = LegalVoiceActivities(hub, self._tx)  # prompt 13, legal and voice
 
     def all(self) -> list[Any]:
         return [
@@ -93,6 +96,7 @@ class Activities:
             *self.management.all(),
             *self.desk.all(),
             *self.mgmt.all(),
+            *self.legal_voice.all(),
             *self.media.all(),
             *self.brand.all(),
             *self.people.all(),
@@ -200,6 +204,21 @@ class Activities:
                 raise ApplicationError("the company kill switch is engaged", type=HOLDING_LOCKED)
             if await oversight.held(tx, "decision", ref):  # held for the owner: waits the same way
                 raise ApplicationError("the decision is held by the overseer", type=HOLDING_LOCKED)
+            if await tx.scalar(
+                "SELECT kind = 'email_send' AND effect_status = 'pending' FROM cartable.decisions WHERE ref = :r",
+                r=ref,
+            ):
+                # ⟨1.6⟩ the sealed email's one send (prompt 13 §3), in its own
+                # transactions: claimed, sent, recorded; never sent twice.
+                from hq_api.domain import legal
+
+                sent = await legal.deliver(self.hub, self._tx, ref)
+                if sent.get("email") == "failed":
+                    raise ApplicationError(
+                        f"email_not_sent: {sent.get('error')}"[:300],
+                        type=EFFECT_REJECTED,
+                        non_retryable=True,
+                    )
             try:
                 result = await D.apply_effect(tx, ref, SYSTEM)
             except ApiError as exc:

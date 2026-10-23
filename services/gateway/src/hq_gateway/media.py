@@ -2,9 +2,10 @@
 
     media.item      A1  write the current step of a media item (its role's)
     media.render    A2  queue a preview render in the sandboxed render worker
-    media.voice     A2  the item's narration with the hub's own voice
     media.review    A2  the media director's review (the `qc` check)
     series.propose  A1  a publishing series for the owner's seal (a card)
+
+(media.voice, the item's narration, is the voice registry's: legal.py.)
 
 Text is redacted on the way out, except a composition's source: it is code,
 checked by the api against the composition schema (and its visible text for
@@ -62,12 +63,6 @@ class MediaItemIn(T.In):
 
 class MediaRefIn(T.In):
     ref: str = Field(pattern=REF)
-
-
-class MediaVoiceIn(T.In):
-    ref: str = Field(pattern=REF)
-    text_fa: str = Field(min_length=1, max_length=20000)
-    voice_id: str | None = Field(default=None, max_length=80)
 
 
 class MediaReviewIn(T.In):
@@ -154,12 +149,6 @@ async def media_render(api: T.Api, call: T.Call, a: MediaRefIn) -> T.Result:
     return _shape(T.from_response(resp))
 
 
-async def media_voice(api: T.Api, call: T.Call, a: MediaVoiceIn) -> T.Result:
-    body = await T._text(a.model_dump(mode="json", exclude_none=True))
-    resp = await api.request("POST", "/internal/v1/media/voice", call.token, json=body)
-    return _shape(T.from_response(resp))
-
-
 async def media_review(api: T.Api, call: T.Call, a: MediaReviewIn) -> T.Result:
     body = await T._text(a.model_dump(mode="json"))
     resp = await api.request("POST", "/internal/v1/media/review", call.token, json=body)
@@ -181,7 +170,6 @@ async def series_propose(api: T.Api, call: T.Call, a: SeriesProposeIn) -> T.Resu
 TOOLS: dict[str, tuple[type[T.In], T.Handler]] = {
     "media.item": (MediaItemIn, media_item),
     "media.render": (MediaRefIn, media_render),
-    "media.voice": (MediaVoiceIn, media_voice),
     "media.review": (MediaReviewIn, media_review),
     "series.propose": (SeriesProposeIn, series_propose),
 }

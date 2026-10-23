@@ -36,6 +36,9 @@ Schedule ids:
     hq-media-sweep            every 5 min   MediaSweep (prompt 13 §2: the sealed series'
                               schedules, due publishing, the rule re-check; nothing
                               at all while the holding is locked)
+    hq-legal-mail-poll        every 5 min   LegalMailPoll (prompt 13 §3.2: replies to the cases)
+    hq-voice-bakeoff          daily 03:40 (owner's zone)  VoiceBakeoff (prompt 13 §4.2:
+                              queue the missing samples; both do nothing while locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -91,6 +94,9 @@ HR_ROUNDS = "hq-hr-rounds"
 CEO_LETTERS = "hq-ceo-letters"
 P12B = (WASTE_DAILY, CARTABLE_REMINDERS, DEPLOY_RECHECK, HR_ROUNDS, CEO_LETTERS)
 MEDIA_SWEEP = "hq-media-sweep"  # prompt 13 §2
+LEGAL_MAIL_POLL = "hq-legal-mail-poll"
+VOICE_BAKEOFF = "hq-voice-bakeoff"
+P13B = (LEGAL_MAIL_POLL, VOICE_BAKEOFF)
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -113,6 +119,7 @@ FIXED = (
     "hq-substitute-daily",
     *P12B,
     MEDIA_SWEEP,
+    *P13B,
 )
 
 
@@ -272,6 +279,7 @@ def fixed(
         *management_fixed(),
         *p12b_fixed(tz),
         *studio_fixed(),
+        *p13b_fixed(tz),
     ]
 
 
@@ -362,6 +370,28 @@ def studio_fixed() -> list[Desired]:
         Desired(
             MEDIA_SWEEP, "MediaSweep", (), every(5), timedelta(minutes=10), timedelta(minutes=25)
         )
+    ]
+
+
+def p13b_fixed(tz: str) -> list[Desired]:
+    """Prompt 13, legal and voice: each activity asks the launch gate first."""
+    return [
+        Desired(
+            LEGAL_MAIL_POLL,
+            "LegalMailPoll",
+            (),
+            every(5),
+            timedelta(minutes=5),
+            timedelta(minutes=5),
+        ),
+        Desired(
+            VOICE_BAKEOFF,
+            "VoiceBakeoff",
+            (),
+            daily_at(time(3, 40), tz),
+            timedelta(hours=12),
+            timedelta(minutes=5),
+        ),
     ]
 
 

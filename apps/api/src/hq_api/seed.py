@@ -88,4 +88,9 @@ async def seed(tx: Tx) -> dict[str, Any]:
         from hq_api.domain import substitutes
 
         added["substitutes"] = await substitutes.seed(tx, holding["id"])
+        # Prompt 13 §4: the voice registry's candidates (once; measured and
+        # chosen rows survive).
+        from hq_api.domain import voices
+
+        added["voices"] = await voices.seed(tx, holding["id"])
     return {"companies_filled": filled, **added}

@@ -30,7 +30,7 @@ from hq_api.schemas import Actor, FileRef, Model, Page, actor
 router = APIRouter(tags=["messages"])
 E = responses(401, 403, 404, 409, 422)
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
-THREAD = r"^(A|N|P|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
+THREAD = r"^(A|N|P|L|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
 
 
 class Thread(BaseModel):
@@ -58,6 +58,8 @@ class Links(Model):
     # ⟨1.4⟩ a formal inquiry's answer (§18.2) and an errand of thread P (§18.3)
     inquiry: str | None = Field(default=None, pattern=r"^Q-[0-9]{4,}$")
     errand: str | None = Field(default=None, pattern=r"^E-[0-9]{4,}$")
+    # ⟨1.6⟩ a legal case (contract §22.7)
+    case: str | None = Field(default=None, pattern=r"^LC-[0-9]{4,}$")
 
 
 class Citation(Model):
@@ -225,7 +227,9 @@ async def render_messages(tx: Tx, rows: list[dict[str, Any]]) -> list[Message]:
 
 @router.get("/threads", response_model=list[Thread], responses=E)
 async def list_threads(
-    kind: Literal["advisor", "overseer", "assistant", "ceo", "manager", "department", "employee"]
+    kind: Literal[
+        "advisor", "overseer", "assistant", "legal", "ceo", "manager", "department", "employee"
+    ]
     | None = None,
     company: list[str] | None = Query(default=None),
     ctx: Ctx = Depends(owner_ctx),

@@ -49,7 +49,9 @@ SCHEMAS = (
     # prompt 12 part B: briefings and letters; checked claims
     "reports",
     "quality",
-    # prompt 13, the media half: the media studio (people.role_drafts is in people)
+    # prompt 13: the counsel's cases (legal and voice); the media studio and
+    # the voice registry (people.role_drafts is in people)
+    "legal",
     "media",
 )
 # The tools schema's tables without a company (holding configuration, read by

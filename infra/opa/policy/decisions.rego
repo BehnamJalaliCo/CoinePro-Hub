@@ -27,6 +27,8 @@ kinds := {
 	"role_new",
 	# ⟨1.6⟩ prompt 13 §2 (contract §22.6): a series sealed on its page, an item to publish
 	"media_series", "media_publish",
+	# ⟨1.6⟩ prompt 13 §3: the counsel's exact email (the owner's seal)
+	"email_send",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

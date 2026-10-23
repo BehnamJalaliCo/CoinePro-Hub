@@ -26,6 +26,11 @@ checks, the render, the captions and the publishing are code. Every job that
 runs on its own (the sweep, the render one-shot's claim, the narration's
 claim, publishing) asks the launch gate first and does nothing while the
 holding (or the item's company) is locked.
+
+The narration is the voice registry's (domain/voices.py, §22.3): media.voice
+queues a `narration` job there with the active voice, the TTS one-shot speaks
+it, and voices.ON_NARRATION (on_narration below) brings the file to the item
+and moves it on; a narration that failed for good lets it go on silent.
 """
 
 from __future__ import annotations
@@ -131,8 +136,6 @@ RENDER_TIMEOUT_S = 600
 STILL_AT_S = 3.0  # a still is the frame at 3 s (its entrance animations have settled)
 RENDER_RECLAIM_MIN = 20
 RENDER_MAX_ATTEMPTS = 3
-NARRATION_RECLAIM_MIN = 10
-NARRATION_MAX_ATTEMPTS = 3
 ROLE_IN_NOTE = re.compile(
     r"\b(scriptwriter|video_director|motion_designer|voice_producer|visual_designer|ui_designer)\b"
 )
@@ -1370,8 +1373,14 @@ async def request_render(tx: Tx, hub: Any, who: Principal, ref: str) -> dict[str
 
 
 async def request_voice(tx: Tx, hub: Any, who: Principal, body: dict[str, Any]) -> dict[str, Any]:
-    """media.voice (A2): the item's narration with the hub's own voice."""
+    """media.voice (A2, the voice producer): the item's narration, queued in
+    the voice registry with its active voice (or the one the call or the
+    series' format names; "default" is the active one). The registry refuses
+    a non-commercial voice the owner did not choose (409 licence_not_chosen)
+    and an uninstalled one (409 not_ready). With the `tts` profile off the
+    item goes on silent, with captions."""
     from hq_api import speech
+    from hq_api.domain import voices as V
 
     item = await load_item(tx, body["ref"], lock=True)
     if item["company_id"] != who.company_id:
@@ -1383,42 +1392,46 @@ async def request_voice(tx: Tx, hub: Any, who: Principal, body: dict[str, Any]) 
     if not text:
         raise ApiError(422, "validation_failed", fields={"text_fa": "required"})
     fmt = fmt_of(item)
-    voice_id = body.get("voice_id") or ((fmt.get("voice") or {}).get("voice_id"))
-    if not getattr(hub.settings, "tts", False):
-        state, note = (
-            "off",
-            "صدای هاب خاموش است (پروفایل tts)؛ آیتم بی‌صدا و با زیرنویس ساخته میشود.",
-        )
-    else:
-        state, note = "pending", None
+    named = body.get("voice_id") or ((fmt.get("voice") or {}).get("voice_id"))
+    voice_id = None if named in (None, "default") else str(named)
     spoken = speech.fa_speech_script(text)
+    narration: dict[str, Any] = {
+        "text_fa": text,
+        "spoken": spoken,
+        "by": who.code,
+        "at": datetime.now(UTC),
+    }
+    if not getattr(hub.settings, "tts", False):
+        note = "صدای هاب خاموش است (پروفایل tts)؛ آیتم بی‌صدا و با زیرنویس ساخته میشود."
+        await tx.exec(
+            "UPDATE media.items SET narration = CAST(:n AS jsonb), state_note_fa = :note WHERE id = :id",
+            id=item["id"],
+            n=canonical({**narration, "voice_id": voice_id, "state": "off"}),
+            note=note,
+        )
+        await _close_step_work(tx, item, "صدا خاموش است؛ بی‌صدا ادامه میدهد")
+        await advance(tx, hub, await load_item(tx, item["ref"], lock=True), "voice")
+        return {"job": None, "item": item["ref"], "state": "off", "voice": None,
+                "spoken_chars": len(spoken), "note_fa": note}  # fmt: skip
+    out = await V.narrate(
+        tx, who, company_id=item["company_id"], ref=item["ref"], text_fa=text, voice_id=voice_id
+    )
+    voice = out["voice"]
     await tx.exec(
-        "UPDATE media.items SET narration = CAST(:n AS jsonb), state_note_fa = :note WHERE id = :id",
+        "UPDATE media.items SET narration = CAST(:n AS jsonb), state_note_fa = NULL WHERE id = :id",
         id=item["id"],
         n=canonical(
             {
-                "text_fa": text,
-                "spoken": spoken,
-                "voice_id": voice_id,
-                "state": state,
-                "attempts": 0,
-                "by": who.code,
-                "at": datetime.now(UTC),
+                **narration,
+                "voice_id": voice["id"],
+                "licence_commercial": voice["licence_commercial"],
+                "job": out["job"],
+                "state": "pending",
             }
         ),
-        note=note,
     )
     await _close_step_work(tx, item, "روایت در صف صدا")
-    if state == "off":
-        await advance(tx, hub, await load_item(tx, item["ref"], lock=True), "voice")
-    return {
-        "ref": item["ref"],
-        "narration": state,
-        "voice_id": voice_id,
-        "hint": "the voice file arrives on the item; the render follows by itself"
-        if state == "pending"
-        else note,
-    }
+    return {**out, "note_fa": None}
 
 
 async def review(tx: Tx, hub: Any, who: Principal, body: dict[str, Any]) -> dict[str, Any]:
@@ -1790,96 +1803,75 @@ async def _render_failed(
 
 
 # ------------------------------------------------------ the narrations --
-async def claim_narration(tx: Tx) -> dict[str, Any] | None:
-    """The oldest pending narration for the TTS one-shot (§22.3, §21.4's
-    engine); None while the holding or the item's company is locked."""
-    if await gate.holding_lock(tx) is not None:
+async def _narrated_item(tx: Tx, job: dict[str, Any]) -> dict[str, Any] | None:
+    """The item a registry job narrates, while it still waits for that job
+    (in `voicing`, its narration pending on this very job); else None."""
+    if job.get("kind") != "narration" or not job.get("subject_ref"):
         return None
-    rows = await tx.all(
-        """SELECT i.id, i.ref, i.company_id, i.narration FROM media.items i
-           WHERE i.state = 'voicing' AND i.narration->>'state' = 'pending'
-             AND (i.narration->>'claimed_at' IS NULL
-                  OR (i.narration->>'claimed_at')::timestamptz < now() - make_interval(mins => :m))
-           ORDER BY i.updated_at LIMIT 10 FOR UPDATE SKIP LOCKED""",
-        m=NARRATION_RECLAIM_MIN,
+    item = await tx.first(
+        ITEM_SQL + " WHERE i.ref = :r AND i.company_id = :co FOR UPDATE OF i",
+        r=job["subject_ref"],
+        co=job["company_id"],
     )
-    for r in rows:
-        if await gate.automation_lock(tx, r["company_id"]) is not None:
-            continue
-        n = dict(r["narration"])
-        if int(n.get("attempts") or 0) >= NARRATION_MAX_ATTEMPTS:
-            n["state"] = "failed"
-            await tx.exec(
-                "UPDATE media.items SET narration = CAST(:n AS jsonb) WHERE id = :id",
-                id=r["id"],
-                n=canonical(n),
-            )
-            continue
-        n["attempts"] = int(n.get("attempts") or 0) + 1
-        n["claimed_at"] = datetime.now(UTC)
-        await tx.exec(
-            "UPDATE media.items SET narration = CAST(:n AS jsonb) WHERE id = :id",
-            id=r["id"],
-            n=canonical(n),
-        )
-        voice = n.get("voice_id")
-        return {
-            "id": r["id"],
-            "ref": r["ref"],
-            "script": n.get("spoken") or "",
-            "voice": None if voice in (None, "default") else voice,
-        }
-    return None
-
-
-async def narration_done(
-    tx: Tx, hub: Any, item_id: UUID, *, key: str, sha: str, size: int, duration_s: float | None
-) -> dict[str, Any]:
-    from hq_api.domain import files as F
-
-    item = await tx.one(ITEM_SQL + " WHERE i.id = :id FOR UPDATE OF i", id=item_id)
+    if item is None:
+        return None
     n = dict(item.get("narration") or {})
-    if item["state"] != "voicing" or n.get("state") != "pending":
-        raise ApiError(409, "validation_failed", f"{item['ref']} has no pending narration")
-    fid = await F.insert(
-        tx,
-        company_id=item["company_id"],
-        name=f"{item['ref']}-voice.ogg",
-        mime="audio/ogg",
-        size=size,
-        sha256=sha,
-        storage_key=key,
-        kind="audio",
-        by_kind="service",
-        by_code="tts",
-        duration_s=duration_s,
+    if item["state"] != "voicing" or n.get("state") != "pending" or n.get("job") != str(job["id"]):
+        return None  # moved on, rejected, or a newer narration: the file only stays a file
+    return dict(item)
+
+
+async def on_narration(tx: Tx, hub: Any, job: dict[str, Any], file_id: UUID) -> None:
+    """voices.ON_NARRATION: the item's narration is ready (spoken by the TTS
+    one-shot, through §17.1): the file goes on the item and the render follows."""
+    item = await _narrated_item(tx, job)
+    if item is None:
+        return
+    seconds = await tx.scalar("SELECT duration_s FROM files.files WHERE id = :f", f=file_id)
+    n = dict(item.get("narration") or {})
+    n.update(
+        {
+            "state": "ready",
+            "file_id": str(file_id),
+            "duration_s": float(seconds) if seconds is not None else None,
+        }
     )
-    n.update({"state": "ready", "file_id": str(fid), "duration_s": duration_s})
     await tx.exec(
         "UPDATE media.items SET narration = CAST(:n AS jsonb), voice_file_id = :f WHERE id = :id",
         id=item["id"],
         n=canonical(n),
-        f=fid,
+        f=file_id,
     )
     await advance(tx, hub, await load_item(tx, item["ref"], lock=True), "voice")
-    return {"ref": item["ref"], "file": str(fid)}
 
 
-async def narration_failed(tx: Tx, hub: Any, item_id: UUID, error: str) -> None:
-    item = await tx.one(ITEM_SQL + " WHERE i.id = :id FOR UPDATE OF i", id=item_id)
+async def on_narration_failed(tx: Tx, hub: Any, job: dict[str, Any], error: str) -> None:
+    """voices.ON_NARRATION_FAILED: the registry gave the narration up (three
+    tries, or its voice is not installed): the item goes on silent, with captions."""
+    item = await _narrated_item(tx, job)
+    if item is None:
+        return
     n = dict(item.get("narration") or {})
-    n["error"] = re.sub(r"[^A-Za-z0-9 _.:-]", "", error)[:200] or "failed"
-    n.pop("claimed_at", None)
-    final = int(n.get("attempts") or 0) >= NARRATION_MAX_ATTEMPTS
-    n["state"] = "failed" if final else "pending"
+    n.update({"state": "failed", "error": re.sub(r"[^A-Za-z0-9 _.:-]", "", error)[:200] or "failed"})
     await tx.exec(
         "UPDATE media.items SET narration = CAST(:n AS jsonb) WHERE id = :id",
         id=item["id"],
         n=canonical(n),
     )
-    if final:
-        await _note(tx, item, "voicing", "صدا ساخته نشد؛ آیتم بی‌صدا و با زیرنویس ادامه میدهد.")
-        await advance(tx, hub, await load_item(tx, item["ref"], lock=True), "voice")
+    await _note(tx, item, "voicing", "صدا ساخته نشد؛ آیتم بی‌صدا و با زیرنویس ادامه میدهد.")
+    await advance(tx, hub, await load_item(tx, item["ref"], lock=True), "voice")
+
+
+def _hook_the_registry() -> None:
+    from hq_api.domain import voices as V
+
+    if on_narration not in V.ON_NARRATION:
+        V.ON_NARRATION.append(on_narration)
+    if on_narration_failed not in V.ON_NARRATION_FAILED:
+        V.ON_NARRATION_FAILED.append(on_narration_failed)
+
+
+_hook_the_registry()
 
 
 # ---------------------------------------------------------------- checks --

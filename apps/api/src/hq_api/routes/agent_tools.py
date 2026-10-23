@@ -801,8 +801,8 @@ async def run_reserve(body: ReserveIn, ctx: Ctx = Depends(internal_ctx)) -> Gate
         lock = await tx.scalar("SELECT control.lock_state(:co)", co=ctx.who.company_id)
         thread = await tx.scalar(
             """SELECT code FROM msg.threads WHERE employee_id = :e
-                 AND kind IN ('advisor', 'overseer', 'assistant', 'ceo', 'manager', 'employee')
-               ORDER BY kind IN ('advisor', 'overseer', 'assistant') DESC LIMIT 1""",
+                 AND kind IN ('advisor', 'overseer', 'assistant', 'legal', 'ceo', 'manager', 'employee')
+               ORDER BY kind IN ('advisor', 'overseer', 'assistant', 'legal') DESC LIMIT 1""",
             e=ctx.who.employee_id,
         )
         draft_tools = None

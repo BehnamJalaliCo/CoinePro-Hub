@@ -54,7 +54,9 @@ SCHEMAS = (
     # prompt 12 part B: briefings and letters; checked claims
     "reports",
     "quality",
-    # prompt 13, the media half: the media studio (people.role_drafts is in people)
+    # prompt 13: the counsel's cases (legal and voice); the media studio and
+    # the voice registry (people.role_drafts is in people)
+    "legal",
     "media",
 )
 # The tools schema's tables without a company (holding configuration, read by
@@ -495,7 +497,15 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
 # Prompt 12 part A: the holding's own configuration of the substitute players
 # (one row per player and seat, the holding's company_id under forced RLS):
 # no other company ever has a row there, so the check cannot fill them for B.
-HOLDING_ONLY = {"substitutes.players", "substitutes.seats"}
+HOLDING_ONLY = {
+    "substitutes.players",
+    "substitutes.seats",
+    # prompt 13: the holding's mailbox cursor and its one voice registry
+    "legal.mailbox",
+    "media.voices",
+    "media.voice_samples",
+    "media.voice_references",
+}
 
 
 async def _fill_p12a(su: Any, co: dict[str, Any]) -> None:
@@ -608,6 +618,41 @@ async def _fill_p12b(su: Any, co: dict[str, Any]) -> None:
         c,
         dl["id"],
         dl["ref"],
+    )
+
+
+async def _fill_p13b(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 13, legal and voice (migration 0028_1): a case of company `co`,
+    its timeline and an email; a narration job of `co` (the registry, the
+    samples, the reference and the mailbox cursor are the holding's)."""
+    c = co["id"]
+    lgl = await su.fetchval("SELECT id FROM core.employees WHERE code = 'HQ-LGL'")
+    case = await su.fetchval(
+        """INSERT INTO legal.cases (company_id, title_fa, kind, counsel_id, counsel_code, opened_by_kind,
+               opened_by_code) VALUES ($1, 'rls', 'other', $2, 'HQ-LGL', 'owner', 'owner') RETURNING id""",
+        c,
+        lgl,
+    )
+    await su.execute(
+        """INSERT INTO legal.case_events (company_id, case_id, kind, summary_fa, by_kind, by_code)
+           VALUES ($1, $2, 'note', 'rls', 'owner', 'owner')""",
+        c,
+        case,
+    )
+    await su.execute(
+        """INSERT INTO legal.emails (company_id, case_id, direction, state, from_addr, to_addrs, subject,
+               body_md, lang, digest, message_id)
+           VALUES ($1, $2, 'out', 'waiting_seal', '', ARRAY['a@example.com'], 's', 'b', 'en', $3, $4)""",
+        c,
+        case,
+        "0" * 64,
+        f"<rls-{case}@example.com>",
+    )
+    await su.execute(
+        """INSERT INTO media.speech_jobs (company_id, kind, voice_id, subject_ref, script, state,
+               created_by_kind, created_by_code)
+           VALUES ($1, 'narration', 'piper-amir', 'MI-0001', 'سلام.', 'cancelled', 'service', 'rls')""",
+        c,
     )
 
 
@@ -869,6 +914,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p12b(su, b)
     await _fill_p13a_roles(su, b)
     await _fill_p13a_media(su, b)
+    await _fill_p13b(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name

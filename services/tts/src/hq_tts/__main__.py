@@ -10,24 +10,28 @@ from pathlib import Path
 
 import httpx
 
-from hq_tts.engine import Piper
+from hq_tts.engine import Engine, Piper, installed
 from hq_tts.job import Settings, api_token, run
 
-MEDIA_BASE = "/internal/v1/tts/media"  # prompt 13 §2: an item's narration (contract §22.3)
+
+def engines(s: Settings) -> tuple[Engine, dict[str, Engine]]:
+    """The default voice and every voice the image ships (prompt 13 §4)."""
+    root = Path(s.voices_dir)
+    shipped: dict[str, Engine] = {v: Piper(root, v, s.threads) for v in installed(root)}
+    default = shipped.get(s.voice) or Piper(root, s.voice, s.threads)
+    return default, shipped
 
 
 async def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     s = Settings()
-    engine = Piper(Path(s.voices_dir), s.voice, s.threads)
+    default, shipped = engines(s)
     token = await api_token(s)
     async with httpx.AsyncClient(
         base_url=s.api_url, headers={"Authorization": f"Bearer {token}"}, timeout=60
     ) as client:
         del token
-        out = await run(client, engine, s.max_jobs)
-        # ⟨1.6⟩ prompt 13: the media items' narrations, with the same engine
-        out["media"] = await run(client, engine, s.max_jobs, base=MEDIA_BASE)
+        out = await run(client, default, s.max_jobs, lambda v: shipped.get(v) if v else None)
     print(json.dumps(out))  # refs only
     return 0
 

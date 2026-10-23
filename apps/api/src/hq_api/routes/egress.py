@@ -112,12 +112,22 @@ class AllowRule(BaseModel):
     note_fa: str | None = Field(default=None, max_length=300)
 
 
+class MailPolicy(BaseModel):
+    """⟨1.6⟩ the `mail` account's servers (prompt 13 §3.2) when they are not
+    imap.<site> and smtp.<site>; both must be the account's own site."""
+
+    model_config = ConfigDict(extra="forbid")
+    imap_host: str | None = Field(default=None, pattern=r"^[a-z0-9]([a-z0-9.-]{1,251}[a-z0-9])?$")
+    smtp_host: str | None = Field(default=None, pattern=r"^[a-z0-9]([a-z0-9.-]{1,251}[a-z0-9])?$")
+
+
 class AccountPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
     inject: InjectPolicy = Field(default_factory=InjectPolicy)
     browse: BrowsePolicy | None = None
     allow: list[AllowRule] = Field(default_factory=list, max_length=50)
     ports: list[int] = Field(default_factory=list, max_length=5)
+    mail: MailPolicy | None = None
 
     @model_validator(mode="after")
     def _profile_injects_nothing(self) -> AccountPolicy:
@@ -145,6 +155,15 @@ class AccountIn(BaseModel):
     title_fa: str = Field(min_length=1, max_length=200)
     companies: Literal["all"] | list[str] = "all"
     policy: AccountPolicy = Field(default_factory=AccountPolicy)
+
+    @model_validator(mode="after")
+    def _mail_hosts_on_the_site(self) -> AccountIn:
+        # ⟨1.6⟩ egress reaches only the account's own site (prompt 13 §3.2)
+        m = self.policy.mail
+        for host in (m.imap_host, m.smtp_host) if m else ():
+            if host and host != self.site and not host.endswith("." + self.site):
+                raise ValueError(f"{host} is not on the account's site {self.site}")
+        return self
 
 
 class ReserveIn(BaseModel):

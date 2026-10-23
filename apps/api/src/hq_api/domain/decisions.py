@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from hq_api import events
 from hq_api.db import Tx
@@ -51,6 +51,8 @@ KINDS = (
     "media_series",
     "media_publish",
     "role_new",
+    # ⟨1.6⟩ prompt 13 §3 (contract §22.4): the counsel's exact email, the owner's seal
+    "email_send",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -81,6 +83,7 @@ ACTION_CLASS = {
     "media_series": "A3",
     "media_publish": "A3",
     "role_new": "A2",
+    "email_send": "A3",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -124,6 +127,7 @@ EFFECT_KINDS = (
     "evaluation",  # ⟨1.5⟩ promote / demote / dismiss / confirm (prompt 12 §6)
     "media_publish",  # ⟨1.6⟩ the item is published through the official APIs
     "role_new",  # ⟨1.6⟩ the draft becomes an active charter
+    "email_send",  # ⟨1.6⟩ its one send, by the worker (legal.deliver), after the locks
 )
 FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
@@ -191,8 +195,10 @@ class A3Payload(Model):
     # owner sees recipients and amounts, their SHA-256 and the registration's).
     # Approving it runs that one call once, in the follow-up run.
     action: Literal[
-        "publish", "customer_message", "group_message", "restart", "price_change", "mcp_call"
-    ]
+        "publish", "customer_message", "group_message", "restart", "price_change", "mcp_call",
+        # ⟨1.6⟩ the counsel's form or portal values; the owner submits them (§22.4)
+        "form_submit",
+    ]  # fmt: skip
     target: str = Field(min_length=1, max_length=300)
     preview: str = Field(default="", max_length=20000)
     args_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -450,6 +456,31 @@ class RoleNewPayload(Model):
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
+class EmailAttachment(Model):
+    file_id: str = Field(pattern=r"^[0-9a-f-]{36}$")
+    name: str = Field(min_length=1, max_length=255)
+    mime: str = Field(min_length=3, max_length=100)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class EmailSendPayload(Model):
+    """⟨1.6⟩ The exact message of a case's email (contract §22.4, §22.7):
+    made by email.draft only; the seal is bound to `digest`."""
+
+    model_config = ConfigDict(extra="forbid", serialize_by_alias=True)
+
+    case: str = Field(pattern=r"^LC-[0-9]{4,}$")
+    email: str = Field(pattern=r"^[0-9a-f-]{36}$")
+    from_: str = Field(alias="from", max_length=320)
+    to: list[str] = Field(min_length=1, max_length=20)
+    cc: list[str] = Field(default_factory=list, max_length=20)
+    subject: str = Field(max_length=998)
+    body_md: str = Field(max_length=100000)
+    attachments: list[EmailAttachment] = Field(default_factory=list, max_length=10)
+    lang: Literal["fa", "en"]
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 PAYLOADS: dict[str, type[Model]] = {
     "hire": HirePayload,
     "dismissal": DismissalPayload,
@@ -472,6 +503,7 @@ PAYLOADS: dict[str, type[Model]] = {
     "media_series": MediaSeriesPayload,
     "media_publish": MediaPublishPayload,
     "role_new": RoleNewPayload,
+    "email_send": EmailSendPayload,
 }
 
 
@@ -498,6 +530,7 @@ class DecisionIn(Model):
         "media_series",
         "media_publish",
         "role_new",
+        "email_send",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -845,6 +878,17 @@ async def propose(
         from hq_api.domain import founding
 
         await founding.check_proposal(tx, payload, company_id)
+    if body.kind == "email_send" and not await tx.scalar(
+        """SELECT 1 FROM legal.emails WHERE id = CAST(:e AS uuid) AND company_id = :co
+             AND state = 'waiting_seal' AND decision_id IS NULL AND digest = :d""",
+        e=payload["email"],
+        co=company_id,
+        d=payload["digest"],
+    ):
+        # ⟨1.6⟩ only email.draft makes this card, for its own waiting email (§22.4)
+        raise ApiError(
+            422, "validation_failed", fields={"kind": "an email card comes from email.draft"}
+        )
     # Still open: no card yet, or its card came back without an answer
     # (returned, expired, withdrawn), so the lesson may be proposed again.
     if body.kind == "lesson_adoption" and not await tx.scalar(
@@ -1083,7 +1127,7 @@ async def decide(
         await hiring.close_decide_items(tx, [d["ref"]], f"{d['ref']}: مالک خودش تصمیم گرفت")
     effect = "pending" if verdict == "approved" and d["kind"] in EFFECT_KINDS else "none"
     server = None
-    sealed_as_is = d["kind"] == "tool_enable" or (
+    sealed_as_is = d["kind"] in ("tool_enable", "email_send") or (
         d["kind"] == "a3_action" and (d["payload"] or {}).get("action") == "mcp_call"
     )
     if verdict == "approved" and amendments and sealed_as_is:
@@ -1126,6 +1170,10 @@ async def decide(
     )
     if server is not None:
         await mcp.enable_listing(tx, server)
+    if d["kind"] == "email_send":  # ⟨1.6⟩ queued for its one send, or the case reopens
+        from hq_api.domain import legal
+
+        await legal.on_decided(tx, d, verdict, note)
     resolution = None
     if verdict == "approved":
         # Resolutions are append-only: the follow-up work (if any) exists first
@@ -1350,6 +1398,13 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
         from hq_api.domain import hr
 
         result = await hr.apply(tx, d, p)
+    elif d["kind"] == "email_send":
+        # ⟨1.6⟩ the send itself happened before (legal.deliver, outside any
+        # transaction); only a sent email's card is applied.
+        state = await tx.scalar("SELECT state FROM legal.emails WHERE decision_id = :d", d=d["id"])
+        if state != "sent":
+            raise ApiError(409, "validation_failed", f"{ref}: the email is {state}, not sent")
+        result = {"email": "sent"}
     elif d["kind"] == "code_session":
         # The seal is the grant; the decision's id is unique on the grant, so a
         # retried effect never makes a second one.

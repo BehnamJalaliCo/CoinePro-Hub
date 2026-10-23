@@ -130,8 +130,13 @@ RUN_TASK_CLASSES = frozenset(
         "media_motion",
         "media_review",
         "ui_design",
+        # ⟨1.6⟩ prompt 13 §3: a case's work, a reply's reading (legal.wake)
+        "legal_case",
+        "legal_email",
     }
 )
+# ⟨1.6⟩ a role's own class when nothing more specific names one.
+TASK_CLASS_OF_ROLE = {"legal_counsel": "legal_case"}
 HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
 MIN_OUTPUT_TOKENS = 256  # a step needs at least this much room to answer at all
 LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked for context
@@ -620,6 +625,8 @@ class Runner:
             return named
         if rc.charter.kind in TASK_CLASS_OF_KIND:
             return TASK_CLASS_OF_KIND[rc.charter.kind]
+        if rc.charter.role in TASK_CLASS_OF_ROLE:
+            return TASK_CLASS_OF_ROLE[rc.charter.role]
         return ALERT_TASK if rc.run["trigger"] == "alert" else "general"
 
     @staticmethod

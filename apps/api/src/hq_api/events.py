@@ -86,6 +86,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "quality": ("claim.",),
     # ⟨1.6⟩ prompt 13 (contract §22.6): media.item (and media.series)
     "media": ("media.",),
+    # ⟨1.6⟩ prompt 13 (contract §22.6): legal.case
+    "legal": ("legal.",),
 }
 
 

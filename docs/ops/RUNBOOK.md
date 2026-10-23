@@ -51,6 +51,8 @@
 | `make chatgpt-login`، `make gemini-login` | **فقط مالک، در ترمینال خودش:** ورود CLI بازیکن ذخیره (Codex با کد دستگاه، Gemini با کد تأیید)؛ همین از اپ هم هست (§۳۰.۴) |
 | `make chatgpt-web-login`، `make gemini-web-login`، `make deepseek-web-login` | **فقط مالک، با تونل SSH خودش:** ورود یک‌باره در پروفایل مرورگر هاب؛ noVNC فقط روی `127.0.0.1:6080`، حداکثر ۱۵ دقیقه (§۳۰.۴) |
 | `make tts-on`، `make tts-off`، `make tts-bench` | صدای فارسی گزارش‌ها (پرامپت ۱۲ §۴): روشن و خاموش کردن profile اختیاری `tts` و timer آن (بیرون از بودجه‌ی حافظه رد میشود)، و اندازه‌گیری RTF و RAM روی متن ثابت (§۳۰.۱۱، حافظه‌ی همه‌ی profileها در §۳۰.۶) |
+| `make tts-bakeoff [OUT=…]` | bake-off صدا (پرامپت ۱۳ §۴): هر صدای image روی متن‌های ثابت، RTF و peak هر ساخت، Ogg در `OUT`؛ بی‌شبکه (§۳۱.۱۳) |
+| `make account-secret KEY=mail` | **فقط مالک:** رمز صندوق ایمیل مشاور حقوقی (پرامپت ۱۳ §۳؛ §۳۱.۱۲) |
 | `make mcp-build`، `make mcp-test`، `make mcp-index` | MCP روی کانتینر (پرامپت ۱۲ §۱۴): ساخت تکرارپذیر imageها با digest فهرست مجاز، آزمون روی شبکه‌ی دورانداختنی، ایندکس CodeCortex (§۳۰.۵) |
 | `make media-on`، `make media-off`، `make media-bench` | render worker استودیوی رسانه (پرامپت ۱۳ §۲.۳): روشن و خاموش کردن profile اختیاری `media` و timer آن (بیرون از بودجه‌ی حافظه رد میشود)، و اندازه‌گیری یک ریلز ۳۰ ثانیه‌ای، یک عکس Lottie و یک صفحه‌ی طراحی در همان سندباکس بی‌شبکه (§۳۱.۵) |
 | `make account-secret KEY=telegram-<co>`، `KEY=instagram-<co>` | **فقط مالک، در ترمینال خودش:** توکن ربات کانال تلگرام و توکن حساب business اینستاگرام هر شرکت برای انتشار رسمی (§۳۱.۶) |
@@ -1498,7 +1500,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - peak کانتینر (cgroup) ‏239 تا 241 مگ
   - Ogg حدود ۲۰۵ کیلوبایت
   - `MEM_TTS=320m` در هر دو profile
-  - راز حافظه: Piper هر خط را جدا میخواند. پس متن به جمله‌ها و بندهای ≤ ۱۴ کلمه شکسته میشود (`piper_lines`) و `MALLOC_ARENA_MAX=1`. بدون این دو، peak به ۳۴۰ تا ۳۸۴ مگ میرسید.
+  - راز حافظه: Piper هر خط را جدا میخواند. پس متن به جمله‌ها و بندهای ≤ ۸ کلمه شکسته میشود (`piper_lines`؛ پرامپت ۱۳ از ۱۴ به ۸، ۳۱.۱۳) و `MALLOC_ARENA_MAX=1`. بدون این دو، peak به ۳۴۰ تا ۳۸۴ مگ میرسید.
 - **gate حافظه:**
   - full+tts: ‏11216 از 12288 مگ (جا میشود)
   - lean+tts: ‏6192 از 6196
@@ -1637,7 +1639,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - **زنجیره:** `0027_1` ← `0028` ← `0028_1` (حقوقی و صدا).
 - **دروازه‌ی راه‌اندازی:** تا کلید توقف هلدینگ روشن است، هیچ چیزی از این بخش مدل یا سرویس بیرونی صدا نمیزند:
   - sweep رسانه (`hq-media-sweep`، هر ۵ دقیقه) هیچ کاری نمیکند (`skipped: holding_locked`): هیچ آیتمی از برنامه‌ها ساخته نمیشود، هیچ انتشاری نیست و بازسنجی هم نیست.
-  - `POST /internal/v1/media/render/claim` و `POST /internal/v1/tts/media/claim` جواب `204` میدهند. کار شرکتی که قفل است هم منتظر میماند.
+  - `POST /internal/v1/media/render/claim` و `POST /internal/v1/voices/jobs/claim` (صف صدای ۳۱.۱۳) جواب `204` میدهند. کار شرکتی که قفل است هم منتظر میماند.
   - انتشار بعد از مُهر کارت هم صبر میکند (اثر کارت تا قفل هست اجرا نمیشود).
   - اجرای ایجنت‌ها مثل همیشه رد میشود (`locked`). کار هر گام فقط رکورد است.
   - برداشتن پستی که قبلاً منتشر شده کار خود مالک است و با مُهر خودش اجرا میشود (فقط برمیدارد).
@@ -1724,7 +1726,9 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - یا یک Lottie بی expression.
   - متن دیدنی نباید رمز یا ایمیل داشته باشد.
   - رد ← `422` با نام قاعده. هر تغییر نسخه‌ی تازه با sha256 است (`media.compositions`).
-- **صدا:** متن گوینده با `fa_speech_script` به کلمه تبدیل میشود و در صف همان one-shot ‏TTS میرود (`/internal/v1/tts/media/claim`، `.../done`، `.../fail`).
+- **صدا:** `media.voice` متن گوینده را با `fa_speech_script` به کلمه تبدیل میکند و با صدای فعال رجیستری (یا صدایی که قالب نام میبرد) در صف رجیستری میگذارد (`media.speech_jobs`، کار `narration`؛ ۳۱.۱۳). TTS one-shot آن را از `POST /internal/v1/voices/jobs/claim` میگیرد.
+  - وقتی روایت آماده شد (`voices.ON_NARRATION`)، فایل روی آیتم میآید و آیتم به render میرود. روایتی که سه بار شکست خورد، آیتم را بی‌صدا و با زیرنویس جلو میبرد.
+  - روایت کار شرکتی که قفل است (کلید توقف یا freeze) تا باز شدن قفل گرفته نمیشود.
   - تا profile ‏`tts` خاموش است، آیتم بی‌صدا و با زیرنویس ادامه میدهد. یادداشتش همین را میگوید.
 - **چک‌ها با کد** (`studio_checks.py`):
   - `brand`: برند فعال، رنگ‌های ترکیب‌بندی از پالت (به‌علاوه‌ی سیاه و سفید)، فقط IRANYekanX، و نشان که خود render گذاشته.
@@ -1808,7 +1812,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - **ایجنت‌ها:** `POST /internal/v1/media/item|render|voice|review` و `/media/series/propose`.
 - **one-shotها:**
   - `POST /internal/v1/media/render/claim`، `GET …/{id}/files/{file_id}`، `POST …/{id}/output|done|fail` (سرویس `media`)
-  - `POST /internal/v1/tts/media/claim|{id}/done|{id}/fail` (سرویس `tts`)
+  - `POST /internal/v1/voices/jobs/claim|{id}/done|{id}/fail` (سرویس `tts`؛ روایت آیتم‌ها و نمونه‌های bake-off، ۳۱.۱۳)
 - **عمومی:** فقط `GET|HEAD /public/v1/media/{token}`.
 - **stream:** `media.item` و `media.series` روی topic ‏`media`؛ `role.updated` روی `people`.
 - **کدهای خطا:** `series_not_sealed` (409) و `platform_limit` (429).
@@ -1819,3 +1823,109 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - prompt ثابت هر گام اندازه گرفته شد: سناریست ۵٫۴، کارگردان ۵٫۲، موشن ۵٫۶، صدا ۴٫۸ و مدیر رسانه ۷٫۱ هزار توکن.
   - برآورد هر ریلز ۱۳۰ تا ۲۸۵ هزار توکن (بیشترش Opus ترکیب‌بندی). جزئیاتش در گزارش `PROMPT_13.md`.
   - **این عدد با سقف روزانه‌ی ۶۰۰ هزار توکن ایجنت‌ها جور نیست** (۲ تا ۴ ریلز در روز برای همه‌ی هاب). سقف با مالک است.
+
+### ۳۱.۱۱ مشاور حقوقی: پرونده، ایمیل مُهرشده، پاسخ‌ها (پرامپت ۱۳ §۳، قرارداد §۲۲.۴)
+- **جایگاه:** دپارتمان `LEGAL` («حقوقی») در قالب هلدینگ، **بی‌مدیر** (`manager: false` در `seed/templates/holding.yaml`)، و کارمند seed‌شده‌ی **`HQ-LGL`** (منشور `legal_counsel`، scope هلدینگ) با رشته‌ی **`L`** (kind `legal`). خواب است تا کار برسد:
+  - پیام مالک در رشته‌ی `L` (با P2، مثل A، N و P)؛
+  - کار مدیرعامل یک شرکت: `work.request {company: HQ, department: LEGAL}` (تنها مسیر میان‌شرکتی غیر از CEO به CEO؛ OPA در `legal_voice.rego`)؛
+  - پاسخی که به یکی از پرونده‌هایش رسید.
+- **پرونده `LC-0001`** (`legal.cases`، با `company_id` همان شرکتی که پرونده درباره‌ی آن است؛ کار هلدینگ مال هلدینگ است):
+  - `GET /legal/cases?company&status&cursor` (تازه‌ترین اول)، `GET /legal/cases/{ref}` (timeline کامل و همه‌ی ایمیل‌ها).
+  - `POST /legal/cases {company, title_fa, kind, brief_md, file_ids?}` (مالک، Idempotency-Key) ← پرونده و یک کار P2 برای مشاور (`run_meta.task_class: legal_case`).
+  - `POST /legal/cases/{ref}/close {note_fa?}`؛ تا وقتی ایمیلی منتظر مُهر یا ارسال است ← ۴۰۹.
+  - timeline در `legal.case_events` (append-only): `note`، `form`، `decision`، `email_out`، `email_in`.
+  - stream: `legal.case` روی topic `legal`.
+- **ابزارهای مشاور** (Tool Gateway، فقط منشور `legal_counsel`؛ هر کدام فقط روی پرونده‌های خود همان مشاور، وگرنه ۴۰۴):
+  - `case.open`، `case.note` (با `deadline {at, what_fa}` و وضعیت `open | waiting_reply | resolved`)،
+  - `email.draft` (A1): پیام دقیق ← کارت **`email_send`** (A3)،
+  - `mail.read` (A0): ایمیل‌های ماسک‌شده‌ی پرونده.
+  - فرم و پورتال: `propose` با `a3_action` و `action: "form_submit"` (مقدار هر فیلد در `preview`)؛ مالک خودش میفرستد.
+- **ایمیل، دقیقاً همان، یک بار:**
+  - `digest` = SHA-256 شکل canonical پیام: JSON با کلیدهای مرتب و بی‌فاصله از `{from, to, cc, subject, body_md, attachments: [sha256…], lang}` (`hq_api.domain.legal.canonical`). کارت همین را نشان میدهد و مُهرش (step-up `decision.approve`) روی **همین digest** است، نه روی ref کارت.
+  - تأیید: اصلاحیه (amendments) ← ۴۲۲. ایمیل تغییرکرده یا کنار رفته ← ۴۰۹ `decision_not_pending`. صندوق وصل نیست ← ۴۰۹ `account_not_configured` و کارت همان کارت میماند (تصمیم مالک §۰.۹ بند ۶).
+  - بعد از مُهر، ایمیل `queued` است. effect کارت در worker (`decision_apply_effect`) **بعد از چک قفل‌ها** (کلید توقف هلدینگ و شرکت، hold) آن را میفرستد:
+    - ادعا (`sending`) در تراکنش خودش، ارسال از egress، ثبت `sent` یا `failed`.
+    - ادعایی که با crash در `sending` مانده هرگز دوباره فرستاده نمیشود (`unknown_outcome`). شکست هم خودکار تکرار نمیشود: پیش‌نویس تازه، کارت تازه.
+  - پیش‌نویس تازه وقتی یکی منتظر است ← قبلی `superseded` و کارتش `withdrawn`.
+  - رد یا برگشت کارت ← ایمیل `rejected`، پرونده دوباره `open` و یک کار برای مشاور با یادداشت مالک.
+  - stateهای ایمیل: `waiting_seal`، `queued`، `sending`، `sent`، `failed`، `received`، `superseded`، `rejected`.
+- **پاسخ‌ها:** schedule `hq-legal-mail-poll` هر ۵ دقیقه (`LegalMailPoll` ← `legal_mail_poll`):
+  - **با قفل هلدینگ هیچ کاری نمیکند** (نه صندوق، نه کار). بی‌صندوق: `account_not_configured` در `legal.mailbox.last_result`.
+  - از آخرین UID به بعد میخواند (`BODY.PEEK`، پرچم‌های صندوق دست نمیخورند؛ UIDVALIDITY تازه ← از اول، تکراری‌ها با Message-ID کنار میروند).
+  - فقط پیامی که `In-Reply-To` یا `References` آن یکی از پیام‌های فرستاده‌ی ما را نام ببرد وارد پرونده میشود. بقیه ذخیره نمیشوند (فقط شمرده میشوند).
+  - متن و موضوع ماسک میشوند (`hq_common.redact.scrub`). نشانی فرستنده دست نمیخورد تا مشاور آن را با دامنه‌های رسمی بسنجد.
+  - پیوست‌ها از §۱۷.۱ رد میشوند: نوع از روی بایت‌ها، عکس بی‌متادیتا (در child)، متن PDF بیرون از تراکنش. بقیه فقط نامشان در timeline میآید. پیوست‌ها در هلدینگ نگه داشته میشوند تا `files.read` مشاور به آن‌ها برسد.
+  - مشاور با یک کار P2 بیدار میشود (`run_meta.task_class: legal_email`).
+- **هیچ ایمیلی خودکار فرستاده نمیشود.** تنها راه ارسال، effect کارت مُهرشده است.
+
+### ۳۱.۱۲ صندوق ایمیل مشاور (کار مالک)
+- **حساب سرویس `mail`** در `/tools/accounts` (اپ، 🔏 `account.put`):
+  - `site`: دامنه‌ی سرویس (مثلاً `gmail.com` برای Gmail و Workspace).
+  - `policy.inject: {kind: "basic", username: "<نشانی صندوق>"}`.
+  - `policy.ports: [465, 993]` (یا `587` با STARTTLS اجباری).
+  - `policy.mail: {imap_host, smtp_host}` فقط وقتی سرورها `imap.<site>` و `smtp.<site>` نیستند. هر دو باید روی همان site باشند، وگرنه ۴۲۲.
+- **رمز:** `make account-secret KEY=mail` (app password؛ ورودی پنهان، `kv/tools/accounts/mail`). هیچ‌جا چاپ، لاگ یا پاسخ نمیشود. فقط برای همان یک فراخوانی به egress میرود.
+- **egress** (`hq_egress/mail_out.py`): `POST /v1/mail/send` و `/v1/mail/fetch`، فقط از worker:
+  - فقط hostهای همان site و فقط portهای خود حساب (۴۶۵ یا ۵۸۷ برای SMTP، ۹۹۳ برای IMAP).
+  - TLS همیشه، با گواهی بررسی‌شده برای همان نام. اتصال به نشانیِ بررسی‌شده‌ی guard (نه نشانی خصوصی یا خود هاب).
+  - فرستنده‌ی envelope همیشه خود صندوق است. هر entry در `egress.log` با ابزار `mail.send` (A3) یا `mail.fetch` (A0).
+- تا مالک وصل نکند، پیش‌نویس‌ها فقط کارت‌اند و poller هیچ نمیخواند.
+
+### ۳۱.۱۳ صدا: رجیستری `media.voices` و bake-off (پرامپت ۱۳ §۴، قرارداد §۲۲.۳)
+- **یک رجیستری برای همه:**
+  - گزارش‌های صوتی §۲۱.۴ با صدای فعال رجیستری حرف میزنند (وقتی image آن را دارد؛ وگرنه `HQ_TTS_VOICE`).
+  - روایت آیتم‌های رسانه (`media.voice`، A2، فقط `voice_producer` در شرکت خودش) هم همین‌طور.
+  - صدای غیرتجاری که مالک انتخاب نکرده ← ۴۰۹ با `voice_id: licence_not_chosen`.
+- **ردیف‌ها** (هر موتور و گوینده یک ردیف؛ seed یک بار، بعد عدد اندازه‌گیری و انتخاب مالک میماند):
+  - `piper-amir` (فعال، پیش‌فرض تا انتخاب مالک)، `piper-ganji`، `piper-ganji-adabi`، `piper-reza-ibrahim`: MIT و دیتاست CC0، در image.
+  - `piper-gyro`: لایسنس دیتاست روی کارتش نیامده («See URL»): غیرتجاری حساب میشود و در image نیست.
+  - `manatts-piper`: هنوز آموزش ندیده (پایین را ببین).
+  - `parsvoice-xtts`، `parsvoice-xtts-owner`: CPML، غیرتجاری. دانلودش gated است (حساب Hugging Face مالک) و XTTS-v2 روی CPU حدود ۲٫۵ تا ۳ گیگ میخواهد. نصب نیست.
+  - `chatterbox-fa`، `chatterbox-fa-owner`: CC BY-NC 4.0، gated، بیرون از بودجه. نصب نیست.
+  - مدل چندزبانه‌ی آزاد با فارسی روی کارت پیدا نشد (Kokoro‏ Apache-2.0 فارسی ندارد؛ Chatterbox چندزبانه MIT فارسی ندارد؛ MMS-TTS‏ fas‏ CC-BY-NC است).
+- **API مالک:**
+  - `GET /media/voices`: با `licence`، `licence_commercial`، `rtf`، `mem_mb`، `installed`، `samples[]`.
+  - `POST /media/voices/{id}/score {score: 1..10}`.
+  - `POST /media/voices/{id}/activate` 🔏 `voice.activate` (target = id):
+    - غیرتجاری بی `{accept_non_commercial: true}` ← ۴۲۲.
+    - نصب‌نشده یا اندازه‌نگرفته ← ۴۰۹ `not_ready`.
+    - همیشه یک صدای فعال.
+  - `GET /media/voices/reference` (۴۰۴ وقتی نیست)، `POST /media/voices/reference {file_id}`:
+    - فقط فایل صوتی خود مالک، ۶۰ تا ۱۸۰ ثانیه، که به هیچ پیامی پیوست نشده.
+    - هیچ ایجنتی آن را نمیخواند (حتی ایجنت‌های هلدینگ) و به هیچ‌جا فرستاده نمیشود.
+    - موتور کلون‌کننده‌ای روی هاب نصب نیست، پس فعلاً فقط نگه داشته میشود.
+- **bake-off روی هاب:**
+  - schedule `hq-voice-bakeoff` روزانه ۰۳:۴۰ (منطقه‌ی مالک): برای هر صدای نصب‌شده و هر متن ثابت، کار `sample` میسازد (یک بار برای هر round). **با قفل هلدینگ هیچ.**
+  - TTS one-shot (همان timer `coinepro-hq-tts`، فقط با `HQ_TTS=on`): بعد از گزارش‌ها از `POST /internal/v1/voices/jobs/claim` کار میگیرد (۲۰۴ وقتی کاری نیست، و **همیشه با قفل هلدینگ**).
+  - هر کار صدای خودش را نام میبرد. صدایی که image ندارد ← `voice not installed`، هرگز صدای دیگر.
+  - Ogg با `?duration_s&synth_s&peak_mb` برمیگردد و از §۱۷.۱ رد میشود: نوع از بایت‌ها، طول از ffprobe، ردیف processing برای worker رسانه (بی pass نشانه‌گذاری مدل).
+  - نام فایل خنثی است (`voice-xxxxxxxx.ogg`) تا شنیدن کور بماند. `rtf` صدا = جمع زمان کار ÷ جمع ثانیه‌های گفتار همان round؛ `mem_mb` بیشترین peak.
+- **متن‌های ثابت** (`hq_api.domain.voices.SCRIPTS`؛ صدا همان شکل گفتاری `fa_speech_script` را میخواند و image همان را در `services/tts/bakeoff_scripts.json` دارد):
+  - `numbers`: عدد، دلار و درصد
+  - `latin`: RSI، MACD، Bitcoin، Ethereum، Fibonacci
+  - `crypto`: کلمه‌های کریپتو
+  - `long`: یک جمله‌ی ۶۶ کلمه‌ای
+  - `reel60`: متن ریلز با هشدار ریسک (۱۵۹ کلمه، ۶۴ تا ۷۶ ثانیه)
+- **اجرای اپراتور:** `make tts-bakeoff [OUT=/tmp/hq-bakeoff]`: همان image، بی‌شبکه، با سقف `MEM_TTS`. خروجی JSON است و Ogg‌ها در `OUT`.
+- **عددها** (۲۰۲۶-۱۰-۲۳، همین CPX42، سقف ۳۲۰ مگ، ۱ thread، بی‌شبکه، پنج متن، ۱۴۴ تا ۱۷۷ ثانیه گفتار برای هر صدا):
+
+| صدا | RTF | peak یک ساخت | لایسنس |
+|---|---|---|---|
+| piper-amir | 0.177 | 236.3 مگ | MIT + CC0 (تجاری) |
+| piper-ganji | 0.170 | 254.5 مگ | MIT + CC0 (تجاری) |
+| piper-ganji-adabi | 0.187 | 270.5 مگ | MIT + CC0 (تجاری) |
+| piper-reza-ibrahim | 0.185 | 269.8 مگ | MIT + CC0 (تجاری) |
+  - peak کانتینر (cgroup) ‏264.8 مگ.
+  - RTF شامل بار کردن مدل در هر کار است.
+  - با خط‌های ۱۴ کلمه‌ای، دو صدای سنگین‌تر به ۳۳۷ مگ میرسیدند و کانتینر به سقف ۳۲۰ میخورد. پس `CLAUSE_WORDS` از ۱۴ به ۸ آمد (۱۰ کلمه: ۳۰۷ مگ). `MEM_TTS=320m` همان میماند.
+- **ManaTTS (برنامه و برآورد؛ کرایه‌ی GPU تصمیم مالک، §۰.۹ بند ۳):**
+  - fine-tune صدای Piper/VITS از `fa_IR-amir-medium` روی ۸۶ ساعت ManaTTS (CC0، یک گوینده‌ی زن)؛ متن‌ها با همان normaliser.
+  - برآورد: یک GPU ‏24GB حدود ۲۴ تا ۴۸ ساعت، ۱۵ تا ۷۰ دلار کرایه.
+  - خروجی ONNX با sha256 در `voice.lock.json`، بعد همین bake-off و شنیدن کور مالک.
+
+### ۳۱.۱۴ حافظه و هزینه‌ی بخش حقوقی و صدا (پرامپت ۱۳ §۶)
+- **poller ایمیل:** داخل worker موجود، سرویس تازه ندارد. **ارسال ایمیل:** effect همان worker. **صندوق:** از egress موجود (بی سرویس و بی پورت تازه).
+- **TTS:** همان one-shot پروفایل `tts` (خاموش)، `MEM_TTS=320m`، قفل مشترک با backup. سه صدای تازه در image: روی هم ۱۹۰ مگ دیسک (۳ × ۶۳٫۵)، بی اثر روی حافظه (هر کار یک صدا را بار میکند).
+  - gate: full+tts ‏11216 از 12288؛ lean+tts ‏6192 از 6196. هیچ‌کدام تغییر نکرد.
+- **ParsVoice-XTTS و Chatterbox:** به بودجه نمیخورند (≈۲٫۵ تا ۳ گیگ؛ full+tts فقط حدود ۱ گیگ جا دارد). اندازه‌گیری نشدند (دانلود gated، حساب مالک).
+- **توکن:** کار مشاور با پاکت هلدینگ است (task classهای `legal_case` و `legal_email`، هرگز روی provider دیگر). سقف منشور: ۸ گام و ۲۰۰ هزار توکن در هر اجرا. تا راه‌اندازی هاب هیچ اجرایی نیست.

@@ -16,6 +16,7 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy, SearchAttributeKey
 from temporalio.exceptions import ActivityError, ApplicationError
 
+from hq_api.worker.legal_workflows import P13B_WORKFLOWS
 from hq_api.worker.mgmt_workflows import P12B_WORKFLOWS
 from hq_api.worker.studio_workflows import STUDIO_WORKFLOWS
 
@@ -589,4 +590,5 @@ WORKFLOWS = [
     SubstituteDaily,
     *P12B_WORKFLOWS,  # prompt 12 part B (mgmt_workflows.py)
     *STUDIO_WORKFLOWS,  # prompt 13: the media studio (studio_workflows.py)
+    *P13B_WORKFLOWS,  # prompt 13, legal and voice (legal_workflows.py)
 ]

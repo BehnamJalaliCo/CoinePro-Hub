@@ -67,6 +67,7 @@ async def list_decisions(
         "tool_enable",
         "company_found",
         "server_plan",
+        "email_send",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,
@@ -151,8 +152,20 @@ async def _decide(
             lib = await D.company_charters(tx, ctx.hub.charters, d["company_id"])
             D.check_hire_role(final, company.kind, lib, required=True)
         step_up_id = None
+        target = ref
+        if verdict == "approved" and d["kind"] == "email_send":
+            # ⟨1.6⟩ bound to the exact message (contract §22.6): the seal's
+            # target is its digest; a changed email or no mailbox -> 409
+            from hq_api.domain import legal
+
+            if amendments:
+                raise ApiError(
+                    422, "validation_failed", fields={"amendments": "this card is sealed as it is"}
+                )
+            await legal.check_seal(tx, ctx.hub, d)
+            target = str((d["payload"] or {}).get("digest") or "")
         if verdict == "approved" and needs_step_up(d):
-            step_up_id = await stepup.consume(tx, request, ctx.who, "decision.approve", ref)
+            step_up_id = await stepup.consume(tx, request, ctx.who, "decision.approve", target)
         await ctx.hub.policy.require("decisions", D.opa_input(ctx.who, d, quota_ok=False))
         out = await D.decide(
             tx,

@@ -24,10 +24,10 @@ mandates and identities, the media studio, roles written on demand.
   and its two threads; the holding gets LEGAL («حقوقی», no manager) with the
   asleep employee <HQ>-LGL (charter legal_counsel), like <HQ>-PA. No
   numbered employee is created. The legal counsel's thread L and the
-  `legal` thread kind are §22.4's (the other half of prompt 13).
-- Decision kinds media_series, media_publish, role_new (and email_send, which
-  §22.4 adds too) join decisions_kind_check, rewritten from the kinds it
-  holds now and added NOT VALID.
+  `legal` thread kind are §22.4's (0028_1; the seed makes thread L).
+- Decision kinds media_series, media_publish and role_new join
+  decisions_kind_check, rewritten from the kinds it holds now and added NOT
+  VALID (email_send is 0028_1's; 0028_1, the head, validates the CHECK).
 
 Revision ID: 0028
 Revises: 0027_1
@@ -55,7 +55,7 @@ TABLES = (
 )
 APPEND_ONLY = ("media.compositions", "media.publish_log")
 SEQUENCES = ("media.series_ref_seq", "media.item_ref_seq", "people.role_draft_ref_seq")
-NEW_KINDS = ("media_series", "media_publish", "role_new", "email_send")
+NEW_KINDS = ("media_series", "media_publish", "role_new")  # email_send: 0028_1
 # The media studio's task classes (contract §22.0; llm-router's seed has the
 # same rows): never on an alternative provider.
 TASK_CLASSES = (

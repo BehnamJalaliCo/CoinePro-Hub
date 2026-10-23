@@ -789,7 +789,7 @@ async def test_nothing_runs_while_the_holding_is_locked(
         assert (
             await client.post("/internal/v1/media/render/claim", headers=MEDIA)
         ).status_code == 204
-        assert (await client.post("/internal/v1/tts/media/claim", headers=TTS)).status_code == 204
+        assert (await client.post("/internal/v1/voices/jobs/claim", headers=TTS)).status_code == 204
         assert (await P.publish_due(hub)) == {"skipped": True, "reason": "holding_locked"}
         assert await acts.recheck() == {"skipped": True, "reason": "holding_locked"}
         assert not fake.calls
