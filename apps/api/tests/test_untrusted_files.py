@@ -126,6 +126,17 @@ def gone(pid: int) -> bool:
     return False
 
 
+def spawned_since(last: int | None) -> list[int]:
+    """The children spawned after pid `last`. untrusted._spawned keeps only the
+    newest 64, so its length stops growing once a session has spawned more than
+    that (prompts 11, 12 and 13 together do before this file runs)."""
+    pids = list(untrusted._spawned)
+    if last is None:
+        return pids
+    at = len(pids) - 1 - pids[::-1].index(last)
+    return pids[at + 1 :]
+
+
 async def _owner_upload(
     client: httpx.AsyncClient, owner: dict[str, str], data: bytes, mime: str, name: str
 ) -> httpx.Response:
@@ -155,7 +166,7 @@ async def test_a_pdf_bomb_through_both_upload_paths(
     bomb = pdf_bomb()
     assert len(bomb) < 50_000
     for path in ("owner", "agent"):
-        before = len(untrusted._spawned)
+        last = untrusted._spawned[-1] if untrusted._spawned else None
         started = time.monotonic()
         with Peak() as peak:
             if path == "owner":
@@ -166,7 +177,8 @@ async def test_a_pdf_bomb_through_both_upload_paths(
         assert r.status_code == 201, (path, r.text)
         assert took < 35, (path, took)
         assert peak.growth_mb < 50, (path, peak.growth_mb)
-        assert len(untrusted._spawned) == before + 1 and gone(untrusted._spawned[-1])
+        new = spawned_since(last)
+        assert len(new) == 1 and gone(new[0]), (path, new)
         ref = r.json()
         assert ref["status"] == "failed", (path, ref)
         row = await su.fetchrow(
