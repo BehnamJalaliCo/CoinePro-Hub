@@ -90,7 +90,8 @@
           "feedback.tag",
           "support.draft",
           "support.handoff",
-          "claim.verdict"
+          "claim.verdict",
+          "media.voice"
         ],
         "assistant": [
           "errand.step",

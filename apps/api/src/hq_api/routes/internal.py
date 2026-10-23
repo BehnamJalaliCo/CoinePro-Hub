@@ -277,6 +277,15 @@ OP_CLASS: dict[str, str] = {
     "tts.claim": "A0",
     "tts.done": "A1",
     "claim.verdict": "A2",
+    # prompt 13, the legal and voice half (legal_voice.rego): the counsel's
+    # tools, a media item's narration, the TTS one-shot's voice jobs
+    "legal.case_open": "A1",
+    "legal.case_note": "A1",
+    "legal.email_draft": "A1",
+    "legal.mail_read": "A0",
+    "media.voice": "A2",
+    "voices.claim": "A0",
+    "voices.done": "A1",
 }
 
 
@@ -345,6 +354,13 @@ async def allow(
             escrow_classes=escrow_classes or [],
             incident=incident,
         )
+
+
+async def _counsel_code(tx: Tx) -> str:
+    """⟨1.6⟩ the holding's legal counsel (HQ-LGL), who receives a CEO's ask."""
+    from hq_api.domain import legal
+
+    return str((await legal.counsel(tx))["code"])
 
 
 async def escrow_of(tx: Tx, w: dict[str, Any]) -> list[str]:
@@ -704,13 +720,17 @@ async def request_work(
             return idem.replay
         assert ctx.who.company_id is not None
         cross = company_code != ctx.who.company
+        holding_code = (await ctx.hub.companies.holding()).code
+        # ⟨1.6⟩ a CEO asks the holding's legal counsel (contract §22.4): the
+        # holding's LEGAL department, never a named employee there.
+        to_legal = cross and company_code == holding_code and body.department == "LEGAL"
         # The policy decides BEFORE anything outside the agent's company is
         # looked up, so a refusal never tells whether a code exists elsewhere.
         if cross:
-            if body.to or body.department:  # CEO to CEO only: addressed to the company
+            if body.to or (body.department and not to_legal):  # CEO to CEO only
                 raise ApiError(403, "policy_denied", "work.create_not_permitted")
-            to_role: str | None = "ceo"
-            to_dept: str | None = None
+            to_role: str | None = "employee" if to_legal else "ceo"
+            to_dept: str | None = "LEGAL" if to_legal else None
         else:
             to_role, to_dept = "ceo", body.department
             if body.to:
@@ -730,6 +750,7 @@ async def request_work(
                 "kind": body.kind,
                 "to_role": to_role,
                 "to_department": to_dept,
+                "to_holding": company_code == holding_code,
             },
         )
         # Looked up only now: a missing and a forbidden company both answer 403.
@@ -759,7 +780,7 @@ async def request_work(
             kind=body.kind,
             priority=body.priority,
             department_code=body.department,
-            assignee_code=body.to,
+            assignee_code=(await _counsel_code(tx)) if to_legal else body.to,
             due_at=body.due_at,
             budget=budget,
             escrow=body.escrow,
@@ -856,7 +877,7 @@ async def propose_decision(
             body=body,
             thread_code=await tx.scalar(
                 """SELECT code FROM msg.threads WHERE code = :c
-                     OR (employee_id = :e AND kind IN ('advisor', 'overseer', 'assistant'))
+                     OR (employee_id = :e AND kind IN ('advisor', 'overseer', 'assistant', 'legal'))
                    ORDER BY code = :c DESC LIMIT 1""",
                 c=ctx.who.code,
                 e=ctx.who.employee_id,
@@ -967,9 +988,11 @@ async def agent_message(
         if idem and idem.replay:
             return idem.replay
         t = await tx.one(
-            """SELECT t.code, t.kind, c.code AS company, d.code AS department, t.company_id
+            """SELECT t.code, t.kind, c.code AS company, d.code AS department, t.company_id,
+                      e.code AS employee
                FROM msg.threads t JOIN core.companies c ON c.id = t.company_id
-               LEFT JOIN core.departments d ON d.id = t.department_id WHERE t.code = :c""",
+               LEFT JOIN core.departments d ON d.id = t.department_id
+               LEFT JOIN core.employees e ON e.id = t.employee_id WHERE t.code = :c""",
             c=code,
         )
         await allow(
@@ -980,6 +1003,8 @@ async def agent_message(
                 "thread_kind": t["kind"],
                 "thread_company": t["company"],
                 "thread_department": t["department"],
+                # ⟨1.6⟩ thread L is its own counsel's (legal_voice.rego)
+                "thread_employee": t["employee"],
             },
         )
         await ctx.ensure_unlocked(tx, t["company_id"])

@@ -84,6 +84,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "people": ("hr.",),
     "notes": ("note.",),
     "quality": ("claim.",),
+    # ⟨1.6⟩ prompt 13 (contract §22.6): legal.case
+    "legal": ("legal.",),
 }
 
 

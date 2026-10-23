@@ -28,6 +28,15 @@ departments:
     manager_title_en: Head of AI Operations (holding)
     head_role: aiops_head
     sort: 20
+  # ⟨1.6⟩ prompt 13 (contract §22.1, §22.4): one legal counsel for every
+  # company; the department has no manager (head: false), only HQ-LGL below.
+  - code: LEGAL
+    name_fa: حقوقی
+    name_en: Legal
+    manager_title_fa: مشاور حقوقی
+    manager_title_en: Legal Counsel
+    head: false
+    sort: 30
 leadership:
   ceo: null
   managers: true
@@ -59,6 +68,17 @@ leadership:
       thread: P
       thread_kind: assistant
       thread_title_fa: دستیار شخصی
+    # ⟨1.6⟩ the legal counsel (thread L, contract §22.4): asleep until work
+    # arrives (the owner in thread L, a CEO's work item, a reply to a case).
+    - code_suffix: LGL
+      kind: employee
+      role: legal_counsel
+      department: LEGAL
+      title_fa: مشاور حقوقی
+      title_en: Legal Counsel
+      thread: L
+      thread_kind: legal
+      thread_title_fa: مشاور حقوقی
     - code_suffix: SYS
       kind: system
       title_fa: سامانه‌ی گزارش

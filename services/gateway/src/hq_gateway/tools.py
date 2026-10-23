@@ -30,7 +30,7 @@ from hq_common.redact import MAX_DEPTH, redact_async, scrub
 WORK_REF = r"^W-[0-9]{6,}$"
 CODE = r"^[A-Z][A-Z0-9]{1,9}$"
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
-THREAD = r"^(A|N|P|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
+THREAD = r"^(A|N|P|L|[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+){1,2})$"
 UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 MIME_OK = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}/[a-z0-9][a-z0-9!#$&^_.+-]{0,63}$")
 NS = uuid.UUID("6a0f1c3e-5b7d-4e21-9c3a-0d7f2b6e8a41")  # idempotency keys per action
@@ -297,6 +297,7 @@ class LinksIn(In):
     corrects: str | None = Field(default=None, max_length=40)
     inquiry: str | None = Field(default=None, pattern=r"^Q-[0-9]{4,}$")
     errand: str | None = Field(default=None, pattern=r"^E-[0-9]{4,}$")
+    case: str | None = Field(default=None, pattern=r"^LC-[0-9]{4,}$")  # ⟨1.6⟩ §22.7
 
 
 class CitationIn(In):

@@ -43,7 +43,8 @@ def leadership_roles(company_code: str, key: str) -> dict[str, str | None]:
         roles[f"{company_code}-CEO"] = lead["ceo"].get("role")
     if lead.get("managers"):
         for d in t.get("departments") or []:
-            roles[f"{company_code}-{d['code']}-MGR"] = d.get("head_role")
+            if d.get("head", True):
+                roles[f"{company_code}-{d['code']}-MGR"] = d.get("head_role")
     for x in lead.get("extra") or []:
         roles[f"{company_code}-{x['code_suffix']}"] = x.get("role")
     return roles
@@ -105,6 +106,8 @@ async def apply(
 
     if lead.get("managers"):
         for d in t.get("departments") or []:
+            if not d.get("head", True):
+                continue  # ⟨1.6⟩ a department without a manager (the holding's LEGAL)
             dept_id = await tx.scalar(
                 "SELECT id FROM core.departments WHERE company_id = :co AND code = :code",
                 co=company_id,

@@ -23,6 +23,8 @@ kinds := {
 	"tool_enable",
 	# ⟨1.5⟩ prompt 10 (contract §19.9): sealed by the owner only
 	"message_template", "lifecycle_rule", "support_go_live",
+	# ⟨1.6⟩ prompt 13 §3: the counsel's exact email (the owner's seal)
+	"email_send",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).
