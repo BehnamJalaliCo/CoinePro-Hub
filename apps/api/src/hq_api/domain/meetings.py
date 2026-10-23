@@ -245,14 +245,19 @@ async def seed(tx: Tx, holding_id: UUID) -> int:
 async def types(tx: Tx) -> list[dict[str, Any]]:
     holding = await holding_id(tx)
     rows = await tx.all(TYPE_SQL + " WHERE company_id = :co", co=holding)
+    if len(rows) < len(TYPES):  # the api's start seeds them; here too if one is missing
+        await seed(tx, holding)
+        rows = await tx.all(TYPE_SQL + " WHERE company_id = :co", co=holding)
     order = {k: i for i, k in enumerate(TYPES)}
     return sorted(rows, key=lambda r: order.get(r["key"], 99))
 
 
 async def type_row(tx: Tx, key: str) -> dict[str, Any]:
-    row = await tx.first(
-        TYPE_SQL + " WHERE company_id = :co AND key = :k", co=await holding_id(tx), k=key
-    )
+    hid = await holding_id(tx)
+    row = await tx.first(TYPE_SQL + " WHERE company_id = :co AND key = :k", co=hid, k=key)
+    if row is None and key in TYPES:
+        await seed(tx, hid)
+        row = await tx.first(TYPE_SQL + " WHERE company_id = :co AND key = :k", co=hid, k=key)
     if row is None:
         raise ApiError(404, "not_found", f"no meeting type {key}")
     return row

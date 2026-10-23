@@ -41,7 +41,10 @@ async def _company_of(ctx: Ctx, scope: str) -> Any:
 async def list_charters(ctx: Ctx = Depends(owner_ctx)) -> list[CH.CharterScope]:
     """The holding charter first, then each company's addendum (sealed and
     proposed versions, and the version list)."""
+    holding = await ctx.hub.companies.holding()
+    root = str(ctx.hub.charters.root) if ctx.hub.charters is not None else "/app/agents"
     async with ctx.tx() as tx:
+        await CH.seed(tx, holding.id, root)  # v1 proposed, once (the api's start does it too)
         rows = await tx.all(CH.SQL + " ORDER BY scope = 'holding' DESC, scope, version DESC")
     scopes: dict[str, list[dict[str, Any]]] = {}
     for r in rows:

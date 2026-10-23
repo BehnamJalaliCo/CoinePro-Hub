@@ -33,7 +33,7 @@ from temporalio import activity
 from temporalio.client import Client, ScheduleCalendarSpec, ScheduleRange, ScheduleSpec
 
 from hq_api import audit
-from hq_api.domain import governance_checks as _p11  # noqa: F401 - PR-111, PR-114
+from hq_api.domain import governance_checks as _p11
 from hq_api.domain import oversight as O
 from hq_api.domain import oversight_checks as C
 from hq_api.domain import oversight_support as OS  # registers PR-043/101/102/103 (prompt 10)
@@ -95,6 +95,7 @@ class OversightActivities:
         holding = await self.hub.companies.holding()
         async with self._tx() as tx:
             seeded = await O.seed_protocols(tx, holding.id, self.hub.charters.root)
+            await _p11.switch_on(tx, holding.id)  # prompt 11's own, once (as the api's seed)
             rows = await tx.all("SELECT ref, schedule, status FROM oversight.current_protocols")
         out: dict[str, Any] = {"seeded": seeded, "protocols": {}, "deleted": []}
         wanted = {WEEKLY}
