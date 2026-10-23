@@ -34,6 +34,26 @@ ADD --chmod=644 --checksum=sha256:fb815380d969ea372b0b21b0de14421f58fe481047e153
 ADD --chmod=644 --checksum=sha256:75f918a3bf0f57a9179abe725af529f2a5c79d6c899e2a84aec76c685d5dfb9a \
     https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx.json \
     /voices/fa_IR-amir-medium.onnx.json
+# Prompt 13 §4: the other Persian Piper voices of the same revision for the
+# bake-off (datasets CC0-1.0 per their MODEL_CARDs; weights MIT), each by sha256.
+ADD --chmod=644 --checksum=sha256:6a98504bb77dc2fd3a863c977d37e67a6a525fdf661917385d569a3ff78e6cae \
+    https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/fa/fa_IR/ganji/medium/fa_IR-ganji-medium.onnx \
+    /voices/fa_IR-ganji-medium.onnx
+ADD --chmod=644 --checksum=sha256:9d3e0c0cf00156d8bf38fb7f96bdfbcb21911b37e062a328da0632e3c2cbc465 \
+    https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/fa/fa_IR/ganji/medium/fa_IR-ganji-medium.onnx.json \
+    /voices/fa_IR-ganji-medium.onnx.json
+ADD --chmod=644 --checksum=sha256:e9073b41ae65759dcf95778e569c8f3780406dac99549436f6ab8e7d2336ed72 \
+    https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/fa/fa_IR/ganji_adabi/medium/fa_IR-ganji_adabi-medium.onnx \
+    /voices/fa_IR-ganji_adabi-medium.onnx
+ADD --chmod=644 --checksum=sha256:aa430ceebaa7c96d9cd6b1e73231a393901cabb23a1b7f53e8d85178a5ae70c9 \
+    https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/fa/fa_IR/ganji_adabi/medium/fa_IR-ganji_adabi-medium.onnx.json \
+    /voices/fa_IR-ganji_adabi-medium.onnx.json
+ADD --chmod=644 --checksum=sha256:99f0c31464a2120831ca87d079e10a9a2b3e426cc1ee662d80ff9042df15cd3c \
+    https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/fa/fa_IR/reza_ibrahim/medium/fa_IR-reza_ibrahim-medium.onnx \
+    /voices/fa_IR-reza_ibrahim-medium.onnx
+ADD --chmod=644 --checksum=sha256:e9866c88c16245f8b8f4d0eaeaa6eab4f2e193db69a2ab4683d83fe78a30b6ca \
+    https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/fa/fa_IR/reza_ibrahim/medium/fa_IR-reza_ibrahim-medium.onnx.json \
+    /voices/fa_IR-reza_ibrahim-medium.onnx.json
 RUN chmod 0755 /voices
 
 COPY hq-common/src /app/hq-common/src

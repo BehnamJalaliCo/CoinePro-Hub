@@ -41,6 +41,20 @@ async def quiet_queue(su: Any) -> AsyncIterator[None]:
     await su.execute("UPDATE media.voices SET status = 'active' WHERE id = $1", active)
 
 
+NC = "test-nc-piper"  # an installed, measured, non-commercial voice (test data)
+
+
+async def _nc_voice(su: Any) -> None:
+    await su.execute(
+        """INSERT INTO media.voices (id, company_id, engine, name_fa, licence, licence_commercial, speaker,
+               runtime, rtf, mem_mb, measured_at, measured_on, status, sort)
+           SELECT $1, id, 'piper', 'صدای آزمون غیرتجاری', 'CC BY-NC 4.0 (test)', false, 'model',
+                  '{"piper_voice": "fa_IR-amir-medium"}', 0.2, 260, now(), 'test', 'candidate', 999
+           FROM core.companies WHERE kind = 'holding' ON CONFLICT (id) DO NOTHING""",
+        NC,
+    )
+
+
 async def _measured(su: Any, voice_id: str) -> None:
     await su.execute(
         """UPDATE media.voices SET rtf = 0.2, mem_mb = 260, measured_at = now(), measured_on = 'test'
@@ -95,6 +109,7 @@ async def test_the_registry_has_every_candidate_with_its_licence_and_numbers(
     assert by["chatterbox-fa"]["licence"].startswith("CC BY-NC") and not by["chatterbox-fa"]["licence_commercial"]
     assert by["manatts-piper"]["installed"] is False and "GPU" in by["manatts-piper"]["note_fa"]
     assert by["piper-gyro"]["licence_commercial"] is False  # its dataset licence is unstated
+    assert by["piper-gyro"]["installed"] is False  # ... so it is not shipped
 
 
 @pytest.mark.usefixtures("quiet_queue")
@@ -110,21 +125,23 @@ async def test_a_non_commercial_voice_is_never_active_without_the_owner(
     # Not installed on the hub (gated, over the memory budget): never, whatever is accepted.
     r = await activate("parsvoice-xtts", {"accept_non_commercial": True})
     assert r.status_code == 409 and r.json()["code"] == "not_ready"
-    await _measured(su, "piper-gyro")
-    r = await activate("piper-gyro", {})
-    assert r.status_code == 422 and "accept_non_commercial" in r.json()["fields"]
-    r = await activate("piper-gyro", {"accept_non_commercial": True}, seal=False)
-    assert r.status_code == 403 and r.json()["code"] == "step_up_required"
+    # Its dataset licence unstated: not shipped, so never active either.
     r = await activate("piper-gyro", {"accept_non_commercial": True})
+    assert r.status_code == 409 and r.json()["code"] == "not_ready"
+    await _nc_voice(su)
+    r = await activate(NC, {})
+    assert r.status_code == 422 and "accept_non_commercial" in r.json()["fields"]
+    r = await activate(NC, {"accept_non_commercial": True}, seal=False)
+    assert r.status_code == 403 and r.json()["code"] == "step_up_required"
+    r = await activate(NC, {"accept_non_commercial": True})
     assert r.status_code == 200 and r.json()["status"] == "active" and r.json()["licence_commercial"] is False
     listed = (await client.get("/api/v1/media/voices", headers=h)).json()
-    assert [v["id"] for v in listed if v["status"] == "active"] == ["piper-gyro"]
+    assert [v["id"] for v in listed if v["status"] == "active"] == [NC]
     # A commercial one needs no acceptance, only the seal; one voice is active.
     await _measured(su, "piper-ganji")
     r = await activate("piper-ganji", {})
     assert r.status_code == 200 and r.json()["status"] == "active"
-    gyro = await su.fetchval("SELECT status FROM media.voices WHERE id = 'piper-gyro'")
-    assert gyro == "candidate"
+    assert await su.fetchval("SELECT status FROM media.voices WHERE id = $1", NC) == "candidate"
     n = await su.fetchval("SELECT count(*) FROM audit.entries WHERE action = 'voice.activate' AND step_up")
     assert n >= 2
     # The owner's blind score.
@@ -154,7 +171,7 @@ async def test_the_bakeoff_queues_once_and_its_audio_goes_through_17_1(
     async with holding_switch(su, "released"):
         first = await wk["acts"].legal_voice.voice_bakeoff()
         again = await wk["acts"].legal_voice.voice_bakeoff()
-        assert again["queued"] == 0 and first["voices"] >= 5
+        assert again["queued"] == 0 and first["voices"] >= 4
         runnable = await su.fetchval(
             "SELECT count(*) FROM media.voices WHERE runtime IS NOT NULL AND status <> 'retired' AND speaker = 'model'"
         )
@@ -163,7 +180,9 @@ async def test_the_bakeoff_queues_once_and_its_audio_goes_through_17_1(
             V.ROUND,
         )
         assert len(jobs) == runnable * len(V.SCRIPTS)
-        assert not {j["voice_id"] for j in jobs} & {"parsvoice-xtts", "chatterbox-fa", "manatts-piper"}
+        assert not {j["voice_id"] for j in jobs} & {
+            "parsvoice-xtts", "chatterbox-fa", "manatts-piper", "piper-gyro"
+        }  # fmt: skip
         for j in jobs:
             assert_spoken(j["script"])  # the hub's own spoken form: no digit left
         await su.execute("UPDATE media.speech_jobs SET state = 'cancelled' WHERE state = 'queued'")
@@ -245,11 +264,11 @@ async def test_media_voice_queues_the_narration_with_the_active_voice(
             assert_spoken(script)
             assert "درصد" in script
             # A non-commercial voice the owner did not choose is refused.
-            await _measured(su, "piper-gyro")
+            await _nc_voice(su)
             no = await client.post(
                 "/internal/v1/media/voice",
                 headers={**h, **idem()},
-                json={"ref": "MI-0042", "text_fa": "سلام", "voice_id": "piper-gyro"},
+                json={"ref": "MI-0042", "text_fa": "سلام", "voice_id": NC},
             )
             assert no.status_code == 409 and no.json()["fields"]["voice_id"] == "licence_not_chosen"
             # Another employee has no media.voice.

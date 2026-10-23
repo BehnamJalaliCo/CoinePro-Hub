@@ -188,7 +188,7 @@ SEED: tuple[dict[str, Any], ...] = (
         "licence": 'MIT (weights, rhasspy/piper-voices); dataset licence not stated on its MODEL_CARD ("See URL")',
         "licence_commercial": False,
         "speaker": "model",
-        "runtime": {"piper_voice": "fa_IR-gyro-medium"},
+        "runtime": None,  # not shipped in the TTS image (voice.lock.json)
         "source": {
             "repo": PIPER_REPO,
             "revision": PIPER_REVISION,
@@ -196,7 +196,10 @@ SEED: tuple[dict[str, Any], ...] = (
             "onnx_sha256": "37dfae43c82ee38ca9e6aac4ffef76a74d6b282ccbc397b27761f35d355c99ba",
         },
         "sort": 14,
-        "note_fa": "لایسنس داده‌ی آموزشش روی کارت نیامده؛ تا روشن شدن، تجاری حساب نمیشود.",
+        "note_fa": (
+            "لایسنس داده‌ی آموزشش روی کارتش نیامده؛ تا روشن شدن نه تجاری حساب میشود "
+            "و نه در image صدا گذاشته شده."
+        ),
     },
     {
         "id": "manatts-piper",
