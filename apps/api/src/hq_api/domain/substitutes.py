@@ -1848,7 +1848,8 @@ async def queue_cross_check(tx: Tx, hub: Any, claim: dict[str, Any]) -> dict[str
     so a claim the overseer decides again is not checked again. None when the
     input may not reach a substitute (personal data, a secret)."""
     dl = await tx.first(
-        "SELECT title, summary FROM cartable.deliverables WHERE id = :id", id=claim["deliverable_id"]
+        "SELECT title, summary FROM cartable.deliverables WHERE id = :id",
+        id=claim["deliverable_id"],
     )
     title = str((dl or {}).get("title") or "")
     summary = str((dl or {}).get("summary") or "")[:4000]

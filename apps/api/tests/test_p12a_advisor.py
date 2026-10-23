@@ -261,12 +261,14 @@ async def test_a_changed_card_makes_its_memo_stale(
         async with hub.db.tx(await hub.companies.ids()) as tx:
             raised = await NOTES.remind(tx, later)
             assert any(r["decision"] == ref for r in raised), raised
-            assert await tx.scalar(
-                "SELECT version FROM cartable.decisions WHERE ref = :r", r=ref
-            ) == version
-            assert await tx.scalar(
-                "SELECT state FROM advisor.memos WHERE ref = :r", r=memo["ref"]
-            ) == "writing"
+            assert (
+                await tx.scalar("SELECT version FROM cartable.decisions WHERE ref = :r", r=ref)
+                == version
+            )
+            assert (
+                await tx.scalar("SELECT state FROM advisor.memos WHERE ref = :r", r=memo["ref"])
+                == "writing"
+            )
             raise _RolledBack
     await su.execute(
         "UPDATE cartable.decisions SET expires_at = now() + interval '3 days' WHERE ref = $1", ref

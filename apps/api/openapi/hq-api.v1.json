@@ -633,6 +633,99 @@
         "title": "AgentFileRef",
         "type": "object"
       },
+      "AgentHealth": {
+        "properties": {
+          "claims_checked": {
+            "title": "Claims Checked",
+            "type": "integer"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Usd",
+            "type": "string"
+          },
+          "employee": {
+            "title": "Employee",
+            "type": "string"
+          },
+          "failed_share": {
+            "title": "Failed Share",
+            "type": "number"
+          },
+          "flags": {
+            "items": {
+              "enum": [
+                "truth",
+                "reliability",
+                "loops"
+              ],
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "owner_returns": {
+            "title": "Owner Returns",
+            "type": "integer"
+          },
+          "period": {
+            "enum": [
+              "7d",
+              "30d"
+            ],
+            "title": "Period",
+            "type": "string"
+          },
+          "refused_share": {
+            "title": "Refused Share",
+            "type": "number"
+          },
+          "refuted": {
+            "title": "Refuted",
+            "type": "integer"
+          },
+          "refuted_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refuted Share"
+          },
+          "retry_loops": {
+            "title": "Retry Loops",
+            "type": "integer"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "employee",
+          "company",
+          "period",
+          "runs",
+          "failed_share",
+          "refused_share",
+          "retry_loops",
+          "owner_returns",
+          "claims_checked",
+          "refuted",
+          "refuted_share",
+          "cost_usd",
+          "flags"
+        ],
+        "title": "AgentHealth",
+        "type": "object"
+      },
       "AgentMessage": {
         "additionalProperties": false,
         "properties": {
@@ -1160,6 +1253,62 @@
           "assignments"
         ],
         "title": "AssignmentsPut",
+        "type": "object"
+      },
+      "Attributed": {
+        "properties": {
+          "rescued": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rescued"
+          },
+          "resolved_conversations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Conversations"
+          }
+        },
+        "title": "Attributed",
+        "type": "object"
+      },
+      "AudioBriefingsIn": {
+        "properties": {
+          "ceo_letters": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceo Letters"
+          },
+          "morning": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Morning"
+          }
+        },
+        "title": "AudioBriefingsIn",
         "type": "object"
       },
       "AuditBrief": {
@@ -1847,6 +1996,97 @@
           "equiv_cost_usd"
         ],
         "title": "BreakdownRow",
+        "type": "object"
+      },
+      "Briefing": {
+        "properties": {
+          "audio": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audio_state": {
+            "enum": [
+              "pending",
+              "ready",
+              "off",
+              "failed"
+            ],
+            "title": "Audio State",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deliverable_ref": {
+            "title": "Deliverable Ref",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "morning",
+              "ceo_letter"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "period": {
+            "additionalProperties": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Period",
+            "type": "object"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "text_md": {
+            "title": "Text Md",
+            "type": "string"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Voice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "kind",
+          "company",
+          "period",
+          "deliverable_ref",
+          "text_md",
+          "audio",
+          "audio_state",
+          "voice",
+          "created_at"
+        ],
+        "title": "Briefing",
         "type": "object"
       },
       "BrowsePolicy": {
@@ -2619,6 +2859,55 @@
         "title": "CatalogTool",
         "type": "object"
       },
+      "CeoWeeklyLetterIn": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sa",
+                  "su",
+                  "mo",
+                  "tu",
+                  "we",
+                  "th",
+                  "fr"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          }
+        },
+        "title": "CeoWeeklyLetterIn",
+        "type": "object"
+      },
       "ChainItem": {
         "properties": {
           "assignee": {
@@ -3088,6 +3377,176 @@
           "ref"
         ],
         "title": "Citation",
+        "type": "object"
+      },
+      "Claim": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "checked_by": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "claim_md": {
+            "title": "Claim Md",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "deliverable": {
+            "title": "Deliverable",
+            "type": "string"
+          },
+          "employee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee"
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "protocol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protocol"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "confirmed",
+              "refuted",
+              "unverifiable"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "company",
+          "deliverable",
+          "employee",
+          "claim_md",
+          "verdict",
+          "checked_by",
+          "protocol",
+          "evidence",
+          "at"
+        ],
+        "title": "Claim",
+        "type": "object"
+      },
+      "ClaimEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Note",
+            "type": "string"
+          },
+          "ref": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "title": "ClaimEvidence",
+        "type": "object"
+      },
+      "ClaimIn": {
+        "additionalProperties": false,
+        "properties": {
+          "claim_md": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Claim Md",
+            "type": "string"
+          },
+          "deliverable": {
+            "pattern": "^O-[0-9]+$",
+            "title": "Deliverable",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimEvidence"
+            },
+            "maxItems": 20,
+            "title": "Evidence",
+            "type": "array"
+          },
+          "protocol": {
+            "anyOf": [
+              {
+                "pattern": "^PR-[0-9]{3,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protocol"
+          },
+          "verdict": {
+            "enum": [
+              "confirmed",
+              "refuted",
+              "unverifiable"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deliverable",
+          "claim_md",
+          "verdict"
+        ],
+        "title": "ClaimIn",
         "type": "object"
       },
       "CodeSession": {
@@ -5325,6 +5784,14 @@
             "title": "Ref",
             "type": "string"
           },
+          "reminders": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Reminders",
+            "type": "array"
+          },
           "resolution": {
             "anyOf": [
               {
@@ -5387,6 +5854,17 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "waiting_h": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting H"
           },
           "what": {
             "title": "What",
@@ -6319,6 +6797,94 @@
         "title": "DepartmentPatch",
         "type": "object"
       },
+      "DepartmentRank": {
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "computed_at": {
+            "format": "date-time",
+            "title": "Computed At",
+            "type": "string"
+          },
+          "department": {
+            "title": "Department",
+            "type": "string"
+          },
+          "employees": {
+            "title": "Employees",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "parts": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Parts",
+            "type": "object"
+          },
+          "period": {
+            "enum": [
+              "week",
+              "month"
+            ],
+            "title": "Period",
+            "type": "string"
+          },
+          "rank_company": {
+            "title": "Rank Company",
+            "type": "integer"
+          },
+          "rank_holding": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Holding"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "trend": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Trend",
+            "type": "array"
+          }
+        },
+        "required": [
+          "period",
+          "key",
+          "company",
+          "department",
+          "score",
+          "parts",
+          "employees",
+          "rank_company",
+          "rank_holding",
+          "trend",
+          "computed_at"
+        ],
+        "title": "DepartmentRank",
+        "type": "object"
+      },
       "DestinationStatus": {
         "properties": {
           "configured": {
@@ -6437,6 +7003,67 @@
           "device"
         ],
         "title": "DeviceOut",
+        "type": "object"
+      },
+      "DiffFile": {
+        "properties": {
+          "additions": {
+            "title": "Additions",
+            "type": "integer"
+          },
+          "binary": {
+            "title": "Binary",
+            "type": "boolean"
+          },
+          "deletions": {
+            "title": "Deletions",
+            "type": "integer"
+          },
+          "patch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patch"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "secret_masked": {
+            "title": "Secret Masked",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "added",
+              "modified",
+              "removed",
+              "renamed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "status",
+          "additions",
+          "deletions",
+          "binary",
+          "patch",
+          "truncated",
+          "secret_masked"
+        ],
+        "title": "DiffFile",
         "type": "object"
       },
       "DirectHire": {
@@ -10349,6 +10976,212 @@
         "title": "Hourly",
         "type": "object"
       },
+      "HrEmployee": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Efficiency"
+          },
+          "failed_share": {
+            "title": "Failed Share",
+            "type": "number"
+          },
+          "findings_open": {
+            "title": "Findings Open",
+            "type": "integer"
+          },
+          "flags": {
+            "items": {
+              "enum": [
+                "promote_candidate",
+                "coach",
+                "demote_candidate",
+                "dismiss_candidate",
+                "probation_end"
+              ],
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "owner_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Avg"
+          },
+          "probation_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probation Until"
+          },
+          "refuted_claims": {
+            "title": "Refuted Claims",
+            "type": "integer"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "score_prev": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Prev"
+          },
+          "stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title_fa",
+          "score",
+          "score_prev",
+          "stars",
+          "efficiency",
+          "owner_avg",
+          "failed_share",
+          "findings_open",
+          "refuted_claims",
+          "probation_until",
+          "flags"
+        ],
+        "title": "HrEmployee",
+        "type": "object"
+      },
+      "HrRound": {
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "decisions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "deliverable_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverable Ref"
+          },
+          "due_at": {
+            "format": "date-time",
+            "title": "Due At",
+            "type": "string"
+          },
+          "employees": {
+            "items": {
+              "$ref": "#/components/schemas/HrEmployee"
+            },
+            "title": "Employees",
+            "type": "array"
+          },
+          "evaluator": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "drafting",
+              "proposed",
+              "done"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "teachings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Teachings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "company",
+          "month",
+          "state",
+          "evaluator",
+          "due_at",
+          "employees",
+          "deliverable_ref",
+          "decisions",
+          "teachings"
+        ],
+        "title": "HrRound",
+        "type": "object"
+      },
       "HubHealth": {
         "properties": {
           "at": {
@@ -13603,6 +14436,16 @@
             "title": "Stream Retention Days",
             "type": "integer"
           },
+          "tts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TtsMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "workshop": {
             "$ref": "#/components/schemas/WorkshopMeta"
           }
@@ -13810,6 +14653,50 @@
           }
         },
         "title": "NoteIn",
+        "type": "object"
+      },
+      "NotePromoteIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "to": {
+            "enum": [
+              "work",
+              "order",
+              "errand"
+            ],
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to"
+        ],
+        "title": "NotePromoteIn",
         "type": "object"
       },
       "Notification": {
@@ -14641,10 +15528,206 @@
         "title": "Overlay",
         "type": "object"
       },
+      "OwnerNote": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "promoted_to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromotedTo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "text",
+              "voice"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "promoted",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "text_md": {
+            "title": "Text Md",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "text_md",
+          "source",
+          "file_id",
+          "tags",
+          "status",
+          "promoted_to",
+          "created_at",
+          "updated_at",
+          "version"
+        ],
+        "title": "OwnerNote",
+        "type": "object"
+      },
+      "OwnerNoteIn": {
+        "additionalProperties": false,
+        "properties": {
+          "file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "source": {
+            "default": "text",
+            "enum": [
+              "text",
+              "voice"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Tags",
+            "type": "array"
+          },
+          "text_md": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Text Md",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text_md"
+        ],
+        "title": "OwnerNoteIn",
+        "type": "object"
+      },
+      "OwnerNotePatch": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "const": "archived",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "text_md": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Md"
+          }
+        },
+        "title": "OwnerNotePatch",
+        "type": "object"
+      },
       "OwnerSettings": {
         "properties": {
           "advisor": {
             "$ref": "#/components/schemas/AdvisorSettings"
+          },
+          "audio_briefings": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Briefings"
           },
           "calendars": {
             "items": {
@@ -14660,6 +15743,18 @@
           "ceo_daily_attention": {
             "title": "Ceo Daily Attention",
             "type": "integer"
+          },
+          "ceo_weekly_letter": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceo Weekly Letter"
           },
           "digest_minutes": {
             "title": "Digest Minutes",
@@ -14679,6 +15774,18 @@
             },
             "title": "Provision Ssh Sources",
             "type": "array"
+          },
+          "reminders": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reminders"
           },
           "substitutes": {
             "$ref": "#/components/schemas/SubstituteSettings"
@@ -14722,6 +15829,16 @@
               }
             ]
           },
+          "audio_briefings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AudioBriefingsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "calendars": {
             "anyOf": [
               {
@@ -14754,6 +15871,16 @@
               }
             ],
             "title": "Ceo Daily Attention"
+          },
+          "ceo_weekly_letter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CeoWeeklyLetterIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "digest_minutes": {
             "anyOf": [
@@ -14807,6 +15934,16 @@
             ],
             "title": "Provision Ssh Sources"
           },
+          "reminders": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RemindersIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "substitutes": {
             "anyOf": [
               {
@@ -14846,6 +15983,33 @@
         "title": "OwnerSettingsIn",
         "type": "object"
       },
+      "Page_AgentHealth_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentHealth"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[AgentHealth]",
+        "type": "object"
+      },
       "Page_AuditEntry_": {
         "properties": {
           "items": {
@@ -14871,6 +16035,33 @@
           "items"
         ],
         "title": "Page[AuditEntry]",
+        "type": "object"
+      },
+      "Page_Briefing_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Briefing"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Briefing]",
         "type": "object"
       },
       "Page_Call_": {
@@ -14925,6 +16116,33 @@
           "items"
         ],
         "title": "Page[Challenge]",
+        "type": "object"
+      },
+      "Page_Claim_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Claim]",
         "type": "object"
       },
       "Page_CodeSession_": {
@@ -15384,6 +16602,33 @@
           "items"
         ],
         "title": "Page[OrderRecord]",
+        "type": "object"
+      },
+      "Page_OwnerNote_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OwnerNote"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[OwnerNote]",
         "type": "object"
       },
       "Page_RescueCase_": {
@@ -16507,6 +17752,29 @@
         "title": "Progress",
         "type": "object"
       },
+      "PromotedTo": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "work",
+              "order",
+              "errand"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "title": "PromotedTo",
+        "type": "object"
+      },
       "Proposal": {
         "additionalProperties": false,
         "properties": {
@@ -16542,6 +17810,15 @@
           },
           "area": {
             "title": "Area",
+            "type": "string"
+          },
+          "calendar": {
+            "default": "gregorian",
+            "enum": [
+              "gregorian",
+              "jalali"
+            ],
+            "title": "Calendar",
             "type": "string"
           },
           "check_md": {
@@ -16654,6 +17931,15 @@
               "owner"
             ],
             "title": "Area",
+            "type": "string"
+          },
+          "calendar": {
+            "default": "gregorian",
+            "enum": [
+              "gregorian",
+              "jalali"
+            ],
+            "title": "Calendar",
             "type": "string"
           },
           "check_md": {
@@ -17483,6 +18769,65 @@
           }
         },
         "title": "Reject",
+        "type": "object"
+      },
+      "RemindersIn": {
+        "properties": {
+          "ages_h": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ages H"
+          },
+          "before_expiry_h": {
+            "anyOf": [
+              {
+                "maximum": 72.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Expiry H"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "fraction": {
+            "anyOf": [
+              {
+                "maximum": 0.9,
+                "minimum": 0.1,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fraction"
+          }
+        },
+        "title": "RemindersIn",
         "type": "object"
       },
       "Reply": {
@@ -18694,6 +20039,139 @@
           "impact"
         ],
         "title": "Risk",
+        "type": "object"
+      },
+      "RoiRow": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "attributed": {
+            "$ref": "#/components/schemas/Attributed"
+          },
+          "avg_rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Rating"
+          },
+          "by": {
+            "enum": [
+              "employee",
+              "department",
+              "company"
+            ],
+            "title": "By",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "cost_per_accepted_usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Accepted Usd"
+          },
+          "cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Usd",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "net_usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Usd"
+          },
+          "period": {
+            "enum": [
+              "week",
+              "month"
+            ],
+            "title": "Period",
+            "type": "string"
+          },
+          "period_key": {
+            "title": "Period Key",
+            "type": "string"
+          },
+          "revenue_usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Usd"
+          },
+          "roi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roi"
+          },
+          "trend": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Trend",
+            "type": "array"
+          },
+          "value_points": {
+            "title": "Value Points",
+            "type": "number"
+          }
+        },
+        "required": [
+          "by",
+          "key",
+          "company",
+          "period",
+          "period_key",
+          "cost_usd",
+          "accepted",
+          "avg_rating",
+          "value_points",
+          "cost_per_accepted_usd",
+          "attributed",
+          "revenue_usd",
+          "net_usd",
+          "roi",
+          "trend"
+        ],
+        "title": "RoiRow",
         "type": "object"
       },
       "Role": {
@@ -23972,6 +25450,17 @@
             "title": "Language",
             "type": "string"
           },
+          "note_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Ref"
+          },
           "segments": {
             "items": {
               "$ref": "#/components/schemas/Segment"
@@ -24014,6 +25503,91 @@
           "usdt"
         ],
         "title": "TrendPoint",
+        "type": "object"
+      },
+      "TtsFail": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "TtsFail",
+        "type": "object"
+      },
+      "TtsJob": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "script": {
+            "title": "Script",
+            "type": "string"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "script",
+          "voice"
+        ],
+        "title": "TtsJob",
+        "type": "object"
+      },
+      "TtsMeta": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "license": {
+            "title": "License",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "engine",
+          "version",
+          "voice",
+          "license"
+        ],
+        "title": "TtsMeta",
         "type": "object"
       },
       "UsageIn": {
@@ -24174,6 +25748,35 @@
         "title": "Verify",
         "type": "object"
       },
+      "Voice": {
+        "properties": {
+          "engine": {
+            "const": "piper",
+            "title": "Engine",
+            "type": "string"
+          },
+          "license": {
+            "title": "License",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "version",
+          "voice",
+          "license"
+        ],
+        "title": "Voice",
+        "type": "object"
+      },
       "Wal": {
         "properties": {
           "failed_count": {
@@ -24237,6 +25840,172 @@
           "lag_s"
         ],
         "title": "Wal",
+        "type": "object"
+      },
+      "WasteDay": {
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WasteItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          },
+          "total_tokens": {
+            "title": "Total Tokens",
+            "type": "integer"
+          },
+          "total_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Usd",
+            "type": "string"
+          },
+          "vs_7d": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vs 7D"
+          },
+          "waste_tokens": {
+            "title": "Waste Tokens",
+            "type": "integer"
+          },
+          "waste_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Waste Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "company",
+          "total_tokens",
+          "total_usd",
+          "waste_tokens",
+          "waste_usd",
+          "share",
+          "vs_7d",
+          "items"
+        ],
+        "title": "WasteDay",
+        "type": "object"
+      },
+      "WasteItem": {
+        "properties": {
+          "category": {
+            "enum": [
+              "failed_runs",
+              "cancelled_work",
+              "no_progress_runs",
+              "retry_loops",
+              "router_errors",
+              "duplicate_calls",
+              "cache_miss",
+              "over_model"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "top": {
+            "items": {
+              "$ref": "#/components/schemas/WasteTop"
+            },
+            "title": "Top",
+            "type": "array"
+          },
+          "usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "tokens",
+          "usd",
+          "count",
+          "top"
+        ],
+        "title": "WasteItem",
+        "type": "object"
+      },
+      "WasteTop": {
+        "properties": {
+          "employee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "tokens"
+        ],
+        "title": "WasteTop",
         "type": "object"
       },
       "WatchIn": {
@@ -30267,6 +32036,455 @@
         ]
       }
     },
+    "/api/v1/briefings": {
+      "get": {
+        "description": "The spoken briefings, newest first (§21.4).",
+        "operationId": "list_briefings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "morning",
+                    "ceo_letter"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "audio": {
+                        "duration_s": 1.0,
+                        "height": 1,
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "image",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                        "size": 1,
+                        "status": "processing",
+                        "transcript": "x",
+                        "variants": {
+                          "poster": null,
+                          "thumb": null
+                        },
+                        "width": 1
+                      },
+                      "audio_state": "pending",
+                      "company": "TY",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "deliverable_ref": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "morning",
+                      "period": {},
+                      "ref": "W-000789",
+                      "text_md": "x",
+                      "voice": {
+                        "engine": "piper",
+                        "license": "x",
+                        "version": "x",
+                        "voice": "x"
+                      }
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Briefing_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Briefings",
+        "tags": [
+          "management"
+        ]
+      }
+    },
+    "/api/v1/briefings/latest": {
+      "get": {
+        "description": "The latest briefing of a kind (404 while there is none).",
+        "operationId": "latest_briefing",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "morning",
+              "enum": [
+                "morning",
+                "ceo_letter"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "audio": {
+                    "duration_s": 1.0,
+                    "height": 1,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "image",
+                    "mime": "application/pdf",
+                    "name": "report.pdf",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                    "size": 1,
+                    "status": "processing",
+                    "transcript": "x",
+                    "variants": {
+                      "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    },
+                    "width": 1
+                  },
+                  "audio_state": "pending",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "deliverable_ref": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "morning",
+                  "period": {},
+                  "ref": "W-000789",
+                  "text_md": "x",
+                  "voice": {
+                    "engine": "piper",
+                    "license": "x",
+                    "version": "x",
+                    "voice": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Briefing"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Latest Briefing",
+        "tags": [
+          "management"
+        ]
+      }
+    },
+    "/api/v1/briefings/{ref}": {
+      "get": {
+        "description": "One briefing: its text, its audio (a FileRef once ready) and its voice.",
+        "operationId": "get_briefing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "audio": {
+                    "duration_s": 1.0,
+                    "height": 1,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "image",
+                    "mime": "application/pdf",
+                    "name": "report.pdf",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                    "size": 1,
+                    "status": "processing",
+                    "transcript": "x",
+                    "variants": {
+                      "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    },
+                    "width": 1
+                  },
+                  "audio_state": "pending",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "deliverable_ref": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "morning",
+                  "period": {},
+                  "ref": "W-000789",
+                  "text_md": "x",
+                  "voice": {
+                    "engine": "piper",
+                    "license": "x",
+                    "version": "x",
+                    "voice": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Briefing"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Briefing",
+        "tags": [
+          "management"
+        ]
+      }
+    },
     "/api/v1/budgets": {
       "get": {
         "description": "Every budget with its current-period use.",
@@ -30475,6 +32693,192 @@
         "summary": "Put Budgets",
         "tags": [
           "treasury"
+        ]
+      }
+    },
+    "/api/v1/claims": {
+      "get": {
+        "description": "Checked claims, newest first (§21.9).",
+        "operationId": "list_claims",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employee",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Employee"
+            }
+          },
+          {
+            "in": "query",
+            "name": "verdict",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "confirmed",
+                    "refuted",
+                    "unverifiable"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Verdict"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "checked_by": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
+                      "claim_md": "x",
+                      "company": "TY",
+                      "deliverable": "O-000456",
+                      "employee": "TY-GROWTH-01",
+                      "evidence": [
+                        {}
+                      ],
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "protocol": "x",
+                      "ref": "W-000789",
+                      "verdict": "confirmed"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Claim_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Claims",
+        "tags": [
+          "management"
         ]
       }
     },
@@ -34698,6 +37102,9 @@
                       },
                       "reason_code": "x",
                       "ref": "D-000123",
+                      "reminders": [
+                        {}
+                      ],
                       "resolution": "M-0001",
                       "reversible": false,
                       "risk": "low",
@@ -34711,6 +37118,7 @@
                       "thread": "TY-CEO",
                       "title": "گزارش هفتگی رشد",
                       "version": 1,
+                      "waiting_h": 1.0,
                       "what": "x",
                       "why": "x",
                       "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -34843,6 +37251,9 @@
                   },
                   "reason_code": "x",
                   "ref": "D-000123",
+                  "reminders": [
+                    {}
+                  ],
                   "resolution": "M-0001",
                   "reversible": false,
                   "risk": "low",
@@ -34856,6 +37267,7 @@
                   "thread": "TY-CEO",
                   "title": "گزارش هفتگی رشد",
                   "version": 1,
+                  "waiting_h": 1.0,
                   "what": "x",
                   "why": "x",
                   "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -34931,7 +37343,7 @@
     },
     "/api/v1/decisions/{ref}/approve": {
       "post": {
-        "description": "🔏 for A3, `hire`, `dismissal`, `budget_change`, `code_session` and\n`tool_enable` (step-up action `decision.approve`, target = the ref; a\n`tool_enable` card whose server changed since is superseded: 409\ndecision_not_pending). Creates the resolution (M-…), tells\nthe proposer, and hands the effect to the worker. Requires `Idempotency-Key`.",
+        "description": "🔏 for A3, `hire`, `dismissal`, `budget_change`, `code_session` and\n`tool_enable` (step-up action `decision.approve`, target = the ref; a\n`tool_enable` card whose server changed since is superseded: 409\ndecision_not_pending). Creates the resolution (M-…), tells\nthe proposer, and hands the effect to the worker. Requires `Idempotency-Key`.\n⟨1.5⟩ A deploy card whose PR branch moved since is set aside first (409).",
         "operationId": "approve_decision",
         "parameters": [
           {
@@ -34998,6 +37410,9 @@
                   },
                   "reason_code": "x",
                   "ref": "D-000123",
+                  "reminders": [
+                    {}
+                  ],
                   "resolution": "M-0001",
                   "reversible": false,
                   "risk": "low",
@@ -35011,6 +37426,7 @@
                   "thread": "TY-CEO",
                   "title": "گزارش هفتگی رشد",
                   "version": 1,
+                  "waiting_h": 1.0,
                   "what": "x",
                   "why": "x",
                   "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -35186,6 +37602,115 @@
         "summary": "Ask About Decision",
         "tags": [
           "decisions"
+        ]
+      }
+    },
+    "/api/v1/decisions/{ref}/diff": {
+      "get": {
+        "description": "One file's whole patch of a deploy card (≤ 2000 lines), masked like the card's.",
+        "operationId": "decision_diff",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "file",
+            "required": true,
+            "schema": {
+              "maxLength": 1000,
+              "minLength": 1,
+              "title": "File",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "additions": 1,
+                  "binary": false,
+                  "deletions": 1,
+                  "patch": "x",
+                  "path": "x",
+                  "secret_masked": false,
+                  "status": "added",
+                  "truncated": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/DiffFile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Decision Diff",
+        "tags": [
+          "management"
         ]
       }
     },
@@ -35590,6 +38115,9 @@
                   },
                   "reason_code": "x",
                   "ref": "D-000123",
+                  "reminders": [
+                    {}
+                  ],
                   "resolution": "M-0001",
                   "reversible": false,
                   "risk": "low",
@@ -35603,6 +38131,7 @@
                   "thread": "TY-CEO",
                   "title": "گزارش هفتگی رشد",
                   "version": 1,
+                  "waiting_h": 1.0,
                   "what": "x",
                   "why": "x",
                   "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -35745,6 +38274,9 @@
                   },
                   "reason_code": "x",
                   "ref": "D-000123",
+                  "reminders": [
+                    {}
+                  ],
                   "resolution": "M-0001",
                   "reversible": false,
                   "risk": "low",
@@ -35758,6 +38290,7 @@
                   "thread": "TY-CEO",
                   "title": "گزارش هفتگی رشد",
                   "version": 1,
+                  "waiting_h": 1.0,
                   "what": "x",
                   "why": "x",
                   "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -41596,6 +44129,289 @@
         ]
       }
     },
+    "/api/v1/hr/rounds": {
+      "get": {
+        "description": "The monthly HR rounds, newest first (§21.5).",
+        "operationId": "list_hr_rounds",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^1[34][0-9]{2}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "company": "TY",
+                    "decisions": [
+                      "D-000123"
+                    ],
+                    "deliverable_ref": "x",
+                    "due_at": "2026-10-17T05:42:00Z",
+                    "employees": [
+                      {
+                        "code": "TY",
+                        "efficiency": 1.0,
+                        "failed_share": 1.0,
+                        "findings_open": 1,
+                        "flags": [
+                          "promote_candidate"
+                        ],
+                        "owner_avg": 1.0,
+                        "probation_until": "2026-10-17T05:42:00Z",
+                        "refuted_claims": 1,
+                        "score": 1.0,
+                        "score_prev": 1.0,
+                        "stars": 1.0,
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "evaluator": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "month": "x",
+                    "ref": "W-000789",
+                    "state": "drafting",
+                    "teachings": [
+                      "x"
+                    ]
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HrRound"
+                  },
+                  "title": "Response List Hr Rounds",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Hr Rounds",
+        "tags": [
+          "management"
+        ]
+      }
+    },
+    "/api/v1/hr/rounds/{ref}": {
+      "get": {
+        "description": "One HR round: each employee's facts and flags, the report and the cards.",
+        "operationId": "get_hr_round",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "decisions": [
+                    "D-000123"
+                  ],
+                  "deliverable_ref": "x",
+                  "due_at": "2026-10-17T05:42:00Z",
+                  "employees": [
+                    {
+                      "code": "TY",
+                      "efficiency": 1.0,
+                      "failed_share": 1.0,
+                      "findings_open": 1,
+                      "flags": [
+                        "promote_candidate"
+                      ],
+                      "owner_avg": 1.0,
+                      "probation_until": "2026-10-17T05:42:00Z",
+                      "refuted_claims": 1,
+                      "score": 1.0,
+                      "score_prev": 1.0,
+                      "stars": 1.0,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "evaluator": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "month": "x",
+                  "ref": "W-000789",
+                  "state": "drafting",
+                  "teachings": [
+                    "x"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/HrRound"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Hr Round",
+        "tags": [
+          "management"
+        ]
+      }
+    },
     "/api/v1/inbox/summary": {
       "get": {
         "description": "Counts for the badges of the three inboxes and the notification levels.",
@@ -42362,6 +45178,13 @@
                   "public_origin": "x",
                   "service_version": "x",
                   "stream_retention_days": 1,
+                  "tts": {
+                    "enabled": false,
+                    "engine": "x",
+                    "license": "x",
+                    "version": "x",
+                    "voice": "x"
+                  },
                   "workshop": {
                     "runtime": "managed"
                   }
@@ -42388,6 +45211,529 @@
         "summary": "Get Meta",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/api/v1/notes": {
+      "get": {
+        "description": "The owner's quick notes, newest first.",
+        "operationId": "list_notes",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "promoted",
+                    "archived"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "promoted_to": {
+                        "kind": "work",
+                        "ref": "W-000789"
+                      },
+                      "ref": "W-000789",
+                      "source": "text",
+                      "status": "open",
+                      "tags": [
+                        "x"
+                      ],
+                      "text_md": "x",
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "version": 1
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_OwnerNote_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Notes",
+        "tags": [
+          "management"
+        ]
+      },
+      "post": {
+        "description": "A quick note (no model runs on it). Requires `Idempotency-Key`.",
+        "operationId": "create_note",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                "source": "text",
+                "tags": [
+                  "x"
+                ],
+                "text_md": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/OwnerNoteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "promoted_to": {
+                    "kind": "work",
+                    "ref": "W-000789"
+                  },
+                  "ref": "W-000789",
+                  "source": "text",
+                  "status": "open",
+                  "tags": [
+                    "x"
+                  ],
+                  "text_md": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Create Note",
+        "tags": [
+          "management"
+        ]
+      }
+    },
+    "/api/v1/notes/{ref}": {
+      "patch": {
+        "description": "Text, tags or `status: \"archived\"`; `If-Match: <version>`. No delete.",
+        "operationId": "patch_note",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "status": "archived",
+                "tags": [
+                  "x"
+                ],
+                "text_md": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/OwnerNotePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "promoted_to": {
+                    "kind": "work",
+                    "ref": "W-000789"
+                  },
+                  "ref": "W-000789",
+                  "source": "text",
+                  "status": "open",
+                  "tags": [
+                    "x"
+                  ],
+                  "text_md": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Patch Note",
+        "tags": [
+          "management"
+        ]
+      }
+    },
+    "/api/v1/notes/{ref}/promote": {
+      "post": {
+        "description": "A note becomes a work item (§4; `company` required), an order (§17.4)\nor an errand (§18.3), made by the existing path, and the link is kept.",
+        "operationId": "promote_note",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "title": "گزارش هفتگی رشد",
+                "to": "work"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/NotePromoteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "promoted_to": {
+                    "kind": "work",
+                    "ref": "W-000789"
+                  },
+                  "ref": "W-000789",
+                  "source": "text",
+                  "status": "open",
+                  "tags": [
+                    "x"
+                  ],
+                  "text_md": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Promote Note",
+        "tags": [
+          "management"
         ]
       }
     },
@@ -43676,6 +47022,9 @@
                     },
                     "reason_code": "x",
                     "ref": "D-000123",
+                    "reminders": [
+                      {}
+                    ],
                     "resolution": "M-0001",
                     "reversible": false,
                     "risk": "low",
@@ -43689,6 +47038,7 @@
                     "thread": "TY-CEO",
                     "title": "گزارش هفتگی رشد",
                     "version": 1,
+                    "waiting_h": 1.0,
                     "what": "x",
                     "why": "x",
                     "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -45519,6 +48869,7 @@
                   {
                     "answerable": "x",
                     "area": "x",
+                    "calendar": "gregorian",
                     "check_md": "x",
                     "evidence_md": "x",
                     "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -45619,6 +48970,7 @@
               "example": {
                 "answerable": "x",
                 "area": "truth",
+                "calendar": "gregorian",
                 "check_md": "x",
                 "evidence_md": "x",
                 "method": "rule",
@@ -45642,6 +48994,7 @@
                 "example": {
                   "answerable": "x",
                   "area": "x",
+                  "calendar": "gregorian",
                   "check_md": "x",
                   "evidence_md": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -45750,6 +49103,7 @@
               "example": {
                 "answerable": "x",
                 "area": "truth",
+                "calendar": "gregorian",
                 "check_md": "x",
                 "evidence_md": "x",
                 "method": "rule",
@@ -45773,6 +49127,7 @@
                 "example": {
                   "answerable": "x",
                   "area": "x",
+                  "calendar": "gregorian",
                   "check_md": "x",
                   "evidence_md": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -46856,16 +50211,19 @@
                     },
                     "proactive_per_day": 1
                   },
+                  "audio_briefings": {},
                   "calendars": [
                     "jalali"
                   ],
                   "ceo_daily_attention": 1,
+                  "ceo_weekly_letter": {},
                   "digest_minutes": 1,
                   "learning_daily_cap": 1,
                   "morning_report_at": "08:00:00",
                   "provision_ssh_sources": [
                     "x"
                   ],
+                  "reminders": {},
                   "substitutes": {
                     "behind_ratio": 1.0,
                     "creative_default_image": "gpt"
@@ -46912,16 +50270,33 @@
                   },
                   "proactive_per_day": 0
                 },
+                "audio_briefings": {
+                  "ceo_letters": false,
+                  "morning": false
+                },
                 "calendars": [
                   "jalali"
                 ],
                 "ceo_daily_attention": 0,
+                "ceo_weekly_letter": {
+                  "at": "x",
+                  "day": "sa",
+                  "enabled": false
+                },
                 "digest_minutes": 5,
                 "learning_daily_cap": 0,
                 "morning_report_at": "08:00:00",
                 "provision_ssh_sources": [
                   "x"
                 ],
+                "reminders": {
+                  "ages_h": [
+                    1
+                  ],
+                  "before_expiry_h": 1,
+                  "enabled": false,
+                  "fraction": 0.1
+                },
                 "substitutes": {
                   "behind_ratio": 0.0,
                   "creative_default_image": "gpt"
@@ -46948,16 +50323,19 @@
                     },
                     "proactive_per_day": 1
                   },
+                  "audio_briefings": {},
                   "calendars": [
                     "jalali"
                   ],
                   "ceo_daily_attention": 1,
+                  "ceo_weekly_letter": {},
                   "digest_minutes": 1,
                   "learning_daily_cap": 1,
                   "morning_report_at": "08:00:00",
                   "provision_ssh_sources": [
                     "x"
                   ],
+                  "reminders": {},
                   "substitutes": {
                     "behind_ratio": 1.0,
                     "creative_default_image": "gpt"
@@ -48255,6 +51633,154 @@
         "summary": "Revoke Web Subscription",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/api/v1/rankings/departments": {
+      "get": {
+        "description": "The departments of a closed period (default: the latest), best first.",
+        "operationId": "department_ranks",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "week",
+              "enum": [
+                "week",
+                "month"
+              ],
+              "title": "Period",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}(-[0-9]{2})?$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "company": "TY",
+                    "computed_at": "2026-10-17T05:42:00Z",
+                    "department": "GROWTH",
+                    "employees": 1,
+                    "key": "x",
+                    "parts": {},
+                    "period": "week",
+                    "rank_company": 1,
+                    "rank_holding": 1,
+                    "score": 1.0,
+                    "trend": [
+                      1.0
+                    ]
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DepartmentRank"
+                  },
+                  "title": "Response Department Ranks",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Department Ranks",
+        "tags": [
+          "management"
         ]
       }
     },
@@ -49774,6 +53300,166 @@
         "summary": "List Runs",
         "tags": [
           "agents"
+        ]
+      }
+    },
+    "/api/v1/runs/health": {
+      "get": {
+        "description": "The agent health board: one row per employee (by code), flags by rule.",
+        "operationId": "runs_health",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "7d",
+              "enum": [
+                "7d",
+                "30d"
+              ],
+              "title": "Period",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "claims_checked": 1,
+                      "company": "TY",
+                      "cost_usd": "2.410000",
+                      "employee": "TY-GROWTH-01",
+                      "failed_share": 1.0,
+                      "flags": [
+                        "truth"
+                      ],
+                      "owner_returns": 1,
+                      "period": "7d",
+                      "refused_share": 1.0,
+                      "refuted": 1,
+                      "refuted_share": 1.0,
+                      "retry_loops": 1,
+                      "runs": 1
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AgentHealth_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runs Health",
+        "tags": [
+          "management"
         ]
       }
     },
@@ -57434,6 +61120,16 @@
               "title": "Purpose",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "save",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Save",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -57461,6 +61157,7 @@
                   },
                   "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "language": "fa",
+                  "note_ref": "x",
                   "segments": [
                     {
                       "end_s": 1.0,
@@ -58023,6 +61720,176 @@
         ]
       }
     },
+    "/api/v1/treasury/roi": {
+      "get": {
+        "description": "ROI by code (§21.7): revenue, net and roi for companies only; an\nemployee's or a department's are always null.",
+        "operationId": "treasury_roi",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "by",
+            "required": false,
+            "schema": {
+              "default": "company",
+              "enum": [
+                "employee",
+                "department",
+                "company"
+              ],
+              "title": "By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "month",
+              "enum": [
+                "week",
+                "month"
+              ],
+              "title": "Period",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}(-[0-9]{2})?$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "accepted": 1,
+                    "attributed": {
+                      "rescued": 1,
+                      "resolved_conversations": 1
+                    },
+                    "avg_rating": 1.0,
+                    "by": "employee",
+                    "company": "TY",
+                    "cost_per_accepted_usd": "2.410000",
+                    "cost_usd": "2.410000",
+                    "key": "x",
+                    "net_usd": "2.410000",
+                    "period": "week",
+                    "period_key": "x",
+                    "revenue_usd": "2.410000",
+                    "roi": 1.0,
+                    "trend": [
+                      1.0
+                    ],
+                    "value_points": 1.0
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoiRow"
+                  },
+                  "title": "Response Treasury Roi",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Treasury Roi",
+        "tags": [
+          "management"
+        ]
+      }
+    },
     "/api/v1/treasury/summary": {
       "get": {
         "description": "Totals (tokens by kind, `cost_usd`, `equiv_cost_usd`), budget use with\nthe 70/90/100 thresholds, and the top 5 consumers.",
@@ -58168,6 +62035,190 @@
         "summary": "Treasury Summary",
         "tags": [
           "treasury"
+        ]
+      }
+    },
+    "/api/v1/treasury/waste": {
+      "get": {
+        "description": "`?day` -> one WasteDay (default yesterday); `?from&to` -> the days of\n[from, to] (at most 92). No prompt or reply text, only figures and refs.",
+        "operationId": "treasury_waste",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "day",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Day"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "day": "2026-10-17",
+                  "items": [
+                    {
+                      "category": "failed_runs",
+                      "count": 1,
+                      "tokens": 1,
+                      "top": [
+                        {
+                          "employee": null,
+                          "run_id": null,
+                          "tokens": 1,
+                          "work_ref": null
+                        }
+                      ],
+                      "usd": "2.410000"
+                    }
+                  ],
+                  "share": 1.0,
+                  "total_tokens": 1,
+                  "total_usd": "2.410000",
+                  "vs_7d": 1.0,
+                  "waste_tokens": 1,
+                  "waste_usd": "2.410000"
+                },
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/WasteDay"
+                    },
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/WasteDay"
+                      },
+                      "type": "array"
+                    }
+                  ],
+                  "title": "Response Treasury Waste"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Treasury Waste",
+        "tags": [
+          "management"
         ]
       }
     },
@@ -63099,6 +67150,125 @@
         ]
       }
     },
+    "/internal/v1/claims": {
+      "post": {
+        "description": "`claim.verdict` (A2): the fact checker, the overseer and QC; a refuted\nclaim needs evidence (422). Requires `Idempotency-Key`.",
+        "operationId": "claim_verdict",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "claim_md": "x",
+                "deliverable": "O-000456",
+                "evidence": [
+                  {
+                    "kind": "one_off",
+                    "note": "یادداشت",
+                    "ref": "W-000789"
+                  }
+                ],
+                "protocol": "x",
+                "verdict": "confirmed"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ClaimIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "checked_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "claim_md": "x",
+                  "company": "TY",
+                  "deliverable": "O-000456",
+                  "employee": "TY-GROWTH-01",
+                  "evidence": [
+                    {}
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "protocol": "x",
+                  "ref": "W-000789",
+                  "verdict": "confirmed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Claim"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Claim Verdict",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/company/state": {
       "get": {
         "description": "company.state: departments, active employees, open work by status, pending\ndecisions, kill switch, deploy freeze, budget use. A holding-scope role\nwithout `company` gets every company.",
@@ -63811,6 +67981,9 @@
                   },
                   "reason_code": "x",
                   "ref": "D-000123",
+                  "reminders": [
+                    {}
+                  ],
                   "resolution": "M-0001",
                   "reversible": false,
                   "risk": "low",
@@ -63824,6 +67997,7 @@
                   "thread": "TY-CEO",
                   "title": "گزارش هفتگی رشد",
                   "version": 1,
+                  "waiting_h": 1.0,
                   "what": "x",
                   "why": "x",
                   "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -63978,6 +68152,9 @@
                   },
                   "reason_code": "x",
                   "ref": "D-000123",
+                  "reminders": [
+                    {}
+                  ],
                   "resolution": "M-0001",
                   "reversible": false,
                   "risk": "low",
@@ -63991,6 +68168,7 @@
                   "thread": "TY-CEO",
                   "title": "گزارش هفتگی رشد",
                   "version": 1,
+                  "waiting_h": 1.0,
                   "what": "x",
                   "why": "x",
                   "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -64145,6 +68323,9 @@
                   },
                   "reason_code": "x",
                   "ref": "D-000123",
+                  "reminders": [
+                    {}
+                  ],
                   "resolution": "M-0001",
                   "reversible": false,
                   "risk": "low",
@@ -64158,6 +68339,7 @@
                   "thread": "TY-CEO",
                   "title": "گزارش هفتگی رشد",
                   "version": 1,
+                  "waiting_h": 1.0,
                   "what": "x",
                   "why": "x",
                   "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -66469,6 +70651,9 @@
                   },
                   "reason_code": "x",
                   "ref": "D-000123",
+                  "reminders": [
+                    {}
+                  ],
                   "resolution": "M-0001",
                   "reversible": false,
                   "risk": "low",
@@ -66482,6 +70667,7 @@
                   "thread": "TY-CEO",
                   "title": "گزارش هفتگی رشد",
                   "version": 1,
+                  "waiting_h": 1.0,
                   "what": "x",
                   "why": "x",
                   "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -72775,6 +76961,339 @@
           }
         },
         "summary": "Tool Treasury Usage",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/tts/claim": {
+      "post": {
+        "description": "The oldest pending briefing's spoken script; 204 when there is none or\nwhile the holding is locked (nothing is generated then).",
+        "operationId": "tts_claim",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "ref": "W-000789",
+                  "script": "x",
+                  "voice": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TtsJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "nothing to say"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tts Claim",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/tts/{id}/done": {
+      "post": {
+        "description": "The briefing's audio (raw Ogg/Opus body, ≤ 20 MB).",
+        "operationId": "tts_done",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "duration_s",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 7200,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Duration S"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "audio": {
+                    "duration_s": 1.0,
+                    "height": 1,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "image",
+                    "mime": "application/pdf",
+                    "name": "report.pdf",
+                    "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                    "size": 1,
+                    "status": "processing",
+                    "transcript": "x",
+                    "variants": {
+                      "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    },
+                    "width": 1
+                  },
+                  "audio_state": "pending",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "deliverable_ref": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "morning",
+                  "period": {},
+                  "ref": "W-000789",
+                  "text_md": "x",
+                  "voice": {
+                    "engine": "piper",
+                    "license": "x",
+                    "version": "x",
+                    "voice": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Briefing"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tts Done",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/tts/{id}/fail": {
+      "post": {
+        "description": "The voice could not be made; after three tries the briefing is `failed`.",
+        "operationId": "tts_fail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "error": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TtsFail"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Tts Fail",
         "tags": [
           "internal"
         ]

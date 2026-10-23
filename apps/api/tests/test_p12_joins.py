@@ -49,7 +49,11 @@ async def test_the_deploy_cards_diff_gets_a_second_review_that_never_approves_or
                  AND seat = 'code_review'""",
             ref,
         )
-        assert call is not None and call["state"] == "queued" and call["caller_code"] == "deploy-review"
+        assert (
+            call is not None
+            and call["state"] == "queued"
+            and call["caller_code"] == "deploy-review"
+        )
         job = (await claim(client))["job"]
         assert job["id"] == str(call["id"]) and job["checkout"] == {"repo": name, "head_sha": head}
         # The review reads the card's masked diff: the key never reaches it.
@@ -62,7 +66,9 @@ async def test_the_deploy_cards_diff_gets_a_second_review_that_never_approves_or
         shown = await client.get(f"/api/v1/decisions/{ref}", headers=owner_session["headers"])
         review = shown.json()["payload"]["second_review"]
         assert review["player"] == "gpt" and review["verified"] == 0
-        assert review["findings"][0]["path"] == "app.py" and review["findings"][0]["verified"] is None
+        assert (
+            review["findings"][0]["path"] == "app.py" and review["findings"][0]["verified"] is None
+        )
         # It never approves or blocks: the seal works as without it, and no
         # unverified finding reaches the card's risk note.
         seal = await step_up(hub, owner_session["session_id"], "decision.approve", ref)
@@ -76,7 +82,9 @@ async def test_the_deploy_cards_diff_gets_a_second_review_that_never_approves_or
 
 
 async def test_a_deploy_card_without_a_diff_queues_no_review(
-    su: Any, client: httpx.AsyncClient, repo: Any  # noqa: F811 - the fixture
+    su: Any,
+    client: httpx.AsyncClient,
+    repo: Any,  # noqa: F811 - the fixture
 ) -> None:
     co = repo["co"]
     head = repo["repo"].change(22, "print('x')\n")
@@ -115,7 +123,9 @@ async def test_a_disagreeing_cross_check_sends_the_claim_back_to_the_overseer_an
     async with bench(su, hub, cli=("gpt",)):
         await per_day(su, "gpt", "overseer_cross_check", 5)
         # Not sampled (no protocol): no cross-check.
-        plain = await _post_claim(client, fc, deliverable=dl, claim_md="ادعای بی‌نمونه", verdict="confirmed")
+        plain = await _post_claim(
+            client, fc, deliverable=dl, claim_md="ادعای بی‌نمونه", verdict="confirmed"
+        )
         assert not await su.fetchval(
             "SELECT count(*) FROM substitutes.calls WHERE purpose_kind = 'claim' AND purpose_ref = $1",
             plain["ref"],
@@ -140,10 +150,13 @@ async def test_a_disagreeing_cross_check_sends_the_claim_back_to_the_overseer_an
             assert back is not None and back["code"] == overseer
             assert sampled["ref"] in back["brief"] and "never evidence" in back["brief"]
             assert await su.fetchval("SELECT count(*) FROM quality.claims") == claims_before
-            assert await su.fetchval(
-                "SELECT count(*) FROM audit.entries WHERE action = 'claim.returned' AND target_ref = $1",
-                sampled["ref"],
-            ) == 1
+            assert (
+                await su.fetchval(
+                    "SELECT count(*) FROM audit.entries WHERE action = 'claim.returned' AND target_ref = $1",
+                    sampled["ref"],
+                )
+                == 1
+            )
             # The overseer decides it again: the same claim is not checked again.
             oc = await agent_headers(overseer)
             again = await _post_claim(client, oc, deliverable=dl, claim_md="کاربران ۲۰٪ رشد کردند",
@@ -159,7 +172,9 @@ async def test_a_disagreeing_cross_check_sends_the_claim_back_to_the_overseer_an
             job2 = (await claim(client))["job"]
             await done(client, job2["id"], ok=True,
                        text_md=json.dumps({"verdict": "unverifiable", "reason_md": "-"}))  # fmt: skip
-            row = await su.fetchrow("SELECT reply_work_id FROM substitutes.calls WHERE id = $1::uuid", job2["id"])
+            row = await su.fetchrow(
+                "SELECT reply_work_id FROM substitutes.calls WHERE id = $1::uuid", job2["id"]
+            )
             assert row["reply_work_id"] is None and other["verdict"] == "unverifiable"
         finally:
             if back is not None:
@@ -191,7 +206,8 @@ async def test_a_companys_ceo_reaches_its_seats(
         )  # fmt: skip
         assert r.status_code == 200 and r.json()["state"] == "queued", r.text
         row = await su.fetchrow(
-            "SELECT company_id, caller_code FROM substitutes.calls WHERE id = $1::uuid", r.json()["call"]
+            "SELECT company_id, caller_code FROM substitutes.calls WHERE id = $1::uuid",
+            r.json()["call"],
         )
         assert row["company_id"] == co["id"] and row["caller_code"] == f"{co['code']}-CEO"
         job = (await claim(client))["job"]
