@@ -55,6 +55,7 @@ PSEUDONYM_KEY = bytes.fromhex("33" * 32)  # kv/support/pseudonym in tests (promp
 WORKER_API_TOKEN = "test-worker-api-token-" + "4" * 40  # the connector's caller (prompt 10 §2.2)
 SUBSTITUTES_TOKEN = "test-substitutes-token-" + "5" * 40  # the runner's dispatcher (prompt 12 §9.1)
 TTS_TOKEN = "test-tts-token-" + "5" * 40  # the TTS one-shot (prompt 12 §4)
+MEDIA_TOKEN = "test-media-token-" + "6" * 40  # the render one-shot (prompt 13 §2)
 
 if "TEST_DB_HOST" not in os.environ:
     pytest.skip("needs services/scripts/test-env.sh (HQ_TEST_TARGET=api)", allow_module_level=True)
@@ -112,6 +113,7 @@ def make_secrets() -> Secrets:
             "worker": digest(WORKER_API_TOKEN),
             "substitutes": digest(SUBSTITUTES_TOKEN),
             "tts": digest(TTS_TOKEN),
+            "media": digest(MEDIA_TOKEN),
         },
         llm_router_token=ROUTER_TOKEN,
         gateway_token=GATEWAY_TOKEN,

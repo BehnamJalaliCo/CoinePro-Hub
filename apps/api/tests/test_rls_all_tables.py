@@ -814,6 +814,45 @@ async def _fill_p13a_roles(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p13a_media(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 13 §2 (migration 0028): one row of company `co` in every table of media."""
+    c = co["id"]
+    series = await su.fetchval(
+        """INSERT INTO media.series (company_id, title_fa, kind, targets, schedule, format, checks,
+               max_per_day, digest, proposed_by_kind, proposed_by_code)
+           VALUES ($1, 'ریلز', 'reel', '[]', 'FREQ=DAILY;BYHOUR=9;BYMINUTE=0', '{}', '{brand}', 2,
+                   repeat('a', 64), 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    item = await su.fetchval(
+        """INSERT INTO media.items (company_id, series_id, kind, title_fa, state, created_by_kind,
+               created_by_code) VALUES ($1, $2, 'reel', 'آیتم', 'composing', 'owner', 'owner') RETURNING id""",
+        c,
+        series,
+    )
+    comp = await su.fetchval(
+        """INSERT INTO media.compositions (company_id, item_id, n, format, sha256, source, by_kind, by_code)
+           VALUES ($1, $2, 1, 'html', repeat('b', 64), '<html lang="fa" dir="rtl"></html>', 'agent', 'X')
+           RETURNING id""",
+        c,
+        item,
+    )
+    await su.execute(
+        """INSERT INTO media.render_jobs (company_id, item_id, composition_id, purpose, spec, requested_by)
+           VALUES ($1, $2, $3, 'preview', '{}', 'X')""",
+        c,
+        item,
+        comp,
+    )
+    await su.execute(
+        """INSERT INTO media.publish_log (company_id, item_id, action, channel, placement, account, via,
+               outcome, by_kind, by_code)
+           VALUES ($1, $2, 'publish', 'telegram', 'telegram_post', 'telegram-x', 'api', 'error', 'service', 'media')""",
+        c,
+        item,
+    )
+
+
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_no_table_leaks_between_companies(
     client: httpx.AsyncClient,
@@ -829,6 +868,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p12a(su, b)
     await _fill_p12b(su, b)
     await _fill_p13a_roles(su, b)
+    await _fill_p13a_media(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
