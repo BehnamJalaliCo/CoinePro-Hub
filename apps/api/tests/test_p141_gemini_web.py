@@ -103,6 +103,10 @@ async def test_a_sign_in_from_the_owners_terminal_is_reported_by_the_dispatcher(
         assert bad.status_code in (401, 403)
         r = await client.post(url, headers=sub, json={"player": "deepseek", "via": "web"})
         assert r.status_code == 200 and r.json()["web"] == "signed_in", r.text
+        status = await su.fetchval(
+            "SELECT status FROM substitutes.players WHERE player = 'deepseek'"
+        )
+        assert status == "ready"
         r = await client.post(url, headers=sub, json={"player": "gpt", "via": "cli"})
         assert r.status_code == 200 and r.json()["login"] == "signed_in", r.text
         r = await client.post(url, headers=sub, json={"player": "gemini", "via": "cli"})
@@ -123,5 +127,6 @@ async def test_a_sign_in_from_the_owners_terminal_is_reported_by_the_dispatcher(
             before["status"],
         )
         await su.execute(
-            "UPDATE substitutes.players SET web_state = 'signed_out' WHERE player = 'deepseek'"
+            "UPDATE substitutes.players SET web_state = 'signed_out', status = 'off'"
+            " WHERE player = 'deepseek'"
         )

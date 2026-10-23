@@ -563,11 +563,18 @@ async def signed_in(tx: Tx, body: SignedInIn) -> dict[str, Any]:
             raise ApiError(
                 422, "validation_failed", fields={"via": "this player has no web profile"}
             )
+        # A player that works only on the web (DeepSeek; Gemini since ⟨1.7.2⟩) is
+        # ready once its profile is signed in; GPT's state stays its CLI's.
+        web_only = p["runner"] != "codex_cli"
         await tx.exec(
             """UPDATE substitutes.players SET web_state = 'signed_in', web_last_ok_at = now(),
-                   web_last_failure = NULL, updated_at = now()
+                   web_last_failure = NULL,
+                   status = CASE WHEN :w AND status = 'off' THEN 'ready' ELSE status END,
+                   status_reason = CASE WHEN :w AND status = 'off' THEN NULL ELSE status_reason END,
+                   updated_at = now()
                WHERE player = :p""",
             p=body.player,
+            w=web_only,
         )
     else:
         if p["runner"] != "codex_cli":  # ⟨1.7.2⟩ the Gemini CLI is gone; DeepSeek has none
