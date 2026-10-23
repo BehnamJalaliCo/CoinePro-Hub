@@ -15,6 +15,11 @@ hosts:
   - chat.deepseek.com
   - deepseek.com
   - challenges.cloudflare.com
+  # DeepSeek's captcha and risk checks (hCaptcha, AWS WAF, Shumei): without them
+  # the login says "Captcha failed to load" and a chat may be refused.
+  - hcaptcha.com
+  - awswaf.com
+  - fengkongcloud.com
 login_hosts:
   - accounts.google.com
   # Google's consent pages after sign-in (the EU consent, the account bar)
@@ -23,6 +28,7 @@ login_hosts:
   - ogs.google.com
   # Google sets the sign-in cookie on the country domain of the hub's IP too (Germany)
   - accounts.google.de
+  - cdn-apple.com
   - gstatic.com
   - appleid.apple.com
 features: [deep_thinking, web_search]
