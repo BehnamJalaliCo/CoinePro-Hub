@@ -28,3 +28,6 @@ f86f63045b68a1737d15e998046cd2a088813603:services/provisioner/tests/test_app_vau
 /scan/apps/web/src/lib/api/mock-v17.ts:generic-api-key:441
 /scan/apps/android/app/src/debug/assets/demo-fixtures.json:generic-api-key:39647
 /scan/apps/android/app/src/debug/assets/demo-fixtures.json:generic-api-key:44634
+# prompt 14: the archive's secret-scan fixture, a fake EC key (assembled at runtime since the next commit)
+3d0fecd524541003207ff96485927dc74f3bd68a:apps/api/tests/test_p14_archive.py:private-key:307
+71ed23f0801e2c2655417dbad60213342d140ebf:apps/api/tests/test_p14_archive.py:private-key:497
