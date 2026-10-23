@@ -248,7 +248,7 @@ def check_series(company: str, s: dict[str, Any]) -> dict[str, Any]:
         seen.add((p, t["account"]))
     if not s.get("targets"):
         bad["targets"] = "at least one"
-    missing = [k for k in CHECK_KEYS if k not in (s.get("checks") or [])]
+    missing = [k for k in CHECK_KEYS if k not in (s.get("checks") or CHECK_KEYS)]
     if missing:
         bad["checks"] = "all seven checks run on every item: " + ", ".join(missing)
     topics = s.get("topics")
@@ -779,7 +779,15 @@ async def _close_step_work(tx: Tx, item: dict[str, Any], why: str) -> None:
         id=item["step_work_id"],
     )
     if w is not None and w["status"] in ("queued", "in_progress", "waiting"):
-        await W.set_status(tx, w, "done", close_reason=why[:500], closed_at=datetime.now(UTC))
+        # Done with its evidence: the item's own record holds the step (HQE01).
+        await tx.exec(
+            """UPDATE work.work SET status = 'done', close_reason = :r, closed_at = now(),
+                   evidence = evidence || CAST(:e AS jsonb)
+               WHERE id = :id""",
+            id=w["id"],
+            r=why[:500],
+            e=canonical([{"kind": "media_item", "ref": item["ref"], "note": why[:300]}]),
+        )
 
 
 async def advance(tx: Tx, hub: Any, item: dict[str, Any], done: str) -> None:
@@ -1914,6 +1922,10 @@ async def tick_series(tx: Tx, hub: Any, now: datetime | None = None) -> dict[str
         for at in due:
             if at <= (s["ticked_at"] or datetime.min.replace(tzinfo=UTC)):
                 continue
+            if await tx.scalar(
+                "SELECT 1 FROM media.items WHERE series_id = :s AND slot_at = :at", s=s["id"], at=at
+            ):
+                continue  # this occurrence already has its item
             day = (
                 at.astimezone(zone)
                 .replace(hour=0, minute=0, second=0, microsecond=0)

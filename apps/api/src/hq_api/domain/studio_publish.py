@@ -333,10 +333,22 @@ def telegram_chat(site: str | None) -> str | None:
 
 
 def instagram_user(site: str | None) -> str | None:
-    m = re.fullmatch(
-        r"https?://(?:www\.)?instagram\.com/([A-Za-z0-9_.]{1,30})/?", (site or "").strip()
-    )
+    s = (site or "").strip().lstrip("@")
+    if re.fullmatch(r"[A-Za-z0-9_.]{1,30}", s):
+        return s.lower()
+    m = re.fullmatch(r"https?://(?:www\.)?instagram\.com/([A-Za-z0-9_.]{1,30})/?", s)
     return m.group(1).lower() if m else None
+
+
+def channel_of(acct: dict[str, Any]) -> str | None:
+    """Where a publishing account posts: its policy's `inject.username` (the
+    Telegram channel, "@name" or "-100…"; the Instagram page's username), as
+    the owner sets it with the account (the account's `site` is the API's host)."""
+    policy = acct.get("policy") or {}
+    if isinstance(policy, str):
+        policy = json.loads(policy or "{}")
+    name = ((policy.get("inject") or {}).get("username") or "").strip()
+    return name or None
 
 
 async def publish_due(hub: Any, only: str | None = None, limit: int = 5) -> dict[str, Any]:
@@ -564,7 +576,7 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
 async def _account(hub: Any, key: str) -> tuple[dict[str, Any] | None, str | None]:
     async with hub.db.raw() as tx:
         row = await tx.first(
-            "SELECT key, site, companies FROM tools.accounts WHERE key = :k", k=key
+            "SELECT key, site, companies, policy FROM tools.accounts WHERE key = :k", k=key
         )
     return row, await G.read_secret(getattr(hub, "bao", None), key)
 
@@ -578,10 +590,13 @@ async def _send(hub: Any, item: dict[str, Any], r: dict[str, Any]) -> dict[str, 
         return {"outcome": "error", "error": "no_render"}
     pub = publisher()
     if r["channel"] == "telegram":
-        chat = telegram_chat(acct["site"])
+        chat = telegram_chat(channel_of(acct))
         if chat is None:
             return {"outcome": "error", "error": "account_not_configured"}
-        files = [(o["name"], await _bytes(hub, o["file_id"]), _mime(o)) for o in outs[:10]]
+        files = [
+            (o["name"], await _bytes(hub, item["company_id"], o["file_id"]), _mime(o))
+            for o in outs[:10]
+        ]
         cap = caption_of(item, "telegram")
         payload: dict[str, Any]
         if len(files) > 1:
@@ -639,7 +654,7 @@ async def _send(hub: Any, item: dict[str, Any], r: dict[str, Any]) -> dict[str, 
     if me.get("outcome") != "ok":
         return {"outcome": "error", "error": _code(me)}
     user = (me.get("data") or {}).get("user_id")
-    want = instagram_user(acct["site"])
+    want = instagram_user(channel_of(acct))
     if want and str((me.get("data") or {}).get("username") or "").lower() != want:
         return {"outcome": "error", "error": "account_mismatch"}
     lim = await pub.call(
@@ -769,8 +784,8 @@ def _mime(o: dict[str, Any]) -> str:
     )
 
 
-async def _bytes(hub: Any, file_id: str) -> bytes:
-    async with hub.db.raw() as tx:
+async def _bytes(hub: Any, company_id: UUID, file_id: str) -> bytes:
+    async with hub.db.tx([company_id]) as tx:
         key = await tx.scalar(
             "SELECT storage_key FROM files.files WHERE id = :id", id=UUID(file_id)
         )
@@ -814,7 +829,7 @@ async def unpublish_due(hub: Any) -> dict[str, Any]:
             err = "remove_by_hand"
             if p["channel"] == "telegram" and p["external_id"] != "manual":
                 acct, token = await _account(hub, S.account_key("telegram", item["company"]))
-                chat = telegram_chat(acct["site"]) if acct else None
+                chat = telegram_chat(channel_of(acct)) if acct else None
                 if token and chat:
                     out = await publisher().call(
                         hub,

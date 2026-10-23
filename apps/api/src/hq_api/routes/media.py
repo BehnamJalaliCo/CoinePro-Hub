@@ -459,7 +459,7 @@ async def create_series(body: SeriesIn, request: Request, ctx: Ctx = Depends(own
             tx, ctx.who, co.id, co.code, body.model_dump(mode="json"), status="draft"
         )
         await _audit(
-            ctx, tx, co.id, "media.series.create", "A1", "series", s["ref"], s["digest"][:16]
+            ctx, tx, co.id, "series.create", "A1", "series", s["ref"], s["digest"][:16]
         )
         out = _series(await S.series_view(tx, s))
         if idem:
@@ -489,7 +489,7 @@ async def put_series(
             ctx,
             tx,
             s["company_id"],
-            "media.series.update",
+            "series.update",
             "A1",
             "series",
             ref,
@@ -513,7 +513,7 @@ async def seal_series(
             ctx,
             tx,
             s["company_id"],
-            "media.series.seal",
+            "series.seal",
             "A3",
             "series",
             ref,
@@ -524,7 +524,7 @@ async def seal_series(
             tx,
             company_id=s["company_id"],
             kind="decision",
-            action="media.series.seal",
+            action="series.seal",
             target_kind="series",
             target_ref=ref,
             data={"digest": body.digest},
@@ -543,7 +543,7 @@ async def pause_series(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Series:
         out = await S.set_series_status(
             tx, s, "paused", "مالک متوقف کرد؛ با مُهر دوباره ادامه میدهد."
         )
-        await _audit(ctx, tx, s["company_id"], "media.series.pause", "A1", "series", ref)
+        await _audit(ctx, tx, s["company_id"], "series.pause", "A1", "series", ref)
         return _series(await S.series_view(tx, out))
 
 
@@ -552,7 +552,7 @@ async def retire_series(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Series:
     async with ctx.tx() as tx:
         s = await S.load_series(tx, ref, lock=True)
         out = await S.set_series_status(tx, s, "retired", None)
-        await _audit(ctx, tx, s["company_id"], "media.series.retire", "A1", "series", ref)
+        await _audit(ctx, tx, s["company_id"], "series.retire", "A1", "series", ref)
         return _series(await S.series_view(tx, out))
 
 
@@ -630,7 +630,7 @@ async def create_item(body: ItemIn, request: Request, ctx: Ctx = Depends(owner_c
             one_off=True,
         )
         await _audit(
-            ctx, tx, co.id, "media.item.create", "A1", "media_item", item["ref"], body.kind
+            ctx, tx, co.id, "media_item.create", "A1", "media_item", item["ref"], body.kind
         )
         out = await _item(tx, item)
         if idem:

@@ -25,6 +25,8 @@ kinds := {
 	"message_template", "lifecycle_rule", "support_go_live",
 	# ⟨1.6⟩ prompt 13 §1.1 (contract §22.5): a role written on demand, the owner's seal
 	"role_new",
+	# ⟨1.6⟩ prompt 13 §2 (contract §22.6): a series sealed on its page, an item to publish
+	"media_series", "media_publish",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

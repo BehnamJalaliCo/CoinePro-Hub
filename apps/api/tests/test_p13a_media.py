@@ -21,7 +21,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -120,16 +120,21 @@ async def brand(su: Any, co: dict[str, Any]) -> None:
 
 
 async def accounts(su: Any, co: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    """The publishing accounts as the owner adds them: the API's host as the site,
+    the channel or page as inject.username, the company itself."""
     low = co["code"].lower()
-    for key, site in (
-        (f"telegram-{low}", f"https://t.me/coine_{low}"),
-        (f"instagram-{low}", f"https://www.instagram.com/coine_{low}/"),
+    for key, site, name in (
+        (f"telegram-{low}", "api.telegram.org", f"@coine_{low}"),
+        (f"instagram-{low}", "graph.instagram.com", f"coine_{low}"),
     ):
         await su.execute(
             """INSERT INTO tools.accounts (key, site, title_fa, companies, policy)
-               VALUES ($1, $2, 'انتشار', ARRAY[$3]::text[], '{}'::jsonb) ON CONFLICT (key) DO NOTHING""",
-            key, site, co["code"],
-        )  # fmt: skip
+               VALUES ($1, $2, 'انتشار', ARRAY[$4]::text[], $3::jsonb) ON CONFLICT (key) DO NOTHING""",
+            key,
+            site,
+            json.dumps({"inject": {"kind": "bearer", "username": name}}),
+            co["code"],
+        )
 
     async def secret(bao: Any, key: str) -> str | None:
         return "bot-or-page-token-for-tests" if key.endswith(f"-{low}") else None
@@ -180,14 +185,23 @@ async def seal(
     )
 
 
+async def minute_ago(su: Any) -> int:
+    """The minute, ten minutes ago, in the owner's zone (the RRULE's zone)."""
+    from zoneinfo import ZoneInfo
+
+    tz = await su.fetchval("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
+    return (datetime.now(ZoneInfo(tz)) - timedelta(minutes=10)).minute
+
+
 async def tick_one(hub: Hub, su: Any, s: dict[str, Any]) -> str:
     """Make the series' next item now: an hourly occurrence ten minutes ago."""
-    m = (datetime.now(UTC) - timedelta(minutes=10)).minute
+    m = await minute_ago(su)
     await su.execute(
-        "UPDATE media.series SET schedule = $2, ticked_at = now() - interval '20 minutes' WHERE ref = $1",
+        "UPDATE media.series SET schedule = $2, ticked_at = now() - interval '20 minutes',"
+        " sealed_at = now() - interval '25 minutes' WHERE ref = $1",
         s["ref"], f"FREQ=HOURLY;BYMINUTE={m}",
     )  # fmt: skip
-    async with _ScopedTx(hub)() as tx:
+    async with _ScopedTx(hub) as tx:
         out = await S.tick_series(tx, hub)
     made = list(out["made"])
     assert len(made) == 1, out
@@ -231,7 +245,9 @@ def jpeg() -> bytes:
 
 
 async def render(client: httpx.AsyncClient, ref: str, seconds: int = 30) -> dict[str, Any]:
-    """The render one-shot's api: claim, the outputs, done."""
+    """The render one-shot's api: claim, the outputs, done (other tests' jobs
+    are set aside first: the queue is the hub's, oldest first)."""
+    await only_this_job(ref)
     r = await client.post("/internal/v1/media/render/claim", headers=MEDIA)
     assert r.status_code == 200, r.text
     job = r.json()
@@ -253,6 +269,18 @@ async def render(client: httpx.AsyncClient, ref: str, seconds: int = 30) -> dict
                              json={"metrics": {"peak_rss_mb": 600, "seconds": 90, "frames": 900}})  # fmt: skip
     assert done.status_code == 204, done.text
     return dict(job)
+
+
+async def only_this_job(ref: str) -> None:
+    from .conftest import _su_pool
+
+    pool = await _su_pool()
+    async with pool.acquire() as c:
+        await c.execute(
+            """UPDATE media.render_jobs SET state = 'cancelled' WHERE state IN ('queued', 'claimed')
+                 AND item_id <> (SELECT id FROM media.items WHERE ref = $1)""",
+            ref,
+        )
 
 
 class FakePlatforms:
@@ -314,7 +342,7 @@ async def test_an_unsealed_series_publishes_nothing_and_an_edit_takes_the_seal_a
     s = await make_series(client, h, series_body(co["code"]))
     assert s["status"] == "draft" and s["next_at"] == [] and s["checks"] == list(S.CHECK_KEYS)
     # A draft makes no item and nothing it holds is published.
-    async with _ScopedTx(hub)() as tx:
+    async with _ScopedTx(hub) as tx:
         out = await S.tick_series(tx, hub)
     assert not [r for r in out["made"] if r.startswith("MI-")] or all(
         (await item(client, h, r))["series"] != s["ref"] for r in out["made"]
@@ -357,7 +385,7 @@ async def test_an_unsealed_series_publishes_nothing_and_an_edit_takes_the_seal_a
         "UPDATE media.series SET ticked_at = now() - interval '2 hours', schedule = 'FREQ=HOURLY;BYMINUTE=0' WHERE ref = $1",
         s["ref"],
     )
-    async with _ScopedTx(hub)() as tx:
+    async with _ScopedTx(hub) as tx:
         out = await S.tick_series(tx, hub)
     assert not await su.fetchval(
         "SELECT count(*) FROM media.items i JOIN media.series s ON s.id = i.series_id WHERE s.ref = $1 AND i.slot_at IS NOT NULL",
@@ -396,6 +424,11 @@ async def test_one_item_from_its_script_to_its_publishing(
     )
     out = await run(agents, queued[-1]["id"])
     assert out["state"] == "done", out
+    acts = await su.fetchval(
+        "SELECT actions FROM agents.steps WHERE run_id = $1 ORDER BY n DESC LIMIT 1",
+        queued[-1]["id"],
+    )
+    assert '"ok"' in str(acts), acts
     x = await item(client, h, ref)
     assert x["state"] == "directing" and x["script"]["text_fa"] == SCRIPT
     # Direction and composition (the tools' api), the voice off (no tts profile).
@@ -636,13 +669,14 @@ async def test_a_signed_url_is_one_file_for_fifteen_minutes(
 ) -> None:
     co = await new_company()
     key, sha = await hub.storage.put(b"\xff\xd8\xff" + b"0" * 64)
+    key2, _ = await hub.storage.put(b"\xff\xd8\xff" + b"0" * 64)
     async with hub.db.tx([co["id"]]) as tx:
         from hq_api.domain import files as F
 
         fid = await F.insert(tx, company_id=co["id"], name="r.jpg", mime="image/jpeg", size=67, sha256=sha,
                              storage_key=key, kind="image", by_kind="service", by_code="media")  # fmt: skip
         owners = await F.insert(tx, company_id=co["id"], name="o.jpg", mime="image/jpeg", size=67, sha256=sha,
-                                storage_key=key, kind="image", by_kind="owner", by_code="owner")  # fmt: skip
+                                storage_key=key2, kind="image", by_kind="owner", by_code="owner")  # fmt: skip
     token = P.sign(hub, fid)
     r = await client.get(f"/public/v1/media/{token}")
     assert (
@@ -718,7 +752,13 @@ async def test_nothing_runs_while_the_holding_is_locked(
     await accounts(su, co, monkeypatch)
     s = await make_series(client, h, series_body(co["code"]))
     assert (await seal(client, hub, owner_session, s)).status_code == 200
-    ref = await tick_one(hub, su, s)
+    # A one-off brought to its render (a job in the queue), the series not ticked yet.
+    r = await client.post(
+        "/api/v1/media/items",
+        headers={**h, **idem()},
+        json={"company": co["code"], "kind": "reel", "brief_md": "یک ریلز"},
+    )
+    ref = r.json()["ref"]
     for code, body in (
         (
             staff["scriptwriter"],
@@ -735,13 +775,14 @@ async def test_nothing_runs_while_the_holding_is_locked(
         ),
     ):
         assert (await tool(client, code, "item", body)).status_code == 200
-    m = (datetime.now(UTC) - timedelta(minutes=10)).minute
+    m = await minute_ago(su)
     await su.execute(
-        "UPDATE media.series SET schedule = $2, ticked_at = now() - interval '20 minutes' WHERE ref = $1",
+        "UPDATE media.series SET schedule = $2, ticked_at = now() - interval '20 minutes',"
+        " sealed_at = now() - interval '25 minutes' WHERE ref = $1",
         s["ref"],
         f"FREQ=HOURLY;BYMINUTE={m}",
     )
-    acts = StudioActivities(hub, _ScopedTx(hub))
+    acts = StudioActivities(hub, lambda: _ScopedTx(hub))
     async with holding_switch(su, "engaged"), platforms(co["code"].lower()) as fake:
         out = await acts.media_sweep()
         assert out == {"skipped": True, "reason": "holding_locked"}
@@ -757,7 +798,7 @@ async def test_nothing_runs_while_the_holding_is_locked(
             "SELECT count(*) FROM media.items WHERE series_id = (SELECT id FROM media.series WHERE ref = $1)",
             s["ref"],
         )
-        == 1
+        == 0
     )
     assert (
         await su.fetchval(
@@ -858,7 +899,7 @@ async def test_a_one_off_ends_as_a_card_and_unpublishing_removes_what_it_can(
             "SELECT payload FROM cartable.decisions WHERE ref = $1", x["decision_ref"]
         )
     )
-    assert payload["why"] == "one_off" and payload["series"] is None
+    assert payload["why"] == "one_off" and payload.get("series") is None
     # The cartable's approve publishes it (A3, step-up); a media_series card is never approved there.
     su_ = await step_up(hub, owner_session["session_id"], "decision.approve", x["decision_ref"])
     r = await client.post(
@@ -984,6 +1025,7 @@ async def test_a_design_is_rendered_to_pages_and_never_published(
         {"ref": ref, "step": "composition", "composition": {"format": "html", "source": page}},
     )
     assert r.status_code == 200, r.text
+    await only_this_job(ref)
     claim = await client.post("/internal/v1/media/render/claim", headers=MEDIA)
     job = claim.json()
     assert [o["name"] for o in job["outputs"]] == ["phone", "desktop"] and job["overlay"][
@@ -1036,6 +1078,7 @@ async def test_a_runtime_violation_sends_the_item_back_to_its_composer(
         ),
     ):
         assert (await tool(client, code, "item", body)).status_code == 200
+    await only_this_job(ref)
     job = (await client.post("/internal/v1/media/render/claim", headers=MEDIA)).json()
     done = await client.post(f"/internal/v1/media/render/{job['id']}/done", headers=MEDIA,
                              json={"violations": [{"rule": "network_request", "detail": "http://10.10.1.3/"}]})  # fmt: skip

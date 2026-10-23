@@ -147,12 +147,9 @@ async def test_the_identity_is_in_the_prompt_of_its_department_only(
     hub: Hub, new_company: Callable[..., Any], su: Any
 ) -> None:
     co = await new_company()
-    media, tech = (
-        await su.fetchval(
-            "SELECT id FROM core.departments WHERE company_id = $1 AND code = $2", co["id"], c
-        )
-        for c in ("MEDIA", "TECH")
-    )
+    sql = "SELECT id FROM core.departments WHERE company_id = $1 AND code = $2"
+    media = await su.fetchval(sql, co["id"], "MEDIA")
+    tech = await su.fetchval(sql, co["id"], "TECH")
     async with hub.db.tx([co["id"]]) as tx:
         text, doc = await DM.identity(tx, media)
         other, other_doc = await DM.identity(tx, tech)
