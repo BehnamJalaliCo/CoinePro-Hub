@@ -277,6 +277,18 @@ OP_CLASS: dict[str, str] = {
     "tts.claim": "A0",
     "tts.done": "A1",
     "claim.verdict": "A2",
+    # prompt 13, the media half (media.rego): the media studio's tools, the render
+    # one-shot's queue (service media) and the narrations of the tts one-shot
+    "media.item": "A1",
+    "media.render": "A2",
+    "media.voice": "A2",
+    "media.review": "A2",
+    "series.propose": "A1",
+    "media.jobs": "A0",
+    "media.narration": "A0",
+    # prompt 13 §1.1 (roles.rego): roles written on demand
+    "role.draft": "A1",
+    "role.decide": "A2",
 }
 
 

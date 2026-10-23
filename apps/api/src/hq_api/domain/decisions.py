@@ -46,6 +46,11 @@ KINDS = (
     "message_template",
     "lifecycle_rule",
     "support_go_live",
+    # ⟨1.6⟩ prompt 13 (contract §22.6): a series sealed on its digest, an item to
+    # publish outside a sealed series, a role written on demand
+    "media_series",
+    "media_publish",
+    "role_new",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -71,6 +76,11 @@ ACTION_CLASS = {
     "message_template": "A2",
     "lifecycle_rule": "A3",
     "support_go_live": "A3",
+    # ⟨1.6⟩ the seal on a series is the owner's A3 approval in advance of its
+    # items (§22.0); a role is a new charter, sealed like a hire
+    "media_series": "A3",
+    "media_publish": "A3",
+    "role_new": "A2",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -92,7 +102,14 @@ STEP_UP_KINDS = (
     "support_go_live",
     # ⟨1.5⟩ prompt 12 §6: a monthly HR evaluation is the owner's seal (§21.12)
     "evaluation",
+    # ⟨1.6⟩ all sealed with step-up (contract §22.6)
+    "media_series",
+    "media_publish",
+    "role_new",
 )
+# ⟨1.6⟩ cards only code writes (series.propose, the media pipeline, a role
+# draft's gates); an agent's or the owner's `propose` of one is refused.
+SYSTEM_CARD_KINDS = ("media_series", "media_publish", "role_new")
 # ⟨1.5⟩ applied in the deciding transaction, bound to their payload (§19.9)
 SEALED_CARD_KINDS = ("message_template", "lifecycle_rule", "support_go_live")
 EFFECT_KINDS = (
@@ -105,6 +122,8 @@ EFFECT_KINDS = (
     "protocol",
     "company_found",
     "evaluation",  # ⟨1.5⟩ promote / demote / dismiss / confirm (prompt 12 §6)
+    "media_publish",  # ⟨1.6⟩ the item is published through the official APIs
+    "role_new",  # ⟨1.6⟩ the draft becomes an active charter
 )
 FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
@@ -375,6 +394,62 @@ class SupportGoLivePayload(Model):
     shadow_report: dict[str, Any]
 
 
+class MediaSeriesPayload(Model):
+    """⟨1.6⟩ A series proposed for the owner's seal (contract §22.2): sealed on
+    the series page on its digest (POST /media/series/{ref}/seal), never by
+    the cartable's approve."""
+
+    series: str = Field(pattern=r"^SR-[0-9]{4,}$")
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    title_fa: str = Field(min_length=1, max_length=200)
+    kind: Literal["reel", "story", "post", "carousel"]
+    auto_publish: bool = False
+    max_per_day: int = Field(ge=1, le=20)
+    schedule: str = Field(min_length=5, max_length=500)
+    targets: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
+
+
+class MediaPlacement(Model):
+    channel: Literal["telegram", "instagram"]
+    placement: Literal[
+        "telegram_post", "telegram_story", "instagram_reel", "instagram_story", "instagram_post"
+    ]
+    account: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]{1,40}$")
+    via: Literal["api", "manual"]
+    blocked: str | None = Field(default=None, max_length=40)
+
+
+class MediaPublishPayload(Model):
+    """⟨1.6.1⟩ An item to publish outside a sealed series or after a failed
+    check (contract §22.7): approving it publishes it (A3)."""
+
+    item: str = Field(pattern=r"^MI-[0-9]{4,}$")
+    series: str | None = Field(default=None, pattern=r"^SR-[0-9]{4,}$")
+    kind: Literal["reel", "story", "post", "carousel"]
+    title_fa: str = Field(min_length=1, max_length=300)
+    why: str = Field(default="", max_length=2000)
+    placements: list[MediaPlacement] = Field(default_factory=list, max_length=10)
+    render: dict[str, Any] | None = None
+    checks: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
+
+
+class RoleNewPayload(Model):
+    """⟨1.6.1⟩ A role written on demand for the owner's seal (contract §22.7)."""
+
+    draft: str = Field(pattern=r"^RD-[0-9]{4,}$")
+    company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+    department: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,11}$")
+    role: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    title_fa: str = Field(min_length=1, max_length=120)
+    model: str = Field(min_length=3, max_length=100)
+    effort: Effort
+    limits: dict[str, Any]
+    tools_count: int = Field(ge=0, le=200)
+    review: dict[str, Any] | None = None
+    eval_score: float | None = None
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 PAYLOADS: dict[str, type[Model]] = {
     "hire": HirePayload,
     "dismissal": DismissalPayload,
@@ -394,6 +469,9 @@ PAYLOADS: dict[str, type[Model]] = {
     "message_template": MessageTemplatePayload,
     "lifecycle_rule": LifecycleRulePayload,
     "support_go_live": SupportGoLivePayload,
+    "media_series": MediaSeriesPayload,
+    "media_publish": MediaPublishPayload,
+    "role_new": RoleNewPayload,
 }
 
 
@@ -417,6 +495,9 @@ class DecisionIn(Model):
         "message_template",
         "lifecycle_rule",
         "support_go_live",
+        "media_series",
+        "media_publish",
+        "role_new",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -734,6 +815,12 @@ async def propose(
         # its seal is bound to the plan's digest (contract §18.8).
         raise ApiError(
             422, "validation_failed", fields={"kind": "a server plan comes from server.plan"}
+        )
+    if body.kind in SYSTEM_CARD_KINDS and who.kind != "service":
+        # ⟨1.6⟩ series.propose, the media pipeline and a role draft's gates make
+        # these cards, each bound to what it shows (contract §22.6)
+        raise ApiError(
+            422, "validation_failed", fields={"kind": f"a {body.kind} card is made by code"}
         )
     if body.kind == "support_go_live" and who.kind != "service":
         # ⟨1.5⟩ only a passed shadow run makes this card (contract §19.4)

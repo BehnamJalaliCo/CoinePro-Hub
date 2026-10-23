@@ -54,6 +54,8 @@ SCHEMAS = (
     # prompt 12 part B: briefings and letters; checked claims
     "reports",
     "quality",
+    # prompt 13, the media half: the media studio (people.role_drafts is in people)
+    "media",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.

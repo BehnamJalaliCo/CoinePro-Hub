@@ -81,9 +81,11 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # ⟨1.5⟩ prompt 12 part B (contract §21.12): briefing.ready, hr.round,
     # note.created, claim.verdict (decision.reminded is on `decisions`)
     "briefings": ("briefing.",),
-    "people": ("hr.",),
+    "people": ("hr.", "role."),  # ⟨1.6⟩ role.updated (contract §22.5)
     "notes": ("note.",),
     "quality": ("claim.",),
+    # ⟨1.6⟩ prompt 13 (contract §22.6): media.item (and media.series)
+    "media": ("media.",),
 }
 
 

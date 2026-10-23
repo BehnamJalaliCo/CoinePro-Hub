@@ -51,6 +51,11 @@ ops := {
 	"memo.write", "substitute.call", "substitutes.jobs",
 	# prompt 12 part B (mgmt.rego): the TTS one-shot, a checked claim
 	"tts.claim", "tts.done", "claim.verdict",
+	# prompt 13, the media half (media.rego): the media studio, the render
+	# one-shot's queue, the narrations; roles written on demand (roles.rego)
+	"media.item", "media.render", "media.voice", "media.review", "series.propose",
+	"media.jobs", "media.narration",
+	"role.draft", "role.decide",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and

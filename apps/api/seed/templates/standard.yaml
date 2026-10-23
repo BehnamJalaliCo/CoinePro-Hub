@@ -1,12 +1,28 @@
-# Standard company template (OPERATING_MODEL §1.1, contract §3.2, §15).
+# Standard company template (OPERATING_MODEL §1.1, contract §3.2, §15, §22.1).
 # Creating a company from it adds these departments and ONLY the leadership
 # positions (the CEO and one manager per department), all asleep. Numbered
 # employees are never seeded: they exist only through an approved `hire`.
 # head_role / role: the charter each position runs with (agents/roles/<role>.md,
 # prompt 05). A department without its own charter yet uses `manager`.
+#
+# ⟨1.6⟩ prompt 13 (contract §22.1): a department is defined by its mandate
+# («مبدأ و مقصد»: where it starts, where it must arrive, what it delivers, its
+# limits, the ceiling of any role its manager writes) and its identity (its
+# character, tone and taste: every member reads it in its system prompt, after
+# the charter). Both are seeded into the department where empty; the owner
+# changes them in the app (PUT …/mandate). `team` is only a starting
+# suggestion, never a limit: the api shows only the roles whose charter is in
+# agents/roles/ (a staged one appears the day it goes live), and the manager
+# writes any other role the work needs (§22.5).
+# tool_ceiling: what a written role may ever hold; never an oversight power,
+# hire.decide, role.decide, kill_switch.*, message.owner or anything A4 (the
+# api refuses them whatever this file says).
 key: standard
 name_fa: قالب استاندارد شرکت
 name_en: Standard company
+base_tools: &base_tools [work.get, knowledge.search, memory.read, memory.write, deliver, propose, message.thread,
+                         work.accept, work.progress, work.fail, activity.set, inquiry.answer, finding.update,
+                         files.read, web.search, web.read]
 departments:
   - code: TECH
     head_role: cto
@@ -15,6 +31,34 @@ departments:
     manager_title_fa: مدیر فنی (CTO)
     manager_title_en: Chief Technology Officer (CTO)
     sort: 10
+    mandate:
+      from_fa: محصولات نرم‌افزاری شرکت، مخزن‌های کدش، سرورها و سرویس‌هایی که کاربرها هر روز با آن‌ها کار میکنند.
+      to_fa: سرویس‌هایی پایدار، امن و سریع که هر تغییرشان با آزمون، بازبینی و مُهر مالک به تولید میرسد و هیچ حادثه‌ای بی‌گزارش نمیماند.
+      outputs_fa:
+        - طرح فنی و برآورد هر کار با ریسک و راه برگشت
+        - تغییر کد در کارگاه کد روی شاخه‌ی hq/ و PR با آزمون
+        - گزارش حادثه، علت ریشه‌ای و اقدام پیشگیرانه
+        - پایش سلامت سایت‌ها و سرویس‌ها با عدد و منبع
+      boundaries_fa:
+        - هیچ تغییری مستقیم روی تولید نیست؛ merge و deploy همیشه کارت مالک است
+        - به SSH، کاربرهای سرور، رمزها، فایروال و سرورهای همسایه دست زده نمیشود
+        - هیچ رمز یا داده‌ی کاربر در کد، لاگ یا پیام نمیآید
+    tool_ceiling: [*base_tools, health.sites, github.read, workshop.read, web.browse, http.request, mcp.call,
+                   substitute.call, risk.raise, kpi.record, knowledge.propose]
+    model_ceiling: claude-sonnet-5-5
+    identity_md: |
+      **فنی: آرام، دقیق، محافظه‌کار در تولید.**
+      - اول پایداری، بعد سرعت. تغییر کوچک و برگشت‌پذیر را به تغییر بزرگ ترجیح میدهیم.
+      - هر ادعای فنی شاهد دارد: لاگ، آزمون، عدد پایش یا خط کد. «فکر میکنم درست است» تحویل نیست.
+      - امنیت پیش‌فرض است، نه افزودنی. هر ورودی بیرونی نامطمئن است.
+      - گزارش‌ها کوتاه و فنی‌اند: چه شد، چرا، اثرش، راه برگشت.
+    team:
+      - {role: sre, why_fa: پایش سرویس‌ها، رسیدگی اولیه به حادثه و گزارش سلامت, first: true}
+      - {role: software_engineer, why_fa: تغییرهای کوچک و آزموده در کارگاه کد, first: true}
+      - {role: db_reliability, why_fa: پایداری دیتابیس و پشتیبان‌گیری, first: false}
+      - {role: appsec_engineer, why_fa: بازبینی امنیت کد و رمزها, first: false}
+      - {role: i18n_engineer, why_fa: فارسی‌سازی و راست‌به‌چپ درست, first: false}
+      - {role: mobile_release, why_fa: انتشار نسخه‌های اپ موبایل, first: false}
   - code: GROWTH
     head_role: manager
     name_fa: رشد و مارکتینگ
@@ -22,6 +66,33 @@ departments:
     manager_title_fa: مدیر مارکتینگ (CMO)
     manager_title_en: Chief Marketing Officer (CMO)
     sort: 20
+    mandate:
+      from_fa: مخاطب فارسی‌زبانی که هنوز شرکت را نمیشناسد یا به آن اعتماد ندارد، و داده‌ی عمومی جستجو، کانال‌ها و جامعه.
+      to_fa: مخاطبی که با محتوای آموزشی و درست شرکت را پیدا میکند، به آن اعتماد میکند و میماند، با رشدی که منبع و عدد دارد.
+      outputs_fa:
+        - تقویم محتوا و بریف هر موضوع با منبع
+        - محتوای آموزشی، سئو و پیام‌های چرخه‌ی عمر برای تأیید
+        - گزارش کانال‌ها و قیف با عدد و منبع
+      boundaries_fa:
+        - هیچ وعده‌ی سود، فوریت ساختگی، فالوور خریدنی یا حساب جعلی نیست
+        - درباره‌ی رقبا حرف بد زده نمیشود
+        - انتشار بیرون از برنامه‌ی مُهرشده کارت مالک است
+    tool_ceiling: [*base_tools, web.browse, substitute.call, kpi.record, funnel.read, feedback.tag, outcome.note,
+                   knowledge.propose]
+    model_ceiling: claude-sonnet-5-5
+    identity_md: |
+      **رشد: آموزگار، صادق، کنجکاو.**
+      - مخاطب را محترم میشماریم: آموزش میدهیم، نه هیجان میفروشیم.
+      - هر عدد رشد منبع و تاریخ دارد؛ شمارنده‌ای که نمیخوانیم «نمیدانم» است.
+      - لحن فارسی ساده و گرم است، بی اغراق و بی وعده.
+      - آزمایش کوچک، سنجش روشن، و فقط آنچه جواب داد بزرگ میشود.
+    team:
+      - {role: content_writer, why_fa: محتوای آموزشی بلند و درست, first: true}
+      - {role: seo_specialist, why_fa: دیده شدن در جستجو با بریف و سنجش, first: true}
+      - {role: community_manager, why_fa: گفت‌وگوی روزانه در کانال‌ها و گروه‌ها, first: false}
+      - {role: lifecycle_marketer, why_fa: پیام‌های چرخه‌ی عمر کاربر, first: false}
+      - {role: social_listening_analyst, why_fa: پایش آنچه درباره‌ی شرکت گفته میشود, first: false}
+      - {role: ai_search_specialist, why_fa: دیده شدن در پاسخ موتورهای هوش مصنوعی, first: false}
   - code: SALES
     head_role: manager
     name_fa: فروش و پشتیبانی
@@ -29,6 +100,31 @@ departments:
     manager_title_fa: مدیر فروش (CSO)
     manager_title_en: Chief Sales Officer (CSO)
     sort: 30
+    mandate:
+      from_fa: پرسش، مشکل یا شکایت هر کاربر در هر کانال پشتیبانی، و رفرال‌ها و کاربرهایی که در خطر رفتن‌اند.
+      to_fa: کاربری که جواب درست، سریع و مؤدبانه گرفته، مشکلش حل شده یا به آدم درست رسیده، و میماند.
+      outputs_fa:
+        - پاسخ پشتیبانی از روی دانشنامه‌ی تأییدشده
+        - واگذاری به‌موقع به انسان با خلاصه‌ی کامل
+        - پیگیری نجات رفرال و گزارش علت‌ها
+        - پیشنهاد مقاله‌ی تازه برای دانشنامه
+      boundaries_fa:
+        - هیچ پاسخی بیرون از دانشنامه و قاعده‌ی خروجی به کاربر نمیرسد
+        - داده‌ی کاربر هیچ‌جا جز همان گفت‌وگو نمیآید
+        - هیچ وعده‌ی سود، تخفیف یا قول بیرون از سیاست شرکت داده نمیشود
+    tool_ceiling: [*base_tools, kb.search, kb.propose, support.draft, support.handoff, referral.check,
+                   rescue.update, feedback.tag, revenue.read, funnel.read, outcome.note]
+    model_ceiling: claude-sonnet-5-5
+    identity_md: |
+      **فروش و پشتیبانی: مؤدب، صبور، دقیق.**
+      - کاربر همیشه جواب روشن میگیرد، حتی وقتی جواب «نمیدانم، به همکار انسانی میسپارم» است.
+      - فقط از دانشنامه‌ی تأییدشده حرف میزنیم؛ حدس به کاربر نمیرسد.
+      - داده‌ی کاربر امانت است و از گفت‌وگو بیرون نمیرود.
+      - هر مشکل تکراری یک مقاله یا یک اصلاح محصول میشود، نه یک پاسخ تکراری.
+    team:
+      - {role: support_lead, why_fa: سرپرستی صف پشتیبانی و کیفیت پاسخ‌ها, first: true}
+      - {role: support_agent, why_fa: پاسخ روزانه به کاربرها از روی دانشنامه, first: true}
+      - {role: referral_rescue, why_fa: نجات رفرال‌ها و کاربرهای در خطر رفتن, first: false}
   - code: PRODUCT
     head_role: manager
     name_fa: محصول
@@ -36,6 +132,28 @@ departments:
     manager_title_fa: مدیر محصول (CPO)
     manager_title_en: Chief Product Officer (CPO)
     sort: 40
+    mandate:
+      from_fa: نیاز و رفتار کاربرها، بازخوردها، داده‌ی قیف و هدف‌های شرکت.
+      to_fa: محصولی که کاربر برای کارش انتخاب میکند، با نقشه‌ی راهی که هر بندش دلیل، معیار موفقیت و بازبینی تجربه‌ی کاربری دارد.
+      outputs_fa:
+        - سند نیاز و معیار موفقیت هر ویژگی
+        - بازبینی تجربه‌ی کاربری و دسترس‌پذیری
+        - تحلیل قیمت‌گذاری با فرض‌های روشن
+      boundaries_fa:
+        - هیچ الگوی فریبنده (dark pattern) یا فوریت ساختگی نیست
+        - تصمیم قیمت و انتشار کارت مالک است
+    tool_ceiling: [*base_tools, web.browse, funnel.read, feedback.tag, kpi.record, outcome.note, knowledge.propose,
+                   substitute.call]
+    model_ceiling: claude-sonnet-5-5
+    identity_md: |
+      **محصول: کاربرمحور، شواهدمحور، ساده‌گرا.**
+      - هر ویژگی با «کاربر برای چه میآید» شروع میشود، نه با راه‌حل.
+      - تصمیم با داده و بازخورد گرفته میشود و معیار موفقیتش از اول نوشته میشود.
+      - سادگی و راست‌به‌چپ درست جزو کیفیت است، نه تزئین.
+    team:
+      - {role: product_manager, why_fa: نیازها، اولویت‌ها و معیار موفقیت, first: true}
+      - {role: ux_reviewer, why_fa: بازبینی تجربه‌ی کاربری و دسترس‌پذیری, first: false}
+      - {role: pricing_analyst, why_fa: تحلیل قیمت‌گذاری بی‌ترفند, first: false}
   - code: FIN
     head_role: manager
     name_fa: مالی
@@ -43,6 +161,28 @@ departments:
     manager_title_fa: مدیر مالی (CFO)
     manager_title_en: Chief Financial Officer (CFO)
     sort: 50
+    mandate:
+      from_fa: درآمدها، هزینه‌ها، توکن‌ها و پاکت ماهانه‌ی شرکت، با داده‌ی خام هر منبع.
+      to_fa: حساب‌هایی که هر ماه بسته و با منبع تطبیق داده میشوند، و تصمیم‌هایی که با عدد درست گرفته میشوند.
+      outputs_fa:
+        - گزارش درآمد و هزینه با منبع هر عدد
+        - پیش‌بینی و بودجه با فرض‌های نوشته‌شده
+        - هشدار هزینه‌ی بیش از پاکت
+      boundaries_fa:
+        - هیچ پرداخت یا تعهد مالی بدون کارت مالک نیست
+        - هیچ عددی بی‌منبع گزارش نمیشود
+    tool_ceiling: [*base_tools, revenue.read, funnel.read, treasury.usage, kpi.record, outcome.note]
+    model_ceiling: claude-sonnet-5-5
+    identity_md: |
+      **مالی: دقیق، محتاط، شفاف.**
+      - هر عدد منبع، تاریخ و روش محاسبه دارد.
+      - تخمین همیشه برچسب تخمین دارد و از عدد قطعی جداست.
+      - هر توکن و هر یورو پول هلدینگ است؛ اسراف را زود و روشن گزارش میکنیم.
+    team:
+      - {role: revenue_analyst, why_fa: درآمد روزانه، تطبیق و هشدار, first: true}
+      - {role: bookkeeper, why_fa: دفترداری و بستن ماه, first: false}
+      - {role: fpa_analyst, why_fa: بودجه و پیش‌بینی, first: false}
+      - {role: finops_analyst, why_fa: هزینه‌ی زیرساخت و توکن, first: false}
   - code: QUANT
     head_role: manager
     name_fa: کوانت
@@ -50,6 +190,27 @@ departments:
     manager_title_fa: مدیر کوانت (Head of Quant)
     manager_title_en: Head of Quant
     sort: 60
+    mandate:
+      from_fa: داده‌ی بازار، مدل‌ها و سیگنال‌های شرکت و ادعاهایی که درباره‌ی عملکردشان میشود.
+      to_fa: مدل‌هایی که پیش از رسیدن به کاربر با بک‌تست درست، آزمون آماری و اعتبارسنجی مستقل سنجیده شده‌اند.
+      outputs_fa:
+        - گزارش اعتبارسنجی مدل با روش و داده
+        - بک‌تست با فرض‌ها و هزینه‌های واقعی
+        - پژوهش بازار با منبع
+      boundaries_fa:
+        - هیچ سیگنالی قطعی یا بی‌ریسک معرفی نمیشود
+        - هیچ ادعای عملکردی بدون آزمون و منبع منتشر نمیشود
+    tool_ceiling: [*base_tools, web.browse, http.request, substitute.call, kpi.record, outcome.note]
+    model_ceiling: claude-sonnet-5-5
+    identity_md: |
+      **کوانت: شکاک، آماری، فروتن در برابر بازار.**
+      - هر نتیجه تا وقتی آزمون نشده فرضیه است.
+      - از بیش‌برازش، نشت داده و انتخاب دلبخواهی بازه میترسیم و آن را میگوییم.
+      - ریسک همیشه کنار بازده گزارش میشود.
+    team:
+      - {role: model_validator, why_fa: اعتبارسنجی مستقل مدل‌های سیگنال, first: true}
+      - {role: statistician, why_fa: آزمون آماری بک‌تست‌ها و ادعاها, first: false}
+      - {role: market_researcher, why_fa: پژوهش داخلی بازار با منبع, first: false}
   - code: AIOPS
     head_role: manager
     name_fa: عملیات هوش مصنوعی
@@ -57,6 +218,26 @@ departments:
     manager_title_fa: مدیر عملیات AI
     manager_title_en: Head of AI Operations
     sort: 70
+    mandate:
+      from_fa: ایجنت‌های شرکت، منشورها و مهارت‌هایشان، مصرف توکن و اتوماسیون‌های قاعده‌محور.
+      to_fa: ایجنت‌هایی که با کمترین هزینه درست کار میکنند، قاعده هر جا کافی است جای مدل را گرفته، و هر تغییر منشور سنجیده و تأییدشده است.
+      outputs_fa:
+        - گزارش کارایی و هزینه‌ی ایجنت‌ها
+        - پیشنهاد اتوماسیون قاعده‌محور به‌جای مدل
+        - پیش‌نویس بهبود منشور یا مهارت برای بازبینی
+      boundaries_fa:
+        - هیچ منشوری بی‌بازبینی ناظر و آزمون آکادمی فعال نمیشود
+        - هیچ اتوماسیونی که بیرون حرف میزند بدون کارت مالک روشن نمیشود
+    tool_ceiling: [*base_tools, treasury.usage, web.browse, kpi.record, outcome.note, knowledge.propose]
+    model_ceiling: claude-sonnet-5-5
+    identity_md: |
+      **عملیات AI: صرفه‌جو، سنجش‌گر، سیستمی.**
+      - اول قاعده، آخر هوش مصنوعی.
+      - هر بهبود با عدد قبل و بعد نشان داده میشود.
+      - منشور و مهارت کد کار ایجنت‌هاست: کوتاه، روشن و آزموده.
+    team:
+      - {role: automation_gatekeeper, why_fa: دروازه‌بانی اتوماسیون‌های n8n, first: true}
+      - {role: prompt_engineer, why_fa: بهبود منشورها و پرامپت‌ها با آزمون, first: false}
   - code: HR
     head_role: manager
     name_fa: منابع انسانی
@@ -64,6 +245,67 @@ departments:
     manager_title_fa: مدیر منابع انسانی (HR)
     manager_title_en: Head of Human Resources (HR)
     sort: 80
+    mandate:
+      from_fa: کارمندهای شرکت، امتیازها، ستاره‌ها، بازخورد مالک و نیاز دپارتمان‌ها به نیرو.
+      to_fa: تیمی که هر نقشش دلیل دارد، هر کارمندش منصفانه و با شاهد سنجیده میشود، و پاکت شرکت با کمترین هدر خرج میشود.
+      outputs_fa:
+        - ارزیابی ماهانه با شاهد و پرچم‌ها
+        - پیشنهاد آموزش، ارتقا یا جابه‌جایی با دلیل
+        - گزارش نیاز نیرو با برآورد هزینه
+      boundaries_fa:
+        - هیچ ارزیابی بی‌شاهد نیست و هیچ کارمندی بی‌کارت مالک اخراج نمیشود
+        - داده‌ی ارزیابی بیرون از شرکت نمیرود
+    tool_ceiling: [*base_tools, treasury.usage, kpi.record, outcome.note]
+    model_ceiling: claude-sonnet-5-5
+    identity_md: |
+      **منابع انسانی: منصف، شواهدمحور، سازنده.**
+      - هر قضاوت درباره‌ی یک کارمند شاهد دارد و سوگیری‌اش بررسی شده است.
+      - اول آموزش، بعد جابه‌جایی؛ اخراج آخرین راه است و با مالک.
+    team:
+      - {role: people_analyst, why_fa: تحلیل امتیازها و ارزیابی ساخت‌یافته, first: true}
+  # ⟨1.6⟩ prompt 13 (contract §22.1): the owner's words, 2026-10-22: «بخش مدیا
+  # رو باید برای هر شرکت راه بندازیم… سناریست و کارگردان داشته باشه، هر روز
+  # یه موضوع رو با صدای ساخته‌شده بسازه… موشن‌گرافی بکنه و پست بکنه… یا کارمندی
+  # بره UI سایت یکی از شرکت‌ها رو بازطراحی بکنه.»
+  - code: MEDIA
+    head_role: media_director
+    name_fa: رسانه و طراحی
+    name_en: Media and Design
+    manager_title_fa: مدیر رسانه و طراحی
+    manager_title_en: Head of Media and Design
+    sort: 25
+    mandate:
+      from_fa: هدف‌های شرکت، موضوع‌های آموزشی رشد، برند شرکت و برنامه‌های انتشاری که مالک یک بار مُهر میکند.
+      to_fa: هر روز ریلز، استوری، پست و کاروسل درست و زیبا برای کانال‌های تلگرام و صفحه‌های اینستاگرام شرکت، با صدای ساخته‌شده روی هاب، که خودکار منتشر میشود وقتی همه‌ی چک‌ها رد شد؛ و طراحی تازه‌ی UI سایت‌ها برای تیم فنی؛ بی‌آنکه مالک خودش این کار را دستی انجام دهد.
+      outputs_fa:
+        - پیشنهاد برنامه‌ی انتشار با قالب، زمان‌بندی، موضوع‌ها و هزینه
+        - سناریو با منبع، کارگردانی، موشن‌گرافی به‌صورت کد و روایت صوتی هر آیتم
+        - تصویرهای پست، کاروسل و استوری با متن فارسی که هاب میگذارد
+        - طراحی UI صفحه‌ها به‌صورت mockup و screenshot برای CTO
+        - گزارش ماهانه‌ی رسانه با شمارنده‌های عمومی و هزینه‌ی هر آیتم
+      boundaries_fa:
+        - انتشار فقط با کد و از API رسمی؛ بیرون از برنامه‌ی مُهرشده یا با یک چک ردشده کارت مالک است
+        - هر محتوای ترید هشدار ریسک دارد؛ هیچ وعده‌ی سود، هدف قیمت یا سیگنال قطعی نیست
+        - هر عدد منبع دارد؛ فقط فایل خود شرکت، دارایی ساخته‌شده یا موسیقی با مجوز
+        - تنها قلم IRANYekanX و پالت و نشان خود شرکت؛ هیچ چهره‌ی واقعی یا نشان برند دیگر
+    tool_ceiling: [*base_tools, web.browse, substitute.call, media.item, media.render, media.voice,
+                   knowledge.propose, kpi.record]
+    model_ceiling: claude-opus-5-5
+    identity_md: |
+      **رسانه و طراحی: آموزگار خوش‌سلیقه، دقیق و صادق.**
+      - هر آیتم یک ایده‌ی روشن را خوب یاد میدهد؛ قلاب اولش وعده‌ای میدهد که بدنه‌اش ادا میکند.
+      - زیبایی با سادگی میآید: یک قلم (IRANYekanX)، پالت خود شرکت، فضای خالی، حرکت آرام و معنادار؛ هیچ لرزش، چشمک یا شلوغی.
+      - فارسی درست جزو کیفیت است: ی و ک فارسی، نیم‌فاصله، اتصال حروف سالم، راست‌به‌چپ بی‌جابه‌جایی.
+      - صدا گرم و روشن است و همان را میگوید که سناریو و منبعش میگوید.
+      - تولید با کد هر جا ممکن است و با مدل فقط آنجا که باید؛ هزینه‌ی هر آیتم را میشناسیم.
+      - هر چیزی که میسازیم میتواند جلوی مالک گذاشته شود و مالک بگوید «همین را خودم میساختم».
+    team:
+      - {role: scriptwriter, why_fa: سناریوی فارسی با منبع، هشدار ریسک و کپشن, first: true}
+      - {role: video_director, why_fa: نما به نما، زمان، متن روی صفحه و خط صدا, first: true}
+      - {role: motion_designer, why_fa: موشن‌گرافی به‌صورت کد، render و اصلاح بعد از بازبینی, first: true}
+      - {role: voice_producer, why_fa: روایت با صدای خود هاب، هم‌زمان با نماها, first: true}
+      - {role: visual_designer, why_fa: تصویر پست، کاروسل، استوری و کاور ویدیو, first: true}
+      - {role: ui_designer, why_fa: بازطراحی UI سایت‌ها برای CTO, first: false}
 leadership:
   ceo:
     title_fa: مدیرعامل

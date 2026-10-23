@@ -34,7 +34,8 @@
           "hire.decide",
           "finding.update",
           "oversight.finding_update",
-          "kill_switch.engage"
+          "kill_switch.engage",
+          "role.decide"
         ],
         "manager": [
           "work.delegate",
@@ -52,7 +53,8 @@
           "academy.eval",
           "finding.update",
           "oversight.finding_update",
-          "feedback.tag"
+          "feedback.tag",
+          "media.review"
         ],
         "inspector": [
           "work.delegate",
@@ -90,7 +92,9 @@
           "feedback.tag",
           "support.draft",
           "support.handoff",
-          "claim.verdict"
+          "claim.verdict",
+          "media.render",
+          "media.voice"
         ],
         "assistant": [
           "errand.step",

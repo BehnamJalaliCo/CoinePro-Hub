@@ -44,10 +44,12 @@ from hq_gateway import (
     founding,  # noqa: F401 - registers server.plan (prompt 09)
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
     management,  # noqa: F401 - prompt 12 part A: memo.write, substitute.call
+    media,  # noqa: F401 - prompt 13: media.item, media.render, media.voice, media.review, series.propose
     mgmt,  # noqa: F401 - prompt 12 part B: claim.verdict
     oversight,  # noqa: F401 - registers the overseer's tools (prompt 08)
     people,  # noqa: F401 - registers stars, lessons, stories, hire.decide
     revenue,  # noqa: F401 - prompt 10: revenue.read, funnel.read, rescue, feedback, referral
+    roles,  # noqa: F401 - prompt 13 §1.1: role.draft, role.decide
     support,  # noqa: F401 - kb.*, support.draft/handoff/mystery (prompt 10)
     web,  # registers the internet tools (web.*, http.request)
 )

@@ -137,6 +137,13 @@ async def _decide(
                 "validation_failed",
                 f"seal it at /provisioning/plans/{d['payload'].get('plan')}/seal (its digest)",
             )
+        if verdict == "approved" and d["kind"] == "media_series":
+            # ⟨1.6.1⟩ sealed on the series page, on its digest (contract §22.7)
+            raise ApiError(
+                409,
+                "validation_failed",
+                f"seal it at /media/series/{d['payload'].get('series')}/seal (its digest)",
+            )
         final = D.amended(d["kind"], d["payload"], amendments)  # 422 when amended badly
         if verdict == "approved" and d["kind"] == "hire":
             # The new employee needs a real charter, else approving is refused.
