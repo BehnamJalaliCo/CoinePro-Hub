@@ -21,4 +21,7 @@ trap cleanup EXIT
 # changed sign-in script never needs a pull (14.1 §1.3; the cache makes it quick).
 "$HQ" --profile web-login build browser-web-login
 "$HQ" --profile web-login up -d web-login-relay
+since="$(date +%s)"
 "$HQ" --profile web-login run --rm --name coinepro-hq-web-login browser-web-login "$account"
+# Tell the hub, once the profile really holds this sign-in (14.1).
+"$REPO_DIR/infra/substitutes/report-signin.sh" web "$account" "$since" || true
