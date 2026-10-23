@@ -173,6 +173,14 @@ Anything inside them that would wake an agent asks `gate.holding_lock` or `gate.
 8. A search snippet is cut from the normalised text: Persian letters are kept, but آ shows as ا, because the index and the query both go through `core.fa_normalize`.
 9. "Ask the hub" (§21.2) is part of prompt 12's rest, which is not on this base. When the parent lays it under, its corpus should read records through `hq_api.archive.search.search` under the asker's clearance (the owner: everything). `knowledge.search` kind `records` is already in place.
 10. The system PDFs are rendered pages (resvg + Pillow), so they have no PDF text layer. Their text is filed from the source with `text_state: "text_layer"` (the hub wrote it).
+11. The migration chain for the parent:
+    - `0029` is the head and the only migration that validates `decisions_kind_check` and `threads_kind_check`.
+    - `0028_1` now leaves them NOT VALID (its text changed; a database that already ran it is not touched).
+    - When server/p13-media-legal, prompt 11 and the rest of prompt 12 are laid under r14:
+      - keep `0028_1` without VALIDATE;
+      - move `0029`'s down_revision to the head they end with;
+      - keep every later re-add of a kind CHECK NOT VALID.
+12. The OpenAPI file committed on the base d04b02b was main's older copy. The regenerated file matches the code.
 
 ### Owner tasks (in this order; none was done here)
 1. Turn on the `ocr` profile if the budget allows it: `make ocr-fetch` once (one download over the internet), then `make ocr-on`. Full profile only, and not with media or mcp.
@@ -181,4 +189,26 @@ Anything inside them that would wake an agent asks `gate.holding_lock` or `gate.
 4. On launch, releasing the kill switch lets the archivist run (its work items, weekly report and review items start then).
 
 ### Gates run (test name p14 and p14s, image tag p14)
-PLACEHOLDER
+- **api, the full suite once** (fresh database). It stopped at 30 failures in `test_p14_retention`, and every failure had a cause outside the archive's code:
+  - The archive tests ran after `test_hiring`, which runs the migrations down to 0009 and back up in the same session. That left the archive's open layer empty: the seed runs at deploy, not in a migration.
+    - Fixed in the tests: they reseed when the open layer is missing.
+    - Fixed in the migrations: `0028_1` no longer validates the kind CHECKs and `0029`, the head, does. Otherwise `0028_1`'s VALIDATE fails on an `archive_disposal` card during the way back up.
+  - `test_openapi` needed a description on six archive routes: added.
+  - Known, the same on the base (PROMPT_13's note):
+    - `test_inquiries_errands::test_the_advisor_v2_has_its_read_tools` needs prompt 11's tools.
+    - `test_p12a_substitutes`, `test_p12a_advisor`' locked case and `test_p12_joins`' three seat tests need the substitutes' seed, which `test_hiring`'s down-and-up removes. Run alone they pass, together with test_openapi: only test_openapi failed, and it is fixed above.
+- **api, again after the fixes:**
+  - test_p14_retention, test_hiring, test_p14_archive, test_p10_foundation, test_openapi in that order (archive cards exist before the down-and-up): all green.
+  - The 20 files the full run had not reached (test_people … test_workshop_review, with test_rls_all_tables, test_schema_rules, test_stream_topics, test_worker, test_tools_mcp, test_org_work, test_agents_more): all green except the known `test_the_advisor_v2_has_its_read_tools`.
+  - Before that: test_identity, test_p10_foundation and the archive's 19 tests (test_p14_archive 10, test_p14_retention 9), all green.
+- **services:** hq-common (with the new test_openbao_transit.py), gateway (9 new archive tests) and llm-router, all green. On r14-ocr: services/ocr, 9 passed and 4 skipped there, and all 13 with real Tesseract in the ocr image (`make ocr-test`).
+- **lint** (ruff, format, mypy --strict; api and services): green.
+- **OpenAPI** regenerated: 450 operations; against r13j's file nothing removed and no schema renamed.
+- **Other gates:**
+  - opa: 144/144 at 100% coverage.
+  - shellcheck: 80 scripts.
+  - compose-config, memory-budget and yamllint: green.
+  - gitleaks: history and tree clean. Two history findings are in `.gitleaksignore`: the secret-scan fixture's fake EC key, in my own commits 3d0fecd and 71ed23f. It is assembled at runtime since.
+  - On r14-ocr: hadolint, compose-rules, infra.sh and the backup gate.
+- The test envs p14 and p14s are down. On r14-ocr, the throwaway volume `p14o-ocr-models` (about 23 MB) is kept.
+- `make check` and `verify-live` are the parent's.
