@@ -102,6 +102,12 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "case.note",
         "email.draft",
         "mail.read",
+        # prompt 14 (contract §23.11): the archive (archive.file only makes a draft)
+        "archive.search",
+        "archive.read",
+        "archive.file",
+        "archive.link",
+        "archive.hold",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

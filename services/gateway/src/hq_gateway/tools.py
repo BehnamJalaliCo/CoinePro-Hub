@@ -201,9 +201,11 @@ class UsageIn(In):
 
 class SearchIn(In):
     q: str = Field(min_length=2, max_length=200)
-    kinds: list[Literal["resolutions", "deliverables", "decisions", "work", "messages"]] | None = (
-        None
-    )
+    # ⟨1.7⟩ `records`: archive records within the role's clearance (prompt 14)
+    kinds: (
+        list[Literal["resolutions", "deliverables", "decisions", "work", "messages", "records"]]
+        | None
+    ) = None
 
 
 class AuditIn(CompanyIn):
