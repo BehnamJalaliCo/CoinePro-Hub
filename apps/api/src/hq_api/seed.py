@@ -13,7 +13,18 @@ from typing import Any
 import yaml
 
 from hq_api.db import Tx
-from hq_api.domain import academy, brands, oversight, sites, skills, templates
+from hq_api.domain import (
+    academy,
+    brands,
+    gov_authority,
+    gov_calendar,
+    gov_checks,
+    gov_kpis,
+    oversight,
+    sites,
+    skills,
+    templates,
+)
 from hq_api.workshop import domain as workshop
 from hq_common import charters
 
@@ -91,4 +102,12 @@ async def seed(tx: Tx) -> dict[str, Any]:
     # Prompt 9.1 §5: version 1 of the brand of every company with a folder in
     # design/brand/companies/ (HQ_BRANDS_DIR, read-only; folders, not codes).
     added["brands"] = await brands.seed(tx)
+    # Prompt 11 §4, §7, §9, §12: the authority matrix (seed/authority.yaml), the
+    # official holidays, every company's standard KPIs, and PR-090/112/113/116
+    # active where only their seeded paused versions exist (a fresh database;
+    # migration 0026_1 did it on an existing one).
+    added["authority"] = await gov_authority.seed(tx)
+    added["holidays"] = await gov_calendar.seed_holidays(tx)
+    added["kpis"] = await gov_kpis.seed_all(tx)
+    added["protocols_activated"] = len(await gov_checks.activate(tx))
     return {"companies_filled": filled, **added}

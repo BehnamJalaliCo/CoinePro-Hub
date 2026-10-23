@@ -18,7 +18,18 @@ from pydantic import BaseModel, Field, ValidationError
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import errands, hiring, mcp, notify, org, oversight, recurring, stars
+from hq_api.domain import (
+    errands,
+    gov_cards,
+    gov_outcomes,
+    hiring,
+    mcp,
+    notify,
+    org,
+    oversight,
+    recurring,
+    stars,
+)
 from hq_api.domain import work as W
 from hq_api.domain.charter import CharterAmendmentPayload
 from hq_api.errors import ApiError
@@ -51,6 +62,8 @@ KINDS = (
     "meeting_resolution",
     "charter_amendment",
     "knowledge_entry",
+    # ⟨1.5⟩ prompt 11 §5, §7, §8 (contract §20.11)
+    *gov_cards.KINDS,
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -81,6 +94,7 @@ ACTION_CLASS = {
     "meeting_resolution": "A1",
     "charter_amendment": "A2",
     "knowledge_entry": "A1",
+    **gov_cards.ACTION_CLASS,
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -102,6 +116,8 @@ STEP_UP_KINDS = (
     "support_go_live",
     # ⟨1.5⟩ prompt 11 §2: sealing an amendment seals the charter (🔏)
     "charter_amendment",
+    # ⟨1.5⟩ prompt 11 (contract §20.11): 🔏 risk_acceptance, authority_change
+    *gov_cards.STEP_UP_KINDS,
 )
 # ⟨1.5⟩ applied in the deciding transaction, bound to their payload (§19.9)
 SEALED_CARD_KINDS = ("message_template", "lifecycle_rule", "support_go_live")
@@ -160,13 +176,25 @@ class RecurringPayload(Model):
     schedule: dict[str, Any] | None = None
 
 
+class DeployWindow(Model):
+    from_: datetime = Field(alias="from")
+    to: datetime
+
+
 class DeployPayload(Model):
+    """One definition of the deploy payload (contract §5.1, §21.6): ⟨1.5⟩
+    head_sha is required from prompt 11 (the proposer gives it); the window
+    puts it on the change calendar and the api writes its conflicts."""
+
     repo: str = Field(min_length=1, max_length=200)
     pr_url: str = Field(pattern=r"^https://", max_length=500)
+    head_sha: str = Field(pattern=r"^[0-9a-f]{7,40}$")
     diff_stat: str = Field(default="", max_length=2000)
     ci: dict[str, Any] = Field(default_factory=dict)
     tests: dict[str, Any] = Field(default_factory=dict)
     rollout: str = Field(default="", max_length=2000)
+    window: DeployWindow | None = None
+    calendar_conflicts: list[dict[str, Any]] | None = Field(default=None, max_length=50)
 
 
 class A3Payload(Model):
@@ -399,6 +427,7 @@ PAYLOADS: dict[str, type[Model]] = {
     "meeting_resolution": MeetingResolutionPayload,
     "charter_amendment": CharterAmendmentPayload,
     "knowledge_entry": KnowledgeEntryPayload,
+    **gov_cards.PAYLOADS,
 }
 
 
@@ -425,6 +454,10 @@ class DecisionIn(Model):
         "meeting_resolution",
         "charter_amendment",
         "knowledge_entry",
+        # ⟨1.5⟩ prompt 11 (contract §20.11)
+        "okr",
+        "risk_acceptance",
+        "authority_change",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -436,6 +469,8 @@ class DecisionIn(Model):
     reversible: bool = True
     payload: dict[str, Any] = Field(default_factory=dict)
     expires_at: datetime | None = None
+    # ⟨1.5⟩ prompt 11 §6 (contract §20.6): what the proposer expects, and by when
+    expected: gov_outcomes.DecisionExpected | None = None
 
 
 # ------------------------------------------------------------------ output --
@@ -481,6 +516,9 @@ class Decision(BaseModel):
     resolution: str | None
     thread: str | None
     digital_ceo_prediction: dict[str, Any] | None = None
+    # ⟨1.5⟩ prompt 11 §6: {metric_fa, kpi, baseline, target, by_days}; warnings ["expected_missing"]
+    expected: dict[str, Any] | None = None
+    warnings: list[str] = Field(default_factory=list)
     effect_status: str
     version: int
     created_at: datetime
@@ -526,6 +564,8 @@ def render(r: dict[str, Any]) -> Decision:
         reason_code=r["reason_code"],
         resolution=r["resolution"],
         thread=r["thread_code"],
+        expected=r.get("expected"),
+        warnings=list(r.get("warnings") or []),
         effect_status=r["effect_status"],
         version=r["version"],
         created_at=r["created_at"],
@@ -557,7 +597,7 @@ def validate_payload(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
             for e in exc.errors()[:20]
         }
         raise ApiError(422, "validation_failed", fields=fields) from exc
-    out: dict[str, Any] = json.loads(model.model_dump_json(exclude_none=True))
+    out: dict[str, Any] = json.loads(model.model_dump_json(exclude_none=True, by_alias=True))
     return out
 
 
@@ -723,6 +763,18 @@ async def propose(
             "SELECT code FROM core.companies WHERE kind = 'holding' LIMIT 1"
         )
         await charter.check_amendment(tx, who, payload, company_code, str(holding_code))
+    if body.kind in gov_cards.KINDS:  # ⟨1.5⟩ prompt 11 §5, §7, §8
+        payload = await gov_cards.check_proposal(tx, who, body.kind, payload, company_id)
+    expected = body.expected.model_dump() if body.expected else None
+    warnings = await gov_outcomes.check_expected(tx, body.kind, company_id, expected)
+    risk_note, calendar = body.risk_note, None
+    if body.kind == "deploy":  # ⟨1.5⟩ prompt 11 §9: its window and conflicts
+        payload, note, calendar = await gov_cards.deploy_payload(
+            tx, company_id, body.title, payload, body.risk, who
+        )
+        if note:
+            risk_note = ((risk_note + "\n") if risk_note else "") + note
+            risk_note = risk_note[:2000]
     # Still open: no card yet, or its card came back without an answer
     # (returned, expired, withdrawn), so the lesson may be proposed again.
     if body.kind == "lesson_adoption" and not await tx.scalar(
@@ -755,10 +807,13 @@ async def propose(
     row = await tx.one(
         """INSERT INTO cartable.decisions (company_id, kind, action_class, title, what, why,
                proposer_kind, proposer_code, work_id, quota_tokens, quota_usd, risk, risk_note,
-               reversible, payload, expires_at, thread_code, approver_kind, approver_code)
+               reversible, payload, expires_at, thread_code, approver_kind, approver_code, expected,
+               warnings)
            VALUES (:co, :kind, :cls, :title, :what, :why, :pk, :pc, :work, :qt, :qu, :risk, :rn, :rev,
-                   CAST(:payload AS jsonb), :exp, :thread, :ak, :ac)
+                   CAST(:payload AS jsonb), :exp, :thread, :ak, :ac, CAST(:expected AS jsonb), :warnings)
            RETURNING ref""",
+        expected=json.dumps(expected, ensure_ascii=False) if expected else None,
+        warnings=warnings,
         ak="agent" if approver else None,
         ac=approver,
         co=company_id,
@@ -773,13 +828,17 @@ async def propose(
         qt=body.quota_estimate.tokens if body.quota_estimate else None,
         qu=body.quota_estimate.usd if body.quota_estimate else None,
         risk=body.risk,
-        rn=body.risk_note,
+        rn=risk_note,
         rev=body.reversible,
         payload=json.dumps(payload, ensure_ascii=False),
         exp=body.expires_at,
         thread=thread_code,
     )
     d = await load(tx, row["ref"])
+    if calendar is not None and calendar[0] is not None:
+        from hq_api.domain import gov_calendar
+
+        await gov_calendar.link(tx, calendar[0], d["ref"], calendar[1])
     await events.emit(
         tx,
         company_code,
@@ -922,7 +981,10 @@ async def decide(
     amendments: dict[str, Any] | None = None,
     step_up_id: UUID | None = None,
     charters: Any = None,
+    hub: Any = None,
 ) -> dict[str, Any]:
+    """`hub` (optional): the authority matrix's numbers are asked of OPA too
+    (prompt 11 §7); without it the database row alone decides."""
     if d["status"] != "pending":
         raise ApiError(409, "decision_not_pending", f"{d['ref']} is {d['status']}")
     if verdict == "approved":
@@ -933,7 +995,7 @@ async def decide(
         # Every approval, whoever approves (contract §18.11): refused with a
         # stable code before anything changes, so no employee is made.
         await hiring.check_approval(
-            tx, d, amended("hire", d["payload"], amendments), charters, by_ceo=who.is_agent
+            tx, d, amended("hire", d["payload"], amendments), charters, by_ceo=who.is_agent, hub=hub
         )
     if verdict in ("rejected", "returned") and d["kind"] == "company_found":
         from hq_api.domain import founding
@@ -987,6 +1049,10 @@ async def decide(
 
             await knowledge.apply_card(tx, who, d)
         effect = "applied"
+    if verdict == "approved" and d["kind"] in gov_cards.KINDS:
+        # ⟨1.5⟩ prompt 11: an okr, a risk's acceptance, a matrix change (409/422: nothing changes)
+        await gov_cards.apply(tx, d, amendments)
+        effect = "applied"
     await tx.exec(
         """UPDATE cartable.decisions SET status = :st, decided_at = now(), decided_by_kind = :k,
                decided_by_code = :c, note = :note, reason_code = :rc, amendments = CAST(:am AS jsonb),
@@ -1007,6 +1073,7 @@ async def decide(
     )
     if server is not None:
         await mcp.enable_listing(tx, server)
+    await gov_cards.after_decided(tx, d, verdict)  # ⟨1.5⟩ outcome reviews, okr, the calendar
     resolution = None
     if verdict == "approved":
         # Resolutions are append-only: the follow-up work (if any) exists first

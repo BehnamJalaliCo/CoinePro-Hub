@@ -855,7 +855,14 @@ async def direct_hire(body: DirectHireIn, request: Request, ctx: Ctx = Depends(o
             notify_owner=False,
         )
         d = await D.decide(
-            tx, ctx.who, d, "approved", note=None, step_up_id=su, charters=ctx.hub.charters
+            tx,
+            ctx.who,
+            d,
+            "approved",
+            note=None,
+            step_up_id=su,
+            charters=ctx.hub.charters,
+            hub=ctx.hub,
         )
         out = await D.apply_effect(tx, d["ref"], ctx.who)
         await ctx.audit(

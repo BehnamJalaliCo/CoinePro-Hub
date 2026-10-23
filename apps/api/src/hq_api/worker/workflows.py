@@ -273,6 +273,28 @@ class SupportWeekly:
         return result
 
 
+# ⟨1.5⟩ prompt 11 §4-§10: the cards' KPIs and the governance rules. Both
+# activities ask the launch gate first and do nothing while the holding is locked.
+@workflow.defn(name="KpiCollect")
+class KpiCollect:
+    """Every 15 minutes: the cards' query KPIs by code (no model)."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("kpi_collect", limit=LONG)
+        return result
+
+
+@workflow.defn(name="GovernanceDaily")
+class GovernanceDaily:
+    """Daily: outcome reviews, the risk register, the change calendar, OKR cards."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        result: dict[str, Any] = await _act("governance_daily", limit=timedelta(minutes=15))
+        return result
+
+
 # ⟨1.5⟩ the support desk (prompt 10 §4-§7, §11): every activity asks the launch
 # gate first and does nothing while the holding or the company is locked.
 @workflow.defn(name="SupportInbound")
@@ -567,4 +589,6 @@ WORKFLOWS = [
     RescueFollowUps,
     FeedbackBatch,
     SupportWeekly,
+    KpiCollect,
+    GovernanceDaily,
 ]

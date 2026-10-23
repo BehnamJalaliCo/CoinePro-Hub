@@ -49,6 +49,9 @@ ops := {
 	# prompt 11 §1-§3: the meeting room and the knowledge base (governance_meetings.rego)
 	"meeting.statement", "meeting.challenge", "meeting.whisper", "meeting.item", "meeting.minutes",
 	"knowledge.propose", "knowledge.review", "knowledge.approve",
+	# prompt 11 §4-§10: cards, OKRs, outcomes, risks, the calendar, the matrix (governance.rego)
+	"kpi.record", "okr.draft", "okr.checkin", "outcome.note", "risk.raise", "risk.update",
+	"calendar.read", "calendar.add", "authority.read", "governance.read",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and
@@ -96,17 +99,20 @@ propose_kinds := {
 		"message_template", "lifecycle_rule",
 		# ⟨1.5⟩ prompt 11 §2: its own company's addendum (the api checks the scope)
 		"charter_amendment",
+		# ⟨1.5⟩ prompt 11 §7, §8: a change of the authority matrix, a risk's acceptance
+		"authority_change", "risk_acceptance",
 	},
 	"manager": {
 		"hire", "recurring_approval", "a3_action", "deploy", "evaluation", "dismissal", "code_session", "company_found",
 		"message_template", "lifecycle_rule",
+		"proposal", "risk_acceptance",
 	},
 	"employee": {"a3_action", "deploy", "recurring_approval", "code_session", "message_template", "lifecycle_rule"},
 	"advisor": {"proposal", "code_session", "charter_amendment"},
 	"inspector": {"proposal", "hire"},
 	# ⟨1.4⟩ prompt 08: a new or changed protocol is the owner's seal (§2); an
 	# errand's external commitment is the owner's decision (§5)
-	"overseer": {"proposal", "protocol", "charter_amendment"},
+	"overseer": {"proposal", "protocol", "charter_amendment", "authority_change"},
 	"assistant": {"proposal", "errand_action"},
 }
 

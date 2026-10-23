@@ -715,7 +715,9 @@ async def agent_hire_decide(
             company = await ctx.hub.companies.by_id(d["company_id"])
             D.check_hire_role(d["payload"], company.kind, ctx.hub.charters, required=True)
         await ctx.ensure_unlocked(tx, d["company_id"])
-        out = await D.decide(tx, ctx.who, d, verdict, note=body.note, charters=ctx.hub.charters)
+        out = await D.decide(
+            tx, ctx.who, d, verdict, note=body.note, charters=ctx.hub.charters, hub=ctx.hub
+        )
         await ctx.audit(
             tx,
             company_id=d["company_id"],

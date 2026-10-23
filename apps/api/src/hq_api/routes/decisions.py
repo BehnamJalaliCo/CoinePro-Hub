@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import decisions as D
+from hq_api.domain import gov_authority
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import Model, Page
 from hq_api.security import stepup
@@ -74,6 +75,9 @@ async def list_decisions(
         "meeting_resolution",
         "charter_amendment",
         "knowledge_entry",
+        "okr",
+        "risk_acceptance",
+        "authority_change",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,
@@ -163,6 +167,7 @@ async def _decide(
             amendments=amendments,
             step_up_id=step_up_id,
             charters=ctx.hub.charters,
+            hub=ctx.hub,
         )
         action = {
             "approved": "decision.approve",
@@ -201,6 +206,8 @@ async def _decide(
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
     await workflows_client.decision_decided(ctx.hub, ref)
+    if verdict == "approved" and d["kind"] == "authority_change":
+        await gov_authority.ensure(ctx.hub, force=True)  # ⟨1.5⟩ OPA enforces it at once
     return result
 
 

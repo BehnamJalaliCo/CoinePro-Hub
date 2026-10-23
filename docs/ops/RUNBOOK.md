@@ -1365,3 +1365,67 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 - ورودی منقضی در جستجوی ایجنت‌ها نیست و به‌عنوان شاهد (`deliver`، ادعای جلسه) `422 knowledge_expired` میگیرد.
 - **پروتکل‌های این نیمه:** `PR-111` (دانش)، `PR-114` (قاعده‌های جلسه) با کد؛ `PR-115` (خطوط قرمز) نمونه‌ای و کار ناظر. هر سه با اولین seed بعد از deploy فعال میشوند (نسخه‌ی ۲، ردیف Audit `protocol.activate`)؛ اجرایشان مثل هر پروتکل پشت قفل هلدینگ است.
 - **متغیرهای تازه:** `MEETINGS_DAILY_SHARE` (worker و llm-router)؛ `HQ_MEETINGS_SCHEDULES` (پیش‌فرض `on`؛ `off` فقط در تست: schedule‌های `hq-meetings` و `hq-knowledge-daily` ساخته میشوند ولی متوقف میمانند).
+### ۲۹.۴ سه کارت و کارت امتیاز زنده (پرامپت ۱۱ §۴، قرارداد §۲۰.۴)
+- **جدول‌ها** (migration `0026_1`): `governance.kpis` (تعریف هر KPI برای هر شرکت)، `governance.kpi_values` (سری زمانی، فقط‌افزودنی)، `governance.kpi_sets` (نسخه‌ی If-Match)، `governance.kpi_changes` (هر تغییر تعریف).
+- **منبع فقط از رجیستری بسته‌ی کد** (`hq_api/domain/gov_kpis.py`، `REGISTRY`)، هرگز SQL آزاد از داده:
+  - سلامت: `health.uptime_24h`، `health.p95_latency_ms`، `health.open_incidents`، `health.tls_min_days`
+  - خزانه: `treasury.cost_month_usd`، `treasury.budget_use_pct`، `treasury.cost_per_accepted` (ماه شمسی مالک)
+  - کار و نظارت: `work.on_time_rate`، `work.overdue_open`، `oversight.compliance`، `oversight.findings_open_high`، `stars.company_score`
+  - از ۱۰: `revenue.commission_7d_usdt`، `revenue.new_invitees_7d`، `funnel.signups_7d`، `funnel.conversion_7d`، `support.csat_30d`
+  - خود هلدینگ: `hub.services_up_pct`، `hub.backup_age_hours`، `treasury.agents_cost_month_usd`
+  - KPI دستی (`{kind: "manual"}`، مثل `users.active`) فقط با `kpi.record` و منبع `{kind, ref, note}`؛ ثبت‌کننده مدیرعامل یا مدیر همان شرکت.
+- **seed:** `apps/api/seed/kpis/standard.yaml` (داده). شرکتی که از تأسیس آمده و `proposal.kpis` دارد، آن‌ها را KPI دستی کارت رشد میگیرد؛ کارت پایداری و ایمنی-هزینه استاندارد میماند. مالک هدف‌ها را در اپ عوض میکند: `PUT /api/v1/kpis/{company}` با `If-Match`.
+- **جمع‌آوری:** schedule `hq-kpi-collect` هر ۱۵ دقیقه در worker، **بی‌مدل و بی‌تماس بیرونی**. مقدار فقط وقتی عوض شده یا یک ساعت گذشته ردیف تازه میشود. تا قفل هلدینگ هست هیچ کاری نمیکند (`skipped: holding_locked`).
+- **وضعیت‌ها:** `ok`؛ `stale` («قدیمی»: کهنه‌تر از `freshness_hours`، با رویداد `kpi.stale` یک بار در هر دوره)؛ `no_source` («منبع وصل نیست»: منبعی ساخته نشده یا داده‌ای نیست). **عدد نبود هرگز صفر نیست.**
+- **کارت هلدینگ:** KPIهای خود هلدینگ به‌علاوه‌ی KPIهای شرکت‌ها، تجمیع‌شده با `aggregate` هر KPI (`sum`، `avg`، `min`، `max`). شرکتی که مقدار ندارد بیرون میماند.
+- **امتیاز شرکت** (۳۵٪ «تحقق KPI» فرمول پرامپت ۸): اگر OKR فصل جاری فعال است، پیشرفت وزنی KRها؛ وگرنه سهم KPIهای کارت امتیاز با مقدار و هدف که به هدف رسیده‌اند (`gov_kpis.attainment`).
+- **PR-090** فعال است: KPIِ کهنه یک یافته میشود؛ KPIِ بی‌منبع یافته نیست.
+
+### ۲۹.۵ OKR هر شرکت (پرامپت ۱۱ §۵، قرارداد §۲۰.۵)
+- فصل شمسی: `1405-Q3` یعنی مهر تا آذر. مدیرعامل در ماه آخر فصل با `okr.draft` (فصل جاری بی‌OKR یا فصل بعد) هدف‌ها و نتیجه‌های کلیدی را مینویسد. نتیجه **یک** کارت `okr` برای مالک است.
+- مالک کارت را با اصلاح (`amendments: {key_result_changes: [{ref, target?, weight?, title_fa?}], objective_changes: [{ref, title_fa?}]}`) یا بی‌اصلاح مُهر میکند؛ **فقط مُهر** OKR را `active` میکند و OKRهای فعال قبلی همان فصل بسته میشوند. کارتی که رد، برگشت یا منقضی شد، هدف‌ها را `draft` میکند.
+- KR یا به KPI وصل است (مقدار جاری همان KPI) یا سنجه‌ی دستی با `okr.checkin` و شاهد. check-in دست‌کم هر ۱۴ روز؛ دیرکرد = یافته‌ی **PR-116**. پیشنهاد نشدن OKR فصل بعد ۳۰ روز پیش از شروعش هم یافته‌ی PR-116 است.
+- `hq-governance-daily` (۰۶:۱۰ به وقت مالک، پشت قفل هلدینگ) در ماه آخر فصل برای هر مدیرعامل یک کار «OKR فصل بعد» میسازد (یک بار).
+- `Work.key_result` از `POST /work` و `work.delegate` (کار فرزند KR والد را به ارث میبرد)؛ پلنر برچسب KR را نشان میدهد.
+
+### ۲۹.۶ بازبینی نتیجه‌ی تصمیم‌ها (پرامپت ۱۱ §۶، قرارداد §۲۰.۶)
+- `Decision.expected = {metric_fa, kpi?, baseline, target, by_days: 30|60|90}`. برای `proposal`ی که بعد از deploy این پرامپت ساخته شود اجباری است: **۷ روز اول** فقط هشدار `warnings: ["expected_missing"]` روی کارت، بعد `422`. شروع این ۷ روز ردیف `governance.rollout` با کلید `p11.governance` است (زمان اجرای migration). کارت‌های قبلی دست نمیخورند.
+- با مُهر، برای روز ۳۰، ۶۰ و ۹۰ (تا `by_days`) ردیف `OR-…` ساخته میشود. در روز موعد (`hq-governance-daily` و PR-006):
+  - با KPI: حکم با کد (`met` در هدف، `partly` در نیمه‌ی راه یا بیشتر، وگرنه `missed`)، وضعیت `verified`.
+  - بی‌KPI: `unmeasurable`؛ پیشنهاددهنده `outcome.note` با شاهد میدهد؛ ناظر در PR-006 با `protocol.result` و فیلد `outcomes: [{ref, verdict, note_md}]` حکم میدهد. یادداشتی که ۷ روز بعد از موعد نیامده یافته‌ی PR-006 است.
+- دقت پیش‌بینی هر پیشنهاددهنده: `GET /api/v1/outcomes/accuracy` = (met + partly/۲) / حکم‌شده‌ها.
+- هیچ اجرای قبلی PR-006 حکمی ثبت نکرده بود (هلدینگ قفل بوده)، پس داده‌ای برای انتقال نبود.
+
+### ۲۹.۷ ماتریس اختیار (پرامپت ۱۱ §۷، قرارداد §۲۰.۷)
+- ردیف‌ها در `governance.authority` (بی‌شرکت، پیکربندی هلدینگ)، seed از `apps/api/seed/authority.yaml`. seed ردیف‌های قفل را هر بار از کد بازنویسی میکند؛ `actor` و `limit` ردیف‌های باز مال مالک است و میماند.
+- **ثابت‌های قفل** (`locked: true`، از کد، غیرقابل تغییر):
+  - `a4.never`: A4 هرگز برای هوش مصنوعی.
+  - `a3.owner_only`: A3 فقط مالک. **ارسال پیشاپیش مُهرشده** (قاعده‌ی `lifecycle_rule` مُهرشده با قالب مُهرشده‌ی جاری، `auto_send` کانالی که با `support_go_live` زنده شد) تأیید A3 خود مالک است و مجاز میماند؛ rego و کد این را از خود مُهرها میخوانند، نه از ماتریس.
+  - `a3.ceo_content_calendar`: انتشار پست تقویم محتوا با مدیرعامل خاموش است تا تقویم محتوا ساخته شود.
+  - `decision.proposer_not_approver`، `control.release_owner_only` (کلید توقف و hold)، `authority.owner_only` (هیچ ایجنتی ماتریس را تغییر نمیدهد)، `batch.never`.
+- **ردیف‌های باز و پیش‌فرض‌ها:** `hire.per_day` ۵ (۰ تا ۲۰)، `ceo.attention_per_day` ۶ (همان `owner.settings.ceo_daily_attention`)، `notify.urgent_per_hour` ۵ (۱ تا ۳۰)، `story.per_day` ۳ (۰ تا ۱۰)، `deploy.blackout_days` جمعه، `decision.recurring_approval.ceo` و `knowledge.approve.company` (مدیرعامل؛ مالک با `actor: "owner"` پس میگیرد)، `batch.max_usd` ۲ دلار (۰ تا ۲۰)، `batch.max_items` ۲۰ (۱ تا ۵۰)، `batch.kinds`.
+- **تغییر:** مالک `PUT /api/v1/authority` 🔏 `authority.update` روی SHA-256 بدنه، `{rules: [{key, actor?, limit, version}]}`. ردیف قفل یا عدد بیرون از `bounds` → `422`؛ نسخه‌ی کهنه → `409`. ایجنت‌ها فقط کارت `authority_change` 🔏 پیشنهاد میدهند و `authority.read` ردیف‌های شرکت خودشان را میخوانند.
+- **OPA:** api ردیف‌ها را به `data.hq.authority` میفرستد (`PUT /v1/data/hq/authority`، تنها نوشتن داده‌ای که `system.authz` اجازه میدهد): در اولین استفاده، بعد از هر تغییر، و هر وقت digest نسخه‌ی OPA (`POST /v1/data/hq/limits/version`) با پایگاه داده نخواند (مثلاً بعد از ری‌استارت OPA؛ حداکثر هر ۶۰ ثانیه در هر پروسه). package `hq.limits` هر عدد را در `bounds` فایل (`data.json` → `authority_bounds`، `authority_lists`، `never_batch`) نگه میدارد؛ پس داده‌ی جعلی فقط داخل همان مرزها حرکت میکند و ثابت‌های قفل اصلاً این داده را نمیخوانند.
+- **مرزها دو جا هستند** (seed و `infra/opa/policy/data.json`)؛ اگر یکی عوض شد، دیگری هم (تست `test_the_bounds_of_the_files_agree` همین را میسنجد).
+
+### ۲۹.۸ دفتر ریسک (پرامپت ۱۱ §۸، قرارداد §۲۰.۸)
+- `RK-…`، امتیاز = احتمال × اثر. نگه‌دار: بازرس کل (QC). سقف `review_at`: امتیاز ۱۵+ ← ۱۴ روز، ۸+ ← ۳۰، بقیه ۹۰.
+- `hq-governance-daily`: پذیرش منقضی ← `open`؛ بازبینی دیرکرده ← یک کار برای پاسخ‌گو (یک بار برای هر موعد)؛ یافته‌ی `critical` هفته‌ی اخیر ← پیش‌نویس ریسک (`draft: true`). **PR-112** بعد از آن یافته میسازد، و برای ریسک ۱۵+ بی‌راه کاهش و بی‌پذیرش.
+- پذیرش فقط با کارت `risk_acceptance` 🔏، حداکثر ۹۰ روز. بستن فقط با بازرس (یا مالک)؛ پاسخ‌گو خودش نمیبندد.
+- کالبدشکافی پیش‌نویس ریسک را با `gov_risks.draft_risk(..., origin="postmortem")` میسازد (نقطه‌ی ورود نیمه‌ی دیگر پرامپت).
+
+### ۲۹.۹ تقویم تغییرات و انتشارها (پرامپت ۱۱ §۹، قرارداد §۲۰.۹)
+- `CE-…`. کد پرش میکند: کارت deploy با `window` (پیش از ساختن کارت؛ `head_sha` از این پرامپت اجباری)، فریزها، پشتیبان شبانه‌ی هاب (۰۲:۳۰ UTC) و تست بازیابی هفتگی (یکشنبه ۰۶:۰۰ تهران)، جلسه‌ها (بی استندآپ‌ها؛ یک ساعت، `auto_key` = `meeting:MT-…`؛ جلسه‌ی `missed` از تقویم کنار میرود؛ پلنر خود جلسه را نشان میدهد، نه این رویداد را)، تعطیلات رسمی (`apps/api/seed/calendar/holidays.yaml`). کمپین و رویداد با `calendar.add` (مدیرعامل، مدیر رشد شرکت خودش، سرپرست‌های هلدینگ) یا مالک.
+- **تعطیلات:** روزهای خورشیدی دقیق‌اند؛ روزهای قمری تخمین جدولی‌اند و ممکن است یک روز با تقویم رسمی فرق کنند. هر سال با تقویم رسمی چک و فایل را اصلاح کن (seed فقط روز تازه اضافه میکند؛ روز اشتباهِ ثبت‌شده را با `PATCH /api/v1/calendar/{ref}` جابه‌جا یا `cancelled` کن).
+- **تداخل‌ها** (کد): انتشار داخل فریز و انتشار هم‌زمان با کمپین یا رویداد همان شرکت `high`؛ دو انتشار یک شرکت یا یک repo، روز ممنوع ماتریس، تعطیلی و نگه‌داری هم‌زمان `medium`. روی کارت در `payload.calendar_conflicts` و `risk_note` میآید و رویداد `calendar.conflict` میفرستد. **تقویم تصمیم نمیگیرد**؛ **PR-113** انتشار تأییدشده‌ی بی‌پنجره یا با تداخل `high` را یافته میکند.
+- پلنر رویدادهای تقویم را هم نشان میدهد (`kind: "calendar"`)؛ پلنر همچنان نما است.
+
+### ۲۹.۱۰ مُهر گروهی کارت‌های کم‌ریسک (پرامپت ۱۱ §۱۰، قرارداد §۲۰.۱۰)
+- **فهرست مجاز** (ردیف `batch.kinds`، مالک فقط کوتاه‌ترش میکند): `proposal`، `meeting_resolution`، `knowledge_entry`. شرط‌های دیگر: A1، ریسک low، برگشت‌پذیر، pending، تأییدکننده مالک، بی‌hold، بی‌اصلاح، `quota_estimate.usd ≤ batch.max_usd` (کارتی که برآورد توکن دارد ولی دلار ندارد شایسته نیست).
+- **هرگز گروهی** (ثابت قفل `batch.never`): هر A3، `hire`، `dismissal`، `budget_change`، `code_session`، `server_plan`، `deploy`، `company_found`، `tool_enable`، `protocol`، `errand_action`، `evaluation`، `charter_amendment`، `authority_change`، `risk_acceptance`، `okr`، `recurring_approval`، `lesson_adoption`، `message_template`، `lifecycle_rule`، `support_go_live`.
+- `GET /api/v1/decisions/batchable` ← `POST /api/v1/decisions/batch/approve` 🔏 `decision.batch` روی SHA-256 JSON کانونی `[{ref, version}]` مرتب‌شده بر اساس ref (`Idempotency-Key` اجباری). همه یا هیچ: `422 batch_not_eligible` با `fields.items: [{ref, reason}]`. هر کارت مصوبه، ردیف Audit (`batch: B-…`) و interaction خودش را دارد.
+
+### ۲۹.۱۱ دروازه‌ی راه‌اندازی برای کارهای حاکمیت (پرامپت ۱۱ §۴ تا §۱۰)
+- `hq-kpi-collect` و `hq-governance-daily` اول `gate.holding_lock` را میپرسند و تا کلید توقف هلدینگ روشن است **هیچ کاری** نمیکنند (نه ردیف، نه کار، نه مدل، نه تماس بیرونی). هیچ‌کدام مدل صدا نمیزند.
+- PR-006، PR-090، PR-112، PR-113 و PR-116 مثل همه‌ی پروتکل‌ها در قفل هلدینگ `skipped` میشوند (بی‌ردیف اجرا).
+- کاری که این jobها میسازند (بازبینی ریسک، OKR فصل بعد) تنها چیزی است که میتواند ایجنتی را بیدار کند، و فقط وقتی قفل نیست.

@@ -90,6 +90,17 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "knowledge.propose",
         "knowledge.review",
         "knowledge.approve",
+        # prompt 11 §4-§10 (contract §20.11): cards, OKRs, outcomes, risks, the calendar, the matrix
+        "kpi.record",
+        "okr.draft",
+        "okr.checkin",
+        "outcome.note",
+        "risk.raise",
+        "risk.update",
+        "calendar.read",
+        "calendar.add",
+        "authority.read",
+        "governance.read",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, workflows_client
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
-from hq_api.domain import control, errands, founding, hiring, inquiries, notify, org
+from hq_api.domain import control, errands, founding, gov_authority, hiring, inquiries, notify, org
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
 from hq_api.domain import work as W
@@ -62,6 +62,7 @@ class Delegate(Model):
     priority: Priority | None = None
     due_at: datetime | None = None
     budget: W.BudgetIn | None = None
+    key_result: str | None = Field(default=None, pattern=r"^KR-[0-9]{4,}$")  # ⟨1.5⟩ prompt 11 §5.3
 
 
 class UsageIn(Model):
@@ -276,6 +277,17 @@ OP_CLASS: dict[str, str] = {
     "knowledge.propose": "A1",
     "knowledge.review": "A2",
     "knowledge.approve": "A2",
+    # prompt 11 §4-§10 (governance.rego): cards, OKRs, outcomes, risks, the calendar, the matrix
+    "kpi.record": "A2",
+    "okr.draft": "A1",
+    "okr.checkin": "A2",
+    "outcome.note": "A1",
+    "risk.raise": "A1",
+    "risk.update": "A2",
+    "calendar.read": "A0",
+    "calendar.add": "A2",
+    "authority.read": "A0",
+    "governance.read": "A0",
 }
 
 
@@ -456,6 +468,7 @@ async def delegate_work(
             priority=body.priority,
             due_at=body.due_at,
             budget=body.budget,
+            key_result=body.key_result,
         )
         await _audit_work(
             ctx, tx, child, "work.delegate", f"from {w['ref']} to {body.to}", cls="A2"
@@ -889,6 +902,7 @@ async def _agent_decide(
             return idem.replay
         d = await D.load(tx, ref, lock=True)
         quota_ok = await D.within_quota(tx, d)
+        await gov_authority.ensure(ctx.hub)  # ⟨1.5⟩ the matrix may take a kind back (prompt 11 §7)
         await allow(
             ctx,
             "decision.approve",
@@ -1067,7 +1081,10 @@ async def raise_notification(
                     "SELECT pg_advisory_xact_lock(:k)", k=advisory_key("urgent", company.id)
                 )
                 n = await notify.counts(tx, datetime.now().astimezone(), ctx.who.code, company.id)
-                if n["company_urgent_hour"] >= notify.AGENT_URGENT_PER_HOUR:
+                cap = await gov_authority.limit_value(  # ⟨1.5⟩ the matrix's row
+                    tx, "notify.urgent_per_hour", notify.AGENT_URGENT_PER_HOUR
+                )
+                if n["company_urgent_hour"] >= cap:
                     if locked:
                         raise ApiError(
                             429,

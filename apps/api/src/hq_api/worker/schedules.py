@@ -25,6 +25,9 @@ Schedule ids:
                               advance, war rooms, postmortems, standups); nothing while locked
     hq-knowledge-daily        daily 06:30 (owner's zone)  KnowledgeDaily (prompt 11 §3.3: expiry,
                               rule-only; the 14-day review work waits while locked)
+    hq-kpi-collect            every 15 min  KpiCollect (prompt 11 §4.3; no model)
+    hq-governance-daily       daily 06:10 (owner's zone)  GovernanceDaily (prompt 11 §5, §6, §8, §9)
+                              (both ask the launch gate and do nothing while locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -75,6 +78,8 @@ TEHRAN = "Asia/Tehran"  # the exchange's settlement times are real times, not th
 SUPPORT_SWEEP = "hq-support-sweep"
 MEETINGS = "hq-meetings"
 KNOWLEDGE_DAILY = "hq-knowledge-daily"
+KPI_COLLECT = "hq-kpi-collect"
+GOVERNANCE_DAILY = "hq-governance-daily"
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -94,6 +99,8 @@ FIXED = (
     SUPPORT_WEEKLY,
     MEETINGS,
     KNOWLEDGE_DAILY,
+    KPI_COLLECT,
+    GOVERNANCE_DAILY,
 )
 
 
@@ -255,13 +262,13 @@ def fixed(
             timedelta(minutes=30),
         ),
         *revenue_fixed(),
-        *governance_fixed(tz, paused=meetings_paused),
+        *governance_fixed(tz, meetings_paused=meetings_paused),
     ]
 
 
-def governance_fixed(tz: str, *, paused: bool = False) -> list[Desired]:
-    """Prompt 11 §1-§3: they gate themselves (hq_api.domain.gate); paused only
-    when HQ_MEETINGS_SCHEDULES=off (tests)."""
+def governance_fixed(tz: str, *, meetings_paused: bool = False) -> list[Desired]:
+    """Prompt 11: they gate themselves (hq_api.domain.gate). §1-§3's two are
+    paused only when HQ_MEETINGS_SCHEDULES=off (tests); §4-§10's never."""
     return [
         Desired(
             MEETINGS,
@@ -270,7 +277,7 @@ def governance_fixed(tz: str, *, paused: bool = False) -> list[Desired]:
             every(1),
             timedelta(minutes=2),
             timedelta(minutes=5),
-            paused=paused,
+            paused=meetings_paused,
         ),
         Desired(
             KNOWLEDGE_DAILY,
@@ -279,7 +286,18 @@ def governance_fixed(tz: str, *, paused: bool = False) -> list[Desired]:
             daily_at(time(6, 30), tz),
             timedelta(hours=12),
             timedelta(minutes=15),
-            paused=paused,
+            paused=meetings_paused,
+        ),
+        Desired(
+            KPI_COLLECT, "KpiCollect", (), every(15), timedelta(minutes=15), timedelta(minutes=5)
+        ),
+        Desired(
+            GOVERNANCE_DAILY,
+            "GovernanceDaily",
+            (),
+            daily_at(time(6, 10), tz),
+            timedelta(hours=12),
+            timedelta(minutes=15),
         ),
     ]
 
