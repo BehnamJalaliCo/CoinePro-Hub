@@ -1,0 +1,75 @@
+PROMPT_13 REPORT (the media studio of every company and the holding's legal counsel)
+
+## Legal and voice (branch r13b: §3, §4, and the legal and voice rows of §5 and §6)
+- Branch **r13b** from `dev/p13-base` 4f59c82 (prompt 10 + prompt 12's two parts joined, Piper TTS off, + main up to "Prompt 13 sent"); nothing else merged. The media studio (§1, §1.1, §2) is r13a's. **Not deployed.**
+- **Migration:** `apps/api/migrations/versions/0028_1_legal_voice.py`, revision **0028_1**, down_revision **0027_1** (the parent re-chains it after r13a's 0028). Schema `legal` (cases, case_events, emails, mailbox) and in `media` (created only if missing: r13a's 0028 may make it) the tables voices, voice_samples, speech_jobs, voice_references; every table company_id + FORCE RLS + no delete (case_events and voice_samples append-only). Decision kind `email_send` and thread kind `legal` are added NOT VALID and then validated in their own statement (the head validates); thread code `L`; the wake trigger wakes the counsel on an owner message in L at P2; task classes `legal_case`, `legal_email`.
+  - Two older migrations changed so a down-and-up run (test_hiring: 0009 → head) keeps later rows: **0018** adds its two thread CHECKs NOT VALID, **0025** its decision-kind CHECK NOT VALID (0028_1 validates both at the head). Deployed databases are not affected (those revisions already ran).
+- **Hub state kept:** holding kill switch and `HQ_MORNING_REPORT_LLM=off` untouched; `HQ_PROVISIONING` off; no owner login, key or token used; `HQ_TTS` stays off; no published port; real-model tokens spent: **0**.
+- **What could wake a model or an outside call, and its gate:**
+  - the mail poller `hq-legal-mail-poll` (every 5 min): nothing at all while the holding is locked (no mailbox call); without the `mail` account nothing either;
+  - the bake-off schedule `hq-voice-bakeoff` (daily 03:40): nothing while the holding is locked;
+  - the TTS job (timer, `HQ_TTS=on` only): both claims (`/internal/v1/tts/claim`, `/internal/v1/voices/jobs/claim`) answer 204 while the holding is locked;
+  - the sealed email's one send: the decision's effect in the worker, which waits while the holding or the company is locked or the card is held;
+  - the counsel's runs (owner in thread L, a case's work item, a reply): the runner's own lock refusal; every agent write of the counsel 423 while locked.
+  - The TTS output's transcription skips the model punctuation pass (synthetic speech). Rule-only and allowed while locked: none added.
+
+### Items
+#### §3 The legal counsel
+- §3 seat ok: holding template gains `LEGAL` («حقوقی», `head: false`: no manager, no manager or department thread) and `HQ-LGL` («مشاور حقوقی», kind employee, charter legal_counsel, scope holding) with thread `L` (kind legal), asleep until work. (§1 lists this seat too: r13a may have it; keep one.) Tests: test_the_holding_has_legal_and_hq_lgl_in_thread_l, test_the_owner_in_thread_l_wakes_the_counsel_and_only_it_answers_there (P2; HQ-PA refused in L).
+- §3.1 ok: `legal.cases` (LC-0001, company_id = the company the case is about), timeline `legal.case_events`; `GET /legal/cases` (company, status, cursor), `GET /legal/cases/{ref}` (timeline and emails), `POST /legal/cases` (owner, wakes the counsel with a P2 work item, run_meta task_class legal_case), `POST /legal/cases/{ref}/close` (409 while an email waits); stream `legal.case` on topic `legal`; `Links.case`. A CEO asks through `work.request {company: HQ, department: LEGAL}` (assigned to HQ-LGL; any other holding department still 403). Tests: test_the_counsel_reaches_only_its_own_cases, test_a_ceo_asks_the_holdings_counsel_through_a_work_item.
+- §3.2 email ok: `email.draft` → card `email_send` (A3) with the exact message (from, to, cc, subject, body, attachment sha256s, lang) and `digest` = SHA-256 of its canonical form; the seal is `decision.approve` step-up on the digest (the ref is refused), amendments 422, a changed or superseded email 409 decision_not_pending, no mailbox 409 account_not_configured (the card stays a card: owner decision §0.9 #6). Approval queues it; the worker's effect sends it once after the lock checks (claim → send → record; a claim left by a crash is never resent; a failure is never retried). A new draft supersedes a waiting one (its card withdrawn); reject/return reopens the case and wakes the counsel. Tests: test_an_email_leaves_only_by_the_seal_and_exactly_once (fake SMTP: one message, exactly the sealed one; a second effect run sends nothing), test_a_change_after_the_owner_saw_it_is_a_new_card, test_without_a_connected_mailbox_a_draft_stays_a_card, test_reject_reopens_the_case_and_closing_waits_for_the_seal.
+- §3.2 replies ok: the poller reads the holding mailbox through egress (IMAP, BODY.PEEK, UID cursor and UIDVALIDITY), keeps only replies naming a sent message (In-Reply-To/References), masks body and subject, stores them on the case (`email_in`), attachments through §17.1 (type by bytes; images cleaned in the child; PDF text outside the transaction; others named only), kept in the holding where the counsel's files.read reaches them, and wakes the counsel (P2, task_class legal_email). Unrelated mail is not stored. Tests: test_a_reply_reaches_its_case_and_wakes_the_counsel_unrelated_mail_does_not, test_the_poller_does_nothing_while_the_holding_is_locked.
+- §3.2 mailbox ok: service account `mail` (site, `inject.username`, ports 465/587 and 993, optional `policy.mail {imap_host, smtp_host}` on the same site); the secret only from OpenBao for one call, only to egress. Egress `POST /v1/mail/send` and `/v1/mail/fetch`: the account's own host and ports, TLS with the name checked, the guard's checked public address, the envelope sender the account's address, STARTTLS required on 587, a fetched message holding the secret dropped. Tests: test_the_mailbox_password_never_shows (answers, decision, mail.read, /tools/accounts and logs), egress test_mail_out.py (11 tests, 8 of them refusals).
+- §3.3 ok: forms and portals are `propose` cards `a3_action` with `action: "form_submit"` (new value). Test: test_a_form_is_an_a3_card_the_owner_submits.
+- §3.4 ok: tools `case.open`, `case.note` (deadline, status), `email.draft`, `mail.read` (own cases only: another counsel's case is 404) in the gateway (addresses kept as written and checked, text redacted) and the api (OPA `legal_voice.rego`: charter legal_counsel, holding scope). Tests: gateway test_legal_tools.py (6), OPA legal_voice_test.rego (6), test_the_counsel_reaches_only_its_own_cases.
+
+#### §4 Voice
+- §4.1 ok: one registry `media.voices`: the briefings of §21.4 speak with its active voice (when the image ships it; else `HQ_TTS_VOICE`), and so does `media.voice` (A2, the voice producer in its own company; a non-commercial voice not chosen → 409 licence_not_chosen). The TTS one-shot of prompt 12 got a second queue beside the briefings (`/internal/v1/voices/jobs/{claim,done,fail}`), each job with its own voice (a voice not shipped fails, never another voice), its RTF and this synthesis' own peak (wait4). The narration's end calls `voices.ON_NARRATION` hooks (r13a's pipeline moves its item on there). Tests: test_the_briefings_speak_with_the_registrys_active_voice, test_media_voice_queues_the_narration_with_the_active_voice, tts test_voice_jobs_speak_with_their_own_voice_and_send_their_numbers.
+- §4.2 ok: fixed Persian scripts (`numbers`, `latin`: RSI, MACD, Bitcoin, Ethereum, Fibonacci, `crypto`, `long` 66 words, `reel60` 159 words with the risk warning), spoken as the hub speaks them (no digit left). Daily schedule queues the missing samples; the one-shot sends each Ogg with its numbers; it goes through §17.1 (type by bytes, ffprobe length, processing row, neutral file name for the blind listening); `rtf` = work ÷ speech of the round, `mem_mb` = highest peak; `GET /media/voices` with samples; `POST /media/voices/{id}/score` 1-10. Operator run `make tts-bakeoff`. Tests: test_the_bakeoff_queues_once_and_its_audio_goes_through_17_1, test_the_bakeoff_and_the_tts_job_do_nothing_while_the_holding_is_locked, test_the_tts_images_scripts_are_the_hubs_spoken_scripts, tts test_bakeoff.py (8).
+- §4.3 ok (candidates; licences as their cards state them, read 2026-10-23): see the table below. Measured on this CPU: the four Piper voices (shipped, each file pinned by sha256 in `services/tts/voice.lock.json` and `ADD --checksum`). Not measured, recorded: ParsVoice-XTTS (gated download: needs the owner's Hugging Face account; XTTS-v2 on CPU ≈ 2.5-3 GiB, over the tts budget), Chatterbox Persian (gated, CC BY-NC 4.0, over budget), ManaTTS (needs GPU training: plan and estimate in RUNBOOK §31.13), piper-gyro (dataset licence unstated: not shipped). No permissive multilingual model lists Persian (Kokoro, Chatterbox multilingual; MMS-TTS fas is CC-BY-NC). Test: test_the_registry_has_every_candidate_with_its_licence_and_numbers.
+- §4.3 owner's voice ok: `POST /media/voices/reference {file_id}` (owner only; the owner's own audio upload, 60-180 s, never attached; 422 otherwise), `GET /media/voices/reference` (404 when none; `{file, duration_s, created_at, state, reason_fa}`); no agent reads it (files.read 403), it is sent nowhere; no cloning engine is installed, so it waits. No recording exists: owner task. Test: test_the_owners_reference_is_the_owners_and_never_an_agents.
+- §4.4 ok: `POST /media/voices/{id}/activate` 🔏 voice.activate (target = id): non-commercial without `accept_non_commercial: true` 422; not installed or not measured 409 not_ready (ParsVoice-XTTS today); one active voice; `licence_commercial` on every row and every narration result. ParsVoice-XTTS is the owner's §0.9 default but stays a candidate until it is installed and the owner explicitly chooses it. Test: test_a_non_commercial_voice_is_never_active_without_the_owner.
+
+#### §5, §6
+- §5 ok: the charters (legal_counsel, voice_producer) and tools.md seeded as they are; charter test: every charter tool is in tools.md, `media.review` is the media director's only, `email.draft` and `mail.read` the legal counsel's only, `media.voice` the voice producer's. Test: test_every_charter_tool_is_in_the_catalog_and_the_exclusive_ones_stay_exclusive.
+- §6 memory ok: the poller and the send run in the existing worker, the mailbox through the existing egress (no service, no port). TTS: the same one-shot, profile `tts` (off), `MEM_TTS=320m` kept; Piper now reads lines of at most 8 words (at 14 the heavier voices peaked 337 MiB and the container hit 320). Gate unchanged: full+tts 11216 of 12288 MiB, lean+tts 6192 of 6196. Image +190 MB disk (three voices).
+- §6 cost ok: the counsel's runs use the holding's envelope (≤ 8 steps, 200K tokens a run by its charter; classes legal_case / legal_email, never on another provider); the TTS spends no token. Real tokens while building: 0.
+
+#### §0.7, §8
+- §0.7 ok: every new table in test_rls_all_tables (schemas legal, media; mailbox, voices, voice_samples, voice_references holding-only) and test_schema_rules; every change audited (legal.case_open/case_note/case_close/email_draft/email_send/email_in, voice.score/activate/reference/audio, media.voice).
+- §8 ok: OpenAPI regenerated (additive: 17 operations, 27 schemas; AccountPolicy, DecisionIn and Links widened); RUNBOOK §31.11-§31.14.
+
+### Voice bake-off (2026-10-23 02:50 UTC, this CPX42, image coinepro-hq/tts:p13b, 320 MiB, 1 thread, no network, five scripts)
+| Voice | Licence | Commercial | RTF | Peak of one synthesis | Speech |
+|---|---|---|---|---|---|
+| piper-amir (active) | MIT weights; dataset CC0-1.0 | yes | 0.177 | 236.3 MiB | 144.6 s |
+| piper-ganji | MIT; CC0-1.0 | yes | 0.170 | 254.5 MiB | 158.5 s |
+| piper-ganji-adabi | MIT; CC0-1.0 | yes | 0.187 | 270.5 MiB | 175.0 s |
+| piper-reza-ibrahim | MIT; CC0-1.0 | yes | 0.185 | 269.8 MiB | 176.9 s |
+| piper-gyro | MIT; dataset licence unstated | no | not shipped | | |
+| manatts-piper | CC0-1.0 corpus; MIT | yes | not trained (GPU, owner) | | |
+| parsvoice-xtts (+ owner's voice) | Coqui Public Model License (non-commercial) | no | not measured: gated, ≈2.5-3 GiB | | |
+| chatterbox-fa (+ owner's voice) | CC BY-NC 4.0 | no | not measured: gated, over budget | | |
+- Container peak 264.8 MiB. RTF includes loading the model for every job. The reel text speaks 64-76 s. With 14-word lines: 293-337 MiB peaks (the container at its 320 MiB limit); with 10: up to 307 MiB.
+
+### Contract notes
+- §22.7 email `state` gains `queued` (sealed, waiting to leave, e.g. while locked), `sending` and `failed` (a send that did not go; never retried); `Email.error`.
+- §22.2 `Voice` gains `installed` (the hub's TTS image ships it), `measured_on` and `version`; its OpenAPI schema is named `RegistryVoice` (the briefing's `Voice` block already had the name).
+- §22.4: a case's email cannot be sealed while the mailbox is not connected (409 account_not_configured, nothing changes); the card stays readable.
+- §22.4: reply attachments are kept in the holding (the counsel's files.read reads its own company only); the case's company is on the case.
+- §22.3: the owner's reference must be the owner's own upload, not attached to a message (so no agent ever reads it); 60-180 s, else 422.
+- `a3_action.action` gains `form_submit` (§22.4). `POST /internal/v1/media/voice` answers 202 with the job (the narration arrives later).
+- `media.voices` ids are stable text keys (`piper-amir`, `parsvoice-xtts-owner`), one per engine and speaker.
+
+### Not done, and why
+- ParsVoice-XTTS and Chatterbox are not measured: both downloads are gated behind a Hugging Face account (the owner's), and both are over the tts memory budget; recorded in the registry with the reason.
+- ManaTTS voice not trained: needs a rented GPU (owner decision §0.9 #3); plan and estimate in RUNBOOK §31.13.
+- No bake-off audio is in the production registry yet: the hub's queue runs only with `HQ_TTS=on` and the holding unlocked; the local run's numbers seed the registry, its Ogg files stayed on this machine (scratchpad).
+- Pre-existing, not from this branch: `test_agents_more::test_propose_section_is_generated_from_the_api_models` (the p13 charters in agents/ put `motion_designer` before `referral_rescue`), `test_inquiries_errands::test_the_advisor_v2_has_its_read_tools` (prompt 11's tools not on this base), and the p12 tests that need the substitutes' seed fail when they run after test_hiring's migration cycle in one session.
+
+### Owner tasks
+1. §0.9 #6: the legal mailbox (Gmail, Workspace or the domain's mail): add service account `mail` in the app (site, address, ports 465 and 993) and `make account-secret KEY=mail` (an app password).
+2. §0.9 #2: to try ParsVoice-XTTS: accept its terms with your own Hugging Face account and decide on the memory (it does not fit the tts budget); its licence is non-commercial.
+3. §0.9 #3: a rented GPU for the ManaTTS voice (≈ $15-70), or not.
+4. Record your reference voice in the app (1-3 minutes of clean speech) when a cloning engine is wanted.
+5. After launch, turn the voice on (`make tts-on`) so the hub's bake-off makes the samples, listen blind, score, and choose the active voice (🔏).

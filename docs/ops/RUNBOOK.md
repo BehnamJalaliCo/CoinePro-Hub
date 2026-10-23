@@ -51,6 +51,8 @@
 | `make chatgpt-login`، `make gemini-login` | **فقط مالک، در ترمینال خودش:** ورود CLI بازیکن ذخیره (Codex با کد دستگاه، Gemini با کد تأیید)؛ همین از اپ هم هست (§۳۰.۴) |
 | `make chatgpt-web-login`، `make gemini-web-login`، `make deepseek-web-login` | **فقط مالک، با تونل SSH خودش:** ورود یک‌باره در پروفایل مرورگر هاب؛ noVNC فقط روی `127.0.0.1:6080`، حداکثر ۱۵ دقیقه (§۳۰.۴) |
 | `make tts-on`، `make tts-off`، `make tts-bench` | صدای فارسی گزارش‌ها (پرامپت ۱۲ §۴): روشن و خاموش کردن profile اختیاری `tts` و timer آن (بیرون از بودجه‌ی حافظه رد میشود)، و اندازه‌گیری RTF و RAM روی متن ثابت (§۳۰.۱۱، حافظه‌ی همه‌ی profileها در §۳۰.۶) |
+| `make tts-bakeoff [OUT=…]` | bake-off صدا (پرامپت ۱۳ §۴): هر صدای image روی متن‌های ثابت، RTF و peak هر ساخت، Ogg در `OUT`؛ بی‌شبکه (§۳۱.۱۳) |
+| `make account-secret KEY=mail` | **فقط مالک:** رمز صندوق ایمیل مشاور حقوقی (پرامپت ۱۳ §۳؛ §۳۱.۱۲) |
 | `make mcp-build`، `make mcp-test`، `make mcp-index` | MCP روی کانتینر (پرامپت ۱۲ §۱۴): ساخت تکرارپذیر imageها با digest فهرست مجاز، آزمون روی شبکه‌ی دورانداختنی، ایندکس CodeCortex (§۳۰.۵) |
 
 ## ۲. بالا آوردن و پایین آوردن
