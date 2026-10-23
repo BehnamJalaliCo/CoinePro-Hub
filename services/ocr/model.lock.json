@@ -1,0 +1,36 @@
+{
+  "_comment": "Pinned Tesseract traineddata for services/ocr (prompt 14 §4, contract §23.9). The ocr-fetch job downloads exactly these bytes from the tesseract-ocr project's repository at the pinned revision; ocr refuses to start with anything else. `default` is the set the service runs (measured on the hub; see docs/ops/reports/PROMPT_14.md); the other is pinned for comparison.",
+  "default": "fast",
+  "models": {
+    "fast": {
+      "repo": "tesseract-ocr/tessdata_fast",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "licence": "Apache-2.0",
+      "files": {
+        "fas.traineddata": {
+          "size": 431500,
+          "sha256": "db1c0a91208aff00d3cf1ed2c1d23f76419afd5f024688b4f71adc3f2ce4a505"
+        },
+        "eng.traineddata": {
+          "size": 4113088,
+          "sha256": "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
+        }
+      }
+    },
+    "best": {
+      "repo": "tesseract-ocr/tessdata_best",
+      "revision": "e12c65a915945e4c28e237a9b52bc4a8f39a0cec",
+      "licence": "Apache-2.0",
+      "files": {
+        "fas.traineddata": {
+          "size": 3325955,
+          "sha256": "99e420969b5ddd2cb135b416316a7ed417c59c4faf9e0d28941348f6448114df"
+        },
+        "eng.traineddata": {
+          "size": 15400601,
+          "sha256": "8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba"
+        }
+      }
+    }
+  }
+}
