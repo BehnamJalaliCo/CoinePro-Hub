@@ -31,7 +31,7 @@ active (a new version, with its audit row) where it is still the seeded,
 paused version 1. No decision kind is added: the kind CHECK is not touched.
 
 Revision ID: 0027_1
-Revises: 0025 (re-chained by the parent after prompt 11 and 12 part A)
+Revises: 0027 (prompt 12 part A; the parent moves 0027 after prompt 11's 0026_1)
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ from __future__ import annotations
 from hq_api.migration_sql import execute_script
 
 revision = "0027_1"
-down_revision = "0025"
+down_revision = "0027"
 branch_labels = None
 depends_on = None
 

@@ -18,7 +18,9 @@ Also:
 - work.work gains `run_meta` (a run's task class and owner-zone flag, read by
   the runner; set by the code that makes the work, never by an agent);
 - a memo becomes `stale` when its pending card changes (any column but the
-  bookkeeping ones: version, updated_at, reminded_at, reminders, waiting_h);
+  bookkeeping ones: version, updated_at, reminded_at; part B's cartable
+  reminders live in owner.decision_reminders and `waiting_h` is computed on
+  read, so a reminder never writes the card's row);
 - llm.connections: statuses pending_secret, verifying, ready and error (a new
   connection, §21.7), kind `subscription` (the substitute accounts), verified_at;
   the api may insert a connection (POST /connections, sealed) and write the
@@ -179,7 +181,9 @@ CREATE TRIGGER advisor_triggers_immutable BEFORE UPDATE ON advisor.triggers
 CREATE FUNCTION advisor.stale_on_change() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     DECLARE
-        skip text[] := ARRAY['version', 'updated_at', 'reminded_at', 'reminders', 'waiting_h'];
+        -- Bookkeeping only: part B's reminders (0027_1) are rows of
+        -- owner.decision_reminders and never touch the card.
+        skip text[] := ARRAY['version', 'updated_at', 'reminded_at'];
     BEGIN
         IF NEW.version IS DISTINCT FROM OLD.version AND NEW.status = 'pending'
            AND (to_jsonb(NEW) - skip) IS DISTINCT FROM (to_jsonb(OLD) - skip) THEN

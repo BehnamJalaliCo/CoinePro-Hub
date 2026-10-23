@@ -15,6 +15,7 @@ import pytest
 
 from hq_api.agents.runner import RunCtx, Runner
 from hq_api.domain import advisor as A
+from hq_api.domain import notes as NOTES
 from hq_api.domain import substitutes as S
 from hq_api.hub import Hub
 
@@ -222,8 +223,16 @@ async def test_the_same_mode_and_version_is_the_same_memo(
     ] == devil.json()["ref"]
 
 
+class _RolledBack(Exception):
+    """Ends a transaction a test only looks into (nothing it wrote is kept)."""
+
+
 async def test_a_changed_card_makes_its_memo_stale(
-    client: httpx.AsyncClient, owner: dict[str, str], su: Any, new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    hub: Hub,
+    new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
     async with holding_switch(su, "released"):
@@ -236,6 +245,29 @@ async def test_a_changed_card_makes_its_memo_stale(
         await su.fetchval("SELECT state FROM advisor.memos WHERE ref = $1", memo["ref"])
         == "writing"
     )
+    # Part B's cartable reminder (§11.2) of this card, a day on: its row is in
+    # owner.decision_reminders, the card is untouched and the memo stays.
+    # Rolled back, so the pass leaves no reminder on any other test's card.
+    card = await su.fetchrow(
+        "SELECT version, created_at, expires_at FROM cartable.decisions WHERE ref = $1", ref
+    )
+    version = card["version"]
+    later = (
+        card["expires_at"] - timedelta(hours=1)
+        if card["expires_at"]
+        else card["created_at"] + timedelta(hours=25)
+    )
+    with pytest.raises(_RolledBack):
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            raised = await NOTES.remind(tx, later)
+            assert any(r["decision"] == ref for r in raised), raised
+            assert await tx.scalar(
+                "SELECT version FROM cartable.decisions WHERE ref = :r", r=ref
+            ) == version
+            assert await tx.scalar(
+                "SELECT state FROM advisor.memos WHERE ref = :r", r=memo["ref"]
+            ) == "writing"
+            raise _RolledBack
     await su.execute(
         "UPDATE cartable.decisions SET expires_at = now() + interval '3 days' WHERE ref = $1", ref
     )
