@@ -445,7 +445,8 @@ async def test_fx_never_sees_the_revenue_of_ty(
     body = {"from": (day - timedelta(days=6)).isoformat(), "to": day.isoformat()}
     r = await client.post("/internal/v1/revenue/read", headers=await agent_headers(f"{fx['code']}-CEO"),
                           json={**body, "company": ty["code"]})  # fmt: skip
-    assert r.status_code == 403 and "55" not in r.text
+    # A request id may contain "55"; the refusal carries no revenue field at all.
+    assert r.status_code == 403 and "total_usdt" not in r.text and "usdt" not in r.json()
     r = await client.post(
         "/internal/v1/revenue/read", headers=await agent_headers(f"{ty['code']}-CEO"), json=body
     )
