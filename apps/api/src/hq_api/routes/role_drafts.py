@@ -48,7 +48,7 @@ class DecideIn(Model):
     note: str | None = Field(default=None, max_length=5000)
 
 
-class ReviewIn(Model):
+class RoleReviewIn(Model):
     version: int = Field(default=1, ge=1, le=100000)
     verdict: Literal["pass", "changes", "reject"]
     checks: dict[str, bool] = Field(
@@ -171,7 +171,9 @@ async def _run_work(ctx: Ctx, tx: Any) -> UUID | None:
 
 
 @internal_router.post("/roles/drafts", response_model=DraftBrief, status_code=201, responses=EI)
-async def write_draft(body: RD.DraftIn, request: Request, ctx: Ctx = Depends(internal_ctx)) -> Any:
+async def write_draft(
+    body: RD.RoleDraftIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+) -> Any:
     """role.draft (A1): the department's manager writes the role. Outside the
     ceiling: 422 (fields name each problem), nothing stored. Requires
     `Idempotency-Key`."""
@@ -216,7 +218,7 @@ async def decide_draft(
 
 @internal_router.post("/roles/drafts/{ref}/review", response_model=DraftBrief, responses=EI)
 async def review_draft(
-    ref: str, body: ReviewIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+    ref: str, body: RoleReviewIn, request: Request, ctx: Ctx = Depends(internal_ctx)
 ) -> Any:
     """skill.review with an RD- ref (the overseer, QC, AI Safety): a pass needs
     the five checks and the sha256 of the text shown; it queues the draft's own

@@ -251,7 +251,7 @@ class VoiceIn(Model):
     voice_id: str | None = Field(default=None, max_length=80)
 
 
-class ReviewIn(Model):
+class MediaReviewIn(Model):
     ref: str = Field(pattern=r"^MI-[0-9]{4,}$")
     verdict: Literal["pass", "changes", "reject"]
     note_md: str = Field(default="", max_length=20000)
@@ -755,7 +755,7 @@ async def tool_voice(body: VoiceIn, ctx: Ctx = Depends(internal_ctx)) -> ToolOut
 
 
 @internal_router.post("/media/review", response_model=ToolOut, responses=IE)
-async def tool_review(body: ReviewIn, ctx: Ctx = Depends(internal_ctx)) -> ToolOut:
+async def tool_review(body: MediaReviewIn, ctx: Ctx = Depends(internal_ctx)) -> ToolOut:
     """media.review (A2, the media director only): the `qc` check. Never publishes."""
     co_id = _agent(ctx)
     await allow(ctx, "media.review", {"company": ctx.who.company, "charter": ctx.who.charter})

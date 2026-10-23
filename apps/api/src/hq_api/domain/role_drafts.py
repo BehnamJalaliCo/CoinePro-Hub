@@ -102,7 +102,7 @@ class EvalCaseIn(BaseModel):
     weight: float = Field(default=1.0, gt=0, le=10)
 
 
-class DraftIn(BaseModel):
+class RoleDraftIn(BaseModel):
     """What the manager writes with role.draft (agents/tools.md)."""
 
     ref: str | None = Field(default=None, pattern=REF)
@@ -316,7 +316,7 @@ def ceiling_of(mandate: dict[str, Any] | None) -> tuple[list[str], str]:
 
 
 def check_ceiling(
-    body: DraftIn,
+    body: RoleDraftIn,
     *,
     mandate: dict[str, Any] | None,
     manager: C.Charter | None,
@@ -617,7 +617,7 @@ async def request(
 async def write(
     tx: Tx,
     who: Principal,
-    body: DraftIn,
+    body: RoleDraftIn,
     *,
     lib: C.Library | None,
     run_work_id: UUID | None,
@@ -1158,7 +1158,7 @@ async def decide_by_ceo(
             "SELECT mandate FROM core.departments WHERE id = :d", d=r["department_id"]
         )
         mgr = await manager_of(tx, r["department_id"])
-        body = DraftIn(
+        body = RoleDraftIn(
             company=r["company"],
             department=r["department"],
             role=str(r["role"]),
