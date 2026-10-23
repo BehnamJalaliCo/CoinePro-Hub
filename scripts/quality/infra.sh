@@ -69,7 +69,7 @@ chmod 600 "$S/openbao-init.json"
 # Every file already installed but the KV empty: the path where a run without
 # sudo used to rotate the tokens in KV, then stop at the file install.
 for f in llm-router/approle.json claude-runtime/approle.json hq-api/approle.json \
-  hq-worker/approle.json provisioner/approle.json tts/approle.json prometheus/llm-metrics.token \
+  hq-worker/approle.json provisioner/approle.json tts/approle.json media/approle.json prometheus/llm-metrics.token \
   prometheus/node-exporter.password node-exporter/web.yml gateway/worker-token.sha256; do
   echo "$S/services/$f"
 done >"$S/.provisioned"
@@ -461,6 +461,34 @@ if ((${#missing[@]})); then
   fail "systemd: the substitutes unit lacks ${missing[*]}"
 else
   pass "systemd: the substitutes unit is sandboxed (its own 0700 runtime dir)"
+fi
+# ------------------------------------------ the render worker (prompt 13 §2.3) --
+# Off by default (not rendered, the api's HQ_MEDIA=off); on where it fits
+# (full: both one-shots, the api told HQ_MEDIA=on); where it does not fit
+# (lean) the memory gate fails once switched on and hq.sh refuses to start it;
+# the pass does nothing while HQ_MEDIA is off.
+media_of() { # media_of PROFILE HQ_MEDIA -> "<has media-render>,<api HQ_MEDIA>"
+  HQ_PROFILE="$1" HQ_MEDIA="$2" "$HQ" config --format json 2>/dev/null |
+    jq -r '[(.services | has("media-render")), .services.api.environment.HQ_MEDIA] | map(tostring) | join(",")'
+}
+media_gate="$(HQ_MEDIA=on CI=1 "$REPO_DIR/scripts/quality/memory-budget.sh" 2>&1)" && media_gate_rc=0 ||
+  media_gate_rc=$?
+media_refusal="$(HQ_PROFILE=lean HQ_MEDIA=on "$HQ" --dry-run up --no-start 2>&1)" && media_up_rc=0 ||
+  media_up_rc=$?
+media_pass="$(HQ_MEDIA=off HQ_ONESHOT_LOCK=/nonexistent/lock "$REPO_DIR/infra/media/run-once.sh" 2>&1)" &&
+  media_pass_rc=0 || media_pass_rc=$?
+if [[ "$(media_of full off)" != "false,off" ]]; then
+  fail "media: on by default ($(media_of full off))"
+elif [[ "$(media_of full on)" != "true,on" ]] || [[ "$(HQ_PROFILE=full HQ_MEDIA=on "$HQ" --print-media)" != on ]]; then
+  fail "media: HQ_MEDIA=on within the budget (full) does not run it or tell the api ($(media_of full on))"
+elif ((media_gate_rc == 0)) || ! grep -q 'lean+media OVER (' <<<"$media_gate"; then
+  fail "media: the memory gate with HQ_MEDIA=on passed lean+media over the budget"
+elif ((media_up_rc != 3)) || ! grep -q 'HQ_MEDIA=on refused' <<<"$media_refusal"; then
+  fail "media: hq.sh 'up' accepted HQ_MEDIA=on over the memory budget (lean, exit $media_up_rc)"
+elif ((media_pass_rc != 0)) || [[ -n "$media_pass" ]]; then
+  fail "media: the render pass did something while HQ_MEDIA is off"
+else
+  pass "media: off by default; on where it fits (HQ_MEDIA=on); refused without room; the pass is a no-op while off"
 fi
 
 exit "$failed"
