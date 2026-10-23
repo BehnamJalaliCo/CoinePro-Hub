@@ -3,7 +3,7 @@
 # the official CLI's own sign-in, into the runner's sign-in volume
 # (hq-substitute-auth, files 600, not in the backups). Claude never runs it.
 #   codex:  "Sign in with ChatGPT" by device code (open the link on your phone, enter the code)
-#   gemini: "Login with Google" without a browser here (open the link, paste the code back)
+#   gemini: discontinued by Google for individuals (contract ⟨1.7.2⟩): make gemini-web-login
 # The CLI reaches only its own hosts, through egress (the runner's network).
 # The same sign-in is also offered from the app (Settings → Connections).
 # Usage: cli-login.sh codex|gemini
@@ -18,11 +18,8 @@ case "${1:-}" in
       'umask 077; mkdir -p /auth/codex; CODEX_HOME=/auth/codex HOME=/work exec codex login --device-auth'
     ;;
   gemini)
-    echo "Gemini CLI: a link follows; sign in on your phone and paste the code here."
-    echo "Once it says you are signed in, type /quit."
-    exec "$HQ" --profile substitutes run --rm --entrypoint sh substitute-runner -c \
-      'umask 077; mkdir -p /auth/gemini; GEMINI_CLI_HOME=/auth/gemini NO_BROWSER=true HOME=/work \
-       GEMINI_CLI_SYSTEM_SETTINGS_PATH=/etc/gemini-cli/settings.json exec gemini'
+    # Contract ⟨1.7.2⟩ (14.1 §2.2): Google ended this sign-in for individuals.
+    echo "Gemini CLI for individuals is discontinued by Google; Gemini runs through make gemini-web-login"
     ;;
   *) echo "usage: $0 codex|gemini" >&2; exit 2 ;;
 esac

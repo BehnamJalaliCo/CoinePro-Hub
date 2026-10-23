@@ -46,9 +46,11 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     # ⟨1.6⟩ prompt 13 sits on prompt 12 final: 0027_2 -> 0028 -> 0028_1;
     # ⟨1.7⟩ prompt 14 on prompt 13: 0028_1 -> 0029 (the head)
     assert rev["0028"] == "0027_2" and rev["0028_1"] == "0028" and rev["0029"] == "0028_1"
+    # ⟨1.7.2⟩ prompt 14.1: 0029 -> 0029_1 (the Gemini seats via web; no kind CHECK)
+    assert rev["0029_1"] == "0029"
     heads = set(rev) - {d for d in rev.values() if d}
-    assert heads == {"0029"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0029"
+    assert heads == {"0029_1"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0029_1"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:

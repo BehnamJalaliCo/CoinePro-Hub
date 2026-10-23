@@ -245,3 +245,23 @@ async def test_a_foreign_host_is_refused(world: Any) -> None:
     got = await d.run(run)
     assert got["steps"][0]["error"] == "host_not_allowed"
     assert not [s for s in site.seen if s["host"] == "other.test"]
+
+
+# Prompt 14.1 §1.5: the profile jobs hide the automation flag.
+async def test_profile_jobs_hide_the_automation_flag(tmp_path: Path) -> None:
+    seen: dict[str, Any] = {}
+
+    class Chromium:
+        async def launch_persistent_context(self, user_data_dir: str, **kw: Any) -> object:
+            seen.update(kw, user_data_dir=user_data_dir)
+            return object()
+
+    class PW:
+        chromium = Chromium()
+
+    d = Webd(profiles=tmp_path)
+    d._pw = PW()  # type: ignore[assignment]
+    await d.open("chatgpt-web", Proxy(server="http://egress:3132"))
+    assert seen["ignore_default_args"] == ["--enable-automation"]
+    assert "--disable-blink-features=AutomationControlled" in seen["args"]
+    assert seen["user_data_dir"] == str(tmp_path / "chatgpt-web")

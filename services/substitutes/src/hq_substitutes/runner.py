@@ -168,6 +168,9 @@ class Settings:
     work_dir: Path = Path("/work")
     checkout_dir: Path = Path("/checkout")
     schema_dir: Path = Path("/app/substitutes/schemas")
+    # ⟨1.7.2⟩: the Gemini CLI player is unavailable (the CLI paths stay, tested,
+    # for an API-key Gemini connection; HQ_GEMINI_CLI_GONE=0 only in tests).
+    gemini_cli_gone: bool = True
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -180,6 +183,7 @@ class Settings:
             work_dir=Path(e.get("HQ_SUBSTITUTE_WORK", "/work")),
             checkout_dir=Path(e.get("HQ_SUBSTITUTE_CHECKOUT", "/checkout")),
             schema_dir=Path(e.get("HQ_SUBSTITUTE_SCHEMAS", "/app/substitutes/schemas")),
+            gemini_cli_gone=e.get("HQ_GEMINI_CLI_GONE", "1") != "0",
         )
 
 
@@ -490,7 +494,19 @@ def _finding(i: Any) -> dict[str, Any] | None:
 
 
 # --------------------------------------------------------------------- run --
+# Contract ⟨1.7.2⟩ (14.1 §2.2): Google ended the Gemini CLI's sign-in for
+# individuals. Every Gemini seat runs through the signed-in web profile; the
+# CLI player is reported unavailable and never asks for an API key.
+GEMINI_CLI_GONE = (
+    "Gemini CLI for individuals is discontinued by Google; "
+    "Gemini runs through make gemini-web-login"
+)
+
+
 def run(job: Job, s: Settings, more: Iterable[str] = ()) -> Iterator[dict[str, Any]]:
+    if job.runner == "gemini_cli" and s.gemini_cli_gone:
+        yield done(False, error="unavailable", status_reason=GEMINI_CLI_GONE)
+        return
     _prepare(job, s)
     if job.kind == "call":
         yield _call(job, s)

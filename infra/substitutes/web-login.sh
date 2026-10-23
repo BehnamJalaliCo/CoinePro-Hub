@@ -17,5 +17,8 @@ esac
 [[ -t 1 ]] || { echo "error: run this in your own terminal" >&2; exit 2; }
 cleanup() { "$HQ" --profile web-login rm -sf web-login-relay >/dev/null 2>&1 || true; }
 trap cleanup EXIT
+# The window's image (also the relay's): built here, so a fresh machine or a
+# changed sign-in script never needs a pull (14.1 §1.3; the cache makes it quick).
+"$HQ" --profile web-login build browser-web-login
 "$HQ" --profile web-login up -d web-login-relay
 "$HQ" --profile web-login run --rm --name coinepro-hq-web-login browser-web-login "$account"

@@ -17,6 +17,7 @@ hosts:
   - challenges.cloudflare.com
 login_hosts:
   - accounts.google.com
+  - gstatic.com
   - appleid.apple.com
 features: [deep_thinking, web_search]
 expired:

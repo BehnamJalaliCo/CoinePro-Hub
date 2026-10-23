@@ -358,7 +358,9 @@ async def test_the_cli_sign_in_from_the_app_is_sealed_short_and_never_shows_the_
         url, headers={**h, **await step_up(hub, sid, "connection.login", str(conn))}
     )
     assert (
-        off.status_code == 409 and off.json()["code"] == "not_ready" and "gemini-login" in off.text
+        off.status_code == 409
+        and off.json()["code"] == "not_ready"
+        and "gemini-web-login" in off.text
     )
     ds = await su.fetchval("SELECT id FROM llm.connections WHERE key = 'deepseek-free'")
     web_only = await client.post(f"/api/v1/connections/{ds}/login",
