@@ -6,12 +6,14 @@
 # Usage: hq.sh <docker compose args...>     e.g. hq.sh ps
 #        hq.sh --print-profile
 #        hq.sh --print-substitutes-runner   (on|off: what the api is told)
+#        hq.sh --print-media                (on|off: the render worker, prompt 13)
 # Env:   HQ_PROFILE=lean|full   force a profile (else .env, else server RAM)
 #        HQ_ENV_FILE=PATH       use another secrets file (CI uses a throwaway one)
 #        HQ_ALL_PROFILES=1      act on the services of every profile (used by `down`)
 #        HQ_STT=on|off          speech to text (opt-in profile "stt"; else .env)
 #        HQ_PROVISIONING=on|off the provisioner (opt-in profile "provisioning"; else .env)
 #        HQ_MCP=on|off          MCP servers in containers (opt-in profile "mcp"; else .env)
+#        HQ_MEDIA=on|off        the media render worker (opt-in profile "media"; else .env)
 set -euo pipefail
 
 COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -304,6 +306,38 @@ if [[ "$tts" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
       *) echo "warning: HQ_TTS=on ignored ($over)" >&2 ;;
     esac
   fi
+fi
+# The media studio's render worker (prompt 13 §2.3): opt-in profile "media"
+# (the courier and the network-less renderer, one-shots run by the
+# coinepro-hq-media timer), switched on with HQ_MEDIA=on (.env; `make
+# media-on`). Refused like stt while the profile plus media does not fit the
+# memory budget; the api queues renders only while it is on (HQ_MEDIA_ACTIVE).
+# Off by default: the opt-ins share the room and wait for the owner's order.
+media="${HQ_MEDIA:-$(sed -n 's/^HQ_MEDIA=//p' "$ENV_FILE" | tail -n1)}"
+export HQ_MEDIA_ACTIVE=off
+if [[ "$media" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  sum="$(compose "${profile_args[@]}" --profile media --profile backup-tools config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile media)
+    export HQ_MEDIA_ACTIVE=on
+  else
+    over="the $profile profile plus media needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_MEDIA=on refused: $over (make media-off)." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_MEDIA=on ignored ($over)" >&2 ;;
+    esac
+  fi
+fi
+if [[ "${1:-}" == "--print-media" ]]; then # the quality gate's check
+  printf '%s\n' "$HQ_MEDIA_ACTIVE"
+  exit 0
 fi
 if [[ "${HQ_ALL_PROFILES:-0}" == "1" ]]; then
   profile_args=(--profile "*")

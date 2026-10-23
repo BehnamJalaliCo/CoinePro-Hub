@@ -328,7 +328,8 @@ services:
     <<: *service
     image: openbao/openbao:2.7.1
     # hq-prov: the provisioner's AppRole (bound to 172.30.10.0/24, prompt 09).
-    networks: [hq-internal, hq-llm, hq-prov, hq-tts]
+    # hq-media: the render courier's AppRole (prompt 13 §2.3).
+    networks: [hq-internal, hq-llm, hq-prov, hq-tts, hq-media]
     command: ["server"]
     environment:
       BAO_ADDR: http://127.0.0.1:8200
@@ -566,7 +567,8 @@ services:
     # hq-core: Temporal; hq-agent: OPA and the gateway's calls to /internal/v1;
     # hq-prov: the provisioner (prompt 09) and its calls to /internal/v1.
     # hq-tts: the TTS one-shot's calls to /internal/v1/tts (prompt 12 §4).
-    networks: [hq-internal, hq-core, hq-agent, hq-prov, hq-tts]
+    # hq-media: the render courier's calls to /internal/v1/media/render (prompt 13).
+    networks: [hq-internal, hq-core, hq-agent, hq-prov, hq-tts, hq-media]
     build:
       context: ../../apps/api
       additional_contexts:
@@ -636,6 +638,10 @@ services:
       # "tts" runs (hq.sh sets HQ_TTS_ACTIVE); else briefings are text only.
       HQ_TTS: ${HQ_TTS_ACTIVE:-off}
       HQ_TTS_VOICE: ${HQ_TTS_VOICE:-fa_IR-amir-medium}
+      # Prompt 13 §2.3: renders are queued only while the opt-in profile
+      # "media" runs (hq.sh sets HQ_MEDIA_ACTIVE); else media.render answers
+      # channel_not_configured and the item waits.
+      HQ_MEDIA: ${HQ_MEDIA_ACTIVE:-off}
       # The deploy card's diff (§21.6): mirrors of the workspaces' repositories.
       HQ_GIT_MIRRORS: /var/lib/hq-git
     user: "10001:10001"
@@ -1472,6 +1478,75 @@ services:
         limits:
           memory: ${MEM_TTS:?}
 
+  media-courier:
+    # The media studio's render worker, its half with a network (prompt 13
+    # §2.3, contract §22.2): a one-shot of the opt-in profile "media", run by
+    # the coinepro-hq-media timer under the one-shot lock (infra/media/
+    # run-once.sh). It claims a render job from the api (204: nothing, and
+    # always while the holding or the job's company is locked) into the job
+    # volume, and later sends the renderer's outputs back. hq-media is
+    # internal: the api and OpenBao only (its AppRole is bound to that subnet).
+    <<: *job
+    profiles: [media]
+    image: coinepro-hq/media-render:0.1.0
+    build:
+      context: ../../services
+      dockerfile: media-render/Dockerfile
+      additional_contexts:
+        design: ../../design
+    networks: [hq-media]
+    command: ["courier", "claim"]
+    environment:
+      OPENBAO_ADDR: http://openbao:8200
+      OPENBAO_APPROLE_FILE: /run/secrets/hq/approle.json
+      HQ_API_INTERNAL_URL: http://api:8000
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/media:/run/secrets/hq:ro
+      - hq-media-jobs:/jobs
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_MEDIA_COURIER:?}
+
+  media-render:
+    # The render worker's sandbox (prompt 13 §2.3): NO network at all (not
+    # even egress), the job volume its only way in and out. Headless Chromium
+    # (Playwright) draws the untrusted composition frame by frame on a virtual
+    # clock, every request of the page is answered from the image or the
+    # job's own files or aborted and recorded; ffmpeg muxes the narration and
+    # the hub's own captions and mark. Chromium's own sandbox stays on:
+    # non-root, read-only, every capability dropped but SYS_CHROOT in the
+    # bounding set, and Playwright's seccomp profile (as the egress browser).
+    # Its deadline is the job's limits.timeout_s (600 s); run-once.sh kills
+    # it a minute later; CPU, processes and memory are capped.
+    <<: *job
+    profiles: [media]
+    image: coinepro-hq/media-render:0.1.0
+    network_mode: none
+    command: ["probe"]
+    environment:
+      MEDIA_SANDBOX: "1"
+      MEDIA_JS_HEAP_MB: ${MEDIA_JS_HEAP_MB:-256}
+    user: "10001:10001"
+    read_only: true
+    # Chromium's profile and the frames' scratch (counted inside the memory limit).
+    tmpfs: ["/tmp:size=256m,mode=1777"]
+    security_opt: ["no-new-privileges:true", "seccomp=../browser/seccomp_profile.json"]
+    cap_drop: [ALL]
+    cap_add: [SYS_CHROOT]
+    volumes:
+      - hq-media-jobs:/jobs
+    deploy:
+      resources:
+        limits:
+          cpus: "${MEDIA_RENDER_CPUS:-2}"
+          pids: 512
+          memory: ${MEM_MEDIA_RENDER:?}
+
   cadvisor:
     # Opt-in only (profile "cadvisor", prompt 05 §11): it needs the Docker and
     # containerd sockets, i.e. root on the host. The default profiles get
@@ -1676,6 +1751,17 @@ networks:
       config:
         - subnet: 172.30.21.0/24
           gateway: 172.30.21.1
+  hq-media:
+    # The render worker's courier, the api (/internal/v1/media/render) and
+    # OpenBao (its AppRole, bound to this subnet). Internal: no route out
+    # (prompt 13 §2.3); the renderer itself has no network at all.
+    name: hq-media
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.23.0/24
+          gateway: 172.30.23.1
 
 volumes:
   hq-tools:
@@ -1697,3 +1783,6 @@ volumes:
   hq-substitute-web:
   # prompt 12 §7: the deploy diff's mirrors of the workspaces' repositories
   hq-git:
+  # prompt 13 §2.3: the render jobs between the courier and the renderer (a
+  # job's folder is removed once sent; not in backups)
+  hq-media-jobs:

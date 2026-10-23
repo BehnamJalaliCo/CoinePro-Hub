@@ -174,6 +174,8 @@ approle hq-worker "$CORE_CIDRS"
 approle provisioner '["172.30.10.0/24"]'
 # hq-tts (prompt 12 §4): the TTS one-shot reaches OpenBao there only.
 approle tts '["172.30.21.0/24"]'
+# hq-media (prompt 13 §2.3): the render worker's courier reaches OpenBao there only.
+approle media '["172.30.23.0/24"]'
 
 # The host's backup scripts (user Hub, through 127.0.0.1:8200): their own
 # AppRole, read-only on kv/backup/*. Hub owns the file, so no sudo is needed.
@@ -329,6 +331,20 @@ if ! kv_exists tts/config; then
   TT="$tts_token" jq -n '{data: {api_token: env.TT}}' | kv_put tts/config
   unset tts_token
   log "tts: its api service token created (digest in hq-api/config; restart the api)"
+fi
+
+# ----------------------------------------------------------- media (p13) --
+# The render worker's courier token for /internal/v1/media/render (service
+# principal "media"): kept in kv/media/config for it, its sha256 in the api's
+# service_tokens. Made once; the api reads service tokens at start.
+if ! kv_exists media/config; then
+  media_token="$(newtoken)"
+  expect "$(api GET kv/data/hq-api/config </dev/null)" 200
+  MH="$(printf '%s' "$media_token" | sha256)" jq '{data: (.data.data | .service_tokens =
+      ((.service_tokens // {}) + {media: env.MH}))}' "$WORK/resp" | kv_put hq-api/config
+  MT="$media_token" jq -n '{data: {api_token: env.MT}}' | kv_put media/config
+  unset media_token
+  log "media: its api service token created (digest in hq-api/config; restart the api)"
 fi
 
 # ------------------------------------------- the worker's connector (p10) --
