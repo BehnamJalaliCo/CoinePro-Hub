@@ -1634,9 +1634,9 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - نوع استوری `role`.
   - task classهای `media_script`، `media_direction`، `media_motion`، `media_review` و `ui_design` (همین‌ها در seed روتر).
   - همه‌ی جدول‌ها `company_id` و RLS **FORCE** دارند و حذف نمیشوند.
-  - داده: دپارتمان `MEDIA` (با مدیر خوابش و دو رشته) برای هر شرکت عملیاتی؛ `LEGAL` و `HQ-LGL` (خواب، بی مدیر) برای هلدینگ. **هیچ کارمندی ساخته نمیشود.** رشته‌ی `L` و نوع رشته‌ی `legal` مال ۳۱.۱۱ است.
-  - نوع‌های کارت `media_series`، `media_publish`، `role_new` (و `email_send`) از روی نوع‌هایی که CHECK الان دارد، `NOT VALID` اضافه میشوند.
-  - **زنجیره:** `0027_1` ← `0028` ← `0028_1` (حقوقی و صدا).
+  - داده: دپارتمان `MEDIA` (با مدیر خوابش و دو رشته) برای هر شرکت عملیاتی؛ `LEGAL` و `HQ-LGL` (خواب، بی مدیر) برای هلدینگ. **هیچ کارمندی ساخته نمیشود.** رشته‌ی `L` و نوع رشته‌ی `legal` مال ۳۱.۱۱ است (رشته‌ی `L` را seed از `holding.yaml` میسازد).
+  - نوع‌های کارت `media_series`، `media_publish` و `role_new` از روی نوع‌هایی که CHECK الان دارد، `NOT VALID` اضافه میشوند. `email_send` مال `0028_1` است.
+  - **زنجیره:** `0027_1` ← `0028` ← `0028_1` (حقوقی و صدا، آخرین). `0028_1` هر دو CHECK ‏`decisions_kind_check` و `threads_kind_check` را validate میکند. هر بازنویسی پیش از آن (۰۰۱۸، ۰۰۲۵، ۰۰۲۸) `NOT VALID` است، تا اجرای پایین و بالای migrationها (test_hiring) ردیف‌های بعدی را نگه دارد.
 - **دروازه‌ی راه‌اندازی:** تا کلید توقف هلدینگ روشن است، هیچ چیزی از این بخش مدل یا سرویس بیرونی صدا نمیزند:
   - sweep رسانه (`hq-media-sweep`، هر ۵ دقیقه) هیچ کاری نمیکند (`skipped: holding_locked`): هیچ آیتمی از برنامه‌ها ساخته نمیشود، هیچ انتشاری نیست و بازسنجی هم نیست.
   - `POST /internal/v1/media/render/claim` و `POST /internal/v1/voices/jobs/claim` (صف صدای ۳۱.۱۳) جواب `204` میدهند. کار شرکتی که قفل است هم منتظر میماند.
