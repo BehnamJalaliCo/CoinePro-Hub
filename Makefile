@@ -43,6 +43,8 @@ up: $(ENV_FILE) ## Start every service of the active profile and wait until heal
 	@infra/backup/anchor-dir.sh --check
 	@# Prompt 12 §14: the MCP container servers (by digest, never pulled), only while HQ_MCP=on.
 	@infra/mcp/build.sh --if-on
+	@# Every image of the active profiles, the one-shots (scale 0: never started by up) too.
+	$(HQ) build
 	$(HQ) up -d --build --remove-orphans --wait --wait-timeout 300
 	@# The hourly backup's image (own profile, nothing depends on it): built and checked here.
 	$(HQ) --profile backup-tools build backup-tools

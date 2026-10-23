@@ -1418,6 +1418,8 @@ services:
     # hub service, no database. The CLIs' sign-in lives in hq-substitute-auth
     # (files 600, not in the backups), which nothing else mounts.
     <<: *job
+    # A one-shot: `up` never starts it (its timer or the dispatcher runs it with `run`).
+    scale: 0
     profiles: [substitutes]
     image: coinepro-hq/substitutes:0.1.0
     build:
@@ -1550,6 +1552,8 @@ services:
     # api and OpenBao only (its AppRole is bound to that subnet); no internet,
     # no database, no audio ever leaves the hub.
     <<: *job
+    # A one-shot: `up` never starts it (its timer or the dispatcher runs it with `run`).
+    scale: 0
     profiles: [tts]
     image: coinepro-hq/tts:0.1.0
     build:
@@ -1620,6 +1624,8 @@ services:
     # Its deadline is the job's limits.timeout_s (600 s); run-once.sh kills
     # it a minute later; CPU, processes and memory are capped.
     <<: *job
+    # A one-shot: `up` never starts it (its timer or the dispatcher runs it with `run`).
+    scale: 0
     profiles: [media]
     image: coinepro-hq/media-render:0.1.0
     network_mode: none
