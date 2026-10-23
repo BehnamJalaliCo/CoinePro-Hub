@@ -21,8 +21,8 @@ nowhere else, so the extra policy never shows another company's row.
              copy)
 
 Decision kinds gain meeting_resolution, charter_amendment and
-knowledge_entry (appended to whatever the constraint holds, so 0026_1 can
-append its own); agents.runs.trigger gains 'meeting'; meetings.queue_turn()
+knowledge_entry (appended to whatever the constraint holds, NOT VALID, so
+0026_1 can append its own and validate them all at the head); agents.runs.trigger gains 'meeting'; meetings.queue_turn()
 queues a meeting turn (or the secretary's minutes run: the one system role
 that runs, contract §20.1).
 
@@ -616,7 +616,7 @@ def upgrade() -> None:
     grants.append(f"GRANT USAGE ON SEQUENCE {', '.join(SEQUENCES)} TO {APP_ROLES};")
     grants.append(HOLDING_READ)
     execute_script("\n".join(grants))
-    execute_script(_kinds_sql(NEW_KINDS, (), valid=True))
+    execute_script(_kinds_sql(NEW_KINDS, (), valid=False))  # 0026_1 (the head) validates
 
 
 def downgrade() -> None:

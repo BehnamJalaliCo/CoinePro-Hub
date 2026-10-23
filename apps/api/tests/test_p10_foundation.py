@@ -386,8 +386,15 @@ async def test_the_new_decision_kinds_and_the_shadow_suites(su: Any) -> None:
     )
     for kind in ("message_template", "lifecycle_rule", "support_go_live", "hire", "server_plan"):
         assert f"'{kind}'" in check, kind
-    # Prompt 11's 0026_1 re-adds it NOT VALID with its six kinds (the parent
-    # chains two halves): every card there still fits the constraint.
+    # Prompt 11: 0026 and 0026_1 re-add it NOT VALID with their kinds and the
+    # head (0026_1) validates it; every card there fits the constraint.
+    for kind in ("meeting_resolution", "charter_amendment", "knowledge_entry", "okr",
+                 "risk_acceptance", "authority_change"):  # fmt: skip
+        assert f"'{kind}'" in check, kind
+    assert await su.fetchval(
+        """SELECT convalidated FROM pg_constraint
+           WHERE conname = 'decisions_kind_check' AND conrelid = 'cartable.decisions'::regclass"""
+    )
     assert not await su.fetchval(
         """SELECT count(*) FROM cartable.decisions WHERE position(quote_literal(kind) IN $1) = 0""",
         check,

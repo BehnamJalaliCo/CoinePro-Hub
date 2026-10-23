@@ -26,13 +26,14 @@ a warning).
 
 cartable.decisions gains `expected` and `warnings` (set once, at the
 proposal); work.work gains key_result_id. The decision kinds gain the six of
-contract §20.11 (appended to what the constraint holds, NOT VALID). PR-090,
+contract §20.11 (appended to what the constraint holds, NOT VALID, then
+validated here: this is the head of prompt 11, after 0026). PR-090,
 PR-112, PR-113 and PR-116 become active (a data migration with an audit row
 each) where only their seeded, paused versions exist; on a fresh database the
-seed does the same right after it seeds them (hq_api.domain.gov_protocols).
+seed does the same right after it seeds them (hq_api.domain.gov_checks).
 
 Revision ID: 0026_1
-Revises: 0025 (the parent chains it after the other half's 0026)
+Revises: 0026 (the meeting room, the charter and the knowledge base)
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ import re
 from hq_api.migration_sql import execute_script
 
 revision = "0026_1"
-down_revision = "0025"
+down_revision = "0026"
 branch_labels = None
 depends_on = None
 
@@ -578,13 +579,17 @@ def upgrade() -> None:
     grants.append(f"GRANT USAGE ON SEQUENCE {', '.join(SEQUENCES)} TO {APP_ROLES};")
     execute_script("\n".join(grants))
     execute_script(_kinds_sql(NEW_KINDS, ()))
+    # Every kind of both halves is there now (0026 added its three NOT VALID):
+    # the head validates every card against them.
+    execute_script("ALTER TABLE cartable.decisions VALIDATE CONSTRAINT decisions_kind_check;")
     execute_script(ACTIVATE.replace("@REFS@", ", ".join(f"'{r}'" for r in ACTIVATED)))
 
 
 def downgrade() -> None:
     # The six kinds stay in decisions_kind_check: cards of those kinds outlive
-    # the tables, and 0025's re-upgrade validates the constraint (the 0009
-    # round trip of test_hiring). The activated protocols keep their versions.
+    # the tables (0026's downgrade then takes its own three out, NOT VALID; the
+    # re-upgrade validates at this head: the 0009 round trip of test_hiring).
+    # The activated protocols keep their versions.
     execute_script(
         """
         ALTER TABLE work.work DROP CONSTRAINT work_key_result;
