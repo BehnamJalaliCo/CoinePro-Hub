@@ -910,11 +910,20 @@ async def detect(tx: Tx, today: date) -> list[dict[str, Any]]:
     return out
 
 
-# Prompt 11's key results (contract §20.5): a key result under 70% of its
-# pace in the second half of its quarter. The table arrives with prompt 11;
-# until it exists this rule fires nothing (the parent points OKR_TABLE at it
-# after merging prompt 11 if its name differs).
+# Prompt 11's key results (contract §20.5; migration 0026_1): a key result
+# under 70% of its pace in the second half of its quarter. Until the table
+# exists (prompt 11 merged under this one) this rule fires nothing.
 OKR_TABLE = "governance.key_results"
+
+
+def okr_progress(start: float, target: float, current: float | None) -> float:
+    """A key result's progress as prompt 11 computes it (gov_okr.progress):
+    (current - start) / (target - start), clamped to 0..1."""
+    if current is None:
+        return 0.0
+    if target == start:
+        return 1.0 if current == target else 0.0
+    return max(0.0, min(1.0, (current - start) / (target - start)))
 
 
 def jalali_to_gregorian(y: int, m: int, d: int) -> date:
@@ -945,8 +954,14 @@ async def _okr_behind(tx: Tx, today: date) -> list[dict[str, Any]]:
     if not await tx.scalar("SELECT to_regclass(:t) IS NOT NULL", t=OKR_TABLE):
         return []
     out: list[dict[str, Any]] = []
+    # A KPI-linked key result takes the KPI's last value, a metric its own
+    # check-in (prompt 11's kr_current).
     rows = await tx.all(
-        f"""SELECT kr.ref, kr.company_id, c.code, kr.progress, o.quarter
+        f"""SELECT kr.ref, kr.company_id, c.code, o.quarter, kr.start, kr.target,
+                   CASE WHEN kr.kpi_key IS NOT NULL
+                        THEN (SELECT k.last_value FROM governance.kpis k
+                               WHERE k.company_id = kr.company_id AND k.key = kr.kpi_key)
+                        ELSE kr.current END AS current
             FROM {OKR_TABLE} kr
             JOIN governance.objectives o ON o.id = kr.objective_id
             JOIN core.companies c ON c.id = kr.company_id
@@ -961,7 +976,12 @@ async def _okr_behind(tx: Tx, today: date) -> list[dict[str, Any]]:
         elapsed = (today - start).days / total
         if elapsed < 0.5 or elapsed > 1:
             continue
-        pace = float(r["progress"] or 0) / elapsed
+        progress = okr_progress(
+            float(r["start"]),
+            float(r["target"]),
+            None if r["current"] is None else float(r["current"]),
+        )
+        pace = progress / elapsed
         if pace < 0.7:
             out.append(
                 {
@@ -971,7 +991,7 @@ async def _okr_behind(tx: Tx, today: date) -> list[dict[str, Any]]:
                     "facts": {
                         "key_result": r["ref"],
                         "company": r["code"],
-                        "progress": float(r["progress"] or 0),
+                        "progress": round(progress, 3),
                         "pace": round(pace, 2),
                     },
                 }

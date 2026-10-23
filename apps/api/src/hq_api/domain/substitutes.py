@@ -919,6 +919,8 @@ async def _applied(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         from hq_api.domain import advisor
 
         await advisor.apply_opinion(tx, str(call["purpose_ref"]), str(call["seat"]), call)
+    elif call["purpose_kind"] == "claim" and call["seat"] == "overseer_cross_check":
+        await apply_cross_check(tx, hub, call)
     elif call["caller_kind"] == "agent" and call["purpose_kind"] is None and call["kind"] == "call":
         await deliver_to_agent(tx, hub, call)
 
@@ -1763,6 +1765,19 @@ def parse_findings(text: str) -> list[dict[str, Any]]:
     )
 
 
+def second_review_of(c: dict[str, Any] | None) -> dict[str, Any] | None:
+    """`deploy.second_review` of a card's latest code_review call (pure; the
+    card's payload never changes, so the card reads it from the call)."""
+    if c is None or c.get("state") != "done":
+        return None
+    res = c.get("result") or {}
+    if isinstance(res, str):
+        res = json.loads(res)
+    findings = res.get("findings") or parse_findings(str(res.get("text_md") or ""))
+    verified = sum(1 for f in findings if f.get("verified") is True)
+    return {"player": c["player"], "model": c["model"], "findings": findings, "verified": verified}
+
+
 async def second_review(tx: Tx, decision_ref: str) -> dict[str, Any] | None:
     """`deploy.second_review` as the card shows it (contract §21.13)."""
     c = await tx.first(
@@ -1770,9 +1785,171 @@ async def second_review(tx: Tx, decision_ref: str) -> dict[str, Any] | None:
              AND seat = 'code_review' ORDER BY created_at DESC LIMIT 1""",
         r=decision_ref,
     )
-    if c is None or c["state"] != "done":
+    return second_review_of(c)
+
+
+def deploy_diff_md(diff: dict[str, Any]) -> str:
+    """A deploy card's diff (prompt 12 §7, already masked) as the review's text."""
+    out = [
+        f"base {diff.get('base_sha')} -> head {diff.get('head_sha')}: {diff.get('total_files')} files, "
+        f"+{diff.get('total_additions')} -{diff.get('total_deletions')}"
+        + (" (truncated)" if diff.get("truncated") else "")
+    ]
+    for f in diff.get("files") or []:
+        out.append(f"diff --git a/{f.get('path')} b/{f.get('path')} ({f.get('status')})")
+        if f.get("binary"):
+            out.append("(binary file, no patch)")
+        elif f.get("patch") is None:
+            out.append("(patch left out: the card's size bound)")
+        else:
+            out.append(str(f["patch"]))
+    return "\n".join(out)
+
+
+async def review_deploy(tx: Tx, hub: Any, d: dict[str, Any]) -> dict[str, Any] | None:
+    """Prompt 12 §7 x §9.1: a new deploy card with the real diff gets its
+    second code review (seat code_review), by code. It never approves or
+    blocks; nothing reaches the card's risk note unverified. None when the
+    card has no diff (no_access, too large): there is nothing to review."""
+    payload = d.get("payload") or {}
+    diff = payload.get("diff")
+    if d.get("kind") != "deploy" or not isinstance(diff, dict) or not diff.get("files"):
         return None
-    res = c["result"] or {}
-    findings = res.get("findings") or parse_findings(str(res.get("text_md") or ""))
-    verified = sum(1 for f in findings if f.get("verified") is True)
-    return {"player": c["player"], "model": c["model"], "findings": findings, "verified": verified}
+    return await queue_code_review(
+        tx,
+        hub,
+        DEPLOY_REVIEW,
+        company_id=d["company_id"],
+        repo=str(payload["repo"]),
+        head_sha=str(payload["head_sha"]),
+        diff_md=deploy_diff_md(diff),
+        purpose=("decision", str(d["ref"])),
+    )
+
+
+# ------------------------------------------------------------ cross-check --
+CROSS_CHECK = Principal(kind="service", code="claims-rules", role="service")
+DEPLOY_REVIEW = Principal(kind="service", code="deploy-review", role="service")
+CROSS_VERDICTS = ("confirmed", "refuted", "unverifiable")
+CROSS_PROMPT = (
+    "Check this one claim as a second, independent checker. Decide only from what is given here "
+    "and what you know for sure; say unverifiable otherwise. Answer with ONE JSON object: "
+    '{{"verdict": "confirmed|refuted|unverifiable", "reason_md": "<= 600 characters"}}.\n\n'
+    "Claim: {claim}\nIn the deliverable: {title}\nIts summary: {summary}"
+)
+RETURN_TOKENS = 40_000
+
+
+async def queue_cross_check(tx: Tx, hub: Any, claim: dict[str, Any]) -> dict[str, Any] | None:
+    """A sampled claim's second check (seat overseer_cross_check, contract
+    §21.13), queued by code when the claim is recorded in a sample protocol
+    (`protocol` set): the masked claim and its deliverable's title and summary,
+    never the checker's verdict or notes. Once per deliverable and claim text,
+    so a claim the overseer decides again is not checked again. None when the
+    input may not reach a substitute (personal data, a secret)."""
+    dl = await tx.first(
+        "SELECT title, summary FROM cartable.deliverables WHERE id = :id", id=claim["deliverable_id"]
+    )
+    title = str((dl or {}).get("title") or "")
+    summary = str((dl or {}).get("summary") or "")[:4000]
+    if summary and await guard(tx, hub, "overseer_cross_check", summary) is not None:
+        summary = ""  # the claim alone rather than a deliverable's personal data
+    text = CROSS_PROMPT.format(claim=claim["claim_md"], title=title, summary=summary or "-")
+    if await guard(tx, hub, "overseer_cross_check", text) is not None:
+        return None
+    if await tx.scalar(
+        """SELECT 1 FROM substitutes.calls s JOIN quality.claims q ON q.ref = s.purpose_ref
+           WHERE s.seat = 'overseer_cross_check' AND s.purpose_kind = 'claim'
+             AND q.deliverable_id = :dl AND q.claim_md = :claim AND q.id <> :id LIMIT 1""",
+        dl=claim["deliverable_id"],
+        claim=claim["claim_md"],
+        id=claim["id"],
+    ):
+        return None
+    return await seat_call(
+        tx,
+        hub,
+        CROSS_CHECK,
+        seat="overseer_cross_check",
+        input_md=text,
+        company_id=claim["company_id"],
+        purpose=("claim", str(claim["ref"])),
+    )
+
+
+def cross_verdict(text: str) -> tuple[str | None, str]:
+    """(verdict, reason) of a cross-check's answer; (None, "") when it gave none."""
+    m = re.search(r"\{.*\}", text or "", re.S)
+    if not m:
+        return None, ""
+    try:
+        raw = json.loads(m.group(0))
+    except ValueError:
+        return None, ""
+    if not isinstance(raw, dict) or raw.get("verdict") not in CROSS_VERDICTS:
+        return None, ""
+    return str(raw["verdict"]), scrub(str(raw.get("reason_md") or ""))[:600]
+
+
+async def apply_cross_check(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
+    """A finished cross-check. When its verdict differs from the recorded one,
+    the claim goes back to the overseer as a work item (look again, decide on
+    evidence you can cite). It never decides the claim: no quality.claims row
+    and no claim.verdict come from it; an agreeing or empty answer only stays
+    on the call."""
+    from hq_api.domain import work as W
+
+    if call["state"] != "done" or call["delivered_at"] is not None:
+        return
+    claim = await tx.first(
+        """SELECT q.*, c.code AS company FROM quality.claims q JOIN core.companies c ON c.id = q.company_id
+           WHERE q.ref = :r""",
+        r=call["purpose_ref"],
+    )
+    verdict, reason = cross_verdict(str((call["result"] or {}).get("text_md") or ""))
+    if claim is None or verdict is None or verdict == claim["verdict"]:
+        return
+    overseer = await tx.first(
+        """SELECT e.code, e.company_id, c.code AS company FROM core.employees e
+           JOIN core.companies c ON c.id = e.company_id
+           WHERE e.kind = 'overseer' AND e.status = 'active' AND c.kind = 'holding'
+           ORDER BY e.created_at LIMIT 1"""
+    )
+    if overseer is None:
+        log.info("cross-check disagrees but no overseer is seated", extra={"claim": claim["ref"]})
+        return
+    brief = (
+        f"A cross-check disagrees with claim {claim['ref']} of deliverable {claim['deliverable_ref']} "
+        f"({claim['company']}, by {claim['employee_code'] or '-'}): recorded {claim['verdict']} by "
+        f"{claim['checked_by_code']}, the cross-check says {verdict}. Source: {json.dumps(source(call))}. "
+        "It is a second pair of eyes, never evidence and never a verdict: look again and decide on "
+        "evidence you can cite; record claim.verdict only from your own check.\n\n"
+        f"Claim: {claim['claim_md']}\nThe cross-check's reason: {reason or '-'}"
+    )
+    w = await W.create(
+        tx,
+        SERVICE,
+        company_id=overseer["company_id"],
+        company_code=overseer["company"],
+        title=f"بازبینی دوباره‌ی ادعای {claim['ref']}"[:300],
+        brief=brief,
+        kind="one_off",
+        priority="P2",
+        assignee_code=overseer["code"],
+        budget=W.BudgetIn(tokens=RETURN_TOKENS),
+    )
+    await tx.exec(
+        "UPDATE substitutes.calls SET delivered_at = now(), reply_work_id = :w WHERE id = :id",
+        w=w["id"],
+        id=call["id"],
+    )
+    await audit.record(
+        tx,
+        audit.SYSTEM,
+        company_id=claim["company_id"],
+        action="claim.returned",
+        action_class="A1",
+        target_kind="claim",
+        target_ref=claim["ref"],
+        summary=f"cross-check {verdict} vs {claim['verdict']}: back to {overseer['code']}",
+    )

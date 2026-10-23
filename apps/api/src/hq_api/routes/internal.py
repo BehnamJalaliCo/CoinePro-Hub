@@ -11,6 +11,7 @@ single insert after the policy allowed it.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from datetime import datetime
 from decimal import Decimal
@@ -40,6 +41,8 @@ from hq_api.routes.messages import (
 )
 from hq_api.schemas import EMPLOYEE_CODE, Evidence, FileRef, Model
 from hq_api.workshop import service as workshop_service
+
+log = logging.getLogger("hq_api.routes.internal")
 
 router = APIRouter(tags=["internal"])
 E = responses(401, 403, 404, 409, 422, 423)
@@ -863,6 +866,7 @@ async def propose_decision(
         )
         if body.kind == "errand_action":  # ⟨1.4⟩ the errand waits for the owner
             await errands.on_proposed(tx, payload["errand"], d["id"])
+
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,
@@ -875,8 +879,25 @@ async def propose_decision(
         result = D.render(d)
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
+    if body.kind == "deploy":
+        await _review_deploy(ctx, d)
     await workflows_client.decision_created(ctx.hub, result.ref)
     return result
+
+
+async def _review_deploy(ctx: Ctx, d: dict[str, Any]) -> None:
+    """⟨1.5⟩ Prompt 12 §7 x §9.1: a deploy card's real diff gets its second
+    code review (seat code_review), after the card exists. The players and
+    seats are the holding's, so it runs in the hub's scope. Skipped while the
+    holding is locked or the seat is off; it never approves or blocks, and the
+    card is the same without it (a failure here is logged, never the card's)."""
+    from hq_api.domain import substitutes
+
+    try:
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+            await substitutes.review_deploy(tx, ctx.hub, d)
+    except Exception:
+        log.exception("the deploy card's second review was not queued", extra={"ref": d["ref"]})
 
 
 async def _agent_decide(

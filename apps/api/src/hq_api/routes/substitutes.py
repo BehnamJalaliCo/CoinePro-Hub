@@ -396,7 +396,10 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
         ctx, "substitute.call", {"seat": body.seat, "charter": who.charter, "company": who.company}
     )
     hub = ctx.hub
-    async with ctx.tx() as tx:
+    # The hub's scope, not the agent's: the players and seats are the
+    # holding's rows and a seat's daily cap counts every company's calls; the
+    # call itself is written for the agent's own company.
+    async with hub.db.tx(await hub.companies.ids()) as tx:
         reason = await S.guard(tx, hub, body.seat, body.input_md)
         if reason is not None:
             raise ApiError(403, "policy_denied", f"the input may not leave the hub: {reason}")

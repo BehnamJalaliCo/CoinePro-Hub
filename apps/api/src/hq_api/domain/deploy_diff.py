@@ -331,7 +331,11 @@ async def build(where: Path, base: str, head: str) -> dict[str, Any] | None:
 async def attach(hub: Any, payload: dict[str, Any], company_id: Any = None) -> dict[str, Any]:
     """The payload with the api's `diff` / `diff_unavailable` (whatever the
     proposer sent there is replaced). A head_sha not in the repository -> 422."""
-    out = {k: v for k, v in payload.items() if k not in ("diff", "diff_unavailable")}
+    out = {
+        k: v
+        for k, v in payload.items()
+        if k not in ("diff", "diff_unavailable", "second_review")  # the api's, never the proposer's
+    }
     head = str(out.get("head_sha") or "")
     if not re.fullmatch(r"[0-9a-f]{7,64}", head):
         return out  # validate_payload answers 422 for head_sha

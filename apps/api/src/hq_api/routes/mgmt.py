@@ -733,6 +733,13 @@ async def claim_verdict(body: ClaimIn, request: Request, ctx: Ctx = Depends(inte
             evidence=[e.model_dump() for e in body.evidence],
             protocol=body.protocol,
         )
+        if body.protocol:
+            # A sampled claim (PR-001, the fact checker's sample): its second
+            # check by a substitute (seat overseer_cross_check, §21.13). A
+            # disagreement sends it back to the overseer; it never decides it.
+            from hq_api.domain import substitutes
+
+            await substitutes.queue_cross_check(tx, ctx.hub, row)
         await ctx.audit(
             tx,
             company_id=holding.id,

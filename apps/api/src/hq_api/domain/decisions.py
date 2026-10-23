@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field, ValidationError
 from hq_api import events
 from hq_api.db import Tx
 from hq_api.domain import errands, hiring, mcp, notify, org, oversight, recurring, stars
+from hq_api.domain import substitutes as S
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -159,6 +160,9 @@ class DeployPayload(Model):
     # ⟨1.5⟩ written by the api from the repository, never by the proposer (§21.6)
     diff: dict[str, Any] | None = None
     diff_unavailable: Literal["no_access", "too_large", "fetch_failed"] | None = None
+    # ⟨1.5⟩ the substitute's second code review (§21.13), read from its call
+    # when the card is shown (the payload never changes); never the proposer's
+    second_review: dict[str, Any] | None = None
 
 
 class A3Payload(Model):
@@ -485,7 +489,13 @@ DECISION_SQL = """
                                       ORDER BY m.created_at), '[]'::jsonb)
               FROM advisor.memos m WHERE m.decision_id = d.id) AS memos,
            (SELECT COALESCE(jsonb_agg(jsonb_build_object('at', x.at, 'kind', x.kind) ORDER BY x.at), '[]')
-              FROM owner.decision_reminders x WHERE x.decision_id = d.id) AS reminders
+              FROM owner.decision_reminders x WHERE x.decision_id = d.id) AS reminders,
+           (SELECT jsonb_build_object('state', s.state, 'player', s.player, 'model', s.model,
+                                      'result', s.result)
+              FROM substitutes.calls s
+             WHERE d.kind = 'deploy' AND s.purpose_kind = 'decision' AND s.purpose_ref = d.ref
+               AND s.seat = 'code_review'
+             ORDER BY s.created_at DESC LIMIT 1) AS second_review_call
     FROM cartable.decisions d
     JOIN core.companies c ON c.id = d.company_id
     LEFT JOIN cartable.resolutions r ON r.id = d.resolution_id
@@ -511,7 +521,7 @@ def render(r: dict[str, Any]) -> Decision:
         risk=r["risk"],
         risk_note=r["risk_note"],
         reversible=r["reversible"],
-        payload=r["payload"],
+        payload=_with_review(r),
         amendments=r["amendments"],
         status=r["status"],
         expires_at=r["expires_at"],
@@ -531,6 +541,17 @@ def render(r: dict[str, Any]) -> Decision:
         waiting_h=_waiting_h(r),
         reminders=list(r.get("reminders") or []),
     )
+
+
+def _with_review(r: dict[str, Any]) -> dict[str, Any]:
+    """A deploy card's payload with its `second_review` (prompt 12 §7 x §9.1):
+    the latest code_review call's findings, or null while there is none."""
+    if r["kind"] != "deploy":
+        return dict(r["payload"])
+    call = r.get("second_review_call")
+    if isinstance(call, str):
+        call = json.loads(call)
+    return {**r["payload"], "second_review": S.second_review_of(call)}
 
 
 def _waiting_h(r: dict[str, Any]) -> float | None:
