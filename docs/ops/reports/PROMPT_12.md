@@ -239,7 +239,7 @@ PROMPT_12 REPORT (management tools: the premium advisor, ask the hub, spoken bri
 - §14.6 CodeCortex's `impact` / `cortex_pr_intelligence` for the deploy card's risk note is not wired (no tool lets the CTO or QC verify a finding; nothing unverified may reach the risk note).
 
 ### Gates run (join, test name p12a, image tag p12a)
-- api (fresh database): tests/test_p12_joins.py (6), test_p12a_advisor.py, test_p12a_substitutes.py, test_p12b_cards.py, test_p12b_people.py, test_p12b_briefings.py, test_p12b_treasury.py: 82 passed. The full api suite is the parent's, after prompt 11 is under it; `test_inquiries_errands.py::test_the_advisor_v2_has_its_read_tools` is expected to fail until then.
+- api (fresh database): tests/test_p12_joins.py (6), test_p12a_advisor.py, test_p12a_substitutes.py, test_p12b_cards.py, test_p12b_people.py, test_p12b_briefings.py, test_p12b_treasury.py: 82 passed; then (after the OpenAPI regeneration) test_openapi, test_owner_inbox, test_rls_all_tables, test_schema_rules, test_decisions_messages, test_p12_joins, test_runs_hard, test_hardening, test_workshop, test_control_treasury_stream, test_oversight, test_tools_mcp, test_egress, test_precedence: 166 passed. The full api suite is the parent's, after prompt 11 is under it; `test_inquiries_errands.py::test_the_advisor_v2_has_its_read_tools` is expected to fail until then.
 - services (p12as): hq-common, llm-router, claude-runtime, gateway, stt, egress, provisioner, substitutes, tts: 928 passed, 10 skipped (browser tests need browser-test.sh), coverage 88.85%.
 - lint (ruff, format, mypy --strict; api and services), OpenAPI regenerated, opa 124/124 (100% coverage), shellcheck (79 scripts), compose-config, compose-rules, memory-budget, infra.sh: green.
 
