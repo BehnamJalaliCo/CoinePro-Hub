@@ -64,6 +64,8 @@ SCHEMAS = (
     # the voice registry (people.role_drafts is in people)
     "legal",
     "media",
+    # prompt 14: the archive of record (its open layer is the holding's)
+    "archive",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.
@@ -511,6 +513,23 @@ HOLDING_ONLY = {
     "media.voices",
     "media.voice_samples",
     "media.voice_references",
+    # prompt 14: the archive's open layer, its holds and its fixity runs are
+    # the holding's; records, files and their rows belong to their scope
+    "archive.levels",
+    "archive.clearance",
+    "archive.classes",
+    "archive.class_versions",
+    "archive.fields",
+    "archive.party_kinds",
+    "archive.parties",
+    "archive.link_kinds",
+    "archive.retention_rules",
+    "archive.reminder_rules",
+    "archive.automations",
+    "archive.automation_runs",
+    "archive.sources",
+    "archive.fixity_runs",
+    "archive.holds",
 }
 
 
@@ -716,6 +735,77 @@ async def _fill_p13b(su: Any, co: dict[str, Any]) -> None:
                created_by_kind, created_by_code)
            VALUES ($1, 'narration', 'piper-amir', 'MI-0001', 'سلام.', 'cancelled', 'service', 'rls')""",
         c,
+    )
+
+
+async def _fill_p14(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 14 (migration 0029): a record of company `co` with its version,
+    file, link, reminder, access row, tombstone, intake, folder and a queued
+    destruction (the open layer, holds and fixity runs are the holding's)."""
+    c = co["id"]
+    folder = await su.fetchval(
+        "INSERT INTO archive.folders (company_id, title_fa) VALUES ($1, 'rls') RETURNING id", c
+    )
+    rec = await su.fetchrow(
+        """INSERT INTO archive.records (company_id, class_key, class_version, title_fa, folder_id, level, level_rank,
+               state, source_kind, created_by_kind, created_by_code, filed_at, disposed_at)
+           VALUES ($1, 'other', 1, 'rls', $2, 'internal', 10, 'disposed', 'owner', 'owner', 'owner', now(), now())
+           RETURNING id, ref""",
+        c,
+        folder,
+    )
+    await su.execute(
+        """INSERT INTO archive.record_versions (company_id, record_id, n, manifest_sha256, created_by_kind,
+               created_by_code) VALUES ($1, $2, 1, $3, 'owner', 'owner')""",
+        c,
+        rec["id"],
+        "a" * 64,
+    )
+    await su.execute(
+        """INSERT INTO archive.record_files (company_id, record_id, version_n, file_id, name, mime, size_bytes,
+               sha256, stored_sha256, storage_key, encrypted)
+           VALUES ($1, $2, 1, gen_random_uuid(), 'rls.pdf', 'application/pdf', 1, $3, $3, $4, false)""",
+        c,
+        rec["id"],
+        "a" * 64,
+        "b" * 32,
+    )
+    await su.execute(
+        """INSERT INTO archive.links (company_id, record_id, kind, to_kind, to_ref, by_kind, by_code)
+           VALUES ($1, $2, 'about', 'company', $3, 'owner', 'owner')""",
+        c,
+        rec["id"],
+        co["code"],
+    )
+    await su.execute(
+        """INSERT INTO archive.reminders (company_id, record_id, field, at, lead_days, due_at, channel, to_whom)
+           VALUES ($1, $2, 'date', CURRENT_DATE, 0, CURRENT_DATE, 'digest', '"owner"')""",
+        c,
+        rec["id"],
+    )
+    await su.execute(
+        """INSERT INTO archive.access_log (company_id, record_id, level_rank, actor_kind, actor_code, action)
+           VALUES ($1, $2, 10, 'owner', 'owner', 'metadata')""",
+        c,
+        rec["id"],
+    )
+    await su.execute(
+        """INSERT INTO archive.tombstones (company_id, record_id, ref, title_fa, level_rank, dates, hashes,
+               decision_ref) VALUES ($1, $2, $3, 'rls', 10, '{}', '[]', 'D-000001')""",
+        c,
+        rec["id"],
+        rec["ref"],
+    )
+    await su.execute(
+        """INSERT INTO archive.intake (company_id, file_id, name, mime, size_bytes, sha256, text_state, by_kind,
+               by_code) VALUES ($1, gen_random_uuid(), 'rls', 'application/pdf', 1, $2, 'none', 'owner', 'owner')""",
+        c,
+        "c" * 64,
+    )
+    await su.execute(
+        "INSERT INTO archive.destroy_queue (company_id, storage_key, why, done_at) VALUES ($1, $2, 'intake', now())",
+        c,
+        "d" * 32,
     )
 
 
@@ -1136,6 +1226,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p13a_roles(su, b)
     await _fill_p13a_media(su, b)
     await _fill_p13b(su, b)
+    await _fill_p14(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
@@ -1172,9 +1263,13 @@ async def test_no_table_leaks_between_companies(
         if in_b:
             populated.append(name)
         async with hub.db.tx([a["id"]]) as tx:
+            # ⟨1.7⟩ the archive also needs a clearance: the widest, so only the
+            # company scope is what keeps B's rows away
+            await tx.exec("SELECT set_config('app.clearance', '{\"all\": true}', true)")
             seen = await tx.scalar(f"SELECT count(*) FROM {name} WHERE company_id = :b", b=b["id"])
         assert seen == 0, f"{name}: {seen} row(s) of another company visible"
         async with hub.db.tx([b["id"]]) as tx:
+            await tx.exec("SELECT set_config('app.clearance', '{\"all\": true}', true)")
             assert (
                 await tx.scalar(f"SELECT count(*) FROM {name} WHERE company_id = :b", b=b["id"])
                 == in_b

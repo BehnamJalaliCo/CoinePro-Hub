@@ -28,7 +28,8 @@ from hq_common.tokens import bearer, digest
 router = APIRouter(tags=["auth"])
 
 OWNER = Principal(kind="owner", code=OWNER_CODE, role="owner")
-ACTION_PATTERN = r"^[a-z_]+\.[a-z_]+$"
+# ⟨1.7⟩ one more segment for archive.hold.release (contract §23.11)
+ACTION_PATTERN = r"^[a-z_]+\.[a-z_]+(\.[a-z_]+)?$"
 
 
 # ------------------------------------------------------------------ models --

@@ -72,6 +72,10 @@ KINDS = (
     "role_new",
     # ⟨1.6⟩ prompt 13 §3 (contract §22.4): the counsel's exact email, the owner's seal
     "email_send",
+    # ⟨1.7⟩ prompt 14 (contract §23.11): an agent's proposed schema change of the
+    # archive (payload = the exact PUT body), the weekly disposal card
+    "archive_schema",
+    "archive_disposal",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -109,6 +113,9 @@ ACTION_CLASS = {
     "media_publish": "A3",
     "role_new": "A2",
     "email_send": "A3",
+    # ⟨1.7⟩ the schema is the owner's change; a disposal destroys files (irreversible)
+    "archive_schema": "A2",
+    "archive_disposal": "A3",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -138,10 +145,15 @@ STEP_UP_KINDS = (
     "media_series",
     "media_publish",
     "role_new",
+    # ⟨1.7⟩ both archive cards are sealed with step-up (contract §23.11)
+    "archive_schema",
+    "archive_disposal",
 )
 # ⟨1.6⟩ cards only code writes (series.propose, the media pipeline, a role
 # draft's gates); an agent's or the owner's `propose` of one is refused.
-SYSTEM_CARD_KINDS = ("media_series", "media_publish", "role_new")
+SYSTEM_CARD_KINDS = ("media_series", "media_publish", "role_new", "archive_disposal")
+# ⟨1.7⟩ applied in the deciding transaction, bound to what they show (§23.11)
+ARCHIVE_CARD_KINDS = ("archive_schema", "archive_disposal")
 # ⟨1.5⟩ applied in the deciding transaction, bound to their payload (§19.9)
 SEALED_CARD_KINDS = ("message_template", "lifecycle_rule", "support_go_live")
 # ⟨1.5⟩ prompt 11 §2-§3: applied in the deciding transaction too (a card on a
@@ -542,6 +554,36 @@ class EmailSendPayload(Model):
     digest: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
+class ArchiveSchemaPayload(Model):
+    """⟨1.7⟩ An agent's proposed schema change (contract §23.12): the exact
+    PUT body; void once that schema row changed since `base_version`."""
+
+    part: Literal[
+        "classes", "folders", "levels", "clearance", "retention", "reminders", "party_kinds",
+        "link_kinds", "automations",
+    ]  # fmt: skip
+    key: str = Field(min_length=1, max_length=80)
+    base_version: int | None = Field(default=None, ge=1)
+    body: dict[str, Any]
+    impact: dict[str, Any] = Field(default_factory=dict)
+
+
+class ArchiveDisposalItem(Model):
+    ref: str = Field(pattern=r"^AR-[0-9]{6,}$")
+    class_: str | None = Field(default=None, alias="class")
+    title_fa: str = Field(max_length=300)
+    retention_rule: str | None = None
+    trigger_at: str | None = None
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, serialize_by_alias=True)
+
+
+class ArchiveDisposalPayload(Model):
+    """⟨1.7⟩ The weekly disposal card (contract §23.11), made by code only."""
+
+    records: list[ArchiveDisposalItem] = Field(min_length=1, max_length=500)
+
+
 PAYLOADS: dict[str, type[Model]] = {
     "hire": HirePayload,
     "dismissal": DismissalPayload,
@@ -569,6 +611,8 @@ PAYLOADS: dict[str, type[Model]] = {
     "media_publish": MediaPublishPayload,
     "role_new": RoleNewPayload,
     "email_send": EmailSendPayload,
+    "archive_schema": ArchiveSchemaPayload,
+    "archive_disposal": ArchiveDisposalPayload,
 }
 
 
@@ -603,6 +647,8 @@ class DecisionIn(Model):
         "media_publish",
         "role_new",
         "email_send",
+        "archive_schema",
+        "archive_disposal",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -973,6 +1019,11 @@ async def propose(
         from hq_api.domain import founding
 
         await founding.check_proposal(tx, payload, company_id)
+    if body.kind == "archive_schema":
+        # ⟨1.7⟩ checked against the closed vocabulary now; the impact is the server's
+        from hq_api.archive import cards as AC
+
+        payload = await AC.check_proposal(tx, payload)
     if body.kind == "email_send" and not await tx.scalar(
         """SELECT 1 FROM legal.emails WHERE id = CAST(:e AS uuid) AND company_id = :co
              AND state = 'waiting_seal' AND decision_id IS NULL AND digest = :d""",
@@ -1260,7 +1311,7 @@ async def decide(
         await hiring.close_decide_items(tx, [d["ref"]], f"{d['ref']}: مالک خودش تصمیم گرفت")
     effect = "pending" if verdict == "approved" and d["kind"] in EFFECT_KINDS else "none"
     server = None
-    sealed_as_is = d["kind"] in ("tool_enable", "email_send") or (
+    sealed_as_is = d["kind"] in ("tool_enable", "email_send", *ARCHIVE_CARD_KINDS) or (
         d["kind"] == "a3_action" and (d["payload"] or {}).get("action") == "mcp_call"
     )
     if verdict == "approved" and amendments and sealed_as_is:
@@ -1271,6 +1322,14 @@ async def decide(
     if verdict == "approved" and d["kind"] == "tool_enable":
         # Bound to the listing it shows: superseded (409) when the server changed.
         server = await mcp.sealed_listing(tx, d)
+        effect = "applied"
+    archive_summary = ""
+    if verdict == "approved" and d["kind"] in ARCHIVE_CARD_KINDS:
+        # ⟨1.7⟩ applied here, bound to what the card shows (a schema row that
+        # changed since voids it: 409 decision_not_pending)
+        from hq_api.archive import cards as AC
+
+        archive_summary = await AC.apply(tx, d, who)
         effect = "applied"
     if verdict == "approved" and d["kind"] in SEALED_CARD_KINDS:
         if amendments:
@@ -1344,7 +1403,9 @@ async def decide(
             who,
             company_id=d["company_id"],
             title=d["title"],
-            body=(d["what"] or "") + (f"\n\nیادداشت مدیر کل: {note}" if note else ""),
+            body=(d["what"] or "")
+            + (f"\n\nیادداشت مدیر کل: {note}" if note else "")
+            + (f"\n\n{archive_summary}" if archive_summary else ""),
             decision_id=d["id"],
             sent_to=[d["proposer_code"]] if d["proposer_kind"] == "agent" else [],
             ref=ref,
@@ -1368,6 +1429,10 @@ async def decide(
         from hq_api.domain import studio  # ⟨1.6⟩ the series back to draft, the item rejected
 
         await studio.card_declined(tx, d, verdict, note)
+    if d["kind"] == "archive_disposal" and verdict != "approved":
+        from hq_api.archive import retention as RT
+
+        await RT.card_declined(tx, d, verdict)
     if d["kind"] == "role_new" and verdict in ("rejected", "returned"):
         from hq_api.domain import role_drafts
 

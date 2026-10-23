@@ -31,6 +31,12 @@ class Storage(Protocol):
         """Where the bytes are (ffmpeg, Range reads); S3 would download first."""
         ...
 
+    async def destroy(self, key: str) -> bool:
+        """The bytes are gone (prompt 14 §5: a disposal the owner sealed, an
+        archive intake that took an upload over, a secret refused). True when
+        there was something to remove."""
+        ...
+
 
 class LocalStorage:
     def __init__(self, root: str | Path) -> None:
@@ -87,3 +93,15 @@ class LocalStorage:
 
     def local_path(self, key: str) -> Path:
         return self._path(key)
+
+    async def destroy(self, key: str) -> bool:
+        path = self._path(key)
+
+        def remove() -> bool:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                return False
+            return True
+
+        return await asyncio.to_thread(remove)

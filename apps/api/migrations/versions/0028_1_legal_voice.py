@@ -27,9 +27,10 @@ FORCE RLS (the once-per-query policy of 0009), no row is ever deleted:
                        current, older ones superseded)
 
 Also: decision kind `email_send` (the CHECK rewritten from the kinds it holds,
-NOT VALID, then validated: this revision is the head, and every earlier
+NOT VALID: only the head validates, 0029 since prompt 14, and every earlier
 re-add of decisions_kind_check and threads_kind_check, 0018, 0023, 0025,
-0026, 0026_1 and 0028 among them, is NOT VALID (0027_2 validates nothing) so a down-and-up run keeps every later row); thread
+0026, 0026_1 and 0028 among them, is NOT VALID (0027_2 validates nothing) so
+a down-and-up run keeps every later row); thread
 kind `legal` and code `L` (the owner's thread with HQ-LGL; an owner message
 there wakes it at P2, like A, N and P); task classes `legal_case` and
 `legal_email` (never on another provider). LEGAL and HQ-LGL are 0028's; the
@@ -375,16 +376,13 @@ def upgrade() -> None:
     grants.append(f"GRANT USAGE ON SEQUENCE {', '.join(SEQUENCES)} TO {APP_ROLES};")
     execute_script("\n".join(grants))
     execute_script(
-        # Added NOT VALID, then validated in its own statement (the head
-        # validates: 0018, 0025, 0026, 0026_1 and 0028 leave theirs NOT VALID, so a down-and-up run
-        # of the migrations keeps every later revision's rows).
+        # Added NOT VALID. Only the head validates (0029 since prompt 14: 0018,
+        # 0023, 0025, 0026, 0026_1 and 0028 leave theirs NOT VALID too, so a
+        # down-and-up run of the migrations keeps every later revision's rows,
+        # the archive's cards among them, which this CHECK does not name).
         _kinds_sql("cartable.decisions", "decisions_kind_check", ("email_send",), (), False)
         + _kinds_sql("msg.threads", "threads_kind_check", ("legal",), (), False)
         + WAKE.format(kinds=WAKE_KINDS + ", 'legal'", p2=WAKE_P2 + ", 'legal'")
-    )
-    execute_script(
-        """ALTER TABLE cartable.decisions VALIDATE CONSTRAINT decisions_kind_check;
-           ALTER TABLE msg.threads VALIDATE CONSTRAINT threads_kind_check;"""
     )
     classes = ",\n".join(
         "('{}', false, '{}')".format(k, d.replace("'", "''")) for k, d in TASK_CLASSES

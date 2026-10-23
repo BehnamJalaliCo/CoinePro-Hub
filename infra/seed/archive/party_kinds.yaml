@@ -1,0 +1,26 @@
+# Kinds of party (contract §23.3); each names the identifiers it keeps.
+party_kinds:
+  - key: exchange
+    title_fa: صرافی
+    identifier_fields:
+      - {key: website, title_fa: وبگاه, type: url}
+  - key: provider
+    title_fa: ارائه‌دهنده‌ی خدمت
+    identifier_fields:
+      - {key: website, title_fa: وبگاه, type: url}
+      - {key: email, title_fa: ایمیل, type: email}
+  - key: government
+    title_fa: نهاد دولتی
+    identifier_fields:
+      - {key: registration_no, title_fa: شماره‌ی ثبت, type: id_code}
+  - key: bank
+    title_fa: بانک
+    identifier_fields:
+      - {key: swift, title_fa: کد سوئیفت, type: id_code}
+  - key: person
+    title_fa: شخص
+    identifier_fields:
+      - {key: national_id, title_fa: کد ملی, type: id_code, sensitive: true}
+  - key: other
+    title_fa: سایر
+    identifier_fields: []

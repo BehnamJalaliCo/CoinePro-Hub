@@ -121,4 +121,11 @@ async def seed(tx: Tx) -> dict[str, Any]:
         from hq_api.domain import voices
 
         added["voices"] = await voices.seed(tx, holding["id"])
+        # Prompt 14 §2: the archive's open layer from infra/seed/archive
+        # (HQ_ARCHIVE_SEED); only what is missing, never what the owner changed.
+        from hq_api.archive import schema as archive_schema
+
+        added.update(
+            {f"archive_{k}": v for k, v in (await archive_schema.seed(tx, holding["id"])).items()}
+        )
     return {"companies_filled": filled, **added}

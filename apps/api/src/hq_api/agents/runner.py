@@ -144,10 +144,12 @@ RUN_TASK_CLASSES = frozenset(
         # ⟨1.6⟩ prompt 13 §3: a case's work, a reply's reading (legal.wake)
         "legal_case",
         "legal_email",
+        # ⟨1.7⟩ prompt 14: the archivist's work
+        "archive",
     }
 )
 # ⟨1.6⟩ a role's own class when nothing more specific names one.
-TASK_CLASS_OF_ROLE = {"legal_counsel": "legal_case"}
+TASK_CLASS_OF_ROLE = {"legal_counsel": "legal_case", "archivist": "archive"}
 HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
 MIN_OUTPUT_TOKENS = 256  # a step needs at least this much room to answer at all
 LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked for context
@@ -238,9 +240,14 @@ class Runner:
                 lib = await RD.overlay(tx, lib, emp["company_id"], running=True)
             charter = lib.get(emp["role"]) if lib is not None else None
             refuse = None
-            # ⟨1.5⟩ the one system role that runs: the secretary's meeting summary
+            # A system employee runs only with a system charter (the rule-based
+            # report system HQ-SYS has none and never runs): ⟨1.5⟩ the secretary
+            # only for a meeting's summary; the librarian (HQ-LIB, its ask) and
+            # ⟨1.7⟩ the archivist (HQ-ARC, its work items) when code gives them work.
             system_ok = (
-                charter is not None and charter.kind == "system" and run["trigger"] == "meeting"
+                charter is not None
+                and charter.kind == "system"
+                and (emp["role"] != "secretary" or run["trigger"] == "meeting")
             )
             if charter is None:
                 refuse = "no_charter"

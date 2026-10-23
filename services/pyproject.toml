@@ -4,7 +4,7 @@
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["hq-common/src", "llm-router/src", "claude-runtime/src", "gateway/src", "stt/src", "egress/src", "provisioner/src", "substitutes/src", "tts/src", "media-render/src"]
+src = ["hq-common/src", "llm-router/src", "claude-runtime/src", "gateway/src", "stt/src", "egress/src", "provisioner/src", "substitutes/src", "tts/src", "media-render/src", "ocr/src"]
 extend-exclude = ["llm-router/migrations/versions"]
 
 [tool.ruff.lint]
@@ -33,13 +33,13 @@ ignore = [
 "media-render/src/hq_media_render/*.py" = ["RUF001"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["hq_common", "llm_router", "claude_runtime", "hq_gateway", "hq_stt", "hq_egress", "hq_provisioner", "hq_substitutes", "hq_tts", "hq_media_render"]
+known-first-party = ["hq_common", "llm_router", "claude_runtime", "hq_gateway", "hq_stt", "hq_egress", "hq_provisioner", "hq_substitutes", "hq_tts", "hq_media_render", "hq_ocr"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 warn_unreachable = true
-mypy_path = "hq-common/src:llm-router/src:claude-runtime/src:gateway/src:stt/src:egress/src:provisioner/src:substitutes/src:tts/src:media-render/src"
+mypy_path = "hq-common/src:llm-router/src:claude-runtime/src:gateway/src:stt/src:egress/src:provisioner/src:substitutes/src:tts/src:media-render/src:ocr/src"
 explicit_package_bases = true
 cache_dir = "/tmp/mypy-cache"
 
@@ -60,8 +60,11 @@ data_file = "/tmp/.coverage"
 # decisions (rules.py) are tested here, the browser itself by the egress smoke test.
 # Likewise the render worker's Chromium and ffmpeg driver (prompt 13): its pure
 # parts are tested here, a real render by `make media-bench` in its own image.
+# The OCR's Tesseract and pdftoppm runs (prompt 14) likewise: `make ocr-test`
+# in the ocr image runs the same test file with real Tesseract.
 omit = ["*/hq_egress/browser.py", "*/hq_egress/browser_web.py", "*/hq_media_render/render.py",
-        "*/hq_media_render/bench.py", "*/hq_media_render/probe.py", "*/hq_media_render/__main__.py"]
+        "*/hq_media_render/bench.py", "*/hq_media_render/probe.py", "*/hq_media_render/__main__.py",
+        "*/hq_ocr/bench.py", "*/hq_ocr/__main__.py"]
 
 [tool.coverage.report]
 skip_empty = true

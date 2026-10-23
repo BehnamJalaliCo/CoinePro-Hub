@@ -67,6 +67,8 @@ ops := {
 	# tools, a media item's narration, the TTS one-shot's voice jobs
 	"legal.case_open", "legal.case_note", "legal.email_draft", "legal.mail_read",
 	"media.voice", "voices.claim", "voices.done",
+	# prompt 14 (archive.rego): the archive's tools (the archivist, the counsel)
+	"archive.search", "archive.read", "archive.file", "archive.link", "archive.hold",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and
@@ -129,6 +131,9 @@ propose_kinds := {
 	# errand's external commitment is the owner's decision (§5)
 	"overseer": {"proposal", "protocol", "charter_amendment", "authority_change"},
 	"assistant": {"proposal", "errand_action"},
+	# ⟨1.7⟩ prompt 14: a system role of the holding (the archivist) proposes a
+	# schema change of the archive, never applies one
+	"system": {"archive_schema"},
 }
 
 # Data, not code (data.json). Without it nothing that depends on it is allowed.

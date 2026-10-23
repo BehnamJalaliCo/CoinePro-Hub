@@ -1,0 +1,8 @@
+# Access levels (contract §23.4). A level's rank never changes once a record
+# uses it; the owner may add levels between them. `agents_max`: the highest
+# level any agent may be cleared for.
+levels:
+  - {key: public, title_fa: عمومی, rank: 0, color_index: 0}
+  - {key: internal, title_fa: داخلی, rank: 10, color_index: 1}
+  - {key: confidential, title_fa: محرمانه, rank: 20, color_index: 6, watermark: true, agents_max: true}
+  - {key: secret, title_fa: سری, rank: 30, color_index: 9, watermark: true, encrypt: true, step_up_to_view: true}

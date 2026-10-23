@@ -33,6 +33,9 @@ kinds := {
 	"media_series", "media_publish",
 	# ⟨1.6⟩ prompt 13 §3: the counsel's exact email (the owner's seal)
 	"email_send",
+	# ⟨1.7⟩ prompt 14 (contract §23.11): an agent's proposed schema change, the
+	# weekly disposal card; both the owner's seal only
+	"archive_schema", "archive_disposal",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

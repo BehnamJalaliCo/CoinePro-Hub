@@ -83,6 +83,8 @@ async def list_decisions(
         "media_publish",
         "role_new",
         "email_send",
+        "archive_schema",
+        "archive_disposal",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,
@@ -237,6 +239,12 @@ async def _decide(
     await workflows_client.decision_decided(ctx.hub, ref)
     if verdict == "approved" and d["kind"] == "authority_change":
         await gov_authority.ensure(ctx.hub, force=True)  # ⟨1.5⟩ OPA enforces it at once
+    if verdict == "approved" and result.kind == "archive_disposal":
+        # ⟨1.7⟩ the sealed disposal committed: the destroyed files' bytes go now
+        from hq_api.archive import retention as RT
+        from hq_api.archive.common import wide_txf
+
+        await RT.destroy_queued(ctx.hub, wide_txf(ctx.hub))
     return result
 
 

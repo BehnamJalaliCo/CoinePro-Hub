@@ -105,7 +105,8 @@
           "knowledge.review",
           "claim.verdict",
           "media.render",
-          "media.voice"
+          "media.voice",
+          "archive.hold"
         ],
         "assistant": [
           "errand.step",

@@ -1,0 +1,11 @@
+# Retention rules (contract §23.5): defaults the owner edits; not legal advice.
+# `trigger`: filed | case_closed | superseded | field:<key>; `keep`: {years,
+# months} or permanent; `then`: review (a work item for the archivist) or
+# dispose_card (a weekly archive_disposal card for the owner).
+retention:
+  - {seed_key: contracts, title_fa: "قراردادها و توافق‌ها: ۷ سال پس از پایان", trigger: "field:end", keep: {years: 7}, then: dispose_card}
+  - {seed_key: invoices, title_fa: "فاکتورها و رسیدها: ۷ سال پس از تاریخ", trigger: "field:date", keep: {years: 7}, then: dispose_card}
+  - {seed_key: licenses, title_fa: "مجوزها و دامنه‌ها: ۲ سال پس از انقضا", trigger: "field:expires_at", keep: {years: 2}, then: dispose_card}
+  - {seed_key: legal_correspondence, title_fa: "مکاتبه‌ی حقوقی: ۱۰ سال پس از بسته شدن پرونده", trigger: case_closed, keep: {years: 10}, then: dispose_card}
+  - {seed_key: permanent, title_fa: "دائمی", trigger: filed, keep: permanent, then: review}
+  - {seed_key: other, title_fa: "سایر: بازبینی پس از ۳ سال", trigger: filed, keep: {years: 3}, then: review}

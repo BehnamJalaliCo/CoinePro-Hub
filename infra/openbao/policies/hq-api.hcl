@@ -33,3 +33,14 @@ path "kv/data/support/intake/*" {
 path "kv/data/support/telegram/*" {
   capabilities = ["read"]
 }
+
+# Prompt 14 §3: the archive's `secret` files (envelope encryption). A data key
+# for one file and the decryption of a stored one; nothing else of transit
+# (no key read, no export, no rotation): the key never leaves OpenBao.
+path "transit/datakey/plaintext/archive-secret" {
+  capabilities = ["update"]
+}
+
+path "transit/decrypt/archive-secret" {
+  capabilities = ["update"]
+}

@@ -56,6 +56,8 @@
 | `make mcp-build`، `make mcp-test`، `make mcp-index` | MCP روی کانتینر (پرامپت ۱۲ §۱۴): ساخت تکرارپذیر imageها با digest فهرست مجاز، آزمون روی شبکه‌ی دورانداختنی، ایندکس CodeCortex (§۳۰.۵) |
 | `make media-on`، `make media-off`، `make media-bench` | render worker استودیوی رسانه (پرامپت ۱۳ §۲.۳): روشن و خاموش کردن profile اختیاری `media` و timer آن (بیرون از بودجه‌ی حافظه رد میشود)، و اندازه‌گیری یک ریلز ۳۰ ثانیه‌ای، یک عکس Lottie و یک صفحه‌ی طراحی در همان سندباکس بی‌شبکه (§۳۱.۵) |
 | `make account-secret KEY=telegram-<co>`، `KEY=instagram-<co>` | **فقط مالک، در ترمینال خودش:** توکن ربات کانال تلگرام و توکن حساب business اینستاگرام هر شرکت برای انتشار رسمی (§۳۱.۶) |
+| `make ocr-fetch [set=fast\|best]` | OCR بایگانی (پرامپت ۱۴ §۴): یک‌بار دانلود traineddataی پین‌شده‌ی `fas` و `eng` در volume ‏`ocr-models` با sha256 (§۳۲.۴) |
+| `make ocr-on`، `make ocr-off`، `make ocr-bench`، `make ocr-test` | روشن و خاموش کردن profile اختیاری `ocr` (بیرون از بودجه‌ی حافظه رد میشود)، اندازه‌گیری و آزمون Tesseract واقعی روی نمونه‌ی اسکن فارسی، بی‌شبکه (§۳۲.۴) |
 
 ## ۲. بالا آوردن و پایین آوردن
 
@@ -1783,7 +1785,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - همه‌ی جدول‌ها `company_id` و RLS **FORCE** دارند و حذف نمیشوند.
   - داده: دپارتمان `MEDIA` (با مدیر خوابش و دو رشته) برای هر شرکت عملیاتی؛ `LEGAL` و `HQ-LGL` (خواب، بی مدیر) برای هلدینگ. **هیچ کارمندی ساخته نمیشود.** رشته‌ی `L` و نوع رشته‌ی `legal` مال ۳۱.۱۱ است (رشته‌ی `L` را seed از `holding.yaml` میسازد).
   - نوع‌های کارت `media_series`، `media_publish` و `role_new` از روی نوع‌هایی که CHECK الان دارد، `NOT VALID` اضافه میشوند. `email_send` مال `0028_1` است.
-  - **زنجیره (روی پرامپت ۱۲ نهایی):** `0025` ← `0026` ← `0026_1` ← `0027` ← `0027_1` ← `0027_2` ← `0028` ← `0028_1` (حقوقی و صدا، آخرین). `0028_1` هر دو CHECK ‏`decisions_kind_check` و `threads_kind_check` را با همه‌ی نوع‌های ۱۱، ۱۲ و ۱۳ validate میکند. هر بازنویسی پیش از آن (۰۰۱۸، ۰۰۲۳، ۰۰۲۵، ۰۰۲۶، ۰۰۲۶_۱، ۰۰۲۸) `NOT VALID` است و `0027_2` چیزی validate نمیکند، تا اجرای پایین و بالای migrationها (test_hiring) ردیف‌های بعدی را نگه دارد.
+  - **زنجیره (روی پرامپت ۱۲ نهایی):** `0025` ← `0026` ← `0026_1` ← `0027` ← `0027_1` ← `0027_2` ← `0028` ← `0028_1` (حقوقی و صدا) ← `0029` (بایگانی، پرامپت ۱۴، آخرین). فقط آخرین migration هر دو CHECK ‏`decisions_kind_check` و `threads_kind_check` را با همه‌ی نوع‌های ۱۱ تا ۱۴ validate میکند: تا پرامپت ۱۳ این کار `0028_1` بود (production همان را اجرا کرده و دست نمیخورد) و از پرامپت ۱۴ کار `0029` است (§۳۲). هر بازنویسی پیش از آن (۰۰۱۸، ۰۰۲۳، ۰۰۲۵، ۰۰۲۶، ۰۰۲۶_۱، ۰۰۲۸، ۰۰۲۸_۱) `NOT VALID` است و `0027_2` چیزی validate نمیکند، تا اجرای پایین و بالای migrationها (test_hiring) ردیف‌های بعدی را نگه دارد.
 - **دروازه‌ی راه‌اندازی:** تا کلید توقف هلدینگ روشن است، هیچ چیزی از این بخش مدل یا سرویس بیرونی صدا نمیزند:
   - sweep رسانه (`hq-media-sweep`، هر ۵ دقیقه) هیچ کاری نمیکند (`skipped: holding_locked`): هیچ آیتمی از برنامه‌ها ساخته نمیشود، هیچ انتشاری نیست و بازسنجی هم نیست.
   - `POST /internal/v1/media/render/claim` و `POST /internal/v1/voices/jobs/claim` (صف صدای ۳۱.۱۳) جواب `204` میدهند. کار شرکتی که قفل است هم منتظر میماند.
@@ -2076,3 +2078,153 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   - gate: full+tts ‏11216 از 12288؛ lean+tts ‏6192 از 6196. هیچ‌کدام تغییر نکرد.
 - **ParsVoice-XTTS و Chatterbox:** به بودجه نمیخورند (≈۲٫۵ تا ۳ گیگ؛ full+tts فقط حدود ۱ گیگ جا دارد). اندازه‌گیری نشدند (دانلود gated، حساب مالک).
 - **توکن:** کار مشاور با پاکت هلدینگ است (task classهای `legal_case` و `legal_email`، هرگز روی provider دیگر). سقف منشور: ۸ گام و ۲۰۰ هزار توکن در هر اجرا. تا راه‌اندازی هاب هیچ اجرایی نیست.
+
+## ۳۲. بایگانی رسمی هلدینگ و شرکت‌ها، لایه‌باز (پرامپت ۱۴؛ قرارداد §۲۳)
+- **migration ‏`0029`** (`0029_archive.py`، بعد از `0028_1`؛ **آخرین**):
+  - schema تازه‌ی `archive`: لایه‌ی باز (`levels`، `clearance`، `classes` با `class_versions`، `fields`، `folders`، `party_kinds`، `parties`، `link_kinds`، `retention_rules`، `reminder_rules`، `automations` و `automation_runs`، `sources`) و سندها (`records`، `record_versions`، `record_files`، `intake`، `links`، `holds`، `reminders`، `access_log`، `fixity_runs`، `tombstones`، `destroy_queue`).
+  - همه `company_id` و RLS **FORCE** دارند و DELETE هیچ‌جا نیست. `class_versions`، `automation_runs`، `access_log`، `fixity_runs` و `tombstones` فقط‌افزودنی‌اند.
+  - نسخه‌ی مُهرشده و فایلش با trigger تغییرناپذیرند (SQLSTATE ‏`HQR01` ← `409 sealed_record`).
+  - نوع‌های کارت `archive_schema` و `archive_disposal` (CHECK از روی نوع‌های موجود `NOT VALID` و بعد **validate**، چون `0029` آخرین است؛ `threads_kind_check` هم validate میشود).
+  - task class ‏`archive` (همین در seed روتر)؛ `agents.queue_run` کارمند `system` دارای منشور را بیدار میکند (`HQ-ARC`؛ `HQ-SYS` منشور ندارد و هرگز بیدار نمیشود).
+  - `GRANT UPDATE (transcript)` روی `files.processing` برای api، و CHECK ‏`auth.step_ups.action` یک بخش سوم میپذیرد (`archive.hold.release`).
+  - **زنجیره (روی ۱۳ deploy‌شده):** `0025` ← `0026` ← `0026_1` ← `0027` ← `0027_1` ← `0027_2` ← `0028` ← `0028_1` ← `0029`. `0029` آخرین است و تنها migrationی است که CHECKهای kind را (با همه‌ی نوع‌های ۱۱ تا ۱۴) validate میکند؛ `0028_1` دیگر validate نمیکند (production آن را پیش‌تر اجرا کرده و دست نمیخورد).
+- **قانون‌های قطعی:**
+  1. هیچ رمزی وارد بایگانی نمیشود: `422 secret_in_document`؛ فایل نگه داشته نمیشود و هیچ بخشی از آن لاگ نمیشود.
+  2. هیچ چیزی بی مُهر مالک پاک نمیشود: امحا فقط با کارت مُهرشده‌ی `archive_disposal`. سند توقیف‌شده هرگز.
+  3. سطح دیدن نشت نمیکند، و این را RLS پایگاه داده تضمین میکند.
+  4. مدل فقط پیشنهاد میدهد.
+
+### ۳۲.۱ سطح‌ها و مجوز دیدن در خود پایگاه داده (§۲۳.۴)
+- هر تراکنشی که بایگانی را میخواند اول `app.clearance` را با `set_config(..., true)` میگذارد (`hq_api.archive.clearance`). بدون آن هیچ سندی دیده نمیشود.
+  - مالک و jobهای خود هاب: `{"all": true}`.
+  - ایجنت: `{"code", "grants": {<company uuid>|"*": rank}, "meta": rank}` از ردیف `employee:<code>`، وگرنه `role:<charter>`، وگرنه `role:*`.
+- `archive.can_see(rank, scope)` (محتوا) و `archive.can_see(rank, scope, filed_by)` (metadata؛ استثنای بایگان برای چیزی که خودش ثبت کرده تا `metadata_level`) در policyهای `records`، `record_files` (فقط محتوا)، `record_versions`، `links`، `reminders`، `access_log` و `tombstones`.
+- seed: `public` 0، `internal` 10، `confidential` 20 (واترمارک، `agents_max`)، `secret` 30 (واترمارک، رمزنگاری، step-up برای دیدن). هر نقش ایجنت `internal` در شرکت خودش؛ مشاور حقوقی `confidential` در همه؛ بایگان `confidential` برای محتوا و `secret` برای metadata. مجوز ایجنت هیچ‌وقت از سطح `agents_max` بالاتر نمیرود.
+- metadata‌ی حساس زیر `confidential` پنهان است؛ `id_code` و `iban` برای هر ایجنت تا ۴ رقم آخر.
+- رویدادهای stream (موضوع `archive`: `record.filed`، `record.updated`، `record.sealed`، `reminder.due`، `hold.changed`، `fixity.failed`، `schema.changed`) فقط ref، سطح، رده و وضعیت دارند؛ نه عنوان، نه مقدار.
+- آزمون: «RLS حتی با SQL مستقیم نقش api» در `tests/test_p14_archive.py`.
+
+### ۳۲.۲ لایه‌ی باز: طرح بایگانی (§۲۳.۲، §۲۳.۳، §۲۳.۷، §۲۳.۱۰، §۲۳.۱۲)
+- **seed:** `infra/seed/archive/*.yaml`، که در api، worker و api-migrate روی `/app/seed/archive` (فقط‌خواندنی، `HQ_ARCHIVE_SEED`) سوار است. seed هر `make up` اجرا میشود و فقط چیزی را که نیست اضافه میکند. **هر چیزی که مالک عوض یا بازنشسته کرده دوباره نوشته نمیشود.** پوشه‌های هر scope هم وقتی اولین سند آن scope ثبت میشود ساخته میشوند.
+- `GET /archive/schema`: همه‌ی ردیف‌ها با شمار استفاده، `vocab` بسته (رویدادها، اقدام‌ها، عملگرها، نوع‌های ref، ارزها، mimeها) و `owner_settings.agents_max`.
+- `PUT /archive/schema/{part}/{key}`:
+  - 🔏 `archive.schema` (برای `clearance`: `archive.clearance`) روی SHA-256 بدنه.
+  - `If-Match`؛ برای کلید تازه `If-None-Match: *`. پوشه، قاعده‌ی نگهداری، یادآور و اتوماسیون با کلید `new` ساخته میشوند و ref را سرور میدهد.
+  - `?dry_run=1` فقط اثر را میگوید و passkey نمیخواهد.
+  - خطا: `422 schema_invalid` با `fields`. فیلد هیچ‌وقت حذف نمیشود (فقط `status: retired`)، نوعش عوض نمیشود و گزینه‌ی enum کم نمیشود. rank سطحی که سند دارد ثابت است.
+  - تغییر رده = نسخه‌ی تازه‌ی رده (`class_versions`)؛ سند نسخه‌ای را نگه میدارد که با آن ثبت شده. اگر فیلد اجباری تازه سندهای ثبت‌شده را ناقص کند، بایگان یک کار «تکمیل N سند» میگیرد.
+- `POST …/retire` با همان 🔏 روی hash بدنه‌ی `{part, key, version}`.
+- **پیشنهاد ایجنت:** کارت `archive_schema` با payload ‏`{part, key, base_version, body, impact}` (بدنه همان بدنه‌ی PUT است و موقع پیشنهاد اعتبارسنجی میشود). مالک با step-up معمول `decision.approve` (target = ref کارت) مُهر میکند و همان بدنه در همان تراکنش اعمال میشود. اگر آن ردیف از `base_version` به بعد عوض شده باشد، کارت باطل است (`409 decision_not_pending`).
+- **اتوماسیون:** فقط قاعده، هرگز مدل. رویدادهای بسته، شرط‌های ساده، و اقدام‌ها: `notify` (هرگز urgent)، `work_item` (نقش هاب؛ تا هلدینگ یا آن شرکت قفل است `deferred`)، `link`، `move_to_folder`، `raise_level` (فقط بالا؛ سطحی که رمزنگاری دارد کار PATCH مالک است)، `add_reminder`. هر اجرا یک ردیف `automation_runs` و یک ردیف audit است.
+
+### ۳۲.۳ سند، نسخه، فایل (§۲۳.۱، §۲۳.۱۲)
+- فایل از همان مسیر §۱۷.۱ میآید (`POST /files`). بعد `POST /archive/intake {file_ids}` (یا هر ساخت سند از file id) **پیش از هر تراکنش**:
+  1. متن: لایه‌ی متن PDF در child process؛ عکس و اسکن از OCR worker (اگر profile روشن است، تا `HQ_ARCHIVE_OCR_WAIT_S`=60 ثانیه منتظر میماند، وگرنه در صف میرود).
+  2. اسکن رمز روی نام و متن (`hq_api.archive.scan`): قاعده‌های credential در `hq_common.redact` (همان شکل‌های gitleaks و نگهبان خروجی §۱۹.۶)، عبارت بازیابی BIP-39 و کلید خصوصی `customer_mask`، و `otpauth://`، کلید hex برچسب‌دار و کدهای پشتیبان. مقدارها، عنوان و یادداشت هم اسکن میشوند.
+  3. اگر رمز پیدا شد: `422 secret_in_document`. فایل مالک که هنوز در هلدینگ منتظر است (bytes، نسخه‌های کوچک‌شده و متن استخراج‌شده) همان‌جا نابود میشود و چیزی از آن لاگ نمیشود.
+  4. وگرنه ردیف `archive.intake` با hash، صفحه‌ها، متن و پیشنهاد قاعده‌محور.
+- **ذخیره:** هر سند نسخه‌ی خودش را در همان file store (volume ‏`hq-files`) دارد. وقتی سند ثبت شد، فایل منتظر مالک از آن بایگانی است و bytes و variantهایش برداشته میشوند. **فایلی که مالک در رشته‌ای پیوست کرده با همان پیام میماند.**
+- **`secret`:** AES-256-GCM با کلید داده‌ی تازه از OpenBao transit ‏`archive-secret` (`datakey/plaintext`). فقط کلید wrapشده در پایگاه داده میماند و کلید transit هرگز از OpenBao بیرون نمیآید. کلید را `provision.sh` میسازد (exportable نیست، حذف نمیشود). api و worker فقط `datakey/plaintext` و `decrypt` همین کلید را دارند.
+  - دیدن فایل 🔏 `archive.view` (target = ref) میخواهد.
+  - بالا رفتن سطح به `secret` (یا پایین آمدن از آن) فایل‌ها را دوباره ذخیره میکند؛ نسخه‌ی قبلی بعد از commit از `destroy_queue` پاک میشود.
+- **دانلود** (`GET /archive/records/{ref}/files/{file_id}`): hash ذخیره و hash plaintext سنجیده میشوند (ناهمخوانی ← `409`). سطح دارای `watermark` نسخه‌ی نشانه‌دار میگیرد (PDF با pypdf، عکس با Pillow، در child process؛ اصل دست‌نخورده). هر دیدن، دانلود، خواندن metadata و تغییر سطح یک ردیف `access_log` است (`GET …/access` فقط مالک).
+- **مُهر:** `POST …/seal {manifest_sha256}` با 🔏 `archive.seal` روی همان manifest (SHA-256 خط‌های مرتب `"<sha256>  <name>"`). سرور آن را دوباره حساب میکند (`409 seal_mismatch`).
+  - سند مُهرشده به هر PATCH جز `level` جواب `409 sealed_record` میدهد. بالا بردن سطح آزاد است و پایین آوردن 🔏 `archive.declassify` با target ‏`ref@version:level` میخواهد (`version` = نسخه‌ی ردیف، همان If-Match). مُهر دست‌نخورده میماند.
+  - `POST …/versions` نسخه‌ی قبلی را `superseded` میکند و سند دوباره `filed` میشود.
+- **draft:** کار ایجنت (`archive.file`)، import مالک (`POST /archive/import`: یک draft برای هر فایل و یک کار برای بایگان)، یا مالک با `file: false`. `POST …/file` (با `If-Match`) draft کامل را `filed` میکند.
+
+### ۳۲.۴ OCR و جستجو (§۲۳.۹)
+- **profile اختیاری `ocr`، پیش‌فرض خاموش:** Tesseract 5.5.0 با tessdata_fast پین‌شده‌ی `fas` و `eng` (`services/ocr/model.lock.json`). روی شبکه‌ی داخلی `hq-ocr` (172.30.24.0/24) که فقط worker در آن است؛ بی اینترنت، بی پورت، بی رمز، و یک کار در هر لحظه (درخواست دوم ← 429).
+  - روشن کردن: یک‌بار `make ocr-fetch` (تنها دانلود از اینترنت)، بعد `make ocr-on`. خاموش: `make ocr-off`. `hq.sh` بیرون از بودجه‌ی حافظه `up` را رد میکند (exit 3).
+  - بودجه: روی full تنها جا میشود، ولی نه همراه media یا mcp، و نه روی lean.
+  - عددها: هر صفحه‌ی عکس ۰٫۲ تا ۰٫۵ ثانیه و حداکثر 61 MiB؛ هر صفحه‌ی PDF اسکن حدود ۱٫۳ ثانیه و حداکثر 149 MiB؛ `MEM_OCR=320m`. `make ocr-bench` و `make ocr-test` دوباره بی‌شبکه میسنجند.
+  - حدها: ۳۰ مگ برای هر فایل، ۴۰ مگاپیکسل برای عکس، پیش‌فرض ۵۰ صفحه، ۱۲۰ ثانیه برای هر کار.
+- **تا خاموش است** worker ‏`HQ_OCR_URL` ندارد و اسکن‌ها با `text_state: "none"` و `ocr_wanted` میمانند، بی هیچ خطا. وقتی روشن شود، صف (`hq-archive-ocr`، هر ۲ دقیقه، یک فایل در هر لحظه) آن‌ها را میخواند.
+  - متن OCR هم اسکن رمز میشود. اگر رمز داشت، فایل `quarantined` میشود: دیگر سرو و جستجو نمیشود، متنش نگه داشته نمیشود و مالک یک اعلان report میگیرد. امحا با تصمیم خودش است.
+  - صفحه‌ی با اطمینان کمتر از ۰٫۶ در `low_confidence_pages` علامت میخورد.
+- **جستجو** (`GET /archive/search`): Postgres FTS (`simple` روی `hq_common.persian` و `core.fa_normalize`) روی سه بردار: `meta_tsv` (عنوان، ref، فیلدهای searchable، نام طرف‌ها)، `text_tsv` (متن فایل، فقط با مجوز محتوا) و `sens_tsv` (فیلدهای حساس، فقط از `confidential` به بالا)، به‌علاوه‌ی `pg_trgm` روی عنوان (`archive.title_similarity`). رتبه بعد از فیلتر مجوز است و snippet فقط از متنی است که خواننده مجاز است ببیند.
+- `knowledge.search` نوع `records` میگیرد (هر نقش، در مجوز خودش). «از هاب بپرس» (§۲۱.۲) وقتی بقیه‌ی پرامپت ۱۲ زیر این کار بیاید، بایگانی را با همین `hq_api.archive.search.search` و مجوز پرسنده (مالک: همه) میگردد.
+- **پیشنهاد قاعده‌محور:** تاریخ جلالی و میلادی، مبلغ با واحد، شبا، کد ملی، شماره‌ی ثبت، رده از روی کلیدواژه و طرف‌های رجیستری. فقط نشان داده میشود و هیچ‌وقت خودش ثبت نمیشود.
+
+### ۳۲.۵ نگهداری، امحا، توقیف و پشتیبان (§۲۳.۵)
+- **قاعده‌ی seed** (پیش‌فرض‌هایی که مالک بازبینی میکند، **نه مشاوره‌ی حقوقی**):
+  - قرارداد و توافق: ۷ سال بعد از `end`
+  - فاکتور: ۷ سال بعد از `date`
+  - مجوز و دامنه: ۲ سال بعد از `expires_at`
+  - مکاتبه‌ی حقوقی: ۱۰ سال بعد از بسته شدن پرونده
+  - ثبت، سیاست مُهرشده، نشان و مصوبه‌ها: دائمی
+  - سایر: بازبینی بعد از ۳ سال
+- **job روزانه** (`hq-archive-daily`، ۰۴:۳۰ منطقه‌ی مالک؛ قاعده‌محور):
+  - `then: review`: در هر اجرا **یک** کار برای بایگان، و فقط وقتی هلدینگ باز است.
+  - `then: dispose_card`: حداکثر یک کارت `archive_disposal` در حال انتظار و یکی در هفته، برای مالک، **بی هیچ سند توقیف‌شده‌ای**.
+  - رویداد `retention_due` اتوماسیون، یک بار برای هر سند.
+- **بعد از مُهر کارت** (همان تراکنش تصمیم):
+  - سندی که در این فاصله توقیف شده یا دیگر سررسید نیست کنار میماند و در مصوبه نام برده میشود.
+  - برای بقیه: ردیف فایل‌ها `destroyed` میشود (کلید wrapشده‌ی `secret` هم)، سنگ‌نوشته با ref، رده، عنوان، تاریخ‌ها، hash هر فایل و ref کارت ثبت میشود، و metadata و متن پاک میشوند.
+  - bytes بعد از commit از `destroy_queue` برداشته میشوند. job روزانه هم هر کلید جامانده را برمیدارد.
+  - رد کارت یعنی مالک نگهشان داشته (`disposal_kept`؛ زیر همان قاعده دوباره پیشنهاد نمیشوند). برگشت، انقضا یا withdrawn یعنی کارت هفته‌ی بعد.
+- **توقیف قانونی:**
+  - مشاور حقوقی با `archive.hold` (A2، فقط برای پرونده‌ی خودش) یا مالک با `POST /archive/holds`.
+  - scope: یا فهرست صریح `records`، یا facetهای `folders`، `classes`، `parties` و `from`/`to` که همه باید بخوانند.
+  - سند توقیف‌شده به هر تغییری جز نسخه‌ی تازه `423 held` میدهد.
+  - آزاد کردن فقط کار مالک است: `POST /archive/holds/{ref}/release` با 🔏 `archive.hold.release` روی ref.
+- **پشتیبان:** فایل‌های بایگانی در همان volume ‏`hq-files` هستند، پس هر ساعت در restic میروند و با Drive همگام میشوند.
+  - آزمون بازیابی (`make restore-test` و آزمون هفتگی) جدیدترین فایل بایگانیِ امحانشده را برمیگرداند و sha256 آن را با `stored_sha256` پایگاه داده‌ی بازیابی‌شده میسنجد. خط PASS نام سند را دارد (`archive=AR-…`).
+  - نتیجه‌ی اولین آزمون هر ماه جلالی به منبع `backup_restore_test` بایگانی میشود.
+- **امحا و snapshotهای قدیم:** امحا فایل را از هاب برمیدارد، ولی snapshotهای restic که پیش از آن گرفته شده‌اند هنوز آن را دارند (رمزنگاری‌شده با کلید restic). این snapshotها طبق retention خود restic پیر میشوند (§۱۸.۹: ساعتی، روزانه، هفتگی، ماهانه، سالانه) و `prune` آن‌ها را برمیدارد. **هیچ snapshotی برای یک امحا دستی پاک نمیشود.**
+  - فایل `secret` در snapshot هم بی کلید wrapشده‌اش (که امحا شده) خواندنی نیست. بازیابی کامل پایگاه داده از snapshot قبل از امحا آن کلید را برمیگرداند. پس بازیابی کامل هم تصمیم مالک است.
+
+### ۳۲.۶ یادآورها (§۲۳.۶)
+- seed: پایان قرارداد ۶۰/۳۰/۷ روز، انقضای مجوز و دامنه ۹۰/۳۰/۷، بازبینی توافق افیلیت ۳۰/۷. همه به مالک، در کارتابل.
+- job روزانه: برای هر قاعده و هر سند، **نزدیک‌ترین** مهلتی که رسیده یک یادآور است، یک بار برای هر (سند، فیلد، تاریخ، مهلت).
+  - کارتابل: اعلان سطح `decision` (§۲۱.۸؛ در خلوت نگه داشته میشود، در digest).
+  - digest: اعلان سطح `report`.
+  - نقش یا مدیرعامل شرکت: کار؛ تا هلدینگ یا آن شرکت قفل است `pending` میماند و هیچ اجرایی بیدار نمیشود.
+- بستن: `POST /archive/reminders/{id}/done`. اگر تاریخ سند عوض شود، یادآور قدیمش خودش بسته میشود.
+
+### ۳۲.۷ منبع‌های سیستمی (§۲۳.۸)
+- `GET /archive/sources` و `PUT /archive/sources {<key>: on}`. پیش‌فرض همه روشن‌اند.
+- job ‏`hq-archive-sources` (هر ۱۵ دقیقه، قاعده‌محور) رخداد تازه‌ی هر منبع را **یک بار** (`source_ref` یکتا) به‌صورت سند `filed` با `source.kind: "system"` ثبت میکند:
+  - `charter_sealed`: از `governance.charters` (پرامپت ۱۱)؛ تا آن جدول نیست هیچ.
+  - `resolution_month`: مصوبه‌های یک ماه جلالیِ تمام‌شده‌ی هر شرکت.
+  - `brand_sealed`، `founding_registration`، `server_plan_sealed`، `backup_restore_test`.
+  - `legal_email`: هر ایمیل ارسال‌شده‌ی پرونده.
+  - `case_closed`: پرونده‌ی بسته با روندش، پیوندخورده به پرونده؛ و ماشه‌ی نگهداری `case_closed`.
+- PDF با کتابخانه‌های خود هاب ساخته میشود: resvg-py صفحه‌ی A4 را با IRANYekanX راست‌به‌چپ میکشد و Pillow صفحه‌ها را یک PDF میکند. این کار در child process است. متن همان منبع با `text_state: text_layer` ذخیره میشود.
+- فیلد اجباری که منبع نمیداند (مثلاً شماره‌ی ثبت پیشنهاد تأسیس) خالی میماند و `impact` آن را میشمارد. موردی که الگوی رمز دارد ثبت نمیشود و فقط در `note_fa` منبع میآید.
+
+### ۳۲.۸ سلامت فایل (fixity)
+- `hq-archive-fixity` (۰۳:۲۰ منطقه‌ی مالک) هر شب یک‌هفتم فایل‌ها را دوباره hash میکند. برش هر فایل با id آن ثابت است، پس در یک هفته همه‌ی فایل‌ها سنجیده میشوند. `kind: manual` یا `weekly` همه را میسنجد. هر اجرا یک ردیف `fixity_runs` است و `GET /archive/fixity` جواب `{at, checked, failed, next_at}` میدهد.
+- **ناهمخوانی یا فایل گم‌شده = هشدار از دست رفتن داده:** یک اعلان `urgent` (دسته‌ی data loss؛ تنها urgent بایگانی)، رویداد `fixity.failed`، و یک کار P1 برای SRE پلتفرم هاب (فقط وقتی هلدینگ باز است).
+- **اقدام:** فایل را از آخرین snapshot سالم برگردان (§۱۸.۹). هیچ ردیف بایگانی را دستی عوض نکن.
+
+### ۳۲.۹ ایجنت‌ها، OPA و gateway (§۲۳.۱۱)
+- ابزارها (gateway: `hq_gateway/archive.py`؛ OPA: `archive.rego`):
+  - `archive.search` و `archive.read` (A0)
+  - `archive.file` و `archive.link` (A1)
+  - `archive.hold` (A2، فقط مشاور حقوقی با پرونده‌ی خودش)
+  - فقط بایگان و مشاور حقوقی، هر دو نقش هلدینگ. api نقش و مجوز را دوباره میسنجد.
+- **بایگان** (`HQ-ARC`، kind ‏`system`، منشور `archivist`): نقش سیستمی هلدینگ است؛ استخدام، امتیاز یا ستاره ندارد و تا کاری برسد خواب است.
+  - `archive.file` روی draft واردشده‌ی مالک فقط پیشنهاد (`suggestion.by: archivist`) مینویسد، و در بقیه‌ی موارد یک draft تازه. **هیچ‌وقت ثبت، مُهر، پایین آوردن سطح، آزاد کردن توقیف یا امحا نمیکند**؛ مسیرهای مالک برایش ۴۰۳ است.
+  - تغییر طرح را فقط با کارت `archive_schema` پیشنهاد میدهد.
+- تا کلید توقف هلدینگ روشن است، runner بایگان را اجرا نمیکند (`locked`). ثبت دستی مالک و همه‌ی jobهای قاعده‌محور کار میکنند.
+
+### ۳۲.۱۰ زمان‌بندی‌ها و دروازه‌ی راه‌اندازی
+| schedule | زمان | نوع |
+|---|---|---|
+| `hq-archive-daily` | روزانه ۰۴:۳۰ | قاعده‌محور: نگهداری، یادآور، صف نابودی، گزارش هفتگی بایگان (شنبه) |
+| `hq-archive-fixity` | روزانه ۰۳:۲۰ | قاعده‌محور: hash محلی |
+| `hq-archive-ocr` | هر ۲ دقیقه | قاعده‌محور: Tesseract خود هاب، بی شبکه؛ تا profile خاموش است هیچ |
+| `hq-archive-sources` | هر ۱۵ دقیقه | قاعده‌محور: خواندن پایگاه داده و PDF |
+- هیچ‌کدام مدل یا سرویس بیرونی صدا نمیزند، پس با کلید توقف هم اجرا میشوند (هشدار fixity، یادآور و کارت امحا برای مالک).
+- هر چیزی که ایجنتی را بیدار کند (کار بازبینی بایگان، یادآور نقش، کار SRE، کار `work_item` اتوماسیون، گزارش هفتگی) با `gate.holding_lock` یا `gate.automation_lock` منتظر میماند: کار ساخته نمیشود و اجرایی صف نمیشود.
+- آزمون: `test_the_archive_jobs_are_rule_only_and_wake_no_agent_while_the_holding_is_locked`.
+
+### ۳۲.۱۱ عیب‌یابی
+| علامت | کار |
+|---|---|
+| `503 channel_not_configured` موقع ثبت سند `secret` | transit یا کلید `archive-secret` در OpenBao آماده نیست: `provision.sh` آن را در هر `make up` میسازد (یا `make llm-provision`)؛ policyهای تازه‌ی api و worker هم همان‌جا نوشته میشوند |
+| اسکن‌ها `text_state: none` میمانند | profile ‏`ocr` خاموش است (پیش‌فرض)؛ با `make ocr-fetch` و `make ocr-on` روشن کن؛ صف خودش میخواند |
+| `409 seal_mismatch` موقع دانلود | fixity: فایل ذخیره‌شده با hash نمیخواند؛ ۳۲.۸ |
+| کارت امحا نمیآید | یکی هنوز منتظر است، یا کمتر از یک هفته از قبلی گذشته، یا همه‌ی سررسیدها توقیف یا `disposal_kept` هستند (`GET /archive/retention/due`) |
+| `423 held` | توقیف قانونی؛ فقط نسخه‌ی تازه، یا آزاد کردن با مُهر مالک |

@@ -59,6 +59,12 @@ class Settings:
     )
     # How long POST /transcribe waits for the worker (a 15-minute recording on CPU).
     transcribe_wait_s: int = field(default_factory=lambda: _int("HQ_TRANSCRIBE_WAIT_S", 600))
+    # Prompt 14 §4: OCR on the hub (Tesseract 5, the opt-in `ocr` profile), reached
+    # by the worker only on the internal hq-ocr network (empty: the profile is
+    # off; scans stay text_state "none"); how long an archive intake waits for an
+    # image's OCR through the worker before the queue takes it.
+    ocr_url: str = field(default_factory=lambda: _env("HQ_OCR_URL"))
+    archive_ocr_wait_s: int = field(default_factory=lambda: _int("HQ_ARCHIVE_OCR_WAIT_S", 60))
     # The academy (prompt 08 §7): the judge of eval answers (a lighter model;
     # QC's for a case marked sensitive) and the monthly cap, a share of the
     # holding's budget (every company's monthly envelope), else a fixed default.

@@ -202,6 +202,7 @@ class UsageIn(In):
 class SearchIn(In):
     q: str = Field(min_length=2, max_length=200)
     # ⟨1.5⟩ prompt 12 §2.3: `docs` and `code` (the corpus), `notes` (the advisor's)
+    # ⟨1.7⟩ `records`: archive records within the role's clearance (prompt 14)
     kinds: (
         list[
             Literal[
@@ -214,6 +215,7 @@ class SearchIn(In):
                 "docs",
                 "code",
                 "notes",
+                "records",
             ]
         ]
         | None

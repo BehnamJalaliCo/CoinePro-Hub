@@ -539,6 +539,8 @@ KINDS = (
     "docs",
     "code",
     "notes",
+    # ⟨1.7⟩ prompt 14: archive records within the role's clearance (§23.9)
+    "records",
 )
 
 
@@ -602,6 +604,13 @@ async def tool_knowledge_search(
                        w.created_at AS at
                    FROM work.work w JOIN core.companies c ON c.id = w.company_id
                    WHERE core.fa_normalize(w.title || ' ' || w.brief) LIKE :pat""",
+        # ⟨1.7⟩ archive records within the role's clearance (contract §23.9):
+        # the database's policies filter them by the clearance set below
+        "records": """SELECT 'record' AS kind, r.ref, c.code AS company, r.title_fa AS title,
+                          r.title_fa AS body, r.created_at AS at
+                      FROM archive.records r JOIN core.companies c ON c.id = r.company_id
+                      WHERE r.state <> 'disposed'
+                        AND core.fa_normalize(r.title_fa || ' ' || r.ref) LIKE :pat""",
         "messages": """SELECT 'message' AS kind, m.ref, c.code AS company, t.title_fa AS title,
                            left(m.body, 400) AS body, m.created_at AS at
                        FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
@@ -609,7 +618,18 @@ async def tool_knowledge_search(
                        WHERE core.fa_normalize(m.body) LIKE :pat""",
     }
     hits: list[dict[str, Any]] = []
+    clearance = None
+    if "records" in wanted:
+        from hq_api.archive import clearance as CL
+
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as t0:
+            await t0.exec("SET TRANSACTION READ ONLY")
+            clearance = await CL.of_agent(t0, ctx.who)
     async with read_tx(ctx) as tx:
+        if clearance is not None:
+            from hq_api.archive import clearance as CL
+
+            await CL.apply(tx, clearance)
         pat = "%" + await tx.scalar("SELECT core.like_escape(core.fa_normalize(:q))", q=q) + "%"
         if "knowledge" in wanted:
             from hq_api.domain import knowledge as K
