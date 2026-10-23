@@ -68,9 +68,9 @@ from hq_api.routes import (
 from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
 from hq_api.routes import ask as ask_routes  # prompt 12 §2, §3, §13 (on prompt 11)
 from hq_api.routes import dceo as dceo_routes
-from hq_api.routes import reviews as review_routes
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import media as media_routes  # prompt 13, the media half
+from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 from hq_api.routes import voices as voice_routes  # prompt 13: the voice registry
