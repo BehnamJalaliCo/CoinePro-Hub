@@ -458,9 +458,7 @@ async def create_series(body: SeriesIn, request: Request, ctx: Ctx = Depends(own
         s = await S.create_series(
             tx, ctx.who, co.id, co.code, body.model_dump(mode="json"), status="draft"
         )
-        await _audit(
-            ctx, tx, co.id, "series.create", "A1", "series", s["ref"], s["digest"][:16]
-        )
+        await _audit(ctx, tx, co.id, "series.create", "A1", "series", s["ref"], s["digest"][:16])
         out = _series(await S.series_view(tx, s))
         if idem:
             await idem.store(tx, 201, out.model_dump(mode="json"))
