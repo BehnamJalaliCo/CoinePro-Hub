@@ -128,6 +128,37 @@ async def test_no_prediction_is_recorded_after_the_decision(
     )
 
 
+async def test_the_baseline_counts_every_companys_history(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    a, b = await new_company(), await new_company()
+    for status in ("rejected", "rejected", "approved"):
+        await su.execute(
+            """INSERT INTO cartable.decisions (company_id, kind, action_class, title, proposer_kind, proposer_code,
+                   risk, status, decided_at, decided_by_kind, decided_by_code)
+               VALUES ($1, 'budget_change', 'A1', 'گذشته', 'agent', 'x', 'high', $2, now(), 'owner', 'owner')""",
+            a["id"],
+            status,
+        )
+    want = {
+        r["status"]: r["n"]
+        for r in await su.fetch(
+            """SELECT status, count(*) AS n FROM cartable.decisions
+               WHERE kind = 'budget_change' AND risk = 'high' AND proposer_kind = 'agent'
+                 AND approver_code IS NULL AND decided_by_kind = 'owner'
+                 AND status IN ('approved', 'rejected', 'returned') GROUP BY status"""
+        )
+    }
+    probe = {"id": b["id"], "kind": "budget_change", "risk": "high", "proposer_kind": "agent"}
+    async with hub.db.tx([b["id"]]) as tx:  # company B's own scope: A's cards are invisible
+        assert not await tx.scalar(
+            "SELECT count(*) FROM cartable.decisions WHERE company_id = :a", a=a["id"]
+        )
+        verdict, conf, basis = await DC.baseline(tx, probe)
+    assert basis["n"] == sum(want.values()) and basis["counts"]["reject"] == want["rejected"]
+    assert (verdict, conf) == DC.laplace(basis["counts"])
+
+
 async def test_service_dceo_is_refused_an_approval(
     hub: Hub, su: Any, client: httpx.AsyncClient, new_company: Callable[..., Any]
 ) -> None:

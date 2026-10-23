@@ -36,6 +36,7 @@ async def list_reviews(
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[RV.WeeklyReview]:
+    """The weekly reviews, newest week first (`?cursor`)."""
     after = pagination.decode(cursor, 1)
     try:
         before = date.fromisoformat(str(after[0])) if after else None
@@ -68,6 +69,7 @@ async def current_review(response: Response, ctx: Ctx = Depends(owner_ctx)) -> R
 async def start_review(
     response: Response, ref: str = Path(pattern=REF), ctx: Ctx = Depends(owner_ctx)
 ) -> RV.WeeklyReview:
+    """The owner starts the review (its time runs from now)."""
     async with ctx.tx() as tx:
         row = await RV.start(tx, ctx.who, ref)
         await ctx.interaction(

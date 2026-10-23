@@ -37162,6 +37162,7 @@
     },
     "/api/v1/ask/{ref}": {
       "get": {
+        "description": "One ask: its state, the answer with its checked citations, the repositories not indexed.",
         "operationId": "get_ask",
         "parameters": [
           {
@@ -47941,6 +47942,7 @@
     },
     "/api/v1/digital-ceo/predictions": {
       "get": {
+        "description": "The predictions of decided cards (every one while reveal is `before`),\nnewest first; `?correct&kind&cursor`.",
         "operationId": "predictions",
         "parameters": [
           {
@@ -48102,6 +48104,7 @@
     },
     "/api/v1/digital-ceo/principles": {
       "get": {
+        "description": "The current version of each principle (`?status`).",
         "operationId": "principles",
         "parameters": [
           {
@@ -48217,6 +48220,7 @@
         ]
       },
       "post": {
+        "description": "The owner adds a principle (active at once, version 1).",
         "operationId": "add_principle",
         "requestBody": {
           "content": {
@@ -48439,6 +48443,7 @@
     },
     "/api/v1/digital-ceo/principles/{ref}/accept": {
       "post": {
+        "description": "A proposed principle becomes active (a new version).",
         "operationId": "accept_principle",
         "parameters": [
           {
@@ -66467,6 +66472,7 @@
     },
     "/api/v1/reviews/weekly": {
       "get": {
+        "description": "The weekly reviews, newest week first (`?cursor`).",
         "operationId": "list_reviews",
         "parameters": [
           {
@@ -66958,6 +66964,7 @@
     },
     "/api/v1/reviews/weekly/{ref}/start": {
       "post": {
+        "description": "The owner starts the review (its time runs from now).",
         "operationId": "start_review",
         "parameters": [
           {

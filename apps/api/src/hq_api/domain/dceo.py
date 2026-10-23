@@ -225,12 +225,9 @@ def laplace(counts: dict[str, int]) -> tuple[str, float]:
 
 
 async def baseline(tx: Tx, d: dict[str, Any]) -> tuple[str, float, dict[str, Any]]:
+    # Every company's history (counts only), whoever's transaction this is.
     rows = await tx.all(
-        """SELECT status, count(*) AS n FROM cartable.decisions
-           WHERE kind = :k AND risk = :r AND proposer_kind = :pk AND approver_code IS NULL
-             AND decided_by_kind = 'owner' AND status IN ('approved', 'rejected', 'returned')
-             AND id <> :id
-           GROUP BY status""",
+        "SELECT status, n FROM dceo.owner_verdicts(:k, :r, :pk, :id)",
         k=d["kind"],
         r=d["risk"],
         pk=d["proposer_kind"],

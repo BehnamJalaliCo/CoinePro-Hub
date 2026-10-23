@@ -48,7 +48,7 @@ MAX_FILE = 200 * 1024
 CHUNK_LINES = 60
 MAX_CHUNK_CHARS = 20_000
 MAX_LINE = 4000  # a longer line: minified or generated, not read
-BATCH = 200
+BATCH = 100  # blobs per `cat-file --batch` (<= 20 MB in memory at once)
 DOC_PREFIXES = ("docs/", "contracts/", "agents/")
 DOC_ROOT_FILES = {"README.md", "CLAUDE.md"}
 EXCLUDED_DIRS = {

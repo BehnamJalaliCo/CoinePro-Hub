@@ -82,6 +82,7 @@ async def list_asks(
 
 @router.get("/ask/{ref}", response_model=AK.Ask, responses=E)
 async def get_ask(ref: str, ctx: Ctx = Depends(owner_ctx)) -> AK.Ask:
+    """One ask: its state, the answer with its checked citations, the repositories not indexed."""
     async with ctx.tx() as tx:
         row = await tx.first(AK.ASK_SQL + " WHERE a.ref = :r", r=ref)
     if row is None:

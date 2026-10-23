@@ -78,13 +78,17 @@ async def _schemathesis(url: str, headers: dict[str, str], *args: str) -> tuple[
 
 
 async def test_schemathesis_finds_no_server_errors(
-    app: Any, owner: dict[str, str], new_company: Callable[..., Any], relay: None
+    app: Any, owner: dict[str, str], new_company: Callable[..., Any], relay: None, su: Any
 ) -> None:
     co = (await new_company())["code"]
     # The workshop's designed 503 (runtime_not_configured) is not a server error:
-    # fuzz it with a runtime in place.
+    # fuzz it with a runtime in place. ⟨1.5⟩ Nor is a substitute player's
+    # channel_not_configured (signed out, prompt 12 §9.1): fuzz with them signed in.
     hub = app.state.hub
     hub.workshop = FakeRuntime()
+    await su.execute(
+        "UPDATE substitutes.players SET login_state = 'signed_in', status = 'ready', web_state = 'signed_in'"
+    )
     try:
         async with serve(app) as url:
             code, out = await _schemathesis(url, owner, "--include-path-regex", "^/api/v1/")
@@ -95,4 +99,12 @@ async def test_schemathesis_finds_no_server_errors(
             assert code == 0, out[-6000:]
     finally:
         hub.workshop = None
+        await su.execute(
+            """UPDATE substitutes.players SET login_state = 'signed_out', status = 'off',
+                   web_state = 'signed_out', limited_until = NULL"""
+        )
+        await su.execute(
+            """UPDATE substitutes.calls SET state = 'skipped', state_reason = 'test', finished_at = now()
+               WHERE state IN ('queued', 'running')"""
+        )
     assert json.dumps({"ok": True})

@@ -135,7 +135,7 @@ def render(r: dict[str, Any]) -> Ask:
         scope=r["scope"],
         state=r["state"],
         found=r["found"],
-        answer_md=r["answer_md"],
+        answer_md=r["answer_text"],
         citations=[Citation.model_validate(c) for c in r["citations"] or []],
         citations_dropped=r["citations_dropped"],
         suggestions=list(r["suggestions"] or []),
@@ -237,7 +237,7 @@ async def create(tx: Tx, hub: Any, who: Principal, body: AskIn) -> tuple[dict[st
     if not passages:  # no model call at all
         suggest = await corpus.suggestions(tx, words)
         row = await tx.one(
-            """UPDATE knowledge.asks SET state = 'done', found = 0, answer_md = :a, suggestions = :s,
+            """UPDATE knowledge.asks SET state = 'done', found = 0, answer_text = :a, suggestions = :s,
                    not_indexed = :ni, finished_at = now(), updated_at = now()
                WHERE id = :id RETURNING *""",
             a=nothing_found_md(suggest),
@@ -359,7 +359,7 @@ async def answer(tx: Tx, hub: Any, who: Principal, body: AnswerIn) -> dict[str, 
     tokens, usd = await _usage(tx, who)
     state = "done" if kept else "failed"
     row = await tx.one(
-        """UPDATE knowledge.asks SET state = :st, state_reason = :why, answer_md = :a,
+        """UPDATE knowledge.asks SET state = :st, state_reason = :why, answer_text = :a,
                citations = CAST(:c AS jsonb), citations_dropped = :d, usage_tokens = :t, usage_usd = :u,
                finished_at = now(), updated_at = now()
            WHERE id = :id RETURNING *""",
@@ -445,7 +445,7 @@ async def fail_orphans(tx: Tx) -> int:
     """An ask whose run ended (or whose work closed) without ask.answer."""
     rows = await tx.all(
         """UPDATE knowledge.asks a SET state = 'failed', state_reason = 'the librarian run ended without ask.answer',
-                  answer_md = :msg, finished_at = now(), updated_at = now()
+                  answer_text = :msg, finished_at = now(), updated_at = now()
            FROM work.work w
            WHERE a.work_id = w.id AND a.state = 'answering' AND a.created_at < now() - make_interval(secs => :age)
              AND (w.status IN ('done', 'cancelled', 'failed')

@@ -45,6 +45,8 @@ async def predictions(
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[DC.Prediction]:
+    """The predictions of decided cards (every one while reveal is `before`),
+    newest first; `?correct&kind&cursor`."""
     after_t, after_id = pagination.time_id(cursor)
     async with ctx.tx() as tx:
         before = (await DC.settings(tx)).get("reveal") == "before"
@@ -72,6 +74,7 @@ async def principles(
     status: Literal["proposed", "active", "retired"] | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> list[DC.Principle]:
+    """The current version of each principle (`?status`)."""
     async with ctx.tx() as tx:
         rows = await tx.all(
             """SELECT * FROM dceo.current_principles
@@ -85,6 +88,7 @@ async def principles(
 async def add_principle(
     body: DC.PrincipleIn, response: Response, ctx: Ctx = Depends(owner_ctx)
 ) -> DC.Principle:
+    """The owner adds a principle (active at once, version 1)."""
     async with ctx.tx() as tx:
         row = await DC.add_principle(
             tx, ctx.who, text_fa=body.text_fa,
@@ -122,6 +126,7 @@ async def edit_principle(
 async def accept_principle(
     response: Response, ref: str = Path(pattern=REF), ctx: Ctx = Depends(owner_ctx)
 ) -> DC.Principle:
+    """A proposed principle becomes active (a new version)."""
     async with ctx.tx() as tx:
         row = await DC.accept_principle(tx, ctx.who, ref)
         await ctx.interaction(

@@ -167,7 +167,7 @@ CREATE TABLE knowledge.asks (
     found              int NOT NULL DEFAULT 0 CHECK (found BETWEEN 0 AND 100),
     passages           jsonb NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(passages) = 'array'),
     suggestions        text[] NOT NULL DEFAULT '{}' CHECK (cardinality(suggestions) <= 10),
-    answer_md          text CHECK (length(answer_md) <= 20000),
+    answer_text        text CHECK (length(answer_text) <= 20000),  -- the API's answer_md
     citations          jsonb NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(citations) = 'array'),
     citations_dropped  int NOT NULL DEFAULT 0 CHECK (citations_dropped >= 0),
     not_indexed        text[] NOT NULL DEFAULT '{}',
@@ -278,6 +278,21 @@ CREATE TABLE dceo.principles (
 CREATE VIEW dceo.current_principles WITH (security_invoker = true) AS
     SELECT DISTINCT ON (ref) * FROM dceo.principles ORDER BY ref, version DESC;
 GRANT SELECT ON dceo.current_principles TO @APP@;
+
+-- The baseline's counts: the owner's past verdicts on cards of one kind, risk
+-- and proposer kind over EVERY company (counts only, never a row), for the
+-- proposer's own transaction, which sees its own company only.
+CREATE FUNCTION dceo.owner_verdicts(p_kind text, p_risk text, p_proposer text, p_except uuid)
+    RETURNS TABLE (status text, n bigint)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT d.status, count(*) FROM cartable.decisions d
+    WHERE d.kind = p_kind AND d.risk = p_risk AND d.proposer_kind = p_proposer
+      AND d.approver_code IS NULL AND d.decided_by_kind = 'owner'
+      AND d.status IN ('approved', 'rejected', 'returned') AND d.id <> p_except
+    GROUP BY d.status
+$$;
+REVOKE ALL ON FUNCTION dceo.owner_verdicts(text, text, text, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION dceo.owner_verdicts(text, text, text, uuid) TO @APP@;
 
 -- ====================================================== owner settings ==
 ALTER TABLE owner.settings

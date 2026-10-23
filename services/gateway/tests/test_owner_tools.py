@@ -62,9 +62,19 @@ async def test_the_librarians_answer_goes_to_the_api_redacted(
         },
     )
     assert (out["outcome"], out["class"], out["ref"]) == ("ok", "A1", "AK-0001"), out
-    assert out["result"] == {"ref": "AK-0001", "state": "done", "citations": 1, "citations_dropped": 1}
+    assert out["result"] == {
+        "ref": "AK-0001",
+        "state": "done",
+        "citations": 1,
+        "citations_dropped": 1,
+    }
     assert "ali@example.com" not in seen[0]["answer_md"]
-    assert seen[0]["citations"][1] == {"kind": "code", "repo": "acme/x", "path": "a.py", "lines": [1, 60]}
+    assert seen[0]["citations"][1] == {
+        "kind": "code",
+        "repo": "acme/x",
+        "path": "a.py",
+        "lines": [1, 60],
+    }
 
 
 async def test_a_bad_ask_ref_never_reaches_the_api(mock: respx.MockRouter, gw: Gateway) -> None:
