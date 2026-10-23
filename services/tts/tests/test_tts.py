@@ -72,6 +72,29 @@ async def test_a_pass_speaks_each_claimed_briefing_and_stops_at_204() -> None:
     assert api.calls[-1] == "POST /internal/v1/tts/claim"  # the 204 ended the pass
 
 
+async def test_a_media_items_narration_uses_the_media_queue() -> None:
+    """Prompt 13 §2: the same engine speaks a media item's narration from its
+    own queue (/internal/v1/tts/media), after the briefings."""
+    api = FakeApi([])
+    media = {"id": "m1", "ref": "MI-0001", "script": "سلام بیت کوین.", "voice": None}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/internal/v1/tts/media/claim":
+            api.calls.append(f"{request.method} {request.url.path}")
+            return httpx.Response(200, json=media) if not api.done else httpx.Response(204)
+        return api.handler(request)
+
+    fake = E.Fake()
+    async with httpx.AsyncClient(
+        base_url="http://api:8000", headers={"Authorization": "Bearer t"},
+        transport=httpx.MockTransport(handler),
+    ) as c:  # fmt: skip
+        out = await J.run(c, fake, max_jobs=3, base="/internal/v1/tts/media")
+    assert out == {"done": ["MI-0001"], "failed": []}
+    assert api.done[0][0] == "m1" and api.done[0][1].startswith(b"OggS")
+    assert "POST /internal/v1/tts/claim" not in api.calls
+
+
 async def test_nothing_to_say_means_one_claim_and_no_engine_run() -> None:
     api = FakeApi([])
     fake = E.Fake()

@@ -83,9 +83,13 @@ class Activities:
 
         self.management = ManagementActivities(hub, self._tx)
         self.mgmt = MgmtActivities(hub, self._tx)  # prompt 12 part B
+        from hq_api.worker.studio_activities import StudioActivities
+
+        self.studio = StudioActivities(hub, self._tx)  # prompt 13: the media studio
 
     def all(self) -> list[Any]:
         return [
+            *self.studio.all(),
             *self.management.all(),
             *self.desk.all(),
             *self.mgmt.all(),
@@ -218,6 +222,15 @@ class Activities:
                         f"{k}={v}" for k, v in result.items() if k not in ("ref", "changed")
                     )[:500],
                 )
+        if result.get("changed") and result.get("item") and result.get("state") == "scheduled":
+            # ⟨1.6⟩ an approved media_publish card: published now (after commit),
+            # through the official APIs; the media sweep catches up otherwise.
+            from hq_api.domain import studio_publish
+
+            try:
+                await studio_publish.publish_due(self.hub, only=str(result["item"]))
+            except Exception:  # noqa: BLE001 - the item stays scheduled for the sweep
+                log.warning("media publish after the card failed", extra={"ref": ref})
         return {k: (str(v) if isinstance(v, UUID) else v) for k, v in result.items()}
 
     @activity.defn(name="decision_effect_failed")

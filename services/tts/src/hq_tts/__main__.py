@@ -13,6 +13,8 @@ import httpx
 from hq_tts.engine import Piper
 from hq_tts.job import Settings, api_token, run
 
+MEDIA_BASE = "/internal/v1/tts/media"  # prompt 13 §2: an item's narration (contract §22.3)
+
 
 async def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
@@ -24,6 +26,8 @@ async def main() -> int:
     ) as client:
         del token
         out = await run(client, engine, s.max_jobs)
+        # ⟨1.6⟩ prompt 13: the media items' narrations, with the same engine
+        out["media"] = await run(client, engine, s.max_jobs, base=MEDIA_BASE)
     print(json.dumps(out))  # refs only
     return 0
 

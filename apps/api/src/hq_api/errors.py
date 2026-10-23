@@ -163,6 +163,13 @@ CODES: dict[str, tuple[int, str, str]] = {
     "send_blocked": (422, "Send blocked", "نگهبان خروجی این پیام را رد کرد؛ دلیل‌ها را ببین."),
     "opted_out": (409, "Opted out", "این مشتری پیام‌ها را لغو کرده است."),
     "send_limit": (429, "Send limit", "سقف ارسال امروز یا این ساعت پر شده است."),
+    # ⟨1.6⟩ prompt 13 (contract §22.6)
+    "series_not_sealed": (
+        409,
+        "Series not sealed",
+        "این برنامه‌ی انتشار مُهر نشده است؛ بی مُهر چیزی خودکار منتشر نمیشود.",
+    ),
+    "platform_limit": (429, "Platform limit", "سقف انتشار خود پلتفرم برای این حساب پر شده است."),
     "internal_error": (500, "Internal error", "خطای داخلی؛ به تیم فنی گزارش شد."),
 }
 

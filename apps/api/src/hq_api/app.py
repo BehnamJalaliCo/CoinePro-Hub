@@ -62,6 +62,7 @@ from hq_api.routes import (
     workshop,
 )
 from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
+from hq_api.routes import media as media_routes  # prompt 13, the media half
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 
 log = logging.getLogger("hq_api.access")
@@ -73,6 +74,8 @@ UPLOAD_PATHS = ("/internal/v1/files", "/api/v1/files", "/api/v1/transcribe")
 def upload_limit(path: str, max_file: int, max_body: int) -> int:
     if path.startswith("/internal/v1/tts/") and path.endswith("/done"):
         return mgmt.MAX_AUDIO  # ⟨1.5⟩ a briefing's Ogg from the TTS one-shot
+    if path.startswith("/internal/v1/media/render/") and path.endswith("/output"):
+        return media_routes.MAX_OUTPUT  # ⟨1.6⟩ a render's file from the render one-shot
     if path == "/api/v1/files":
         return media.VIDEO.max_bytes  # the largest kind; each kind is held to its own
     if path == "/api/v1/transcribe":
@@ -206,6 +209,11 @@ def create_app(
         app.include_router(p12a.internal_router, prefix="/internal/v1")
     # The only public routes prompt 10 adds (webhooks; never /internal).
     app.include_router(intake.webhook_router, prefix="/intake/v1")
+    # ⟨1.6⟩ prompt 13, the media half (contract §22.2): the media studio, and the
+    # one public route it adds (a signed 15-minute file URL Instagram fetches).
+    app.include_router(media_routes.router, prefix="/api/v1")
+    app.include_router(media_routes.internal_router, prefix="/internal/v1")
+    app.include_router(media_routes.public_router, prefix="/public/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

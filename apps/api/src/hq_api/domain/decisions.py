@@ -1148,6 +1148,10 @@ async def decide(
         body += f"\n\n{note}"
     if d["kind"] == "errand_action":  # the errand goes on, whatever the verdict
         await errands.on_decided(tx, d, verdict)
+    if d["kind"] in ("media_series", "media_publish") and verdict != "approved":
+        from hq_api.domain import studio  # ⟨1.6⟩ the series back to draft, the item rejected
+
+        await studio.card_declined(tx, d, verdict, note)
     links = {"decision": d["ref"]}
     if resolution:
         links["resolution"] = resolution["ref"]
@@ -1360,6 +1364,12 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
                 {"decision": d["ref"], "grant": g["ref"]},
             )
         result = {"grant": g["ref"]}
+    elif d["kind"] == "media_publish":
+        # ⟨1.6⟩ the item goes out now through the official APIs (the worker
+        # publishes it after this commit; contract §22.7)
+        from hq_api.domain import studio_publish
+
+        result = await studio_publish.card_approved(tx, d, p)
     await tx.exec(
         "UPDATE cartable.decisions SET effect_status = 'applied', effect_applied_at = now() WHERE id = :id",
         id=d["id"],

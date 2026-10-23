@@ -646,6 +646,10 @@ async def deliver_work(
         # ⟨1.5⟩ prompt 12: a CEO's letter becomes its briefing; an HR round's report
         await BR.on_delivered(tx, ctx.hub.settings, w, dl, body.body or "", unsourced_mark)
         await HR.on_delivered(tx, w, dl["ref"])
+        # ⟨1.6⟩ prompt 13: a media step's frames (creatives) or a design's deliverable
+        from hq_api.domain import studio
+
+        await studio.on_delivered(tx, ctx.hub, w, dl, body.body or "")
         await ctx.emit(
             tx,
             w["company"],

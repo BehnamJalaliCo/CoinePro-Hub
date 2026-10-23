@@ -53,12 +53,14 @@ async def api_token(s: Settings) -> str:
     return str(token)
 
 
-async def run(client: httpx.AsyncClient, engine: Engine, max_jobs: int) -> dict[str, Any]:
+async def run(
+    client: httpx.AsyncClient, engine: Engine, max_jobs: int, base: str = "/internal/v1/tts"
+) -> dict[str, Any]:
     """`client` carries the api's base URL and the bearer token."""
     done: list[str] = []
     failed: list[str] = []
     for _ in range(max(1, max_jobs)):
-        r = await client.post("/internal/v1/tts/claim")
+        r = await client.post(f"{base}/claim")
         if r.status_code == 204:
             break
         r.raise_for_status()
@@ -71,11 +73,11 @@ async def run(client: httpx.AsyncClient, engine: Engine, max_jobs: int) -> dict[
                 spoken = engine.speak(script, Path(tmp))
         except EngineError as exc:
             log.warning("tts failed for %s", job.get("ref"))
-            await client.post(f"/internal/v1/tts/{job['id']}/fail", json={"error": str(exc)[:300]})
+            await client.post(f"{base}/{job['id']}/fail", json={"error": str(exc)[:300]})
             failed.append(str(job.get("ref")))
             continue
         up = await client.post(
-            f"/internal/v1/tts/{job['id']}/done",
+            f"{base}/{job['id']}/done",
             params={"duration_s": spoken.duration_s},
             content=spoken.ogg,
             headers={"Content-Type": "audio/ogg"},

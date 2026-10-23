@@ -427,7 +427,9 @@ def upgrade() -> None:
     execute_script("\n".join(grants))
     execute_script(_kinds_sql(NEW_KINDS, ()))
     execute_script(DATA)
-    classes = ",\n".join(f"('{k}', false, '{d.replace(chr(39), chr(39) * 2)}')" for k, d in TASK_CLASSES)
+    classes = ",\n".join(
+        f"('{k}', false, '{d.replace(chr(39), chr(39) * 2)}')" for k, d in TASK_CLASSES
+    )
     execute_script(
         f"""INSERT INTO llm.task_classes (key, transferable, description) VALUES {classes}
             ON CONFLICT (key) DO NOTHING;"""

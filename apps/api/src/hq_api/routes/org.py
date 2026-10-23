@@ -615,7 +615,9 @@ async def put_mandate(
             target_ref=f"{code}-{dept}",
             data={"tools": len(body.mandate.tool_ceiling), "model": body.mandate.model_ceiling},
         )
-        await ctx.emit(tx, code, "control.changed", f"{code}-{dept}", {"change": "department.mandate"})
+        await ctx.emit(
+            tx, code, "control.changed", f"{code}-{dept}", {"change": "department.mandate"}
+        )
         return _dept(await tx.one(DEPT_SQL + " WHERE d.id = :id", id=cur["id"]), ctx.hub.charters)
 
 

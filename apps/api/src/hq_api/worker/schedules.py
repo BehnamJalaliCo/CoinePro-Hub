@@ -33,6 +33,9 @@ Schedule ids:
     hq-ceo-letters            hourly        CeoLetters: at the owner's day and hour
                               (prompt 12 part B: each asks the launch gate and does
                               nothing while the holding is locked)
+    hq-media-sweep            every 5 min   MediaSweep (prompt 13 §2: the sealed series'
+                              schedules, due publishing, the rule re-check; nothing
+                              at all while the holding is locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -87,6 +90,7 @@ DEPLOY_RECHECK = "hq-deploy-recheck"
 HR_ROUNDS = "hq-hr-rounds"
 CEO_LETTERS = "hq-ceo-letters"
 P12B = (WASTE_DAILY, CARTABLE_REMINDERS, DEPLOY_RECHECK, HR_ROUNDS, CEO_LETTERS)
+MEDIA_SWEEP = "hq-media-sweep"  # prompt 13 §2
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -108,6 +112,7 @@ FIXED = (
     "hq-substitute-web",
     "hq-substitute-daily",
     *P12B,
+    MEDIA_SWEEP,
 )
 
 
@@ -266,6 +271,7 @@ def fixed(
         *revenue_fixed(),
         *management_fixed(),
         *p12b_fixed(tz),
+        *studio_fixed(),
     ]
 
 
@@ -347,6 +353,15 @@ def p12b_fixed(tz: str) -> list[Desired]:
         Desired(
             CEO_LETTERS, "CeoLetters", (), hourly, timedelta(minutes=50), timedelta(minutes=15)
         ),
+    ]
+
+
+def studio_fixed() -> list[Desired]:
+    """Prompt 13 §2: the media sweep gates itself (hq_api.domain.gate)."""
+    return [
+        Desired(
+            MEDIA_SWEEP, "MediaSweep", (), every(5), timedelta(minutes=10), timedelta(minutes=25)
+        )
     ]
 
 

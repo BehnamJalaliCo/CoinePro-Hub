@@ -84,7 +84,7 @@ def check(body: MandateIn, charters: Any) -> None:
             bad[f"mandate.tool_ceiling.{i}"] = "not a tool name"
         elif tools and t not in tools:
             bad[f"mandate.tool_ceiling.{i}"] = f"{t} is not in agents/tools.md"
-        elif t in NEVER or t.startswith("oversight.") or t.startswith("kill_switch."):
+        elif t in NEVER or t.startswith(("oversight.", "kill_switch.")):
             bad[f"mandate.tool_ceiling.{i}"] = f"{t} is never given to a written role"
         elif tools and tools[t].cls in ("A3", "A4"):
             bad[f"mandate.tool_ceiling.{i}"] = f"{t} is {tools[t].cls}"
