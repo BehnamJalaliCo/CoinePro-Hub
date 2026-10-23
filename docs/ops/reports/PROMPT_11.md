@@ -143,4 +143,6 @@ PROMPT_11 REPORT (governance: the meeting room, the charter and its addenda, the
   - OPA: 144 tests, 100% coverage. shellcheck (69 scripts), yamllint (45 files), compose-config and compose-rules (lean, full), memory-budget (unchanged: full 10896 MiB; STT still over by 784 MiB, off), infra.sh (31 checks ok), gitleaks (history and working tree clean; the three KPI-key findings in main's demo fixtures are in .gitleaksignore).
 - Rule-only jobs that run while locked (no model, no outside call): the knowledge expiry of `hq-knowledge-daily`; the protocol activation in the worker's reconcile and the api's seed (data only, their runs stay gated).
 
+- **Deploy (2026-10-23, `server/p11-governance` 59f6336, on top of the deployed 10):** backup first (snapshot e25204dc, local + Google Drive); full `make check` green before it (all 16 gates: api 626, services 875, OPA 144/144); `make up` ran migrations 0025 → 0026 → 0026_1; 22 services healthy; `make verify-live` passed (only the known by-IP GAP lines). Zero model calls and zero protocol runs since the deploy: the holding kill switch stays engaged, HQ_MORNING_REPORT_LLM=off, the new meeting, KPI and governance schedules skip while locked. Memory after deploy: 4.4 GiB in use; the highest is Temporal at 72% of its cap.
+
 این گزارش را برای Claude سشن مشورت ببر.
