@@ -52,7 +52,9 @@ async def test_a_meeting_is_on_the_change_calendar_once(
     )
     assert cal.status_code == 200, cal.text
     mine = [e for e in cal.json()["events"] if e["source"] == {"meeting": m["ref"]}]
-    assert len(mine) == 1 and mine[0]["company"] == co["code"]  # (the holding's board is listed too)
+    assert (
+        len(mine) == 1 and mine[0]["company"] == co["code"]
+    )  # (the holding's board is listed too)
     # The planner: the meeting once (its own row), never its calendar event too.
     plan = await client.get(
         "/api/v1/planner",
@@ -70,10 +72,14 @@ async def test_a_meeting_is_on_the_change_calendar_once(
     )
     async with hub.db.tx(await hub.companies.ids()) as tx:
         await MF.start_due(tx, long_ago + timedelta(hours=7), roomy(hub))
-    assert await su.fetchval("SELECT state FROM meetings.meetings WHERE ref = $1", m["ref"]) == "cancelled"
+    assert (
+        await su.fetchval("SELECT state FROM meetings.meetings WHERE ref = $1", m["ref"])
+        == "cancelled"
+    )
     assert (
         await su.fetchval(
-            "SELECT status FROM governance.calendar_events WHERE auto_key = $1", f"meeting:{m['ref']}"
+            "SELECT status FROM governance.calendar_events WHERE auto_key = $1",
+            f"meeting:{m['ref']}",
         )
         == "cancelled"
     )
@@ -88,7 +94,9 @@ async def test_the_owner_takes_the_ceos_knowledge_approval_back(
 ) -> None:
     ty = await new_company()
     mgr = await agent_headers(f"{ty['code']}-GROWTH-MGR")
-    r = await client.post("/internal/v1/knowledge", headers={**mgr, **idem()}, json=entry(ty["code"]))
+    r = await client.post(
+        "/internal/v1/knowledge", headers={**mgr, **idem()}, json=entry(ty["code"])
+    )
     assert r.status_code == 201, r.text
     ref = r.json()["ref"]
     r = await client.post(
@@ -96,8 +104,14 @@ async def test_the_owner_takes_the_ceos_knowledge_approval_back(
         json={"version": 1, "verdict": "pass", "checks": CHECKS, "notes_md": ""},
     )  # fmt: skip
     assert r.status_code == 200 and r.json()["review"]["verdict"] == "pass", r.text
-    ceo_p = Principal(kind="agent", code=f"{ty['code']}-CEO", role="ceo", company=ty["code"], status="active")
-    ask = {"principal": ceo_p.opa(), "op": "knowledge.approve", "target": {"company": ty["code"], "layer": "company"}}
+    ceo_p = Principal(
+        kind="agent", code=f"{ty['code']}-CEO", role="ceo", company=ty["code"], status="active"
+    )
+    ask = {
+        "principal": ceo_p.opa(),
+        "op": "knowledge.approve",
+        "target": {"company": ty["code"], "layer": "company"},
+    }
     assert (await hub.policy.query("internal", ask)).allow  # the default: the CEO approves (§0.7)
     m = (await client.get("/api/v1/authority", headers=owner_session["headers"])).json()
     row = _row(m, "knowledge.approve.company")
@@ -110,11 +124,15 @@ async def test_the_owner_takes_the_ceos_knowledge_approval_back(
     assert pushed["rules"]["knowledge.approve.company"]["actor"] == "owner"
     assert not (await hub.policy.query("internal", ask)).allow
     ceo_h = await agent_headers(f"{ty['code']}-CEO")
-    r = await client.post(f"/internal/v1/knowledge/{ref}/approve", headers={**ceo_h, **idem()}, json={"version": 1})
+    r = await client.post(
+        f"/internal/v1/knowledge/{ref}/approve", headers={**ceo_h, **idem()}, json={"version": 1}
+    )
     assert r.status_code == 403, r.text
     # OPA's copy lost (a restart): the database row still refuses.
     assert await hub.policy.put_authority({"version": "lost", "rules": {}})
-    r = await client.post(f"/internal/v1/knowledge/{ref}/approve", headers={**ceo_h, **idem()}, json={"version": 1})
+    r = await client.post(
+        f"/internal/v1/knowledge/{ref}/approve", headers={**ceo_h, **idem()}, json={"version": 1}
+    )
     assert r.status_code == 403, r.text
     # Given back to the CEOs: approved.
     m = (await client.get("/api/v1/authority", headers=owner_session["headers"])).json()
@@ -122,5 +140,7 @@ async def test_the_owner_takes_the_ceos_knowledge_approval_back(
     r = await _put(client, hub, owner_session, {"rules": [
         {"key": "knowledge.approve.company", "actor": "ceo", "limit": None, "version": row["version"]}]})  # fmt: skip
     assert r.status_code == 200, r.text
-    r = await client.post(f"/internal/v1/knowledge/{ref}/approve", headers={**ceo_h, **idem()}, json={"version": 1})
+    r = await client.post(
+        f"/internal/v1/knowledge/{ref}/approve", headers={**ceo_h, **idem()}, json={"version": 1}
+    )
     assert r.status_code == 200 and r.json()["status"] == "approved", r.text
