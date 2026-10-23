@@ -49,22 +49,22 @@ State = Literal["draft", "filed", "sealed", "superseded", "disposed"]
 
 
 # ------------------------------------------------------------------ models --
-class Target(Model):
+class ArchiveTarget(Model):
     kind: str = Field(pattern=r"^[a-z_]{2,30}$")
     ref: str = Field(min_length=1, max_length=80)
 
 
-class LinkIn(Model):
+class ArchiveLinkIn(Model):
     kind: str = Field(pattern=KEY)
-    to: Target
+    to: ArchiveTarget
 
 
-class PartyRole(Model):
+class ArchivePartyRole(Model):
     party: str = Field(pattern=r"^PT-[0-9]{4,}$")
     role_fa: str = Field(default="", max_length=120)
 
 
-class RecordIn(Model):
+class ArchiveRecordIn(Model):
     scope: str = Field(pattern=CO)
     class_: str | None = Field(default=None, alias="class", pattern=KEY)
     title_fa: str = Field(min_length=1, max_length=300)
@@ -72,35 +72,35 @@ class RecordIn(Model):
     level: str | None = Field(default=None, pattern=KEY)
     folder: str | None = Field(default=None, pattern=r"^FP-[0-9]{4,}$")
     file_ids: list[UUID] = Field(default_factory=list, max_length=20)
-    parties: list[PartyRole] = Field(default_factory=list, max_length=50)
-    links: list[LinkIn] = Field(default_factory=list, max_length=20)
+    parties: list[ArchivePartyRole] = Field(default_factory=list, max_length=50)
+    links: list[ArchiveLinkIn] = Field(default_factory=list, max_length=20)
     file: bool = False
     note_fa: str | None = Field(default=None, max_length=2000)
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
-class RecordPatch(Model):
+class ArchiveRecordPatch(Model):
     title_fa: str | None = Field(default=None, min_length=1, max_length=300)
     metadata: dict[str, Any] | None = None
     folder: str | None = Field(default=None, pattern=r"^FP-[0-9]{4,}$")
-    parties: list[PartyRole] | None = None
+    parties: list[ArchivePartyRole] | None = None
     level: str | None = Field(default=None, pattern=KEY)
     class_: str | None = Field(default=None, alias="class", pattern=KEY)
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
-class VersionIn(Model):
+class ArchiveVersionIn(Model):
     file_ids: list[UUID] = Field(min_length=1, max_length=20)
     note_fa: str | None = Field(default=None, max_length=2000)
 
 
-class SealIn(Model):
+class ArchiveSealIn(Model):
     manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
-class ImportIn(Model):
+class ArchiveImportIn(Model):
     scope: str = Field(pattern=CO)
     file_ids: list[UUID] = Field(min_length=1, max_length=50)
     class_: str | None = Field(default=None, alias="class", pattern=KEY)
@@ -108,11 +108,11 @@ class ImportIn(Model):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
-class IntakeIn(Model):
+class ArchiveIntakeIn(Model):
     file_ids: list[UUID] = Field(min_length=1, max_length=20)
 
 
-class PartyIn(Model):
+class ArchivePartyIn(Model):
     kind: str = Field(pattern=KEY)
     name_fa: str = Field(min_length=1, max_length=200)
     name_en: str | None = Field(default=None, max_length=200)
@@ -120,7 +120,7 @@ class PartyIn(Model):
     scopes: list[str] = Field(default_factory=list, max_length=200)
 
 
-class PartyPatch(Model):
+class ArchivePartyPatch(Model):
     name_fa: str | None = Field(default=None, min_length=1, max_length=200)
     name_en: str | None = Field(default=None, max_length=200)
     identifiers: dict[str, Any] | None = None
@@ -128,7 +128,7 @@ class PartyPatch(Model):
     status: Literal["active", "retired"] | None = None
 
 
-class HoldScope(Model):
+class ArchiveHoldScope(Model):
     records: list[str] | None = Field(default=None, max_length=500)
     folders: list[str] | None = Field(default=None, max_length=100)
     classes: list[str] | None = Field(default=None, max_length=100)
@@ -139,21 +139,21 @@ class HoldScope(Model):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
-class HoldIn(Model):
+class ArchiveHoldIn(Model):
     title_fa: str = Field(min_length=1, max_length=300)
     case: str | None = Field(default=None, pattern=r"^LC-[0-9]{4,}$")
     reason_md: str = Field(min_length=1, max_length=20000)
-    scope: HoldScope
+    scope: ArchiveHoldScope
 
 
-class RetireIn(Model):
+class ArchiveRetireIn(Model):
     part: str = Field(pattern=r"^[a-z_]{2,20}$")
     key: str = Field(min_length=1, max_length=80)
     version: int = Field(ge=1)
 
 
-class Record(BaseModel):
-    """Record (contract §23.1, §23.12): what the reader may see of it."""
+class ArchiveRecord(BaseModel):
+    """ArchiveRecord (contract §23.1, §23.12): what the reader may see of it."""
 
     model_config = ConfigDict(extra="allow")
     ref: str
@@ -164,7 +164,7 @@ class Record(BaseModel):
     version: int
 
 
-class SchemaPut(BaseModel):
+class ArchiveSchemaPut(BaseModel):
     part: str
     key: str
     version: int | None
@@ -173,12 +173,12 @@ class SchemaPut(BaseModel):
     dry_run: bool = False
 
 
-class SearchOut(BaseModel):
+class ArchiveSearchOut(BaseModel):
     items: list[dict[str, Any]]
     next_cursor: str | None = None
 
 
-class IntakeOut(BaseModel):
+class ArchiveIntakeOut(BaseModel):
     files: list[dict[str, Any]]
     suggestion: dict[str, Any] | None
 
@@ -241,8 +241,8 @@ async def _after(ctx: Ctx, intakes: list[ST.Intake]) -> None:
 
 
 # ----------------------------------------------------------------- records --
-@router.get("/archive/records", response_model=Page[Record], responses=E)
-async def list_records(
+@router.get("/archive/records", response_model=Page[ArchiveRecord], responses=E)
+async def archive_list_records(
     scope: str | None = Query(default=None, pattern=CO),
     class_: str | None = Query(default=None, alias="class", pattern=KEY),
     folder: str | None = Query(default=None, pattern=r"^FP-[0-9]{4,}$"),
@@ -281,8 +281,8 @@ async def list_records(
     return {"items": items, "next_cursor": nxt}
 
 
-@router.get("/archive/records/{ref}", response_model=Record, responses=E)
-async def get_record(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Any:
+@router.get("/archive/records/{ref}", response_model=ArchiveRecord, responses=E)
+async def archive_get_record(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """The record with its versions, links, holds and reminders (an access-log row)."""
     async with ctx.tx() as tx:
         await CL.full(tx)
@@ -292,8 +292,10 @@ async def get_record(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Any:
     return out
 
 
-@router.post("/archive/records", response_model=Record, status_code=201, responses=E)
-async def create_record(body: RecordIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+@router.post("/archive/records", response_model=ArchiveRecord, status_code=201, responses=E)
+async def archive_create_record(
+    body: ArchiveRecordIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """`file: true` files it at once (complete: every required field and file);
     else a draft. Requires `Idempotency-Key`."""
     txf = _txf(ctx)
@@ -342,9 +344,9 @@ async def create_record(body: RecordIn, request: Request, ctx: Ctx = Depends(own
     return out
 
 
-@router.patch("/archive/records/{ref}", response_model=Record, responses=E)
-async def patch_record(
-    ref: str, body: RecordPatch, request: Request, ctx: Ctx = Depends(owner_ctx)
+@router.patch("/archive/records/{ref}", response_model=ArchiveRecord, responses=E)
+async def archive_patch_record(
+    ref: str, body: ArchiveRecordPatch, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
     """`If-Match` · title_fa, metadata, folder, parties, class (a draft), level.
     A sealed record is 409 sealed_record except a PATCH whose only field is
@@ -463,8 +465,8 @@ async def patch_record(
     return out
 
 
-@router.post("/archive/records/{ref}/file", response_model=Record, responses=E)
-async def file_record(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+@router.post("/archive/records/{ref}/file", response_model=ArchiveRecord, responses=E)
+async def archive_file_record(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """`If-Match` · a completed draft becomes `filed`."""
     expected = http.if_match(request)
     async with ctx.tx() as tx:
@@ -475,9 +477,11 @@ async def file_record(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx))
         return await _record_out(ctx, tx, ref)
 
 
-@router.post("/archive/records/{ref}/versions", response_model=Record, status_code=201, responses=E)
-async def add_version(
-    ref: str, body: VersionIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+@router.post(
+    "/archive/records/{ref}/versions", response_model=ArchiveRecord, status_code=201, responses=E
+)
+async def archive_add_version(
+    ref: str, body: ArchiveVersionIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
     """A new version (also under a legal hold); on a sealed record the old one
     is superseded and the record goes back to `filed`. Requires `Idempotency-Key`."""
@@ -508,9 +512,9 @@ async def add_version(
     return out
 
 
-@router.post("/archive/records/{ref}/seal", response_model=Record, responses=E)
-async def seal_record(
-    ref: str, body: SealIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+@router.post("/archive/records/{ref}/seal", response_model=ArchiveRecord, responses=E)
+async def archive_seal_record(
+    ref: str, body: ArchiveSealIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
     """🔏 `archive.seal`, target = the current version's `manifest_sha256`; the
     server recomputes it and refuses a mismatch (409 seal_mismatch)."""
@@ -541,7 +545,9 @@ async def seal_record(
 
 
 @router.post("/archive/records/{ref}/links", status_code=201, responses=E)
-async def add_link(ref: str, body: LinkIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def archive_add_link(
+    ref: str, body: ArchiveLinkIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """One link of a link kind of the schema (423 while held)."""
     async with ctx.tx() as tx:
         await CL.full(tx)
@@ -573,7 +579,7 @@ async def add_link(ref: str, body: LinkIn, request: Request, ctx: Ctx = Depends(
 
 
 @router.delete("/archive/records/{ref}/links", status_code=204, responses=E)
-async def remove_link(
+async def archive_remove_link(
     ref: str,
     kind: str = Query(pattern=KEY),
     to_kind: str = Query(pattern=r"^[a-z_]{2,30}$"),
@@ -605,7 +611,7 @@ async def remove_link(
     response_class=Response,
     responses={**E, 200: {"content": {"application/octet-stream": {}}, "description": "The file"}},
 )
-async def get_file(
+async def archive_get_file(
     ref: str,
     file_id: UUID,
     request: Request,
@@ -661,7 +667,7 @@ async def get_file(
 
 
 @router.get("/archive/records/{ref}/access", responses=E)
-async def access_log(ref: str, ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, Any]]:
+async def archive_access_log(ref: str, ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, Any]]:
     """Owner only · who viewed or downloaded what, when (AccessRow, §23.12)."""
     async with ctx.tx() as tx:
         await CL.full(tx)
@@ -689,8 +695,8 @@ async def access_log(ref: str, ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, 
 
 
 # ------------------------------------------------------------ intake, import --
-@router.post("/archive/intake", response_model=IntakeOut, responses=E)
-async def intake(body: IntakeIn, ctx: Ctx = Depends(owner_ctx)) -> Any:
+@router.post("/archive/intake", response_model=ArchiveIntakeOut, responses=E)
+async def archive_intake(body: ArchiveIntakeIn, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """`{file_ids}` -> `{files, suggestion}`: the secret scan (`422
     secret_in_document`, the file is not kept), hashes and text extraction
     run here; the suggestion is the rules' (never filed by itself)."""
@@ -700,7 +706,9 @@ async def intake(body: IntakeIn, ctx: Ctx = Depends(owner_ctx)) -> Any:
 
 
 @router.post("/archive/import", status_code=201, responses=E)
-async def import_files(body: ImportIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def archive_import_files(
+    body: ArchiveImportIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """Owner · one `draft` per file for the archivist to classify, and one work
     item for it. Requires `Idempotency-Key`."""
     txf = _txf(ctx)
@@ -773,8 +781,8 @@ async def import_files(body: ImportIn, request: Request, ctx: Ctx = Depends(owne
 
 
 # ------------------------------------------------------------------ search --
-@router.get("/archive/search", response_model=SearchOut, responses=E)
-async def search(
+@router.get("/archive/search", response_model=ArchiveSearchOut, responses=E)
+async def archive_search(
     q: str | None = Query(default=None, max_length=200),
     scope: str | None = Query(default=None, pattern=CO),
     class_: str | None = Query(default=None, alias="class", pattern=KEY),
@@ -808,15 +816,15 @@ async def search(
 
 # ------------------------------------------------------------------ schema --
 @router.get("/archive/schema", responses=E)
-async def get_schema(ctx: Ctx = Depends(owner_ctx)) -> dict[str, Any]:
+async def archive_get_schema(ctx: Ctx = Depends(owner_ctx)) -> dict[str, Any]:
     """Everything that describes the archive, the closed vocabulary and the parties."""
     async with ctx.tx() as tx:
         await CL.full(tx)
         return _render_ok(await SC.everything(tx))
 
 
-@router.put("/archive/schema/{part}/{key}", response_model=SchemaPut, responses=E)
-async def put_schema(
+@router.put("/archive/schema/{part}/{key}", response_model=ArchiveSchemaPut, responses=E)
+async def archive_put_schema(
     part: str,
     key: str,
     request: Request,
@@ -877,9 +885,9 @@ async def put_schema(
         }
 
 
-@router.post("/archive/schema/{part}/{key}/retire", response_model=SchemaPut, responses=E)
-async def retire_schema(
-    part: str, key: str, body: RetireIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+@router.post("/archive/schema/{part}/{key}/retire", response_model=ArchiveSchemaPut, responses=E)
+async def archive_retire_schema(
+    part: str, key: str, body: ArchiveRetireIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
     """🔏 the same target (`archive.schema`, body hash); nothing that uses it is deleted."""
     if body.part != part or body.key != key:
@@ -937,7 +945,7 @@ async def _check_party(
 
 
 @router.get("/archive/parties", responses=E)
-async def list_parties(
+async def archive_list_parties(
     kind: str | None = Query(default=None, pattern=KEY),
     q: str | None = Query(default=None, max_length=200),
     ctx: Ctx = Depends(owner_ctx),
@@ -956,7 +964,9 @@ async def list_parties(
 
 
 @router.post("/archive/parties", status_code=201, responses=E)
-async def create_party(body: PartyIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def archive_create_party(
+    body: ArchivePartyIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """A party of the registry. Requires `Idempotency-Key`."""
     async with ctx.tx() as tx:
         await CL.full(tx)
@@ -993,8 +1003,8 @@ async def create_party(body: PartyIn, request: Request, ctx: Ctx = Depends(owner
 
 
 @router.patch("/archive/parties/{ref}", responses=E)
-async def patch_party(
-    ref: str, body: PartyPatch, request: Request, ctx: Ctx = Depends(owner_ctx)
+async def archive_patch_party(
+    ref: str, body: ArchivePartyPatch, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
     """`If-Match`."""
     expected = http.if_match(request)
@@ -1039,7 +1049,7 @@ async def patch_party(
 
 # ------------------------------------------------------------------- holds --
 @router.get("/archive/holds", responses=E)
-async def list_holds(
+async def archive_list_holds(
     state: Literal["active", "released"] | None = None, ctx: Ctx = Depends(owner_ctx)
 ) -> list[dict[str, Any]]:
     async with ctx.tx() as tx:
@@ -1053,7 +1063,9 @@ async def list_holds(
 
 
 @router.post("/archive/holds", status_code=201, responses=E)
-async def place_hold(body: HoldIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def archive_place_hold(
+    body: ArchiveHoldIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """The owner places a legal hold. Requires `Idempotency-Key`."""
     async with ctx.tx() as tx:
         await CL.full(tx)
@@ -1070,7 +1082,7 @@ async def place_hold(body: HoldIn, request: Request, ctx: Ctx = Depends(owner_ct
 
 
 @router.post("/archive/holds/{ref}/release", responses=E)
-async def release_hold(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def archive_release_hold(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """🔏 `archive.hold.release`, target = ref: the owner's alone."""
     async with ctx.tx() as tx:
         await CL.full(tx)
@@ -1084,7 +1096,7 @@ async def release_hold(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)
 
 # --------------------------------------------- reminders, retention, fixity --
 @router.get("/archive/reminders", responses=E)
-async def due_reminders(
+async def archive_due_reminders(
     scope: str | None = Query(default=None, pattern=CO), ctx: Ctx = Depends(owner_ctx)
 ) -> list[dict[str, Any]]:
     async with ctx.tx() as tx:
@@ -1093,14 +1105,14 @@ async def due_reminders(
 
 
 @router.post("/archive/reminders/{id}/done", responses=E)
-async def reminder_done(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> Any:
+async def archive_reminder_done(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> Any:
     async with ctx.tx() as tx:
         await CL.full(tx)
         return _render_ok(await RM.done(tx, ctx.who, id))
 
 
 @router.get("/archive/retention/due", responses=E)
-async def retention_due(ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, Any]]:
+async def archive_retention_due(ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, Any]]:
     async with ctx.tx() as tx:
         await CL.full(tx)
         rows = await RT.due(tx)
@@ -1110,7 +1122,7 @@ async def retention_due(ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, Any]]:
 
 
 @router.get("/archive/fixity", responses=E)
-async def fixity(ctx: Ctx = Depends(owner_ctx)) -> dict[str, Any]:
+async def archive_fixity(ctx: Ctx = Depends(owner_ctx)) -> dict[str, Any]:
     """The last fixity run `{at, checked, failed: [ref], next_at}`."""
     async with ctx.tx() as tx:
         await CL.full(tx)
@@ -1119,14 +1131,16 @@ async def fixity(ctx: Ctx = Depends(owner_ctx)) -> dict[str, Any]:
 
 # ----------------------------------------------------------------- sources --
 @router.get("/archive/sources", responses=E)
-async def get_sources(ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, Any]]:
+async def archive_get_sources(ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, Any]]:
     async with ctx.tx() as tx:
         await CL.full(tx)
         return [_render_ok(x) for x in await SRC.listing(tx)]
 
 
 @router.put("/archive/sources", responses=E)
-async def put_sources(body: dict[str, bool], ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, Any]]:
+async def archive_put_sources(
+    body: dict[str, bool], ctx: Ctx = Depends(owner_ctx)
+) -> list[dict[str, Any]]:
     """Owner · `{<key>: on}` for the switches that change."""
     async with ctx.tx() as tx:
         await CL.full(tx)

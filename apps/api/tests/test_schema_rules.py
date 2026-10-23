@@ -53,6 +53,8 @@ SCHEMAS = (
     # the voice registry (people.role_drafts is in people)
     "legal",
     "media",
+    # prompt 14: the archive
+    "archive",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.

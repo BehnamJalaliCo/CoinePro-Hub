@@ -35,7 +35,7 @@ from hq_api.archive import store as ST
 from hq_api.archive.common import J, dumps, invalid
 from hq_api.context import Ctx, internal_ctx
 from hq_api.errors import ApiError, responses
-from hq_api.routes.archive import HoldIn, LinkIn, PartyRole
+from hq_api.routes.archive import ArchiveHoldIn, ArchiveLinkIn, ArchivePartyRole
 from hq_api.routes.internal import allow
 from hq_api.schemas import Model
 
@@ -46,7 +46,7 @@ KEY = r"^[a-z][a-z0-9_]{1,40}$"
 TEXT_MAX = 60_000
 
 
-class AgentFileIn(Model):
+class ArchiveAgentFileIn(Model):
     scope: str = Field(pattern=CO)
     class_: str = Field(alias="class", pattern=KEY)
     title_fa: str = Field(min_length=1, max_length=300)
@@ -54,8 +54,8 @@ class AgentFileIn(Model):
     metadata: dict[str, Any] = Field(default_factory=dict)
     level: str | None = Field(default=None, pattern=KEY)
     folder: str | None = Field(default=None, pattern=r"^FP-[0-9]{4,}$")
-    parties: list[PartyRole] = Field(default_factory=list, max_length=20)
-    links: list[LinkIn] = Field(default_factory=list, max_length=20)
+    parties: list[ArchivePartyRole] = Field(default_factory=list, max_length=20)
+    links: list[ArchiveLinkIn] = Field(default_factory=list, max_length=20)
     note_fa: str = Field(default="", max_length=4000)
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
@@ -178,7 +178,9 @@ async def _usable(ctx: Ctx, tx: Any, file_ids: list[UUID]) -> None:
 
 
 @internal_router.post("/archive/records", status_code=201, responses=E)
-async def agent_file(body: AgentFileIn, request: Request, ctx: Ctx = Depends(internal_ctx)) -> Any:
+async def agent_file(
+    body: ArchiveAgentFileIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+) -> Any:
     """archive.file (A1): a draft from files, with the class and metadata it
     proposes. On a draft the owner imported (the same files) it is a
     suggestion the owner confirms. Requires `Idempotency-Key`."""
@@ -273,7 +275,7 @@ async def _suggest(
 async def _new_draft(
     ctx: Ctx,
     c: CL.Clearance,
-    body: AgentFileIn,
+    body: ArchiveAgentFileIn,
     cls: dict[str, Any] | None,
     data: dict[str, Any],
     request: Request,
@@ -343,7 +345,7 @@ async def _new_draft(
 
 @internal_router.post("/archive/records/{ref}/links", status_code=201, responses=E)
 async def agent_link(
-    ref: str, body: LinkIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+    ref: str, body: ArchiveLinkIn, request: Request, ctx: Ctx = Depends(internal_ctx)
 ) -> Any:
     """archive.link (A1): one link of a link kind of the schema."""
     await _allow(ctx, "archive.link", ref=ref)
@@ -375,7 +377,9 @@ async def agent_link(
 
 
 @internal_router.post("/archive/holds", status_code=201, responses=E)
-async def agent_hold(body: HoldIn, request: Request, ctx: Ctx = Depends(internal_ctx)) -> Any:
+async def agent_hold(
+    body: ArchiveHoldIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+) -> Any:
     """archive.hold (A2): the legal counsel places a hold for one of its cases."""
     await _allow(ctx, "archive.hold", case=body.case)
     if ctx.who.charter != "legal_counsel":

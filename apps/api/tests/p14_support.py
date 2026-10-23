@@ -23,9 +23,7 @@ from hq_api.hub import Hub
 from .conftest import idem, step_up
 
 SAMPLES = Path("/w/ocr/tests/samples")
-SEED_WORDS = (
-    "abandon ability able about above absent absorb abstract absurd abuse access accident"
-)
+SEED_WORDS = "abandon ability able about above absent absorb abstract absurd abuse access accident"
 
 
 class FakeVault:
@@ -61,7 +59,14 @@ class FakeOcr:
         text = self.texts.get(hashlib.sha256(data).hexdigest(), "")
         return {
             "state": "ok",
-            "pages": [{"n": 1, "text": text, "confidence": 0.91 if text else 0.0, "words": len(text.split())}],
+            "pages": [
+                {
+                    "n": 1,
+                    "text": text,
+                    "confidence": 0.91 if text else 0.0,
+                    "words": len(text.split()),
+                }
+            ],
             "confidence": 0.91 if text else 0.0,
             "engine": {"name": "tesseract", "version": "fake"},
         }
@@ -151,8 +156,14 @@ async def record(
     file: bool = True,
     parties: list[dict[str, str]] | None = None,
 ) -> httpx.Response:
-    body: dict[str, Any] = {"scope": scope, "class": cls, "title_fa": title, "metadata": metadata,
-                            "file_ids": file_ids, "file": file}
+    body: dict[str, Any] = {
+        "scope": scope,
+        "class": cls,
+        "title_fa": title,
+        "metadata": metadata,
+        "file_ids": file_ids,
+        "file": file,
+    }
     if level:
         body["level"] = level
     if parties:
@@ -173,8 +184,14 @@ async def filed(
 ) -> dict[str, Any]:
     fid = await upload(client, headers, pdf(text), "application/pdf", "doc.pdf")
     r = await record(
-        client, headers, scope=scope, cls=cls, title=title, metadata=metadata or {"subject": title},
-        file_ids=[fid], level=level,
+        client,
+        headers,
+        scope=scope,
+        cls=cls,
+        title=title,
+        metadata=metadata or {"subject": title},
+        file_ids=[fid],
+        level=level,
     )
     assert r.status_code == 201, r.text
     out: dict[str, Any] = r.json()

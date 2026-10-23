@@ -12,6 +12,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+import pytest
+from sqlalchemy.exc import DBAPIError
 
 from hq_api.archive import retention as RT
 from hq_api.hub import Hub
@@ -42,23 +44,61 @@ async def test_the_seed_is_the_contracts_and_never_overwrites_the_owner(
     assert r.status_code == 200, r.text
     s = r.json()
     classes = {c["key"]: c for c in s["classes"]}
-    assert {"company_registration", "contract", "affiliate_agreement", "license", "invoice", "domain",
-            "legal_correspondence", "sealed_policy", "brand_asset", "resolution_bundle", "other"} <= set(classes)
+    assert {
+        "company_registration",
+        "contract",
+        "affiliate_agreement",
+        "license",
+        "invoice",
+        "domain",
+        "legal_correspondence",
+        "sealed_policy",
+        "brand_asset",
+        "resolution_bundle",
+        "other",
+    } <= set(classes)
     ranks = {lv["key"]: lv["rank"] for lv in s["levels"]}
     assert {k: ranks[k] for k in ("public", "internal", "confidential", "secret")} == {
-        "public": 0, "internal": 10, "confidential": 20, "secret": 30
+        "public": 0,
+        "internal": 10,
+        "confidential": 20,
+        "secret": 30,
     }
     secret = next(lv for lv in s["levels"] if lv["key"] == "secret")
     assert secret["encrypt"] and secret["watermark"] and secret["step_up_to_view"]
     assert s["owner_settings"]["agents_max"] == "confidential"
-    assert {c["subject"] for c in s["clearance"]} >= {"role:*", "role:legal_counsel", "role:archivist"}
+    assert {c["subject"] for c in s["clearance"]} >= {
+        "role:*",
+        "role:legal_counsel",
+        "role:archivist",
+    }
     arc = next(c for c in s["clearance"] if c["subject"] == "role:archivist")
     assert arc["metadata_level"] == "secret"
-    assert {k["key"] for k in s["link_kinds"]} >= {"supersedes", "amends", "renews", "evidence_for", "attached_to", "about"}
-    assert {k["key"] for k in s["party_kinds"]} >= {"exchange", "provider", "government", "bank", "person", "other"}
+    assert {k["key"] for k in s["link_kinds"]} >= {
+        "supersedes",
+        "amends",
+        "renews",
+        "evidence_for",
+        "attached_to",
+        "about",
+    }
+    assert {k["key"] for k in s["party_kinds"]} >= {
+        "exchange",
+        "provider",
+        "government",
+        "bank",
+        "person",
+        "other",
+    }
     assert {x["key"] for x in s["sources"]} == {
-        "charter_sealed", "resolution_month", "brand_sealed", "founding_registration", "legal_email",
-        "case_closed", "server_plan_sealed", "backup_restore_test",
+        "charter_sealed",
+        "resolution_month",
+        "brand_sealed",
+        "founding_registration",
+        "legal_email",
+        "case_closed",
+        "server_plan_sealed",
+        "backup_restore_test",
     }
     rules = {x["title_fa"]: x for x in s["retention"]}
     assert any(x["trigger"] == "field:end" and x["keep"] == {"years": 7} for x in rules.values())
@@ -66,7 +106,14 @@ async def test_the_seed_is_the_contracts_and_never_overwrites_the_owner(
     contract_end = [x for x in s["reminders"] if x["class"] == "contract"]
     assert contract_end and contract_end[0]["lead_days"] == [60, 30, 7]
     assert set(s["field_types"]) >= {"money", "date", "date_range", "iban", "id_code", "ref"}
-    assert s["vocab"]["events"] == ["filed", "sealed", "reminder_due", "retention_due", "hold_set", "version_added"]
+    assert s["vocab"]["events"] == [
+        "filed",
+        "sealed",
+        "reminder_due",
+        "retention_due",
+        "hold_set",
+        "version_added",
+    ]
     # The seed again: nothing new, and what the owner retired stays retired.
     from hq_api.archive import schema as SC
 
@@ -77,7 +124,10 @@ async def test_the_seed_is_the_contracts_and_never_overwrites_the_owner(
             holding = await tx.scalar("SELECT id FROM core.companies WHERE kind = 'holding'")
             again = await SC.seed(tx, holding)
         assert all(v == 0 for k, v in again.items() if k != "folders"), again
-        assert await su.fetchval("SELECT status FROM archive.link_kinds WHERE key = 'renews'") == "retired"
+        assert (
+            await su.fetchval("SELECT status FROM archive.link_kinds WHERE key = 'renews'")
+            == "retired"
+        )
     finally:
         await su.execute("UPDATE archive.link_kinds SET status = 'active' WHERE key = 'renews'")
 
@@ -99,7 +149,13 @@ async def test_a_class_with_money_and_date_is_made_from_the_api_and_its_fields_r
         "required_files": 1,
         "allowed_mime": ["application/pdf"],
         "fields": [
-            {"key": "amount", "title_fa": "مبلغ", "type": "money", "required": True, "searchable": True},
+            {
+                "key": "amount",
+                "title_fa": "مبلغ",
+                "type": "money",
+                "required": True,
+                "searchable": True,
+            },
             {"key": "paid_on", "title_fa": "تاریخ پرداخت", "type": "date", "required": True},
             {"key": "note", "title_fa": "یادداشت", "type": "text"},
         ],
@@ -112,31 +168,52 @@ async def test_a_class_with_money_and_date_is_made_from_the_api_and_its_fields_r
     assert r.json()["version"] == 1 and r.json()["impact"] == {"records": 0, "missing_required": 0}
     # A record with it (money as a decimal string with its currency, a date).
     fid = await upload(client, h, pdf("grant letter"), "application/pdf", "grant.pdf")
-    meta = {"amount": {"amount": "1250.50", "currency": "USDT"}, "paid_on": "2026-09-01", "note": "اول"}
-    rec = await record(client, h, scope=co["code"], cls=key, title="کمک‌هزینه‌ی مهر", metadata=meta,
-                       file_ids=[fid])
+    meta = {
+        "amount": {"amount": "1250.50", "currency": "USDT"},
+        "paid_on": "2026-09-01",
+        "note": "اول",
+    }
+    rec = await record(
+        client, h, scope=co["code"], cls=key, title="کمک‌هزینه‌ی مهر", metadata=meta, file_ids=[fid]
+    )
     assert rec.status_code == 201, rec.text
     ref = rec.json()["ref"]
-    assert rec.json()["state"] == "filed" and rec.json()["metadata"]["amount"]["amount"] == "1250.50"
-    bad = await record(client, h, scope=co["code"], cls=key, title="x",
-                       metadata={"amount": {"amount": "1,2", "currency": "USDT"}, "paid_on": "2026-13-01"},
-                       file_ids=[await upload(client, h, pdf("x"), "application/pdf")])
+    assert (
+        rec.json()["state"] == "filed" and rec.json()["metadata"]["amount"]["amount"] == "1250.50"
+    )
+    bad = await record(
+        client,
+        h,
+        scope=co["code"],
+        cls=key,
+        title="x",
+        metadata={"amount": {"amount": "1,2", "currency": "USDT"}, "paid_on": "2026-13-01"},
+        file_ids=[await upload(client, h, pdf("x"), "application/pdf")],
+    )
     assert bad.status_code == 422 and bad.json()["code"] == "schema_invalid"
     assert {"metadata.amount", "metadata.paid_on"} <= set(bad.json()["fields"])
     # A new required field: the dry run reports the impact, no passkey needed.
     body2 = json.loads(json.dumps(body))
-    body2["fields"].append({"key": "grantor", "title_fa": "اعطاکننده", "type": "text", "required": True})
-    dry = await schema_put(client, hub, owner_session, "classes", key, body2, version=1, dry_run=True)
+    body2["fields"].append(
+        {"key": "grantor", "title_fa": "اعطاکننده", "type": "text", "required": True}
+    )
+    dry = await schema_put(
+        client, hub, owner_session, "classes", key, body2, version=1, dry_run=True
+    )
     assert dry.status_code == 200 and dry.json()["dry_run"] is True
     assert dry.json()["impact"] == {"records": 1, "missing_required": 1}
     applied = await schema_put(client, hub, owner_session, "classes", key, body2, version=1)
     assert applied.status_code == 200 and applied.json()["version"] == 2
     assert applied.json()["impact"]["missing_required"] == 1
     # The archivist got one work item to complete them.
-    assert await su.fetchval(
-        "SELECT count(*) FROM work.work w JOIN core.employees e ON e.id = w.assignee_id "
-        "WHERE e.code = 'HQ-ARC' AND w.title LIKE $1", f"%({key})%"
-    ) == 1
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM work.work w JOIN core.employees e ON e.id = w.assignee_id "
+            "WHERE e.code = 'HQ-ARC' AND w.title LIKE $1",
+            f"%({key})%",
+        )
+        == 1
+    )
     # A field is never removed, only retired; its old values stay.
     gone = json.loads(json.dumps(body2))
     gone["fields"] = [f for f in gone["fields"] if f["key"] != "note"]
@@ -148,26 +225,53 @@ async def test_a_class_with_money_and_date_is_made_from_the_api_and_its_fields_r
     assert ok.status_code == 200 and ok.json()["version"] == 3
     old = await client.get(f"{A}/records/{ref}", headers=h)
     assert old.json()["metadata"]["note"] == "اول" and old.json()["class_version"] == 1
-    newer = await record(client, h, scope=co["code"], cls=key, title="y",
-                         metadata={**meta, "grantor": "صندوق", "note": "تازه"},
-                         file_ids=[await upload(client, h, pdf("y"), "application/pdf")])
-    assert newer.status_code == 422 and newer.json()["fields"]["metadata.note"].startswith("retired")
+    newer = await record(
+        client,
+        h,
+        scope=co["code"],
+        cls=key,
+        title="y",
+        metadata={**meta, "grantor": "صندوق", "note": "تازه"},
+        file_ids=[await upload(client, h, pdf("y"), "application/pdf")],
+    )
+    assert newer.status_code == 422 and newer.json()["fields"]["metadata.note"].startswith(
+        "retired"
+    )
     # The closed vocabulary: an unknown type, a type change, a used level's rank.
     typo = json.loads(json.dumps(retire))
     typo["fields"].append({"key": "x1", "title_fa": "x", "type": "colour"})
-    assert (await schema_put(client, hub, owner_session, "classes", key, typo, version=3)).status_code == 422
+    assert (
+        await schema_put(client, hub, owner_session, "classes", key, typo, version=3)
+    ).status_code == 422
     retype = json.loads(json.dumps(retire))
     retype["fields"][2]["type"] = "long_text"
     r3 = await schema_put(client, hub, owner_session, "classes", key, retype, version=3)
     assert r3.status_code == 422 and "fields.2.type" in r3.json()["fields"]
     lv = await client.get(f"{A}/schema", headers=h)
     internal = next(x for x in lv.json()["levels"] if x["key"] == "internal")
-    rank = await schema_put(client, hub, owner_session, "levels", "internal",
-                            {**{k: internal[k] for k in ("title_fa", "color_index", "watermark", "encrypt",
-                                                          "step_up_to_view", "agents_max")}, "rank": 11},
-                            version=internal["version"])
+    rank = await schema_put(
+        client,
+        hub,
+        owner_session,
+        "levels",
+        "internal",
+        {
+            **{
+                k: internal[k]
+                for k in (
+                    "title_fa",
+                    "color_index",
+                    "watermark",
+                    "encrypt",
+                    "step_up_to_view",
+                    "agents_max",
+                )
+            },
+            "rank": 11,
+        },
+        version=internal["version"],
+    )
     assert rank.status_code == 422 and "rank" in rank.json()["fields"]
-
 
 
 async def test_parts_keyed_by_ref_are_created_with_key_new_and_an_automation_runs_by_rule(
@@ -179,44 +283,89 @@ async def test_parts_keyed_by_ref_are_created_with_key_new_and_an_automation_run
 ) -> None:
     co = await new_company()
     h = owner_session["headers"]
-    r = await schema_put(client, hub, owner_session, "folders", "new",
-                         {"scope": co["code"], "title_fa": "پرونده‌های ویژه", "classes": ["contract"], "order": 95})
+    r = await schema_put(
+        client,
+        hub,
+        owner_session,
+        "folders",
+        "new",
+        {"scope": co["code"], "title_fa": "پرونده‌های ویژه", "classes": ["contract"], "order": 95},
+    )
     assert r.status_code == 200, r.text
     special = r.json()["key"]
     assert special.startswith("FP-") and r.json()["row"]["scope"] == co["code"]
-    au = await schema_put(client, hub, owner_session, "automations", "new", {
-        "title_fa": "قراردادهای این شرکت به پوشه‌ی ویژه",
-        "on": "filed", "when": {"class": "contract", "scope": co["code"]},
-        "do": [{"action": "move_to_folder", "args": {"folder": special}},
-               {"action": "notify", "args": {"to": "owner", "level": "report", "text_fa": "قرارداد تازه"}}],
-    })
+    au = await schema_put(
+        client,
+        hub,
+        owner_session,
+        "automations",
+        "new",
+        {
+            "title_fa": "قراردادهای این شرکت به پوشه‌ی ویژه",
+            "on": "filed",
+            "when": {"class": "contract", "scope": co["code"]},
+            "do": [
+                {"action": "move_to_folder", "args": {"folder": special}},
+                {
+                    "action": "notify",
+                    "args": {"to": "owner", "level": "report", "text_fa": "قرارداد تازه"},
+                },
+            ],
+        },
+    )
     assert au.status_code == 200, au.text
     auto = au.json()["key"]
-    urgent = await schema_put(client, hub, owner_session, "automations", "new", {
-        "title_fa": "x", "on": "filed", "do": [{"action": "notify", "args": {"level": "urgent", "text_fa": "x"}}],
-    })
+    urgent = await schema_put(
+        client,
+        hub,
+        owner_session,
+        "automations",
+        "new",
+        {
+            "title_fa": "x",
+            "on": "filed",
+            "do": [{"action": "notify", "args": {"level": "urgent", "text_fa": "x"}}],
+        },
+    )
     assert urgent.status_code == 422 and "do.0.args.level" in urgent.json()["fields"]
-    party = await client.post(f"{A}/parties", json={"kind": "exchange", "name_fa": f"صرافی {co['code']}",
-                                                     "identifiers": {"website": "https://example.com"}},
-                              headers={**h, **idem()})
+    party = await client.post(
+        f"{A}/parties",
+        json={
+            "kind": "exchange",
+            "name_fa": f"صرافی {co['code']}",
+            "identifiers": {"website": "https://example.com"},
+        },
+        headers={**h, **idem()},
+    )
     assert party.status_code == 201, party.text
     pt = party.json()["ref"]
     fid = await upload(client, h, pdf("contract text"), "application/pdf")
-    rec = await record(client, h, scope=co["code"], cls="contract", title="قرارداد همکاری", file_ids=[fid],
-                       metadata={"counterparty": pt, "subject": "همکاری", "start": "2026-01-01"})
+    rec = await record(
+        client,
+        h,
+        scope=co["code"],
+        cls="contract",
+        title="قرارداد همکاری",
+        file_ids=[fid],
+        metadata={"counterparty": pt, "subject": "همکاری", "start": "2026-01-01"},
+    )
     assert rec.status_code == 201, rec.text
     # The default folder was the scope's first that takes contracts; the
     # automation moved it on `filed`, by rule, and left one run row.
     assert rec.json()["state"] == "filed" and rec.json()["folder"] == special
     runs = await su.fetch(
         """SELECT x.outcome, x.actions FROM archive.automation_runs x JOIN archive.automations a ON a.id = x.automation_id
-           WHERE a.ref = $1""", auto,
+           WHERE a.ref = $1""",
+        auto,
     )
     assert len(runs) == 1 and runs[0]["outcome"] == "done"
-    assert await su.fetchval(
-        "SELECT count(*) FROM notify.notifications WHERE link_kind = 'archive_record' AND link_ref = $1 AND level = 'report'",
-        rec.json()["ref"],
-    ) == 1
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM notify.notifications WHERE link_kind = 'archive_record' AND link_ref = $1 AND level = 'report'",
+            rec.json()["ref"],
+        )
+        == 1
+    )
     schema = await client.get(f"{A}/schema", headers=h)
     row = next(x for x in schema.json()["automations"] if x["ref"] == auto)
     assert row["runs_30d"] == 1 and row["last_run_at"]
@@ -238,73 +387,115 @@ async def test_a_sealed_record_is_409_except_its_level_and_a_new_version_superse
         manifest = rec["versions"][0]["manifest_sha256"]
         f0 = rec["versions"][0]["files"][0]
         assert manifest == hashlib.sha256(f"{f0['sha256']}  {f0['name']}".encode()).hexdigest()
-        bare = await client.post(f"{A}/records/{ref}/seal", json={"manifest_sha256": manifest}, headers=h)
+        bare = await client.post(
+            f"{A}/records/{ref}/seal", json={"manifest_sha256": manifest}, headers=h
+        )
         assert bare.status_code == 403 and bare.json()["code"] == "step_up_required"
-        wrong = await client.post(f"{A}/records/{ref}/seal", json={"manifest_sha256": "0" * 64},
-                                  headers={**h, **await step_up(hub, sid, "archive.seal", "0" * 64)})
+        wrong = await client.post(
+            f"{A}/records/{ref}/seal",
+            json={"manifest_sha256": "0" * 64},
+            headers={**h, **await step_up(hub, sid, "archive.seal", "0" * 64)},
+        )
         assert wrong.status_code == 409 and wrong.json()["code"] == "seal_mismatch"
-        sealed = await client.post(f"{A}/records/{ref}/seal", json={"manifest_sha256": manifest},
-                                   headers={**h, **await step_up(hub, sid, "archive.seal", manifest)})
+        sealed = await client.post(
+            f"{A}/records/{ref}/seal",
+            json={"manifest_sha256": manifest},
+            headers={**h, **await step_up(hub, sid, "archive.seal", manifest)},
+        )
         assert sealed.status_code == 200, sealed.text
         assert sealed.json()["state"] == "sealed" and sealed.json()["versions"][0]["sealed"]
         v = sealed.json()["version"]
         # Anything but the level: 409 sealed_record.
-        title = await client.patch(f"{A}/records/{ref}", json={"title_fa": "تغییر"}, headers={**h, "If-Match": str(v)})
+        title = await client.patch(
+            f"{A}/records/{ref}", json={"title_fa": "تغییر"}, headers={**h, "If-Match": str(v)}
+        )
         assert title.status_code == 409 and title.json()["code"] == "sealed_record"
         # Raising the level is free and leaves the seal as it is.
-        up = await client.patch(f"{A}/records/{ref}", json={"level": "confidential"}, headers={**h, "If-Match": str(v)})
+        up = await client.patch(
+            f"{A}/records/{ref}", json={"level": "confidential"}, headers={**h, "If-Match": str(v)}
+        )
         assert up.status_code == 200, up.text
         assert up.json()["level"] == "confidential" and up.json()["state"] == "sealed"
         assert up.json()["versions"][0]["sealed"]
         v = up.json()["version"]
         # Lowering it is the owner's declassification, with its own passkey.
-        down = await client.patch(f"{A}/records/{ref}", json={"level": "internal"}, headers={**h, "If-Match": str(v)})
+        down = await client.patch(
+            f"{A}/records/{ref}", json={"level": "internal"}, headers={**h, "If-Match": str(v)}
+        )
         assert down.status_code == 403 and down.json()["code"] == "step_up_required"
         down = await client.patch(
-            f"{A}/records/{ref}", json={"level": "internal"},
-            headers={**h, "If-Match": str(v), **await step_up(hub, sid, "archive.declassify", f"{ref}@{v}:internal")},
+            f"{A}/records/{ref}",
+            json={"level": "internal"},
+            headers={
+                **h,
+                "If-Match": str(v),
+                **await step_up(hub, sid, "archive.declassify", f"{ref}@{v}:internal"),
+            },
         )
-        assert down.status_code == 200 and down.json()["level"] == "internal" and down.json()["state"] == "sealed"
+        assert (
+            down.status_code == 200
+            and down.json()["level"] == "internal"
+            and down.json()["state"] == "sealed"
+        )
         access = await client.get(f"{A}/records/{ref}/access", headers=h)
         levels = [x for x in access.json() if x["action"] == "level"]
         assert {(x["level_from"], x["level_to"], x["step_up"]) for x in levels} == {
-            ("internal", "confidential", False), ("confidential", "internal", True)
+            ("internal", "confidential", False),
+            ("confidential", "internal", True),
         }
         # The database keeps a sealed version as it is, whoever asks.
-        ver_id = await su.fetchval("SELECT v.id FROM archive.record_versions v JOIN archive.records r ON r.id = v.record_id WHERE r.ref = $1", ref)
-        async with hub.db.tx([co["id"]]) as tx:
-            await tx.exec("SELECT set_config('app.clearance', '{\"all\": true}', true)")
-            try:
-                await tx.exec("UPDATE archive.record_versions SET sealed = false WHERE id = :i", i=ver_id)
-                raise AssertionError("a sealed version changed")
-            except Exception as exc:  # noqa: BLE001
-                assert "sealed version is immutable" in str(exc) or "HQR01" in str(exc)
+        ver_id = await su.fetchval(
+            "SELECT v.id FROM archive.record_versions v JOIN archive.records r ON r.id = v.record_id WHERE r.ref = $1",
+            ref,
+        )
+        with pytest.raises(DBAPIError, match="sealed version is immutable"):
+            async with hub.db.tx([co["id"]]) as tx:
+                await tx.exec("SELECT set_config('app.clearance', '{\"all\": true}', true)")
+                await tx.exec(
+                    "UPDATE archive.record_versions SET sealed = false WHERE id = :i", i=ver_id
+                )
         # A new version supersedes the sealed one; the record is filed again,
         # and the old manifest no longer seals anything.
         fid2 = await upload(client, h, pdf("security policy v2"), "application/pdf", "v2.pdf")
-        nv = await client.post(f"{A}/records/{ref}/versions", json={"file_ids": [fid2], "note_fa": "اصلاح"},
-                               headers={**h, **idem()})
+        nv = await client.post(
+            f"{A}/records/{ref}/versions",
+            json={"file_ids": [fid2], "note_fa": "اصلاح"},
+            headers={**h, **idem()},
+        )
         assert nv.status_code == 201, nv.text
         assert nv.json()["state"] == "filed" and nv.json()["current_version"] == 2
         assert [x["state"] for x in nv.json()["versions"]] == ["superseded", "current"]
         assert nv.json()["versions"][0]["sealed"] is True
-        stale = await client.post(f"{A}/records/{ref}/seal", json={"manifest_sha256": manifest},
-                                  headers={**h, **await step_up(hub, sid, "archive.seal", manifest)})
+        stale = await client.post(
+            f"{A}/records/{ref}/seal",
+            json={"manifest_sha256": manifest},
+            headers={**h, **await step_up(hub, sid, "archive.seal", manifest)},
+        )
         assert stale.status_code == 409 and stale.json()["code"] == "seal_mismatch"
 
 
 # ---------------------------------------------------- no secret, ever --
 async def test_a_pdf_and_an_image_with_a_secret_are_refused_and_kept_nowhere(
-    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], new_company: Callable[..., Any], su: Any
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    su: Any,
 ) -> None:
     co = await new_company()
     async with fakes() as (_v, ocr):
         assert ocr is not None
-        seed_pdf = await upload(client, owner, pdf(f"wallet backup: {SEED_WORDS}"), "application/pdf", "w.pdf")
+        seed_pdf = await upload(
+            client, owner, pdf(f"wallet backup: {SEED_WORDS}"), "application/pdf", "w.pdf"
+        )
         key_png = await upload(client, owner, png(5), "image/png", "key.png")
-        stored = await su.fetchval("SELECT storage_key FROM files.files WHERE id = $1::uuid", key_png)
-        ocr.learn(await hub.storage.get(stored),
-                  "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIBfakefakefakefakefakefakefakefakefakefakeoAoGCCqGSM49\n-----END EC PRIVATE KEY-----")
+        stored = await su.fetchval(
+            "SELECT storage_key FROM files.files WHERE id = $1::uuid", key_png
+        )
+        ocr.learn(
+            await hub.storage.get(stored),
+            "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIBfakefakefakefakefakefakefakefakefakefakeoAoGCCqGSM49\n-----END EC PRIVATE KEY-----",
+        )
         for fid in (seed_pdf, key_png):
             key = await su.fetchval("SELECT storage_key FROM files.files WHERE id = $1::uuid", fid)
             r = await client.post(f"{A}/intake", json={"file_ids": [fid]}, headers=owner)
@@ -312,14 +503,27 @@ async def test_a_pdf_and_an_image_with_a_secret_are_refused_and_kept_nowhere(
             assert SEED_WORDS.split()[3] not in r.text and "PRIVATE" not in r.text
             # Nothing of it stays: not the bytes, not an intake row, not a record.
             assert not hub.storage.local_path(key).exists()
-            assert await su.fetchval("SELECT count(*) FROM archive.intake WHERE file_id = $1::uuid", fid) == 0
-            again = await record(client, owner, scope=co["code"], cls="other", title="x",
-                                 metadata={}, file_ids=[fid])
+            assert (
+                await su.fetchval(
+                    "SELECT count(*) FROM archive.intake WHERE file_id = $1::uuid", fid
+                )
+                == 0
+            )
+            again = await record(
+                client, owner, scope=co["code"], cls="other", title="x", metadata={}, file_ids=[fid]
+            )
             assert again.status_code in (409, 422)
         # A secret written with a record (a value, the title) is refused too.
         clean = await upload(client, owner, pdf("an ordinary letter"), "application/pdf")
-        r = await record(client, owner, scope=co["code"], cls="other", title="نامه",
-                         metadata={"note": "password: hunter2hunter2"}, file_ids=[clean])
+        r = await record(
+            client,
+            owner,
+            scope=co["code"],
+            cls="other",
+            title="نامه",
+            metadata={"note": "password: hunter2hunter2"},
+            file_ids=[clean],
+        )
         assert r.status_code == 422 and r.json()["code"] == "secret_in_document"
 
 
@@ -336,8 +540,14 @@ async def test_a_confidential_record_is_invisible_to_an_internal_reader_everywhe
     word = f"zeta{co['code'].lower()}"
     async with fakes(ocr=False):
         low = await filed(client, h, co["code"], title=f"{word} internal memo", text=f"{word} plan")
-        high = await filed(client, h, co["code"], title=f"{word} confidential plan", text=f"{word} secret plan",
-                           level="confidential")
+        high = await filed(
+            client,
+            h,
+            co["code"],
+            title=f"{word} confidential plan",
+            text=f"{word} secret plan",
+            level="confidential",
+        )
     # The company's CEO (default clearance: internal in its own company).
     ceo = await agent_headers(f"{co['code']}-CEO")
     got = await client.get(f"/internal/v1/knowledge/search?q={word}&kinds=records", headers=ceo)
@@ -373,24 +583,34 @@ async def test_a_confidential_record_is_invisible_to_an_internal_reader_everywhe
     # The database itself, as the api's role: below the record's rank nothing,
     # no clearance at all nothing, the owner's clearance everything.
     async with hub.db.tx([co["id"]]) as tx:
-        n_none = await tx.scalar("SELECT count(*) FROM archive.records WHERE ref = ANY(:r)", r=[low["ref"], high["ref"]])
+        n_none = await tx.scalar(
+            "SELECT count(*) FROM archive.records WHERE ref = ANY(:r)", r=[low["ref"], high["ref"]]
+        )
         await tx.exec(
             "SELECT set_config('app.clearance', :c, true)",
             c=json.dumps({"code": "X", "grants": {str(co["id"]): 10}}),
         )
-        n_low = await tx.scalar("SELECT count(*) FROM archive.records WHERE ref = ANY(:r)", r=[low["ref"], high["ref"]])
+        n_low = await tx.scalar(
+            "SELECT count(*) FROM archive.records WHERE ref = ANY(:r)", r=[low["ref"], high["ref"]]
+        )
         files_high = await tx.scalar(
             "SELECT count(*) FROM archive.record_files f JOIN archive.records r ON r.id = f.record_id WHERE r.ref = :r",
             r=high["ref"],
         )
         tsv = await tx.scalar(
-            "SELECT count(*) FROM archive.records WHERE text_tsv @@ plainto_tsquery('simple', :w)", w=word
+            "SELECT count(*) FROM archive.records WHERE text_tsv @@ plainto_tsquery('simple', :w)",
+            w=word,
         )
     assert (n_none, n_low, files_high, tsv) == (0, 1, 0, 1)
     async with hub.db.tx([co["id"]]) as tx:
         await tx.exec("SELECT set_config('app.clearance', '{\"all\": true}', true)")
-        assert await tx.scalar("SELECT count(*) FROM archive.records WHERE ref = ANY(:r)",
-                               r=[low["ref"], high["ref"]]) == 2
+        assert (
+            await tx.scalar(
+                "SELECT count(*) FROM archive.records WHERE ref = ANY(:r)",
+                r=[low["ref"], high["ref"]],
+            )
+            == 2
+        )
 
 
 async def test_a_secret_file_is_encrypted_needs_a_passkey_and_is_served_watermarked(
@@ -405,13 +625,22 @@ async def test_a_secret_file_is_encrypted_needs_a_passkey_and_is_served_watermar
     async with fakes(ocr=False) as (vault, _o):
         data = pdf("the board decided on the merger")
         fid = await upload(client, h, data, "application/pdf", "board.pdf")
-        r = await record(client, h, scope=co["code"], cls="other", title="تصمیم هیئت‌مدیره",
-                         metadata={"subject": "x"}, file_ids=[fid], level="secret")
+        r = await record(
+            client,
+            h,
+            scope=co["code"],
+            cls="other",
+            title="تصمیم هیئت‌مدیره",
+            metadata={"subject": "x"},
+            file_ids=[fid],
+            level="secret",
+        )
         assert r.status_code == 201, r.text
         ref = r.json()["ref"]
         f = await su.fetchrow(
             """SELECT f.* FROM archive.record_files f JOIN archive.records r ON r.id = f.record_id
-               WHERE r.ref = $1""", ref,
+               WHERE r.ref = $1""",
+            ref,
         )
         assert f["encrypted"] and f["wrapped_dek"].startswith("vault:v1:")
         blob = hub.storage.local_path(f["storage_key"]).read_bytes()
@@ -442,8 +671,15 @@ async def test_a_persian_scan_gives_searchable_text_and_without_ocr_stays_none(
     truth = (SAMPLES / "scan_fa.txt").read_text(encoding="utf-8")
     # The profile off: no error, the file waits with text_state "none".
     fid = await upload(client, owner, scan, "image/png", "scan.png")
-    r = await record(client, owner, scope=co["code"], cls="other", title="اسکن قرارداد",
-                     metadata={"subject": "اسکن"}, file_ids=[fid])
+    r = await record(
+        client,
+        owner,
+        scope=co["code"],
+        cls="other",
+        title="اسکن قرارداد",
+        metadata={"subject": "اسکن"},
+        file_ids=[fid],
+    )
     assert r.status_code == 201, r.text
     ref = r.json()["ref"]
     assert r.json()["versions"][0]["files"][0]["text_state"] == "none"
@@ -458,12 +694,18 @@ async def test_a_persian_scan_gives_searchable_text_and_without_ocr_stays_none(
     rec = await client.get(f"{A}/records/{ref}", headers=owner)
     f = rec.json()["versions"][0]["files"][0]
     assert f["text_state"] == "ocr" and f["ocr_confidence"] == 0.91
-    found = await client.get(f"{A}/search", params={"q": "صرافی آرمان", "scope": co["code"]}, headers=owner)
+    found = await client.get(
+        f"{A}/search", params={"q": "صرافی آرمان", "scope": co["code"]}, headers=owner
+    )
     assert found.status_code == 200, found.text
     hit = next(x for x in found.json()["items"] if x["ref"] == ref)
-    assert "«ارمان»" in hit["snippet_fa"] and hit["score"] > 0  # the normalised text, the hit marked
+    assert (
+        "«ارمان»" in hit["snippet_fa"] and hit["score"] > 0
+    )  # the normalised text, the hit marked
     # Arabic letters and digits find the same text (the deterministic normaliser).
-    arabic = await client.get(f"{A}/search", params={"q": "صرافي آرمان", "scope": co["code"]}, headers=owner)
+    arabic = await client.get(
+        f"{A}/search", params={"q": "صرافي آرمان", "scope": co["code"]}, headers=owner
+    )
     assert ref in {x["ref"] for x in arabic.json()["items"]}
 
 
@@ -478,7 +720,11 @@ async def _record_key(hub: Hub, ref: str) -> str:
 
 
 async def test_intake_suggests_by_rules_and_import_makes_drafts_for_the_archivist(
-    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], new_company: Callable[..., Any], su: Any
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    su: Any,
 ) -> None:
     co = await new_company()
     text = "Invoice No 4411 date 2026-03-15 total 1200 USDT to be paid"
@@ -489,8 +735,13 @@ async def test_intake_suggests_by_rules_and_import_makes_drafts_for_the_archivis
     assert f["text_state"] == "text_layer" and f["sha256"] == hashlib.sha256(pdf(text)).hexdigest()
     sug = r.json()["suggestion"]
     assert sug["by"] == "rules" and sug["class"] == "invoice"
-    assert sug["metadata"]["date"] == "2026-03-15" and sug["metadata"]["amount"] == {"amount": "1200", "currency": "USDT"}
-    imp = await client.post(f"{A}/import", json={"scope": co["code"], "file_ids": [fid]}, headers={**owner, **idem()})
+    assert sug["metadata"]["date"] == "2026-03-15" and sug["metadata"]["amount"] == {
+        "amount": "1200",
+        "currency": "USDT",
+    }
+    imp = await client.post(
+        f"{A}/import", json={"scope": co["code"], "file_ids": [fid]}, headers={**owner, **idem()}
+    )
     assert imp.status_code == 201, imp.text
     (ref,) = imp.json()["records"]
     draft = await client.get(f"{A}/records/{ref}", headers=owner)
@@ -507,18 +758,27 @@ async def test_links_and_the_retention_of_a_superseded_record(
     async with fakes(ocr=False):
         a = await filed(client, owner, co["code"], title="نسخه‌ی قدیم")
         b = await filed(client, owner, co["code"], title="نسخه‌ی تازه")
-    r = await client.post(f"{A}/records/{b['ref']}/links", json={"kind": "supersedes", "to": {"kind": "record", "ref": a["ref"]}},
-                          headers={**owner, **idem()})
+    r = await client.post(
+        f"{A}/records/{b['ref']}/links",
+        json={"kind": "supersedes", "to": {"kind": "record", "ref": a["ref"]}},
+        headers={**owner, **idem()},
+    )
     assert r.status_code == 201, r.text
     assert r.json()["title_fa"] == "نسخه‌ی قدیم"
     old = await client.get(f"{A}/records/{a['ref']}", headers=owner)
     assert old.json()["state"] == "superseded"
     assert any(x["inverse"] and x["to_ref"] == b["ref"] for x in old.json()["links"])
-    bad = await client.post(f"{A}/records/{b['ref']}/links", json={"kind": "supersedes", "to": {"kind": "decision", "ref": "D-000001"}},
-                            headers={**owner, **idem()})
+    bad = await client.post(
+        f"{A}/records/{b['ref']}/links",
+        json={"kind": "supersedes", "to": {"kind": "decision", "ref": "D-000001"}},
+        headers={**owner, **idem()},
+    )
     assert bad.status_code == 422 and bad.json()["code"] == "schema_invalid"
-    rm = await client.delete(f"{A}/records/{b['ref']}/links",
-                             params={"kind": "supersedes", "to_kind": "record", "to_ref": a["ref"]}, headers=owner)
+    rm = await client.delete(
+        f"{A}/records/{b['ref']}/links",
+        params={"kind": "supersedes", "to_kind": "record", "to_ref": a["ref"]},
+        headers=owner,
+    )
     assert rm.status_code == 204
     assert RT.due_of(datetime.now(UTC).date(), {"years": 3}) == (
         datetime.now(UTC).date() + timedelta(days=0)
