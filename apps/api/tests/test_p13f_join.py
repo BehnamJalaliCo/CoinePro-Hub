@@ -1,9 +1,11 @@
 """Prompt 13 laid on prompt 12 final (r13f: prompt 11, prompt 12 parts A and B,
-§2, §3 and §13): one validating head (0028_1) whose kind CHECKs hold every
-kind of 11, 12 and 13, a down-and-up run that keeps a card of each later kind,
-the system prompt in the contract's order (_common, the sealed charter, the
-role, the department identity, the skills) and the templates' departments
-beside prompt 11's system roles."""
+§2, §3 and §13), and prompt 14 on it (r14f): one validating head (0029 since
+prompt 14; 0028_1 was it on 13) whose kind CHECKs hold every kind of 11 to 14,
+a down-and-up run that keeps a card of each later kind and finds the seeds
+(the archive's open layer among them) again after the deploy's re-seed, the
+system prompt in the contract's order (_common, the sealed charter, the role,
+the department identity, the skills) and the templates' departments beside
+prompt 11's, 12's and 14's system roles."""
 
 from __future__ import annotations
 
@@ -21,10 +23,12 @@ from hq_api.domain import decisions as D
 from hq_api.hub import Hub
 from hq_common.tool_status import GATEWAY_TOOLS
 
+from .conftest import API_DIR, _run
 from .test_hiring import _alembic, reseeded  # noqa: F401 - the round trip and its re-seed
 
 VERSIONS = Path(__file__).resolve().parents[1] / "migrations" / "versions"
-# The kinds the revisions after 0025 add: prompt 11's six and three, prompt 13's four.
+# The kinds the revisions after 0025 add: prompt 11's six and three, prompt 13's
+# four, prompt 14's two (0029).
 LATER_KINDS = (
     "meeting_resolution",
     "charter_amendment",
@@ -36,18 +40,22 @@ LATER_KINDS = (
     "media_publish",
     "role_new",
     "email_send",
+    "archive_schema",
+    "archive_disposal",
 )
+HEAD = "0029"
 
 
 def test_only_the_head_validates_the_kind_checks() -> None:
-    """0026_1 and 0027_2 validated the CHECK while each was the head; on 13 the
-    head is 0028_1 and every earlier re-add stays NOT VALID."""
+    """0026_1, 0027_2 and 0028_1 validated the CHECK while each was the head
+    (0028_1 no longer does; production ran it once and is not touched); on 14
+    the head is 0029 and every earlier re-add stays NOT VALID."""
     validating = {
         f.name
         for f in VERSIONS.glob("*.py")
         if re.search(r"VALIDATE CONSTRAINT (decisions|threads)_kind_check", f.read_text())
     }
-    assert validating == {"0028_1_legal_voice.py"}
+    assert validating == {"0029_archive.py"}
 
 
 async def _check(su: Any, table: str, name: str) -> tuple[str, bool]:
@@ -60,7 +68,7 @@ async def _check(su: Any, table: str, name: str) -> tuple[str, bool]:
     return str(row["def"]), bool(row["convalidated"])
 
 
-async def test_the_head_holds_every_kind_of_11_12_and_13_validated(su: Any) -> None:
+async def test_the_head_holds_every_kind_of_11_to_14_validated(su: Any) -> None:
     check, valid = await _check(su, "cartable.decisions", "decisions_kind_check")
     assert valid
     for kind in (*D.KINDS, *LATER_KINDS):
@@ -88,7 +96,7 @@ async def test_a_round_trip_keeps_a_card_of_every_later_kind(su: Any) -> None:
     _alembic("downgrade", "0009")
     _alembic("upgrade", "head")
 
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0028_1"
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == HEAD
     kinds = {
         r["kind"]
         for r in await su.fetch(
@@ -106,6 +114,18 @@ async def test_a_round_trip_keeps_a_card_of_every_later_kind(su: Any) -> None:
            WHERE c.kind = 'holding' AND t.code = 'L'"""
     )
     assert legal == "legal"
+    # The round trip recreated the archive empty; the deploy's seed (the api's
+    # migrate, as the `reseeded` fixture runs it after every round trip) brings
+    # its open layer back, and the archivist is seated again.
+    assert await su.fetchval("SELECT count(*) FROM archive.levels") == 0
+    _run("hq_api.migrate", API_DIR, "hq", "HQ_DB_PASSWORD", "/api/src")
+    levels = {r["key"] for r in await su.fetch("SELECT key FROM archive.levels")}
+    assert {"public", "internal", "confidential", "secret"} <= levels
+    assert await su.fetchval("SELECT count(*) FROM archive.classes") >= 11
+    arc = await su.fetchval(
+        "SELECT kind FROM core.employees WHERE code = 'HQ-ARC' AND status = 'active'"
+    )
+    assert arc == "system"
 
 
 async def test_the_prompt_reads_common_charter_role_identity_then_skills(
@@ -148,7 +168,7 @@ async def test_the_prompt_reads_common_charter_role_identity_then_skills(
     assert doc and doc.startswith(f"{co}-MEDIA@")
 
 
-async def test_the_templates_hold_13s_departments_beside_11s_system_roles(
+async def test_the_templates_hold_13s_departments_beside_11s_12s_and_14s_system_roles(
     client: httpx.AsyncClient, owner: dict[str, str], su: Any
 ) -> None:
     tpl = {t["key"]: t for t in (await client.get("/api/v1/templates", headers=owner)).json()}
@@ -176,6 +196,12 @@ async def test_the_templates_hold_13s_departments_beside_11s_system_roles(
         "AIOPS",
     )
     assert (rows["LIB"]["kind"], rows["LIB"]["role"]) == ("system", "librarian")
+    # ⟨1.7⟩ prompt 14: the archivist, a system role of the holding without a department
+    assert (rows["ARC"]["kind"], rows["ARC"]["role"], rows["ARC"]["dept"]) == (
+        "system",
+        "archivist",
+        None,
+    )
     assert (rows["LGL"]["kind"], rows["LGL"]["role"], rows["LGL"]["dept"]) == (
         "employee",
         "legal_counsel",

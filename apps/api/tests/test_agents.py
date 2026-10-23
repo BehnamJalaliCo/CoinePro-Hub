@@ -66,6 +66,7 @@ async def order(
 async def test_records_wake_the_right_agent(
     client: httpx.AsyncClient, owner: dict[str, str], su: Any, new_company: Callable[..., Any]
 ) -> None:
+    start = await su.fetchval("SELECT clock_timestamp()")
     co = (await new_company())["code"]
     w = await order(client, owner, co)
     ceo = await runs_of(su, f"{co}-CEO")
@@ -96,8 +97,10 @@ async def test_records_wake_the_right_agent(
     assert (
         await su.fetchval(
             """SELECT count(*) FROM agents.runs r JOIN core.employees e ON e.id = r.employee_id
-           WHERE e.kind = 'system' AND r.trigger <> 'meeting'"""  # ⟨1.5⟩ the secretary's summary only
-        )
+           WHERE e.kind = 'system' AND r.trigger <> 'meeting' AND r.queued_at >= $1""",
+            start,
+        )  # ⟨1.5⟩ the secretary's summary only; ⟨1.7⟩ the librarian and the archivist
+        # (system roles that run) only when code gives them work, never on a message
         == 0
     )
 
