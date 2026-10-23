@@ -30,6 +30,7 @@ from hq_api import audit, idempotency
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
 from hq_api.domain import backups, hiring, oversight
+from hq_api.domain import departments as DM
 from hq_api.domain import files as F
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
@@ -221,15 +222,30 @@ class HoldingState(BaseModel):
     hiring: Literal["closed", "open"] = "closed"
 
 
-async def _company_state(tx: Tx, co: Any) -> CompanyState:
-    depts = await tx.all(
-        """SELECT d.code, d.name_en, m.code AS manager, m.activity AS manager_activity
+async def _company_state(
+    tx: Tx, co: Any, charters: Any = None, own_department: str | None = None
+) -> CompanyState:
+    rows = await tx.all(
+        """SELECT d.code, d.name_en, m.code AS manager, m.activity AS manager_activity,
+                  d.mandate, d.identity_md, d.version
            FROM core.departments d
            LEFT JOIN core.employees m ON m.department_id = d.id AND m.kind IN ('manager', 'inspector')
                 AND m.status <> 'dismissed'
            WHERE d.company_id = :co AND d.status = 'active' ORDER BY d.sort, d.code""",
         co=co.id,
     )
+    # ⟨1.6⟩ each department's mandate and starting team (contract §22.1); the
+    # identity only for the caller's own department (the others' tone is theirs)
+    key = co.template or ("holding" if co.kind == "holding" else "standard")
+    depts = []
+    for r in rows:
+        d: dict[str, Any] = {k: r[k] for k in ("code", "name_en", "manager", "manager_activity")}
+        d["mandate"] = r["mandate"]
+        d["team"] = [t.model_dump() for t in DM.team(key, r["code"], charters)]
+        if own_department and r["code"] == own_department:
+            d["identity_md"] = r["identity_md"]
+            d["identity_version"] = r["version"]
+        depts.append(d)
     emps = await tx.all(
         """SELECT kind, count(*) AS n FROM core.employees
            WHERE company_id = :co AND status = 'active' GROUP BY kind""",
@@ -309,12 +325,16 @@ async def tool_company_state(
         await allow(ctx, "company.read", {"company": ctx.who.company})
         async with read_tx(ctx) as tx:
             return HoldingState(
-                companies=[await _company_state(tx, c) for c in await ctx.hub.companies.all()],
+                companies=[
+                    await _company_state(tx, c, ctx.hub.charters, ctx.who.department)
+                    for c in await ctx.hub.companies.all()
+                ],
                 hiring=await hiring.state(tx),
             )
     co = await _company(ctx, "company.read", company)
+    own = ctx.who.department if co.id == ctx.who.company_id else None
     async with read_tx(ctx) as tx:
-        return await _company_state(tx, co)
+        return await _company_state(tx, co, ctx.hub.charters, own)
 
 
 # -------------------------------------------------------------- health.sites --

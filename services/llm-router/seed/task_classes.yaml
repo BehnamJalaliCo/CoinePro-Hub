@@ -41,3 +41,10 @@ task_classes:
   - {key: sub_draft, transferable: false, description: "A substitute player's first draft of content (subscription only)"}
   - {key: sub_long_read, transferable: false, description: "A substitute player's summary of a long read (subscription only)"}
   - {key: sub_creative, transferable: false, description: "A substitute player's image or video (subscription only)"}
+  # prompt 13, the media half (contract §22.0): the media studio's steps; api
+  # migration 0028 inserts the same rows.
+  - {key: media_script, transferable: false, description: "A media item's script (prompt 13 §2)"}
+  - {key: media_direction, transferable: false, description: "A media item's direction: shots, timing, on-screen text (prompt 13 §2)"}
+  - {key: media_motion, transferable: false, description: "A media item's motion graphics as code (prompt 13 §2; Opus 5.5 by default)"}
+  - {key: media_review, transferable: false, description: "The media director's review of an item (prompt 13 §2)"}
+  - {key: ui_design, transferable: false, description: "A site's UI redesign as HTML mockups (prompt 13 §2.4)"}

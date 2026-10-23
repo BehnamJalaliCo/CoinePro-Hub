@@ -15,6 +15,7 @@ from hq_api import idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import decisions as D
+from hq_api.domain import departments as DM
 from hq_api.domain import org, templates
 from hq_api.errors import ApiError, responses
 from hq_api.http import check_version, if_match
@@ -65,11 +66,28 @@ class CompanyPatch(Model):
     status: Literal["active", "paused", "archived"] | None = None
 
 
+class TemplateDepartment(BaseModel):
+    """⟨1.6⟩ one department of a template with its mandate, identity and
+    starting team (contract §22.1)."""
+
+    code: str
+    name_fa: str
+    name_en: str
+    sort: int
+    head_role: str | None
+    manager: bool
+    mandate: DM.Mandate | None
+    identity_md: str | None
+    team: list[DM.TeamRole]
+
+
 class Template(BaseModel):
     key: str
     name_fa: str
     name_en: str
     departments: list[str]
+    # ⟨1.6⟩ the same departments with what a company starts from (§22.1)
+    blueprint: list[TemplateDepartment] = Field(default_factory=list)
 
 
 class Department(BaseModel):
@@ -84,6 +102,11 @@ class Department(BaseModel):
     status: str
     sort: int
     version: int
+    # ⟨1.6⟩ «مبدأ و مقصد», the department's character and its starting team
+    # (contract §22.1); null until set (a department added by hand)
+    mandate: DM.Mandate | None = None
+    identity_md: str | None = None
+    team: list[DM.TeamRole] = Field(default_factory=list)
 
 
 class DepartmentCreate(Model):
@@ -353,6 +376,20 @@ async def list_templates(ctx: Ctx = Depends(owner_ctx)) -> list[Template]:
             name_fa=t.get("name_fa", k),
             name_en=t.get("name_en", k),
             departments=[d["code"] for d in t.get("departments") or []],
+            blueprint=[
+                TemplateDepartment(
+                    code=d["code"],
+                    name_fa=d["name_fa"],
+                    name_en=d["name_en"],
+                    sort=int(d.get("sort", 100)),
+                    head_role=d.get("head_role"),
+                    manager=d.get("manager", True) is not False,
+                    mandate=DM.mandate(templates.mandate_of(d)),
+                    identity_md=str(d["identity_md"]).strip() if d.get("identity_md") else None,
+                    team=DM.team(k, d["code"], ctx.hub.charters),
+                )
+                for d in sorted(t.get("departments") or [], key=lambda d: int(d.get("sort", 100)))
+            ],
         )
         for k, t in templates.templates().items()
     ]
@@ -361,7 +398,9 @@ async def list_templates(ctx: Ctx = Depends(owner_ctx)) -> list[Template]:
 # ------------------------------------------------------------- departments --
 DEPT_SQL = f"""
     SELECT d.id, c.code AS company, d.code, d.name_fa, d.name_en, d.manager_title_fa,
-           d.manager_title_en, d.status, d.sort, d.version, {org.ref_cols("m", "m_")}
+           d.manager_title_en, d.status, d.sort, d.version, d.mandate, d.identity_md,
+           COALESCE(c.template, CASE WHEN c.kind = 'holding' THEN 'holding' ELSE 'standard' END)
+               AS template_key, {org.ref_cols("m", "m_")}
     FROM core.departments d
     JOIN core.companies c ON c.id = d.company_id
     LEFT JOIN core.employees m ON m.department_id = d.id AND m.kind IN ('manager', 'inspector')
@@ -369,7 +408,7 @@ DEPT_SQL = f"""
 """  # noqa: S608 - composed from module constants; values are bound
 
 
-def _dept(r: dict[str, Any]) -> Department:
+def _dept(r: dict[str, Any], charters: Any = None) -> Department:
     return Department(
         **{
             k: r[k]
@@ -387,6 +426,9 @@ def _dept(r: dict[str, Any]) -> Department:
             )
         },
         manager=employee_ref(r, "m_"),
+        mandate=DM.mandate(r.get("mandate")),
+        identity_md=r.get("identity_md"),
+        team=DM.team(r.get("template_key"), r["code"], charters),
     )
 
 
@@ -398,7 +440,7 @@ async def list_departments(code: str, ctx: Ctx = Depends(owner_ctx)) -> list[Dep
         rows = await tx.all(
             DEPT_SQL + " WHERE d.company_id = :co ORDER BY d.sort, d.code", co=co.id
         )
-    return [_dept(r) for r in rows]
+    return [_dept(r, ctx.hub.charters) for r in rows]
 
 
 @router.post(
@@ -473,7 +515,7 @@ async def create_department(
             target_ref=f"{code}-{body.code}",
         )
         await ctx.emit(tx, code, "employee.updated", mgr_code, {"change": "position.created"})
-        return _dept(await tx.one(DEPT_SQL + " WHERE d.id = :id", id=row["id"]))
+        return _dept(await tx.one(DEPT_SQL + " WHERE d.id = :id", id=row["id"]), ctx.hub.charters)
 
 
 @router.patch(
@@ -520,7 +562,61 @@ async def update_department(
             target_ref=f"{company}-{dept}",
             data={"fields": sorted(fields)},
         )
-        return _dept(await tx.one(DEPT_SQL + " WHERE d.id = :id", id=cur["id"]))
+        return _dept(await tx.one(DEPT_SQL + " WHERE d.id = :id", id=cur["id"]), ctx.hub.charters)
+
+
+@router.put(
+    "/companies/{code}/departments/{dept}/mandate",
+    response_model=Department,
+    responses=responses(401, 403, 404, 409, 422, 428),
+)
+async def put_mandate(
+    code: str, dept: str, body: DM.MandateIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Department:
+    """⟨1.6⟩ 🔏 step-up `department.mandate`, target = SHA-256 of the exact body;
+    `If-Match: <Department.version>`. The department's «مبدأ و مقصد» and its
+    identity, which every member reads from its next run (contract §22.1). A
+    ceiling naming an unknown, A3/A4 or never-given tool is 422."""
+    expected = if_match(request)
+    DM.check(body, ctx.hub.charters)
+    co = await ctx.hub.companies.by_code(code)
+    target = await stepup.body_target(request)
+    async with ctx.tx() as tx:
+        cur = await tx.one(
+            "SELECT id, version FROM core.departments WHERE company_id = :co AND code = :d FOR UPDATE",
+            co=co.id,
+            d=dept,
+        )
+        check_version(cur["version"], expected)
+        await stepup.consume(tx, request, ctx.who, "department.mandate", target)
+        await tx.exec(
+            """UPDATE core.departments SET mandate = CAST(:m AS jsonb), identity_md = :i
+               WHERE id = :id""",
+            id=cur["id"],
+            m=body.mandate.model_dump_json(),
+            i=body.identity_md.strip() or None,
+        )
+        await ctx.audit(
+            tx,
+            company_id=co.id,
+            action="department.mandate",
+            action_class="A2",
+            target_kind="department",
+            target_ref=f"{code}-{dept}",
+            summary=f"sha256 {target[:16]}",
+            step_up=True,
+        )
+        await ctx.interaction(
+            tx,
+            company_id=co.id,
+            kind="edit",
+            action="department.mandate",
+            target_kind="department",
+            target_ref=f"{code}-{dept}",
+            data={"tools": len(body.mandate.tool_ceiling), "model": body.mandate.model_ceiling},
+        )
+        await ctx.emit(tx, code, "control.changed", f"{code}-{dept}", {"change": "department.mandate"})
+        return _dept(await tx.one(DEPT_SQL + " WHERE d.id = :id", id=cur["id"]), ctx.hub.charters)
 
 
 # --------------------------------------------------------------- employees --

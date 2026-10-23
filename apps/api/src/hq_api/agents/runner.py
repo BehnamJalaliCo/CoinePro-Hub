@@ -46,6 +46,7 @@ from hq_api.agents.clients import Gateway, LivePush, ModelCall, Router
 from hq_api.db import Tx
 from hq_api.domain import academy as AC
 from hq_api.domain import decisions as D
+from hq_api.domain import departments as DM
 from hq_api.domain import files as F
 from hq_api.domain import oversight as O
 from hq_api.domain import skills as SK
@@ -122,6 +123,12 @@ RUN_TASK_CLASSES = frozenset(
         "hr_eval",
         "dceo_predict",
         "dceo_principles",
+        # ⟨1.6⟩ the media studio's steps (prompt 13 §2)
+        "media_script",
+        "media_direction",
+        "media_motion",
+        "media_review",
+        "ui_design",
     }
 )
 HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
@@ -805,13 +812,24 @@ class Runner:
             sec = SK.prompt_section(active, addenda)
             rc.skills = sec.skills
             rc.addenda = [str(a["ref"]) for a in sec.addenda]  # teaching refs (llm meta)
+            # ⟨1.6⟩ the department's identity comes first in this section: after
+            # the charter, before the skills (contract §22.1); its version is kept.
+            identity, identity_doc = await DM.identity(
+                tx,
+                await tx.scalar(
+                    "SELECT department_id FROM core.employees WHERE id = :e",
+                    e=rc.run["employee_id"],
+                ),
+            )
             await tx.exec(
-                "UPDATE agents.runs SET skills = :s, addenda = :a WHERE id = :id",
+                """UPDATE agents.runs SET skills = :s, addenda = :a, identity_doc = :doc
+                   WHERE id = :id""",
                 s=rc.skills,
                 a=[a["id"] for a in sec.addenda],
+                doc=identity_doc,
                 id=rc.run["id"],
             )
-        return sec.text
+        return "\n\n".join(x for x in (identity, sec.text) if x)
 
     async def _values(self, emp: dict[str, Any]) -> dict[str, str]:
         holding = await self.hub.companies.holding()

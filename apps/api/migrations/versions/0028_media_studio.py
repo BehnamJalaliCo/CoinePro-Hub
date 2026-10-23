@@ -56,6 +56,15 @@ TABLES = (
 APPEND_ONLY = ("media.compositions", "media.publish_log")
 SEQUENCES = ("media.series_ref_seq", "media.item_ref_seq", "people.role_draft_ref_seq")
 NEW_KINDS = ("media_series", "media_publish", "role_new", "email_send")
+# The media studio's task classes (contract §22.0; llm-router's seed has the
+# same rows): never on an alternative provider.
+TASK_CLASSES = (
+    ("media_script", "A media item's script (prompt 13 §2)"),
+    ("media_direction", "A media item's direction: shots, timing, on-screen text (prompt 13 §2)"),
+    ("media_motion", "A media item's motion graphics as code (prompt 13 §2; Opus 5.5 by default)"),
+    ("media_review", "The media director's review of an item (prompt 13 §2)"),
+    ("ui_design", "A site's UI redesign as HTML mockups (prompt 13 §2.4)"),
+)
 
 SERIES_STATUS = "'draft', 'proposed', 'sealed', 'paused', 'retired'"
 ITEM_KINDS = "'reel', 'story', 'post', 'carousel', 'design'"
@@ -418,6 +427,11 @@ def upgrade() -> None:
     execute_script("\n".join(grants))
     execute_script(_kinds_sql(NEW_KINDS, ()))
     execute_script(DATA)
+    classes = ",\n".join(f"('{k}', false, '{d.replace(chr(39), chr(39) * 2)}')" for k, d in TASK_CLASSES)
+    execute_script(
+        f"""INSERT INTO llm.task_classes (key, transferable, description) VALUES {classes}
+            ON CONFLICT (key) DO NOTHING;"""
+    )
 
 
 def downgrade() -> None:
