@@ -35232,6 +35232,7 @@
     },
     "/api/v1/archive/holds": {
       "get": {
+        "description": "Legal holds (`?state`), each with the records it covers within the reader's clearance.",
         "operationId": "archive_list_holds",
         "parameters": [
           {
@@ -35782,6 +35783,7 @@
     },
     "/api/v1/archive/parties": {
       "get": {
+        "description": "The parties registry (`?kind&q`), every party kind's identifiers as data.",
         "operationId": "archive_list_parties",
         "parameters": [
           {
@@ -37646,6 +37648,7 @@
     },
     "/api/v1/archive/reminders": {
       "get": {
+        "description": "Due reminders (`DueReminder`, contract §23.12), nearest first (`?scope`).",
         "operationId": "archive_due_reminders",
         "parameters": [
           {
@@ -37760,6 +37763,7 @@
     },
     "/api/v1/archive/reminders/{id}/done": {
       "post": {
+        "description": "Closes a reminder: its underlying action is done.",
         "operationId": "archive_reminder_done",
         "parameters": [
           {
@@ -37860,6 +37864,7 @@
     },
     "/api/v1/archive/retention/due": {
       "get": {
+        "description": "Records whose retention ended (`RetentionDue`, §23.12), with their holds and card.",
         "operationId": "archive_retention_due",
         "responses": {
           "200": {
@@ -38546,6 +38551,7 @@
     },
     "/api/v1/archive/sources": {
       "get": {
+        "description": "The system sources (§23.8): what the hub files by itself, each switch, filed count and last time.",
         "operationId": "archive_get_sources",
         "responses": {
           "200": {

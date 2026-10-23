@@ -387,7 +387,7 @@ async def test_the_new_decision_kinds_and_the_shadow_suites(su: Any) -> None:
     for kind in ("message_template", "lifecycle_rule", "support_go_live", "hire", "server_plan"):
         assert f"'{kind}'" in check, kind
     # ⟨1.6⟩ prompt 13's migration 0028 adds its kinds to the same CHECK NOT VALID
-    # (the run sheet's rule for a rewritten kind CHECK); the head (0028_1)
+    # (the run sheet's rule for a rewritten kind CHECK); the head (0029 since prompt 14)
     # validates it, and every row fits it.
     assert await su.fetchval(
         """SELECT convalidated FROM pg_constraint

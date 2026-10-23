@@ -22,9 +22,14 @@ from hq_api.worker.archive_activities import ocr_queue
 
 from .conftest import agent_headers, idem, step_up
 from .p10_support import holding_switch
-from .p14_support import fakes, filed, pdf, record, txf, upload
+from .p14_support import fakes, filed, pdf, record, reseed, txf, upload
 
 A = "/api/v1/archive"
+
+
+@pytest.fixture(autouse=True)
+async def _archive_seeded(owner_db: Any) -> None:
+    await reseed(owner_db)
 
 
 @pytest.fixture(autouse=True)

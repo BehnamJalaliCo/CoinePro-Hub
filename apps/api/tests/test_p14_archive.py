@@ -28,12 +28,18 @@ from .p14_support import (
     pdf,
     png,
     record,
+    reseed,
     schema_put,
     txf,
     upload,
 )
 
 A = "/api/v1/archive"
+
+
+@pytest.fixture(autouse=True)
+async def _archive_seeded(owner_db: Any) -> None:
+    await reseed(owner_db)
 
 
 # --------------------------------------------------------------- the seed --

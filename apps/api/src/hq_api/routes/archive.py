@@ -950,6 +950,7 @@ async def archive_list_parties(
     q: str | None = Query(default=None, max_length=200),
     ctx: Ctx = Depends(owner_ctx),
 ) -> list[dict[str, Any]]:
+    """The parties registry (`?kind&q`), every party kind's identifiers as data."""
     async with ctx.tx() as tx:
         await CL.full(tx)
         rows = await tx.all(
@@ -1052,6 +1053,7 @@ async def archive_patch_party(
 async def archive_list_holds(
     state: Literal["active", "released"] | None = None, ctx: Ctx = Depends(owner_ctx)
 ) -> list[dict[str, Any]]:
+    """Legal holds (`?state`), each with the records it covers within the reader's clearance."""
     async with ctx.tx() as tx:
         await CL.full(tx)
         rows = await tx.all(
@@ -1099,6 +1101,7 @@ async def archive_release_hold(ref: str, request: Request, ctx: Ctx = Depends(ow
 async def archive_due_reminders(
     scope: str | None = Query(default=None, pattern=CO), ctx: Ctx = Depends(owner_ctx)
 ) -> list[dict[str, Any]]:
+    """Due reminders (`DueReminder`, contract §23.12), nearest first (`?scope`)."""
     async with ctx.tx() as tx:
         await CL.full(tx)
         return [_render_ok(x) for x in await RM.due_list(tx, scope=scope)]
@@ -1106,6 +1109,7 @@ async def archive_due_reminders(
 
 @router.post("/archive/reminders/{id}/done", responses=E)
 async def archive_reminder_done(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> Any:
+    """Closes a reminder: its underlying action is done."""
     async with ctx.tx() as tx:
         await CL.full(tx)
         return _render_ok(await RM.done(tx, ctx.who, id))
@@ -1113,6 +1117,7 @@ async def archive_reminder_done(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> Any:
 
 @router.get("/archive/retention/due", responses=E)
 async def archive_retention_due(ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, Any]]:
+    """Records whose retention ended (`RetentionDue`, §23.12), with their holds and card."""
     async with ctx.tx() as tx:
         await CL.full(tx)
         rows = await RT.due(tx)
@@ -1132,6 +1137,7 @@ async def archive_fixity(ctx: Ctx = Depends(owner_ctx)) -> dict[str, Any]:
 # ----------------------------------------------------------------- sources --
 @router.get("/archive/sources", responses=E)
 async def archive_get_sources(ctx: Ctx = Depends(owner_ctx)) -> list[dict[str, Any]]:
+    """The system sources (§23.8): what the hub files by itself, each switch, filed count and last time."""
     async with ctx.tx() as tx:
         await CL.full(tx)
         return [_render_ok(x) for x in await SRC.listing(tx)]

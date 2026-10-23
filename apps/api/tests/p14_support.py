@@ -202,6 +202,20 @@ def stored_path(hub: Hub, key: str) -> Path:
     return hub.storage.local_path(key)
 
 
+async def reseed(owner_db: Any) -> None:
+    """The archive's seed again when it is gone: test_hiring runs the
+    migrations down to 0009 and up within the same session, which leaves the
+    archive's open layer empty (the seed runs at deploy, not in a migration)."""
+    from hq_api.archive import schema as SC
+
+    async with owner_db.raw() as tx:
+        await tx.exec("SET LOCAL ROLE hq")
+        if await tx.scalar("SELECT EXISTS (SELECT 1 FROM archive.party_kinds)"):
+            return
+        holding = await tx.scalar("SELECT id FROM core.companies WHERE kind = 'holding'")
+        await SC.seed(tx, holding)
+
+
 def txf(hub: Hub) -> Callable[[], Any]:
     from hq_api.archive.common import wide_txf
 
