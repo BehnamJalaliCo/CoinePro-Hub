@@ -96,6 +96,9 @@ run() {
   # The substitute players' reviewed web recipes (prompt 12 §9.1), read-only.
   mounts+=(-v "$REPO_DIR/infra/egress/recipes:/recipes:ro")
   extra+=(-e HQ_EGRESS_RECIPES=/recipes)
+  # The archive's open layer seeds (prompt 14 §2: classes, levels, rules...), read-only.
+  mounts+=(-v "$REPO_DIR/infra/seed/archive:/archive-seed:ro")
+  extra+=(-e HQ_ARCHIVE_SEED=/archive-seed)
   if [[ "$TARGET" == api ]]; then
     mounts+=(-v "$API_DIR:/api:ro" -v "$REPO_DIR/infra/opa:/opa:ro")
     extra+=(-e TEST_TEMPORAL_ADDRESS=temporal:7233 -e TEST_OPA_URL=http://opa:8181)
