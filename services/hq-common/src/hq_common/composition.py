@@ -58,12 +58,23 @@ BANNED_CODE: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("worker", re.compile(r"\b(?:Shared)?Worker\s*\(|serviceWorker|importScripts")),
     ("dynamic_import", re.compile(r"\bimport\s*\(|^\s*import\s[\w{*]", re.M)),
     ("peer_connection", re.compile(r"RTCPeerConnection|RTCDataChannel")),
-    ("navigation", re.compile(r"\blocation\s*(?:\.\s*(?:href|assign|replace|reload)\b|=[^=])|window\s*\.\s*open\s*\(")),
-    ("storage", re.compile(r"\b(?:localStorage|sessionStorage|indexedDB|caches)\b|document\s*\.\s*cookie")),
+    (
+        "navigation",
+        re.compile(
+            r"\blocation\s*(?:\.\s*(?:href|assign|replace|reload)\b|=[^=])|window\s*\.\s*open\s*\("
+        ),
+    ),
+    (
+        "storage",
+        re.compile(r"\b(?:localStorage|sessionStorage|indexedDB|caches)\b|document\s*\.\s*cookie"),
+    ),
     ("eval", re.compile(r"\beval\s*\(|\bFunction\s*\(|set(?:Timeout|Interval)\s*\(\s*['\"`]")),
-    ("frames", re.compile(
-        r"\bwindow\s*\.\s*(?:parent|top|opener)\b|\b(?:parent|opener)\s*\.\s*(?:postMessage|location|document)"
-    )),
+    (
+        "frames",
+        re.compile(
+            r"\bwindow\s*\.\s*(?:parent|top|opener)\b|\b(?:parent|opener)\s*\.\s*(?:postMessage|location|document)"
+        ),
+    ),
 )
 BANNED_TAGS = ("iframe", "frame", "frameset", "object", "embed", "applet", "base", "link", "form",
                "portal", "audio", "source", "track", "noscript")  # fmt: skip
@@ -74,9 +85,13 @@ NONDETERMINISTIC = (
     ("animation_frame", re.compile(r"requestAnimationFrame")),
     ("random", re.compile(r"Math\s*\.\s*random")),
 )
-SCHEME = re.compile(r"(?i)\b(?:https?|wss?|ftp|file|blob|javascript|data|chrome|about|filesystem):")
+SCHEME = re.compile(
+    r"(?i)\b(?:https?|wss?|ftp|file|blob|javascript|data|chrome|about"
+    r"|filesystem):"
+)
 URL_ATTRS = ("src", "href", "xlink:href", "poster", "action", "formaction", "data", "srcset",
-             "background", "ping", "cite", "longdesc", "manifest", "codebase", "archive")  # fmt: skip
+             "background", "ping", "cite", "longdesc", "manifest", "codebase",
+             "archive")  # fmt: skip
 
 _TAG = re.compile(r"<\s*([a-zA-Z][a-zA-Z0-9:-]*)((?:\s[^<>]*?)?)\s*/?>", re.S)
 _ATTR = re.compile(r"""([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*(?:=\s*("[^"]*"|'[^']*'|[^\s"'=<>`]+))?""")
@@ -89,7 +104,9 @@ _FONT_FAMILY = re.compile(r"font-family\s*:\s*([^;}\"]+)", re.I)
 _FONT_SHORTHAND = re.compile(r"(?<![-\w])font\s*:\s*([^;}\"]+)", re.I)
 _HEX = re.compile(r"#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b")
 _RGB = re.compile(r"rgba?\(\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*[, ]\s*(\d{1,3})", re.I)
-_HSL = re.compile(r"hsla?\(\s*(-?\d+(?:\.\d+)?)(?:deg)?\s*[, ]\s*(\d+(?:\.\d+)?)%\s*[, ]\s*(\d+(?:\.\d+)?)%", re.I)
+_HSL = re.compile(
+    r"hsla?\(\s*(-?\d+(?:\.\d+)?)(?:deg)?\s*[, ]\s*(\d+(?:\.\d+)?)%\s*[, ]\s*(\d+(?:\.\d+)?)%", re.I
+)
 _NAMED = re.compile(
     r"(?i)(?:color|background(?:-color)?|fill|stroke|border(?:-[a-z]+)?-color|outline-color|"
     r"stop-color|text-shadow|box-shadow)\s*[:=]\s*['\"]?([a-z]+)\b"
@@ -203,7 +220,9 @@ def _css(rep: Report, css: str, allowed: set[str] | None) -> None:
         _families(rep, m.group(1))
     for m in _FONT_SHORTHAND.finditer(text):
         # `font: 700 48px/1.2 IRANYekanX` -> the families after the size
-        parts = re.split(r"\d+(?:\.\d+)?(?:px|em|rem|%|pt|vw|vh)(?:\s*/\s*[\d.]+\w*)?\s+", m.group(1), 1)
+        parts = re.split(
+            r"\d+(?:\.\d+)?(?:px|em|rem|%|pt|vw|vh)(?:\s*/\s*[\d.]+\w*)?\s+", m.group(1), maxsplit=1
+        )
         if len(parts) == 2:
             _families(rep, parts[1])
     _colors(rep, text)
@@ -289,7 +308,9 @@ def _check_html(rep: Report, source: str, allowed: set[str] | None) -> None:
             if n in URL_ATTRS and tag != "script":
                 if n == "srcset":
                     for part in v.split(","):
-                        _url(rep, part.strip().split(" ")[0], f"<{tag} srcset>", allowed, image=True)
+                        _url(
+                            rep, part.strip().split(" ")[0], f"<{tag} srcset>", allowed, image=True
+                        )
                 else:
                     _url(rep, v, f"<{tag} {n}>", allowed, image=tag in ("img", "image", "video"))
             elif n == "style":
@@ -353,7 +374,13 @@ def _check_lottie(rep: Report, source: str, allowed: set[str] | None) -> None:
         path = f"{a.get('u') or ''}{a.get('p') or ''}"
         if a.get("e") == 1 and DATA_IMAGE.match(str(a.get("p") or "")):
             continue
-        _url(rep, path if path.startswith(("/", "data:")) else "/" + path, "lottie asset", allowed, image=True)
+        _url(
+            rep,
+            path if path.startswith(("/", "data:")) else "/" + path,
+            "lottie asset",
+            allowed,
+            image=True,
+        )
     _walk_lottie(rep, doc, 0)
 
 
@@ -365,7 +392,9 @@ def _walk_lottie(rep: Report, node: Any, depth: int) -> None:
         for k, v in node.items():
             if k == "x" and isinstance(v, str):
                 rep.refuse("lottie_expression", "a Lottie expression (code) is not allowed")
-            elif isinstance(v, str) and (SCHEME.search(v) and not DATA_IMAGE.match(v) or v.startswith("//")):
+            elif isinstance(v, str) and (
+                (SCHEME.search(v) and not DATA_IMAGE.match(v)) or v.startswith("//")
+            ):
                 rep.refuse("network", f"lottie {k}: {v[:80]}")
             elif k == "c" and isinstance(v, dict) and isinstance(v.get("k"), list):
                 _lottie_color(rep, v["k"])
@@ -378,7 +407,9 @@ def _walk_lottie(rep: Report, node: Any, depth: int) -> None:
 
 def _lottie_color(rep: Report, k: list[Any]) -> None:
     if len(k) >= 3 and all(isinstance(x, (int, float)) for x in k[:3]):
-        rep.colors.append("#" + "".join(f"{round(max(0.0, min(1.0, float(x))) * 255):02x}" for x in k[:3]))
+        rep.colors.append(
+            "#" + "".join(f"{round(max(0.0, min(1.0, float(x))) * 255):02x}" for x in k[:3])
+        )
 
 
 # ------------------------------------------------------------ the brand --
@@ -392,7 +423,9 @@ def off_palette(colors: list[str], palette: list[str], tolerance: float = 6.0) -
             out.append(c)
             continue
         rgb = _rgb(c)
-        if not any(sum((a - b) ** 2 for a, b in zip(rgb, p, strict=True)) ** 0.5 <= tolerance for p in pal):
+        if not any(
+            sum((a - b) ** 2 for a, b in zip(rgb, p, strict=True)) ** 0.5 <= tolerance for p in pal
+        ):
             out.append(c)
     return sorted(set(out))
 

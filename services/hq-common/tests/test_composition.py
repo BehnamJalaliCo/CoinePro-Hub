@@ -60,7 +60,7 @@ def test_a_clean_composition_passes_and_reports_colours_fonts_and_assets() -> No
         ("<style>@import url('/x.css');</style>", "network"),
         ("<style>@font-face { font-family: X; src: url('/f.woff2'); }</style>", "font"),
         ("<style>p { font-family: Vazirmatn, sans-serif; }</style>", "font"),
-        ("<div style=\"background:url(http://a.example/x.png)\"></div>", "network"),
+        ('<div style="background:url(http://a.example/x.png)"></div>', "network"),
         ("<p>see https://example.com</p>", "network"),
     ],
 )
@@ -110,10 +110,16 @@ def test_a_lottie_without_code_passes_and_its_colours_are_read() -> None:
 @pytest.mark.parametrize(
     ("change", "rule"),
     [
-        (lambda d: d["layers"][0].update({"ks": {"p": {"x": "loopOut('cycle')"}}}), "lottie_expression"),
+        (
+            lambda d: d["layers"][0].update({"ks": {"p": {"x": "loopOut('cycle')"}}}),
+            "lottie_expression",
+        ),
         (lambda d: d["assets"][0].update({"u": "https://evil.example/", "p": "a.png"}), "network"),
         (lambda d: d["fonts"]["list"][0].update({"fFamily": "Arial"}), "font"),
-        (lambda d: d["fonts"]["list"][0].update({"fPath": "https://fonts.example/x.css"}), "network"),
+        (
+            lambda d: d["fonts"]["list"][0].update({"fPath": "https://fonts.example/x.css"}),
+            "network",
+        ),
         (lambda d: d.pop("layers"), "lottie_shape"),
     ],
 )
@@ -125,7 +131,9 @@ def test_lottie_code_paths_and_fonts_are_refused(change, rule) -> None:  # type:
 
 
 def test_off_palette_allows_the_brand_and_neutrals_only() -> None:
-    assert C.off_palette(["#f2b705", "#f2b706", "#ffffff", "#ff0000", "named:red"], ["#F2B705"]) == [
+    assert C.off_palette(
+        ["#f2b705", "#f2b706", "#ffffff", "#ff0000", "named:red"], ["#F2B705"]
+    ) == [
         "#ff0000",
         "named:red",
     ]

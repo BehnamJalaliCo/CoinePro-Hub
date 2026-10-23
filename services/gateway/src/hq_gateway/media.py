@@ -138,13 +138,19 @@ async def media_item(api: T.Api, call: T.Call, a: MediaItemIn) -> T.Result:
     if source is not None:
         body["composition"] = source  # code: checked by the api, never rewritten here
     resp = await api.request(
-        "POST", "/internal/v1/media/item", call.token, json=body, idem=call.idem(f"media.item:{a.ref}:{a.step}")
+        "POST",
+        "/internal/v1/media/item",
+        call.token,
+        json=body,
+        idem=call.idem(f"media.item:{a.ref}:{a.step}"),
     )
     return _shape(T.from_response(resp))
 
 
 async def media_render(api: T.Api, call: T.Call, a: MediaRefIn) -> T.Result:
-    resp = await api.request("POST", "/internal/v1/media/render", call.token, json=a.model_dump(mode="json"))
+    resp = await api.request(
+        "POST", "/internal/v1/media/render", call.token, json=a.model_dump(mode="json")
+    )
     return _shape(T.from_response(resp))
 
 

@@ -128,6 +128,7 @@ TASK_CLASS = {
 }
 CATCH_UP = timedelta(minutes=30)  # missed occurrences older than this are skipped, never backfilled
 RENDER_TIMEOUT_S = 600
+STILL_AT_S = 3.0  # a still is the frame at 3 s (its entrance animations have settled)
 RENDER_RECLAIM_MIN = 20
 RENDER_MAX_ATTEMPTS = 3
 NARRATION_RECLAIM_MIN = 10
@@ -894,7 +895,8 @@ async def brief(tx: Tx, hub: Any, item: dict[str, Any], step: str, note: str | N
                     f"A still {size[0]}x{size[1]}. Either frames as creatives (substitute.call seat creative, "
                     "the item's placement, the Persian text in `overlay`) delivered with their CR-… refs (one "
                     "per line), or one composition (media.item step composition) rendered to stills: a "
-                    'carousel puts data-slides="N" on <body> and shows slide k during [k-1, k) seconds.'
+                    'carousel puts data-slides="N" on <body> and shows slide k during [k-1, k) seconds; '
+                    "a single still is the frame at 3 seconds."
                 )
     elif step == "voice":
         head.append("Shots:\n" + canonical(direction.get("shots") or [])[:12000])
@@ -1153,7 +1155,15 @@ async def queue_render(
         by=by,
     )
     if purpose == "final":
-        await _note(tx, item, "rendering", None)
+        off = not getattr(getattr(hub, "settings", None), "media", False)
+        await _note(
+            tx,
+            item,
+            "rendering",
+            "render worker خاموش است (پروفایل media)؛ آیتم در صف render میماند تا روشن شود."
+            if off
+            else None,
+        )
     await events.emit(tx, item["company"], "media.item", item["ref"], {"render": purpose})
     return {"job": job["id"], "purpose": purpose}
 
@@ -1214,7 +1224,7 @@ async def render_spec(tx: Tx, item: dict[str, Any]) -> dict[str, Any]:
                 "video": False,
                 "format": "jpeg",
                 "max_bytes": imax,
-                "at_s": (k - 0.5) if item["kind"] == "carousel" else 0,
+                "at_s": (k - 0.5) if item["kind"] == "carousel" else STILL_AT_S,
             }
             for k in range(1, slides + 1)
         ]
@@ -1336,6 +1346,12 @@ async def request_render(tx: Tx, hub: Any, who: Principal, ref: str) -> dict[str
     _require_role(who, roles_for(item["kind"], fmt_of(item), "composition"), "render")
     if item["state"] in ("published", "rejected", "failed", "scheduled", "waiting_owner"):
         raise ApiError(409, "validation_failed", f"{ref} is {item['state']}")
+    if not getattr(hub.settings, "media", False):
+        raise ApiError(
+            503,
+            "channel_not_configured",
+            "the render worker is off (profile media): no preview now",
+        )
     out = await queue_render(tx, hub, item, purpose="preview", by=who.code)
     return {
         "ref": ref,

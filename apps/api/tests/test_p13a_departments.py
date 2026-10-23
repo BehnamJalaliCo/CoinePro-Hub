@@ -40,8 +40,12 @@ async def test_a_new_company_has_media_with_its_mandate_identity_and_team(
     assert media["mandate"]["model_ceiling"] == "claude-opus-5-5"
     assert {"media.item", "media.render", "media.voice"} <= set(media["mandate"]["tool_ceiling"])
     assert "media.review" not in media["mandate"]["tool_ceiling"]  # the director's alone
-    assert not {"hire.decide", "role.decide", "message.owner"} & set(media["mandate"]["tool_ceiling"])
-    assert media["mandate"]["from_fa"] and media["mandate"]["to_fa"] and media["mandate"]["outputs_fa"]
+    assert not {"hire.decide", "role.decide", "message.owner"} & set(
+        media["mandate"]["tool_ceiling"]
+    )
+    assert (
+        media["mandate"]["from_fa"] and media["mandate"]["to_fa"] and media["mandate"]["outputs_fa"]
+    )
     assert "IRANYekanX" in media["identity_md"]
     assert {t["role"] for t in media["team"]} == MEDIA_TEAM
     assert {t["role"] for t in media["team"] if t["first"]} == MEDIA_TEAM - {"ui_designer"}
@@ -55,7 +59,10 @@ async def test_a_new_company_has_media_with_its_mandate_identity_and_team(
     tpl = (await client.get("/api/v1/templates", headers=owner)).json()
     std = next(t for t in tpl if t["key"] == "standard")
     bp = {d["code"]: d for d in std["blueprint"]}
-    assert bp["MEDIA"]["head_role"] == "media_director" and bp["MEDIA"]["mandate"]["model_ceiling"] == "claude-opus-5-5"
+    assert (
+        bp["MEDIA"]["head_role"] == "media_director"
+        and bp["MEDIA"]["mandate"]["model_ceiling"] == "claude-opus-5-5"
+    )
     holding = next(t for t in tpl if t["key"] == "holding")
     assert {d["code"]: d["manager"] for d in holding["blueprint"]}["LEGAL"] is False
 
@@ -78,13 +85,17 @@ async def test_an_existing_company_gets_media_by_migration_and_no_employee(
                VALUES (:c, :c, 'company', :c, :c, 'standard') RETURNING id""",
             c=code,
         )
-        before = [d["code"] for d in templates.template("standard")["departments"] if d["code"] != "MEDIA"]
+        before = [
+            d["code"] for d in templates.template("standard")["departments"] if d["code"] != "MEDIA"
+        ]
         await templates.apply(tx, row["id"], code, "standard", departments=before)
     hub.companies.invalidate()
     assert not await su.fetchval(
         "SELECT 1 FROM core.departments WHERE company_id = $1 AND code = 'MEDIA'", row["id"]
     )
-    spec = importlib.util.spec_from_file_location("m0028", "/api/migrations/versions/0028_media_studio.py")
+    spec = importlib.util.spec_from_file_location(
+        "m0028", "/api/migrations/versions/0028_media_studio.py"
+    )
     assert spec is not None and spec.loader is not None
     mig = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mig)
@@ -95,14 +106,20 @@ async def test_an_existing_company_gets_media_by_migration_and_no_employee(
            JOIN core.departments d ON d.id = e.department_id WHERE e.code = $1""",
         f"{code}-MEDIA-MGR",
     )
-    assert dict(mgr) == {"kind": "manager", "role": "media_director", "activity": "sleeping", "dept": "MEDIA"}
+    assert dict(mgr) == {
+        "kind": "manager",
+        "role": "media_director",
+        "activity": "sleeping",
+        "dept": "MEDIA",
+    }
     threads = await su.fetch(
         "SELECT kind FROM msg.threads WHERE code = ANY($1)", [f"{code}-MEDIA-MGR", f"{code}-MEDIA"]
     )
     assert sorted(t["kind"] for t in threads) == ["department", "manager"]
     assert (
         await su.fetchval(
-            "SELECT count(*) FROM core.employees WHERE company_id = $1 AND kind = 'employee'", row["id"]
+            "SELECT count(*) FROM core.employees WHERE company_id = $1 AND kind = 'employee'",
+            row["id"],
         )
         == 0
     )
@@ -117,7 +134,12 @@ async def test_the_holding_has_legal_and_its_counsel_asleep(su: Any) -> None:
            WHERE c.kind = 'holding' AND e.code = c.code || '-LGL'"""
     )
     assert row is not None
-    assert (row["kind"], row["role"], row["activity"], row["dept"]) == ("employee", "legal_counsel", "sleeping", "LEGAL")
+    assert (row["kind"], row["role"], row["activity"], row["dept"]) == (
+        "employee",
+        "legal_counsel",
+        "sleeping",
+        "LEGAL",
+    )
     assert row["managers"] == 0 and row["reports_to"] is None
 
 
@@ -126,15 +148,21 @@ async def test_the_identity_is_in_the_prompt_of_its_department_only(
 ) -> None:
     co = await new_company()
     media, tech = (
-        await su.fetchval("SELECT id FROM core.departments WHERE company_id = $1 AND code = $2", co["id"], c)
+        await su.fetchval(
+            "SELECT id FROM core.departments WHERE company_id = $1 AND code = $2", co["id"], c
+        )
         for c in ("MEDIA", "TECH")
     )
     async with hub.db.tx([co["id"]]) as tx:
         text, doc = await DM.identity(tx, media)
         other, other_doc = await DM.identity(tx, tech)
         none = await DM.identity(tx, None)
-    assert "رسانه و طراحی: آموزگار خوش‌سلیقه" in text and doc and doc.startswith(f"{co['code']}-MEDIA@")
-    assert "رسانه و طراحی" not in other and other_doc and other_doc.startswith(f"{co['code']}-TECH@")
+    assert (
+        "رسانه و طراحی: آموزگار خوش‌سلیقه" in text and doc and doc.startswith(f"{co['code']}-MEDIA@")
+    )
+    assert (
+        "رسانه و طراحی" not in other and other_doc and other_doc.startswith(f"{co['code']}-TECH@")
+    )
     assert none == ("", None)
 
 
@@ -168,7 +196,7 @@ async def test_a_run_reads_its_departments_identity_after_the_charter_and_record
     doc = await su.fetchval("SELECT identity_doc FROM agents.runs WHERE id = $1", queued[-1]["id"])
     assert doc and doc.startswith(f"{co}-MEDIA@")
     # Another department's run does not read it.
-    cto = [r for r in await runs_of(su, f"{co}-CEO")]
+    cto = list(await runs_of(su, f"{co}-CEO"))
     assert cto  # the order woke the CEO first; its prompt has no department identity
     agents.fake.enqueue(f"{co}-CEO", step("دیدم.", ("activity.set", {"state": "working"})))
     calls = len(agents.fake.calls)
@@ -178,24 +206,57 @@ async def test_a_run_reads_its_departments_identity_after_the_charter_and_record
 
 
 async def test_the_owner_changes_a_mandate_sealed_on_the_body(
-    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
 ) -> None:
     co = await new_company()
     h = owner_session["headers"]
     d = (await _depts(client, h, co["code"]))["MEDIA"]
-    body = {"mandate": {**d["mandate"], "to_fa": "هر روز یک ریلز درست"}, "identity_md": "آرام و دقیق."}
+    body = {
+        "mandate": {**d["mandate"], "to_fa": "هر روز یک ریلز درست"},
+        "identity_md": "آرام و دقیق.",
+    }
     path = f"/api/v1/companies/{co['code']}/departments/MEDIA/mandate"
     content = json.dumps(body, ensure_ascii=False).encode()
-    r = await client.put(path, content=content, headers={**h, "If-Match": str(d["version"]), "Content-Type": "application/json"})
+    r = await client.put(
+        path,
+        content=content,
+        headers={**h, "If-Match": str(d["version"]), "Content-Type": "application/json"},
+    )
     assert r.status_code == 403 and r.json()["code"] == "step_up_required"
-    su_ = await step_up(hub, owner_session["session_id"], "department.mandate", hashlib.sha256(content).hexdigest())
-    r = await client.put(path, content=content, headers={**h, **su_, "If-Match": str(d["version"]), "Content-Type": "application/json"})
+    su_ = await step_up(
+        hub, owner_session["session_id"], "department.mandate", hashlib.sha256(content).hexdigest()
+    )
+    r = await client.put(
+        path,
+        content=content,
+        headers={**h, **su_, "If-Match": str(d["version"]), "Content-Type": "application/json"},
+    )
     assert r.status_code == 200, r.text
-    assert r.json()["mandate"]["to_fa"] == "هر روز یک ریلز درست" and r.json()["identity_md"] == "آرام و دقیق."
-    bad = {"mandate": {**d["mandate"], "tool_ceiling": ["hire.decide", "nope.tool"]}, "identity_md": ""}
+    assert (
+        r.json()["mandate"]["to_fa"] == "هر روز یک ریلز درست"
+        and r.json()["identity_md"] == "آرام و دقیق."
+    )
+    bad = {
+        "mandate": {**d["mandate"], "tool_ceiling": ["hire.decide", "nope.tool"]},
+        "identity_md": "",
+    }
     content = json.dumps(bad).encode()
-    su_ = await step_up(hub, owner_session["session_id"], "department.mandate", hashlib.sha256(content).hexdigest())
-    r = await client.put(path, content=content, headers={**h, **su_, "If-Match": str(r.json()["version"]), "Content-Type": "application/json"})
+    su_ = await step_up(
+        hub, owner_session["session_id"], "department.mandate", hashlib.sha256(content).hexdigest()
+    )
+    r = await client.put(
+        path,
+        content=content,
+        headers={
+            **h,
+            **su_,
+            "If-Match": str(r.json()["version"]),
+            "Content-Type": "application/json",
+        },
+    )
     assert r.status_code == 422
     assert set(r.json()["fields"]) == {"mandate.tool_ceiling.0", "mandate.tool_ceiling.1"}
 
@@ -215,4 +276,6 @@ def test_the_media_charters_tools_are_all_in_the_catalog(hub: Hub, tool: str) ->
     assert {r for r, c in lib.roles.items() if "email.draft" in c.tools} == {"legal_counsel"}
     assert {r for r, c in lib.roles.items() if "mail.read" in c.tools} == {"legal_counsel"}
     assert lib.get("motion_designer").model == "claude-opus-5-5"  # type: ignore[union-attr]
-    assert {"media.item", "media.render", "substitute.call"} <= set(lib.get("motion_designer").tools)  # type: ignore[union-attr]
+    assert {"media.item", "media.render", "substitute.call"} <= set(
+        lib.get("motion_designer").tools
+    )  # type: ignore[union-attr]

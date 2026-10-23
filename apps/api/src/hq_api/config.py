@@ -255,6 +255,10 @@ class Settings:
     # ⟨1.5⟩ prompt 12 part B. The Persian voice (§21.4) is an opt-in profile:
     # while HQ_TTS is not `on` no audio job is queued (audio_state "off").
     tts: bool = field(default_factory=lambda: _env("HQ_TTS", "off") == "on")
+    # ⟨1.6⟩ prompt 13 §2.3: the sandboxed render worker is the opt-in profile
+    # "media": while it is off a render waits in its queue (the item says so)
+    # and an agent's preview answers channel_not_configured.
+    media: bool = field(default_factory=lambda: _env("HQ_MEDIA", "off") == "on")
     tts_voice: str = field(default_factory=lambda: _env("HQ_TTS_VOICE", "fa_IR-amir-medium"))
     # The deploy card's diff (§21.6): fetched with the hub's existing git access
     # (a workspace's token in OpenBao) into mirrors under this directory; the
