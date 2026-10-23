@@ -127,7 +127,21 @@ async def _approve(
     )
 
 
-def _reply(to_mid: str, body: str, *, sender: str = "support@example.com") -> bytes:
+PDF = (
+    b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+    b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+    b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n"
+    b"trailer<</Root 1 0 R>>\n%%EOF\n"
+)
+
+
+def _reply(
+    to_mid: str,
+    body: str,
+    *,
+    sender: str = "support@example.com",
+    files: list[tuple[str, str, bytes]] | None = None,
+) -> bytes:
     m = EmailMessage()
     m["From"] = sender
     m["To"] = ADDRESS
@@ -136,6 +150,9 @@ def _reply(to_mid: str, body: str, *, sender: str = "support@example.com") -> by
     m["In-Reply-To"] = to_mid
     m["References"] = to_mid
     m.set_content(body)
+    for name, mime, data in files or []:
+        main, _, sub = mime.partition("/")
+        m.add_attachment(data, maintype=main, subtype=sub, filename=name)
     return bytes(m)
 
 
@@ -342,7 +359,9 @@ async def test_a_reply_reaches_its_case_and_wakes_the_counsel_unrelated_mail_doe
     await wk["acts"].decision_apply_effect(out["decision"])
     sent_mid = BytesParser(policy=email_policy.default).parsebytes(mailbox.sent[-1][1])["Message-ID"]
     mailbox.inbox = [
-        (101, _reply(sent_mid, "We reviewed your account. Call +98 912 345 6789 or write ali@example.net.")),
+        (101, _reply(sent_mid, "We reviewed your account. Call +98 912 345 6789 or write ali@example.net.",
+                     files=[("notice.pdf", "application/pdf", PDF),
+                            ("tool.zip", "application/zip", b"PK\x03\x04 not kept")])),  # fmt: skip
         (102, _reply("<not-ours@example.com>", "A newsletter.")),
         (103, b"Subject: no headers at all\r\n\r\nspam"),
     ]
@@ -353,6 +372,15 @@ async def test_a_reply_reaches_its_case_and_wakes_the_counsel_unrelated_mail_doe
     assert len(inbound) == 1 and inbound[0]["state"] == "received"
     assert "912 345 6789" not in inbound[0]["body_md"] and "ali@example.net" not in inbound[0]["body_md"]
     assert full["status"] == "open" and full["timeline"][-1]["kind"] == "email_in"
+    # §17.1: the PDF is kept (in the holding, where the counsel's files.read
+    # reaches it); the zip is only named on the timeline.
+    (kept,) = inbound[0]["attachments"]
+    assert kept["name"] == "notice.pdf" and kept["mime"] == "application/pdf"
+    assert "tool.zip" in full["timeline"][-1]["summary_fa"]
+    holding = await su.fetchval("SELECT id FROM core.companies WHERE kind = 'holding'")
+    assert await su.fetchval("SELECT company_id FROM files.files WHERE id = $1::uuid", kept["file_id"]) == holding
+    meta = await client.get(f"/internal/v1/files/{kept['file_id']}/meta", headers=lgl)
+    assert meta.status_code == 200, meta.text
     woke = await su.fetchrow(
         """SELECT w.priority, w.run_meta FROM work.work w JOIN core.employees e ON e.id = w.assignee_id
            WHERE e.code = 'HQ-LGL' AND w.title LIKE $1 ORDER BY w.created_at DESC LIMIT 1""",

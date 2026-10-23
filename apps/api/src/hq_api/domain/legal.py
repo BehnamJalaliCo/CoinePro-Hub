@@ -972,13 +972,16 @@ async def _attachments(
 ) -> tuple[list[dict[str, Any]], list[Any], list[str]]:
     """§17.1 for a reply's attachments: the type is read from the bytes, an
     image loses its metadata (and gets its variants), a PDF's text is
-    extracted later; anything else is named on the timeline, not kept."""
+    extracted later; anything else is named on the timeline, not kept.
+    They are kept in the holding, where the counsel's files.read reaches them
+    (an agent reads its own company's files only)."""
     from hq_api import media
     from hq_api.domain import files as F
 
     stored: list[dict[str, Any]] = []
     pdfs: list[Any] = []
     skipped: list[str] = []
+    holding = await tx.scalar("SELECT id FROM core.companies WHERE kind = 'holding'")
     for name, _declared, data in files:
         sniffed = media.sniff(data[:64])
         mime = next(
@@ -999,10 +1002,10 @@ async def _attachments(
             if mime == "application/pdf":
                 key, sha, size = await hub.storage.commit(scratch)
                 fid = await F.insert(
-                    tx, company_id=case["company_id"], name=name, mime=mime, size=size, sha256=sha,
+                    tx, company_id=holding, name=name, mime=mime, size=size, sha256=sha,
                     storage_key=key, kind="document", by_kind="service", by_code="mail-poller",
                 )  # fmt: skip
-                await F.document_pending(tx, fid, case["company_id"])
+                await F.document_pending(tx, fid, holding)
                 pdfs.append((fid, hub.storage.local_path(key)))
             else:
                 try:
@@ -1012,7 +1015,7 @@ async def _attachments(
                     continue
                 key, sha, size = await hub.storage.commit(img.original)
                 fid = await F.insert(
-                    tx, company_id=case["company_id"], name=name, mime=mime, size=size, sha256=sha,
+                    tx, company_id=holding, name=name, mime=mime, size=size, sha256=sha,
                     storage_key=key, kind="image", by_kind="service", by_code="mail-poller",
                     width=img.width, height=img.height,
                 )  # fmt: skip
@@ -1022,7 +1025,7 @@ async def _attachments(
                 ):
                     vkey, vsha, vsize = await hub.storage.commit(path)
                     await F.insert(
-                        tx, company_id=case["company_id"], name=f"{variant}-{name}", mime=vmime, size=vsize,
+                        tx, company_id=holding, name=f"{variant}-{name}", mime=vmime, size=vsize,
                         sha256=vsha, storage_key=vkey, kind="image", by_kind="service", by_code="media",
                         variant=variant, parent_id=fid,
                     )  # fmt: skip
