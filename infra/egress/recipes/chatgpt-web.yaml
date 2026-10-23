@@ -22,6 +22,10 @@ hosts:
 # providers ChatGPT offers).
 login_hosts:
   - accounts.google.com
+  # Google's consent pages after sign-in (the EU consent, the account bar)
+  - gds.google.com
+  - consent.google.com
+  - ogs.google.com
   - gstatic.com
   - appleid.apple.com
   - login.live.com

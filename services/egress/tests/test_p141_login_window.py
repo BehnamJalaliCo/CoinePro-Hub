@@ -42,6 +42,8 @@ def test_the_window_runs_chromium_itself_without_automation(account: str) -> Non
     assert f"--user-data-dir=/profiles/{account}" in argv
     assert "--proxy-server=http://egress:3133" in argv
     assert "--no-first-run" in argv and "--disable-dev-shm-usage" in argv
+    # Chrome itself never asks to sign the browser in (the owner signs in to the site).
+    assert "--disable-sync" in argv and "--allow-browser-signin=false" in argv
     assert argv[-1] == LOGIN_PAGES[account]
     # ChatGPT's app needs more than the read tool's 192 MiB heap (§1.2).
     assert "--js-flags=--max-old-space-size=512" in argv
@@ -61,5 +63,6 @@ def test_google_sign_in_hosts_are_in_every_recipe() -> None:
     for account in ACCOUNTS:
         hosts = loaded[account].sign_in_hosts()
         for host in ("accounts.google.com", "www.gstatic.com", "ssl.gstatic.com",
-                     "fonts.gstatic.com"):  # fmt: skip
+                     "fonts.gstatic.com", "gds.google.com", "consent.google.com",
+                     "ogs.google.com"):  # fmt: skip
             assert covered(host, hosts), (account, host)

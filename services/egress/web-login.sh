@@ -33,7 +33,8 @@ flags=(
   "--user-data-dir=${BROWSER_WEB_PROFILES:-/profiles}/$account"
   "--proxy-server=${BROWSER_WEB_LOGIN_PROXY:-http://egress:3133}"
   --no-first-run --no-default-browser-check --disable-dev-shm-usage
-  --disable-gpu --disable-quic --disable-sync --disable-background-networking
+  --disable-gpu --disable-quic --disable-sync --allow-browser-signin=false
+  --disable-background-networking
   --force-webrtc-ip-handling-policy=disable_non_proxied_udp
   "--js-flags=--max-old-space-size=$heap" "--window-size=1280,900"
 )
