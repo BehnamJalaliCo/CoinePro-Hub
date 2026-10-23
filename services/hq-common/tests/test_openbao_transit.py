@@ -27,7 +27,12 @@ def _transport(calls: list[str], status: int = 200) -> httpx.MockTransport:
             assert json.loads(request.content) == {"bits": 256}
             return httpx.Response(
                 200,
-                json={"data": {"plaintext": base64.b64encode(DEK).decode(), "ciphertext": "vault:v1:abc"}},
+                json={
+                    "data": {
+                        "plaintext": base64.b64encode(DEK).decode(),
+                        "ciphertext": "vault:v1:abc",
+                    }
+                },
             )
         if request.url.path == "/v1/transit/decrypt/archive-secret":
             assert json.loads(request.content) == {"ciphertext": "vault:v1:abc"}
