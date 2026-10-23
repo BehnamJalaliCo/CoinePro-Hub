@@ -157,4 +157,5 @@ def test_the_image_carries_the_fixed_scripts() -> None:
     scripts = json.loads(BK.SCRIPTS.read_text(encoding="utf-8"))
     assert [s["key"] for s in scripts] == ["numbers", "latin", "crypto", "long", "reel60"]
     assert all(s["spoken"] and not any(ch.isdigit() for ch in s["spoken"]) for s in scripts)
-    assert "COPY tts/bakeoff_scripts.json" in (ROOT / "Dockerfile").read_text()
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    assert "tts/bakeoff_scripts.json /app/tts/bakeoff_scripts.json" in dockerfile

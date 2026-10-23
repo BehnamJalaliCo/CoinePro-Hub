@@ -22,7 +22,10 @@ case "$account" in
   deepseek-web) url="https://chat.deepseek.com/" ;;
   *) echo "usage: $0 chatgpt-web|gemini-web|deepseek-web" >&2; exit 2 ;;
 esac
-chrome="$(ls -d /ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | head -1 || true)"
+chrome=""
+for c in /ms-playwright/chromium-*/chrome-linux*/chrome; do
+  if [[ -x "$c" ]]; then chrome="$c"; break; fi
+done
 # The sign-in window's JS heap: ChatGPT's app needs more than the read tool's 192.
 heap="${BROWSER_LOGIN_JS_HEAP_MB:-512}"
 [[ "$heap" =~ ^[0-9]+$ ]] || heap=512
@@ -32,14 +35,15 @@ flags=(
   --no-first-run --no-default-browser-check --disable-dev-shm-usage
   --disable-gpu --disable-quic --disable-sync --disable-background-networking
   --force-webrtc-ip-handling-policy=disable_non_proxied_udp
-  "--js-flags=--max-old-space-size=$heap" --window-size=1280,900
+  "--js-flags=--max-old-space-size=$heap" "--window-size=1280,900"
 )
 if $print_only; then
   printf '%s\n' "${chrome:-chrome}" "${flags[@]}" "$url"
   exit 0
 fi
 [[ -n "$chrome" && -x "$chrome" ]] || { echo "error: no Chromium in this image" >&2; exit 1; }
-mkdir -p -m 700 "${BROWSER_WEB_PROFILES:-/profiles}/$account"
+mkdir -p "${BROWSER_WEB_PROFILES:-/profiles}/$account"
+chmod 700 "${BROWSER_WEB_PROFILES:-/profiles}/$account"
 seconds="${HQ_WEB_LOGIN_SECONDS:-900}"
 if [[ ! "$seconds" =~ ^[0-9]+$ ]] || ((seconds > 900 || seconds < 60)); then seconds=900; fi
 umask 077

@@ -488,7 +488,7 @@ if [[ "$published" != "127.0.0.1:6080" ]]; then
   fail "web-login: published $published (only 127.0.0.1:6080)"
 elif [[ "$(jq -r '.services["browser-web-login"].environment.HQ_WEB_LOGIN_SECONDS' <<<"$login_json")" != 900 ]] ||
   ! grep -q '((seconds > 900' "$REPO_DIR/services/egress/web-login.sh" ||
-  ! grep -qF 'timeout "$seconds" python3 -m hq_egress.browser_web login' "$REPO_DIR/services/egress/web-login.sh" ||
+  ! grep -qF 'timeout "$seconds" "$chrome" "${flags[@]}" "$url"' "$REPO_DIR/services/egress/web-login.sh" ||
   ((10#$(jq -r '.services["web-login-relay"].environment.RELAY_SECONDS' <<<"$login_json") > 960)); then
   fail "web-login: the window is not closed after 15 minutes"
 elif ! grep -q -- '-localhost -rfbport 5900' "$REPO_DIR/services/egress/web-login.sh"; then

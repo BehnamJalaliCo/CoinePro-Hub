@@ -41,8 +41,8 @@ RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hq \
     && HOME=/tmp codex --version \
     && HOME=/tmp gemini --version \
     && for f in settings.json review.json; do \
-         out="$(HOME=/tmp GEMINI_CLI_SYSTEM_SETTINGS_PATH=/etc/gemini-cli/$f gemini --version 2>&1)"; \
-         if printf '%s' "$out" | grep -q 'Skipping system settings'; then echo "gemini skips $f" >&2; exit 1; fi; \
+         out="$(HOME=/tmp GEMINI_CLI_SYSTEM_SETTINGS_PATH="/etc/gemini-cli/$f" gemini --version 2>&1)"; \
+         case "$out" in *"Skipping system settings"*) echo "gemini skips $f" >&2; exit 1 ;; esac; \
        done \
     && rm -rf /tmp/.codex /tmp/.gemini
 USER 10001
