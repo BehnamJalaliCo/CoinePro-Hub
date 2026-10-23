@@ -275,3 +275,5 @@ Anything inside them that would wake an agent asks `gate.holding_lock` or `gate.
   - On r14-ocr: hadolint, compose-rules, infra.sh and the backup gate.
 - The test envs p14 and p14s are down. On r14-ocr, the throwaway volume `p14o-ocr-models` (about 23 MB) is kept.
 - `make check` and `verify-live` are the parent's.
+
+- **Deploy (2026-10-23, `server/p14-archive` 705763a, on top of the deployed 13):** backup first (snapshot a5af1643, local + Google Drive); full `make check` before it: api 826 and services 1148 passed, OPA 177/177, every gate green except the live media-render probe, which only fails when the check runs from a worktree without the live `.env` (the same probe passed from the deployed checkout after 13 and again now). `make up` ran migration 0028_1 → 0029; 22 services healthy; OCR stays off (opt-in profile); `make verify-live` passed. Zero model calls and zero protocol runs since the deploy; the holding kill switch stays engaged and HQ_MORNING_REPORT_LLM=off. Memory after deploy: 2.5 GiB in use; the highest is Temporal at 73% of its cap; 51 GB disk free.
