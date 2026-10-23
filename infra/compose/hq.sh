@@ -277,6 +277,34 @@ if [[ "${1:-}" == "--print-substitutes-runner" ]]; then # the quality gate's che
   printf '%s\n' "$SUBSTITUTES_RUNNER"
   exit 0
 fi
+# The Persian voice (prompt 12 §4): opt-in profile "tts", switched on with
+# HQ_TTS=on (.env; `make tts-on`), a one-shot run by the coinepro-hq-tts timer.
+# Refused like stt while the profile plus tts does not fit the memory budget;
+# the api queues audio only while it is on (HQ_TTS_ACTIVE). Off by default:
+# STT, TTS, container MCP and the substitutes' runner wait for the owner's
+# order of memory (prompt 12 §0.8 #7).
+tts="${HQ_TTS:-$(sed -n 's/^HQ_TTS=//p' "$ENV_FILE" | tail -n1)}"
+export HQ_TTS_ACTIVE=off
+if [[ "$tts" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  sum="$(compose "${profile_args[@]}" --profile tts --profile backup-tools config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile tts)
+    export HQ_TTS_ACTIVE=on
+  else
+    over="the $profile profile plus tts needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_TTS=on refused: $over (make tts-off)." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_TTS=on ignored ($over)" >&2 ;;
+    esac
+  fi
+fi
 if [[ "${HQ_ALL_PROFILES:-0}" == "1" ]]; then
   profile_args=(--profile "*")
 fi

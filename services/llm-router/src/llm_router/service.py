@@ -23,7 +23,7 @@ from typing import Any
 import asyncpg
 
 from hq_common import oversight_share, owner_zone
-from llm_router import anomaly, events, ledger
+from llm_router import anomaly, events, hashes, ledger
 from llm_router.assignment import AssignmentError, apply_request, resolve, scope_chain
 from llm_router.backends.base import (
     ERROR,
@@ -266,6 +266,8 @@ class RouterService:
                 **(req.meta or {}),
                 # how many images the model saw (never their bytes)
                 **({"images": len(req.images())} if req.images() else {}),
+                # ⟨1.5⟩ prompt 12 §8: the request's and its prefix's hashes (never the text)
+                **hashes.of(req, model),
             },
         )
         scopes = _usage_scopes(chain, company, holding)

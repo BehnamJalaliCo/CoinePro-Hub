@@ -179,6 +179,35 @@ class OwnerSettings(BaseModel):
     advisor: AdvisorSettings = Field(default_factory=AdvisorSettings)
     substitutes: SubstituteSettings = Field(default_factory=SubstituteSettings)
     version: int
+    # ⟨1.5⟩ prompt 12 part B (contract §21.12)
+    audio_briefings: dict[str, Any] | None = None
+    ceo_weekly_letter: dict[str, Any] | None = None
+    reminders: dict[str, Any] | None = None
+
+
+class AudioBriefingsIn(BaseModel):
+    morning: bool | None = None
+    ceo_letters: bool | None = None
+
+
+class CeoWeeklyLetterIn(BaseModel):
+    enabled: bool | None = None
+    day: Literal["sa", "su", "mo", "tu", "we", "th", "fr"] | None = None
+    at: str | None = Field(default=None, pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+
+
+class RemindersIn(BaseModel):
+    enabled: bool | None = None
+    fraction: float | None = Field(default=None, ge=0.1, le=0.9)
+    before_expiry_h: int | None = Field(default=None, ge=1, le=72)
+    ages_h: list[int] | None = Field(default=None, min_length=1, max_length=5)
+
+    @field_validator("ages_h")
+    @classmethod
+    def _ages(cls, v: list[int] | None) -> list[int] | None:
+        if v is not None and any(not 1 <= h <= 720 for h in v):
+            raise ValueError("each age is 1..720 hours")
+        return sorted(set(v)) if v is not None else v
 
 
 class OwnerSettingsIn(BaseModel):
@@ -196,6 +225,10 @@ class OwnerSettingsIn(BaseModel):
     provision_ssh_sources: list[str] | None = Field(default=None, max_length=20)
     advisor: AdvisorSettingsIn | None = None
     substitutes: SubstituteSettingsIn | None = None
+    # ⟨1.5⟩ a block (whole or in part; the fields left out keep their value)
+    audio_briefings: AudioBriefingsIn | None = None
+    ceo_weekly_letter: CeoWeeklyLetterIn | None = None
+    reminders: RemindersIn | None = None
 
     @field_validator("provision_ssh_sources")
     @classmethod
@@ -358,13 +391,24 @@ def _settings_out(row: dict[str, Any]) -> OwnerSettings:
         advisor=AdvisorSettings.model_validate(row.get("advisor") or {}),
         substitutes=SubstituteSettings.model_validate(row.get("substitutes") or {}),
         version=row["version"],
+        audio_briefings=row.get("audio_briefings"),
+        ceo_weekly_letter=row.get("ceo_weekly_letter"),
+        reminders=row.get("reminders"),
     )
 
 
 SETTINGS_COLS = (
     "timezone, morning_report_at, digest_minutes, ceo_daily_attention, learning_daily_cap, "
     "calendars, watch_after_hours, provision_ssh_sources, advisor, substitutes, version"
+    ", audio_briefings, ceo_weekly_letter, reminders"
 )
+
+
+def _block(b: BaseModel | None) -> str | None:
+    """A §21.12 block as the fields it sets (jsonb merged over the current)."""
+    if b is None:
+        return None
+    return json.dumps(b.model_dump(exclude_none=True))
 
 
 @router.get("/owner/settings", response_model=OwnerSettings, responses=responses(401))
@@ -401,7 +445,10 @@ async def put_owner_settings(
                    watch_after_hours = COALESCE(:wah, watch_after_hours),
                    provision_ssh_sources = COALESCE(CAST(:pss AS text[]), provision_ssh_sources),
                    advisor = COALESCE(CAST(:adv AS jsonb), advisor),
-                   substitutes = COALESCE(CAST(:subs AS jsonb), substitutes)
+                   substitutes = COALESCE(CAST(:subs AS jsonb), substitutes),
+                   audio_briefings = audio_briefings || COALESCE(CAST(:ab AS jsonb), '{{}}'),
+                   ceo_weekly_letter = ceo_weekly_letter || COALESCE(CAST(:cwl AS jsonb), '{{}}'),
+                   reminders = reminders || COALESCE(CAST(:rem AS jsonb), '{{}}')
                WHERE id = 1 AND version = :v RETURNING {SETTINGS_COLS}""",  # noqa: S608 - constant column list, values are bound
             adv=_merged(blocks["advisor"], body.advisor),
             subs=_merged(blocks["substitutes"], body.substitutes),
@@ -413,6 +460,9 @@ async def put_owner_settings(
             cal=list(dict.fromkeys(body.calendars)) if body.calendars else None,
             wah=body.watch_after_hours,
             pss=body.provision_ssh_sources,
+            ab=_block(body.audio_briefings),
+            cwl=_block(body.ceo_weekly_letter),
+            rem=_block(body.reminders),
             v=version,
         )
         if row is None:

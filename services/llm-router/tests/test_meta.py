@@ -19,6 +19,22 @@ BODY: dict[str, Any] = {
 }
 
 
+def test_the_request_and_prefix_hashes_carry_no_text() -> None:
+    """Prompt 12 §8: duplicate calls and cache misses are found by hashes only."""
+    from llm_router import hashes
+
+    a = RunRequest(**{**BODY, "system": "You are the CTO.", "prompt": "متن محرمانه"})
+    b = RunRequest(**{**BODY, "system": "You are the CTO.", "prompt": "متن دیگر"})
+    ha, hb = hashes.of(a, "claude-sonnet-5-5"), hashes.of(b, "claude-sonnet-5-5")
+    assert set(ha) == {"request_sha256", "prefix_sha256"}
+    assert all(len(v) == 64 and "محرمانه" not in v for v in ha.values())
+    assert ha["request_sha256"] != hb["request_sha256"]
+    assert ha["prefix_sha256"] == hb["prefix_sha256"]
+    assert hashes.of(a, "claude-sonnet-5-5") == ha  # stable
+    assert hashes.of(a, "claude-opus-5-5")["prefix_sha256"] != ha["prefix_sha256"]
+    assert set(hashes.of(RunRequest(**BODY), None)) == {"request_sha256"}  # no system: no prefix
+
+
 def test_skills_and_addenda_are_lists_of_short_refs() -> None:
     r = RunRequest(
         **BODY,

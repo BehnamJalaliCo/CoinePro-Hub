@@ -204,6 +204,20 @@ if running "$BROWSER_WEB"; then
   unreachable_from "$BROWSER_WEB" browser-web api:8000 postgres:5432 openbao:8200 gateway:8080
   ok "$before" "browser-web reaches egress's profile listener only"
 fi
+# ------------------------------------------------------- prompt 12 §4 ----
+# The TTS one-shot's network (hq-tts, internal): the api and OpenBao only; no
+# database, no other service of the hub, no internet, no neighbour. Probed on
+# the network itself (the one-shot is not running between passes).
+if docker network inspect hq-tts >/dev/null 2>&1; then
+  before=$failures
+  probe hq-tts api 8000 || fail "positive control: hq-tts cannot reach api:8000"
+  probe hq-tts openbao 8200 || fail "positive control: hq-tts cannot reach openbao:8200"
+  for target in postgres:5432 valkey:6379 nats:4222 llm-router:8000 gateway:8080 opa:8181 \
+    temporal:7233 1.1.1.1:443 10.10.1.1:443; do
+    if probe hq-tts "${target%%:*}" "${target##*:}"; then fail "hq-tts reaches $target"; fi
+  done
+  ok "$before" "hq-tts reaches the api and OpenBao only (no database, no internet)"
+fi
 
 # ------------------------------------------------------------ 7.1 §2.19 ----
 # By address, beyond the hub's own services: the production neighbours

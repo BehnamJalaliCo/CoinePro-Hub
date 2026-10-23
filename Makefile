@@ -98,6 +98,26 @@ tracing-off: ## Switch traces off again (the default): Tempo and the collector s
 	HQ_ALL_PROFILES=1 $(HQ) stop tempo otel-collector
 	$(HQ) up -d --wait prometheus
 
+# Prompt 12 §4: the Persian voice (opt-in profile "tts"; a one-shot run by the
+# coinepro-hq-tts timer). Off until the owner orders the memory (§0.8 #7).
+.PHONY: tts-on tts-off tts-bench
+tts-on: ## Switch the Persian voice on (profile "tts", refused over the memory budget) and start its timer
+	@infra/compose/set-env.sh HQ_TTS on
+	$(HQ) build tts
+	$(HQ) up -d --wait api worker
+	sudo systemctl enable --now coinepro-hq-tts.timer
+
+tts-off: ## Switch the Persian voice off again (the default): briefings stay text, audio_state "off"
+	@infra/compose/set-env.sh HQ_TTS off
+	-sudo systemctl disable --now coinepro-hq-tts.timer
+	$(HQ) up -d --wait api worker
+
+tts-bench: ## The voice's acceptance numbers: 120 words -> Ogg, RTF < 0.5, peak RSS < 300 MB (no network)
+	HQ_TTS=off $(HQ) --profile tts build tts
+	docker run --rm --read-only --tmpfs /tmp:size=64m,mode=1777 --network none --cap-drop ALL \
+	  --memory "$$(sed -n 's/^MEM_TTS=\([0-9]*m\).*/\1/p' infra/compose/profiles/$$($(HQ) --print-profile).env)" \
+	  coinepro-hq/tts:0.1.0 python -m hq_tts.bench
+
 stt-fetch: ## Download the pinned speech model into the stt-models volume (sha256-checked; model=large-v3-turbo)
 	HQ_STT=off $(HQ) --profile stt build stt-fetch
 	HQ_STT=off $(HQ) --profile stt run --rm -e STT_MODEL="$(or $(model),large-v3-turbo)" stt-fetch

@@ -44,6 +44,7 @@ from hq_api.routes import (
     lifecycle,
     messages,
     meta,
+    mgmt,
     notifications,
     orders,
     org,
@@ -70,6 +71,8 @@ UPLOAD_PATHS = ("/internal/v1/files", "/api/v1/files", "/api/v1/transcribe")
 
 
 def upload_limit(path: str, max_file: int, max_body: int) -> int:
+    if path.startswith("/internal/v1/tts/") and path.endswith("/done"):
+        return mgmt.MAX_AUDIO  # ⟨1.5⟩ a briefing's Ogg from the TTS one-shot
     if path == "/api/v1/files":
         return media.VIDEO.max_bytes  # the largest kind; each kind is held to its own
     if path == "/api/v1/transcribe":
@@ -139,6 +142,8 @@ def create_app(
         )
         return response
 
+    # ⟨1.5⟩ prompt 12 part B: first, so /runs/health is not read as /runs/{id}
+    app.include_router(mgmt.first_router, prefix="/api/v1")
     for module in (
         meta,
         auth,
@@ -176,6 +181,7 @@ def create_app(
         feedback,
         intake,
         lifecycle,  # /growth/templates, /growth/rules, /growth/nps (prompt 10 §7)
+        mgmt,  # prompt 12 part B (contract §21.4-§21.9)
     ):
         app.include_router(module.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
@@ -190,6 +196,7 @@ def create_app(
     app.include_router(skills.internal_router, prefix="/internal/v1")
     app.include_router(academy.internal_router, prefix="/internal/v1")
     app.include_router(founding.internal_router, prefix="/internal/v1")
+    app.include_router(mgmt.internal_router, prefix="/internal/v1")
     for p10 in (revenue, support, growth, growth_funnel, feedback):
         app.include_router(p10.internal_router, prefix="/internal/v1")
     # Prompt 12 part A (contract §21.1, §21.13): the advisor's memos and the

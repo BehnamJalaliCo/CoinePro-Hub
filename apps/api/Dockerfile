@@ -11,15 +11,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # ffmpeg/ffprobe (LGPL/GPL, Debian trixie, exact version): posters, key frames
 # and sound tracks of owner videos, and media durations (prompt 6 §2).
+# git (GPL-2.0, exact version; prompt 12 §7): the deploy card's real diff, run
+# as a separate program with the hub's existing access (no new token).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg=7:7.1.5-0+deb13u1 \
+       git=1:2.47.3-0+deb13u1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.lock /tmp/requirements.lock
 RUN pip install --require-hashes --no-deps -r /tmp/requirements.lock \
     && rm /tmp/requirements.lock \
     && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hq \
-    && install -d -o 10001 -g 10001 -m 0700 /data/files
+    && install -d -o 10001 -g 10001 -m 0700 /data/files /var/lib/hq-git
 
 # hadolint ignore=DL3022
 COPY --from=services hq-common/src /app/hq-common/src

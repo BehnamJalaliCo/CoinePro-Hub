@@ -63,6 +63,10 @@ async def test_owner_settings_validation_and_versions(
         "advisor",
         "substitutes",
         "version",
+        # ⟨1.5⟩ prompt 12 part B (contract §21.12)
+        "audio_briefings",
+        "ceo_weekly_letter",
+        "reminders",
     }
     v = {"If-Match": str(s["version"])}
     assert (await client.put(f"{API}/owner/settings", json={}, headers=owner)).status_code == 428

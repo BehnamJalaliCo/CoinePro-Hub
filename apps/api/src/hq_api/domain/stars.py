@@ -518,6 +518,11 @@ async def rollup(tx: Tx, period: str, key: str, start_day: date, end_day: date) 
     stars_of: dict[UUID, list[float]] = {}
     for s in star_rows:
         stars_of.setdefault(s["employee_id"], []).append(float(s["stars"]))
+    # ⟨1.5⟩ the waste part reads the daily waste report's figures (prompt 12 §8):
+    # one day has one waste figure; a company without ledger tokens keeps the runs'.
+    from hq_api.domain import waste as WASTE
+
+    waste_of = await WASTE.shares_between(tx, start_day, end_day)
     previous = await tx.all(
         """SELECT data FROM people.star_rollups WHERE period = :p ORDER BY starts_on DESC LIMIT :n""",
         p=period,
@@ -533,9 +538,13 @@ async def rollup(tx: Tx, period: str, key: str, start_day: date, end_day: date) 
             for v in vs
         ]
         people = round(sum(mine) / len(mine) * 20, 1) if mine else None
-        waste_share = (
-            float(c["waste"]) / float(c["run_tokens"]) if float(c["run_tokens"] or 0) > 0 else None
-        )
+        waste_share = waste_of.get(c["id"])
+        if waste_share is None:
+            waste_share = (
+                float(c["waste"]) / float(c["run_tokens"])
+                if float(c["run_tokens"] or 0) > 0
+                else None
+            )
         cost = float(c["cost_usd"]) / int(c["accepted"]) if int(c["accepted"] or 0) > 0 else None
         efficiency = company_efficiency(
             used=float(c["used_month"]),
@@ -631,7 +640,19 @@ async def rollup(tx: Tx, period: str, key: str, start_day: date, end_day: date) 
     )
     for code in inflation:
         await star_inflation(tx, code, period, key)
-    return {"created": True, "best_company": best, "key": key, "data": data}
+    # ⟨1.5⟩ department ranks, with the roll-up (prompt 12 §5; code only)
+    from hq_api.domain import rankings
+
+    ranks = await rankings.compute(
+        tx, period, key, start, end, {i: e.get("efficiency") for i, e in emps.items()}
+    )
+    return {
+        "created": True,
+        "best_company": best,
+        "key": key,
+        "data": data,
+        "departments": len(ranks),
+    }
 
 
 async def star_inflation(tx: Tx, company_code: str, period: str, key: str) -> None:

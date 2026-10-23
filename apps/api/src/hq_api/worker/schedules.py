@@ -26,6 +26,13 @@ Schedule ids:
     hq-substitute-web         every minute  SubstituteWebJobs (prompt 12 §9.1; nothing while locked)
     hq-substitute-daily       daily 09:15 Asia/Tehran  SubstituteDaily (the Jalali 15th's value
                               ratio; the CLIs' model lists, not while locked)
+    hq-waste-daily            daily 07:45 (owner's zone)  WasteDaily (prompt 12 §8)
+    hq-cartable-reminders     every 15 min  CartableReminders (prompt 12 §11)
+    hq-deploy-recheck         every 15 min  DeployRecheck (prompt 12 §7)
+    hq-hr-rounds              daily 10:00 (owner's zone)  HrRounds: the 1st of a Jalali month
+    hq-ceo-letters            hourly        CeoLetters: at the owner's day and hour
+                              (prompt 12 part B: each asks the launch gate and does
+                              nothing while the holding is locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -74,6 +81,12 @@ FEEDBACK_BATCH = "hq-feedback-batch"
 SUPPORT_WEEKLY = "hq-support-weekly"
 TEHRAN = "Asia/Tehran"  # the exchange's settlement times are real times, not the owner's view
 SUPPORT_SWEEP = "hq-support-sweep"
+WASTE_DAILY = "hq-waste-daily"
+CARTABLE_REMINDERS = "hq-cartable-reminders"
+DEPLOY_RECHECK = "hq-deploy-recheck"
+HR_ROUNDS = "hq-hr-rounds"
+CEO_LETTERS = "hq-ceo-letters"
+P12B = (WASTE_DAILY, CARTABLE_REMINDERS, DEPLOY_RECHECK, HR_ROUNDS, CEO_LETTERS)
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -94,6 +107,7 @@ FIXED = (
     "hq-advisor-sweep",
     "hq-substitute-web",
     "hq-substitute-daily",
+    *P12B,
 )
 
 
@@ -251,6 +265,7 @@ def fixed(
         ),
         *revenue_fixed(),
         *management_fixed(),
+        *p12b_fixed(tz),
     ]
 
 
@@ -280,6 +295,57 @@ def management_fixed() -> list[Desired]:
             daily_at(time(9, 15), TEHRAN),
             timedelta(hours=6),
             timedelta(minutes=10),
+        ),
+    ]
+
+
+def p12b_fixed(tz: str) -> list[Desired]:
+    """Prompt 12 part B: each activity asks the launch gate first."""
+    hourly = ScheduleSpec(
+        calendars=[
+            ScheduleCalendarSpec(
+                second=[ScheduleRange(start=0, end=0)],
+                minute=[ScheduleRange(start=0, end=0)],
+                hour=[ScheduleRange(start=0, end=23)],
+            )
+        ],
+        time_zone_name=tz,
+    )
+    return [
+        Desired(
+            WASTE_DAILY,
+            "WasteDaily",
+            (),
+            daily_at(time(7, 45), tz),
+            timedelta(hours=12),
+            timedelta(minutes=30),
+        ),
+        Desired(
+            CARTABLE_REMINDERS,
+            "CartableReminders",
+            (),
+            every(15),
+            timedelta(minutes=10),
+            timedelta(minutes=10),
+        ),
+        Desired(
+            DEPLOY_RECHECK,
+            "DeployRecheck",
+            (),
+            every(15),
+            timedelta(minutes=10),
+            timedelta(minutes=15),
+        ),
+        Desired(
+            HR_ROUNDS,
+            "HrRounds",
+            (),
+            daily_at(time(10, 0), tz),
+            timedelta(hours=12),
+            timedelta(minutes=30),
+        ),
+        Desired(
+            CEO_LETTERS, "CeoLetters", (), hourly, timedelta(minutes=50), timedelta(minutes=15)
         ),
     ]
 

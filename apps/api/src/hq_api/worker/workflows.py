@@ -16,6 +16,8 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy, SearchAttributeKey
 from temporalio.exceptions import ActivityError, ApplicationError
 
+from hq_api.worker.mgmt_workflows import P12B_WORKFLOWS
+
 SCHEDULED_START = SearchAttributeKey.for_datetime("TemporalScheduledStartTime")
 SHORT = timedelta(seconds=30)
 LONG = timedelta(minutes=5)
@@ -584,4 +586,5 @@ WORKFLOWS = [
     AdvisorSweep,
     SubstituteWebJobs,
     SubstituteDaily,
+    *P12B_WORKFLOWS,  # prompt 12 part B (mgmt_workflows.py)
 ]

@@ -328,7 +328,7 @@ services:
     <<: *service
     image: openbao/openbao:2.7.1
     # hq-prov: the provisioner's AppRole (bound to 172.30.10.0/24, prompt 09).
-    networks: [hq-internal, hq-llm, hq-prov]
+    networks: [hq-internal, hq-llm, hq-prov, hq-tts]
     command: ["server"]
     environment:
       BAO_ADDR: http://127.0.0.1:8200
@@ -565,7 +565,8 @@ services:
     # hq-internal: Caddy, NATS, OpenBao (AppRole bound to 172.30.0.0/24);
     # hq-core: Temporal; hq-agent: OPA and the gateway's calls to /internal/v1;
     # hq-prov: the provisioner (prompt 09) and its calls to /internal/v1.
-    networks: [hq-internal, hq-core, hq-agent, hq-prov]
+    # hq-tts: the TTS one-shot's calls to /internal/v1/tts (prompt 12 §4).
+    networks: [hq-internal, hq-core, hq-agent, hq-prov, hq-tts]
     build:
       context: ../../apps/api
       additional_contexts:
@@ -631,6 +632,12 @@ services:
       # opt-in profile is on and fits the memory budget (else the app's CLI
       # sign-in answers 409 not_ready; the owner's terminal still works).
       SUBSTITUTES_RUNNER: ${SUBSTITUTES_RUNNER:-off}
+      # Prompt 12 part B: the Persian voice is on only while the opt-in profile
+      # "tts" runs (hq.sh sets HQ_TTS_ACTIVE); else briefings are text only.
+      HQ_TTS: ${HQ_TTS_ACTIVE:-off}
+      HQ_TTS_VOICE: ${HQ_TTS_VOICE:-fa_IR-amir-medium}
+      # The deploy card's diff (§21.6): mirrors of the workspaces' repositories.
+      HQ_GIT_MIRRORS: /var/lib/hq-git
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=32m,mode=1777"]
@@ -641,6 +648,8 @@ services:
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors:ro
       - ../../agents:/app/agents:ro
       - ../mcp/servers.yaml:/app/mcp/servers.yaml:ro
+      # Mirrors for the deploy card's diff (prompt 12 §7): rebuilt by a fetch if lost.
+      - hq-git:/var/lib/hq-git
     healthcheck:
       test: ["CMD", "python", "-m", "hq_common.heartbeat"]
       interval: 15s
@@ -1429,6 +1438,40 @@ services:
         limits:
           memory: ${MEM_WEB_LOGIN_RELAY:?}
 
+  tts:
+    # The hub's Persian voice (prompt 12 §4, contract §21.4): a one-shot, not a
+    # service. The timer coinepro-hq-tts runs it every 2 minutes under the
+    # one-shot lock it shares with the backups (infra/tts/run-once.sh); it
+    # claims a briefing's spoken script from the api (204: nothing, and always
+    # while the holding is locked), speaks it with Piper on the CPU and sends
+    # the Ogg back. Opt-in (profile "tts", HQ_TTS=on). hq-tts is internal: the
+    # api and OpenBao only (its AppRole is bound to that subnet); no internet,
+    # no database, no audio ever leaves the hub.
+    <<: *job
+    profiles: [tts]
+    image: coinepro-hq/tts:0.1.0
+    build:
+      context: ../../services
+      dockerfile: tts/Dockerfile
+    networks: [hq-tts]
+    environment:
+      OPENBAO_ADDR: http://openbao:8200
+      OPENBAO_APPROLE_FILE: /run/secrets/hq/approle.json
+      HQ_API_INTERNAL_URL: http://api:8000
+      TTS_VOICE: ${HQ_TTS_VOICE:-fa_IR-amir-medium}
+      TTS_MAX_JOBS: "3"
+      TTS_THREADS: "1"
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: [ALL]
+    volumes:
+      - ${HQ_SECRETS_DIR:-/home/Hub/.secrets}/services/tts:/run/secrets/hq:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_TTS:?}
+
   cadvisor:
     # Opt-in only (profile "cadvisor", prompt 05 §11): it needs the Docker and
     # containerd sockets, i.e. root on the host. The default profiles get
@@ -1623,6 +1666,16 @@ networks:
       config:
         - subnet: 172.30.16.0/24
           gateway: 172.30.16.1
+  hq-tts:
+    # The TTS one-shot, the api (/internal/v1/tts) and OpenBao (its AppRole,
+    # bound to this subnet). Internal: no route out (prompt 12 §4).
+    name: hq-tts
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.21.0/24
+          gateway: 172.30.21.1
 
 volumes:
   hq-tools:
@@ -1642,3 +1695,5 @@ volumes:
   # Prompt 12 §9.1: the CLIs' sign-in and the browser profiles (both 600, not in backups).
   hq-substitute-auth:
   hq-substitute-web:
+  # prompt 12 §7: the deploy diff's mirrors of the workspaces' repositories
+  hq-git:

@@ -32,6 +32,7 @@ from hq_api.worker.academy_activities import AcademyActivities
 from hq_api.worker.brand_activities import BrandActivities
 from hq_api.worker.desk_activities import DeskActivities
 from hq_api.worker.media_activities import MediaActivities
+from hq_api.worker.mgmt_activities import MgmtActivities
 from hq_api.worker.oversight_activities import OversightActivities
 from hq_api.worker.people_activities import PeopleActivities
 from hq_api.worker.revenue_activities import RevenueActivities
@@ -81,11 +82,13 @@ class Activities:
         from hq_api.worker.management_activities import ManagementActivities
 
         self.management = ManagementActivities(hub, self._tx)
+        self.mgmt = MgmtActivities(hub, self._tx)  # prompt 12 part B
 
     def all(self) -> list[Any]:
         return [
             *self.management.all(),
             *self.desk.all(),
+            *self.mgmt.all(),
             *self.media.all(),
             *self.brand.all(),
             *self.people.all(),
@@ -728,12 +731,18 @@ class Activities:
                 )
             )
         rhythm = await notify.flush_rhythm(self.hub)
+        # ⟨1.5⟩ prompt 12 §4: its voice (BR-…), same text; nothing while the holding is locked
+        voiced = {"id": pdl["id"], "ref": pdl["ref"]} if polished is not None else dl
+        briefing = await self.mgmt.morning_briefing(
+            voiced, polished[0] if polished is not None else body
+        )
         return {
             "created": True,
             "deliverable": dl["ref"],
             "rewritten": link if link != dl["ref"] else None,
             "work": w["ref"],
             "rhythm": _plain(rhythm),
+            "briefing": briefing,
         }
 
     async def _polish_report(self, holding_code: str, body: str) -> tuple[str, Any] | None:

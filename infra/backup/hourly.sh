@@ -45,6 +45,13 @@ if ! flock -n 9; then
   blog "another hourly backup is running; exiting"
   exit 1
 fi
+# The one-shot lock (prompt 12 §4): the TTS pass and the backup never run at
+# once, so the memory gate counts the one-shots once. A TTS pass ends within
+# minutes; the backup waits for it (at most 15 minutes), then runs anyway.
+if [[ -d /run/hq ]]; then
+  exec 8>/run/hq/oneshot.lock
+  flock -w 900 8 || blog "the one-shot lock stayed busy for 15 minutes; backing up anyway"
+fi
 
 declare -A dest_ok=() dest_err=() dest_used=() dest_quota=() dest_ret=() dest_ret_err=()
 snapshot=""

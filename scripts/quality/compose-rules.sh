@@ -25,12 +25,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ensure_env
 
 JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch",
-  "backup-tools","mcp-codecortex-index","substitute-runner","browser-web-login","web-login-relay"]'
+  "backup-tools","mcp-codecortex-index","substitute-runner","browser-web-login","web-login-relay","tts"]'
 HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch",
   "backup-tools","egress","searxng","browser","provisioner","mcp-time","mcp-codecortex","mcp-codecortex-index",
-  "substitute-runner","browser-web","browser-web-login","web-login-relay"]'
+  "substitute-runner","browser-web","browser-web-login","web-login-relay","tts"]'
 NOT_INTERNAL='["temporal","opa","gateway","web","stt","egress","searxng","browser","provisioner",
-  "mcp-time","mcp-codecortex","substitute-runner","browser-web","browser-web-login","web-login-relay"]'
+  "mcp-time","mcp-codecortex","substitute-runner","browser-web","browser-web-login","web-login-relay","tts"]'
 # Services whose networks are exactly these.
 ONLY_ON='{"gateway":["hq-agent","hq-egress-api","hq-mcp"],"opa":["hq-agent"],"web":["hq-edge"],"claude-runtime":["hq-llm"],
   "stt":["hq-stt"],"stt-fetch":["hq-fetch"],
@@ -38,7 +38,7 @@ ONLY_ON='{"gateway":["hq-agent","hq-egress-api","hq-mcp"],"opa":["hq-agent"],"we
   "searxng":["hq-egress"],"browser":["hq-browser"],
   "provisioner":["hq-prov","hq-prov-out"],"mcp-time":["hq-mcp"],"mcp-codecortex":["hq-mcp"],
   "substitute-runner":["hq-subs"],"browser-web":["hq-browser-web"],"browser-web-login":["hq-web-login"],
-  "web-login-relay":["hq-web-login","hq-web-login-ui"]}'
+  "web-login-relay":["hq-web-login","hq-web-login-ui"],"tts":["hq-tts"]}'
 # Allow-list of every restricted network.
 MEMBERS='{
   "hq-core":["temporal","temporal-namespace","temporal-ui","api","worker","postgres","prometheus"],
@@ -55,9 +55,10 @@ MEMBERS='{
   "hq-subs":["substitute-runner","egress"],
   "hq-browser-web":["browser-web","egress"],
   "hq-web-login":["browser-web-login","web-login-relay","egress"],
-  "hq-web-login-ui":["web-login-relay"]}'
+  "hq-web-login-ui":["web-login-relay"],
+  "hq-tts":["tts","api","openbao"]}'
 INTERNAL_NETS='["hq-agent","hq-edge","hq-stt","hq-egress-api","hq-browser","hq-prov","hq-prov-out","hq-mcp",
-  "hq-subs","hq-browser-web","hq-web-login"]'
+  "hq-subs","hq-browser-web","hq-web-login","hq-tts"]'
 # The opt-in profiles' services (cadvisor, stt) follow the same rules.
 mapfile -t OPT_IN < <(opt_in_profiles)
 failed=0
