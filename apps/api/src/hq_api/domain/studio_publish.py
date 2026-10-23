@@ -401,8 +401,12 @@ async def publish_due(hub: Any, only: str | None = None, limit: int = 5) -> dict
             if await _held(tx, item):
                 waiting[item["ref"]] = "held"
                 continue
-            # Claimed: no other publisher takes it while this one works.
-            await tx.exec("UPDATE media.items SET publish_at = NULL WHERE id = :id", id=item["id"])
+            # Claimed for 30 minutes (a lease): no other publisher takes it while
+            # this one works; a publisher that died leaves it to the next sweep.
+            await tx.exec(
+                "UPDATE media.items SET publish_at = now() + interval '30 minutes' WHERE id = :id",
+                id=item["id"],
+            )
             batch.append((item, await placements(tx, hub, item)))
     for item, rows in batch:
         await _publish_one(hub, item, rows)
@@ -844,6 +848,9 @@ async def unpublish_due(hub: Any) -> dict[str, Any]:
                     err = "removed" if out.get("outcome") == "ok" else "remove_by_hand"
             results.append({**p, "error": err})
         async with hub.db.tx([item["company_id"]]) as tx:
+            cur = await S.load_item(tx, item["ref"], lock=True)
+            if cur["state"] != "published" or "unpublish" not in (cur.get("render_meta") or {}):
+                continue  # another pass took it down already
             for p in results:
                 await tx.exec(
                     """INSERT INTO media.publish_log (company_id, item_id, series_id, action, channel, placement,

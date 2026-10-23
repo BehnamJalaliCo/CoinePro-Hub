@@ -90,6 +90,12 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         # prompt 13 §1.1 (contract §22.5): roles written on demand
         "role.draft",
         "role.decide",
+        # prompt 13 §2 (contract §22.2): the media studio
+        "media.item",
+        "media.render",
+        "media.voice",
+        "media.review",
+        "series.propose",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).
