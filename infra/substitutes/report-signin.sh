@@ -43,10 +43,10 @@ if [[ "$ok" != yes ]]; then
   exit 1
 fi
 code="$(printf '{"player":"%s","via":"%s"}' "$player" "$via" |
-  docker run --rm -i --network hq-internal --read-only --cap-drop ALL \
+  docker run --rm -i --init --network hq-internal --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --user "$(id -u):$(id -g)" --memory 32m \
-    -v "$AUTH_FILE:/run/auth:ro" "$CURL_IMAGE" \
-    -sS -m 30 -o /dev/null -w '%{http_code}' -X POST -H @/run/auth -H 'Content-Type: application/json' \
+    -v "$AUTH_FILE:/run/auth:ro" --entrypoint timeout "$CURL_IMAGE" \
+    45 curl -sS -m 30 -o /dev/null -w '%{http_code}' -X POST -H @/run/auth -H 'Content-Type: application/json' \
     --data-binary @- "http://api:8000/internal/v1/substitutes/signed-in" || true)"
 if [[ "$code" == 200 ]]; then
   echo "The hub now shows $what as signed in."
