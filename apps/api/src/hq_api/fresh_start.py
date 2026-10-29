@@ -150,6 +150,9 @@ RESET: tuple[str, ...] = (
      WHERE last_seq <> 0 OR last_message_at IS NOT NULL OR owner_read_seq <> 0""",
     # an open incident keeps watching its site; its work item is gone
     "UPDATE ops.incidents SET work_id = NULL WHERE work_id IS NOT NULL",
+    # an employee hired by a card stays; the card is gone (an immutable column:
+    # its trigger sleeps under session_replication_role = replica)
+    "UPDATE core.employees SET hired_by_decision_id = NULL WHERE hired_by_decision_id IS NOT NULL",
 )
 
 # The ref sequences no table owns (nextval in the code): what they number.

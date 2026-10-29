@@ -15,8 +15,10 @@ import pytest
 
 from hq_api import fresh_start as FS
 from hq_api.audit import GENESIS
+from hq_api.hub import Hub
 
 from .conftest import idem, superuser
+from .test_org_work import hire
 
 SNAP = "568e02bc"
 
@@ -47,11 +49,18 @@ def test_every_list_is_disjoint_and_the_arguments_are_checked() -> None:
     assert FS.script(SNAP, 3, "b" * 64).startswith("\\set ON_ERROR_STOP on\nBEGIN;")
 
 
+@pytest.mark.usefixtures("hiring_open")
 async def test_what_ran_goes_what_the_hub_is_made_of_stays(
-    client: httpx.AsyncClient, owner: dict[str, str], new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
 ) -> None:
     co = (await new_company())["code"]
     await _ran(client, owner, co)
+    # an employee hired by a card (the card is wiped, the employee stays)
+    hired = await hire(hub, client, owner_session, co)
     conn = await superuser()
     try:
         kept = {t: await _count(conn, t) for t in ("core.companies", "core.employees",
@@ -90,6 +99,9 @@ async def test_what_ran_goes_what_the_hub_is_made_of_stays(
                     "SELECT count(*) FROM core.employees WHERE activity_at IS NOT NULL OR score IS NOT NULL"
                 )
                 == 0
+            )
+            assert await conn.fetchval(
+                "SELECT hired_by_decision_id IS NULL FROM core.employees WHERE code = $1", hired
             )
             # refs start again; a kept kind's numbering does not
             assert await conn.fetchval("SELECT nextval('work.work_ref_seq')") == 1
