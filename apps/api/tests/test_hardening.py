@@ -133,7 +133,7 @@ async def test_1_1_switch_and_freeze_release_follow_authority(
     assert [f["created_by"] for f in r.json()["deploy_freezes"] if f["company"] == co] == ["owner"]
     r = await client.post(
         "/api/v1/control/deploy-freeze",
-        headers=h,
+        headers={**h, **await step_up(hub, sid, "deploy_freeze.lift", scope)},  # prompt 15 §2.4
         json={"company": co, "until": past, "reason": "done"},
     )
     assert r.status_code == 200 and r.json()["active"] is False

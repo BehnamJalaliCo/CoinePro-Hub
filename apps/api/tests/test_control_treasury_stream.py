@@ -147,8 +147,12 @@ async def test_ceo_switch_own_company_only_and_holding_switch(
 
 
 async def test_deploy_freeze(
-    client: httpx.AsyncClient, owner: dict[str, str], new_company: Callable[..., Any]
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
 ) -> None:
+    owner, sid = owner_session["headers"], owner_session["session_id"]
     co = (await new_company())["code"]
     w = await _work_for_ceo(client, owner, co)
     until = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
@@ -166,9 +170,10 @@ async def test_deploy_freeze(
         )
     ).status_code == 423
     past = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
+    lift = await step_up(hub, sid, "deploy_freeze.lift", f"company:{co}")  # prompt 15 §2.4
     r = await client.post(
         "/api/v1/control/deploy-freeze",
-        headers=owner,
+        headers={**owner, **lift},
         json={"company": co, "until": past, "reason": "done"},
     )
     assert r.json()["active"] is False
