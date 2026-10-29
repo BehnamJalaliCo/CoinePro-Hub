@@ -2586,3 +2586,32 @@ Automation   { …§23.7, runs_30d, last_run_at|null }
 - **Clearance rows** may be served one per grant or grouped per subject as above; both apps read either.
 - **Files:** images show inline; a PDF opens in a new tab or downloads (the page's security policy does not frame `blob:` URLs). Date
   inputs take the Gregorian date and show the Jalali one beside it.
+
+## 24. As served, checked by the Android 0.3.0 audit ⟨1.7.3⟩
+Recorded 2026-10-29 from a field-by-field check of every Android model against the server's `openapi/hq-api.v1.json`. Where these differ
+from the sections above, the server is right and this list is the contract; both apps read these shapes.
+- **Numbers that are floats:** `Decision.waiting_h`; `RegistryVoice.mem_mb`.
+- **May be null or missing:**
+  - `RegistryVoice.samples[].file`
+  - `StarRollup.companies[].stars`, `score`, `rank` and `parts`
+  - `Story.author`
+  - `HrEmployee.score`
+  - teaching and skill eval `score` and `passed`
+  - `CompanyRevenue.share`
+  - `CoinAmount.usdt`
+  - `KbVariable.source`
+  - `handle_masked`
+  - `MeetingMinutes.deliverable`
+  - `StandingOrder.created_at`
+- **Shapes:**
+  - `Risk.history[].change` is an object.
+  - `RoleDraft.written_by` is an employee code string.
+  - A legal email's attachments are `{file_id, name, mime?, sha256}`, not FileRefs.
+  - `GET /support/conversations/{ref}` returns `{conversation, messages}`.
+  - `GET /egress/summary` is a list of `EgressDay`.
+- **Being aligned in prompt 15:**
+  - `GET /lessons` becomes a `Page`.
+  - `GET /stars/rollup` answers 200 with empty lists before the first roll-up.
+  - `/transcribe` answers `503 channel_not_configured` at once while speech-to-text is off, and `/meta.speech.enabled` says so.
+- **Clients are tolerant:** an unknown enum value falls back, and a field the server omits takes its default. A decode failure is logged with its field path (the Android «خطاخوان»), never with the body.
+
