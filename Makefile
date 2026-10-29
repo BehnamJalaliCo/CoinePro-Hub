@@ -68,6 +68,10 @@ restore-test: ## Restore the latest backup into a throwaway Postgres and verify 
 backup-hourly: ## Run the hourly encrypted backup now (restic: local, Google Drive when connected)
 	@infra/backup/hourly.sh
 
+.PHONY: fresh-start
+fresh-start: ## Prompt 16: the fresh start, only on the owner's own words (HQ_FRESH_START_CONFIRM)
+	@infra/fresh-start/fresh-start.sh
+
 restore-weekly: ## Run the weekly restore test now (newest snapshot, every check, PITR to a random moment)
 	@infra/backup/restore-weekly.sh
 
