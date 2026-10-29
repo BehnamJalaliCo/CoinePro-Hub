@@ -139,15 +139,27 @@ async def list_deliverables(
     from_: date | None = Query(default=None, alias="from"),
     to: date | None = None,
     q: str | None = Query(default=None, max_length=100),
+    work: str | None = Query(
+        default=None,
+        pattern=r"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|W-[0-9]{4,})$",
+    ),
     limit: int = Query(default=50, ge=1, le=pagination.MAX_LIMIT),
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[Deliverable]:
     """Newest first. ⟨1.7.3⟩ `seen`, `category`, and `from`/`to` (days in the
-    owner's zone, both included)."""
+    owner's zone, both included). ⟨1.7.4⟩ `work`: one work's deliverables (its
+    id or its ref)."""
     after_t, after_id = pagination.time_id(cursor)
     async with ctx.tx() as tx:
         tz = await owner_tz(tx)
+        work_id = None
+        if work is not None:
+            work_id = await tx.scalar(
+                "SELECT id FROM work.work WHERE ref = :w OR id::text = lower(:w)", w=work
+            )
+            if work_id is None:  # no such work: nothing of it
+                return Page(items=[], next_cursor=None)
         rows = await tx.all(
             DELIVERABLE_SQL
             + """ WHERE (CAST(:companies AS text[]) IS NULL OR c.code = ANY(:companies))
@@ -162,10 +174,12 @@ async def list_deliverables(
                     AND (CAST(:q AS text) IS NULL OR dl.ref = :q
                          OR core.fa_normalize(dl.title || ' ' || dl.summary)
                             LIKE '%' || core.like_escape(core.fa_normalize(:q)) || '%')
+                    AND (CAST(:work_id AS uuid) IS NULL OR dl.work_id = :work_id)
                     AND (CAST(:after_t AS timestamptz) IS NULL
                          OR (dl.created_at, dl.id) < (CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))
                   ORDER BY dl.created_at DESC, dl.id DESC LIMIT :lim""",
             companies=company,
+            work_id=work_id,
             producer=producer,
             unrated=unrated,
             seen=seen,

@@ -122,6 +122,25 @@ def envelope(
     }
 
 
+async def _root(tx: Tx, type_: str, ref: str | None, data: dict[str, Any]) -> dict[str, Any] | None:
+    """⟨1.7.4⟩ The owner's order a work belongs to (its root): for `work.*` the
+    work is `ref`, for `deliverable.created` it is the deliverable's work."""
+    if type_.startswith("work.") and ref:
+        return await tx.first(
+            """SELECT w.root_id, r.ref AS root_ref FROM work.work w
+               LEFT JOIN work.work r ON r.id = w.root_id WHERE w.ref = :ref""",
+            ref=ref,
+        )
+    if type_ == "deliverable.created" and ref:
+        return await tx.first(
+            """SELECT w.root_id, r.ref AS root_ref FROM cartable.deliverables dl
+               JOIN work.work w ON w.id = dl.work_id LEFT JOIN work.work r ON r.id = w.root_id
+               WHERE dl.ref = :ref""",
+            ref=ref,
+        )
+    return None
+
+
 async def emit(
     tx: Tx,
     company_code: str,
@@ -129,7 +148,15 @@ async def emit(
     ref: str | None = None,
     data: dict[str, Any] | None = None,
 ) -> None:
-    env = envelope(company_code, type_, ref, data or {})
+    data = dict(data or {})
+    # ⟨1.7.4⟩ prompt 15.1: every work.* and deliverable.created event names the
+    # owner's order it belongs to, so the app can tell which order moved.
+    if (type_.startswith("work.") or type_ == "deliverable.created") and "root_id" not in data:
+        root = await _root(tx, type_, ref, data)
+        if root is not None and root.get("root_id") is not None:
+            data["root_id"] = str(root["root_id"])
+            data["root_ref"] = root.get("root_ref")
+    env = envelope(company_code, type_, ref, data)
     await tx.exec(
         """INSERT INTO core.outbox (event_id, subject, payload)
            VALUES (:id, :subject, CAST(:payload AS jsonb))""",
