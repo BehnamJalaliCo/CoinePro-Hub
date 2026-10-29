@@ -387,7 +387,7 @@ fun DiffView(text: String, modifier: Modifier = Modifier) {
 /** A row of small pills that scrolls sideways. */
 @Composable
 fun PillRow(content: @Composable () -> Unit) {
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) { content() }
+    com.coinepro.hq.designsystem.ScrollRow(spacing = 6.dp) { content() }
 }
 
 /** A figure inside Persian text, as an annotated string on its own. */

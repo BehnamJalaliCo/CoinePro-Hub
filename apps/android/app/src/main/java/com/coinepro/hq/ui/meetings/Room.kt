@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.meetings
 
+import com.coinepro.hq.designsystem.fadingEdges
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -274,7 +275,9 @@ private fun RoundTable(m: Meeting, it: MeetingItem?, turns: List<Turn>, rounds: 
     HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(12.dp)) {
         TableCenter(m, it, start, rounds)
         Spacer(Modifier.height(12.dp))
-        Row(Modifier.horizontalScroll(rememberScrollState()).semantics { contentDescription = "حاضران" }, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        // The seats scroll sideways; a soft fade, not a hard cut, at the side that has more.
+        val seatsScroll = rememberScrollState()
+        Row(Modifier.fillMaxWidth().fadingEdges(seatsScroll).horizontalScroll(seatsScroll).semantics { contentDescription = "حاضران" }, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             for (s in seats) SeatView(s)
         }
     }

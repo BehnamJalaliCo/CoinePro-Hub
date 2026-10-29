@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.owner
 
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -71,24 +72,25 @@ fun RunRow(run: Run, showEmployee: Boolean = true, withSteps: Boolean = false) {
     var open by rememberSaveable(run.id) { mutableStateOf(false) }
     val detail = if (open && !withSteps) rememberQuery("run:${run.id}", "runs", maxAgeMs = if (run.state == "running") 4_000 else 60_000) { runDetail(run.id) } else null
     val d = if (withSteps) run else detail?.data
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).animateContentSize()) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile)) {
         Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = if (open) "بستن" else "قدم‌ها") { open = !open }.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 LabelPill(RUN_STATE[run.state], run.state)
                 if (showEmployee) Fig(run.employee, style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-                Text(run.reason, style = Divan.type.small, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                DIcon(DivanIcon.CHEVRON, size = 14.dp, tint = c.textMuted, modifier = Modifier.rotate(if (open) 180f else 0f))
+                // The hub's reason can carry a ref ("PR-001"): rich text keeps it Latin.
+                com.coinepro.hq.designsystem.RichText(run.reason, Modifier.weight(1f), style = Divan.type.small, color = c.textSecondary, maxLines = 1)
+                com.coinepro.hq.designsystem.Chevron(open, tint = c.textMuted)
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(ago(run.startedAt ?: run.queuedAt), style = Divan.type.micro, color = c.textMuted)
                 run.model?.let { Fig(modelLabel(it), style = Divan.type.figureSmall, color = c.textMuted) }
-                Text("${run.steps} قدم · ${run.toolCalls} ابزار", style = Divan.type.micro, color = c.textMuted)
+                Text("${run.steps} قدم، ${run.toolCalls} ابزار", style = Divan.type.micro, color = c.textMuted)
                 Fig("${tokens(run.tokens.input + run.tokens.output)} · ${usd(run.equivCostUsd)}", style = Divan.type.figureSmall, color = c.textMuted)
                 run.workRef?.let { w -> Fig(w, style = Divan.type.figureSmall, color = c.goldInk, modifier = Modifier.clickable { nav.go("work/$w") }) }
                 run.errorCode?.let { Fig(it, style = Divan.type.figureSmall, color = c.negative) }
             }
         }
-        if (open) {
+        com.coinepro.hq.designsystem.Expand(open) { Column {
             HorizontalDivider(color = c.lineDivider)
             Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 when {
@@ -111,7 +113,7 @@ fun RunRow(run: Run, showEmployee: Boolean = true, withSteps: Boolean = false) {
                     }
                 }
             }
-        }
+        } }
     }
 }
 
@@ -142,7 +144,7 @@ fun RunsScreen() {
             }
         }
         item {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.coinepro.hq.designsystem.ScrollRow {
                 listOf(null to "همه", "running" to "در جریان", "failed" to "شکست", "refused" to "رد شده", "queued" to "در صف").forEach { (k, l) -> FilterChip(l, tab == k, { tab = k }) }
             }
         }
@@ -151,7 +153,7 @@ fun RunsScreen() {
             rows == null && list.error != null -> item { ErrorBlock(list.error, { list.refresh() }) }
             rows == null -> item { Skeleton(Modifier.fillMaxWidth().height(200.dp), radius = 14.dp) }
             rows.isEmpty() -> item { Text("اجرایی با این وضعیت نیست.", style = Divan.type.caption, color = c.textMuted) }
-            else -> items(rows, key = { it.id }) { RunRow(it) }
+            else -> items(rows, key = { it.id }) { Box(itemMotion()) { RunRow(it) } }
         }
         // ⟨1.5⟩ §21.9: claims checked and the health board by rule.
         item { ClaimsCard() }

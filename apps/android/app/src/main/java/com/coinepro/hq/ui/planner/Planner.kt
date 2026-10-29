@@ -90,11 +90,11 @@ fun PlannerScreen(onNewOrder: () -> Unit) {
         item { Segmented(listOf(SegOption(false, "هفته"), SegOption(true, "ماه")), month, { month = it; week = 0 }, Modifier.fillMaxWidth()) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.coinepro.hq.designsystem.ScrollRow {
                     FilterChip("پلنر من", company == null, { company = null; dept = null })
                     companies.forEach { co -> FilterChip(co.nameFa ?: co.code, company == co.code, { company = co.code; dept = null }) }
                 }
-                if (company != null && depts.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (company != null && depts.isNotEmpty()) com.coinepro.hq.designsystem.ScrollRow {
                     FilterChip("همه‌ی شرکت", dept == null, { dept = null })
                     depts.filter { it.status == "active" }.forEach { d -> FilterChip(d.nameFa, dept == d.code, { dept = d.code }) }
                 }

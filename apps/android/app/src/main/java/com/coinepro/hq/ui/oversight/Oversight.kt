@@ -1,5 +1,7 @@
 package com.coinepro.hq.ui.oversight
 
+import androidx.compose.foundation.layout.Box
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -111,17 +113,18 @@ fun OversightScreen() {
 
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Avatar("overseer", size = 56.dp, state = "working")
-                Column(Modifier.weight(1f)) {
-                    Text("رتبه‌ی دوم، کنار مشاور کل؛ در نبود تو بالاتر", style = Divan.type.caption, color = c.textMuted)
-                    Text("ناظر کل", style = Divan.type.h1)
+            // The eyebrow gets the full width; the chat button sits on the title's line, so neither wraps beside the other.
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("رتبه‌ی دوم، کنار مشاور کل؛ در نبود تو بالاتر", style = Divan.type.caption, color = c.textMuted)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Avatar("overseer", size = 52.dp, state = "working")
+                    Text("ناظر کل", style = Divan.type.h1, modifier = Modifier.weight(1f))
+                    HqButton("گفت‌وگو", { nav.go("oversight/chat") }, size = BtnSize.SM, icon = DivanIcon.MESSAGES)
                 }
-                HqButton("گفت‌وگو", { nav.go("oversight/chat") }, size = BtnSize.SM, icon = DivanIcon.MESSAGES)
             }
         }
         item {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.coinepro.hq.designsystem.ScrollRow {
                 for (t in Tab.entries) {
                     val n = when (t) {
                         Tab.FINDINGS -> findings.data?.count { it.live() }
@@ -233,7 +236,7 @@ fun OversightScreen() {
                     all == null && findings.error != null -> item { ErrorBlock(findings.error, { findings.refresh() }) }
                     all == null -> items(3) { Skeleton(Modifier.fillMaxWidth().height(72.dp), radius = 14.dp) }
                     list.isEmpty() -> item { Empty("یافته‌ای نیست", icon = DivanIcon.OVERSEER) }
-                    else -> items(list.size, key = { list[it].ref }) { i -> FindingRow(list[i]) { finding = list[i] } }
+                    else -> items(list.size, key = { list[it].ref }) { i -> Box(itemMotion()) { FindingRow(list[i]) { finding = list[i] } }}
                 }
             }
             Tab.PROTOCOLS -> {
@@ -242,7 +245,7 @@ fun OversightScreen() {
                     Text("وظایف نوشته‌شده‌ی ناظر؛ نسخه‌ی تازه فقط با مُهر تو", style = Divan.type.caption, color = c.textMuted)
                 }
                 item {
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.coinepro.hq.designsystem.ScrollRow {
                         FilterChip("همه", area == null, { area = null }, count = all?.size)
                         for (a in all.orEmpty().map { it.area }.distinct()) FilterChip(AREA_FA[a] ?: a, area == a, { area = a }, count = all.orEmpty().count { it.area == a })
                     }
@@ -271,7 +274,7 @@ fun OversightScreen() {
                     list == null && challenges.error != null -> item { ErrorBlock(challenges.error, { challenges.refresh() }) }
                     list == null -> items(2) { Skeleton(Modifier.fillMaxWidth().height(140.dp), radius = 16.dp) }
                     list.isEmpty() -> item { Empty("چالشی نیست", icon = DivanIcon.STAR) }
-                    else -> items(list.size, key = { list[it].ref }) { i ->
+                    else -> items(list.size, key = { list[it].ref }) { i -> Box(itemMotion()) {
                         val k = list[i]
                         HqCard(Modifier.fillMaxWidth()) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -290,7 +293,7 @@ fun OversightScreen() {
                                 k.score?.let { ScoreBar(it, Modifier.width(110.dp)) }
                             }
                         }
-                    }
+                    }}
                 }
             }
             Tab.ORDERS -> {
@@ -319,7 +322,7 @@ fun OversightScreen() {
                 when {
                     list == null -> item { Skeleton(Modifier.fillMaxWidth().height(120.dp), radius = 14.dp) }
                     list.isEmpty() -> item { Empty("هنوز دستور دائمی نداده‌ای", icon = DivanIcon.SEAL) }
-                    else -> items(list.size, key = { list[it].ref }) { i ->
+                    else -> items(list.size, key = { list[it].ref }) { i -> Box(itemMotion()) {
                         val o = list[i]
                         val proposed = o.status == "proposed"
                         Column(
@@ -344,7 +347,7 @@ fun OversightScreen() {
                                 action.run { env.api.retireStandingOrder(o.ref); env.cache.invalidate("oversight") }
                             }, variant = BtnVariant.GHOST, size = BtnSize.SM)
                         }
-                    }
+                    }}
                 }
             }
         }

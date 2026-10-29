@@ -243,10 +243,10 @@ private fun DayTable(keys: List<String>, lines: List<ChartLine>) {
             Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { open = !open }.padding(vertical = 4.dp, horizontal = 2.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            DIcon(DivanIcon.CHEVRON, size = 14.dp, tint = c.textSecondary, modifier = Modifier.graphicsLayer { rotationZ = if (open) 180f else 0f })
+            com.coinepro.hq.designsystem.Chevron(open, tint = c.textSecondary)
             Text(if (open) "بستن جدول روزها" else "جدول روزها", style = Divan.type.caption, color = c.textSecondary)
         }
-        if (open) Column(Modifier.padding(top = 6.dp)) {
+        com.coinepro.hq.designsystem.Expand(open) { Column(Modifier.padding(top = 6.dp)) {
             Row(Modifier.padding(vertical = 4.dp)) {
                 Text("روز", style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1.1f))
                 for (l in lines) Text(l.label, style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -258,7 +258,7 @@ private fun DayTable(keys: List<String>, lines: List<ChartLine>) {
                     for (l in lines) Fig(l.values[i]?.let(::money) ?: "—", Modifier.weight(1f), style = Divan.type.figureSmall, color = c.textPrimary)
                 }
             }
-        }
+        } }
     }
 }
 

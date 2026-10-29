@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.stars
 
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -164,7 +165,7 @@ fun StarsScreen() {
                 }
                 item { SectionTitle("کارمندهای برتر", note = "ستاره‌ی مدیرعامل، با شاهد") }
                 item {
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.coinepro.hq.designsystem.ScrollRow {
                         FilterChip("همه", co == null, { co = null })
                         for (k in roll.companies) FilterChip(companyOf(companies, k.company).nameFa, co == k.company, { co = k.company })
                     }
@@ -201,7 +202,7 @@ fun StarsScreen() {
         else if (ls.isEmpty()) item {
             Text("هنوز درسی نوشته نشده؛ ناظر بعد از هر برآیند از شرکت برتر مینویسد.", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), style = Divan.type.caption, color = c.textMuted)
         }
-        else items(ls.size, key = { ls[it].ref }) { i ->
+        else items(ls.size, key = { ls[it].ref }) { i -> Box(itemMotion()) {
             val l = ls[i]
             HqCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -217,7 +218,7 @@ fun StarsScreen() {
                     }
                 }
             }
-        }
+        }}
         val rubric = rubrics.data?.let { all -> all.firstOrNull { it.company == (co ?: roll?.bestCompany) } ?: all.firstOrNull() }
         item { SectionTitle("آیین‌نامه‌ی ستاره" + (rubric?.let { " · " + companyOf(companies, it.company).nameFa } ?: ""), note = "نوشته‌ی مدیرعامل همان شرکت؛ تو میبینی") }
         item {

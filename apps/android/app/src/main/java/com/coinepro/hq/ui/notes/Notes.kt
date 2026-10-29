@@ -1,5 +1,7 @@
 package com.coinepro.hq.ui.notes
 
+import androidx.compose.foundation.layout.Box
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -116,7 +118,7 @@ fun NotesScreen(highlight: String? = null) {
             list == null && q.error != null -> item { ErrorBlock(q.error, { q.refresh() }) }
             list == null -> items(3) { Skeleton(Modifier.fillMaxWidth().height(120.dp), radius = 16.dp) }
             list.isEmpty() -> item { Empty("یادداشتی نیست", icon = DivanIcon.EDIT, body = "بالای صفحه بنویس یا بگو.") }
-            else -> items(list, key = { it.ref }) { n -> NoteCard(n, highlight == n.ref) { promote = n } }
+            else -> items(list, key = { it.ref }) { n -> Box(itemMotion()) { NoteCard(n, highlight == n.ref) { promote = n } }}
         }
     }
     promote?.let { n -> PromoteDialog(n) { promote = null } }

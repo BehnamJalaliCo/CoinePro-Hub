@@ -294,8 +294,8 @@ private fun RiskSheet(r: Risk?, onClose: () -> Unit) {
         Labelled("عنوان") { HqTextField(title, { title = it }, "عنوان", Modifier.fillMaxWidth(), maxLength = 200) }
         Labelled("شرح") { HqTextField(body, { body = it }, "شرح", Modifier.fillMaxWidth(), singleLine = false, minLines = 3) }
         Labelled("دسته") { ChipRow { for ((k, fa) in RISK_CATEGORY) FilterChip(fa, category == k, { category = k }) } }
-        Labelled("احتمال") { ChipRow { for (n in 1..5) FilterChip("$n · ${LEVEL[n - 1]}", l == n, { l = n }) } }
-        Labelled("اثر") { ChipRow { for (n in 1..5) FilterChip("$n · ${LEVEL[n - 1]}", i == n, { i = n }) } }
+        Labelled("احتمال") { ChipRow { for (n in 1..5) FilterChip("$n، ${LEVEL[n - 1]}", l == n, { l = n }) } }
+        Labelled("اثر") { ChipRow { for (n in 1..5) FilterChip("$n، ${LEVEL[n - 1]}", i == n, { i = n }) } }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("امتیاز", style = Divan.type.small, color = c.textSecondary)
             Fig("$score", Modifier.clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.figure.copy(fontWeight = FontWeight.Bold), color = fg)

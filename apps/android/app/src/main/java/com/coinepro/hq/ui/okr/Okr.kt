@@ -199,9 +199,9 @@ private fun KrRow(k: KeyResult) {
         if (k.checkins.isNotEmpty()) {
             Row(Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button) { open = !open }.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("check-inها (${k.checkins.size})", style = Divan.type.caption, color = c.textSecondary)
-                DIcon(DivanIcon.CHEVRON, if (open) Modifier.rotate(180f) else Modifier, size = 14.dp, tint = c.textSecondary)
+                com.coinepro.hq.designsystem.Chevron(open, tint = c.textSecondary)
             }
-            if (open) for (ck in k.checkins.sortedByDescending { it.at }) Row(
+            com.coinepro.hq.designsystem.Expand(open) { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { for (ck in k.checkins.sortedByDescending { it.at }) Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 ActorAvatar(ck.by, 22.dp)
@@ -210,7 +210,7 @@ private fun KrRow(k: KeyResult) {
                     Md(ck.noteMd)
                     if (ck.evidence.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { for (e in ck.evidence) RefChip(e.ref, tone = RefTone.NEUTRAL) }
                 }
-            }
+            } } }
         }
     }
 }

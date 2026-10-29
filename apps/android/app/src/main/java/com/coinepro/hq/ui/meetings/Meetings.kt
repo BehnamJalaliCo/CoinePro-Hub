@@ -187,7 +187,7 @@ private fun MeetingRow(m: Meeting) {
                 Fig(m.ref, style = Divan.type.figureSmall, color = c.textMuted)
             }
             Text(
-                listOfNotNull("${jWeekday(m.startsAt)}، ${jTime(m.startsAt)}", if (m.before) until(m.startsAt) else null).joinToString(" · "),
+                listOfNotNull("${jWeekday(m.startsAt)}، ${jTime(m.startsAt)}", if (m.before) until(m.startsAt) else null).joinToString("، "),
                 style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             m.minutes?.let { mi ->

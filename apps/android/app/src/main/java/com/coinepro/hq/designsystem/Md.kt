@@ -100,7 +100,12 @@ private fun AnnotatedString.Builder.latin(text: String) {
     append(text.substring(last))
 }
 
-private fun inline(text: String, k: MdColors): AnnotatedString = buildAnnotatedString {
+// A middle dot between Persian words or beside a count is drawn by the text face like the Persian zero ("· ۶" reads "۰ ۶"): there it
+// becomes the Persian comma. Between Latin words ("Chrome · Android") it stays.
+private val DOT = Regex(" · (?=[\u0600-\u06FF0-9])|(?<=[\u0600-\u06FF0-9]) · ")
+
+private fun inline(raw: String, k: MdColors): AnnotatedString = buildAnnotatedString {
+    val text = DOT.replace(raw, "، ")
     var last = 0
     for (m in INLINE.findAll(text)) {
         refs(text.substring(last, m.range.first), k)
@@ -147,7 +152,7 @@ fun RichText(text: String, modifier: Modifier = Modifier, style: TextStyle = Div
 }
 
 @Composable
-fun Md(text: String?, modifier: Modifier = Modifier, style: TextStyle = Divan.type.small.copy(lineHeight = Divan.type.body.lineHeight), color: Color = Divan.colors.textSecondary) {
+fun Md(text: String?, modifier: Modifier = Modifier, style: TextStyle = Divan.type.small.copy(lineHeight = 24.sp), color: Color = Divan.colors.textSecondary) {
     if (text.isNullOrBlank()) return
     val k = mdColors()
     val blocks = remember(text) { MdParser.parse(text) }

@@ -184,9 +184,9 @@ private fun FileRow(ref: String, f: DiffFile, open0: Boolean) {
             if (f.secretMasked) Pill("ماسک", Tone.WARN, icon = DivanIcon.LOCK)
             if (f.binary) Text("باینری", style = Divan.type.micro, color = c.textMuted)
             else Text(buildAnnotatedString { fig("+${f.additions}", c.positive); append(" "); fig("−${f.deletions}", c.negative) }, style = Divan.type.small)
-            DIcon(DivanIcon.CHEVRON, size = 14.dp, tint = c.textMuted)
+            com.coinepro.hq.designsystem.Chevron(open, tint = c.textMuted)
         }
-        if (open) Column(Modifier.padding(start = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        com.coinepro.hq.designsystem.Expand(open) { Column(Modifier.padding(start = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             val q = if (full) rememberQuery("diff:$ref:${f.path}", "decisions", maxAgeMs = 300_000) { diffFile(ref, f.path) } else null
             val patch = q?.data?.patch ?: f.patch
             if (f.binary || patch == null) Text("فایل باینری است؛ patch ندارد.", style = Divan.type.caption, color = c.textMuted)
@@ -195,7 +195,7 @@ private fun FileRow(ref: String, f: DiffFile, open0: Boolean) {
             if (f.truncated && !full) HqButton("patch کامل این فایل", { full = true }, size = BtnSize.SM, variant = BtnVariant.TEXT, icon = DivanIcon.DOWNLOAD)
             if (q != null && q.data == null && q.error == null) Skeleton(Modifier.fillMaxWidth().height(48.dp))
             q?.error?.let { Text(mgmtError(it), style = Divan.type.caption, color = c.negative) }
-        }
+        } }
     }
 }
 

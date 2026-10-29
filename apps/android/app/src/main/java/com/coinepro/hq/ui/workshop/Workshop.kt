@@ -1,5 +1,7 @@
 package com.coinepro.hq.ui.workshop
 
+import androidx.compose.foundation.layout.Box
+import com.coinepro.hq.ui.itemMotion
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -192,11 +194,11 @@ fun WorkshopScreen(onNewSession: () -> Unit, onGrant: (String?) -> Unit) {
             sessions.data == null && sessions.error == null -> items(2) { Skeleton(Modifier.fillMaxWidth().height(110.dp), radius = 14.dp) }
             sessions.data == null -> item { ErrorBlock(sessions.error, { sessions.refresh() }) }
             open.isEmpty() -> item { Empty("جلسه‌ای در جریان نیست", icon = DivanIcon.CODE, body = "یک جلسه باز کن، یا با فرمان صوتی بگو؛ کار خودش به کارگاه میرسد.") }
-            else -> items(open.size, key = { "o" + open[it].ref }) { i -> SessionRow(open[i], workspaces.data, grantOf(open[i].grant)) { nav.go("workshop/${open[i].ref}") } }
+            else -> items(open.size, key = { "o" + open[it].ref }) { i -> Box(itemMotion()) { SessionRow(open[i], workspaces.data, grantOf(open[i].grant)) { nav.go("workshop/${open[i].ref}") } }}
         }
         if (past.isNotEmpty()) {
             item { SectionTitle("گذشته", note = "تاریخچه و transcript کامل میماند") }
-            items(past.size, key = { "p" + past[it].ref }) { i -> SessionRow(past[i], workspaces.data, grantOf(past[i].grant)) { nav.go("workshop/${past[i].ref}") } }
+            items(past.size, key = { "p" + past[it].ref }) { i -> Box(itemMotion()) { SessionRow(past[i], workspaces.data, grantOf(past[i].grant)) { nav.go("workshop/${past[i].ref}") } }}
         }
         item {
             SectionTitle("مجوزهای تو", note = "لغو، جلسه‌هایش را همان لحظه متوقف میکند") {

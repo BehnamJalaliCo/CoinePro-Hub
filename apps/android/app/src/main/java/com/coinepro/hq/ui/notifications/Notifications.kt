@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.notifications
 
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -70,7 +71,7 @@ fun NotificationsScreen() {
             }
         }
         item {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.coinepro.hq.designsystem.ScrollRow {
                 FilterChip("همه", lvl == null, { lvl = null })
                 for (l in listOf("urgent", "decision", "report", "info", "learning")) FilterChip(level(l).fa, lvl == l, { lvl = if (lvl == l) null else l })
             }
@@ -80,7 +81,7 @@ fun NotificationsScreen() {
             list == null && q.error == null -> items(4) { Skeleton(Modifier.fillMaxWidth().height(76.dp), radius = 14.dp) }
             list == null -> item { ErrorBlock(q.error, { q.refresh() }) }
             list.isEmpty() -> item { Empty("اعلانی نیست", icon = DivanIcon.BELL) }
-            else -> items(list, key = { it.id }) { n ->
+            else -> items(list, key = { it.id }) { n -> Box(itemMotion()) {
                 NotificationCard(n) {
                     action.run {
                         if (n.readAt == null) env.api.readNotification(n.id)
@@ -93,7 +94,7 @@ fun NotificationsScreen() {
                         }
                     }
                 }
-            }
+            }}
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.coinepro.hq.ui.academy
 
+import androidx.compose.foundation.layout.Box
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -84,7 +86,7 @@ fun AcademyScreen() {
         item { PageHeader("آکادمی", eyebrow = "فاین‌تیون ما: لایه‌ی دانشی که مال ماست و با عوض شدن مدل از دست نمیرود") }
         item { Text("هر نقش برنامه‌ی آموزشی و آزمون طلایی دارد. هیچ نسخه‌ی تازه‌ای از منشور، مهارت یا مدل بدون نمره‌ی برابر یا بهتر از خط پایه فعال نمیشود.", style = Divan.type.small, color = c.textSecondary) }
         item {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.coinepro.hq.designsystem.ScrollRow {
                 for (k in curricula.data.orEmpty().map { it.role }) FilterChip(ROLE_FA[k] ?: k, role == k, { role = k })
             }
         }
@@ -106,7 +108,7 @@ fun AcademyScreen() {
         }
         val ts = teachings.data
         if (ts == null) item { Skeleton(Modifier.fillMaxWidth().height(120.dp), radius = 14.dp) }
-        else items(ts.size, key = { ts[it].ref }) { i ->
+        else items(ts.size, key = { ts[it].ref }) { i -> Box(itemMotion()) {
             TeachingCard(ts[i], roleOf = { ROLE_FA[it] ?: it }, busy = action.busy, onApprove = {
                 action.run {
                     env.api.approveTeaching(ts[i].ref) { a, t -> env.auth.stepUp(act, a, t) }
@@ -116,7 +118,7 @@ fun AcademyScreen() {
             }, onReject = {
                 action.run { env.api.rejectTeaching(ts[i].ref); env.cache.invalidate("academy") }
             })
-        }
+        }}
         item {
             SectionTitle("برنامه‌ی $roleFa", note = cur?.let { "نسخه‌ی ${it.version}" })
         }

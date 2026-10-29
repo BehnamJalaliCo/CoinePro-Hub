@@ -252,7 +252,7 @@ fun ExpiringStrip(m: ArchiveMaps) {
             Text("نزدیک‌ترین سررسیدها", Modifier.weight(1f), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
             Text("همه‌ی یادآورها", Modifier.clickable(role = Role.Button) { nav.go("archive-reminders") }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        com.coinepro.hq.designsystem.ScrollRow {
             for ((r, x, left) in rows) {
                 val tone = when { left <= 7 -> c.negative; left <= 30 -> c.warning; else -> c.textSecondary }
                 val f = m.cls(r.cls)?.fields?.firstOrNull { it.key == x.field }

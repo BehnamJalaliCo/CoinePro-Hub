@@ -96,7 +96,7 @@ private fun Calibration(s: DceoStats) {
                         Box(Modifier.fillMaxWidth(((lo + hi) / 2).coerceIn(0f, 1f))) { Box(Modifier.align(Alignment.CenterEnd).width(2.dp).height(12.dp).background(c.goldFill)) }
                     }
                 }
-                Text(buildAnnotatedString { fig(pct01(b.hitRate)); append(" ·"); fig("${b.n}") }, Modifier.width(56.dp), style = Divan.type.small, color = c.textSecondary)
+                Text(buildAnnotatedString { fig(pct01(b.hitRate)); append(" از ${b.n}") }, Modifier.width(76.dp), style = Divan.type.small, color = c.textSecondary, maxLines = 1)
             }
         }
         Text("نوار: درصد درست در هر بازه‌ی اطمینان؛ خط طلایی: آنچه پیش‌بین وعده داده بود.", style = Divan.type.micro, color = c.textMuted)

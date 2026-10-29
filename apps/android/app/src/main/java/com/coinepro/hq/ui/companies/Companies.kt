@@ -3,6 +3,7 @@ package com.coinepro.hq.ui.companies
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,75 +78,56 @@ import com.coinepro.hq.ui.Loadable
 import com.coinepro.hq.ui.Page
 import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.refresher
+import com.coinepro.hq.ui.itemMotion
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
-/** Companies are data: the holding first, then every company with its own mark and live counts. */
+/** Companies are data: the holding first, then every company, each with its live state at a glance (running, stopped, deploys
+ *  closed), whether its agents are working right now, today's spend and its counts, and the switches to stop, resume, close or open
+ *  deploys (contract §9). A long press opens every action on the company. */
 @Composable
 fun CompaniesScreen() {
     val nav = LocalNav.current
-    val c = Divan.colors
+    val env = com.coinepro.hq.ui.LocalEnv.current
     val q = rememberQuery("companies", "companies", maxAgeMs = 30_000) { companies() }
+    val d = rememberControlData()
+    val ui = rememberControlUi()
     val r = refresher(q)
     var adding by rememberSaveable { mutableStateOf(false) }
-    Page(onRefresh = r::refresh, refreshing = r.refreshing) {
-        item {
-            PageHeader("شرکت‌ها", eyebrow = "هلدینگ و شرکت‌هایش") {
+    Page(onRefresh = { r.refresh(); env.cache.invalidate("control", "runs", "treasury") }, refreshing = r.refreshing) {
+        item(key = "header") {
+            PageHeader("شرکت‌ها", eyebrow = "هلدینگ و شرکت‌هایش، زنده") {
                 com.coinepro.hq.designsystem.HqButton("شرکت تازه", { adding = true }, size = com.coinepro.hq.designsystem.BtnSize.SM, icon = DivanIcon.ADD)
                 com.coinepro.hq.designsystem.HqButton("تأسیس از ریپو یا ایده", { nav.go("founding") }, size = com.coinepro.hq.designsystem.BtnSize.SM, variant = com.coinepro.hq.designsystem.BtnVariant.TEXT, icon = DivanIcon.FOUND)
             }
         }
-        val list = q.data?.sortedBy { if (it.kind == "holding") 0 else 1 }
+        val list = q.data
         when {
-            list == null && q.error == null -> items(3) { Skeleton(Modifier.fillMaxWidth().height(120.dp), radius = 16.dp) }
-            list == null -> item { ErrorBlock(q.error, { q.refresh() }) }
-            else -> items(list, key = { it.code }) { co -> CompanyCard(co) { nav.go("companies/${co.code}") } }
+            list == null && q.error == null -> items(3, key = { "skeleton-$it" }) { Skeleton(Modifier.fillMaxWidth().height(if (it == 0) 236.dp else 222.dp), radius = 16.dp) }
+            list == null -> item(key = "error") { ErrorBlock(q.error, { q.refresh() }) }
+            else -> {
+                val holding = list.firstOrNull { it.kind == "holding" }
+                if (holding != null) item(key = holding.code) {
+                    HoldingControlCard(holding, list, d, ui, itemMotion()) { nav.go("companies/${holding.code}") }
+                }
+                items(list.filter { it.kind != "holding" }, key = { it.code }) { co ->
+                    CompanyControlCard(co, d, ui, holding?.nameFa, itemMotion()) { nav.go("companies/${co.code}") }
+                }
+            }
         }
     }
+    ControlSheets(ui)
     if (adding) com.coinepro.hq.ui.owner.NewCompanySheet { adding = false }
-}
-
-@Composable
-private fun CompanyCard(co: Company, onClick: () -> Unit) {
-    val c = Divan.colors
-    HqCard(Modifier.fillMaxWidth(), onClick = onClick, tahrir = co.kind == "holding") {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(52.dp).clip(CircleShape).background(c.tile).border(1.dp, if (co.killSwitch == "engaged") c.negative else c.lineStrong, CircleShape), contentAlignment = Alignment.Center) {
-                if (co.kind == "holding") com.coinepro.hq.designsystem.Monogram(26.dp) else CompanyMark(co.code, height = 22.dp, ink = c.textPrimary)
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(co.nameFa ?: co.code, style = Divan.type.bodyStrong)
-                Text(buildAnnotatedString { fig(co.nameEn ?: co.code); append(" · "); fig(co.code) }, style = Divan.type.micro, color = c.textMuted)
-            }
-            when {
-                co.killSwitch == "engaged" -> Pill("متوقف", Tone.NEG, icon = DivanIcon.PAUSE)
-                co.deployFreezeUntil != null -> Pill("توقف deploy", Tone.WARN, icon = DivanIcon.PAUSE)
-                else -> Pill("فعال", Tone.POS, dot = true)
-            }
-        }
-        Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Count("کارمند فعال", co.counts.employeesActive, Modifier.weight(1f))
-            Count("کار باز", co.counts.workOpen, Modifier.weight(1f))
-            Count("منتظر مُهر", co.counts.decisionsPending, Modifier.weight(1f), gold = co.counts.decisionsPending > 0)
-        }
-    }
-}
-
-@Composable
-private fun Count(label: String, n: Int, modifier: Modifier, gold: Boolean = false) {
-    val c = Divan.colors
-    Column(modifier.clip(RoundedCornerShape(12.dp)).background(c.tile).padding(10.dp)) {
-        Text(n.toString(), style = Divan.type.h3, color = if (gold) c.goldInk else c.textPrimary)
-        Text(label, style = Divan.type.micro, color = c.textMuted)
-    }
 }
 
 /** One company: departments, people (org chart), its open work and ⟨1.4.6⟩ its brand and seal (not the holding's: fixed).
  *  ⟨1.6⟩ §22.1: a department opens with its mandate, identity and the roles its manager wrote ([dept0]); [role0] opens a draft. */
 @Composable
-fun CompanyScreen(code: String, tab0: String = "departments", dept0: String? = null, role0: String? = null) {
+fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null, role0: String? = null) {
     val nav = LocalNav.current
     val c = Divan.colors
+    val d = rememberControlData()
+    val ui = rememberControlUi()
     val co = rememberQuery("company:$code", "companies") { company(code) }
     val depts = rememberQuery("departments:$code", "companies") { departments(code) }
     val chart = rememberQuery("chart:$code", "employees") { orgChart(code) }
@@ -162,9 +144,11 @@ fun CompanyScreen(code: String, tab0: String = "departments", dept0: String? = n
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(x.nameFa ?: x.code, style = Divan.type.h1)
                         Text(buildAnnotatedString { fig(x.nameEn ?: ""); append(" · "); fig(x.code) }, style = Divan.type.caption, color = c.textMuted)
+                        val st = d.state(x.code, x.kind == "holding", x)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (x.killSwitch == "engaged") Pill("متوقف", Tone.NEG, icon = DivanIcon.PAUSE) else Pill("فعال", Tone.POS, dot = true)
-                            x.deployFreezeUntil?.let { Pill("توقف deploy · ${until(it)}", Tone.WARN, icon = DivanIcon.PAUSE) }
+                            // Running or stopped, and the deploys on their own chip when they are closed.
+                            StateChip(st.copy(freeze = null), d.busy(x.code))
+                            st.freeze?.let { Pill("deploy بسته، ${until(it.until)}", Tone.WARN, icon = DivanIcon.LOCK) }
                         }
                     }
                 }
@@ -172,9 +156,14 @@ fun CompanyScreen(code: String, tab0: String = "departments", dept0: String? = n
         }
         item {
             val brand = co.data?.let { it.kind != "holding" } == true
-            Segmented(listOf(SegOption("departments", "دپارتمان‌ها"), SegOption("people", "کارمندها"), SegOption("work", "کارها")) + (if (brand) listOf(SegOption("brand", "نشان و مُهر")) else emptyList()), tab, { tab = it }, Modifier.fillMaxWidth())
+            // ⟨control⟩ the control room first: the owner opens a company to see it and steer it.
+            com.coinepro.hq.designsystem.ScrollRow {
+                (listOf("control" to "اتاق کنترل", "departments" to "دپارتمان‌ها", "people" to "کارمندها", "work" to "کارها") + (if (brand) listOf("brand" to "نشان و مُهر") else emptyList()))
+                    .forEach { (k, l) -> com.coinepro.hq.designsystem.FilterChip(l, tab == k, { tab = k }) }
+            }
         }
         when (tab) {
+            "control" -> if (co.data == null && co.error != null) item(key = "control-error") { ErrorBlock(co.error, { co.refresh() }) } else controlRoom(co.data, d, ui)
             "departments" -> {
                 // ⟨1.5⟩ §21.5: the departments' rank and the latest monthly HR round.
                 item { com.coinepro.hq.ui.people.DepartmentRanks(code) }
@@ -235,6 +224,7 @@ fun CompanyScreen(code: String, tab0: String = "departments", dept0: String? = n
         com.coinepro.hq.ui.v14.HqSheet({ dept = null }, d?.nameFa ?: dc, ref = dc) { com.coinepro.hq.ui.org.DepartmentView(code, dc) { role = it } }
     }
     role?.let { r -> com.coinepro.hq.ui.v14.HqSheet({ role = null }, "نقش تازه", ref = r) { com.coinepro.hq.ui.org.RoleDraftView(r) } }
+    ControlSheets(ui)
 }
 
 @Composable
@@ -297,9 +287,10 @@ fun EmployeeScreen(code: String) {
                     }
                     com.coinepro.hq.ui.owner.EmployeeActions(e) { q.refresh() }
                     e.activityNote?.let { Text("الان: $it", style = Divan.type.small, color = c.textSecondary) }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(Modifier.weight(1f)) { com.coinepro.hq.designsystem.StatTile("نمره", e.score.value?.let { faDecimal(it) } ?: "—", figure = false, sub = e.score.rankInDepartment?.let { "رتبه‌ی $it در دپارتمان" }) }
-                        Box(Modifier.weight(1f)) { com.coinepro.hq.designsystem.StatTile("میانگین امتیاز تو", e.score.ownerAvg?.let { faDecimal(it) } ?: "—", figure = false) }
+                    // Two tiles of one height, their lines on the same baselines.
+                    com.coinepro.hq.designsystem.StatRow {
+                        com.coinepro.hq.designsystem.StatTile("نمره", e.score.value?.let { faDecimal(it) } ?: "—", Modifier.weight(1f), figure = false, sub = e.score.rankInDepartment?.let { "رتبه‌ی $it در دپارتمان" } ?: "—", count = true)
+                        com.coinepro.hq.designsystem.StatTile("میانگین امتیاز تو", e.score.ownerAvg?.let { faDecimal(it) } ?: "—", Modifier.weight(1f), figure = false, sub = "از امتیازهای ۱ تا ۱۰ تو")
                     }
                     HqCard(Modifier.fillMaxWidth()) {
                         Text("مدل", style = Divan.type.caption, color = c.textMuted)
@@ -379,7 +370,8 @@ fun WorkScreen(id: String) {
                         SectionTitle("بودجه")
                         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             Column { Text("توکن", style = Divan.type.micro, color = c.textMuted); Fig("${tokens(w.budget.tokensUsed)} / ${tokens(w.budget.tokens)}") }
-                            Column { Text("دلار معادل", style = Divan.type.micro, color = c.textMuted); Fig("${usd(w.budget.usdUsed)} / ${usd(w.budget.usd)}") }
+                            // No dollar ceiling: the spend alone, said in words (not "/ —").
+                            Column { Text(if (w.budget.usd == null) "دلار معادل (بی‌سقف)" else "دلار معادل", style = Divan.type.micro, color = c.textMuted); Fig(if (w.budget.usd == null) usd(w.budget.usdUsed) else "${usd(w.budget.usdUsed)} / ${usd(w.budget.usd)}") }
                         }
                         w.budget.tokens?.let { lim -> MeterBar(w.budget.tokensUsed * 100.0 / lim.coerceAtLeast(1), Modifier.padding(top = 10.dp), tone = com.coinepro.hq.designsystem.budgetTone(w.budget.tokensUsed * 100.0 / lim.coerceAtLeast(1))) }
                     }

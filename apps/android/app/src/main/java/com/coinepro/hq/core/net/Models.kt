@@ -601,6 +601,19 @@ data class AuditEntry(
     val target: Map<String, String?> = emptyMap(),
 )
 
+/** What the system records about the owner (§1.8, `GET /owner/interactions`): a control action keeps its `data`
+ *  (`{state, reason}` for a kill switch, `{until, reason}` for a deploy freeze). */
+@Serializable
+data class Interaction(
+    val id: String,
+    val at: String,
+    val company: String,
+    val kind: String,
+    val action: String,
+    val target: Map<String, String?> = emptyMap(),
+    val data: JsonObject? = null,
+)
+
 @Serializable
 data class AuditVerify(val ok: Boolean, val checked: Long = 0, val firstBadSeq: Long? = null, val anchor: String = "none", val verifiedAt: String)
 

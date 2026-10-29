@@ -172,7 +172,12 @@ fun BoxScope.ToastHost(toasts: Toasts, modifier: Modifier = Modifier) {
             LaunchedEffect(t.id) { delay(if (t.tone == ToastTone.ERROR) 5_000 else 3_200); toasts.dismiss(t.id) }
             var shown by remember(t.id) { mutableStateOf(false) }
             LaunchedEffect(t.id) { shown = true }
-            AnimatedVisibility(shown, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
+            val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
+            AnimatedVisibility(
+                shown,
+                enter = if (reduced) androidx.compose.animation.EnterTransition.None else fadeIn(com.coinepro.hq.designsystem.Motion.emphasised()) + slideInVertically(com.coinepro.hq.designsystem.Motion.emphasised()) { it / 2 },
+                exit = if (reduced) androidx.compose.animation.ExitTransition.None else fadeOut(com.coinepro.hq.designsystem.Motion.exit()) + slideOutVertically(com.coinepro.hq.designsystem.Motion.exit()) { it / 2 },
+            ) {
                 val (icon, tint) = when (t.tone) {
                     ToastTone.OK -> DivanIcon.SEAL to c.positive
                     ToastTone.INFO -> DivanIcon.INFO to c.lapis
@@ -218,3 +223,14 @@ class Refresher(private val all: List<QueryHandle<*>>) {
 
 @Composable
 fun refresher(vararg q: QueryHandle<*>): Refresher = Refresher(q.toList())
+
+/** A list item that fades in when it arrives, slides to its new place when the list reorders, and fades out when it leaves
+ *  (Divan motion: medium in, short out); nothing moves when animations are removed. */
+@Composable
+fun androidx.compose.foundation.lazy.LazyItemScope.itemMotion(): Modifier =
+    if (com.coinepro.hq.designsystem.LocalReducedMotion.current) Modifier
+    else Modifier.animateItem(
+        fadeInSpec = androidx.compose.animation.core.tween(com.coinepro.hq.designsystem.Motion.MEDIUM, easing = com.coinepro.hq.designsystem.Motion.Standard),
+        placementSpec = androidx.compose.animation.core.tween(com.coinepro.hq.designsystem.Motion.MEDIUM, easing = com.coinepro.hq.designsystem.Motion.Standard),
+        fadeOutSpec = androidx.compose.animation.core.tween(com.coinepro.hq.designsystem.Motion.SHORT, easing = com.coinepro.hq.designsystem.Motion.Exit),
+    )

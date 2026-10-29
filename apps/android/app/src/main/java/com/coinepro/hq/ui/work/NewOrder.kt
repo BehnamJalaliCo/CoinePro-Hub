@@ -42,14 +42,14 @@ import com.coinepro.hq.ui.rememberCompanies
  *  carries an RRULE in the owner's zone. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewOrderSheet(onDismiss: () -> Unit) {
+fun NewOrderSheet(onDismiss: () -> Unit, company0: String? = null) {
     val env = LocalEnv.current
     val nav = LocalNav.current
     val toasts = LocalToasts.current
     val c = Divan.colors
     val companies = rememberCompanies()
     val action = rememberAction()
-    var company by rememberSaveable { mutableStateOf<String?>(null) }
+    var company by rememberSaveable { mutableStateOf(company0) }
     var title by rememberSaveable { mutableStateOf("") }
     var brief by rememberSaveable { mutableStateOf("") }
     var priority by rememberSaveable { mutableStateOf("P3") }

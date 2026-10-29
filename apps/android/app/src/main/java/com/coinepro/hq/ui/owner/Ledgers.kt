@@ -1,5 +1,7 @@
 package com.coinepro.hq.ui.owner
 
+import androidx.compose.foundation.layout.Box
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -97,7 +99,7 @@ fun ResolutionsScreen() {
             items == null && q.error != null -> item { ErrorBlock(q.error, { q.refresh() }) }
             items == null -> items(3) { Skeleton(Modifier.fillMaxWidth().height(96.dp), radius = 14.dp) }
             items.isEmpty() -> item { Empty(if (query.isNotEmpty()) "مصوبه‌ای با این عبارت نیست" else "هنوز مصوبه‌ای نیست", icon = DivanIcon.SEAL, body = "با مُهر هر تصمیم، مصوبه‌اش اینجا ثبت میشود. از هر پیام هم میتوانی مصوبه ثبت کنی.") }
-            else -> items(items, key = { it.ref }) { res ->
+            else -> items(items, key = { it.ref }) { res -> Box(itemMotion()) {
                 HqCard(Modifier.fillMaxWidth().clickable { open = res }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Fig(res.ref, style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
@@ -108,7 +110,7 @@ fun ResolutionsScreen() {
                     Text(res.title, style = Divan.type.body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 6.dp))
                     Text(res.body, style = Divan.type.small, color = c.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-            }
+            }}
         }
     }
     open?.let { res ->
@@ -158,7 +160,7 @@ fun NotificationMatrixCard() {
             draft == null && q.error != null -> ErrorBlock(q.error, { q.refresh() })
             draft == null -> Skeleton(Modifier.fillMaxWidth().height(200.dp))
             else -> Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.coinepro.hq.designsystem.ScrollRow {
                     FilterChip("همه‌ی شرکت‌ها", scope == "*", { scope = "*" })
                     companies.forEach { co -> FilterChip(co.nameFa ?: co.code, scope == co.code, { scope = co.code }) }
                 }

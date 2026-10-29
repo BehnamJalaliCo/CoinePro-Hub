@@ -52,6 +52,9 @@ object Demo {
         absent = emptySet()
         return DemoInterceptor(requireNotNull(appContext) { "Demo.init not called" })
     }
+
+    /** The demo stream's events for this tick (about every 600 ms): what the owner's actions caused, and the script's next beat. */
+    fun next(tick: Int): List<com.coinepro.hq.core.net.StreamEvent> = DemoLive.next(tick)
 }
 
 private class DemoInterceptor(private val context: Context) : Interceptor {
@@ -94,6 +97,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         tick18()
         // ⟨1.7.3⟩ §5.2: outputs seen, filed and filtered.
         outputs.handle(req.method, path, query, body)?.let { return respond(req, it) }
+        // §9: kill switches and deploy freezes, their history and the owner's reasons.
+        control.handle(req.method, path, query, body, req.header("X-Step-Up"))?.let { return respond(req, it) }
         // ⟨1.7⟩ §23: the archive, and the step-up and staleness check on approving its two cards.
         archive.handle(req, path, raw, query)?.let { return it }
         if (req.method == "GET") {
@@ -204,17 +209,6 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             edit("/inbox/summary") { it + ("khalvat" to p.jsonObject["khalvat"]!!) }
             return 200 to p
         }
-        if (path == "/control/kill-switch") {
-            val scope = body?.str("scope")
-            val change = mapOf(
-                "state" to (body?.get("state") ?: JsonPrimitive("released")), "reason" to (body?.get("reason") ?: JsonNull),
-                "changed_at" to JsonPrimitive(HqClock.now().toString()), "changed_by" to JsonPrimitive("owner"),
-            )
-            return 200 to edit("/control/state") { c ->
-                if (scope == "holding") c + ("holding" to JsonObject(c["holding"]!!.jsonObject + change))
-                else c + ("companies" to JsonArray(c["companies"]!!.jsonArray.map { k -> if (k.jsonObject.str("scope") == scope) JsonObject(k.jsonObject + change) else k }))
-            }
-        }
         if (path == "/work") {
             return 201 to JsonObject(store["/work/w0"]!!.second.jsonObject + mapOf(
                 "id" to JsonPrimitive("w-new"), "ref" to JsonPrimitive("W-000130"), "title" to (body?.get("title") ?: JsonPrimitive("")),
@@ -239,6 +233,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val files = mutableMapOf<String, JsonObject>()
     private val archive by lazy { ArchiveDemo(context, store, files) }
     private val outputs by lazy { OutputsDemo(store) }
+    /** Eager: the holding's mixed states are there from the first read. */
+    private val control = ControlDemo(store)
     private val scripts = mutableMapOf<String, MutableList<JsonObject>>().apply {
         for ((k, v) in store) if (k.startsWith("#script:")) put(k.removePrefix("#script:"), v.second.jsonObject["items"]!!.jsonArray.map { it.jsonObject }.toMutableList())
     }
@@ -870,16 +866,6 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
                 val v = cur["version"]!!.jsonPrimitive.content.toInt()
                 if (version != v) return conflict()
                 return 200 to edit("/notification-settings") { mapOf("matrix" to (body?.get("matrix") ?: JsonObject(emptyMap())), "version" to JsonPrimitive(v + 1)) }
-            }
-            method == "POST" && path == "/control/deploy-freeze" -> {
-                val co = body?.str("company") ?: return 422 to problem("validation_failed", "شرکت لازم است.")
-                val until = body.str("until")!!
-                val active = Instant.parse(until).isAfter(HqClock.now())
-                edit("/control/state") { c ->
-                    val rest = c["deploy_freezes"]!!.jsonArray.filter { it.jsonObject.str("company") != co }
-                    c + ("deploy_freezes" to JsonArray(if (active) rest + buildJsonObject { put("company", co); put("until", until); put("reason", body["reason"] ?: JsonPrimitive("")); put("created_by", "owner") } else rest))
-                }
-                return 200 to buildJsonObject { put("company", co); put("active", active); put("until", until) }
             }
             method == "PUT" && path == "/budgets" -> {
                 val rows = body?.get("budgets")?.jsonArray.orEmpty().map { it.jsonObject }

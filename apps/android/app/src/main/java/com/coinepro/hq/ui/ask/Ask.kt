@@ -119,7 +119,7 @@ fun AskAnswer(a: Ask) {
             Text(ago(a.createdAt), style = Divan.type.micro, color = c.textMuted)
             a.scope?.companies?.forEach { CoMark(it, height = 10.dp, ink = c.textMuted) }
             if (a.state == "done") Text(buildAnnotatedString {
-                append(if (a.found > 0) "${a.found} قطعه · " else "چیزی پیدا نشد · ")
+                append(if (a.found > 0) "${a.found} قطعه، " else "چیزی پیدا نشد، ")
                 fig("${tokens(a.usage.tokens)} · ${usd(a.usage.usd, 3)}")
             }, style = Divan.type.micro, color = c.textMuted)
         }

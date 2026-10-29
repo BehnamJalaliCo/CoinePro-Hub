@@ -171,6 +171,21 @@ Every library is free and open source and pinned to an exact version (`gradle/li
   The gold button in the middle of the bottom bar speaks an order (a long press types one); the advisor is first in the tools sheet.
 - **«خطاخوان»** (Settings, and the tools sheet) — the last 300 failed calls, contract mismatches (with the JSON field the decoder
   stopped at) and crashes, on the phone only, ids masked and no bodies; copied or shared as a plain-text report.
+- **Company control** (contract §9) — every company card in «شرکت‌ها» (and «کنترل») shows its state at a glance: running, stopped
+  (its own switch or the holding's) or deploys closed, a chip with its icon and a coloured edge; its mark in a ring where a gold comet
+  orbits while its agents work (`GET /runs?state=running` and the stream's `run.*` and `activity.changed`); today's spend
+  (`/treasury/breakdown?by=company` for today), open work, cards waiting and active staff. Stop or resume, close or open deploys on the
+  card; a long press (or ⋯) adds the cartable filtered to the company, an order to its CEO, a message and the control room. The holding's
+  card on top carries the switch that stops everything. Stopping asks no passkey (a reason, or one tap «فوری»); resuming is sealed
+  (`kill_switch.release` on `holding` or `company:<CODE>`), opening deploys too (`deploy_freeze.lift` on `company:<CODE>`); the
+  confirmation says exactly what happens. Every action shows at once and rolls back if the hub refuses. A company's page opens on its
+  **control room**: the state and the switches, their history (audit rows, with the owner's reasons from `/owner/interactions`), the
+  month's budget as a gauge with a quick edit (`PUT /budgets`, `budgets.update` on the body), the live activity of its agents, hiring
+  and its envelope, and its sites' health.
+- **Motion** — `designsystem/Motion.kt`: three durations (120, 220, 400 ms) and the standard and emphasised curves for everything that
+  moves (screens pushed and popped, list items arriving and reordering, press feedback, expand and collapse, counters, meters, the
+  breathing glow of the gold button while it listens, the shimmer of what is loading); loops run in the draw phase only. With the phone's
+  «remove animations» every state is instant and every loop still.
 
 ## Layout
 
@@ -178,9 +193,9 @@ Every library is free and open source and pinned to an exact version (`gradle/li
 app/src/main/java/com/coinepro/hq/
   core/net/        Api (contract v1.7; every 🔏 write names its step-up action and target), Models, Models14 … Models20
   core/auth/       Auth (sign-in, enrolment, step-up), Passkeys, TokenVault
-  core/data/       QueryCache (shared cached queries), HoldingStream (SSE)
+  core/data/       QueryCache (shared cached queries), HoldingStream (SSE), LiveActivity (who works now), Control (switches, optimistic)
   core/format/     Jalali dates, figures, Persian labels
-  designsystem/    Theme, icons and marks, components, seal, avatar and orb, charts, Markdown subset
+  designsystem/    Theme, motion and spacing, icons and marks, components, seal, avatar and orb, charts, Markdown subset
   designsystem/generated/   made by scripts/gen_assets.py from design/ — never edited by hand
   ui/              screens
 app/src/debug/     the demo holding (fixtures shared with the web); not in release builds

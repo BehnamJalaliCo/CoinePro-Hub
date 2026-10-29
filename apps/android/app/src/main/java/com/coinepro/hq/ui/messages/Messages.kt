@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.messages
 
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -120,7 +121,7 @@ fun ThreadsScreen() {
                 found == null && hits.error != null -> item { ErrorBlock(hits.error, { hits.refresh() }) }
                 found == null -> items(3) { Skeleton(Modifier.fillMaxWidth().height(64.dp)) }
                 found.isEmpty() -> item { Text("در پیام‌ها پیدا نشد.", style = Divan.type.caption, color = c.textMuted) }
-                else -> items(found, key = { it.id }) { h ->
+                else -> items(found, key = { it.id }) { h -> Box(itemMotion()) {
                     Column(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.card).clickable(role = Role.Button) {
                             val t = list?.firstOrNull { it.code == h.thread }
@@ -135,7 +136,7 @@ fun ThreadsScreen() {
                             Text(com.coinepro.hq.core.format.jDate(h.createdAt), style = Divan.type.micro, color = c.textMuted)
                         }
                     }
-                }
+                }}
             }
             return@Page
         }
@@ -349,7 +350,7 @@ fun ChatScreen(
                 q.data == null && q.error == null -> items(3) { i -> Skeleton(Modifier.fillMaxWidth(if (i % 2 == 0) 0.75f else 0.6f).height(72.dp), radius = 16.dp) }
                 q.data == null -> item { ErrorBlock(q.error, { q.refresh() }) }
                 items.isEmpty() && live.state == LiveState.IDLE -> item { Empty("گفت‌وگو هنوز شروع نشده", icon = DivanIcon.MESSAGES, body = "هر پیام شناسه‌ی ثابت دارد و برای همیشه میماند؛ بعداً میتوانی به آن استناد کنی.") }
-                else -> items(items, key = { it.id }) { m -> Bubble(m, agentKind) { resolve = it } }
+                else -> items(items, key = { it.id }) { m -> Box(itemMotion()) { Bubble(m, agentKind) { resolve = it } }}
             }
             if (live.state != LiveState.IDLE) item {
                 Row {

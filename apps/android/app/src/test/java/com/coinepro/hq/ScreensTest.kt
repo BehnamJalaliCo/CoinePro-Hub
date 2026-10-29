@@ -109,8 +109,42 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             },
             "chat-media" to { _ -> ChatScreen("FX-CEO") },
             "threads" to { _ -> ThreadsScreen() },
-            "companies" to { _ -> CompaniesScreen() },
-            "company" to { _ -> CompanyScreen("FX") },
+            // Company control: the companies in mixed states (Pro-Chart stopped by its CEO, CoinePro FX's deploys closed, the holding and FX
+            // at work, TradeYar's run just started on the live stream), the same list further down, a company's control room (FX: running
+            // with its deploys closed; the history, the month's budget gauge; further down its live activity, hiring and sites) and a stopped
+            // one (PC, who stopped it and why), the stop confirmation sheet, a company's actions (the long press), the holding's card with
+            // its switch engaged and running.
+            "companies" to { g -> Live(g) { CompaniesScreen() } },
+            "companies-list" to { g -> Live(g) { CompaniesScreen() } },
+            "company-control" to { g -> Live(g) { CompanyScreen("FX") } },
+            "company-control-live" to { g -> Live(g) { CompanyScreen("FX") } },
+            "company-control-stopped" to { _ -> CompanyScreen("PC") },
+            "company-control-holding" to { g -> Live(g) { CompanyScreen("HQ") } },
+            "stop-sheet" to { _ ->
+                Sheetlike {
+                    SheetTitle("توقف کوینه‌پرو FX")
+                    com.coinepro.hq.ui.companies.StopContent(com.coinepro.hq.ui.companies.CoTarget("FX", "کوینه‌پرو FX", false), busy = false, onStop = {}, onCancel = {})
+                }
+            },
+            "resume-sheet" to { _ ->
+                Sheetlike {
+                    val control = com.coinepro.hq.ui.rememberQuery("control", "control") { control() }
+                    SheetTitle("ادامه‌ی کار پرو-چارت")
+                    control.data?.let { com.coinepro.hq.ui.companies.ResumeContent(com.coinepro.hq.ui.companies.CoTarget("PC", "پرو-چارت", false), com.coinepro.hq.core.data.coState("PC", false, it), busy = false, onResume = {}, onCancel = {}) }
+                }
+            },
+            "company-actions" to { _ ->
+                Sheetlike {
+                    val control = com.coinepro.hq.ui.rememberQuery("control", "control") { control() }
+                    val ui = com.coinepro.hq.ui.companies.rememberControlUi()
+                    SheetTitle("کوینه‌پرو FX")
+                    control.data?.let { com.coinepro.hq.ui.companies.ActionsContent(com.coinepro.hq.ui.companies.CoTarget("FX", "کوینه‌پرو FX", false), com.coinepro.hq.core.data.coState("FX", false, it), ui) {} }
+                }
+            },
+            "holding-card" to { _ -> Cardlike { HoldingCards() } },
+            // The tools sheet: its groups on cards, each row with its icon tile (and the outputs' and the error log's counts).
+            "tools-sheet" to { _ -> Box(Modifier.fillMaxSize().background(Divan.colors.overlay).padding(top = 16.dp)) { com.coinepro.hq.ui.shell.ToolsSheet(outputs = 6, errors = 2) {} } },
+            "company" to { _ -> CompanyScreen("FX", tab0 = "departments") },
             "employee" to { _ -> EmployeeScreen("TY-GROWTH-01") },
             "work" to { _ -> WorkScreen("w0") },
             "treasury" to { _ -> TreasuryScreen() },
@@ -232,7 +266,7 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "seats" to { _ -> Sheetlike { WithSub("gemini") { com.coinepro.hq.ui.substitutes.SeatsEditor(it) } } },
             "digital-ceo" to { _ -> com.coinepro.hq.ui.dceo.DigitalCeoScreen() },
             "digital-ceo-principles" to { _ -> com.coinepro.hq.ui.dceo.DigitalCeoScreen() },
-            "company-people" to { _ -> CompanyScreen("TY") },
+            "company-people" to { _ -> CompanyScreen("TY", tab0 = "departments") },
             "hr-round" to { _ -> Sheetlike { WithRound("TY") { com.coinepro.hq.ui.people.HrRoundView(it) } } },
             "treasury-waste" to { _ -> Cardlike { com.coinepro.hq.ui.treasury.WasteCard() } },
             "treasury-roi" to { _ -> Cardlike { com.coinepro.hq.ui.treasury.RoiCard() } },
@@ -335,6 +369,33 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "decision-archive-disposal" to { _ -> DecisionScreen("D-000093") },
             "legal-case-holds" to { _ -> Cardlike { com.coinepro.hq.ui.archive.CaseHolds("LC-0001") } },
         )
+
+        /** The demo's live stream running under [content]: its first beat (a run starting) lands at once. */
+        @Composable
+        private fun Live(g: AppGraph, content: @Composable () -> Unit) {
+            androidx.compose.runtime.remember { g.env.value.stream.start() }
+            content()
+        }
+
+        /** A sheet's title as [com.coinepro.hq.ui.v14.HqSheet] sets it. */
+        @Composable
+        private fun SheetTitle(text: String) {
+            androidx.compose.material3.Text(text, style = Divan.type.h2, modifier = Modifier.padding(bottom = 14.dp))
+        }
+
+        /** The holding's card with its switch engaged (everything stopped), then as it is (running). */
+        @Composable
+        private fun HoldingCards() {
+            val q = com.coinepro.hq.ui.rememberQuery("companies", "companies") { companies() }
+            val base = com.coinepro.hq.ui.companies.rememberControlData()
+            val ui = com.coinepro.hq.ui.companies.rememberControlUi()
+            val list = q.data ?: return
+            val ctl = base.control ?: return
+            val holding = list.first { it.kind == "holding" }
+            val engaged = ctl.copy(holding = ctl.holding.copy(state = "engaged", reason = "رفتار غیرعادی در چند شرکت؛ تا بررسی همه بایستند.", changedAt = "2026-10-17T08:12:00Z", changedBy = "owner"))
+            com.coinepro.hq.ui.companies.HoldingControlCard(holding, list, com.coinepro.hq.ui.companies.ControlData(engaged, base.running, base.spend, base.pulses), ui) {}
+            com.coinepro.hq.ui.companies.HoldingControlCard(holding, list, base, ui) {}
+        }
 
         /** The error log as a real session fills it: what the owner reported, with the fields the report names. */
         private fun sampleErrors(g: AppGraph) {
@@ -473,6 +534,9 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             // party's card above its records; a record's files, its links and seal, retention and the access log (after the header and
             // the metadata), the held record's holds and the sealed one's seal.
             "archive-list" to 4, "archive-search" to 4, "archive-party" to 5,
+            // Company control: the list from CoinePro FX on (header, holding, TradeYar, FX); the control room's live activity (header, tabs,
+            // state, history, budget, live).
+            "companies-list" to 3, "company-control-live" to 5,
             "archive-record-files" to 2, "archive-record-links" to 3, "archive-record-access" to 5, "archive-record-held" to 5, "archive-record-seal" to 4,
         )
 

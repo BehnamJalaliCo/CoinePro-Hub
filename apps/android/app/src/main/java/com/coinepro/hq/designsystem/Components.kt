@@ -10,6 +10,16 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -133,11 +143,12 @@ fun HqButton(
         BtnVariant.DANGER -> Triple(if (pressed) c.softNegative else Color.Transparent, if (!enabled) c.disabledText else c.negative, if (!enabled) c.lineDivider else c.negative.copy(alpha = 0.45f))
         BtnVariant.GHOST -> Triple(if (pressed) c.pressed else Color.Transparent, if (!enabled) c.disabledText else c.textSecondary, null)
     }
-    val bgA by animateColorAsState(bg, tween(120), label = "btn")
+    val bgA by animateColorAsState(bg, motionShort(), label = "btn")
     val shape = RoundedCornerShape(size.radius)
     Row(
         modifier
             .heightIn(min = size.height)
+            .pressScale(src)
             .clip(shape)
             .background(bgA)
             .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier)
@@ -168,11 +179,13 @@ fun HqButton(
 @Composable
 fun IconBtn(icon: DivanIcon, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, active: Boolean = false, badge: Int = 0, tint: Color? = null, flip: Boolean = false) {
     val c = Divan.colors
+    val src = remember { MutableInteractionSource() }
     Box(
         modifier
             .size(44.dp)
+            .pressScale(src, 0.92f)
             .clip(CircleShape)
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .clickable(src, androidx.compose.material3.ripple(bounded = true), role = Role.Button, onClickLabel = label, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
@@ -193,23 +206,41 @@ fun Badge(n: Int, modifier: Modifier = Modifier) {
 }
 
 // ------------------------------------------------------------------ card --
+/** A card (D1): one radius, no shadow, no border unless it is the gold «tahrir» line of the one thing that matters most on the page.
+ *  A card that opens something sinks a little under the finger; [onLongClick] opens its actions. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HqCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     tahrir: Boolean = false,
     color: Color = Divan.colors.card,
-    padding: PaddingValues = PaddingValues(16.dp),
-    radius: Dp = 16.dp,
+    padding: PaddingValues = PaddingValues(Space.md),
+    radius: Dp = Radius.card,
+    onLongClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
+    onLongClickLabel: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(radius)
+    val src = remember { MutableInteractionSource() }
+    val haptics = rememberHaptics()
     Column(
         modifier
+            .then(if (onClick != null || onLongClick != null) Modifier.pressScale(src, 0.985f) else Modifier)
             .clip(shape)
             .background(color)
             .then(if (tahrir) Modifier.border(1.dp, Divan.colors.lineTahrir, shape) else Modifier)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .then(
+                when {
+                    onLongClick != null -> Modifier.combinedClickable(
+                        src, androidx.compose.material3.ripple(), role = Role.Button, onClickLabel = onClickLabel, onLongClickLabel = onLongClickLabel,
+                        onLongClick = { haptics.firm(); onLongClick() }, onClick = { onClick?.invoke() },
+                    )
+                    onClick != null -> Modifier.clickable(src, androidx.compose.material3.ripple(), role = Role.Button, onClickLabel = onClickLabel, onClick = onClick)
+                    else -> Modifier
+                },
+            )
             .padding(padding),
         content = content,
     )
@@ -230,13 +261,11 @@ fun Pill(text: String, tone: Tone = Tone.NEUTRAL, modifier: Modifier = Modifier,
     }
 }
 
+/** A status dot; [live] breathes it (in the layer, so the loop never recomposes) — still when animations are removed. */
 @Composable
 fun LiveDot(color: Color, live: Boolean = true, size: Dp = 6.dp) {
-    val a = if (live) {
-        val t = rememberInfiniteTransition(label = "live")
-        t.animateFloat(1f, 0.35f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "live").value
-    } else 1f
-    Box(Modifier.size(size).clip(CircleShape).background(color.copy(alpha = color.alpha * a)))
+    val b = rememberBreath(live, periodMs = 1600)
+    Box(Modifier.size(size).graphicsLayer { alpha = 1f - 0.6f * b.value }.clip(CircleShape).background(color))
 }
 
 // ---------------------------------------------------------------- chips --
@@ -244,12 +273,14 @@ fun LiveDot(color: Color, live: Boolean = true, size: Dp = 6.dp) {
 fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, count: Int? = null) {
     val c = Divan.colors
     val shape = CircleShape
+    val bg by animateColorAsState(if (selected) c.softGold else Color.Transparent, motionShort(), label = "chip")
+    val line by animateColorAsState(if (selected) c.lineTahrir else c.lineStrong, motionShort(), label = "chip-line")
     Row(
         modifier
             .height(32.dp)
             .clip(shape)
-            .background(if (selected) c.softGold else Color.Transparent)
-            .border(1.dp, if (selected) c.lineTahrir else c.lineStrong, shape)
+            .background(bg)
+            .border(1.dp, line, shape)
             .selectable(selected, role = Role.Tab, onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -265,15 +296,16 @@ data class SegOption<T>(val value: T, val label: String, val icon: DivanIcon? = 
 @Composable
 fun <T> Segmented(options: List<SegOption<T>>, value: T, onChange: (T) -> Unit, modifier: Modifier = Modifier) {
     val c = Divan.colors
-    Row(modifier.clip(RoundedCornerShape(10.dp)).background(c.tile).padding(4.dp).selectableGroup()) {
+    Row(modifier.clip(RoundedCornerShape(Radius.control)).background(c.tile).padding(4.dp).selectableGroup()) {
         for (o in options) {
             val on = o.value == value
+            val bg by animateColorAsState(if (on) c.raised else c.raised.copy(alpha = 0f), motionMedium(), label = "seg")
             Row(
                 Modifier
                     .weight(1f)
                     .height(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (on) c.raised else Color.Transparent)
+                    .clip(RoundedCornerShape(Radius.small))
+                    .background(bg)
                     .selectable(on, role = Role.RadioButton, onClick = { onChange(o.value) }),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -291,22 +323,25 @@ fun <T> Segmented(options: List<SegOption<T>>, value: T, onChange: (T) -> Unit, 
 @Composable
 fun HqSwitch(checked: Boolean, onChange: (Boolean) -> Unit, label: String, enabled: Boolean = true) {
     val c = Divan.colors
-    val x by animateFloatAsState(if (checked) 1f else 0f, tween(200), label = "switch")
+    val x = animateFloatAsState(if (checked) 1f else 0f, motionMedium(), label = "switch")
+    val track by animateColorAsState(if (!enabled) c.disabledFill else if (checked) c.goldFill else c.tile, motionMedium(), label = "switch-track")
     Box(
         Modifier
             .size(width = 44.dp, height = 26.dp)
             .clip(CircleShape)
-            .background(if (!enabled) c.disabledFill else if (checked) c.goldFill else c.tile)
+            .background(track)
             .then(if (!checked && enabled) Modifier.border(1.5.dp, c.lineStrong, CircleShape) else Modifier)
             .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
             .semantics { contentDescription = label }
             .padding(3.dp),
     ) {
         val d = if (checked) 20.dp else 16.dp
+        val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == LayoutDirection.Rtl
         Box(
             Modifier
                 .align(Alignment.CenterStart)
-                .offset(x = 2.dp + 16.dp * x)
+                .offset(x = 2.dp)
+                .graphicsLayer { translationX = (if (rtl) -1 else 1) * 16.dp.toPx() * x.value }
                 .size(d)
                 .clip(CircleShape)
                 .background(if (!enabled) c.disabledText else if (checked) c.onGold else c.textSecondary),
@@ -357,23 +392,50 @@ fun barColor(t: BarTone): Color = with(Divan.colors) {
     when (t) { BarTone.SILVER -> silverInk; BarTone.GOLD -> goldFill; BarTone.WARN -> warning; BarTone.NEG -> negative; BarTone.POS -> positive }
 }
 
+/** A meter: it fills to its value when it appears and when the value changes; the fill is drawn, so it never re-lays out. */
 @Composable
 fun MeterBar(pct: Double, modifier: Modifier = Modifier, tone: BarTone = BarTone.SILVER, height: Dp = 6.dp, color: Color? = null) {
-    val v by animateFloatAsState((pct / 100.0).coerceIn(0.0, 1.0).toFloat(), tween(300), label = "bar")
-    Box(modifier.fillMaxWidth().height(height).clip(CircleShape).background(Divan.colors.tile)) {
-        Box(Modifier.fillMaxWidth(v).height(height).clip(CircleShape).background(color ?: barColor(tone)))
-    }
+    val target = (pct / 100.0).coerceIn(0.0, 1.0).toFloat()
+    val reduced = LocalReducedMotion.current
+    val v = remember { androidx.compose.animation.core.Animatable(if (reduced) target else 0f) }
+    androidx.compose.runtime.LaunchedEffect(target, reduced) { v.animateTo(target, Motion.emphasised(reduced)) }
+    val track = Divan.colors.tile
+    val fill = color ?: barColor(tone)
+    Box(
+        modifier.fillMaxWidth().height(height).drawBehind {
+            val r = CornerRadius(size.height / 2)
+            drawRoundRect(track, cornerRadius = r)
+            val w = (size.width * v.value).let { if (it > 0f) it.coerceIn(minOf(size.height, size.width), size.width) else 0f }
+            if (w > 0f) drawRoundRect(fill, Offset(if (layoutDirection == LayoutDirection.Rtl) size.width - w else 0f, 0f), Size(w, size.height), r)
+        },
+    )
 }
 
+/** A placeholder the size of what is coming, with a soft shimmer that runs in the reading direction. The shimmer is drawn from one
+ *  clock shared by the frame (not composed), and stands still when animations are removed. */
 @Composable
-fun Skeleton(modifier: Modifier = Modifier, radius: Dp = 8.dp) {
+fun Skeleton(modifier: Modifier = Modifier, radius: Dp = Radius.small) {
     val c = Divan.colors
-    val t = rememberInfiniteTransition(label = "skeleton")
-    val x by t.animateFloat(-1f, 2f, infiniteRepeatable(tween(1400)), label = "skeleton")
+    val reduced = LocalReducedMotion.current
+    val x = if (reduced) remember { androidx.compose.runtime.mutableStateOf(0.5f) }
+    else rememberInfiniteTransition(label = "skeleton").animateFloat(0f, 1f, infiniteRepeatable(tween(Motion.SHIMMER, easing = androidx.compose.animation.core.LinearEasing)), label = "skeleton")
+    val base = c.skeleton
+    val hi = c.skeletonHi
     Box(
         modifier
             .clip(RoundedCornerShape(radius))
-            .background(Brush.linearGradient(listOf(c.skeleton, c.skeletonHi, c.skeleton), start = androidx.compose.ui.geometry.Offset(x * 600f, 0f), end = androidx.compose.ui.geometry.Offset(x * 600f + 600f, 0f))),
+            .drawWithCache {
+                val band = 260.dp.toPx()
+                val rtl = layoutDirection == LayoutDirection.Rtl
+                onDrawBehind {
+                    drawRect(base)
+                    if (!reduced) {
+                        val span = size.width + 2 * band
+                        val p = (if (rtl) 1f - x.value else x.value) * span - band
+                        drawRect(Brush.horizontalGradient(listOf(base, hi, base), startX = p, endX = p + band))
+                    }
+                }
+            },
     )
 }
 
@@ -402,16 +464,16 @@ fun ErrorBlock(error: ApiException?, onRetry: (() -> Unit)?, modifier: Modifier 
 }
 
 @Composable
-fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null, tone: Tone? = null, figure: Boolean = true, subRich: AnnotatedString? = null, onClick: (() -> Unit)? = null, subLines: Int = 1) {
+fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null, tone: Tone? = null, figure: Boolean = true, subRich: AnnotatedString? = null, onClick: (() -> Unit)? = null, subLines: Int = 1, count: Boolean = false) {
     val c = Divan.colors
     // Label, figure and note sit on the same lines in every tile of a row: one label line, one 32sp figure line, and the note
     // starting on the same baseline (the tile fills the row's height when the row is a [StatRow]).
-    HqCard(if (LocalStatFill.current) modifier.fillMaxHeight() else modifier, radius = 14.dp, onClick = onClick) {
+    HqCard(if (LocalStatFill.current) modifier.fillMaxHeight() else modifier, onClick = onClick) {
         Text(label, style = Divan.type.caption, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(4.dp))
         val col = when (tone) { Tone.NEG -> c.negative; Tone.WARN -> c.warning; Tone.POS -> c.positive; else -> c.textPrimary }
         val big = (if (figure) Divan.type.figureL else Divan.type.h2).copy(fontSize = 24.sp, lineHeight = 32.sp)
-        Text(value, style = big, color = col, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (count) CountingText(value, big, color = col) else Text(value, style = big, color = col, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (subRich != null) Text(subRich, style = Divan.type.caption, color = c.textMuted, maxLines = 2, minLines = subLines, overflow = TextOverflow.Ellipsis)
         else if (sub != null) Text(sub, style = Divan.type.caption, color = c.textMuted, maxLines = 2, minLines = subLines, overflow = TextOverflow.Ellipsis)
     }
@@ -428,11 +490,14 @@ fun StatRow(modifier: Modifier = Modifier, gap: Dp = 12.dp, content: @Composable
 /** Inside a [StatRow] a tile fills the row's height. */
 internal val LocalStatFill = androidx.compose.runtime.staticCompositionLocalOf { false }
 
+/** A section header, the same everywhere: the title (h3), an optional one-line note under it in muted ink, and an action at the
+ *  end aligned with the title's line. */
 @Composable
-fun SectionTitle(title: String, modifier: Modifier = Modifier, note: String? = null, action: (@Composable RowScope.() -> Unit)? = null) {
+fun SectionTitle(title: String, modifier: Modifier = Modifier, note: String? = null, icon: DivanIcon? = null, action: (@Composable RowScope.() -> Unit)? = null) {
     val c = Divan.colors
-    Row(modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Bottom) {
-        Column(Modifier.weight(1f)) {
+    Row(modifier.fillMaxWidth().padding(top = Space.xxs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+        if (icon != null) DIcon(icon, size = 20.dp, tint = c.textSecondary)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = Divan.type.h3, modifier = Modifier.semantics { heading() })
             if (note != null) Text(note, style = Divan.type.caption, color = c.textMuted)
         }
@@ -490,5 +555,37 @@ fun HqTextField(
                 inner()
             }
         },
+    )
+}
+
+// ------------------------------------------------------------ scrolling --
+/** A soft fade on the side of a sideways scroller that has more to show (the start side once it has scrolled, the end side while
+ *  there is more), so a chip cut by the screen's edge reads as "more", not as clipped. Drawn, so scrolling never recomposes. */
+fun Modifier.fadingEdges(scroll: androidx.compose.foundation.ScrollState, width: Dp = 28.dp): Modifier =
+    graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen).drawWithContent {
+        drawContent()
+        val w = width.toPx().coerceAtMost(size.width / 3)
+        val rtl = layoutDirection == LayoutDirection.Rtl
+        fun fade(atLeft: Boolean) {
+            val x0 = if (atLeft) 0f else size.width - w
+            val brush = Brush.horizontalGradient(
+                if (atLeft) listOf(Color.Black, Color.Transparent) else listOf(Color.Transparent, Color.Black), startX = x0, endX = x0 + w,
+            )
+            drawRect(brush, Offset(x0, 0f), Size(w, size.height), blendMode = androidx.compose.ui.graphics.BlendMode.DstOut)
+        }
+        // horizontalScroll's 0 is the start: the right edge in right-to-left.
+        if (scroll.value < scroll.maxValue) fade(atLeft = rtl)
+        if (scroll.value > 0) fade(atLeft = !rtl)
+    }
+
+/** A row (chips, filters, tabs) that scrolls sideways when it does not fit the phone, with fading edges. */
+@Composable
+fun ScrollRow(modifier: Modifier = Modifier, spacing: Dp = Space.xs, content: @Composable RowScope.() -> Unit) {
+    val scroll = androidx.compose.foundation.rememberScrollState()
+    Row(
+        modifier.fillMaxWidth().fadingEdges(scroll).horizontalScroll(scroll),
+        horizontalArrangement = Arrangement.spacedBy(spacing),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
     )
 }

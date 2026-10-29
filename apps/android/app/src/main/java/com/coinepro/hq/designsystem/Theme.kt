@@ -70,11 +70,13 @@ val DivanTypeScale = DivanTypography(
     h1 = text(DivanType.H1_SIZE, DivanType.H1_LINE, 600),
     h2 = text(DivanType.H2_SIZE, DivanType.H2_LINE, 600),
     h3 = text(DivanType.H3_SIZE, DivanType.H3_LINE, 600),
-    body = text(DivanType.BODY_SIZE, DivanType.BODY_LINE),
-    bodyStrong = text(DivanType.BODY_SIZE, DivanType.BODY_LINE, 600),
+    // Persian sets taller than Latin (dots above and below, long descenders): body and the small sizes get more line height than
+    // the token scale, so long reading stays comfortable and no diacritic touches the next line.
+    body = text(DivanType.BODY_SIZE, DivanType.BODY_LINE + 2),
+    bodyStrong = text(DivanType.BODY_SIZE, DivanType.BODY_LINE + 2, 600),
     small = text(13, 22),
-    caption = text(DivanType.CAPTION_SIZE, DivanType.CAPTION_LINE),
-    micro = text(DivanType.MICRO_SIZE, DivanType.MICRO_LINE),
+    caption = text(DivanType.CAPTION_SIZE, DivanType.CAPTION_LINE + 2),
+    micro = text(DivanType.MICRO_SIZE, DivanType.MICRO_LINE + 2),
     figureL = figure(DivanType.FIGUREL_SIZE, 34),
     figureM = figure(DivanType.FIGUREM_SIZE, 26),
     figure = figure(14, 20),
@@ -101,10 +103,12 @@ fun isNight(mode: ThemeMode): Boolean = when (mode) {
     ThemeMode.SYSTEM -> isSystemInDarkTheme()
 }
 
-/** The Divan theme: night or day palette, IRANYekanX everywhere, right-to-left always (the product is Persian). */
+/** The Divan theme: night or day palette, IRANYekanX everywhere, right-to-left always (the product is Persian), and the motion
+ *  system following the phone's «remove animations» ([LocalReducedMotion]). */
 @Composable
-fun DivanTheme(night: Boolean, content: @Composable () -> Unit) {
+fun DivanTheme(night: Boolean, reducedMotion: Boolean? = null, content: @Composable () -> Unit) {
     val p = if (night) NightPalette else DayPalette
+    val reduced = reducedMotion ?: rememberSystemReducedMotion()
     val scheme = if (night) {
         darkColorScheme(
             primary = p.goldFill, onPrimary = p.onGold, secondary = p.silverInk, onSecondary = p.onSilver,
@@ -134,6 +138,7 @@ fun DivanTheme(night: Boolean, content: @Composable () -> Unit) {
         CompositionLocalProvider(
             LocalPalette provides p,
             LocalNight provides night,
+            LocalReducedMotion provides reduced,
             LocalLayoutDirection provides LayoutDirection.Rtl,
             LocalContentColor provides p.textPrimary,
             LocalTextStyle provides t.body.copy(color = p.textPrimary),

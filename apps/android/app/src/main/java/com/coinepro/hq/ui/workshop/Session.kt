@@ -174,7 +174,7 @@ private fun ApprovalCard(e: SessionEvent, answered: SessionEvent?, busy: Boolean
             val allowed = answered.bool("allow") == true
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 DIcon(if (allowed) DivanIcon.SEAL else DivanIcon.REJECT, size = 14.dp, tint = if (allowed) c.positive else c.negative)
-                Text((if (allowed) "اجازه دادی" else "اجازه ندادی") + " · " + jTime(answered.at), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = if (allowed) c.positive else c.negative)
+                Text((if (allowed) "اجازه دادی" else "اجازه ندادی") + "، " + jTime(answered.at), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = if (allowed) c.positive else c.negative)
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -207,7 +207,7 @@ private fun EventItem(e: SessionEvent, driverKind: String) {
             Column(Modifier.widthIn(max = 320.dp), horizontalAlignment = if (mine) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 val shape = if (mine) RoundedCornerShape(14.dp, 6.dp, 14.dp, 14.dp) else RoundedCornerShape(6.dp, 14.dp, 14.dp, 14.dp)
                 Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) { Md(e.summaryFa, color = c.textPrimary) }
-                Text((if (mine) "تو" else actorFa(e.actor)) + " · " + jTime(e.at), style = Divan.type.micro, color = c.textMuted)
+                Text((if (mine) "تو" else actorFa(e.actor)) + "، " + jTime(e.at), style = Divan.type.micro, color = c.textMuted)
             }
         }
         "command" -> Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -226,7 +226,7 @@ private fun EventItem(e: SessionEvent, driverKind: String) {
         }
         "state" -> Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             HorizontalDivider(Modifier.weight(1f), color = c.lineDivider)
-            RichText(e.summaryFa + " · " + jTime(e.at), style = Divan.type.micro, color = c.textMuted)
+            RichText(e.summaryFa + "، " + jTime(e.at), style = Divan.type.micro, color = c.textMuted)
             HorizontalDivider(Modifier.weight(1f), color = c.lineDivider)
         }
         "error" -> Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.softNegative).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

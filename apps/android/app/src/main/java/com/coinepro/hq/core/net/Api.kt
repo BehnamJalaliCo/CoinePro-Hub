@@ -262,6 +262,20 @@ class Api(
     suspend fun control(): ControlState = get("/control/state")
     suspend fun killSwitch(scope: String, engaged: Boolean, reason: String, stepUp: String?): ControlState =
         post("/control/kill-switch", buildJsonObject { put("scope", scope); put("state", if (engaged) "engaged" else "released"); put("reason", reason) }, stepUp)
+    /** Engaging needs no step-up (speed matters, §9): `holding` or `company:<CODE>`. */
+    suspend fun engage(scope: String, reason: String): ControlState = killSwitch(scope, true, reason, null)
+    /** Releasing is 🔏 `kill_switch.release` on the scope itself. */
+    suspend fun release(scope: String, reason: String, stepUp: StepUp): ControlState = killSwitch(scope, false, reason, stepUp("kill_switch.release", scope))
+    /** A freeze of the company's deploys until [until] (§9); the owner needs no seal to close. */
+    suspend fun freezeDeploys(company: String, until: String, reason: String): FreezeOut = deployFreeze(company, until, reason)
+    /** Lifting every freeze of the company (a past `until`) is sealed with the passkey, `deploy_freeze.lift` on `company:<CODE>`:
+     *  the owner's rule for opening what was closed. The hub of contract v1.7 does not check this header yet (it takes no 🔏 here). */
+    suspend fun liftFreezes(company: String, reason: String, stepUp: StepUp, now: java.time.Instant = java.time.Instant.now()): FreezeOut {
+        val token = stepUp("deploy_freeze.lift", "company:$company")
+        return post("/control/deploy-freeze", buildJsonObject { put("company", company); put("until", now.minusSeconds(60).toString()); put("reason", reason) }, token)
+    }
+    /** The owner's own control actions with their reasons (§1.8): `kind=control`. */
+    suspend fun ownerInteractions(kind: String? = null, limit: Int = 100): Page<Interaction> = get("/owner/interactions", mapOf("kind" to kind, "limit" to limit))
 
     // ----------------------------------------------------------- treasury --
     suspend fun treasury(period: String = "month", company: String? = null): TreasurySummary =
@@ -1107,6 +1121,9 @@ class Api(
 
     // -------------------------------------------------------------- audit --
     suspend fun audit(limit: Int = 50): Page<AuditEntry> = get("/audit", mapOf("limit" to limit))
+    /** One company's rows of one action (`kill_switch.engage`, `deploy_freeze.set`, …), newest first. */
+    suspend fun audit(company: String?, action: String?, limit: Int = 20): Page<AuditEntry> =
+        get("/audit", mapOf("company" to company, "action" to action, "limit" to limit))
     suspend fun auditVerify(): AuditVerify = get("/audit/verify")
 
     // ------------------------------------------------------------ plumbing --

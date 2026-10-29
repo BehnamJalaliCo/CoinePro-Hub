@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.settings
 
+import com.coinepro.hq.ui.itemMotion
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -112,7 +113,7 @@ fun ErrorLogScreen(log: ErrorLog) {
                     }
                 }
             }
-            items(entries, key = { it.id }) { e -> EntryCard(e) }
+            items(entries, key = { it.id }) { e -> Box(itemMotion()) { EntryCard(e) }}
         }
     }
     if (confirm) AlertDialog(
@@ -131,7 +132,7 @@ fun EntryCard(e: ErrorEntry, open0: Boolean = false) {
     val c = Divan.colors
     var open by rememberSaveable(e.id) { mutableStateOf(open0) }
     val kind = KINDS[e.kind] ?: KindFa(e.kind, Tone.NEUTRAL, DivanIcon.INFO)
-    HqCard(Modifier.fillMaxWidth().animateContentSize(), padding = androidx.compose.foundation.layout.PaddingValues(14.dp), onClick = { open = !open }) {
+    HqCard(Modifier.fillMaxWidth(), padding = androidx.compose.foundation.layout.PaddingValues(14.dp), onClick = { open = !open }) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             val (bg, fg) = com.coinepro.hq.designsystem.toneColors(kind.tone)
             Box(Modifier.size(32.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) { DIcon(kind.icon, size = 16.dp, tint = fg) }
@@ -151,7 +152,7 @@ fun EntryCard(e: ErrorEntry, open0: Boolean = false) {
                 e.code?.let { Fig(it, style = Divan.type.figureSmall, color = if (e.kind == "decode") c.negative else c.textMuted) }
             }
         }
-        if (open) Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        com.coinepro.hq.designsystem.Expand(open) { Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Fact("زمان", jDateTime(e.at) + (if (e.count > 1) "، آخرین بار ${jDateTime(e.lastAt)}" else ""), figure = false)
             Fact("نسخه‌ی اپ", e.app)
             e.screen?.let { Fact("صفحه", it) }
@@ -173,7 +174,7 @@ fun EntryCard(e: ErrorEntry, open0: Boolean = false) {
                     }
                 }
             }
-        }
+        } }
     }
 }
 

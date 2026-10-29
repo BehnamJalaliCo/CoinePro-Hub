@@ -19,7 +19,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -68,9 +68,8 @@ fun Avatar(kind: String, modifier: Modifier = Modifier, dept: String? = null, si
         kind == "assistant" -> DivanIcon.ASSISTANT
         else -> DEPT_ICON[dept] ?: DivanIcon.AGENT
     }
-    val spin = if (state == "working") {
-        rememberInfiniteTransition(label = "comet").animateFloat(0f, 360f, infiniteRepeatable(tween(2400, easing = LinearEasing)), label = "comet").value
-    } else 0f
+    // The comet turns in the draw phase only: a working agent never recomposes its row.
+    val spin = rememberOrbit(state == "working", periodMs = 2400)
     Box(modifier.size(size).semantics { contentDescription = label ?: "ایجنت" }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size)) {
             val s = this.size.minDimension
@@ -94,7 +93,7 @@ fun Avatar(kind: String, modifier: Modifier = Modifier, dept: String? = null, si
                 }
             }
             if (state == "working") {
-                rotate(spin) {
+                rotate(spin.value) {
                     drawArc(c.textPrimary, -90f, 360f * 0.18f, false, topLeft = Offset(center.x - r, center.y - r), size = androidx.compose.ui.geometry.Size(2 * r, 2 * r), style = Stroke(sw + 0.4.dp.toPx(), cap = StrokeCap.Round))
                 }
             }
@@ -109,14 +108,15 @@ fun Avatar(kind: String, modifier: Modifier = Modifier, dept: String? = null, si
 fun Sentinel(size: Dp, modifier: Modifier = Modifier, state: String = "idle", label: String? = null) {
     val c = Divan.colors
     val watching = state == "working" || state == "waiting"
-    val k = if (watching) {
-        rememberInfiniteTransition(label = "sentinel").animateFloat(1f, 1.05f, infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "sentinel").value
-    } else 1f
+    val k = rememberBreath(watching, periodMs = 2200)
     Box(
         modifier
             .size(size)
-            .scale(k)
-            .alpha(if (state == "sleeping") 0.7f else 1f)
+            .graphicsLayer {
+                val s = 1f + 0.05f * k.value
+                scaleX = s; scaleY = s
+                alpha = if (state == "sleeping") 0.7f else 1f
+            }
             .drawBehind {
                 val r = this.size.minDimension / 2
                 if (watching) drawCircle(c.goldFill.copy(alpha = 0.22f), r + 5.dp.toPx())
@@ -134,19 +134,31 @@ fun Sentinel(size: Dp, modifier: Modifier = Modifier, state: String = "idle", la
     ) { DIcon(DivanIcon.OVERSEER, size = size * 0.52f, tint = Color(0xFF141821)) }
 }
 
-/** The advisor's orb: a gold sphere that breathes when listening and glows when thinking. */
+/** The advisor's orb: a gold sphere that breathes when listening (a soft gold glow swells and fades around it) and glows when
+ *  thinking. The breath lives in the layer and the draw phase, so it never recomposes; it is still when animations are removed. */
 @Composable
 fun Orb(size: Dp, modifier: Modifier = Modifier, state: String = "rest", label: String? = null) {
     val breathe = state == "thinking" || state == "listening"
-    val k = if (breathe) {
-        rememberInfiniteTransition(label = "orb").animateFloat(
-            1f, 1.06f, infiniteRepeatable(tween(if (state == "thinking") 800 else 1400, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "orb",
-        ).value
-    } else 1f
+    val k = rememberBreath(breathe, periodMs = if (state == "thinking") 1600 else Motion.BREATH + 400)
+    val listening = state == "listening"
     Box(
         modifier
             .size(size)
-            .scale(k)
+            .drawBehind {
+                val r = this.size.minDimension / 2
+                if (listening) {
+                    // The breathing glow: two soft rings that swell with the breath.
+                    val b = k.value
+                    drawCircle(
+                        Brush.radialGradient(
+                            0.55f to DivanFixed.orbMid.copy(alpha = 0.34f * (0.55f + 0.45f * b)), 1f to DivanFixed.orbMid.copy(alpha = 0f),
+                            center = center, radius = r * (1.18f + 0.22f * b),
+                        ),
+                        radius = r * (1.18f + 0.22f * b),
+                    )
+                }
+            }
+            .graphicsLayer { val s = 1f + 0.06f * k.value; scaleX = s; scaleY = s }
             .drawBehind {
                 if (state == "thinking" || state == "speaking") drawCircle(DivanFixed.orbMid.copy(alpha = 0.18f), this.size.minDimension / 2 + 6.dp.toPx())
                 drawCircle(

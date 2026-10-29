@@ -1,8 +1,14 @@
 package com.coinepro.hq.ui.shell
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import com.coinepro.hq.designsystem.Motion
+import com.coinepro.hq.designsystem.motionShort
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -45,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +71,7 @@ import com.coinepro.hq.designsystem.IconBtn
 import com.coinepro.hq.designsystem.LiveDot
 import com.coinepro.hq.designsystem.LocalBrands
 import com.coinepro.hq.designsystem.Monogram
+import com.coinepro.hq.designsystem.pressScale
 import com.coinepro.hq.designsystem.Orb
 import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.ui.LocalEnv
@@ -279,12 +287,50 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                 }
             }
             Box(Modifier.weight(1f)) {
-                NavHost(nav, startDestination = "home", enterTransition = { fadeIn(tween(200)) }, exitTransition = { fadeOut(tween(120)) }) {
+                // Divan motion: a page pushed on top arrives from the reading side with the emphasised curve and leaves the same way on
+                // back; switching between top-level places is a quiet cross-fade. Nothing moves when animations are removed.
+                val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
+                NavHost(
+                    nav, startDestination = "home",
+                    enterTransition = {
+                        when {
+                            reduced -> EnterTransition.None
+                            sideways() -> fadeIn(tween(Motion.MEDIUM, easing = Motion.Standard))
+                            else -> fadeIn(tween(Motion.EMPHASISED, easing = Motion.Emphasised)) +
+                                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(Motion.EMPHASISED, easing = Motion.Emphasised)) { it / 10 }
+                        }
+                    },
+                    exitTransition = {
+                        when {
+                            reduced -> ExitTransition.None
+                            sideways() -> fadeOut(tween(Motion.SHORT, easing = Motion.Exit))
+                            else -> fadeOut(tween(Motion.MEDIUM, easing = Motion.Exit)) +
+                                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(Motion.EMPHASISED, easing = Motion.Emphasised)) { it / 24 }
+                        }
+                    },
+                    popEnterTransition = {
+                        when {
+                            reduced -> EnterTransition.None
+                            sideways() -> fadeIn(tween(Motion.MEDIUM, easing = Motion.Standard))
+                            else -> fadeIn(tween(Motion.MEDIUM, easing = Motion.Standard)) +
+                                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(Motion.EMPHASISED, easing = Motion.Emphasised)) { it / 24 }
+                        }
+                    },
+                    popExitTransition = {
+                        when {
+                            reduced -> ExitTransition.None
+                            sideways() -> fadeOut(tween(Motion.SHORT, easing = Motion.Exit))
+                            else -> fadeOut(tween(Motion.SHORT, easing = Motion.Exit)) +
+                                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(Motion.MEDIUM, easing = Motion.Exit)) { it / 10 }
+                        }
+                    },
+                ) {
                     composable("home") { HomeScreen(onNewOrder = { order = true }, onVoiceOrder = { voice = true }) }
                     composable("workshop") { WorkshopScreen(onNewSession = { newSession = true }, onGrant = { grantFor = it; granting = true }) }
                     composable("workshop/{ref}") { SessionScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("cartable") { CartableScreen() }
                     composable("cartable/{ref}") { DecisionScreen(it.arguments?.getString("ref").orEmpty()) }
+                    composable("cartable-co/{company}") { CartableScreen(company0 = it.arguments?.getString("company")) }
                     composable("outputs") { OutputsScreen() }
                     composable("outputs/{ref}") { OutputScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("advisor") { com.coinepro.hq.ui.advisor.AdvisorScreen() }
@@ -381,6 +427,10 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
     }
 }
 
+/** Between two top-level places (tabs, the tools sheet's pages) the change is sideways: a cross-fade, not a push. */
+private fun AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.sideways(): Boolean =
+    initialState.destination.route in TOP && targetState.destination.route in TOP
+
 @Composable
 private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo: Boolean, urgent: Int, onBell: () -> Unit, onMore: () -> Unit, onVoice: () -> Unit) {
     val c = Divan.colors
@@ -425,14 +475,18 @@ private fun BottomBar(route: String, decisions: Int, messages: Int, listening: B
                 if (t.route == "order") {
                     // The gold button: a tap opens the voice order and starts listening; a long press opens the order typed.
                     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+                    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         Box(
                             Modifier
                                 .offset(y = (-10).dp)
                                 .size(60.dp)
-                                .clip(CircleShape)
-                                .background(c.card)
+                                .then(Modifier.pressScale(src, 0.94f))
+                                // Not clipped: the listening glow reaches past the orb.
+                                .background(c.card, CircleShape)
                                 .combinedClickable(
+                                    interactionSource = src,
+                                    indication = androidx.compose.material3.ripple(bounded = false, radius = 30.dp),
                                     role = Role.Button,
                                     onClickLabel = "فرمان صوتی: بگو",
                                     onLongClickLabel = "فرمان نوشتنی",
@@ -442,6 +496,7 @@ private fun BottomBar(route: String, decisions: Int, messages: Int, listening: B
                                 .semantics { contentDescription = "فرمان صوتی؛ نگه دار برای فرمان نوشتنی" },
                             contentAlignment = Alignment.Center,
                         ) {
+                            // While the order is being spoken the orb breathes and a soft gold glow swells around it.
                             Orb(48.dp, state = if (listening) "listening" else "rest", label = "فرمان صوتی")
                             DIcon(DivanIcon.MIC, size = 22.dp, tint = c.onGold)
                         }
@@ -454,11 +509,13 @@ private fun BottomBar(route: String, decisions: Int, messages: Int, listening: B
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
+                    val tint by animateColorAsState(if (active) c.goldInk else c.textSecondary, motionShort(), label = "tab")
+                    val ink by animateColorAsState(if (active) c.textPrimary else c.textSecondary, motionShort(), label = "tab-ink")
                     Box {
-                        DIcon(t.icon, size = 24.dp, tint = if (active) c.goldInk else c.textSecondary, active = active)
+                        DIcon(t.icon, size = 24.dp, tint = tint, active = active)
                         if (badge > 0) Badge(badge, Modifier.align(Alignment.TopStart).offset(x = (-8).dp, y = (-6).dp))
                     }
-                    Text(t.label, style = Divan.type.micro.copy(fontSize = 11.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal), color = if (active) c.textPrimary else c.textSecondary)
+                    Text(t.label, style = Divan.type.micro.copy(fontSize = 11.sp, lineHeight = 16.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal), color = ink)
                 }
             }
         }
@@ -467,20 +524,26 @@ private fun BottomBar(route: String, decisions: Int, messages: Int, listening: B
 }
 
 @Composable
-private fun ToolsSheet(outputs: Int, errors: Int, go: (String) -> Unit) {
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("سازمان", style = Divan.type.h3, modifier = Modifier.padding(bottom = 8.dp))
-        for (t in ORG) ToolRow(t, null, go)
-        Text("ابزار مدیریت", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-        for (t in MANAGEMENT) ToolRow(t, null, go)
-        Text("رسانه و حقوقی", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-        for (t in MEDIA) ToolRow(t, null, go)
-        Text("بایگانی", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-        for (t in ARCHIVE) ToolRow(t, null, go)
-        Text("حاکمیت", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-        for (t in GOVERNANCE) ToolRow(t, null, go)
-        Text("ابزارها", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-        for (t in TOOLS) ToolRow(t, when { t.route == "outputs" && outputs > 0 -> outputs; t.route == "errors" && errors > 0 -> errors; else -> null }, go)
+internal fun ToolsSheet(outputs: Int, errors: Int, go: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        ToolGroup("سازمان", ORG, go)
+        ToolGroup("ابزار مدیریت", MANAGEMENT, go)
+        ToolGroup("رسانه و حقوقی", MEDIA, go)
+        ToolGroup("بایگانی", ARCHIVE, go)
+        ToolGroup("حاکمیت", GOVERNANCE, go)
+        ToolGroup("ابزارها", TOOLS, go) { t -> when { t.route == "outputs" && outputs > 0 -> outputs; t.route == "errors" && errors > 0 -> errors; else -> null } }
+    }
+}
+
+/** One group of the tools sheet: its header in the section style, then its rows on one card, separated by space, not lines. */
+@Composable
+private fun ToolGroup(title: String, tools: List<Tool>, go: (String) -> Unit, badge: (Tool) -> Int? = { null }) {
+    val c = Divan.colors
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted, modifier = Modifier.padding(horizontal = 4.dp).semantics { heading() })
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card).padding(vertical = 4.dp)) {
+            for (t in tools) ToolRow(t, badge(t), go)
+        }
     }
 }
 
@@ -488,13 +551,13 @@ private fun ToolsSheet(outputs: Int, errors: Int, go: (String) -> Unit) {
 private fun ToolRow(t: Tool, badge: Int?, go: (String) -> Unit) {
     val c = Divan.colors
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button) { go(t.route) }.padding(horizontal = 12.dp, vertical = 14.dp),
+        Modifier.fillMaxWidth().clickable(role = Role.Button) { go(t.route) }.padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        DIcon(t.icon, tint = c.textSecondary)
+        Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(c.tile), contentAlignment = Alignment.Center) { DIcon(t.icon, size = 20.dp, tint = c.textSecondary) }
         Text(t.label, style = Divan.type.body, modifier = Modifier.weight(1f))
         if (badge != null) Badge(badge)
-        DIcon(DivanIcon.NEXT, size = 18.dp, tint = c.textMuted)
+        DIcon(DivanIcon.NEXT, size = 16.dp, tint = c.textMuted)
     }
 }

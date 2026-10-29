@@ -412,7 +412,7 @@ fun RoleDraftView(ref: String) {
                     when {
                         run == null -> Unit
                         run.live -> Pill("در حال اجرا", Tone.LAPIS, live = true)
-                        else -> Pill("${if (run.passed == true) "قبول" else "رد"} · ${run.score?.let { com.coinepro.hq.ui.v17.num(it) } ?: "—"}", if (run.passed == true) Tone.POS else Tone.NEG, dot = true)
+                        else -> Pill("${if (run.passed == true) "قبول" else "رد"}، ${run.score?.let { com.coinepro.hq.ui.v17.num(it) } ?: "—"}", if (run.passed == true) Tone.POS else Tone.NEG, dot = true)
                     }
                 }
             }) {

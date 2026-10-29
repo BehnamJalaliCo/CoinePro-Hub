@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.feedback
 
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -118,7 +119,7 @@ fun FeedbackScreen() {
             list == null && q.error != null -> item { ErrorBlock(q.error, { q.refresh() }) }
             list == null -> items(3) { Skeleton(Modifier.fillMaxWidth().height(180.dp), radius = 16.dp) }
             list.isEmpty() -> item { Empty("بازخوردی نیست", icon = DivanIcon.RATE) }
-            else -> items(list.size, key = { list[it].ref }) { i -> Item(list[i]) }
+            else -> items(list.size, key = { list[it].ref }) { i -> Box(itemMotion()) { Item(list[i]) }}
         }
         cursor?.let { at ->
             item {

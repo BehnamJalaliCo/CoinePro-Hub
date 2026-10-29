@@ -106,7 +106,7 @@ fun StoriesBar() {
     var open by rememberSaveable { mutableStateOf<Int?>(null) }
     val c = Divan.colors
     if (rings.isEmpty()) return
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    com.coinepro.hq.designsystem.ScrollRow(spacing = 12.dp) {
         rings.forEachIndexed { i, r ->
             val name = companyOf(companies, r.company).nameFa
             val accent = accentOf(companies, r.company)

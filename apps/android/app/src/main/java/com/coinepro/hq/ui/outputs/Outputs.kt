@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.outputs
 
+import com.coinepro.hq.ui.itemMotion
 import android.icu.util.Calendar
 import android.icu.util.TimeZone
 import android.icu.util.ULocale
@@ -227,8 +228,11 @@ fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
         null -> d.seenAt ?: local[d.ref]
     }
 
+    val haptics = com.coinepro.hq.designsystem.rememberHaptics()
     fun mark(refs: List<String>, seen: Boolean, text: String) {
         if (refs.isEmpty()) return
+        // A light tick: marked seen (or new again), at once; the hub follows.
+        haptics.tick()
         refs.forEach { optimistic[it] = seen }
         val u = Undo(System.nanoTime(), refs, seen, text)
         undo = u
@@ -261,7 +265,7 @@ fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     HqTextField(search, { search = it }, "جستجو در عنوان، خلاصه یا O-…", Modifier.fillMaxWidth(), maxLength = 100)
                     ChipRow {
-                        FilterChip(if (query.active > 0) "فیلترها · ${query.active}" else "فیلترها", query.active > 0, { filters = true })
+                        FilterChip("فیلترها", query.active > 0, { filters = true }, count = query.active.takeIf { it > 0 })
                         FilterChip("بی‌امتیاز", unrated, { unrated = !unrated })
                         FilterChip("گزارش", category == "report", { category = if (category == "report") null else "report" })
                         FilterChip("کار", category == "work", { category = if (category == "work") null else "work" })
@@ -301,12 +305,12 @@ fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
                                 Text("${rows.size} خروجی", style = Divan.type.micro, color = c.textMuted)
                             }
                         }
-                        items(rows, key = { it.ref }) { d ->
+                        items(rows, key = { it.ref }) { d -> Box(itemMotion()) {
                             val seen = seenAt(d) != null
                             SwipeToSee(seen, onSwipe = { mark(listOf(d.ref), !seen, if (seen) "${d.ref} دوباره تازه شد" else "${d.ref} خوانده شد") }) {
                                 OutputRow(d, seen, companies.let { companyOf(it, d.company).nameFa }) { nav.go("outputs/${d.ref}") }
                             }
-                        }
+                        }}
                     }
                     if (cursor != null) item {
                         HqButton("بیشتر", {
@@ -422,8 +426,8 @@ private fun OutputRow(d: Deliverable, seen: Boolean, companyFa: String, onOpen: 
             if (!seen) Box(Modifier.size(8.dp).clip(CircleShape).background(c.goldFill))
             Pill(CATEGORY_FA[d.kind] ?: d.kind, if (d.kind == "report") Tone.LAPIS else Tone.SILVER)
             CompanyMark(d.company, height = 13.dp, mono = true, ink = c.textSecondary)
-            Text(companyFa, style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            Box(Modifier.weight(1f))
+            // One weighted part: the company's name takes the free width (it is not halved by a spacer).
+            Text(companyFa, style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             if (d.rating == null) Pill("بی‌امتیاز", Tone.GOLD, dot = true) else Pill("${d.rating.score} از ۱۰", Tone.SILVER)
         }
         RichText(d.title, Modifier.padding(top = 8.dp), style = Divan.type.bodyStrong, color = if (seen) c.textSecondary else c.textPrimary, maxLines = 2)
@@ -442,7 +446,12 @@ private fun UndoBar(u: Undo?, modifier: Modifier, onTimeout: (Long) -> Unit, onU
     var last by remember { mutableStateOf(u) }
     if (u != null) last = u
     LaunchedEffect(u?.id) { val id = u?.id ?: return@LaunchedEffect; delay(5_000); onTimeout(id) }
-    AnimatedVisibility(u != null, modifier, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
+    val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
+    AnimatedVisibility(
+        u != null, modifier,
+        enter = if (reduced) androidx.compose.animation.EnterTransition.None else fadeIn(com.coinepro.hq.designsystem.Motion.emphasised()) + slideInVertically(com.coinepro.hq.designsystem.Motion.emphasised()) { it / 2 },
+        exit = if (reduced) androidx.compose.animation.ExitTransition.None else fadeOut(com.coinepro.hq.designsystem.Motion.exit()) + slideOutVertically(com.coinepro.hq.designsystem.Motion.exit()) { it / 2 },
+    ) {
         val shown = last ?: return@AnimatedVisibility
         Row(
             Modifier.padding(16.dp).widthIn(max = 520.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.raised).padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),

@@ -103,7 +103,7 @@ fun ArchiveScreen(q0: String? = null, party0: String? = null, folder0: String? =
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 FixityLine()
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.coinepro.hq.designsystem.ScrollRow {
                     val n = holds.data?.size ?: 0
                     NavChip("توقیف‌ها", DivanIcon.LOCK, if (n > 0) "$n فعال" else null) { nav.go("archive-holds") }
                     NavChip("یادآورها", DivanIcon.TIME) { nav.go("archive-reminders") }

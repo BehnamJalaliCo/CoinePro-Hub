@@ -300,7 +300,7 @@ fun companyColor(code: String): Color {
 /** A row of chips that scrolls sideways (phone width). */
 @Composable
 fun ChipRow(content: @Composable () -> Unit) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { content() }
+    com.coinepro.hq.designsystem.ScrollRow { content() }
 }
 
 /** A label above a field. */

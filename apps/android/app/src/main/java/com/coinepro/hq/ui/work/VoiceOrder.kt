@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.work
 
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -126,7 +127,8 @@ fun VoiceOrderSheet(onDismiss: () -> Unit, listen: Boolean = true, typed: Boolea
     val vh = rememberVoiceInput("order") { r -> text = if (text.isBlank()) r.text else "${text.trimEnd()} ${r.text}"; voice = r; phase = "review" }
     val v = vh.v
     val go = { route: String -> v.cancel(); onDismiss(); nav.go(route) }
-    val pulse by rememberInfiniteTransition(label = "rec").animateFloat(1f, 1.12f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulse")
+    // The record button breathes while it listens (in the layer: no recomposition; still when animations are removed).
+    val pulse = com.coinepro.hq.designsystem.rememberBreath(v.recording, periodMs = 1400)
     // Opened to speak: listening starts at once (after the microphone permission, the first time).
     LaunchedEffect(Unit) { if (listen && !typed) vh.start() }
 
@@ -137,7 +139,7 @@ fun VoiceOrderSheet(onDismiss: () -> Unit, listen: Boolean = true, typed: Boolea
             when (phase) {
                 "ready" -> Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Box(
-                        Modifier.size(112.dp).scale(if (v.recording) pulse else 1f).clip(CircleShape).background(c.goldFill)
+                        Modifier.size(112.dp).graphicsLayer { val k = 1f + 0.12f * pulse.value; scaleX = k; scaleY = k }.clip(CircleShape).background(c.goldFill)
                             .clickable(enabled = !v.transcribing, role = Role.Button) { if (v.recording) v.finish() else vh.start() }
                             .semantics { contentDescription = if (v.recording) "تمام؛ به متن تبدیل کن" else "شروع گفتن فرمان" },
                         contentAlignment = Alignment.Center,

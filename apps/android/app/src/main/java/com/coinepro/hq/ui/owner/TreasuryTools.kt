@@ -117,7 +117,7 @@ fun WhatIfCard() {
     val q = rememberQuery("treasury:what-if:$model:$today", "treasury") { whatIf(model, today.withDayOfMonth(1).toString(), today.toString()) }
     HqCard(Modifier.fillMaxWidth()) {
         SectionTitle("اگر با این مدل بود…", note = "همین فراخوانی‌های این ماه، با جدول قیمت خودمان")
-        Row(Modifier.padding(top = 10.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { MODELS.forEach { m -> FilterChip(modelLabel(m), model == m, { model = m }) } }
+        com.coinepro.hq.designsystem.ScrollRow(Modifier.padding(top = 10.dp)) { MODELS.forEach { m -> FilterChip(modelLabel(m), model == m, { model = m }) } }
         val d = q.data
         when {
             d == null && q.error != null -> ErrorBlock(q.error, { q.refresh() })
@@ -275,7 +275,7 @@ fun CallsCard() {
                     pages.map { x -> listOf(x.startedAt, x.company, x.actor, x.workRef, x.model, x.status, x.inputTokens, x.outputTokens, x.cacheReadTokens, x.latencyMs, x.equivCostUsd) })
             }
         }) else null)
-        Row(Modifier.padding(top = 10.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        com.coinepro.hq.designsystem.ScrollRow(Modifier.padding(top = 10.dp)) {
             listOf(null to "همه", "ok" to "موفق", "error" to "خطا", "refused" to "رد").forEach { (k, l) -> FilterChip(l, status == k, { status = k }) }
         }
         when {

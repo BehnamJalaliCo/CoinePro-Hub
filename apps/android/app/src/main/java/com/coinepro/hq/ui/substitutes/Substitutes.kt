@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.substitutes
 
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -119,7 +120,7 @@ fun SubstitutesScreen(creative0: String? = null) {
         when {
             list == null && q.error != null -> item { ErrorBlock(q.error, { q.refresh() }) }
             list == null -> items(2) { Skeleton(Modifier.fillMaxWidth().height(380.dp), radius = 16.dp) }
-            else -> items(list, key = { it.player }) { PlayerCard(it) }
+            else -> items(list, key = { it.player }) { Box(itemMotion()) { PlayerCard(it) } }
         }
         item { CreativesCard(creative0) }
         item {
@@ -174,7 +175,7 @@ fun PlayerCard(s: Substitute) {
                 LabelPill(SUB_STATUS[s.status], s.status)
             }
             s.statusReason?.let { reason ->
-                Text(reason + (s.limitedUntil?.let { " · ${until(it)}" } ?: ""), Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.softWarning).padding(horizontal = 12.dp, vertical = 8.dp), style = Divan.type.caption, color = c.textPrimary)
+                Text(reason + (s.limitedUntil?.let { "، ${until(it)}" } ?: ""), Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.softWarning).padding(horizontal = 12.dp, vertical = 8.dp), style = Divan.type.caption, color = c.textPrimary)
             }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

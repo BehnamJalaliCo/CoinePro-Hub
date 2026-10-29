@@ -89,6 +89,7 @@ import com.coinepro.hq.designsystem.SegOption
 import com.coinepro.hq.designsystem.Skeleton
 import com.coinepro.hq.designsystem.fig
 import com.coinepro.hq.designsystem.generated.DivanIcon
+import com.coinepro.hq.designsystem.smoothSize
 import com.coinepro.hq.designsystem.generated.DivanMotion
 import com.coinepro.hq.designsystem.toneColors
 import com.coinepro.hq.ui.LocalEnv
@@ -173,33 +174,44 @@ fun DecisionRow(d: Decision, companies: List<Company>, onClick: () -> Unit) {
     }
 }
 
-/** The cartable: what needs the owner's seal, by risk; and what was decided. */
+/** The cartable: what needs the owner's seal, by risk and by company; and what was decided. [company0] opens it filtered to one
+ *  company (from that company's card). */
 @Composable
-fun CartableScreen() {
+fun CartableScreen(company0: String? = null) {
     val nav = LocalNav.current
     val companies = rememberCompanies()
     var tab by rememberSaveable { mutableStateOf("pending") }
     var riskF by rememberSaveable { mutableStateOf<String?>(null) }
+    var coF by rememberSaveable { mutableStateOf(company0) }
     // Cartable age (M8): what expires first, what has waited longest, or the newest.
     var sort by rememberSaveable { mutableStateOf("expiry") }
     val q = rememberQuery("decisions:$tab", "decisions") { decisions(if (tab == "pending") "pending" else null, limit = 100) }
     val r = refresher(q)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
-        item { PageHeader("کارتابل", eyebrow = "تصمیم‌هایی که مُهر تو را لازم دارند") }
+        item { PageHeader(coF?.let { "کارتابل ${com.coinepro.hq.ui.companyOf(companies, it).nameFa}" } ?: "کارتابل", eyebrow = "تصمیم‌هایی که مُهر تو را لازم دارند") }
         item {
             Segmented(listOf(SegOption("pending", "منتظر مُهر"), SegOption("all", "همه")), tab, { tab = it }, Modifier.fillMaxWidth())
         }
-        val all = q.data?.items.orEmpty().let { if (tab == "all") it else it.filter { d -> d.status == "pending" } }
-        if (tab == "pending") item {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip("همه", riskF == null, { riskF = null }, count = all.size)
-                for ((key, label) in listOf("high" to "ریسک بالا", "medium" to "متوسط", "low" to "کم")) {
-                    FilterChip(label, riskF == key, { riskF = if (riskF == key) null else key }, count = all.count { it.risk == key })
+        val all = q.data?.items.orEmpty().let { if (tab == "all") it else it.filter { d -> d.status == "pending" } }.filter { coF == null || it.company == coF }
+        // Companies are data: one chip per company that has cards here, the holding first.
+        val withCards = companies.sortedBy { if (it.kind == "holding") 0 else 1 }.filter { co -> co.code == coF || q.data?.items.orEmpty().any { it.company == co.code && (tab == "all" || it.status == "pending") } }
+        // One row of filters: by risk (pending only), then, after a hairline, by company.
+        if (tab == "pending" || withCards.size > 1) item {
+            com.coinepro.hq.designsystem.ScrollRow {
+                if (tab == "pending") {
+                    FilterChip("همه", riskF == null, { riskF = null }, count = all.size)
+                    for ((key, label) in listOf("high" to "ریسک بالا", "medium" to "متوسط", "low" to "کم")) {
+                        FilterChip(label, riskF == key, { riskF = if (riskF == key) null else key }, count = all.count { it.risk == key })
+                    }
+                }
+                if (withCards.size > 1 || coF != null) {
+                    if (tab == "pending") Box(Modifier.size(width = 1.dp, height = 20.dp).background(Divan.colors.lineStrong))
+                    for (co in withCards) FilterChip(if (co.kind == "holding") "هلدینگ" else co.nameFa ?: co.code, coF == co.code, { coF = if (coF == co.code) null else co.code })
                 }
             }
         }
         if (tab == "pending") item {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.coinepro.hq.designsystem.ScrollRow {
                 for ((key, label) in listOf("expiry" to "زودتر منقضی", "oldest" to "بیشترین انتظار", "newest" to "تازه‌ترین")) FilterChip(label, sort == key, { sort = key })
             }
         }
@@ -216,9 +228,9 @@ fun CartableScreen() {
             q.data == null && q.error == null -> items(4) { Skeleton(Modifier.fillMaxWidth().height(64.dp)) }
             q.data == null -> item { com.coinepro.hq.designsystem.ErrorBlock(q.error, { q.refresh() }) }
             list.isEmpty() -> item { Empty("کارتابل خالی است", icon = DivanIcon.SEAL, body = "هر تصمیمی که امضای تو را بخواهد این‌جا میاید.") }
-            else -> item {
-                HqCard(Modifier.fillMaxWidth(), padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
-                    list.forEach { d -> DecisionRow(d, companies) { nav.go("cartable/${d.ref}") } }
+            else -> item(key = "list") {
+                HqCard(Modifier.fillMaxWidth().smoothSize(), padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
+                    list.forEach { d -> androidx.compose.runtime.key(d.ref) { DecisionRow(d, companies) { nav.go("cartable/${d.ref}") } } }
                 }
             }
         }
@@ -598,7 +610,7 @@ fun SealButton(code: String, nameFa: String, nameEn: String, holding: Boolean, b
                     waitForUpOrCancellation()
                     if (job.isActive) {
                         job.cancel()
-                        scope.launch { progress.animateTo(0f, tween(DivanMotion.STATE_MS)) }
+                        scope.launch { progress.animateTo(0f, com.coinepro.hq.designsystem.Motion.medium()) }
                     }
                 }
             },

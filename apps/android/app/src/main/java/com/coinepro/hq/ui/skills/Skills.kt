@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.skills
 
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -92,7 +93,7 @@ fun SkillsScreen() {
         }
         item { Text("هر مهارت پیش از فعال شدن از بررسی ناظر کل (تزریق دستور، رمز، تناقض، اختیار اضافه) و آزمون طلایی آکادمی میگذرد؛ فعال شدن با مُهر توست.", style = Divan.type.small, color = c.textSecondary) }
         item {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.coinepro.hq.designsystem.ScrollRow {
                 FilterChip("همه", filter == null, { filter = null }, count = all?.size)
                 for (k in listOf("approved", "in_review", "active", "retired")) FilterChip(SKILL_STATUS.getValue(k).fa, filter == k, { filter = k }, count = all.orEmpty().count { it.status == k })
             }
@@ -102,7 +103,7 @@ fun SkillsScreen() {
             all == null && q.error != null -> item { ErrorBlock(q.error, { q.refresh() }) }
             all == null -> items(3) { Skeleton(Modifier.fillMaxWidth().height(110.dp), radius = 16.dp) }
             list.isEmpty() -> item { Empty("مهارتی نیست", icon = DivanIcon.SKILL) }
-            else -> items(list.size, key = { list[it].ref }) { i -> SkillCard(list[i]) { open = list[i].ref } }
+            else -> items(list.size, key = { list[it].ref }) { i -> Box(itemMotion()) { SkillCard(list[i]) { open = list[i].ref } }}
         }
     }
     all?.firstOrNull { it.ref == open }?.let { SkillSheet(it) { open = null } }

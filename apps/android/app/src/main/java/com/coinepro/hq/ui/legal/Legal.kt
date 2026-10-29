@@ -380,7 +380,7 @@ private fun EmailItem(e: CaseEmail) {
             DIcon(if (out) DivanIcon.SEND else DivanIcon.MESSAGES, size = 15.dp, tint = if (out) c.goldInk else c.lapis)
             Text(if (out) "رفت" else "آمد", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
             Fig(e.subject, Modifier.weight(1f), style = Divan.type.figureSmall, color = c.textSecondary)
-            DIcon(DivanIcon.CHEVRON, size = 14.dp, tint = c.textMuted)
+            com.coinepro.hq.designsystem.Chevron(open, tint = c.textMuted)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(jDateTime(e.at), style = Divan.type.micro, color = c.textMuted)
@@ -389,14 +389,14 @@ private fun EmailItem(e: CaseEmail) {
                 "superseded" -> Pill("جایگزین شد", Tone.NEUTRAL)
             }
         }
-        if (open) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        com.coinepro.hq.designsystem.Expand(open) { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Fig("${e.from} → ${e.to.joinToString(", ")}" + (e.messageId?.let { " · $it" } ?: ""), style = Divan.type.figureSmall, color = c.textMuted, maxLines = 3)
             Fig(e.bodyMd.replace("**", ""), style = Divan.type.figureSmall.copy(lineHeight = Divan.type.small.lineHeight), color = c.textPrimary, maxLines = 60)
             if (e.decisionRef != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("با مُهر", style = Divan.type.micro, color = c.textMuted)
                 RefChip(e.decisionRef)
             } else if (!out) Text("با کد خوانده و ماسک شد؛ مشاور بیدار شد.", style = Divan.type.micro, color = c.textMuted)
-        }
+        } }
     }
 }
 

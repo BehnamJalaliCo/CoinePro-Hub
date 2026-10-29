@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.owner
 
+import com.coinepro.hq.ui.itemMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -111,12 +112,12 @@ fun SitesScreen() {
             all == null && sites.error != null -> item { ErrorBlock(sites.error, { sites.refresh() }) }
             all == null -> item { Skeleton(Modifier.fillMaxWidth().height(220.dp), radius = 16.dp) }
             all.isEmpty() -> item { Empty("سایتی ثبت نشده", icon = DivanIcon.SERVER) }
-            else -> items(all.groupBy { it.company }.toList(), key = { it.first }) { (co, list) ->
+            else -> items(all.groupBy { it.company }.toList(), key = { it.first }) { (co, list) -> Box(itemMotion()) {
                 HqCard(Modifier.fillMaxWidth()) {
                     SectionTitle(companyOf(companies, co).nameFa, action = if (co != "HQ") ({ HqButton("ویرایش", { edit = co }, size = BtnSize.SM, variant = BtnVariant.TEXT, icon = DivanIcon.EDIT) }) else null)
                     Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { list.forEach { SiteRow(it) } }
                 }
-            }
+            }}
         }
         item {
             HqCard(Modifier.fillMaxWidth()) {

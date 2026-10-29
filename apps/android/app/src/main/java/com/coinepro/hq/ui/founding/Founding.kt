@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.founding
 
+import com.coinepro.hq.ui.itemMotion
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -140,7 +141,7 @@ fun FoundingsScreen() {
             list == null && q.error != null -> item { ErrorBlock(q.error, { q.refresh() }) }
             list == null -> items(2) { Skeleton(Modifier.fillMaxWidth().height(76.dp), radius = 16.dp) }
             list.isEmpty() -> item { Empty("هنوز تأسیسی نیست", icon = DivanIcon.FOUND) }
-            else -> items(list.size, key = { list[it].ref }) { i ->
+            else -> items(list.size, key = { list[it].ref }) { i -> Box(itemMotion()) {
                 val f = list[i]
                 val gold = f.state == "ready_for_login" || f.state == "proposed"
                 Column(
@@ -159,7 +160,7 @@ fun FoundingsScreen() {
                         Text(ago(f.updatedAt), style = Divan.type.micro, color = c.textMuted)
                     }
                 }
-            }
+            }}
         }
         cursor?.let { at ->
             item {

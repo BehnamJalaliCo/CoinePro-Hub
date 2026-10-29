@@ -14,9 +14,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.sse.EventSource
@@ -37,6 +34,8 @@ class HoldingStream(
     val state: StateFlow<StreamState> = stateFlow.asStateFlow()
     private val eventsFlow = MutableSharedFlow<StreamEvent>(extraBufferCapacity = 64)
     val events: SharedFlow<StreamEvent> = eventsFlow.asSharedFlow()
+    /** Who is working right now, per company, and each company's recent events (the companies' live indicators and feeds). */
+    val activity = LiveActivity()
 
     private var source: EventSource? = null
     private var loop: Job? = null
@@ -99,18 +98,19 @@ class HoldingStream(
     private fun dispatch(e: StreamEvent) {
         val tags = INVALIDATE.firstOrNull { e.type.startsWith(it.first) }?.second
         if (tags != null) cache.invalidate(*tags)
+        activity.on(e)
         eventsFlow.tryEmit(e)
     }
 
+    /** The demo holding's stream (debug builds): the demo's own script of runs, outputs and cards, and what the owner's actions
+     *  there cause (a stopped company's runs end). Release builds have no demo. */
     private suspend fun demoPulse() {
         stateFlow.value = StreamState.LIVE
-        var n = 0
-        val companies = listOf("TY", "FX", "PC")
+        var tick = 0
         while (true) {
-            delay(2_400)
-            n++
-            val data: JsonObject = buildJsonObject { put("pulse", n) }
-            eventsFlow.tryEmit(StreamEvent(n.toString(), "activity.changed", "", companies[n % companies.size], null, data))
+            for (e in com.coinepro.hq.Demo.next(tick)) dispatch(e)
+            delay(600)
+            tick++
         }
     }
 

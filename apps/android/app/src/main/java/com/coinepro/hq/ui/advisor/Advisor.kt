@@ -90,7 +90,7 @@ fun AdvisorScreen() {
         placeholder = if (devil) "بپرس چرا نه… (مشاور مخالف‌خوانی میکند)" else null,
         subHeader = {
             Column(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                com.coinepro.hq.designsystem.ScrollRow(Modifier.padding(horizontal = 16.dp)) {
                     DevilChip(devil) { devil = it }
                     ToolChip("مرور هفتگی") { sheet = "review" }
                     ToolChip("یادداشت‌های تصمیم") { sheet = "memos" }

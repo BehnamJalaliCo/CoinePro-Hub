@@ -128,10 +128,12 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
         }
         // ⟨1.4.3⟩ the companies' stories, at the top like Instagram (contract §18.12)
         item { StoriesBar() }
-        away.data?.let { a ->
-            val n = a.decisions.new + a.deliverables.new + a.messages.new
-            if (n > 0) item {
-                HqCard(Modifier.fillMaxWidth()) {
+        // What happened while away slides open when it arrives, instead of pushing the page down in one jump.
+        item(key = "away") {
+            val a = away.data
+            val n = a?.let { it.decisions.new + it.deliverables.new + it.messages.new } ?: 0
+            androidx.compose.animation.AnimatedVisibility(a != null && n > 0, enter = com.coinepro.hq.designsystem.expandIn(), exit = com.coinepro.hq.designsystem.collapseOut()) {
+                if (a != null) HqCard(Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.size(40.dp).clip(CircleShape).background(c.softGold), contentAlignment = Alignment.Center) { DIcon(DivanIcon.KHALVAT, size = 20.dp, tint = c.goldInk) }
                         Column(Modifier.weight(1f)) {
@@ -144,19 +146,23 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
         }
         item {
             val i = inbox.data
-            if (i == null) Skeleton(Modifier.fillMaxWidth().height(220.dp), radius = 14.dp)
+            // The skeleton has the tiles' own shape and height, so nothing moves when the figures arrive.
+            if (i == null) Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                repeat(2) { Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { repeat(2) { Skeleton(Modifier.weight(1f).height(136.dp), radius = 16.dp) } } }
+            }
             // Four tiles of one height (two note lines each, and each row's tallest sets the row): label, figure and note on the same lines.
+            // The figures count up to their value when they arrive and when they change.
             else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatRow {
                     StatTile("منتظر مُهر تو", i.decisionsPending.toString(), Modifier.weight(1f),
                         sub = if (i.decisionsByRisk.high > 0) "${i.decisionsByRisk.high} با ریسک بالا" else "بدون ریسک بالا",
-                        tone = if (i.decisionsByRisk.high > 0) Tone.WARN else null, figure = false, onClick = { nav.go("cartable") }, subLines = 2)
-                    StatTile("خروجی بی‌امتیاز", i.deliverablesUnrated.toString(), Modifier.weight(1f), sub = "امتیاز تو ۴۰٪ نمره‌ی کارمند است", figure = false, onClick = { nav.go("outputs") }, subLines = 2)
+                        tone = if (i.decisionsByRisk.high > 0) Tone.WARN else null, figure = false, onClick = { nav.go("cartable") }, subLines = 2, count = true)
+                    StatTile("خروجی بی‌امتیاز", i.deliverablesUnrated.toString(), Modifier.weight(1f), sub = "امتیاز تو ۴۰٪ نمره‌ی کارمند است", figure = false, onClick = { nav.go("outputs") }, subLines = 2, count = true)
                 }
                 StatRow {
-                    StatTile("پیام نخوانده", i.messagesUnread.toString(), Modifier.weight(1f), sub = "از مدیرعامل‌ها و مشاور", figure = false, onClick = { nav.go("messages") }, subLines = 2)
+                    StatTile("پیام نخوانده", i.messagesUnread.toString(), Modifier.weight(1f), sub = "از مدیرعامل‌ها و مشاور", figure = false, onClick = { nav.go("messages") }, subLines = 2, count = true)
                     val t = day.data?.totals
-                    StatTile("مصرف امروز (معادل)", usd(t?.equivCostUsd), Modifier.weight(1f), onClick = { nav.go("treasury") }, subLines = 2,
+                    StatTile("مصرف امروز (معادل)", usd(t?.equivCostUsd), Modifier.weight(1f), onClick = { nav.go("treasury") }, subLines = 2, count = true,
                         subRich = t?.let { buildAnnotatedString { fig(tokens(it.inputTokens + it.outputTokens)); append(" توکن، ${it.calls} فراخوانی") } })
                 }
             }
@@ -249,6 +255,7 @@ fun BudgetLine(holding: Boolean, code: String, name: String, used: Long, limit: 
 @Composable
 private fun LiveCard(companies: List<Company>) {
     val c = Divan.colors
+    val nav = LocalNav.current
     val live = LocalLive.current
     HqCard(Modifier.fillMaxWidth()) {
         SectionTitle("استریم زنده‌ی هلدینگ", note = "ذره‌ی طلایی فرمان تو، نقره‌ای تحویل ایجنت‌ها") {
@@ -259,12 +266,11 @@ private fun LiveCard(companies: List<Company>) {
         HorizontalDivider(color = c.lineDivider)
         Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (live.feed.isEmpty()) Text("هنوز رویدادی نرسیده؛ ایجنت‌ها تا رسیدن کار خواب‌اند.", style = Divan.type.caption, color = c.textMuted)
-            live.feed.take(4).forEach { e ->
+            // The latest events in words (the same lines as a company's live feed), each with its company's mark.
+            live.feed.filter { it.type != "activity.changed" && it.type != "run.step" }.take(4).forEach { e ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.size(6.dp).clip(CircleShape).background(c.silverInk))
                     e.company?.let { CompanyMark(it, height = 12.dp, mono = true, ink = c.textSecondary) }
-                    Fig(e.type, style = Divan.type.figureSmall, color = c.textMuted, modifier = Modifier.weight(1f))
-                    Text(if (e.at.isBlank()) "همین الان" else ago(e.at), style = Divan.type.micro, color = c.textMuted)
+                    Box(Modifier.weight(1f)) { com.coinepro.hq.ui.companies.FeedLine(com.coinepro.hq.ui.companies.FeedRow(e.at.ifBlank { com.coinepro.hq.core.format.HqClock.now().toString() }, e.type, e.ref, (e.data["employee"] as? kotlinx.serialization.json.JsonPrimitive)?.content, (e.data["state"] as? kotlinx.serialization.json.JsonPrimitive)?.content)) { r -> com.coinepro.hq.ui.v17.refRoute(r)?.let(nav::go) } }
                 }
             }
         }
@@ -281,7 +287,9 @@ fun Orbit(companies: List<Company>, last: StreamEvent?, modifier: Modifier = Mod
     val c = Divan.colors
     val ring = companies.filter { it.kind != "holding" }
     val holding = companies.firstOrNull { it.kind == "holding" }
+    val live = com.coinepro.hq.ui.companies.rememberControlData()
     val pulses = remember { mutableStateListOf<Pair<Pulse, Animatable<Float, *>>>() }
+    val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
     LaunchedEffect(last) {
         val e = last ?: return@LaunchedEffect
         val co = e.company ?: return@LaunchedEffect
@@ -291,7 +299,9 @@ fun Orbit(companies: List<Company>, last: StreamEvent?, modifier: Modifier = Mod
         val p = Pulse(System.nanoTime(), co, out) to a
         pulses.add(p)
         while (pulses.size > 10) pulses.removeAt(0)
-        a.animateTo(1f, tween(1600, easing = LinearEasing))
+        // Removed animations: the particle is not drawn at all (its flight is the whole of it).
+        if (reduced) { pulses.remove(p); return@LaunchedEffect }
+        a.animateTo(1f, tween(com.coinepro.hq.designsystem.Motion.TRAVEL, easing = LinearEasing))
         pulses.remove(p)
     }
     BoxWithConstraints(modifier.fillMaxWidth().aspectRatio(1f)) {
@@ -326,7 +336,6 @@ fun Orbit(companies: List<Company>, last: StreamEvent?, modifier: Modifier = Mod
             ring.forEachIndexed { i, co ->
                 val p = pos(i)
                 val active = pulses.any { it.first.company == co.code }
-                val locked = co.killSwitch == "engaged"
                 Column(
                     Modifier
                         .align(AbsoluteAlignment.TopLeft)
@@ -337,14 +346,9 @@ fun Orbit(companies: List<Company>, last: StreamEvent?, modifier: Modifier = Mod
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Box(
-                        Modifier
-                            .size(node.dp)
-                            .clip(CircleShape)
-                            .background(c.tile)
-                            .border(if (active) 2.dp else 1.dp, if (locked) c.negative else if (active) c.textPrimary else c.lineStrong, CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) { CompanyMark(co.code, height = (node * 0.42f).dp, ink = c.textPrimary) }
+                    // The same ring as the companies list: a gold comet while its agents work, red when it is stopped.
+                    val st = live.state(co.code, false, co)
+                    com.coinepro.hq.ui.companies.ActivityRing(co.code, false, !st.running, live.busy(co.code), active || live.stirred(co.code), size = node.dp)
                     Text(co.nameFa ?: co.code, style = Divan.type.micro.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), maxLines = 1)
                     Text("${co.counts.workOpen} کار باز", style = Divan.type.micro, color = c.textMuted)
                 }
@@ -366,7 +370,8 @@ private fun OverseerCard() {
     val nav = LocalNav.current
     val c = Divan.colors
     val q = rememberQuery("oversight:summary", "oversight", maxAgeMs = 30_000) { oversight() }
-    val s = q.data ?: return
+    // Its place is held while it loads, so the cards below do not jump when it arrives.
+    val s = q.data ?: return if (q.error == null) Skeleton(Modifier.fillMaxWidth().height(76.dp), radius = 16.dp) else Unit
     val serious = (s.findingsOpen["critical"] ?: 0) + (s.findingsOpen["high"] ?: 0)
     HqCard(Modifier.fillMaxWidth(), tahrir = s.holdsWaiting > 0, onClick = { nav.go("oversight") }) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
