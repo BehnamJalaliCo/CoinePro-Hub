@@ -928,9 +928,8 @@ async def engage_kill_switch(
         await allow(
             ctx, "kill_switch.set", {"scope": body.scope, "state": "engaged", "current": current}
         )
-        changed = await control.set_kill_switch(
-            tx, ctx.who, target, "engaged", await scrub_async(body.reason)
-        )
+        reason = await scrub_async(body.reason)
+        changed = await control.set_kill_switch(tx, ctx.who, target, "engaged", reason)
         await ctx.audit(
             tx,
             company_id=target["id"],
@@ -938,7 +937,9 @@ async def engage_kill_switch(
             action_class="A2",
             target_kind="kill_switch",
             target_ref=body.scope,
-            summary=("changed" if changed else "unchanged") + f" by {ctx.who.code}",
+            summary=control.with_reason(
+                ("changed" if changed else "unchanged") + f" by {ctx.who.code}", reason
+            ),
         )
         result = await control.state(tx)
         if idem:
@@ -960,9 +961,8 @@ async def freeze_deploys(body: FreezeIn, ctx: Ctx = Depends(internal_ctx)) -> co
     company = await ctx.hub.companies.by_code(body.company)
     async with _tx_with(ctx, company.id) as tx:
         target = await control.resolve_scope(tx, f"company:{body.company}")
-        await control.add_deploy_freeze(
-            tx, ctx.who, target, body.until, await scrub_async(body.reason)
-        )
+        reason = await scrub_async(body.reason)
+        await control.add_deploy_freeze(tx, ctx.who, target, body.until, reason)
         await ctx.audit(
             tx,
             company_id=target["id"],
@@ -970,7 +970,7 @@ async def freeze_deploys(body: FreezeIn, ctx: Ctx = Depends(internal_ctx)) -> co
             action_class="A2",
             target_kind="company",
             target_ref=body.company,
-            summary=f"active by {ctx.who.code}",
+            summary=control.with_reason(f"active by {ctx.who.code}", reason),
         )
         result = await control.state(tx)
     await workshop_service.paused(ctx.hub)

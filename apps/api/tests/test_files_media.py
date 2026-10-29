@@ -15,6 +15,7 @@ import httpx
 import pytest
 
 from hq_api import media, workflows_client
+from hq_api.hub import Hub
 from hq_api.worker import media as M
 
 from .conftest import agent_headers, idem
@@ -24,6 +25,16 @@ pytestmark = pytest.mark.usefixtures("relay")
 
 
 # ------------------------------------------------------------- the files --
+
+
+@pytest.fixture(autouse=True)
+def _speech_on(hub: Hub, monkeypatch: pytest.MonkeyPatch) -> None:
+    """⟨1.7.3⟩ /transcribe answers 503 at once while speech is off: these tests
+    exercise the recogniser's path (the worker is faked), so speech is on."""
+    if not hub.settings.stt_url:
+        monkeypatch.setattr(hub, "settings", replace(hub.settings, stt_url="http://stt.test"))
+
+
 def _jpeg_with_gps() -> bytes:
     from PIL import Image
 

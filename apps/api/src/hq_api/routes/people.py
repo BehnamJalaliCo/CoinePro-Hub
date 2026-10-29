@@ -10,7 +10,7 @@ welcomes a hire; agents write through the Tool Gateway: `star.rubric` and
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
@@ -104,6 +104,24 @@ class StarRollup(BaseModel):
     companies: list[CompanyStanding]
     employees: list[EmployeeStanding]
     lessons: list[str]
+    # ⟨1.7.3⟩ when the next roll-up is built (daily at 08:00, the owner's zone);
+    # before the first one the lists are empty and this says when to look again
+    next_at: datetime | None = None
+
+
+ROLLUP_AT = time(8, 0)  # the StarsRollup schedule's hour (worker/schedules.py)
+
+
+def _next_rollup(now: datetime, zone: Any) -> datetime:
+    local = now.astimezone(zone)
+    at = datetime.combine(local.date(), ROLLUP_AT, tzinfo=zone)
+    return at if at > local else at + timedelta(days=1)
+
+
+def _closed_key(period: str, today: date) -> str:
+    if period == "week":
+        return (S.saturday_of(today) - timedelta(days=7)).isoformat()
+    return S.jalali_key(S.month_window(today)[0] - timedelta(days=1))
 
 
 class Adoption(BaseModel):
@@ -312,8 +330,18 @@ async def get_rollup(
             p=period,
             k=key,
         )
-        if row is None:
-            raise ApiError(404, "not_found")
+        zone = await S.owner_zone(tx)
+        now = await tx.scalar("SELECT now()")
+        if row is None:  # ⟨1.7.3⟩ none built yet: 200, empty, and when to look again
+            return StarRollup(
+                period=period,
+                key=key or _closed_key(period, now.astimezone(zone).date()),
+                best_company=None,
+                companies=[],
+                employees=[],
+                lessons=[],
+                next_at=_next_rollup(now, zone),
+            )
         lessons = await tx.all(
             "SELECT ref FROM knowledge.lessons WHERE period = :p ORDER BY ref",
             p=f"{period}:{row['key']}",
@@ -326,26 +354,37 @@ async def get_rollup(
         companies=[CompanyStanding.model_validate(c) for c in data.get("companies", [])],
         employees=[EmployeeStanding.model_validate(e) for e in data.get("employees", [])],
         lessons=[r["ref"] for r in lessons],
+        next_at=_next_rollup(now, zone),
     )
 
 
-@router.get("/lessons", response_model=list[Lesson], responses=E)
+@router.get("/lessons", response_model=Page[Lesson], responses=E)
 async def list_lessons(
     company: str | None = Query(default=None, pattern=CO),
     period: str | None = Query(default=None, max_length=30),
+    limit: int = Query(default=50, ge=1, le=pagination.MAX_LIMIT),
+    cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
-) -> list[Lesson]:
-    """Lessons from the best companies with each other company's adoption."""
+) -> Page[Lesson]:
+    """Lessons from the best companies with each other company's adoption;
+    newest first, a `Page` (contract §1, ⟨1.7.3⟩)."""
+    after_t, after_id = pagination.time_id(cursor)
     async with ctx.tx() as tx:
         rows = await tx.all(
             S.LESSON_SQL
             + """ WHERE (CAST(:co AS text) IS NULL OR c.code = :co)
                     AND (CAST(:p AS text) IS NULL OR l.period = :p)
-                  ORDER BY l.created_at DESC LIMIT 200""",
+                    AND (CAST(:after_t AS timestamptz) IS NULL
+                         OR (l.created_at, l.id) < (CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))
+                  ORDER BY l.created_at DESC, l.id DESC LIMIT :lim""",
             co=company,
             p=period,
+            after_t=after_t,
+            after_id=after_id,
+            lim=limit + 1,
         )
-    return [_lesson(r) for r in rows]
+    items, nxt = pagination.page(rows, limit, ("created_at", "id"))
+    return Page(items=[_lesson(r) for r in items], next_cursor=nxt)
 
 
 # ---------------------------------------------------------- owner: stories --

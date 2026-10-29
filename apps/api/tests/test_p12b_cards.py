@@ -25,6 +25,15 @@ from .conftest import agent_headers, idem, step_up
 from .p10_support import holding_switch
 from .test_files_media import audio
 
+
+@pytest.fixture(autouse=True)
+def _speech_on(hub: Hub, monkeypatch: pytest.MonkeyPatch) -> None:
+    """⟨1.7.3⟩ /transcribe answers 503 at once while speech is off: these tests
+    exercise the recogniser's path (the worker is faked), so speech is on."""
+    if not hub.settings.stt_url:
+        monkeypatch.setattr(hub, "settings", replace(hub.settings, stt_url="http://stt.test"))
+
+
 KEY = "AKIA" + "Q" * 16  # an AWS-shaped key, made at run time (never in the source)
 
 

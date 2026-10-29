@@ -603,6 +603,8 @@ async def link_title(tx: Tx, kind: str, ref: str) -> str | None:
         return _s(await tx.scalar("SELECT name_fa FROM archive.parties WHERE ref = :r", r=ref))
     if kind == "company":
         return _s(await tx.scalar("SELECT name_fa FROM core.companies WHERE code = :r", r=ref))
+    if kind == "deliverable":
+        return _s(await tx.scalar("SELECT title FROM cartable.deliverables WHERE ref = :r", r=ref))
     return None
 
 
@@ -644,6 +646,7 @@ async def add_link(
             "case",
             "party",
             "company",
+            "deliverable",
         ):
             errors[f"{path}.to.ref"] = f"unknown {to_kind}"
     if errors:

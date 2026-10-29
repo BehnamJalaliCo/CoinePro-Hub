@@ -53,6 +53,9 @@ async def record(
     )
 
 
+GENESIS = "0" * 64  # audit.chain()'s prev_hash for seq 1
+
+
 async def verify(tx: Tx, *, anchor_file: str | Path | None = None) -> dict[str, Any]:
     """The chain recomputed in Postgres, then compared with the last anchor
     kept outside it (a rewrite of every row *and* the head is caught there)."""
@@ -60,7 +63,14 @@ async def verify(tx: Tx, *, anchor_file: str | Path | None = None) -> dict[str, 
     row["anchor"] = "none"
     anchor = last_anchor(anchor_file)
     if anchor is not None:
-        h = await tx.scalar("SELECT hash FROM audit.entries WHERE seq = :s", s=anchor["seq"])
+        # The genesis anchor (seq 0, the 64 zeros the chain starts from) has no row
+        # to compare with: written while the chain was still empty, it read as a
+        # break "at row 0" every night, and no later anchor was ever written (15 §3).
+        h = (
+            GENESIS
+            if anchor["seq"] == 0
+            else await tx.scalar("SELECT hash FROM audit.entries WHERE seq = :s", s=anchor["seq"])
+        )
         if h == anchor["hash"]:
             row["anchor"] = "ok"
         else:

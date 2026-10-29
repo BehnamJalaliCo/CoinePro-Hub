@@ -170,6 +170,21 @@ classes:
       - {key: count, title_fa: شمار مصوبه‌ها, type: number, required: true}
       - {key: first_ref, title_fa: نخستین مصوبه, type: text, searchable: true}
       - {key: last_ref, title_fa: آخرین مصوبه, type: text, searchable: true}
+  # ⟨1.7.3⟩ a deliverable the owner files from the cartable (prompt 15): its
+  # body as a PDF, linked `about` the deliverable.
+  - key: report
+    title_fa: گزارش و خروجی
+    icon: file-text
+    scopes: all
+    default_level: internal
+    required_files: 1
+    allowed_mime: [application/pdf]
+    ocr: false
+    retention: other
+    fields:
+      - {key: date, title_fa: تاریخ, type: date, searchable: true}
+      - {key: deliverable, title_fa: خروجی, type: text, searchable: true}
+      - {key: producer, title_fa: سازنده, type: text, searchable: true}
   - key: other
     title_fa: سایر
     icon: folder

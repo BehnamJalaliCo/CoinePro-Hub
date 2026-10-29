@@ -14,4 +14,4 @@ link_kinds:
   - key: about
     title_fa: درباره‌ی
     inverse_fa: سندهای مربوط
-    to_kinds: [decision, resolution, case, work, record, employee, revenue_account, party, company]
+    to_kinds: [decision, resolution, case, work, record, employee, revenue_account, party, company, deliverable]

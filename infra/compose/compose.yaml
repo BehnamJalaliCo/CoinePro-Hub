@@ -649,6 +649,9 @@ services:
       # Prompt 12 part B: the Persian voice is on only while the opt-in profile
       # "tts" runs (hq.sh sets HQ_TTS_ACTIVE); else briefings are text only.
       HQ_TTS: ${HQ_TTS_ACTIVE:-off}
+      # 15 §2.3: /transcribe answers 503 at once and /meta says speech is off
+      # while hq.sh leaves this empty (HQ_STT off).
+      STT_URL: ${STT_URL:-}
       HQ_TTS_VOICE: ${HQ_TTS_VOICE:-fa_IR-amir-medium}
       # Prompt 13 §2.3: renders are queued only while the opt-in profile
       # "media" runs (hq.sh sets HQ_MEDIA_ACTIVE); else media.render answers

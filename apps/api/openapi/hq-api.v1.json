@@ -9218,6 +9218,14 @@
             ],
             "title": "Body"
           },
+          "category": {
+            "enum": [
+              "report",
+              "work"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
           "company": {
             "title": "Company",
             "type": "string"
@@ -9234,6 +9242,17 @@
             },
             "title": "Evidence",
             "type": "array"
+          },
+          "filed_as": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filed As"
           },
           "id": {
             "format": "uuid",
@@ -9261,6 +9280,18 @@
           "ref": {
             "title": "Ref",
             "type": "string"
+          },
+          "seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seen At"
           },
           "summary": {
             "title": "Summary",
@@ -9300,7 +9331,10 @@
           "usage",
           "evidence",
           "rating",
-          "created_at"
+          "created_at",
+          "category",
+          "seen_at",
+          "filed_as"
         ],
         "title": "Deliverable",
         "type": "object"
@@ -12562,6 +12596,19 @@
         "title": "FileVariants",
         "type": "object"
       },
+      "FiledOut": {
+        "properties": {
+          "record": {
+            "title": "Record",
+            "type": "string"
+          }
+        },
+        "required": [
+          "record"
+        ],
+        "title": "FiledOut",
+        "type": "object"
+      },
       "Finding": {
         "properties": {
           "answerable": {
@@ -14756,6 +14803,10 @@
             "title": "Deliverables Unrated",
             "type": "integer"
           },
+          "deliverables_unseen": {
+            "title": "Deliverables Unseen",
+            "type": "integer"
+          },
           "khalvat": {
             "title": "Khalvat",
             "type": "boolean"
@@ -14772,6 +14823,7 @@
           "decisions_pending",
           "decisions_by_risk",
           "deliverables_unrated",
+          "deliverables_unseen",
           "messages_unread",
           "notifications",
           "khalvat"
@@ -21099,6 +21151,12 @@
             "title": "Service Version",
             "type": "string"
           },
+          "speech": {
+            "$ref": "#/components/schemas/SpeechMeta",
+            "default": {
+              "enabled": false
+            }
+          },
           "stream_retention_days": {
             "title": "Stream Retention Days",
             "type": "integer"
@@ -24015,6 +24073,33 @@
           "items"
         ],
         "title": "Page[LegalCase]",
+        "type": "object"
+      },
+      "Page_Lesson_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Lesson"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Lesson]",
         "type": "object"
       },
       "Page_MediaItem_": {
@@ -31009,17 +31094,28 @@
         "title": "Seen",
         "type": "object"
       },
-      "SeenOut": {
+      "SeenIn": {
+        "additionalProperties": false,
         "properties": {
+          "refs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Refs",
+            "type": "array"
+          },
           "seen": {
             "title": "Seen",
-            "type": "integer"
+            "type": "boolean"
           }
         },
         "required": [
+          "refs",
           "seen"
         ],
-        "title": "SeenOut",
+        "title": "SeenIn",
         "type": "object"
       },
       "Segment": {
@@ -32969,6 +33065,19 @@
         "title": "SpeechJob",
         "type": "object"
       },
+      "SpeechMeta": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "SpeechMeta",
+        "type": "object"
+      },
       "StandingOrder": {
         "properties": {
           "applies_to": {
@@ -33233,6 +33342,18 @@
             },
             "title": "Lessons",
             "type": "array"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
           },
           "period": {
             "enum": [
@@ -38834,6 +38955,19 @@
         "title": "ActivateIn",
         "type": "object"
       },
+      "hq_api__routes__deliverables__SeenOut": {
+        "properties": {
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "title": "SeenOut",
+        "type": "object"
+      },
       "hq_api__routes__egress__ReserveIn": {
         "additionalProperties": false,
         "properties": {
@@ -39376,6 +39510,19 @@
           "ref"
         ],
         "title": "Evidence",
+        "type": "object"
+      },
+      "hq_api__routes__people__SeenOut": {
+        "properties": {
+          "seen": {
+            "title": "Seen",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seen"
+        ],
+        "title": "SeenOut",
         "type": "object"
       },
       "hq_api__routes__runs__RunTokens": {
@@ -52718,7 +52865,7 @@
     },
     "/api/v1/control/deploy-freeze": {
       "post": {
-        "description": "Freezes agent write actions of one company until `until` (§1.5 #5); a past\n`until` lifts freezes. The owner lifts any freeze (pipeline's, CEOs'); a new\nfreeze never lifts another one.",
+        "description": "Freezes agent write actions of one company until `until` (§1.5 #5); a past\n`until` lifts freezes. The owner lifts any freeze (pipeline's, CEOs'); a new\nfreeze never lifts another one. ⟨1.7.3⟩ Lifting is 🔏 (`deploy_freeze.lift`,\ntarget `company:<CODE>`), like releasing a kill switch; closing is not.",
         "operationId": "set_deploy_freeze",
         "requestBody": {
           "content": {
@@ -55773,7 +55920,7 @@
     },
     "/api/v1/deliverables": {
       "get": {
-        "description": "Newest first.",
+        "description": "Newest first. ⟨1.7.3⟩ `seen`, `category`, and `from`/`to` (days in the\nowner's zone, both included).",
         "operationId": "list_deliverables",
         "parameters": [
           {
@@ -55826,6 +55973,76 @@
                 }
               ],
               "title": "Unrated"
+            }
+          },
+          {
+            "in": "query",
+            "name": "seen",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Seen"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "report",
+                    "work"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
             }
           },
           {
@@ -55901,11 +56118,13 @@
                         }
                       ],
                       "body": "متن پیام",
+                      "category": "report",
                       "company": "TY",
                       "created_at": "2026-10-17T05:42:00Z",
                       "evidence": [
                         {}
                       ],
+                      "filed_as": "x",
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "produced_with": {},
                       "producer": {
@@ -55922,6 +56141,7 @@
                         "score": 1
                       },
                       "ref": "O-000456",
+                      "seen_at": "2026-10-17T05:42:00Z",
                       "summary": "خلاصه",
                       "title": "گزارش هفتگی رشد",
                       "usage": {},
@@ -56000,6 +56220,102 @@
         ]
       }
     },
+    "/api/v1/deliverables/seen": {
+      "post": {
+        "description": "Owner: mark one or many deliverables seen (`seen: true`) or new again;\nidempotent (a deliverable already in that state is not counted).",
+        "operationId": "mark_seen",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "refs": [
+                  "W-000789"
+                ],
+                "seen": false
+              },
+              "schema": {
+                "$ref": "#/components/schemas/SeenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "updated": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__routes__deliverables__SeenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Mark Seen",
+        "tags": [
+          "deliverables"
+        ]
+      }
+    },
     "/api/v1/deliverables/{ref}": {
       "get": {
         "description": "One deliverable with its attachments, usage, model label and latest rating.",
@@ -56040,11 +56356,13 @@
                     }
                   ],
                   "body": "متن پیام",
+                  "category": "report",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "evidence": [
                     {}
                   ],
+                  "filed_as": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "produced_with": {},
                   "producer": {
@@ -56061,6 +56379,7 @@
                     "score": 1
                   },
                   "ref": "O-000456",
+                  "seen_at": "2026-10-17T05:42:00Z",
                   "summary": "خلاصه",
                   "title": "گزارش هفتگی رشد",
                   "usage": {},
@@ -56136,6 +56455,97 @@
         ]
       }
     },
+    "/api/v1/deliverables/{ref}/file": {
+      "post": {
+        "description": "Owner: file the deliverable in the archive (§23): a draft of class\n`report` with the body as a PDF and a link `about` the deliverable. A\nsecond call answers the same record.",
+        "operationId": "file_deliverable",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "record": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FiledOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "File Deliverable",
+        "tags": [
+          "deliverables"
+        ]
+      }
+    },
     "/api/v1/deliverables/{ref}/rating": {
       "post": {
         "description": "Owner rating 1..10 (+ optional comment). Re-rating within 7 days of the\nfirst rating adds a new version; the history is kept. The producer's score\nis recomputed. A delivered work becomes done. Requires `Idempotency-Key`.",
@@ -56190,11 +56600,13 @@
                     }
                   ],
                   "body": "متن پیام",
+                  "category": "report",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "evidence": [
                     {}
                   ],
+                  "filed_as": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "produced_with": {},
                   "producer": {
@@ -56211,6 +56623,7 @@
                     "score": 1
                   },
                   "ref": "O-000456",
+                  "seen_at": "2026-10-17T05:42:00Z",
                   "summary": "خلاصه",
                   "title": "گزارش هفتگی رشد",
                   "usage": {},
@@ -62580,6 +62993,7 @@
                   },
                   "decisions_pending": 1,
                   "deliverables_unrated": 1,
+                  "deliverables_unseen": 1,
                   "khalvat": false,
                   "messages_unread": 1,
                   "notifications": {
@@ -65363,7 +65777,7 @@
     },
     "/api/v1/lessons": {
       "get": {
-        "description": "Lessons from the best companies with each other company's adoption.",
+        "description": "Lessons from the best companies with each other company's adoption;\nnewest first, a `Page` (contract §1, ⟨1.7.3⟩).",
         "operationId": "list_lessons",
         "parameters": [
           {
@@ -65399,40 +65813,67 @@
               ],
               "title": "Period"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
           }
         ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "example": [
-                  {
-                    "adoption": [
-                      {
-                        "company": "TY",
-                        "decision_ref": "x",
-                        "status": "proposed",
-                        "work_ref": "x"
-                      }
-                    ],
-                    "body_md": "x",
-                    "created_at": "2026-10-17T05:42:00Z",
-                    "evidence": [
-                      {}
-                    ],
-                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "period": "x",
-                    "ref": "W-000789",
-                    "source_company": "x",
-                    "title_fa": "گزارش هفتگی رشد"
-                  }
-                ],
+                "example": {
+                  "items": [
+                    {
+                      "adoption": [
+                        {
+                          "company": "TY",
+                          "decision_ref": "x",
+                          "status": "proposed",
+                          "work_ref": "x"
+                        }
+                      ],
+                      "body_md": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "evidence": [
+                        {}
+                      ],
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "period": "x",
+                      "ref": "W-000789",
+                      "source_company": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Lesson"
-                  },
-                  "title": "Response List Lessons",
-                  "type": "array"
+                  "$ref": "#/components/schemas/Page_Lesson_"
                 }
               }
             },
@@ -70491,6 +70932,9 @@
                   ],
                   "public_origin": "x",
                   "service_version": "x",
+                  "speech": {
+                    "enabled": false
+                  },
                   "stream_retention_days": 1,
                   "tts": {
                     "enabled": false,
@@ -83500,6 +83944,7 @@
                   "lessons": [
                     "x"
                   ],
+                  "next_at": "2026-10-17T05:42:00Z",
                   "period": "week"
                 },
                 "schema": {
@@ -84094,7 +84539,7 @@
                   "seen": 1
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/SeenOut"
+                  "$ref": "#/components/schemas/hq_api__routes__people__SeenOut"
                 }
               }
             },
