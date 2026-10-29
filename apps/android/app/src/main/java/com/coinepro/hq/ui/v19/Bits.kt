@@ -366,7 +366,7 @@ fun FileChip(f: FileRef, icon: DivanIcon = DivanIcon.ATTACH, modifier: Modifier 
     Row(modifier.clip(CircleShape).background(c.tile).padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         DIcon(icon, size = 12.dp, tint = c.textSecondary)
         Fig(f.name, Modifier.weight(1f, fill = false), style = Divan.type.figureSmall, color = c.textSecondary)
-        Fig(fileSize(f.size), style = Divan.type.figureSmall, color = c.textMuted)
+        if (f.size >= 0) Fig(fileSize(f.size), style = Divan.type.figureSmall, color = c.textMuted)
     }
 }
 
@@ -409,7 +409,7 @@ fun ExactEmail(e: EmailDraft) {
         if (e.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             Text("پیوست:", style = Divan.type.micro, color = c.textMuted)
             for (a in e.attachments) {
-                FileChip(a)
+                FileChip(a.ref())
                 Fig("sha256 ${a.sha256.take(8)}", style = Divan.type.figureSmall, color = c.textMuted)
             }
         }

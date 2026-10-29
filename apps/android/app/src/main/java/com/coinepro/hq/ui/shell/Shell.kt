@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -109,10 +110,11 @@ val LocalLive = staticCompositionLocalOf { Live(StreamState.CONNECTING, null, em
 
 private data class Tab(val route: String, val label: String, val icon: DivanIcon, val badge: String? = null)
 
+/** The bottom bar; the gold button in the middle ("order") is not a tab: a tap speaks an order, a long press types one. */
 private val TABS = listOf(
     Tab("home", "فرمان", DivanIcon.COMMAND),
     Tab("cartable", "کارتابل", DivanIcon.CARTABLE, "decisions"),
-    Tab("advisor", "مشاور", DivanIcon.ADVISOR),
+    Tab("order", "فرمان صوتی", DivanIcon.MIC),
     Tab("companies", "شرکت‌ها", DivanIcon.COMPANIES),
     Tab("messages", "پیام‌ها", DivanIcon.MESSAGES, "messages"),
 )
@@ -121,6 +123,7 @@ private data class Tool(val route: String, val label: String, val icon: DivanIco
 
 /** The organisation beside the advisor (contract §18): the overseer and the assistant first, then what they run. */
 private val ORG = listOf(
+    Tool("advisor", "مشاور کل", DivanIcon.ADVISOR),
     Tool("oversight", "ناظر کل", DivanIcon.OVERSEER),
     Tool("assistant", "دستیار", DivanIcon.ASSISTANT),
     Tool("stars", "ستاره‌ها", DivanIcon.STAR),
@@ -185,6 +188,7 @@ private val TOOLS = listOf(
     Tool("control", "کنترل", DivanIcon.LOCK),
     Tool("audit", "دفتر Audit", DivanIcon.REPORT),
     Tool("settings", "تنظیمات", DivanIcon.SETTINGS),
+    Tool("errors", "خطاخوان", DivanIcon.URGENT),
 )
 
 private val TOP = TABS.map { it.route }.toSet() + ORG.map { it.route } + MANAGEMENT.map { it.route } + MEDIA.map { it.route } + ARCHIVE.map { it.route } +
@@ -233,6 +237,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
     var tools by remember { mutableStateOf(false) }
     var order by remember { mutableStateOf(false) }
     var voice by remember { mutableStateOf(false) }
+    // The gold button's long press, and «فرمان تازه»: the order typed.
     var newSession by remember { mutableStateOf(false) }
     var grantFor by remember { mutableStateOf<String?>(null) }
     var granting by remember { mutableStateOf(false) }
@@ -249,8 +254,13 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
 
     // ⟨1.4.6⟩ marks and seals draw from GET /brands first (§18.14).
     val brands = com.coinepro.hq.ui.companies.rememberBrands()
+    // A ref in agent text opens its page; the error log records the screen each failure happened on.
+    val refLinks = remember(navApi) {
+        com.coinepro.hq.designsystem.RefLinks({ com.coinepro.hq.ui.v17.refRoute(it) != null }, { r -> com.coinepro.hq.ui.v17.refRoute(r)?.let(navApi::go) })
+    }
+    LaunchedEffect(route) { graph.errors.screen = route }
 
-    CompositionLocalProvider(LocalNav provides navApi, LocalLive provides Live(streamState, last, feed.toList()), LocalBrands provides brands) {
+    CompositionLocalProvider(LocalNav provides navApi, LocalLive provides Live(streamState, last, feed.toList()), LocalBrands provides brands, com.coinepro.hq.designsystem.LocalRefLinks provides refLinks) {
         Column(Modifier.fillMaxSize()) {
             TopBar(
                 back = !top,
@@ -302,6 +312,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("runs") { com.coinepro.hq.ui.owner.RunsScreen() }
                     composable("sites") { com.coinepro.hq.ui.owner.SitesScreen() }
                     composable("settings") { SettingsScreen(graph) }
+                    composable("errors") { com.coinepro.hq.ui.settings.ErrorLogScreen(graph.errors) }
                     // ⟨1.5⟩ §19
                     composable("revenue") { com.coinepro.hq.ui.revenue.RevenueScreen() }
                     composable("support") { com.coinepro.hq.ui.support.SupportScreen() }
@@ -356,11 +367,11 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("archive-settings/{tab}/{ref}") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen(tab0 = it.arguments?.getString("tab"), open0 = it.arguments?.getString("ref")) }
                 }
             }
-            BottomBar(route, inbox.data?.decisionsPending ?: 0, inbox.data?.messagesUnread ?: 0) { navApi.go(it) }
+            BottomBar(route, inbox.data?.decisionsPending ?: 0, inbox.data?.messagesUnread ?: 0, listening = voice, onOrder = { voice = true }, onTypedOrder = { order = true }) { navApi.go(it) }
         }
         if (tools) {
             ModalBottomSheet(onDismissRequest = { tools = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Divan.colors.overlay) {
-                ToolsSheet(unrated = inbox.data?.deliverablesUnrated ?: 0) { r -> tools = false; navApi.go(r) }
+                ToolsSheet(outputs = inbox.data?.let { it.deliverablesUnseen ?: it.deliverablesUnrated } ?: 0, errors = graph.errors.entries.collectAsStateWithLifecycle().value.size) { r -> tools = false; navApi.go(r) }
             }
         }
         if (order) NewOrderSheet(onDismiss = { order = false })
@@ -401,8 +412,9 @@ private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo:
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun BottomBar(route: String, decisions: Int, messages: Int, go: (String) -> Unit) {
+private fun BottomBar(route: String, decisions: Int, messages: Int, listening: Boolean, onOrder: () -> Unit, onTypedOrder: () -> Unit, go: (String) -> Unit) {
     val c = Divan.colors
     val current = route.substringBefore('/')
     Column(Modifier.fillMaxWidth().background(c.card)) {
@@ -410,7 +422,9 @@ private fun BottomBar(route: String, decisions: Int, messages: Int, go: (String)
         Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
             for (t in TABS) {
                 val active = current == t.route || (t.route == "companies" && current in setOf("employees", "work"))
-                if (t.route == "advisor") {
+                if (t.route == "order") {
+                    // The gold button: a tap opens the voice order and starts listening; a long press opens the order typed.
+                    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         Box(
                             Modifier
@@ -418,10 +432,19 @@ private fun BottomBar(route: String, decisions: Int, messages: Int, go: (String)
                                 .size(60.dp)
                                 .clip(CircleShape)
                                 .background(c.card)
-                                .clickable(role = Role.Tab, onClickLabel = t.label) { go(t.route) }
-                                .semantics { contentDescription = "مشاور کل" },
+                                .combinedClickable(
+                                    role = Role.Button,
+                                    onClickLabel = "فرمان صوتی: بگو",
+                                    onLongClickLabel = "فرمان نوشتنی",
+                                    onLongClick = { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); onTypedOrder() },
+                                    onClick = onOrder,
+                                )
+                                .semantics { contentDescription = "فرمان صوتی؛ نگه دار برای فرمان نوشتنی" },
                             contentAlignment = Alignment.Center,
-                        ) { Orb(48.dp, state = if (active) "listening" else "rest") }
+                        ) {
+                            Orb(48.dp, state = if (listening) "listening" else "rest", label = "فرمان صوتی")
+                            DIcon(DivanIcon.MIC, size = 22.dp, tint = c.onGold)
+                        }
                     }
                     continue
                 }
@@ -444,7 +467,7 @@ private fun BottomBar(route: String, decisions: Int, messages: Int, go: (String)
 }
 
 @Composable
-private fun ToolsSheet(unrated: Int, go: (String) -> Unit) {
+private fun ToolsSheet(outputs: Int, errors: Int, go: (String) -> Unit) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("سازمان", style = Divan.type.h3, modifier = Modifier.padding(bottom = 8.dp))
         for (t in ORG) ToolRow(t, null, go)
@@ -457,7 +480,7 @@ private fun ToolsSheet(unrated: Int, go: (String) -> Unit) {
         Text("حاکمیت", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
         for (t in GOVERNANCE) ToolRow(t, null, go)
         Text("ابزارها", style = Divan.type.h3, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-        for (t in TOOLS) ToolRow(t, if (t.route == "outputs" && unrated > 0) unrated else null, go)
+        for (t in TOOLS) ToolRow(t, when { t.route == "outputs" && outputs > 0 -> outputs; t.route == "errors" && errors > 0 -> errors; else -> null }, go)
     }
 }
 

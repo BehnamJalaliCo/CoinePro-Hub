@@ -53,6 +53,8 @@ class ApiException(
     /** ⟨1.7⟩ `422 schema_invalid` and `validation_failed`: each named field with the server's sentence (§23.10), shown next to it. */
     val fields: Map<String, String> = emptyMap(),
 ) : Exception("HTTP $status $code") {
+    /** The error log's entry for this failure, so a caller that expected it (a 404 read as "none yet") can take it back. */
+    @Volatile var logged: Long? = null
     val isAuth: Boolean get() = status == 401
     val isOffline: Boolean get() = status == 0
 
@@ -66,6 +68,45 @@ class ApiException(
 interface TokenSource {
     fun token(): String?
     fun clear()
+}
+
+/** One failed call as the error log keeps it: never a body, a token or a cookie; the log masks the path's ids itself. */
+data class ApiFailure(
+    /** http · decode · network */
+    val kind: String,
+    val method: String,
+    val path: String,
+    val status: Int? = null,
+    val code: String? = null,
+    val title: String? = null,
+    val requestId: String? = null,
+    /** decode: the JSON path the decoder stopped at (`$.items[0].samples[0].file`). */
+    val field: String? = null,
+    /** decode: what it expected, without the input. */
+    val detail: String? = null,
+)
+
+/** Where the app records failed calls (the «خطاخوان» log); [forget] takes back one a caller expected. */
+interface FailureSink {
+    fun record(f: ApiFailure): Long?
+    fun forget(id: Long)
+}
+
+/** A decoder's complaint as the log keeps it: the JSON path and the sentence, never the JSON input the message quotes. */
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+fun decodeFailure(method: String, path: String, status: Int?, e: Throwable, requestId: String? = null): ApiFailure {
+    val msg = e.message.orEmpty().substringBefore("JSON input:")
+    val field = Regex("at path:? ?(\\$\\S*)").find(msg)?.groupValues?.get(1)?.trimEnd('.', ',')
+    val missing = (e as? kotlinx.serialization.MissingFieldException)?.missingFields
+    val type = Regex("serial name '([^']+)'").find(msg)?.groupValues?.get(1)?.substringAfterLast('.')
+    val sentence = msg.lineSequence().firstOrNull().orEmpty()
+        .replace(Regex("\\s*at path:? ?\\$\\S*"), "").replace(Regex("\\s*Use 'coerceInputValues.*$"), "")
+        .replace(Regex("Unexpected JSON token at offset \\d+: "), "").trim().take(240)
+    val detail = when {
+        missing != null -> "missing ${missing.joinToString()}" + (type?.let { " ($it)" } ?: "")
+        else -> sentence.ifBlank { e::class.simpleName.orEmpty() }
+    }
+    return ApiFailure("decode", method, path, status, "contract_mismatch", null, requestId, field, detail)
 }
 
 /** Signs one 🔏 action: the API supplies the contract's action name and target, the caller returns a step-up token. */
@@ -95,6 +136,22 @@ class Api(
 
     /** The session is gone (401 outside a normal call, e.g. on the stream). */
     fun unauthorized() = tokens.clear()
+
+    /** The app's error log for a real session; the demo and the tests leave it null. */
+    @Volatile var failures: FailureSink? = null
+
+    private fun mismatch(status: Int, method: String, path: String, e: Throwable, requestId: String? = null): ApiException {
+        val x = ApiException(status, "contract_mismatch", "پاسخ سرور با قرارداد نمیخواند؛ نسخه‌ی اپ را به‌روز کن.", requestId)
+        x.logged = failures?.record(decodeFailure(method, if (path.startsWith("/api/")) path else "/api/v1$path", status, e, requestId))
+        return x
+    }
+
+    /** Decodes what a GET answered in more than one shape; a failure is a `contract_mismatch` with its field path in the log. */
+    private inline fun <T> decoded(path: String, method: String = "GET", block: () -> T): T = try {
+        block()
+    } catch (e: IllegalArgumentException) {
+        throw mismatch(200, method, path, e)
+    }
 
     fun url(path: String, query: Map<String, Any?> = emptyMap()): HttpUrl {
         val b = base.newBuilder().encodedPath("/api/v1$path")
@@ -141,7 +198,19 @@ class Api(
     // ------------------------------------------------------- deliverables --
     suspend fun deliverables(unrated: Boolean? = null, company: String? = null, limit: Int = 50): Page<Deliverable> =
         get("/deliverables", mapOf("unrated" to unrated, "company" to company, "limit" to limit))
+    /** ⟨1.7.3⟩ the outputs list with every filter of §5.2: [seen] (true · false), [category] (report · work), [from]/[to] (days in the
+     *  owner's zone), [producer], [q]; newest first, a Page. A hub before ⟨1.7.3⟩ ignores the new parameters (the app filters too). */
+    suspend fun deliverables(q: DeliverableQuery, cursor: String? = null, limit: Int = 50): Page<Deliverable> =
+        get("/deliverables", mapOf(
+            "seen" to q.seen, "category" to q.category, "unrated" to q.unrated.takeIf { it }, "company" to q.company, "producer" to q.producer,
+            "q" to q.text?.trim()?.ifEmpty { null }, "from" to q.from, "to" to q.to, "limit" to limit, "cursor" to cursor,
+        ))
     suspend fun deliverable(ref: String): Deliverable = get("/deliverables/${seg(ref)}")
+    /** ⟨1.7.3⟩ marks one or many seen (or unseen again); idempotent. A hub before ⟨1.7.3⟩ answers `404`: the caller keeps it on the phone. */
+    suspend fun markSeen(refs: List<String>, seen: Boolean = true): SeenOut =
+        post("/deliverables/seen", buildJsonObject { put("refs", ids(refs)); put("seen", seen) })
+    /** ⟨1.7.3⟩ files it in the archive (§23) as a draft with the body as a PDF; a second call answers the same record. */
+    suspend fun fileDeliverable(ref: String): FiledOut = post("/deliverables/${seg(ref)}/file", JsonObject(emptyMap()))
     suspend fun rate(ref: String, score: Int, comment: String?): Deliverable =
         post("/deliverables/${seg(ref)}/rating", buildJsonObject { put("score", score); put("comment", comment) })
 
@@ -295,9 +364,12 @@ class Api(
     suspend fun cancelErrand(ref: String): Errand = post("/errands/${seg(ref)}/cancel", JsonObject(emptyMap()))
 
     // ---------------------------------------------------- stars ⟨1.4⟩ --
-    suspend fun rollup(period: String): StarRollup = get("/stars/rollup", mapOf("period" to period))
-    suspend fun rubrics(): List<StarRubric> = get("/stars/rubrics")
-    suspend fun lessons(): Page<Lesson> = get("/lessons")
+    /** The last closed period's roll-up, or null while none has been made yet (the hub answers `404 not_found` until the first
+     *  Saturday morning, or the first of the month, after stars were given). */
+    suspend fun rollup(period: String): StarRollup? = orNull { get("/stars/rollup", mapOf("period" to period)) }
+    suspend fun rubrics(): List<StarRubric> = listAny("/stars/rubrics", emptyMap(), StarRubric.serializer())
+    /** The hub answers a bare list (`list[Lesson]`); a page is read too. */
+    suspend fun lessons(): List<Lesson> = listAny("/lessons", emptyMap(), Lesson.serializer())
 
     // ------------------------------------------- skills, academy ⟨1.4⟩ --
     suspend fun skills(): List<Skill> = get("/skills")
@@ -327,7 +399,14 @@ class Api(
     suspend fun rejectTeaching(ref: String): Teaching = post("/academy/teach/${seg(ref)}/reject", JsonObject(emptyMap()))
 
     // --------------------------------------------- egress and MCP ⟨1.4⟩ --
-    suspend fun egressSummary(period: String = "day"): EgressSummary = get("/egress/summary", mapOf("period" to period))
+    /** The hub answers one row per company and day (`list[EgressDay]`); an object in the screen's shape is read too. */
+    suspend fun egressSummary(period: String = "day"): EgressSummary {
+        val e = get<JsonElement>("/egress/summary", mapOf("period" to period))
+        return decoded("/egress/summary") {
+            if (e is JsonArray) EgressSummary.of(json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(EgressDay.serializer()), e), period)
+            else json.decodeFromJsonElement(EgressSummary.serializer(), e)
+        }
+    }
     suspend fun egress(limit: Int = 40): Page<EgressEntry> = get("/egress", mapOf("limit" to limit))
     suspend fun mcpServers(): List<McpServer> = get("/tools/mcp")
     suspend fun serviceAccounts(): List<ServiceAccount> = get("/tools/accounts")
@@ -484,7 +563,17 @@ class Api(
     suspend fun conversations(company: String? = null, state: String? = null, channel: String? = null, q: String? = null, cursor: String? = null, limit: Int = 30): Page<Conversation> =
         get("/support/conversations", mapOf("company" to company, "state" to state, "channel" to channel, "q" to q?.trim()?.ifEmpty { null }, "limit" to limit, "cursor" to cursor))
     /** With its messages, oldest first. */
-    suspend fun conversation(ref: String): Conversation = get("/support/conversations/${seg(ref)}")
+    suspend fun conversation(ref: String): Conversation {
+        // The hub answers `{conversation, messages}` (SupportConversationDetail); a flat conversation with its messages is read too.
+        val e = get<JsonElement>("/support/conversations/${seg(ref)}")
+        return decoded("/support/conversations/{ref}") {
+            val o = e as? JsonObject
+            val inner = o?.get("conversation") as? JsonObject
+            if (inner == null) json.decodeFromJsonElement(Conversation.serializer(), e)
+            else json.decodeFromJsonElement(Conversation.serializer(), inner)
+                .copy(messages = json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(SupportMessage.serializer()), o["messages"] ?: JsonArray(emptyList())))
+        }
+    }
     suspend fun supportQueue(): List<QueueItem> = listOrPage("/support/queue", emptyMap(), QueueItem.serializer())
     /** Sent as the owner through the outbound guard: `422 send_blocked` with its reasons. [key]: one per text. */
     suspend fun reply(ref: String, body: String, key: String): SupportMessage =
@@ -548,12 +637,7 @@ class Api(
 
     /** §19 names a cursor only on conversations, rescue cases and feedback; the other lists are read bare or paged. */
     private suspend fun <T> listOrPage(path: String, query: Map<String, Any?>, s: KSerializer<T>): List<T> {
-        val e = get<JsonElement>(path, query)
-        return try {
-            if (e is JsonArray) json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(s), e) else json.decodeFromJsonElement(Page.serializer(s), e).items
-        } catch (x: IllegalArgumentException) {
-            throw ApiException(200, "contract_mismatch", "پاسخ سرور با قرارداد نمیخواند؛ نسخه‌ی اپ را به‌روز کن.")
-        }
+        return decodeList(get<JsonElement>(path, query), s, null, path)
     }
 
     // ---------------------------------------------------- governance ⟨1.5⟩ --
@@ -596,7 +680,7 @@ class Api(
             put("types", jsonBody.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(MeetingType.serializer()), types))
         })
         val e: JsonElement = send("PUT", "/meetings/settings", text, stepUp = stepUp("meetings.settings", sha256(text)))
-        return decodeList(e, MeetingType.serializer(), "types")
+        return decodeList(e, MeetingType.serializer(), "types", "PUT /meetings/settings")
     }
 
     /** The sealed holding charter and every addendum the principal may read. */
@@ -684,9 +768,9 @@ class Api(
 
     /** A list read bare, paged, or wrapped in [wrap] (`{types}`, `{scopes}`, `{rules}`): §20 names a cursor only where it says Page. */
     private suspend fun <T> listAny(path: String, query: Map<String, Any?>, s: KSerializer<T>, wrap: String? = null): List<T> =
-        decodeList(get<JsonElement>(path, query), s, wrap)
+        decodeList(get<JsonElement>(path, query), s, wrap, path)
 
-    private fun <T> decodeList(e: JsonElement, s: KSerializer<T>, wrap: String? = null): List<T> = try {
+    private fun <T> decodeList(e: JsonElement, s: KSerializer<T>, wrap: String? = null, path: String = "?"): List<T> = try {
         val items = when {
             e is JsonArray -> e
             e is JsonObject && wrap != null && e[wrap] is JsonArray -> e[wrap]!!
@@ -695,7 +779,10 @@ class Api(
         }
         json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(s), items)
     } catch (x: IllegalArgumentException) {
-        throw ApiException(200, "contract_mismatch", "پاسخ سرور با قرارداد نمیخواند؛ نسخه‌ی اپ را به‌روز کن.")
+        val (m, pth) = if (path.contains(' ')) path.substringBefore(' ') to path.substringAfter(' ') else "GET" to path
+        // A tree decoder's complaint has no JSON path; the same answer read as text names it (for the error log).
+        val withPath = runCatching { json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(s), (if (e is JsonObject && wrap != null && e[wrap] is JsonArray) e[wrap]!! else if (e is JsonObject) e["items"] ?: e else e).toString()) }.exceptionOrNull()
+        throw mismatch(200, m, pth, withPath ?: x)
     }
 
     // ----------------------------------------------- management tools ⟨1.5⟩ --
@@ -894,11 +981,7 @@ class Api(
     // `{part, key, version}`, a seal on the current version's manifest, a declassification on `ref@version:level`, a file of a level that
     // needs it on the ref (`archive.view`), a hold's release on its ref. PATCH, a draft's filing and a schema save carry If-Match (a new key
     // `If-None-Match: *`); a new record, party and hold carry the caller's Idempotency-Key, kept across retries of one press.
-    suspend fun archiveSchema(): ArchiveSchema = try {
-        ArchiveSchema(get<JsonObject>("/archive/schema"))
-    } catch (x: IllegalArgumentException) {
-        throw ApiException(200, "contract_mismatch", "پاسخ سرور با قرارداد نمیخواند؛ نسخه‌ی اپ را به‌روز کن.")
-    }
+    suspend fun archiveSchema(): ArchiveSchema = get<JsonObject>("/archive/schema").let { o -> decoded("/archive/schema") { ArchiveSchema(o) } }
 
     /** The impact (and the server's validation, `422 schema_invalid` with `fields`) before the passkey: nothing is applied. */
     suspend fun schemaPreview(part: String, key: String, body: JsonObject, version: Int?): SchemaResult =
@@ -936,7 +1019,7 @@ class Api(
     suspend fun archiveSources(): List<SourceSwitch> = listAny("/archive/sources", emptyMap(), SourceSwitch.serializer())
     /** Owner: `{key: on}` for the switches that change. */
     suspend fun setSources(changes: Map<String, Boolean>): List<SourceSwitch> =
-        decodeList(send<JsonElement>("PUT", "/archive/sources", json.encodeToString(JsonElement.serializer(), JsonObject(changes.mapValues { JsonPrimitive(it.value) }))), SourceSwitch.serializer())
+        decodeList(send<JsonElement>("PUT", "/archive/sources", json.encodeToString(JsonElement.serializer(), JsonObject(changes.mapValues { JsonPrimitive(it.value) }))), SourceSwitch.serializer(), path = "PUT /archive/sources")
 
     /** Only what the reader's clearance allows. */
     suspend fun records(f: RecordFilters, cursor: String? = null): Page<ArchiveRecord> = get("/archive/records", f.query() + mapOf("limit" to 50, "cursor" to cursor))
@@ -978,7 +1061,7 @@ class Api(
         call(Request.Builder().url(url("/archive/records/${seg(ref)}/links", mapOf("kind" to kind, "to_kind" to to.kind, "to_ref" to to.ref))).delete().build(), serializer())
     /** Owner: one draft per file for the archivist to classify. */
     suspend fun importFiles(scope: String, fileIds: List<String>, cls: String? = null): List<ArchiveRecord> =
-        decodeList(post<JsonElement>("/archive/import", buildJsonObject { put("scope", scope); put("file_ids", ids(fileIds)); if (cls != null) put("class", cls) }), ArchiveRecord.serializer())
+        decodeList(post<JsonElement>("/archive/import", buildJsonObject { put("scope", scope); put("file_ids", ids(fileIds)); if (cls != null) put("class", cls) }), ArchiveRecord.serializer(), path = "POST /archive/import")
     /** The secret scan first (`422 secret_in_document`, naming the file in `fields`; nothing is stored), then hashes, text and the suggestion. */
     suspend fun intake(fileIds: List<String>): Intake = post("/archive/intake", buildJsonObject { put("file_ids", ids(fileIds)) })
 
@@ -1014,7 +1097,10 @@ class Api(
     suspend fun fixity(): Fixity = get("/archive/fixity")
 
     /** A GET that answers 404 when the thing does not exist yet: null, not an error. */
-    private inline fun <T> orNull(block: () -> T): T? = try { block() } catch (e: ApiException) { if (e.status == 404) null else throw e }
+    /** A 404 read as "none yet": its entry in the error log is taken back (it was expected). */
+    private inline fun <T> orNull(block: () -> T): T? = try { block() } catch (e: ApiException) {
+        if (e.status == 404) { e.logged?.let { failures?.forget(it) }; null } else throw e
+    }
 
     // --------------------------------------------------- backups ⟨1.4⟩ --
     suspend fun backups(): BackupStatus = get("/backups/status")
@@ -1062,8 +1148,9 @@ class Api(
         val text = r.body.string()
         try {
             json.decodeFromString(s, text)
-        } catch (e: kotlinx.serialization.SerializationException) {
-            throw ApiException(r.code, "contract_mismatch", "پاسخ سرور با قرارداد نمیخواند؛ نسخه‌ی اپ را به‌روز کن.", r.header("X-Request-Id"))
+        } catch (e: IllegalArgumentException) {
+            // SerializationException is an IllegalArgumentException, and so is a number that does not fit its type.
+            throw mismatch(r.code, r.request.method, r.request.url.encodedPath, e, r.header("X-Request-Id"))
         }
     }
 
@@ -1071,12 +1158,14 @@ class Api(
         if (r.isSuccessful) return
         if (r.code == 401) tokens.clear()
         val p = runCatching { json.decodeFromString(Problem.serializer(), r.body.string()) }.getOrNull()
-        if (p?.messageFa == null) throw ApiException.unexpected(r.code)
+        val rid = p?.requestId ?: r.header("X-Request-Id")
+        val logged = failures?.record(ApiFailure("http", r.request.method, r.request.url.encodedPath, r.code, p?.code ?: "unexpected", p?.title ?: r.message.ifBlank { null }, rid))
+        if (p?.messageFa == null) throw ApiException.unexpected(r.code).also { it.logged = logged }
         val wait = r.header("Retry-After")?.trim()?.toIntOrNull()?.takeIf { it > 0 }
         throw ApiException(
             r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"), p.missing, p.blockedReasons, wait, batchReasons(p), p.fields?.keys?.filter { it != "items" }.orEmpty(),
             p.fields?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { k to it } }?.toMap().orEmpty(),
-        )
+        ).also { it.logged = logged }
     }
 
     private suspend fun execute(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->
@@ -1084,7 +1173,10 @@ class Api(
         cont.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                if (!cont.isCancelled) cont.resumeWithException(ApiException.offline())
+                if (cont.isCancelled) return
+                val x = ApiException.offline()
+                x.logged = failures?.record(ApiFailure("network", request.method, request.url.encodedPath, null, "network_error", e::class.simpleName))
+                cont.resumeWithException(x)
             }
 
             override fun onResponse(call: Call, response: Response) {

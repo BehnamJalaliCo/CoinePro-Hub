@@ -444,7 +444,7 @@ fun SeriesEditor(s: Series?, onSaved: (String) -> Unit) {
     val rule0 = s?.let { parseRrule(it.schedule) } ?: Rule("WEEKLY", listOf("SA", "TU"), 18, 30)
     var company by rememberSaveable { mutableStateOf(s?.company) }
     var title by rememberSaveable { mutableStateOf(s?.titleFa.orEmpty()) }
-    var kind by rememberSaveable { mutableStateOf(s?.kind ?: "reel") }
+    var kind by rememberSaveable { mutableStateOf(s?.kind?.takeIf { it in KIND_ASPECTS } ?: "reel") }
     var aspect by rememberSaveable { mutableStateOf(s?.format?.aspect ?: "9:16") }
     var targets by remember { mutableStateOf(s?.targets.orEmpty()) }
     var rule by remember { mutableStateOf(rule0) }
@@ -548,7 +548,7 @@ fun SeriesEditor(s: Series?, onSaved: (String) -> Unit) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip("بی‌صدا", voice == null, { voice = null })
                     FilterChip("صدای فعال هاب", voice == "active", { voice = "active" })
-                    for (v in voices.data.orEmpty().filter { it.samples.isNotEmpty() }) Chip(voice == v.id, { voice = v.id }) { ink -> Text(prose(v.nameFa), style = Divan.type.small, color = ink, maxLines = 1) }
+                    for (v in voices.data.orEmpty().filter { it.heard.isNotEmpty() }) Chip(voice == v.id, { voice = v.id }) { ink -> Text(prose(v.nameFa), style = Divan.type.small, color = ink, maxLines = 1) }
                 }
                 voices.data?.firstOrNull { it.id == voiceId }?.let { LicenceBadge(it.licenceCommercial, it.licence) }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

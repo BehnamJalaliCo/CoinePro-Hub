@@ -32,6 +32,13 @@ class MediaKit(context: Context, private val api: Api) {
     @OptIn(UnstableApi::class)
     val dataSource: DataSource.Factory = DefaultDataSource.Factory(app, OkHttpDataSource.Factory(api.client))
 
+    /** The hub's speech-to-text this session: null until tried, false once it failed (it is off on a hub without the memory for it),
+     *  true once it answered. Voice to text uses the phone's own recogniser first and the hub only where the phone has none. */
+    @Volatile var hubSpeech: Boolean? = null
+
+    /** The phone's own recogniser this session: false once it said it cannot do Persian (then the hub is asked, where it answers). */
+    @Volatile var phoneSpeech: Boolean? = null
+
     /** Scratch space for recordings, camera captures and opened documents (cleared by the system when low). */
     fun scratch(dir: String): File = File(app.cacheDir, dir).apply { mkdirs() }
 

@@ -87,6 +87,26 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "decision-sealed" to { _ -> DecisionScreen("D-000011") },
             "outputs" to { _ -> OutputsScreen() },
             "output" to { _ -> OutputScreen("O-000029") },
+            // ⟨1.7.3⟩ outputs: the new ones (the swipe and «همه را خوانده‌شده کن»), the seen ones by day (one filed in the archive), the
+            // filters, and the hub's rule-based morning report with its table of companies (the table on its own further down).
+            "outputs-seen" to { _ -> OutputsScreen("seen") },
+            "outputs-all" to { _ -> OutputsScreen("all") },
+            "outputs-filters" to { _ ->
+                Sheetlike {
+                    com.coinepro.hq.ui.outputs.OutputFilters(
+                        "report", {}, "TY", {}, null, {},
+                        listOf(com.coinepro.hq.core.net.EmployeeRef("HQ-SYS", "HQ", "system", "سیستم"), com.coinepro.hq.core.net.EmployeeRef("FX-QUANT-02", "FX", "employee", "پایشگر سیگنال")),
+                        "7d", {}, {}, {},
+                    )
+                }
+            },
+            "output-report" to { _ -> OutputScreen("O-000032") },
+            "output-report-table" to { _ ->
+                Cardlike {
+                    val q = com.coinepro.hq.ui.rememberQuery("deliverable:O-000032", "deliverables") { deliverable("O-000032") }
+                    q.data?.body?.let { com.coinepro.hq.designsystem.Md(it.substringAfter("## شرکت‌ها").let { b -> "## شرکت‌ها$b" }) }
+                }
+            },
             "chat-media" to { _ -> ChatScreen("FX-CEO") },
             "threads" to { _ -> ThreadsScreen() },
             "companies" to { _ -> CompaniesScreen() },
@@ -99,6 +119,12 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "notifications" to { _ -> NotificationsScreen() },
             "audit" to { _ -> AuditScreen() },
             "settings" to { g -> SettingsScreen(g) },
+            // «خطاخوان»: a contract mismatch with its field path (opened), an HTTP error counted twice, a network failure, a crash.
+            "errors" to { g -> androidx.compose.runtime.remember { sampleErrors(g) }; com.coinepro.hq.ui.settings.ErrorLogScreen(g.errors) },
+            "errors-open" to { g ->
+                val e = androidx.compose.runtime.remember { sampleErrors(g); g.errors.entries.value }
+                Cardlike { for ((i, x) in e.withIndex()) com.coinepro.hq.ui.settings.EntryCard(x, open0 = i == 0 || x.kind == "crash") }
+            },
             "workshop" to { _ -> WorkshopScreen(onNewSession = {}, onGrant = {}) },
             "session-approval" to { _ -> SessionScreen("S-0004") },
             "session-done" to { _ -> SessionScreen("S-0002") },
@@ -108,6 +134,8 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "assistant" to { _ -> AssistantScreen() },
             "advisor" to { _ -> com.coinepro.hq.ui.advisor.AdvisorScreen() },
             "stars" to { _ -> StarsScreen() },
+            // A hub with no roll-up yet (404 until its first Saturday): the empty state, not an error.
+            "stars-empty" to { _ -> androidx.compose.runtime.remember { Demo.absent = setOf("/stars/rollup") }; StarsScreen() },
             "skills" to { _ -> SkillsScreen() },
             "academy" to { _ -> AcademyScreen() },
             "foundings" to { _ -> FoundingsScreen() },
@@ -209,6 +237,8 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "treasury-waste" to { _ -> Cardlike { com.coinepro.hq.ui.treasury.WasteCard() } },
             "treasury-roi" to { _ -> Cardlike { com.coinepro.hq.ui.treasury.RoiCard() } },
             "tools-connections" to { _ -> ToolsScreen() },
+            // Every provider's logo as the app draws it (paths without arcs, gradients kept), large and at list size.
+            "provider-logos" to { _ -> Cardlike { ProviderLogos() } },
             "connection-wizard" to { _ -> Sheetlike { com.coinepro.hq.ui.tools.ConnectionWizard(onClose = {}) } },
             "runs-health" to { _ -> Cardlike { com.coinepro.hq.ui.owner.ClaimsCard(); com.coinepro.hq.ui.owner.HealthBoard() } },
             "settings-management" to { g -> SettingsScreen(g) },
@@ -305,6 +335,36 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "decision-archive-disposal" to { _ -> DecisionScreen("D-000093") },
             "legal-case-holds" to { _ -> Cardlike { com.coinepro.hq.ui.archive.CaseHolds("LC-0001") } },
         )
+
+        /** The error log as a real session fills it: what the owner reported, with the fields the report names. */
+        private fun sampleErrors(g: AppGraph) {
+            val l = g.errors
+            l.clear()
+            l.screen = "voice"
+            l.record(com.coinepro.hq.core.net.ApiFailure("network", "POST", "/api/v1/transcribe", null, "network_error", "SocketTimeoutException"))
+            l.screen = "stars"
+            val http = com.coinepro.hq.core.net.ApiFailure("http", "GET", "/api/v1/media/voices/reference", 503, "channel_not_configured", "Service Unavailable", "01JBX4Q7A9")
+            l.record(http); l.record(http)
+            l.screen = "outputs/{ref}"
+            l.record(com.coinepro.hq.core.net.ApiFailure("decode", "GET", "/api/v1/media/voices", 200, "contract_mismatch", null, "01JBX4Q2ZK", "$[0].mem_mb", "Expected Int, got 412.6"))
+            l.crash(Thread.currentThread(), IllegalStateException("demo crash for the screenshot"))
+        }
+
+        /** Every provider logo at 48dp and at the list's 20dp, with its key. */
+        @Composable
+        private fun ProviderLogos() {
+            val c = Divan.colors
+            for (k in com.coinepro.hq.designsystem.generated.PROVIDER_LOGOS.keys) {
+                androidx.compose.foundation.layout.Row(
+                    Modifier.padding(vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+                ) {
+                    com.coinepro.hq.designsystem.ModelMark(null, provider = k, size = 48.dp)
+                    com.coinepro.hq.designsystem.ModelMark(null, provider = k, size = 20.dp)
+                    com.coinepro.hq.designsystem.Fig(k, color = c.textSecondary)
+                }
+            }
+        }
 
         /** A record of the archive and the schema's maps, as the demo serves them. */
         @Composable

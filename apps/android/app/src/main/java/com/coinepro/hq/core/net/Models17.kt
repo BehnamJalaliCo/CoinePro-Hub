@@ -3,6 +3,8 @@ package com.coinepro.hq.core.net
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -78,7 +80,8 @@ data class Draft(val id: String, val meeting: String = "", val item: String = ""
 data class MeetingBudget(val cap: Long? = null, val estimate: Long = 0, val reserved: Long = 0, val used: Long = 0)
 
 @Serializable
-data class Minutes(val deliverable: String, val summaryMd: String = "")
+/** The minutes' deliverable is null until the secretary has written them. */
+data class Minutes(val deliverable: String? = null, val summaryMd: String? = null)
 
 @Serializable
 data class Meeting(
@@ -124,7 +127,7 @@ data class Claim(
 )
 
 @Serializable
-data class Stance(val draft: String = "", val vote: String, val reasonFa: String = "")
+data class Stance(val draft: String = "", val vote: String = "abstain", val reasonFa: String = "")
 
 @Serializable
 data class Turn(
@@ -164,8 +167,8 @@ data class ItemOrder(val id: String, val n: Int, val skip: Boolean)
 // ------------------------------------------------------- charter (§20.2) --
 @Serializable
 data class RedLine(
-    val key: String,
-    val textFa: String,
+    val key: String = "",
+    val textFa: String = "",
     /** rule (code matches) · sample (the overseer samples) */
     val check: String = "sample",
     /** Sent as an explicit null for a sampled line. */
@@ -369,10 +372,10 @@ data class Objective(
 
 // --------------------------------------------- decision outcomes (§20.6) --
 @Serializable
-data class Expected(val metricFa: String, val kpi: String? = null, val baseline: Double, val target: Double, val byDays: Int)
+data class Expected(val metricFa: String = "", val kpi: String? = null, val baseline: Double = 0.0, val target: Double = 0.0, val byDays: Int = 30)
 
 @Serializable
-data class Measured(val value: Double, val at: String, val sourceRef: Source? = null)
+data class Measured(val value: Double = 0.0, val at: String = "", val sourceRef: Source? = null)
 
 @Serializable
 data class OutcomeReview(
@@ -402,7 +405,7 @@ fun accuracy(rs: List<OutcomeReview>): Double? {
 
 // ------------------------------------------------------ authority (§20.7) --
 @Serializable
-data class Bounds(val min: Double, val max: Double)
+data class Bounds(val min: Double = 0.0, val max: Double = 0.0)
 
 @Serializable
 data class AuthorityRule(
@@ -447,7 +450,30 @@ data class RiskLinks(val finding: String? = null, val incident: String? = null, 
 }
 
 @Serializable
-data class RiskHistory(val at: String, val by: Actor? = null, val change: String = "", val note: String = "")
+/** One change of a risk. The hub sends [change] as the object of what changed (`{"created": true, "score": 12}`,
+ *  `{"status": "accepted", "until": …}`); an older answer sent a sentence. [changeFa] reads either. */
+data class RiskHistory(val at: String = "", val by: Actor? = null, val change: JsonElement = JsonPrimitive(""), val note: String = "") {
+    val changeFa: String get() = when (val c = change) {
+        is JsonPrimitive -> c.contentOrNull.orEmpty()
+        is JsonObject -> c.entries.joinToString("، ") { (k, v) ->
+            val label = RISK_CHANGE_FA[k] ?: k
+            when {
+                v is JsonPrimitive && v.contentOrNull == "true" -> label
+                v is JsonNull -> "$label: —"
+                v is JsonPrimitive -> "$label: ${v.content}"
+                else -> label
+            }
+        }
+        else -> ""
+    }
+}
+
+private val RISK_CHANGE_FA = mapOf(
+    "created" to "ثبت شد", "score" to "امتیاز", "origin" to "منشأ", "status" to "وضعیت", "until" to "تا", "decision" to "تصمیم",
+    "likelihood" to "احتمال", "impact" to "اثر", "title_fa" to "عنوان", "owner_code" to "مسئول", "owner_kind" to "نوع مسئول",
+    "review_at" to "بازبینی", "closed_at" to "بسته شد", "closed_by_code" to "بست", "treatment_md" to "درمان", "mitigation_md" to "کاهش",
+    "category" to "دسته",
+)
 
 @Serializable
 data class RiskAccepted(val decision: String, val until: String)

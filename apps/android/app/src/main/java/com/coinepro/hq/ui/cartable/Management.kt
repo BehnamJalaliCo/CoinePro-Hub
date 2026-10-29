@@ -437,7 +437,7 @@ fun MemoBlock(d: Decision, mode0: String = "standard") {
 @Composable
 fun WaitingLine(d: Decision) {
     val c = Divan.colors
-    val h = d.waitingH ?: return
+    val h = d.waitingH?.toInt() ?: return
     if (d.status != "pending" || h < 1) return
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {

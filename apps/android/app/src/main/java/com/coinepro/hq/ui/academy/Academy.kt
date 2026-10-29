@@ -176,8 +176,9 @@ private fun TeachingCard(t: Teaching, roleOf: (String) -> String, busy: Boolean,
         }
         t.evalRun?.let { e ->
             Text(buildAnnotatedString {
-                append("آزمون: "); fig(e.score.toInt().toString()); append(" در برابر خط پایه "); fig(e.baseline?.toInt()?.toString() ?: "—"); append(if (e.passed) " · قبول" else " · رد")
-            }, style = Divan.type.caption, color = if (e.passed) c.positive else c.negative)
+                append("آزمون: "); fig(e.score?.toInt()?.toString() ?: "—"); append(" در برابر خط پایه "); fig(e.baseline?.toInt()?.toString() ?: "—")
+                append(when (e.passed) { true -> " · قبول"; false -> " · رد"; null -> " · در حال اجرا" })
+            }, style = Divan.type.caption, color = when (e.passed) { true -> c.positive; false -> c.negative; null -> c.textSecondary })
         }
         if (proposed) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             HqButton("تأیید کن", onApprove, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEAL, loading = busy, enabled = t.evalRun?.passed != false)

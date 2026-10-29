@@ -12,7 +12,7 @@ import kotlinx.serialization.json.JsonObject
 data class Page<T>(val items: List<T> = emptyList(), val nextCursor: String? = null)
 
 @Serializable
-data class Actor(val code: String, val kind: String, val displayFa: String? = null)
+data class Actor(val code: String = "", val kind: String = "system", val displayFa: String? = null)
 
 // ------------------------------------------------------------------ auth --
 @Serializable
@@ -76,6 +76,8 @@ data class InboxSummary(
     val decisionsPending: Int = 0,
     val decisionsByRisk: ByRisk = ByRisk(),
     val deliverablesUnrated: Int = 0,
+    /** ⟨1.7.3⟩ §5.2: outputs the owner has not marked seen; null from a hub before it. */
+    val deliverablesUnseen: Int? = null,
     val messagesUnread: Int = 0,
     val khalvat: Boolean = false,
     val notifications: Map<String, Int> = emptyMap(),
@@ -151,8 +153,8 @@ data class Decision(
     val warnings: List<String> = emptyList(),
     /** ⟨1.5⟩ §21.1: the advisor's memos on this card. */
     val memos: List<MemoBrief> = emptyList(),
-    /** ⟨1.5⟩ §21.8: hours a card the owner decides has waited, and which reminders went out. */
-    val waitingH: Int? = null,
+    /** ⟨1.5⟩ §21.8: hours a card the owner decides has waited, and which reminders went out. The hub sends a float (`12.5`). */
+    val waitingH: Double? = null,
     val reminders: List<Reminder> = emptyList(),
     /** ⟨1.5⟩ §21.10: the digital CEO's sealed prediction, null while the card is pending (reveal "after"). */
     val digitalCeoPrediction: DceoBrief? = null,
@@ -204,8 +206,68 @@ data class Deliverable(
     val rating: Rating? = null,
     val attachments: List<FileRef> = emptyList(),
     val producedWith: JsonObject = JsonObject(emptyMap()),
+    /** `{input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, equiv_cost_usd, cost_usd}` (§5.2); `{}` for rules. */
     val usage: JsonObject = JsonObject(emptyMap()),
-)
+    /** ⟨1.7.3⟩ `report` (the hub's own reporting, HQ-SYS) · `work` (an agent's output); null from a hub before ⟨1.7.3⟩. */
+    val category: String? = null,
+    /** ⟨1.7.3⟩ when the owner marked it seen; null = unseen (and always null from a hub before ⟨1.7.3⟩). */
+    val seenAt: String? = null,
+    /** ⟨1.7.3⟩ the archive record it was filed as (`AR-…`). */
+    val filedAs: String? = null,
+) {
+    /** The hub sends `category` from ⟨1.7.3⟩ on; before it, the app keeps «seen» on the phone. */
+    val hubKnowsSeen: Boolean get() = category != null
+
+    /** `report` or `work`: the hub's own word, or, from an older hub, the producer (its system employee writes the reports). */
+    val kind: String get() = category ?: if (producer.code.endsWith("-SYS")) "report" else "work"
+}
+
+/** ⟨1.7.3⟩ The outputs list's filters (§5.2): [seen] false the new ones, true the seen ones, null all; [category] report · work;
+ *  [from]/[to] days (YYYY-MM-DD) in the owner's zone; [text] the search. The hub filters; the app filters again with [matches], for a hub
+ *  before ⟨1.7.3⟩ (it ignores seen, category, from and to) and for what the owner marked seen on this phone meanwhile. */
+data class DeliverableQuery(
+    val seen: Boolean? = false,
+    val category: String? = null,
+    val unrated: Boolean = false,
+    val company: String? = null,
+    val producer: String? = null,
+    val text: String? = null,
+    val from: String? = null,
+    val to: String? = null,
+) {
+    /** The query cache's key: every parameter. */
+    val key: String get() = listOf(seen, category, unrated, company, producer, text?.trim()?.ifEmpty { null }, from, to).joinToString("|")
+
+    /** How many filters beyond the tab are on (the filter button's badge). */
+    val active: Int get() = listOf(category != null, unrated, company != null, producer != null, from != null || to != null).count { it }
+
+    fun matches(d: Deliverable, seenAt: String?): Boolean {
+        if (seen != null && (seenAt != null) != seen) return false
+        if (category != null && d.kind != category) return false
+        if (unrated && d.rating != null) return false
+        if (company != null && d.company != company) return false
+        if (producer != null && d.producer.code != producer) return false
+        val day = com.coinepro.hq.core.format.ownerDay(d.createdAt)
+        if (from != null && day < from) return false
+        if (to != null && day > to) return false
+        val t = text?.let(::fold)?.trim().orEmpty()
+        if (t.isNotEmpty() && !fold("${d.ref} ${d.title} ${d.summary}").contains(t)) return false
+        return true
+    }
+
+    companion object {
+        /** Persian-safe comparison, as the hub's `fa_normalize`: ي/ی, ك/ک, no ZWNJ or tatweel, case folded. */
+        fun fold(s: String): String = s.replace('ي', 'ی').replace('ك', 'ک').replace("\u200C", "").replace("\u0640", "").lowercase()
+    }
+}
+
+/** ⟨1.7.3⟩ `POST /deliverables/seen` → how many changed. */
+@Serializable
+data class SeenOut(val updated: Int = 0)
+
+/** ⟨1.7.3⟩ `POST /deliverables/{ref}/file` → the archive record it was filed as (the same one on a second call). */
+@Serializable
+data class FiledOut(val record: String)
 
 // ---------------------------------------------------------- organisation --
 @Serializable
@@ -402,7 +464,7 @@ data class Thread(
 )
 
 @Serializable
-data class Citation(val kind: String, val ref: String)
+data class Citation(val kind: String = "", val ref: String = "")
 
 @Serializable
 data class Message(

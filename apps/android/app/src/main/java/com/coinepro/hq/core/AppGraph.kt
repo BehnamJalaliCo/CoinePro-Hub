@@ -32,6 +32,8 @@ class Env(
     private val scope: CoroutineScope,
     /** When the screens are reading from the phone's offline copy (M13), the instant it was saved; null when live. */
     val offlineSince: StateFlow<String?> = MutableStateFlow(null),
+    /** ⟨1.7.3⟩ outputs marked seen on the phone while the hub could not keep it. */
+    val seen: com.coinepro.hq.core.data.SeenStore = com.coinepro.hq.core.data.SeenStore.memory(),
 ) {
     fun close() {
         stream.stop()
@@ -47,6 +49,10 @@ class AppGraph(context: Context) {
     val lock = com.coinepro.hq.device.AppLock(app, prefs)
     /** The real session's offline copy; the demo never touches it. */
     val offline = com.coinepro.hq.core.net.OfflineCache(app)
+    /** «خطاخوان»: the last failed calls, contract mismatches and crashes, on this phone only (the demo never writes to it). */
+    val errors = com.coinepro.hq.core.diag.ErrorLog(app).also { it.installCrashHandler() }
+    /** ⟨1.7.3⟩ outputs the owner marked seen while the hub could not keep it (before ⟨1.7.3⟩). */
+    val seen = com.coinepro.hq.core.data.SeenStore(app)
 
     private val envFlow = MutableStateFlow(build(VaultTokens(vault), demo = false))
     val env: StateFlow<Env> = envFlow.asStateFlow()
@@ -69,8 +75,13 @@ class AppGraph(context: Context) {
     private fun build(tokens: SessionTokens, demo: Boolean): Env {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val api = Api(BuildConfig.HQ_ORIGIN, tokens, if (demo) Demo.interceptor() else offline)
+        if (!demo) api.failures = errors
         val cache = QueryCache(scope)
-        return Env(api, Auth(api, tokens, demo), cache, HoldingStream(api, cache, scope, demo), MediaKit(app, api), demo, scope, if (demo) MutableStateFlow(null) else offline.since)
+        return Env(
+            api, Auth(api, tokens, demo), cache, HoldingStream(api, cache, scope, demo), MediaKit(app, api), demo, scope,
+            if (demo) MutableStateFlow(null) else offline.since,
+            seen = if (demo) com.coinepro.hq.core.data.SeenStore.memory() else seen,
+        )
     }
 }
 

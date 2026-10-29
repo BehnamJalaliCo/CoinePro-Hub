@@ -62,6 +62,7 @@ import androidx.core.content.FileProvider
 import coil3.compose.AsyncImage
 import com.coinepro.hq.core.Env
 import com.coinepro.hq.core.media.Limits
+import com.coinepro.hq.core.media.PhoneSpeech
 import com.coinepro.hq.core.media.LocalFile
 import com.coinepro.hq.core.media.VoiceRecorder
 import com.coinepro.hq.core.media.clock
@@ -204,10 +205,19 @@ fun AttachmentTray(a: Attachments, modifier: Modifier = Modifier) {
 }
 
 // -------------------------------------------------------------- voice --
-data class VoiceResult(val text: String, val fileId: String, val seconds: Double)
+/** What came of the owner's voice: the text to read and fix, the original recording when the hub transcribed it ([fileId]; the phone's
+ *  own recogniser keeps no audio), how long the owner spoke, and who heard it (`phone` · `hub`). */
+data class VoiceResult(val text: String, val fileId: String?, val seconds: Double, val engine: String = "hub") {
+    val phone: Boolean get() = engine == "phone"
+}
 
-/** Speak → exact Persian text (contract §17.2). The text lands in the caller's field for the owner to read and fix;
- *  the recording travels with it. When the speech service cannot help, [onFallback] gets the audio file itself. */
+/**
+ * Speak → Persian text. The phone's own speech recognition (fa-IR) hears it first: it works while the hub's speech-to-text is off
+ * (the hub has not the memory for it), shows the words as they come and leaves them in the caller's field to read and fix. The hub's
+ * `/transcribe` (contract §17.2) is used only where it answers: when the phone has no recogniser, or after the hub answered once in
+ * this session; it keeps the original recording, and when it cannot help [onFallback] gets the audio file itself. When neither can
+ * hear, [unavailable] says so in plain words and the screen offers to type.
+ */
 @Stable
 class VoiceInput(
     private val env: Env,
@@ -218,19 +228,92 @@ class VoiceInput(
     private val onFallback: () -> ((File) -> Unit)?,
 ) {
     private val rec = VoiceRecorder(env.media.context, env.media.scratch("voice"))
+    private val speech = PhoneSpeech(env.media.context)
+    /** Listening: the microphone is open (the phone's recogniser or the recording for the hub). */
     var recording by mutableStateOf(false)
         private set
+    /** Recognising: the owner stopped; the words are being made. */
     var transcribing by mutableStateOf(false)
+        private set
+    /** The phone's words so far, while the owner speaks. */
+    var partial by mutableStateOf("")
+        private set
+    /** `phone` · `hub` while it runs. */
+    var engine by mutableStateOf<String?>(null)
+        private set
+    /** A plain sentence when no voice-to-text can hear now: the screen offers to type. [settings]: the microphone is refused. */
+    var unavailable by mutableStateOf<String?>(null)
+        private set
+    var settings by mutableStateOf(false)
         private set
     var elapsed by mutableDoubleStateOf(0.0)
         private set
     val levels = mutableStateListOf<Float>().apply { repeat(32) { add(0f) } }
     private var ticker: Job? = null
     private var work: Job? = null
+    private var t0 = 0L
+    private var level = 0f
     val active: Boolean get() = recording || transcribing
 
     internal fun begin() {
-        if (!rec.start()) { toasts.error("میکروفون در دسترس نیست."); return }
+        unavailable = null; settings = false; partial = ""
+        val media = env.media
+        when {
+            media.hubSpeech == true -> beginHub()
+            media.phoneSpeech != false && PhoneSpeech.available(media.context) && beginPhone() -> Unit
+            media.hubSpeech == false -> unavailable = NOTHING_HEARS
+            else -> beginHub()
+        }
+    }
+
+    internal fun refused() {
+        unavailable = "اجازه‌ی میکروفون داده نشده؛ از تنظیمات گوشی برای این اپ روشنش کن، یا بنویس."
+        settings = true
+    }
+
+    private fun beginPhone(): Boolean {
+        val ok = speech.start(object : PhoneSpeech.Listener {
+            override fun level(v: Float) { level = v }
+            override fun partial(text: String) { this@VoiceInput.partial = text }
+            override fun recognising() { recording = false; transcribing = true }
+            override fun result(text: String) {
+                val seconds = (android.os.SystemClock.elapsedRealtime() - t0) / 1000.0
+                stopTicker(); transcribing = false; recording = false; engine = null; this@VoiceInput.partial = ""; reset()
+                onText()(VoiceResult(text.trim(), null, seconds, "phone"))
+            }
+            override fun failed(messageFa: String, unavailable: Boolean) {
+                stopTicker(); transcribing = false; recording = false; engine = null; reset()
+                if (unavailable) {
+                    // The phone cannot do Persian: next time the hub is asked (where it answers).
+                    env.media.phoneSpeech = false
+                    this@VoiceInput.unavailable = messageFa
+                } else if (this@VoiceInput.partial.isNotBlank()) {
+                    // The recogniser gave up after words were heard: they are what the owner said; keep them.
+                    val words = this@VoiceInput.partial
+                    this@VoiceInput.partial = ""
+                    onText()(VoiceResult(words.trim(), null, (android.os.SystemClock.elapsedRealtime() - t0) / 1000.0, "phone"))
+                } else toasts.info(messageFa)
+            }
+        })
+        if (!ok) return false
+        engine = "phone"
+        recording = true
+        t0 = android.os.SystemClock.elapsedRealtime()
+        level = 0f
+        ticker = scope.launch {
+            while (isActive && (recording || transcribing)) {
+                delay(90)
+                if (recording) elapsed = (android.os.SystemClock.elapsedRealtime() - t0) / 1000.0
+                levels.removeAt(0); levels.add(if (recording) level else 0f)
+                level *= 0.85f
+            }
+        }
+        return true
+    }
+
+    private fun beginHub() {
+        if (!rec.start()) { unavailable = "میکروفون در دسترس نیست؛ شاید برنامه‌ی دیگری از آن استفاده میکند. میتوانی بنویسی."; return }
+        engine = "hub"
         recording = true
         ticker = scope.launch {
             while (isActive && rec.recording) {
@@ -243,37 +326,58 @@ class VoiceInput(
     }
 
     fun finish() {
-        ticker?.cancel()
+        if (engine == "phone") {
+            // The phone finishes the words it heard and answers through the listener.
+            recording = false; transcribing = true
+            speech.stop()
+            return
+        }
+        stopTicker()
         recording = false
-        val (file, seconds) = rec.stop() ?: return toasts.info("صدایی ضبط نشد؛ دکمه را بزن و بعد حرف بزن.")
+        val (file, seconds) = rec.stop() ?: run { engine = null; return toasts.info("صدایی ضبط نشد؛ دکمه را بزن و بعد حرف بزن.") }
         reset()
-        if (seconds < 0.6) { file.delete(); return toasts.info("صدایی ضبط نشد؛ دکمه را بزن و بعد حرف بزن.") }
+        if (seconds < 0.6) { file.delete(); engine = null; return toasts.info("صدایی ضبط نشد؛ دکمه را بزن و بعد حرف بزن.") }
         transcribing = true
         work = scope.launch {
             try {
                 val t = withContext(Dispatchers.IO) { env.api.transcribe(file, "audio/mp4", purpose) }
+                env.media.hubSpeech = true
                 if (t.text.isBlank()) toasts.info("حرفی شنیده نشد؛ دوباره بگو.")
-                else onText()(VoiceResult(t.text.trim(), t.fileId, if (t.durationS > 0) t.durationS else seconds))
+                else onText()(VoiceResult(t.text.trim(), t.fileId, if (t.durationS > 0) t.durationS else seconds, "hub"))
             } catch (e: ApiException) {
+                // Speech-to-text off on the hub (503), busy (429) or failing: not asked again this session.
+                if (e.status == 503 || e.status >= 500 || e.code == "channel_not_configured") env.media.hubSpeech = false
                 val fb = onFallback()
-                if (fb != null) { fb(file); toasts.info("${e.messageFa} صدا به‌عنوان پیوست اضافه شد.") } else toasts.error(e.messageFa)
+                if (fb != null) { fb(file); toasts.info("تبدیل صدا روی هاب در دسترس نیست؛ صدا به‌عنوان پیوست اضافه شد.") }
+                else unavailable = if (e.isOffline) "به هاب نرسیدم؛ صدا به متن نشد. میتوانی بنویسی." else NOTHING_HEARS
             } finally {
                 transcribing = false
+                engine = null
             }
         }
     }
 
     fun cancel() {
-        ticker?.cancel(); work?.cancel()
+        stopTicker(); work?.cancel()
+        speech.cancel()
         rec.cancel()
-        recording = false; transcribing = false
+        recording = false; transcribing = false; engine = null; partial = ""
         reset()
     }
 
+    /** Typing instead: the sentence is gone. */
+    fun dismiss() { unavailable = null; settings = false }
+
+    private fun stopTicker() { ticker?.cancel(); ticker = null }
+
     private fun reset() { elapsed = 0.0; for (i in levels.indices) levels[i] = 0f }
+
+    private companion object {
+        const val NOTHING_HEARS = "این گوشی تشخیص گفتار فارسی ندارد و تبدیل صدا روی هاب هم خاموش است؛ فعلاً بنویس."
+    }
 }
 
-/** A voice input wired to the microphone permission: [start] asks once, then records. */
+/** A voice input wired to the microphone permission: [start] asks for it when needed, then listens. */
 class VoiceHandle(val v: VoiceInput, val start: () -> Unit)
 
 @Composable
@@ -286,14 +390,23 @@ fun rememberVoiceInput(purpose: String, onFallback: ((File) -> Unit)? = null, on
     val fallback by rememberUpdatedState(onFallback)
     val v = remember(env, purpose) { VoiceInput(env, scope, toasts, purpose, { text }, { fallback }) }
     DisposableEffect(v) { onDispose { v.cancel() } }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
-        if (ok) v.begin() else toasts.error("اجازه‌ی میکروفون داده نشده؛ از تنظیمات گوشی برای این اپ روشنش کن.")
-    }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) v.begin() else v.refused() }
     return remember(v) {
         VoiceHandle(v) {
+            if (v.active) return@VoiceHandle
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) v.begin()
             else ask.launch(Manifest.permission.RECORD_AUDIO)
         }
+    }
+}
+
+/** Opens this app's page in the phone's settings (the microphone permission). */
+fun openAppSettings(context: Context) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 }
 
@@ -366,9 +479,11 @@ fun Composer(
     val pick = rememberPickers(files)
     val vh = rememberVoiceInput(purpose, onFallback = if (allowFiles) files::addFile else null) { r ->
         text = if (text.isBlank()) r.text else "${text.trimEnd()} ${r.text}"
-        voice = r
+        // Only the hub keeps the original recording; the phone's own recogniser leaves the words alone.
+        if (r.fileId != null) voice = r
     }
     val v = vh.v
+    val ctx = LocalContext.current
     val ready = (text.isNotBlank() || files.ids.isNotEmpty()) && !files.uploading && !sending && !v.active
 
     fun submit() {
@@ -388,6 +503,7 @@ fun Composer(
 
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card).border(1.dp, c.lineStrong, RoundedCornerShape(16.dp)).padding(6.dp)) {
         AttachmentTray(files)
+        v.unavailable?.let { why -> VoiceProblem(why, v.settings, { openAppSettings(ctx) }, v::dismiss) }
         voice?.let { r ->
             Row(Modifier.padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 DIcon(DivanIcon.MIC, size = 14.dp, tint = c.textSecondary)
@@ -401,10 +517,14 @@ fun Composer(
             when {
                 v.recording -> {
                     IconBtn(DivanIcon.CLOSE, "لغو ضبط", v::cancel)
-                    Row(Modifier.weight(1f).height(44.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        LiveDot(c.negative, size = 9.dp)
-                        Waveform(v.levels, Modifier.weight(1f).height(30.dp))
-                        Fig(clock(v.elapsed), Modifier.width(40.dp), style = Divan.type.figureSmall, color = c.textSecondary)
+                    Column(Modifier.weight(1f).heightIn(min = 44.dp).padding(horizontal = 4.dp), verticalArrangement = Arrangement.Center) {
+                        Row(Modifier.height(44.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            LiveDot(c.negative, size = 9.dp)
+                            Waveform(v.levels, Modifier.weight(1f).height(30.dp))
+                            Fig(clock(v.elapsed), Modifier.width(40.dp), style = Divan.type.figureSmall, color = c.textSecondary)
+                        }
+                        // The phone's words as they come (its own recogniser, fa-IR).
+                        if (v.partial.isNotBlank()) Text(v.partial, style = Divan.type.small, color = c.textSecondary, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                     RoundAction(DivanIcon.STOP, "تمام؛ به متن تبدیل کن", true, v::finish)
                 }
@@ -412,7 +532,7 @@ fun Composer(
                     IconBtn(DivanIcon.CLOSE, "لغو", v::cancel)
                     Row(Modifier.weight(1f).height(44.dp).padding(horizontal = 4.dp).semantics { contentDescription = "در حال تبدیل به متن" }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         CircularProgressIndicator(Modifier.size(16.dp), color = c.goldInk, strokeWidth = 2.dp)
-                        Text("در حال تبدیل به متن فارسی…", style = Divan.type.small, color = c.textSecondary)
+                        Text(v.partial.ifBlank { "در حال تشخیص گفتار…" }, style = Divan.type.small, color = c.textSecondary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                 }
                 else -> {
@@ -433,6 +553,21 @@ fun Composer(
                 }
             }
         }
+    }
+}
+
+/** Why the voice could not be heard, in plain words, with the way forward: typing (always) and the phone's settings (a refused microphone). */
+@Composable
+fun VoiceProblem(why: String, settings: Boolean, onSettings: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    val c = Divan.colors
+    Row(
+        modifier.fillMaxWidth().padding(4.dp).clip(RoundedCornerShape(12.dp)).background(c.softWarning).padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        DIcon(DivanIcon.MIC, size = 16.dp, tint = c.warning)
+        Text(why, style = Divan.type.caption, color = c.textPrimary, modifier = Modifier.weight(1f))
+        if (settings) Text("تنظیمات", Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button, onClick = onSettings).padding(4.dp), style = Divan.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.goldInk)
+        IconBtn(DivanIcon.CLOSE, "بستن؛ مینویسم", onDismiss)
     }
 }
 

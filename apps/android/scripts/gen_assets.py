@@ -5,6 +5,7 @@
     design/icons/icons.json          -> designsystem/generated/DivanIconData.kt
     design/brand/**/*-flat.svg       -> designsystem/generated/BrandData.kt, launcher foreground
     design/fonts/variable/*.ttf      -> res/font/
+    design/brand/providers/*.svg     -> designsystem/generated/ProviderLogos.kt (through design/brand/providers/gen_logos.py)
 
 Usage: python3 scripts/gen_assets.py [--check]
 --check regenerates in memory and exits 1 if any committed output differs (for CI).
@@ -307,6 +308,19 @@ out(APP / "res" / "drawable" / "ic_launcher_monochrome.xml", launcher(True))
 # figures Latin (money, tokens, codes). Both are variable fonts (weight axis).
 for src, dst in (("IRANYekanXVF.ttf", "iranyekanx_latin.ttf"), ("IRANYekanXVFaNumVF.ttf", "iranyekanx_fanum.ttf")):
     out(APP / "res" / "font" / dst, (DESIGN / "fonts" / "variable" / src).read_bytes())
+
+# --------------------------------------------------------- provider logos --
+# design/brand/providers/gen_logos.py is the one source for the web and Android; its Android file is checked here too, so CI's
+# `gen_assets.py --check` fails when the logos and their generated Kotlin disagree.
+def _provider_logos() -> str:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("gen_logos", DESIGN / "brand" / "providers" / "gen_logos.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.outputs()[mod.KT]
+
+
+out(GEN / "ProviderLogos.kt", _provider_logos())
 
 # ------------------------------------------------------------------ write --
 check = "--check" in sys.argv[1:]

@@ -756,9 +756,9 @@ private fun LazyListScope.minutesRoom(m: Meeting, turns: List<Turn>) {
     item(key = "summary") {
         val c = Divan.colors
         HqCard(Modifier.fillMaxWidth()) {
-            SectionTitle("خلاصه‌ی جلسه", note = "نوشته‌ی منشی، فقط از ادعاهای منبع‌دار") { m.minutes?.let { RefChip(it.deliverable, "صورت‌جلسه") } }
+            SectionTitle("خلاصه‌ی جلسه", note = "نوشته‌ی منشی، فقط از ادعاهای منبع‌دار") { m.minutes?.deliverable?.let { RefChip(it, "صورت‌جلسه") } }
             Spacer(Modifier.height(10.dp))
-            m.minutes?.let { Md(it.summaryMd) } ?: Empty(if (m.state == "cancelled") "جلسه لغو شد" else "صورت‌جلسه هنوز ساخته نشده", icon = DivanIcon.REPORT)
+            m.minutes?.summaryMd?.takeIf { it.isNotBlank() }?.let { Md(it) } ?: Empty(if (m.state == "cancelled") "جلسه لغو شد" else "صورت‌جلسه هنوز ساخته نشده", icon = DivanIcon.REPORT)
             Spacer(Modifier.height(10.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("${m.items.count { it.state == "done" }} دستور بررسی شد", style = Divan.type.caption, color = c.textMuted)
@@ -857,7 +857,7 @@ private fun WarRoom(m: Meeting, turns: List<Turn>) {
                 append(prose("هر مهار بیرونی یک کارت A3 است. هشدار فوری حتی در خلوت میرسد."))
             }, Modifier.clickable(enabled = post != null, role = Role.Button) { post?.let { nav.go("meetings/${it.ref}") } }, style = Divan.type.caption, color = c.textMuted)
         }
-        m.minutes?.let { Md(it.summaryMd, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp)) }
+        m.minutes?.summaryMd?.let { Md(it, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp)) }
         if (m.state == "live") SpeakBox(m)
     }
 }

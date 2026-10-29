@@ -73,7 +73,7 @@ data class DecisionMemo(
 
 /** What a card carries about its memos (§21.1: `Decision.memos`). */
 @Serializable
-data class MemoBrief(val ref: String, val mode: String = "standard", val state: String = "ready")
+data class MemoBrief(val ref: String = "", val mode: String = "standard", val state: String = "ready")
 
 @Serializable
 data class AdvisorTrigger(
@@ -222,7 +222,8 @@ data class DepartmentRank(
 data class HrEmployee(
     val code: String,
     val titleFa: String = "",
-    val score: Double,
+    /** Null in a month without the facts to score (the hub sends `null`). */
+    val score: Double? = null,
     val scorePrev: Double? = null,
     val stars: Double? = null,
     val efficiency: Double? = null,
@@ -465,14 +466,14 @@ fun tagsOf(s: String): List<String> = s.split(Regex("[,،#]+")).map { it.trim() 
 
 @Serializable
 data class Reminder(
-    val at: String,
+    val at: String = "",
     /** half · before_expiry · age_24h · age_72h · age_7d */
-    val kind: String,
+    val kind: String = "",
 )
 
 /** §5.1 ⟨1.5⟩: the digital CEO's prediction on a card; null while it is pending (reveal "after"). */
 @Serializable
-data class DceoBrief(val verdict: String, val confidence: Double = 0.0, val method: String = "baseline", val correct: Boolean? = null)
+data class DceoBrief(val verdict: String = "", val confidence: Double = 0.0, val method: String = "baseline", val correct: Boolean? = null)
 
 // --------------------------------------------- claims and the health board (§21.9) --
 @Serializable
@@ -721,10 +722,10 @@ data class SubstituteLogin(
 
 /** Persian text set by the hub over a creative, never generated. */
 @Serializable
-data class Overlay(val titleFa: String, val bodyFa: String? = null, val ctaFa: String? = null, val mark: Boolean = true)
+data class Overlay(val titleFa: String = "", val bodyFa: String? = null, val ctaFa: String? = null, val mark: Boolean = true)
 
 @Serializable
-data class CreativeSource(val player: String, val model: String = "", val at: String = "")
+data class CreativeSource(val player: String = "", val model: String = "", val at: String = "")
 
 @Serializable
 data class Creative(

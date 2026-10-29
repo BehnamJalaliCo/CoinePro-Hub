@@ -208,7 +208,8 @@ fun StoryPlayer(live: List<StoryRing>, start: Int, onClose: () -> Unit, autoplay
                     Text(
                         // The author's code is a figure; the relative time is prose, so its count keeps Persian digits (as ago() does everywhere).
                         buildAnnotatedString {
-                            if (story.author.kind == "system") append("سیستم") else { append("مدیرعامل، "); fig(story.author.code) }
+                            val a = story.author
+                            if (a == null || a.kind == "system" || a.kind == "service") append("سیستم") else { append("مدیرعامل، "); fig(a.code) }
                             append("، " + ago(story.createdAt))
                         },
                         style = Divan.type.micro, color = c.textMuted, maxLines = 1,

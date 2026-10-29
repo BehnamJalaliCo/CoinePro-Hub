@@ -260,7 +260,7 @@ private fun RiskCard(r: Risk, hi: Boolean, onEdit: () -> Unit) {
             for (h in r.history) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(jDate(h.at), style = Divan.type.micro, color = c.textMuted)
                 Text(actorFa(h.by), style = Divan.type.micro, color = c.textSecondary)
-                Text(prose(h.change), style = Divan.type.micro, color = c.textPrimary)
+                Text(prose(h.changeFa), style = Divan.type.micro, color = c.textPrimary)
                 if (h.note.isNotBlank()) Text(h.note, style = Divan.type.micro, color = c.textMuted)
             }
         }

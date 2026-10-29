@@ -160,6 +160,17 @@ Every library is free and open source and pinned to an exact version (`gradle/li
     `secret_in_document`, `held`) in Persian.
 - **Live** — one SSE connection to `/api/v1/stream` while the app is in the foreground; events refresh the
   screens that show the touched data (the same invalidation map as the web).
+- **Outputs read and filed** ⟨1.7.3⟩ (contract §5.2) — «تازه» / «خوانده‌شده» / «همه» and «بی‌امتیاز», filters (category, company,
+  producer, date range, search), grouped by Jalali day; a swipe (with undo), the page's «خوانده شد» or «همه را خوانده‌شده کن» marks
+  seen, «بایگانی کن» files it as an `AR-` draft. Until the hub serves ⟨1.7.3⟩ (`POST /deliverables/seen` answers 404/405), «seen» is
+  kept on the phone and sent up once the hub sends `seen_at`.
+- **Markdown** — the hub's reports as written: headings, quotes, nested lists, code, rules and GFM tables (a real table, right to left,
+  figures Latin, scrolling sideways inside its card when wide); refs open their pages.
+- **Voice to text on the phone** — every voice-to-text (orders, notes, composers) uses the phone's own speech recognition in Persian
+  (`fa-IR`) while the hub's `/transcribe` is off; the hub is asked only where the phone has none (and keeps the original audio then).
+  The gold button in the middle of the bottom bar speaks an order (a long press types one); the advisor is first in the tools sheet.
+- **«خطاخوان»** (Settings, and the tools sheet) — the last 300 failed calls, contract mismatches (with the JSON field the decoder
+  stopped at) and crashes, on the phone only, ids masked and no bodies; copied or shared as a plain-text report.
 
 ## Layout
 

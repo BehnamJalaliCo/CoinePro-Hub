@@ -213,7 +213,7 @@ fun ConversationScreen(ref: String) {
                         SectionTitle("مشتری", note = "نام کاربری ماسک‌شده؛ بیرون از این صفحه فقط نام مستعار")
                         Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             val facts = mutableListOf<@Composable (Modifier) -> Unit>(
-                                { m -> Fact("نام کاربری", cv.customer.handleMasked, m, figure = true) },
+                                { m -> Fact("نام کاربری", cv.customer.handleMasked ?: "—", m, figure = true) },
                                 { m -> Fact("زبان", cv.customer.lang, m, figure = true) },
                                 { m -> Fact("باز شد", jDateTime(cv.openedAt), m) },
                                 { m -> Fact("آخرین پیام", jDateTime(cv.lastMessageAt), m) },
@@ -252,7 +252,7 @@ private fun Header(cv: Conversation, companyName: String, closing: Boolean, onCl
                 Text(CHANNEL_FA[cv.channel] ?: cv.channel, style = Divan.type.micro, color = c.textMuted)
             }
             if (cv.customer.displayName != null) Text(cv.customer.displayName, style = Divan.type.h1)
-            else Fig(cv.customer.handleMasked, style = Divan.type.figureL, color = c.textPrimary)
+            else Fig(cv.customer.handleMasked ?: "—", style = Divan.type.figureL, color = c.textPrimary)
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             LabelPill(CONV_STATE[cv.state], cv.state)

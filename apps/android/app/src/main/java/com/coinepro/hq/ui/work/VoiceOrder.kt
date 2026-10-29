@@ -28,6 +28,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,7 +61,9 @@ import com.coinepro.hq.designsystem.Skeleton
 import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
+import com.coinepro.hq.ui.media.VoiceProblem
 import com.coinepro.hq.ui.media.VoiceResult
+import com.coinepro.hq.ui.media.openAppSettings
 import com.coinepro.hq.ui.media.Waveform
 import com.coinepro.hq.ui.media.rememberVoiceInput
 import com.coinepro.hq.ui.rememberAction
@@ -103,35 +106,40 @@ private fun RouteChip(r: OrderRoute, onGo: (String) -> Unit) {
 
 /**
  * The owner speaks an order; the hub routes it (contract §17.4): rules first, then the light model, then the advisor.
- * The owner reads the exact text before it goes, and sees where it went.
+ * The phone's own recogniser (fa-IR) turns the voice into words as the owner speaks; the owner reads the exact text before it goes,
+ * and sees where it went. [listen] starts listening as the sheet opens (the gold button, the microphone, the quick-settings tile);
+ * [typed] opens it on the text (a long press on the gold button).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VoiceOrderSheet(onDismiss: () -> Unit) {
+fun VoiceOrderSheet(onDismiss: () -> Unit, listen: Boolean = true, typed: Boolean = false) {
     val env = LocalEnv.current
     val nav = LocalNav.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val c = Divan.colors
     val orders = rememberQuery("orders", "orders", maxAgeMs = 10_000) { orders().items }
     val action = rememberAction()
-    var phase by rememberSaveable { mutableStateOf("ready") }
+    var phase by rememberSaveable { mutableStateOf(if (typed) "review" else "ready") }
     var text by rememberSaveable { mutableStateOf("") }
     var voice by remember { mutableStateOf<VoiceResult?>(null) }
     var out by remember { mutableStateOf<Order?>(null) }
-    val vh = rememberVoiceInput("order") { r -> text = r.text; voice = r; phase = "review" }
+    val vh = rememberVoiceInput("order") { r -> text = if (text.isBlank()) r.text else "${text.trimEnd()} ${r.text}"; voice = r; phase = "review" }
     val v = vh.v
     val go = { route: String -> v.cancel(); onDismiss(); nav.go(route) }
     val pulse by rememberInfiniteTransition(label = "rec").animateFloat(1f, 1.12f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulse")
+    // Opened to speak: listening starts at once (after the microphone permission, the first time).
+    LaunchedEffect(Unit) { if (listen && !typed) vh.start() }
 
     ModalBottomSheet(onDismissRequest = { v.cancel(); onDismiss() }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.overlay) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("فرمان صوتی", style = Divan.type.h2)
-            Text("بگو چه میخواهی؛ خودشان میدانند کجا و به دست چه کسی انجام شود.", style = Divan.type.caption, color = c.textMuted)
+            Text(if (phase == "review" && voice == null) "فرمان تازه" else "فرمان صوتی", style = Divan.type.h2)
+            Text("بگو یا بنویس چه میخواهی؛ خودشان میدانند کجا و به دست چه کسی انجام شود.", style = Divan.type.caption, color = c.textMuted)
             when (phase) {
                 "ready" -> Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Box(
                         Modifier.size(112.dp).scale(if (v.recording) pulse else 1f).clip(CircleShape).background(c.goldFill)
                             .clickable(enabled = !v.transcribing, role = Role.Button) { if (v.recording) v.finish() else vh.start() }
-                            .semantics { contentDescription = if (v.recording) "تمام؛ به متن تبدیل کن" else "شروع ضبط فرمان" },
+                            .semantics { contentDescription = if (v.recording) "تمام؛ به متن تبدیل کن" else "شروع گفتن فرمان" },
                         contentAlignment = Alignment.Center,
                     ) {
                         if (v.transcribing) CircularProgressIndicator(Modifier.size(36.dp), color = c.onGold, strokeWidth = 3.dp)
@@ -139,13 +147,24 @@ fun VoiceOrderSheet(onDismiss: () -> Unit) {
                     }
                     when {
                         v.recording -> {
+                            Text("میشنوم…", style = Divan.type.bodyStrong, color = c.goldInk)
                             Waveform(v.levels, Modifier.height(40.dp))
+                            if (v.partial.isNotBlank()) Text(v.partial, style = Divan.type.body, color = c.textPrimary, textAlign = TextAlign.Center)
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                 Fig(clock(v.elapsed), style = Divan.type.figure, color = c.textSecondary)
+                                Text("تمام", Modifier.clickable { v.finish() }.padding(6.dp), style = Divan.type.small, color = c.goldInk)
                                 Text("لغو", Modifier.clickable { v.cancel() }.padding(6.dp), style = Divan.type.small, color = c.textMuted)
                             }
+                            Text(if (v.engine == "hub") "صدا برای تبدیل به هاب میرود" else "تشخیص گفتار خود گوشی، فارسی", style = Divan.type.micro, color = c.textMuted)
                         }
-                        v.transcribing -> Text("در حال تبدیل به متن فارسی…", style = Divan.type.body, color = c.textSecondary)
+                        v.transcribing -> {
+                            Text("در حال تشخیص گفتار…", style = Divan.type.body, color = c.textSecondary)
+                            if (v.partial.isNotBlank()) Text(v.partial, style = Divan.type.body, color = c.textPrimary, textAlign = TextAlign.Center)
+                        }
+                        v.unavailable != null -> {
+                            VoiceProblem(v.unavailable.orEmpty(), v.settings, { openAppSettings(ctx) }, { v.dismiss(); phase = "review" })
+                            HqButton("مینویسم", { v.dismiss(); phase = "review" }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.EDIT)
+                        }
                         else -> {
                             Text("بزن و بگو؛ دوباره بزن تا تمام شود", style = Divan.type.bodyStrong, textAlign = TextAlign.Center)
                             Text("مثلاً «به مدیر فنی FX بگو کندی ثبت‌نام را تا فردا ظهر اصلاح کند». کار، کارگاه کد، جلسه یا پرسش از مشاور؛ مسیرش را هاب پیدا میکند.", style = Divan.type.small, color = c.textSecondary, textAlign = TextAlign.Center)
@@ -154,17 +173,25 @@ fun VoiceOrderSheet(onDismiss: () -> Unit) {
                     }
                 }
                 "review" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(if (voice != null) "متن دقیق آنچه گفتی؛ اگر لازم است اصلاح کن" else "فرمان", style = Divan.type.caption, color = c.textMuted)
+                    Text(if (voice != null) "متن آنچه گفتی؛ پیش از فرستادن بخوان و اگر لازم است اصلاح کن" else "فرمان", style = Divan.type.caption, color = c.textMuted)
                     HqTextField(text, { text = it }, "چه کاری؟", Modifier.fillMaxWidth(), singleLine = false, minLines = 5, maxLength = 4000)
+                    if (v.recording || v.transcribing) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (v.recording) Waveform(v.levels.takeLast(16), Modifier.height(20.dp)) else CircularProgressIndicator(Modifier.size(14.dp), color = c.goldInk, strokeWidth = 2.dp)
+                        Text(v.partial.ifBlank { if (v.recording) "میشنوم…" else "در حال تشخیص گفتار…" }, style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        if (v.recording) HqButton("تمام", v::finish, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.STOP)
+                    }
+                    v.unavailable?.let { why -> VoiceProblem(why, v.settings, { openAppSettings(ctx) }, v::dismiss) }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         voice?.let { r ->
                             DIcon(DivanIcon.MIC, size = 14.dp, tint = c.textSecondary)
-                            Text("صدای اصلی", style = Divan.type.micro, color = c.textSecondary)
-                            Fig(clock(r.seconds), style = Divan.type.figureSmall, color = c.textSecondary)
-                            Text("با فرمان میماند", style = Divan.type.micro, color = c.textSecondary)
+                            if (r.fileId != null) {
+                                Text("صدای اصلی", style = Divan.type.micro, color = c.textSecondary)
+                                Fig(clock(r.seconds), style = Divan.type.figureSmall, color = c.textSecondary)
+                                Text("با فرمان میماند", style = Divan.type.micro, color = c.textSecondary)
+                            } else Text("از گفتار، با تشخیص خود گوشی", style = Divan.type.micro, color = c.textSecondary)
                         }
                         Box(Modifier.weight(1f))
-                        HqButton("دوباره بگو", { text = ""; voice = null; phase = "ready"; vh.start() }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.MIC)
+                        if (!v.active) HqButton(if (text.isBlank()) "بگو" else "ادامه بده", { vh.start() }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.MIC)
                     }
                     HqButton(
                         "بفرست", {
@@ -174,7 +201,7 @@ fun VoiceOrderSheet(onDismiss: () -> Unit) {
                                 env.cache.invalidate("orders", "work", "planner", "workshop", "decisions", "inbox")
                             }
                         },
-                        Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEND, enabled = text.trim().length >= 3, loading = action.busy,
+                        Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEND, enabled = text.trim().length >= 3 && !v.active, loading = action.busy,
                     )
                 }
                 else -> out?.let { o ->
@@ -186,7 +213,7 @@ fun VoiceOrderSheet(onDismiss: () -> Unit) {
                         RichText(o.summaryFa, style = Divan.type.small)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { for (r in o.routes) RouteChip(r, go) }
                     }
-                    HqButton("فرمان بعدی", { phase = "ready"; text = ""; voice = null; out = null }, Modifier.fillMaxWidth(), icon = DivanIcon.MIC)
+                    HqButton("فرمان بعدی", { phase = "ready"; text = ""; voice = null; out = null; vh.start() }, Modifier.fillMaxWidth(), icon = DivanIcon.MIC)
                 }
             }
             HorizontalDivider(color = c.lineDivider)

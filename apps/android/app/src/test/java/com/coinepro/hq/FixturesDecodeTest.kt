@@ -78,10 +78,10 @@ class FixturesDecodeTest {
         for (p in listOf("week", "month")) {
             val r = decode("/stars/rollup?period=$p", StarRollup.serializer())
             assertEquals(p, r.period)
-            assertTrue(r.companies.any { it.company == r.bestCompany } && r.companies.all { it.stars in 0.0..5.0 })
+            assertTrue(r.companies.any { it.company == r.bestCompany } && r.companies.all { (it.stars ?: 0.0) in 0.0..5.0 })
         }
         assertTrue(list("/stars/rubrics", StarRubric.serializer()).all { it.criteria.sumOf { c -> c.weight } in 99.0..101.0 })
-        assertTrue(page("/lessons", Lesson.serializer()).isNotEmpty())
+        assertTrue(page("/lessons", Lesson.serializer()).isNotEmpty())  // the demo pages it; the hub answers a bare list (ContractShapesTest)
         val skills = list("/skills", Skill.serializer())
         assertTrue(skills.any { it.status == "approved" && it.eval?.passed == true })
         assertTrue(list("/academy/curricula", Curriculum.serializer()).any { it.role == "overseer" })
@@ -169,7 +169,7 @@ class FixturesDecodeTest {
         val h = decode("/owner/hiring", Hiring.serializer())
         assertTrue(h.envelopes.isNotEmpty() && h.envelopes.all { it.company != "HQ" })
         val roll = decode("/stars/rollup?period=week", com.coinepro.hq.core.net.StarRollup.serializer())
-        assertTrue(roll.companies.all { it.parts.efficiency > 0 } && roll.employees.all { it.efficiency != null })
+        assertTrue(roll.companies.all { (it.parts.efficiency ?: 0.0) > 0 } && roll.employees.all { it.efficiency != null })
     }
 
     // ------------------------------------------------------------ ⟨1.4.6⟩ --
@@ -252,8 +252,8 @@ class FixturesDecodeTest {
             val s = decode("/revenue/summary?period=$p", com.coinepro.hq.core.net.RevenueSummary.serializer())
             assertEquals(p, s.period)
             // ⟨1.5.1⟩ shares are 0..1 and add up; money is a decimal string.
-            assertTrue(s.byCompany.all { it.share in 0.0..1.0 })
-            assertEquals(1.0, s.byCompany.sumOf { it.share }, 0.001)
+            assertTrue(s.byCompany.all { (it.share ?: 0.0) in 0.0..1.0 })
+            assertEquals(1.0, s.byCompany.sumOf { it.share ?: 0.0 }, 0.001)
             assertEquals(s.totalUsdt.toDouble(), s.byCompany.sumOf { it.usdt.toDouble() }, 0.05)
             for (co in operating) {
                 val one = decode("/revenue/summary?company=$co&period=$p", com.coinepro.hq.core.net.RevenueSummary.serializer())
@@ -549,7 +549,7 @@ class FixturesDecodeTest {
         assertTrue(ev.ref in round.decisions && round.employees.any { it.code == p.employee && "promote_candidate" in it.flags } && p.change?.model != null)
         // §21.8 reminders: a pending card without expiry is reminded at 24 h, 72 h and 7 days, as far as it has waited.
         assertEquals(listOf("age_24h", "age_72h", "age_7d"), ev.reminders.map { it.kind })
-        assertTrue((ev.waitingH ?: 0) >= 168 && ev.digitalCeoPrediction == null)
+        assertTrue((ev.waitingH ?: 0.0) >= 168 && ev.digitalCeoPrediction == null)
     }
 
     @Test

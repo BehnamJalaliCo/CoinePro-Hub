@@ -130,7 +130,7 @@ private fun SkillCard(s: Skill, onClick: () -> Unit) {
             Text(buildAnnotatedString { append("نسخه‌ی "); fig(s.version.toString()) }, style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f))
             s.eval?.let { e ->
                 Text(buildAnnotatedString {
-                    append("آزمون "); fig(e.score.toInt().toString(), when (e.passed) { true -> c.positive; false -> c.negative; null -> c.textPrimary }); append(" · پایه "); fig(e.baseline?.toInt()?.toString() ?: "—")
+                    append("آزمون "); fig(e.score?.toInt()?.toString() ?: "—", when (e.passed) { true -> c.positive; false -> c.negative; null -> c.textPrimary }); append(" · پایه "); fig(e.baseline?.toInt()?.toString() ?: "—")
                 }, style = Divan.type.micro, color = c.textMuted)
             }
         }
@@ -171,7 +171,7 @@ private fun SkillSheet(s: Skill, onClose: () -> Unit) {
                 val e = s.eval
                 if (e == null) Text("بعد از بررسی", style = Divan.type.caption, color = c.textMuted)
                 else {
-                    Fig(e.score.toInt().toString(), style = Divan.type.figureL, color = when (e.passed) { true -> c.positive; false -> c.negative; null -> c.textPrimary })
+                    Fig(e.score?.toInt()?.toString() ?: "—", style = Divan.type.figureL, color = when (e.passed) { true -> c.positive; false -> c.negative; null -> c.textPrimary })
                     Text(buildAnnotatedString { append("خط پایه "); fig(e.baseline?.toInt()?.toString() ?: "—"); append(" · "); fig(e.suite); append(when (e.passed) { true -> " · قبول"; false -> " · رد"; null -> " · بدون خط پایه" }) }, style = Divan.type.micro, color = c.textMuted)
                 }
             }

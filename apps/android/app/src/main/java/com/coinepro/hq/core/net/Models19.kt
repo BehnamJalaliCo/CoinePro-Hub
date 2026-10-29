@@ -2,6 +2,7 @@ package com.coinepro.hq.core.net
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
@@ -95,7 +96,8 @@ data class RoleDraft(
     // ⟨1.6.1⟩ who asked and what, who wrote it, what it was compared with, the originality check, hires on it, its retirement.
     val briefMd: String? = null,
     val requestedBy: Actor? = null,
-    val writtenBy: Actor? = null,
+    /** The hub sends the writer's employee code (`"FX-MEDIA-MGR"`); an actor object is read too. See [writer]. */
+    @SerialName("written_by") val writtenByRaw: JsonElement? = null,
     val compared: List<String> = emptyList(),
     val originality: Originality? = null,
     val hires: Int = 0,
@@ -103,6 +105,13 @@ data class RoleDraft(
     val stateNoteFa: String? = null,
 ) {
     val live: Boolean get() = state == "drafting" || state == "in_review" || state == "eval"
+
+    /** Who wrote it, from either shape the hub has sent. */
+    val writtenBy: Actor? get() = when (val w = writtenByRaw) {
+        is JsonPrimitive -> w.contentOrNull?.takeIf { it.isNotBlank() }?.let { Actor(it, "agent") }
+        is kotlinx.serialization.json.JsonObject -> runCatching { Api.json.decodeFromJsonElement(Actor.serializer(), w) }.getOrNull()
+        else -> null
+    }
 }
 
 // --------------------------------------------------------------- the media studio (§22.2) --
@@ -210,7 +219,7 @@ data class Direction(val shots: List<Shot> = emptyList(), val by: Actor? = null)
 data class Composition(val format: String = "html", val sha256: String = "", val by: Actor? = null)
 
 @Serializable
-data class CheckResult(val key: String, val result: String = "n/a", val noteFa: String? = null)
+data class CheckResult(val key: String = "", val result: String = "n/a", val noteFa: String? = null)
 
 @Serializable
 data class Qc(val by: Actor? = null, val verdict: String = "pass", val noteMd: String = "")
@@ -219,8 +228,8 @@ data class Qc(val by: Actor? = null, val verdict: String = "pass", val noteMd: S
  *  platform_limit; `external_id: "manual"` means the owner posted it from the card. */
 @Serializable
 data class PublishRow(
-    val channel: String,
-    val placement: String,
+    val channel: String = "",
+    val placement: String = "",
     val at: String? = null,
     val externalId: String? = null,
     val url: String? = null,
@@ -268,7 +277,16 @@ data class MediaItem(
 val ITEM_LIVE = setOf("scripting", "directing", "composing", "voicing", "rendering", "checking")
 
 @Serializable
-data class VoiceSample(val script: String, val titleFa: String = "", val textFa: String = "", val file: FileRef)
+/** One bake-off clip. [file] is null until the hub's voice has spoken it (the hub sends `null`). */
+data class VoiceSample(
+    val script: String = "",
+    val titleFa: String = "",
+    val textFa: String = "",
+    val file: FileRef? = null,
+    val durationS: Double? = null,
+    val rtf: Double? = null,
+    val peakMb: Double? = null,
+)
 
 /** One engine-and-speaker pair of the bake-off (§22.3, ⟨1.6.1⟩). `licence_commercial: false` is shown on every use. */
 @Serializable
@@ -280,7 +298,8 @@ data class Voice(
     val licenceCommercial: Boolean = false,
     /** Real-time factor on the hub's CPU; null until measured. */
     val rtf: Double? = null,
-    val memMb: Int? = null,
+    /** Peak memory in MB; the hub measures a float (`512.4`). */
+    val memMb: Double? = null,
     /** The owner's blind listening score, 1..10. */
     val ownerScore: Int? = null,
     /** candidate · active · retired */
@@ -292,7 +311,15 @@ data class Voice(
     val noteFa: String? = null,
     val measuredAt: String? = null,
     val version: Int = 1,
-)
+    /** ⟨1.6⟩ the hub's TTS image runs it, and the CPU it was measured on. */
+    val installed: Boolean = true,
+    val measuredOn: String? = null,
+) {
+    /** The clips the owner can hear now. */
+    val heard: List<VoiceSample> get() = samples.filter { it.file != null }
+    /** Peak memory as a figure ("512 MB"), or a dash. */
+    val memFa: String get() = memMb?.let { "${kotlin.math.round(it).toLong()} MB" } ?: "—"
+}
 
 /** The owner's own recorded reference (`GET /media/voices/reference`, 404 while there is none). */
 @Serializable
@@ -336,7 +363,7 @@ data class TimelineEntry(
 )
 
 @Serializable
-data class Deadline(val at: String, val whatFa: String = "")
+data class Deadline(val at: String = "", val whatFa: String = "")
 
 /** One message of a case's thread (⟨1.6.1⟩): an outgoing draft is its `email_send` card until sealed; incoming replies are masked. */
 @Serializable
@@ -352,7 +379,7 @@ data class CaseEmail(
     val cc: List<String> = emptyList(),
     val subject: String = "",
     val bodyMd: String = "",
-    val attachments: List<FileRef> = emptyList(),
+    val attachments: List<MailFile> = emptyList(),
     /** fa · en */
     val lang: String = "fa",
     /** SHA-256 of the canonical {from, to, cc, subject, body_md, attachment sha256s, lang}: the seal is bound to it. */
@@ -450,10 +477,24 @@ data class EmailDraft(
     val cc: List<String> = emptyList(),
     val subject: String = "",
     val bodyMd: String = "",
-    val attachments: List<FileRef> = emptyList(),
+    val attachments: List<MailFile> = emptyList(),
     val lang: String = "en",
     val digest: String = "",
 )
+
+/** A file an email carries: the hub names it `{file_id, name, mime, sha256}` (no size); a full `FileRef` reads too. */
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+@Serializable
+data class MailFile(
+    @kotlinx.serialization.json.JsonNames("file_id") val id: String = "",
+    val name: String = "",
+    val mime: String? = null,
+    val size: Long? = null,
+    val sha256: String = "",
+) {
+    /** As a file of the store; a size the hub did not send is -1 (not shown). */
+    fun ref(): FileRef = FileRef(id, name, mime ?: "application/octet-stream", size ?: -1, sha256)
+}
 
 fun CaseEmail.draft(): EmailDraft = EmailDraft(case, from, to, cc, subject, bodyMd, attachments, lang, digest)
 

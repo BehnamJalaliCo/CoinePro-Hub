@@ -9,6 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
@@ -59,9 +61,14 @@ fun ModelMark(model: String?, modifier: Modifier = Modifier, provider: String? =
     val vector = remember(key, tint) {
         ImageVector.Builder(name = key, defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f).apply {
             logo.paths.forEach { p ->
+                // A gradient's points are on the logo's 24×24 box, as the vector draws its paths.
+                val g = p.gradient
+                val fill = if (g != null) {
+                    Brush.linearGradient(*g.stops.map { (o, argb) -> o to Color(argb) }.toTypedArray(), start = Offset(g.x1, g.y1), end = Offset(g.x2, g.y2))
+                } else SolidColor(p.fill?.let { Color(it) } ?: tint)
                 addPath(
                     pathData = addPathNodes(p.d),
-                    fill = SolidColor(p.fill?.let { Color(it) } ?: tint),
+                    fill = fill,
                     pathFillType = if (logo.evenOdd) PathFillType.EvenOdd else PathFillType.NonZero,
                 )
             }

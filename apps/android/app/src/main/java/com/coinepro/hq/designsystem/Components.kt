@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -400,17 +402,31 @@ fun ErrorBlock(error: ApiException?, onRetry: (() -> Unit)?, modifier: Modifier 
 }
 
 @Composable
-fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null, tone: Tone? = null, figure: Boolean = true, subRich: AnnotatedString? = null) {
+fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null, tone: Tone? = null, figure: Boolean = true, subRich: AnnotatedString? = null, onClick: (() -> Unit)? = null, subLines: Int = 1) {
     val c = Divan.colors
-    HqCard(modifier, radius = 14.dp) {
+    // Label, figure and note sit on the same lines in every tile of a row: one label line, one 32sp figure line, and the note
+    // starting on the same baseline (the tile fills the row's height when the row is a [StatRow]).
+    HqCard(if (LocalStatFill.current) modifier.fillMaxHeight() else modifier, radius = 14.dp, onClick = onClick) {
         Text(label, style = Divan.type.caption, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(4.dp))
         val col = when (tone) { Tone.NEG -> c.negative; Tone.WARN -> c.warning; Tone.POS -> c.positive; else -> c.textPrimary }
-        Text(value, style = if (figure) Divan.type.figureL.copy(fontSize = 24.sp, lineHeight = 32.sp) else Divan.type.h2.copy(fontSize = 24.sp, lineHeight = 32.sp), color = col, maxLines = 1)
-        if (subRich != null) Text(subRich, style = Divan.type.caption, color = c.textMuted, maxLines = 2)
-        else if (sub != null) Text(sub, style = Divan.type.caption, color = c.textMuted, maxLines = 2)
+        val big = (if (figure) Divan.type.figureL else Divan.type.h2).copy(fontSize = 24.sp, lineHeight = 32.sp)
+        Text(value, style = big, color = col, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (subRich != null) Text(subRich, style = Divan.type.caption, color = c.textMuted, maxLines = 2, minLines = subLines, overflow = TextOverflow.Ellipsis)
+        else if (sub != null) Text(sub, style = Divan.type.caption, color = c.textMuted, maxLines = 2, minLines = subLines, overflow = TextOverflow.Ellipsis)
     }
 }
+
+/** A row of [StatTile]s of one height: the tallest tile sets it and the others stretch, so their edges and lines align. */
+@Composable
+fun StatRow(modifier: Modifier = Modifier, gap: Dp = 12.dp, content: @Composable RowScope.() -> Unit) {
+    Row(modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(gap)) {
+        CompositionLocalProvider(LocalStatFill provides true) { content() }
+    }
+}
+
+/** Inside a [StatRow] a tile fills the row's height. */
+internal val LocalStatFill = androidx.compose.runtime.staticCompositionLocalOf { false }
 
 @Composable
 fun SectionTitle(title: String, modifier: Modifier = Modifier, note: String? = null, action: (@Composable RowScope.() -> Unit)? = null) {

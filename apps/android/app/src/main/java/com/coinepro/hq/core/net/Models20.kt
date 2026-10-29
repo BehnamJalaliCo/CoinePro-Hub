@@ -187,7 +187,7 @@ data class Automation(
 /** One switch of `GET /archive/sources` (§23.8, §23.12). */
 @Serializable
 data class SourceSwitch(
-    val key: String,
+    val key: String = "",
     val titleFa: String = "",
     @SerialName("class") val cls: String = "",
     val enabled: Boolean = false,
@@ -439,7 +439,7 @@ data class ArchiveHit(val ref: String, val titleFa: String = "", @SerialName("cl
 /** A row of the access log (owner only); a level change is a row with action `level` and the two level keys. */
 @Serializable
 data class AccessRow(
-    val at: String,
+    val at: String = "",
     val actor: Actor? = null,
     /** view · download · metadata · level */
     val action: String = "view",
@@ -493,7 +493,7 @@ data class HoldIn(val titleFa: String, val case: String?, val reasonMd: String, 
 
 @Serializable
 data class DueReminder(
-    val id: String,
+    val id: String = "",
     val record: String = "",
     val titleFa: String = "",
     val scope: String = "HQ",

@@ -63,6 +63,7 @@ import com.coinepro.hq.designsystem.Pill
 import com.coinepro.hq.designsystem.Seal
 import com.coinepro.hq.designsystem.SectionTitle
 import com.coinepro.hq.designsystem.Skeleton
+import com.coinepro.hq.designsystem.StatRow
 import com.coinepro.hq.designsystem.StatTile
 import com.coinepro.hq.designsystem.budgetTone
 import com.coinepro.hq.designsystem.fig
@@ -144,17 +145,18 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
         item {
             val i = inbox.data
             if (i == null) Skeleton(Modifier.fillMaxWidth().height(220.dp), radius = 14.dp)
+            // Four tiles of one height (two note lines each, and each row's tallest sets the row): label, figure and note on the same lines.
             else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatTile("منتظر مُهر تو", i.decisionsPending.toString(), Modifier.weight(1f).clickable { nav.go("cartable") },
+                StatRow {
+                    StatTile("منتظر مُهر تو", i.decisionsPending.toString(), Modifier.weight(1f),
                         sub = if (i.decisionsByRisk.high > 0) "${i.decisionsByRisk.high} با ریسک بالا" else "بدون ریسک بالا",
-                        tone = if (i.decisionsByRisk.high > 0) Tone.WARN else null, figure = false)
-                    StatTile("خروجی بی‌امتیاز", i.deliverablesUnrated.toString(), Modifier.weight(1f).clickable { nav.go("outputs") }, sub = "امتیاز تو ۴۰٪ نمره‌ی کارمند است", figure = false)
+                        tone = if (i.decisionsByRisk.high > 0) Tone.WARN else null, figure = false, onClick = { nav.go("cartable") }, subLines = 2)
+                    StatTile("خروجی بی‌امتیاز", i.deliverablesUnrated.toString(), Modifier.weight(1f), sub = "امتیاز تو ۴۰٪ نمره‌ی کارمند است", figure = false, onClick = { nav.go("outputs") }, subLines = 2)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatTile("پیام نخوانده", i.messagesUnread.toString(), Modifier.weight(1f).clickable { nav.go("messages") }, sub = "از مدیرعامل‌ها و مشاور", figure = false)
+                StatRow {
+                    StatTile("پیام نخوانده", i.messagesUnread.toString(), Modifier.weight(1f), sub = "از مدیرعامل‌ها و مشاور", figure = false, onClick = { nav.go("messages") }, subLines = 2)
                     val t = day.data?.totals
-                    StatTile("مصرف امروز (معادل)", usd(t?.equivCostUsd), Modifier.weight(1f).clickable { nav.go("treasury") },
+                    StatTile("مصرف امروز (معادل)", usd(t?.equivCostUsd), Modifier.weight(1f), onClick = { nav.go("treasury") }, subLines = 2,
                         subRich = t?.let { buildAnnotatedString { fig(tokens(it.inputTokens + it.outputTokens)); append(" توکن، ${it.calls} فراخوانی") } })
                 }
             }

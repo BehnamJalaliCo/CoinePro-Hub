@@ -209,7 +209,7 @@ fun RevenueScreen() {
                                 Figure("خالص", usd(x.netUsd), Modifier.weight(1f), strong = true, negative = n < 0)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                MeterBar((x.share * 100).coerceAtLeast(1.5), Modifier.weight(1f), height = 8.dp, color = companyColor(x.company))
+                                MeterBar(((x.share ?: 0.0) * 100).coerceAtLeast(1.5), Modifier.weight(1f), height = 8.dp, color = companyColor(x.company))
                                 Fig(rate(x.share), Modifier.width(40.dp), style = Divan.type.figureSmall, color = c.textSecondary)
                             }
                         }

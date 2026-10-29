@@ -10,6 +10,14 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
+    <!-- Voice to text runs on the phone's own speech recognition (fa-IR) while the hub's is off; Android 11+ only lets the app see
+         the recognition service when it says so here. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <application
         android:name=".HqApp"
         android:allowBackup="false"

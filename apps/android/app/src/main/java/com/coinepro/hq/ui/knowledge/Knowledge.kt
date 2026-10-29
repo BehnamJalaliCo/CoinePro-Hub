@@ -331,7 +331,7 @@ private fun EntryEditor(from: KnowledgeEntry?, onClose: () -> Unit) {
     var layer by rememberSaveable { mutableStateOf(from?.layer?.takeIf { it != "employee" } ?: "company") }
     var company by rememberSaveable { mutableStateOf(from?.company) }
     var department by rememberSaveable { mutableStateOf(from?.department) }
-    var kind by rememberSaveable { mutableStateOf(from?.kind?.takeIf { it != "support" } ?: "faq") }
+    var kind by rememberSaveable { mutableStateOf(from?.kind?.takeIf { it in VALID_DAYS } ?: "faq") }  // a kind this app does not know opens as a FAQ
     var title by rememberSaveable { mutableStateOf(from?.titleFa.orEmpty()) }
     var body by rememberSaveable { mutableStateOf(from?.bodyMd.orEmpty()) }
     var until by rememberSaveable { mutableStateOf(from?.validUntil.orEmpty()) }

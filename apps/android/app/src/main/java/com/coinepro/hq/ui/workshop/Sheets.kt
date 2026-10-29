@@ -100,10 +100,15 @@ fun SpokenField(label: String, value: String, onChange: (String) -> Unit, placeh
                 }
                 v.transcribing -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     CircularProgressIndicator(Modifier.height(14.dp), color = c.goldInk, strokeWidth = 2.dp)
-                    Text("در حال نوشتن…", style = Divan.type.caption, color = c.textSecondary)
+                    Text("در حال تشخیص گفتار…", style = Divan.type.caption, color = c.textSecondary)
                 }
                 else -> HqButton("بگو", vh.start, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.MIC)
             }
+        }
+        if (v.recording && v.partial.isNotBlank()) Text(v.partial, style = Divan.type.caption, color = c.textSecondary, maxLines = 2)
+        v.unavailable?.let { why ->
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            com.coinepro.hq.ui.media.VoiceProblem(why, v.settings, { com.coinepro.hq.ui.media.openAppSettings(ctx) }, v::dismiss)
         }
         HqTextField(value, onChange, placeholder, Modifier.fillMaxWidth(), singleLine = false, minLines = 4, maxLength = 10_000)
     }

@@ -272,13 +272,13 @@ private fun ConversationsTab() {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 if (x.customer.displayName != null) Text(x.customer.displayName, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
-                                else Fig(x.customer.handleMasked, style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                                else Fig(x.customer.handleMasked ?: "—", style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
                                 if (x.mystery) Pill("ناشناس ناظر", Tone.LEARN)
                             }
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                                 Fig(x.ref, style = Divan.type.figureSmall, color = c.textMuted)
                                 Text(CHANNEL_FA[x.channel] ?: x.channel, style = Divan.type.micro, color = c.textMuted)
-                                if (x.customer.displayName != null) Fig(x.customer.handleMasked, style = Divan.type.figureSmall, color = c.textMuted)
+                                if (x.customer.displayName != null && x.customer.handleMasked != null) Fig(x.customer.handleMasked, style = Divan.type.figureSmall, color = c.textMuted)
                                 for (t in x.tags) ProseTag(t)
                                 x.csat?.let { Text(buildAnnotatedString { append("رضایت "); fig("$it/5") }, style = Divan.type.micro, color = c.textMuted) }
                             }

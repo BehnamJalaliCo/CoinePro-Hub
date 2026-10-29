@@ -27,7 +27,7 @@ data class RevenueAccount(
 )
 
 @Serializable
-data class CoinAmount(val coin: String, val amount: String, val usdt: String, val priceSource: String = "")
+data class CoinAmount(val coin: String = "", val amount: String = "0", val usdt: String? = null, val priceSource: String? = null)
 
 @Serializable
 data class DaySource(val adapter: String = "", val endpoints: List<String> = emptyList())
@@ -52,7 +52,8 @@ data class RevenueDay(
 )
 
 @Serializable
-data class CompanyRevenue(val company: String, val usdt: String, val tokenCostUsd: String, val netUsd: String, val share: Double)
+/** [share] is null when the period has no revenue at all (the hub sends `null` or leaves it out). */
+data class CompanyRevenue(val company: String, val usdt: String = "0", val tokenCostUsd: String = "0", val netUsd: String = "0", val share: Double? = null)
 
 @Serializable
 data class AccountRevenue(val account: String, val company: String, val usdt: String)
@@ -141,7 +142,8 @@ data class SupportChannel(
 )
 
 @Serializable
-data class Customer(val displayName: String? = null, val handleMasked: String, val lang: String = "fa")
+/** The hub may not know a customer's handle (`handle_masked: null`). */
+data class Customer(val displayName: String? = null, val handleMasked: String? = null, val lang: String = "fa")
 
 @Serializable
 data class Handoff(val reason: String, val at: String)
@@ -196,7 +198,8 @@ data class TeachOut(val message: SupportMessage? = null, val article: KbArticle)
 
 // ------------------------------------------ knowledge, shadow test, go-live (§19.4) --
 @Serializable
-data class KbVariable(val name: String, val source: String)
+/** `source`: customer · policy; the hub may leave it out. */
+data class KbVariable(val name: String, val source: String = "customer")
 
 @Serializable
 data class KbLink(val url: String, val labelFa: String = "")

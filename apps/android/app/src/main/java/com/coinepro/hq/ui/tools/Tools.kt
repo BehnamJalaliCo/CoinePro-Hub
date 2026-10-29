@@ -77,13 +77,14 @@ fun ToolsScreen() {
             if (s == null) Skeleton(Modifier.fillMaxWidth().height(200.dp), radius = 14.dp)
             else Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val top = s.byTool.entries.maxByOrNull { it.value }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                com.coinepro.hq.designsystem.StatRow(gap = 10.dp) {
                     StatTile("درخواست امروز", String.format(Locale.US, "%,d", s.requests), Modifier.weight(1f), subRich = buildAnnotatedString { fig("${s.bytesIn / 1_000_000} MB") })
                     StatTile("مسدودشده", s.blocked.toString(), Modifier.weight(1f), sub = "شبکه‌ی خصوصی، داده‌ی داخلی، سقف", tone = if (s.blocked > 0) Tone.WARN else null)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatTile("به مُهر تو رسید", s.needsOwner.toString(), Modifier.weight(1f), sub = "تعهد بیرونی ← کارت تصمیم")
-                    StatTile("بیشترین ابزار", top?.key ?: "—", Modifier.weight(1f), subRich = top?.let { t -> buildAnnotatedString { fig(String.format(Locale.US, "%,d", t.value)); append(" درخواست") } })
+                com.coinepro.hq.designsystem.StatRow(gap = 10.dp) {
+                    StatTile("به مُهر تو رسید", s.needsOwner?.toString() ?: "—", Modifier.weight(1f), sub = "تعهد بیرونی ← کارت تصمیم")
+                    if (top == null && s.hosts != null) StatTile("مقصدهای متفاوت", s.hosts.toString(), Modifier.weight(1f), sub = "میزبان‌هایی که امروز خوانده شدند")
+                    else StatTile("بیشترین ابزار", top?.key ?: "—", Modifier.weight(1f), subRich = top?.let { t -> buildAnnotatedString { fig(String.format(Locale.US, "%,d", t.value)); append(" درخواست") } })
                 }
             }
         }

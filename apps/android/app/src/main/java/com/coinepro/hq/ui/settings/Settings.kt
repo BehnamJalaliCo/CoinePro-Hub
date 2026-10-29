@@ -59,6 +59,7 @@ import com.coinepro.hq.ui.refresher
 @Composable
 fun SettingsScreen(graph: AppGraph) {
     val env = LocalEnv.current
+    val nav = com.coinepro.hq.ui.LocalNav.current
     val toasts = LocalToasts.current
     val act = activity()
     val ctx = LocalContext.current
@@ -175,6 +176,8 @@ fun SettingsScreen(graph: AppGraph) {
                 }
             }
         }
+        // «خطاخوان»: every failed call, contract mismatch and crash on this phone, to copy or share for the developer.
+        item { ErrorLogCard(graph.errors) { nav.go("errors") } }
         item {
             HqButton(if (env.demo) "خروج از نمایش آزمایشی" else "خروج", { action.run { env.auth.signOut() } }, Modifier.fillMaxWidth(), variant = BtnVariant.DANGER, icon = DivanIcon.BACK)
         }

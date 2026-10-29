@@ -130,15 +130,15 @@ private fun Prose(v: String, color: Color = Divan.colors.textPrimary) = Text(v, 
 @Composable
 fun EmployeeHr(e: HrEmployee) {
     val c = Divan.colors
-    val drop = e.scorePrev?.let { e.score - it }
+    val drop = e.score?.let { s -> e.scorePrev?.let { s - it } }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.Bottom) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(faDecimal(e.score), style = Divan.type.h1.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                Text(e.score?.let { faDecimal(it) } ?: "—", style = Divan.type.h1.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
                 Text("از ۱۰", Modifier.padding(bottom = 4.dp), style = Divan.type.micro, color = c.textMuted)
             }
             if (drop != null) Text(
-                "${if (drop >= 0) "▲" else "▼"} ${faDecimal(kotlin.math.abs(drop))} از ماه قبل (${faDecimal(e.scorePrev)})", Modifier.padding(bottom = 4.dp),
+                "${if (drop >= 0) "▲" else "▼"} ${faDecimal(kotlin.math.abs(drop))} از ماه قبل (${e.scorePrev?.let { faDecimal(it) } ?: "—"})", Modifier.padding(bottom = 4.dp),
                 style = Divan.type.caption, color = if (drop <= -1.5) c.warning else if (drop >= 0) c.positive else c.textSecondary,
             ) else Text("ماه اول", Modifier.padding(bottom = 4.dp), style = Divan.type.caption, color = c.textMuted)
         }

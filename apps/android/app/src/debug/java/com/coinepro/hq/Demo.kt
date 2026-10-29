@@ -44,7 +44,14 @@ object Demo {
 
     fun init(context: Context) { appContext = context.applicationContext }
 
-    fun interceptor(): Interceptor = DemoInterceptor(requireNotNull(appContext) { "Demo.init not called" })
+    /** For the screenshot tests: GET paths the demo answers `404 not_found` for (what a hub has none of yet, e.g. a week without a
+     *  stars roll-up). Every new demo session starts without any. */
+    @Volatile var absent: Set<String> = emptySet()
+
+    fun interceptor(): Interceptor {
+        absent = emptySet()
+        return DemoInterceptor(requireNotNull(appContext) { "Demo.init not called" })
+    }
 }
 
 private class DemoInterceptor(private val context: Context) : Interceptor {
@@ -83,7 +90,10 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         val body = raw as? JsonObject
         val query = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
         val version = req.header("If-Match")?.trim('"')?.toIntOrNull()
+        if (req.method == "GET" && path in Demo.absent) return respond(req, 404 to problem("not_found", "پیدا نشد."))
         tick18()
+        // ⟨1.7.3⟩ §5.2: outputs seen, filed and filtered.
+        outputs.handle(req.method, path, query, body)?.let { return respond(req, it) }
         // ⟨1.7⟩ §23: the archive, and the step-up and staleness check on approving its two cards.
         archive.handle(req, path, raw, query)?.let { return it }
         if (req.method == "GET") {
@@ -228,6 +238,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     /** Uploaded files by id (a file:// URL in the app's cache), so a sent message can show what was attached. */
     private val files = mutableMapOf<String, JsonObject>()
     private val archive by lazy { ArchiveDemo(context, store, files) }
+    private val outputs by lazy { OutputsDemo(store) }
     private val scripts = mutableMapOf<String, MutableList<JsonObject>>().apply {
         for ((k, v) in store) if (k.startsWith("#script:")) put(k.removePrefix("#script:"), v.second.jsonObject["items"]!!.jsonArray.map { it.jsonObject }.toMutableList())
     }

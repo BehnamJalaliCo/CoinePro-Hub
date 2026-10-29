@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,9 +37,11 @@ import com.coinepro.hq.core.format.agentKindOf
 import com.coinepro.hq.core.format.deptOf
 import com.coinepro.hq.core.format.jDate
 import com.coinepro.hq.core.net.CompanyStanding
+import com.coinepro.hq.core.net.StarRollup
 import com.coinepro.hq.designsystem.Avatar
 import com.coinepro.hq.designsystem.CompanyMark
 import com.coinepro.hq.designsystem.DIcon
+import com.coinepro.hq.designsystem.Empty
 import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.ErrorBlock
 import com.coinepro.hq.designsystem.Fig
@@ -63,11 +66,27 @@ import com.coinepro.hq.ui.v14.Spark
 import com.coinepro.hq.ui.v14.StarsRow
 
 // Contract §18.4 ⟨1.4.3⟩: efficiency (the envelope kept, little waste, a fair cost per accepted output) is 15% of a company's score.
-private val PARTS: List<Triple<(CompanyStanding) -> Double, String, Int>> = listOf(
+private val PARTS: List<Triple<(CompanyStanding) -> Double?, String, Int>> = listOf(
     Triple({ it.parts.kpi }, "KPI", 35), Triple({ it.parts.challenges }, "چالش‌ها", 20),
     Triple({ it.parts.compliance }, "انطباق", 15), Triple({ it.parts.people }, "ستاره‌ی کارمندها", 15),
     Triple({ it.parts.efficiency }, "کارایی", 15),
 )
+
+/** The roll-up of a period, or none yet (the hub's 404 before its first one). */
+private class Rolled(val rollup: StarRollup?)
+
+/** No roll-up for the period yet: what makes one and when, instead of an error. */
+@Composable
+private fun NoRollup(period: String) {
+    HqCard(Modifier.fillMaxWidth()) {
+        Empty(
+            if (period == "week") "هنوز برآیند هفتگی ساخته نشده" else "هنوز برآیند ماهانه ساخته نشده",
+            icon = DivanIcon.STAR,
+            body = if (period == "week") "برآیند هر هفته شنبه صبح از ستاره‌هایی که مدیرعامل‌ها با شاهد داده‌اند ساخته میشود؛ هفته‌ای که ستاره‌ای نگرفته برآیند ندارد."
+            else "برآیند هر ماه روز اول ماه ساخته میشود؛ تا آن وقت رتبه‌ی شرکت‌ها و کارمندها این‌جا خالی است.",
+        )
+    }
+}
 
 /** ستاره‌ها (contract §18.4): CEOs give their people 0–5 stars weekly under their own rubric; companies are ranked
  *  from KPIs, the overseer's challenges, compliance and their people. The owner gives no stars; the owner's 1–10
@@ -79,9 +98,10 @@ fun StarsScreen() {
     val companies = rememberCompanies()
     var period by rememberSaveable { mutableStateOf("week") }
     var co by rememberSaveable { mutableStateOf<String?>(null) }
-    val q = rememberQuery("stars:rollup:$period", "stars", maxAgeMs = 60_000) { rollup(period) }
+    // A period without a roll-up yet is not an error: the hub answers 404 until its first Saturday (or first of the month).
+    val q = rememberQuery("stars:rollup:$period", "stars", maxAgeMs = 60_000) { Rolled(rollup(period)) }
     val rubrics = rememberQuery("stars:rubrics", "stars", maxAgeMs = 300_000) { rubrics() }
-    val lessons = rememberQuery("stars:lessons", "stars", maxAgeMs = 120_000) { lessons().items }
+    val lessons = rememberQuery("stars:lessons", "stars", maxAgeMs = 120_000) { lessons() }
     val r = refresher(q, rubrics, lessons)
 
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
@@ -91,10 +111,11 @@ fun StarsScreen() {
             }
         }
         item { Text("مدیرعامل هر شرکت طبق آیین‌نامه‌ی خودش به کارمندها ستاره میدهد؛ ناظر کل انصاف و شاهدش را میپاید. امتیاز ۱ تا ۱۰ تو جداست.", style = Divan.type.small, color = c.textSecondary) }
-        val roll = q.data
+        val roll = q.data?.rollup
         when {
-            roll == null && q.error != null -> item { ErrorBlock(q.error, { q.refresh() }) }
-            roll == null -> item { Skeleton(Modifier.fillMaxWidth().height(200.dp), radius = 16.dp) }
+            q.data == null && q.error != null -> item { ErrorBlock(q.error, { q.refresh() }) }
+            q.data == null -> item { Skeleton(Modifier.fillMaxWidth().height(200.dp), radius = 16.dp) }
+            roll == null || (roll.companies.isEmpty() && roll.employees.isEmpty()) -> item { NoRollup(period) }
             else -> {
                 roll.companies.firstOrNull { it.company == roll.bestCompany }?.let { best ->
                     item {
@@ -107,9 +128,9 @@ fun StarsScreen() {
                                         CompanyMark(best.company, height = 20.dp)
                                         Text(companyOf(companies, best.company).nameFa, style = Divan.type.h2)
                                     }
-                                    StarsRow(best.stars, size = 18.dp)
+                                    best.stars?.let { StarsRow(it, size = 18.dp) }
                                 }
-                                Fig(best.score.toInt().toString(), style = Divan.type.figureL, color = c.textPrimary)
+                                Fig(best.score?.toInt()?.toString() ?: "—", style = Divan.type.figureL, color = c.textPrimary)
                             }
                         }
                     }
@@ -121,12 +142,12 @@ fun StarsScreen() {
                             if (i > 0) HorizontalDivider(color = c.lineDivider)
                             Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Fig(k.rank.toString(), Modifier.width(18.dp), style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
+                                    Fig(k.rank?.toString() ?: "—", Modifier.width(18.dp), style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
                                     CompanyMark(k.company, height = 15.dp, mono = true, ink = c.textSecondary)
                                     Text(companyOf(companies, k.company).nameFa, style = Divan.type.bodyStrong, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Spark(k.trend, min = 40.0, max = 100.0, width = 48.dp)
                                 }
-                                StarsRow(k.stars, Modifier.padding(start = 26.dp))
+                                k.stars?.let { StarsRow(it, Modifier.padding(start = 26.dp)) } ?: Text("هنوز ستاره‌ای نگرفته", Modifier.padding(start = 26.dp), style = Divan.type.micro, color = c.textMuted)
                                 Column(Modifier.padding(start = 26.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     for (pair in PARTS.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                         for ((get, fa, w) in pair) Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -175,7 +196,11 @@ fun StarsScreen() {
         }
         item { SectionTitle("درس‌ها از شرکت برتر", note = "هر هفته ناظر مینویسد؛ بقیه پیشنهاد به‌کارگیری میدهند") }
         val ls = lessons.data
-        if (ls == null) item { Skeleton(Modifier.fillMaxWidth().height(120.dp), radius = 14.dp) }
+        if (ls == null && lessons.error != null) item { ErrorBlock(lessons.error, { lessons.refresh() }) }
+        else if (ls == null) item { Skeleton(Modifier.fillMaxWidth().height(120.dp), radius = 14.dp) }
+        else if (ls.isEmpty()) item {
+            Text("هنوز درسی نوشته نشده؛ ناظر بعد از هر برآیند از شرکت برتر مینویسد.", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), style = Divan.type.caption, color = c.textMuted)
+        }
         else items(ls.size, key = { ls[it].ref }) { i ->
             val l = ls[i]
             HqCard(Modifier.fillMaxWidth()) {
@@ -193,10 +218,11 @@ fun StarsScreen() {
                 }
             }
         }
-        val rubric = rubrics.data?.firstOrNull { it.company == (co ?: q.data?.bestCompany) }
+        val rubric = rubrics.data?.let { all -> all.firstOrNull { it.company == (co ?: roll?.bestCompany) } ?: all.firstOrNull() }
         item { SectionTitle("آیین‌نامه‌ی ستاره" + (rubric?.let { " · " + companyOf(companies, it.company).nameFa } ?: ""), note = "نوشته‌ی مدیرعامل همان شرکت؛ تو میبینی") }
         item {
-            if (rubric == null) Skeleton(Modifier.fillMaxWidth().height(140.dp), radius = 14.dp)
+            if (rubrics.data == null && rubrics.error == null) Skeleton(Modifier.fillMaxWidth().height(140.dp), radius = 14.dp)
+            else if (rubric == null) Text("هنوز هیچ مدیرعاملی آیین‌نامه‌ی ستاره ننوشته.", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), style = Divan.type.caption, color = c.textMuted)
             else HqCard(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     for (k in rubric.criteria) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

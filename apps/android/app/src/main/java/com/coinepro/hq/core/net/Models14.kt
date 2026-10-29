@@ -20,7 +20,7 @@ fun companiesOf(e: JsonElement?): List<String>? = when (e) {
 }
 
 @Serializable
-data class Evidence(val kind: String, val ref: String, val note: String? = null)
+data class Evidence(val kind: String = "", val ref: String = "", val note: String? = null)
 
 // -------------------------------------------------------------- oversight --
 @Serializable
@@ -67,7 +67,7 @@ data class Finding(
 )
 
 @Serializable
-data class Criterion(val nameFa: String, val weight: Double)
+data class Criterion(val nameFa: String = "", val weight: Double = 0.0)
 
 @Serializable
 data class Challenge(
@@ -96,7 +96,8 @@ data class StandingOrder(
     val status: String,
     val version: Int = 1,
     val sealedAt: String? = null,
-    val createdAt: String,
+    /** The hub's `StandingOrder` has no `created_at`; kept for the demo and a later hub. */
+    val createdAt: String = "",
 )
 
 @Serializable
@@ -206,7 +207,7 @@ data class Errand(
 
 // ------------------------------------------------------------------ stars --
 @Serializable
-data class RubricCriterion(val key: String, val nameFa: String, val weight: Double, val descriptionMd: String = "")
+data class RubricCriterion(val key: String = "", val nameFa: String = "", val weight: Double = 0.0, val descriptionMd: String = "")
 
 @Serializable
 data class StarRubric(
@@ -220,15 +221,17 @@ data class StarRubric(
 )
 
 @Serializable
-data class StandingParts(val kpi: Double = 0.0, val challenges: Double = 0.0, val compliance: Double = 0.0, val people: Double = 0.0, val efficiency: Double = 0.0)
+/** A part without data is null and left out of the score (§18.4): the app shows a dash, never a zero. */
+data class StandingParts(val kpi: Double? = null, val challenges: Double? = null, val compliance: Double? = null, val people: Double? = null, val efficiency: Double? = null)
 
 @Serializable
 data class CompanyStanding(
     val company: String,
-    val stars: Double,
-    val score: Double,
+    /** Null while the company has no stars, score or rank for the period (the hub sends `null`). */
+    val stars: Double? = null,
+    val score: Double? = null,
     val parts: StandingParts = StandingParts(),
-    val rank: Int,
+    val rank: Int? = null,
     val trend: List<Double> = emptyList(),
 )
 
@@ -236,8 +239,8 @@ data class CompanyStanding(
 data class EmployeeStanding(
     val code: String,
     val company: String,
-    val titleFa: String,
-    val stars: Double,
+    val titleFa: String = "",
+    val stars: Double = 0.0,
     val count: Int = 0,
     val rankCompany: Int = 0,
     val rankHolding: Int = 0,
@@ -257,18 +260,19 @@ data class StarRollup(
 )
 
 @Serializable
-data class Adoption(val company: String, val status: String, val decisionRef: String? = null)
+data class Adoption(val company: String = "", val status: String = "proposed", val decisionRef: String? = null, val workRef: String? = null)
 
 @Serializable
 data class Lesson(
     val id: String = "",
     val ref: String,
-    val sourceCompany: String,
+    val sourceCompany: String = "",
     val period: String = "",
-    val titleFa: String,
+    val titleFa: String = "",
     val bodyMd: String = "",
     val evidence: List<Evidence> = emptyList(),
     val adoption: List<Adoption> = emptyList(),
+    val createdAt: String? = null,
 )
 
 // ----------------------------------------------------------------- skills --
@@ -276,12 +280,20 @@ data class Lesson(
 data class SkillScope(val roles: List<String> = emptyList(), val companies: JsonElement = JsonPrimitive("all"), val departments: List<String> = emptyList())
 
 @Serializable
-data class SkillReview(val by: Actor? = null, val at: String? = null, val verdict: String, val notesMd: String = "", val checks: Map<String, Boolean> = emptyMap())
+data class SkillReview(val by: Actor? = null, val at: String? = null, val verdict: String = "", val notesMd: String = "", val checks: Map<String, Boolean> = emptyMap())
 
 @Serializable
-data class SkillEval(val suite: String, val score: Double, val baseline: Double? = null) {
-    /** The academy's gate (§18.6): no worse than the baseline by more than one point; null while the suite has no baseline ⟨1.4.7⟩. */
-    val passed: Boolean? get() = baseline?.let { score >= it - 1 }
+data class SkillEval(
+    val suite: String = "",
+    /** Null while the eval runs (the hub sends `null`). */
+    val score: Double? = null,
+    val baseline: Double? = null,
+    /** The hub's own verdict, when it sends one. */
+    @SerialName("passed") val verdict: Boolean? = null,
+) {
+    /** The academy's gate (§18.6): no worse than the baseline by more than one point; null while the suite has no baseline ⟨1.4.7⟩
+     *  or the eval has no score yet. */
+    val passed: Boolean? get() = verdict ?: score?.let { s -> baseline?.let { s >= it - 1 } }
 }
 
 @Serializable
@@ -304,17 +316,17 @@ data class Skill(
 
 // ---------------------------------------------------------------- academy --
 @Serializable
-data class CurriculumModule(val key: String, val titleFa: String, val skills: List<String> = emptyList(), val evals: List<String> = emptyList())
+data class CurriculumModule(val key: String = "", val titleFa: String = "", val skills: List<String> = emptyList(), val evals: List<String> = emptyList())
 
 @Serializable
 data class Curriculum(val role: String, val version: Int = 1, val modules: List<CurriculumModule> = emptyList())
 
 /** ⟨1.4.7⟩ A suite's baseline: the subject that set it and its score. */
 @Serializable
-data class Baseline(val subject: EvalSubject? = null, val score: Double)
+data class Baseline(val subject: EvalSubject? = null, val score: Double = 0.0)
 
 @Serializable
-data class EvalSubject(val kind: String, val ref: String, val version: JsonElement? = null)
+data class EvalSubject(val kind: String = "", val ref: String = "", val version: JsonElement? = null)
 
 @Serializable
 data class EvalTokens(val input: Long = 0, val output: Long = 0)
@@ -338,7 +350,7 @@ data class EvalRun(
 }
 
 @Serializable
-data class EvalCase(val id: String, val inputMd: String = "", val rubricMd: String = "", val weight: Double = 1.0)
+data class EvalCase(val id: String = "", val inputMd: String = "", val rubricMd: String = "", val weight: Double = 1.0)
 
 /** Contract §18.6: `cases` is the suite's cases; `recent` its last 10 runs, oldest first ⟨1.4.5⟩. */
 @Serializable
@@ -352,7 +364,7 @@ data class EvalSuite(
 )
 
 @Serializable
-data class EvalScore(val suite: String, val score: Double, val at: String)
+data class EvalScore(val suite: String = "", val score: Double = 0.0, val at: String = "")
 
 /** Item 16: an employee's training history — evals newest first, `trend` the last 12 scores oldest first. */
 @Serializable
@@ -367,21 +379,22 @@ data class TrainingRecord(
 )
 
 @Serializable
-data class TeachTarget(val kind: String, val ref: String)
+data class TeachTarget(val kind: String = "", val ref: String = "")
 
 @Serializable
-data class TeachProposal(val kind: String, val diffMd: String)
+data class TeachProposal(val kind: String = "", val diffMd: String = "")
 
 @Serializable
-data class TeachEval(val id: String? = null, val score: Double, val baseline: Double? = null, val passed: Boolean)
+/** Score and verdict are null while the eval runs (the hub sends `null`). */
+data class TeachEval(val id: String? = null, val score: Double? = null, val baseline: Double? = null, val passed: Boolean? = null)
 
 @Serializable
 data class Teaching(
     val id: String = "",
     val ref: String,
-    val target: TeachTarget,
+    val target: TeachTarget = TeachTarget(),
     val source: String = "text",
-    val textMd: String,
+    val textMd: String = "",
     val proposal: TeachProposal? = null,
     val evalRun: TeachEval? = null,
     val status: String,
@@ -397,10 +410,37 @@ data class EgressSummary(
     val period: String = "day",
     val requests: Long = 0,
     val blocked: Int = 0,
-    val needsOwner: Int = 0,
+    /** Null when the hub does not count it (its summary is per company and day, without the owner's cards). */
+    val needsOwner: Int? = null,
     val bytesIn: Long = 0,
     val byCompany: List<CompanyEgress> = emptyList(),
     val byTool: Map<String, Long> = emptyMap(),
+    /** Distinct hosts reached, when the hub counts them. */
+    val hosts: Int? = null,
+) {
+    companion object {
+        /** The hub's `GET /egress/summary` is one row per company and day (`EgressDay`); the screen reads their sum. */
+        fun of(days: List<EgressDay>, period: String): EgressSummary = EgressSummary(
+            period = period,
+            requests = days.sumOf { it.requests },
+            blocked = days.sumOf { it.blocked },
+            bytesIn = days.sumOf { it.bytes },
+            byCompany = days.groupBy { it.company }.map { (co, rows) -> CompanyEgress(co, rows.sumOf { it.requests.toInt() }, rows.sumOf { it.blocked }) },
+            hosts = days.maxOfOrNull { it.hosts },
+        )
+    }
+}
+
+/** One company's internet use on one day, as `GET /egress/summary` answers it. */
+@Serializable
+data class EgressDay(
+    val day: String = "",
+    val company: String = "",
+    val requests: Long = 0,
+    val blocked: Int = 0,
+    val bytes: Long = 0,
+    val browserS: Long = 0,
+    val hosts: Int = 0,
 )
 
 @Serializable
@@ -498,7 +538,7 @@ data class Founding(
 
 /** `port` is null for icmp. */
 @Serializable
-data class FirewallRule(val direction: String = "in", val protocol: String, val port: String? = null, val sources: List<String> = emptyList(), val noteFa: String = "")
+data class FirewallRule(val direction: String = "in", val protocol: String = "tcp", val port: String? = null, val sources: List<String> = emptyList(), val noteFa: String = "")
 
 @Serializable
 data class PlanPrice(val server: String? = null, val ipv4: String? = null, val network: String? = null, val source: String = "", val at: String? = null)
@@ -543,7 +583,7 @@ data class HostKey(val type: String, val fingerprintSha256: String)
 data class NewServer(val name: String, val ipv4: String? = null, val ipv6: String? = null, val privateIp: String? = null, val hostKeys: List<HostKey> = emptyList())
 
 @Serializable
-data class Login(val ssh: String, val then: List<String> = emptyList())
+data class Login(val ssh: String = "", val then: List<String> = emptyList())
 
 @Serializable
 data class RunError(val code: String? = null, val message: String? = null, val step: String? = null)
@@ -691,7 +731,7 @@ data class HireOut(val employee: HiredEmployee, val decision: HireDecision)
 // --------------------------------------------------------- stories ⟨1.4.3⟩ --
 // Contract §18.12: designed cards per company, system and CEO posts, 24 hours, pulled and never pushed.
 @Serializable
-data class StoryFigure(val labelFa: String, val value: String)
+data class StoryFigure(val labelFa: String = "", val value: String = "")
 
 @Serializable
 data class StoryLinks(
@@ -710,7 +750,8 @@ data class Story(
     val ref: String,
     val company: String,
     val kind: String,
-    val author: Actor,
+    /** Null for a story the hub wrote itself (the hub sends `null`). */
+    val author: Actor? = null,
     val titleFa: String,
     val bodyFa: String = "",
     val figures: List<StoryFigure> = emptyList(),

@@ -191,7 +191,7 @@ private fun MeetingRow(m: Meeting) {
                 style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             m.minutes?.let { mi ->
-                val first = mi.summaryMd.replace(Regex("[*_`#>-]"), "").lines().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
+                val first = mi.summaryMd.orEmpty().replace(Regex("[*_`#>-]"), "").lines().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
                 Text(com.coinepro.hq.ui.v16.prose(first), style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

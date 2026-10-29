@@ -161,7 +161,7 @@ fun DecisionRow(d: Decision, companies: List<Company>, onClick: () -> Unit) {
                 Box(Modifier.size(6.dp).clip(androidx.compose.foundation.shape.CircleShape).background(fg))
                 Text(r.fa, style = Divan.type.micro, color = fg)
             }
-            val waiting = d.waitingH ?: 0
+            val waiting = d.waitingH?.toInt() ?: 0
             if (d.status == "pending" && d.expiresAt != null) {
                 val soon = (hoursUntil(d.expiresAt) ?: 99.0) < 12
                 Text(until(d.expiresAt), style = Divan.type.micro, color = if (soon) c.warning else c.textMuted)

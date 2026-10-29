@@ -193,9 +193,9 @@ private fun ActiveVoice(voices: List<Voice>) {
                     LicenceBadge(active.licenceCommercial, active.licence)
                 }
                 Text(buildAnnotatedString {
-                    append("RTF "); fig(rtfFa(active)); append(" · اوج حافظه "); fig("${active.memMb ?: "—"} MB"); append(" روی CPU هاب")
+                    append("RTF "); fig(rtfFa(active)); append(" · اوج حافظه "); fig(active.memFa); append(" روی CPU هاب")
                 }, style = Divan.type.caption, color = c.textSecondary)
-                active.samples.firstOrNull()?.let { AudioPlayer(it.file.id, "نمونه‌ی ${active.nameFa}", compact = true) }
+                active.heard.firstOrNull()?.file?.let { AudioPlayer(it.id, "نمونه‌ی ${active.nameFa}", compact = true) }
                 active.noteFa?.let { Text(prose(it), style = Divan.type.caption, color = c.textMuted) }
             }
         }
@@ -205,7 +205,7 @@ private fun ActiveVoice(voices: List<Voice>) {
                 Text(prose(choice.nameFa), style = Divan.type.bodyStrong, color = c.textPrimary)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     LicenceBadge(choice.licenceCommercial, choice.licence)
-                    Text(buildAnnotatedString { append("RTF "); fig(rtfFa(choice)); append(" · "); fig("${choice.memMb ?: "—"} MB") }, style = Divan.type.caption, color = c.textMuted)
+                    Text(buildAnnotatedString { append("RTF "); fig(rtfFa(choice)); append(" · "); fig(choice.memFa) }, style = Divan.type.caption, color = c.textMuted)
                 }
                 Text("شنیدن کور پایین فقط تأیید نهایی است. بعد از گوش دادن، با یک مُهر فعالش کن؛ صدای غیرتجاری بی‌انتخاب صریح تو فعال نمیشود.", style = Divan.type.caption, color = c.textSecondary)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -224,8 +224,8 @@ private fun BlindTest(voices: List<Voice>) {
     val toasts = LocalToasts.current
     val c = Divan.colors
     val action = rememberAction()
-    val speaking = remember(voices) { voices.filter { it.samples.isNotEmpty() }.sortedBy { blind(it.id) } }
-    val scripts = speaking.firstOrNull()?.samples.orEmpty()
+    val speaking = remember(voices) { voices.filter { it.heard.isNotEmpty() }.sortedBy { blind(it.id) } }
+    val scripts = speaking.firstOrNull()?.heard.orEmpty()
     var script by rememberSaveable { mutableStateOf<String?>(null) }
     val sc = script ?: scripts.firstOrNull()?.script
     val text = scripts.firstOrNull { it.script == sc }
@@ -237,7 +237,7 @@ private fun BlindTest(voices: List<Voice>) {
             ChipRow { for (s in scripts) FilterChip(s.titleFa, sc == s.script, { script = s.script }) }
             text?.let { Text(figs("«${it.textFa}»"), Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), style = Divan.type.body, color = c.textPrimary) }
             speaking.forEachIndexed { i, v ->
-                val clip = v.samples.firstOrNull { it.script == sc }
+                val clip = v.heard.firstOrNull { it.script == sc }
                 val label = LETTERS.getOrNull(i) ?: (i + 1).toString()
                 val shown = v.ownerScore != null
                 Column(
@@ -258,7 +258,7 @@ private fun BlindTest(voices: List<Voice>) {
                         }
                         if (shown) Pill(v.ownerScore.toString(), Tone.GOLD)
                     }
-                    if (clip != null) AudioPlayer(clip.file.id, "صدای $label، ${clip.titleFa}", compact = true)
+                    if (clip?.file != null) AudioPlayer(clip.file.id, "صدای $label، ${clip.titleFa}", compact = true)
                     else Text("این متن را نخوانده.", style = Divan.type.caption, color = c.textMuted)
                     Text("نمره‌ی تو", style = Divan.type.micro, color = c.textMuted)
                     RatingRow(v.ownerScore ?: 0, { n ->
@@ -294,7 +294,7 @@ private fun VoiceRegistry(voices: List<Voice>) {
                     Fig(v.engine, style = Divan.type.figureSmall, color = c.textMuted)
                     Text(buildAnnotatedString {
                         append("RTF "); fig(rtfFa(v), c.textPrimary)
-                        append("   حافظه "); fig(v.memMb?.let { "$it MB" } ?: "—", c.textPrimary)
+                        append("   حافظه "); fig(v.memFa, c.textPrimary)
                         append("   نمره‌ی کور ${v.ownerScore ?: "—"}")
                     }, style = Divan.type.caption, color = c.textSecondary)
                     v.measuredAt?.let { Text("اندازه‌گیری ${jDateTime(it)}", style = Divan.type.micro, color = c.textMuted) }
@@ -304,7 +304,7 @@ private fun VoiceRegistry(voices: List<Voice>) {
                             Text(prose(note), Modifier.weight(1f), style = Divan.type.caption, color = c.textMuted)
                         }
                     }
-                    if (v.status != "active" && v.samples.isNotEmpty() && scored) Activate(v)
+                    if (v.status != "active" && v.heard.isNotEmpty() && scored) Activate(v)
                 }
             }
         }
