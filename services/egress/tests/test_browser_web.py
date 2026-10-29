@@ -16,6 +16,7 @@ import asyncio
 import contextlib
 import ipaddress
 import json
+import os
 import ssl
 import subprocess
 from collections.abc import AsyncIterator
@@ -265,6 +266,61 @@ async def test_profile_jobs_hide_the_automation_flag(tmp_path: Path) -> None:
     assert seen["ignore_default_args"] == ["--enable-automation"]
     assert "--disable-blink-features=AutomationControlled" in seen["args"]
     assert seen["user_data_dir"] == str(tmp_path / "chatgpt-web")
+    assert seen["headless"] is True
+
+
+# 2026-10-29: a headed profile browser runs its jobs in a window on its own
+# Xvfb (started once, stopped with it); the sign-in window stays as it is.
+async def test_a_headed_profile_browser_opens_windows_on_its_own_display(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import hq_egress.browser_web as BW
+
+    seen: list[dict[str, Any]] = []
+    spawned: list[tuple[str, ...]] = []
+
+    class Chromium:
+        async def launch_persistent_context(self, user_data_dir: str, **kw: Any) -> object:
+            seen.append(kw)
+            return object()
+
+    class PW:
+        chromium = Chromium()
+
+        async def start(self) -> PW:
+            return self
+
+        async def stop(self) -> None:
+            pass
+
+    class Proc:
+        returncode: int | None = None
+
+        def terminate(self) -> None:
+            self.returncode = -15
+
+        async def wait(self) -> int:
+            return -15
+
+    proc = Proc()
+
+    async def spawn(*args: str, **_: Any) -> Proc:
+        spawned.append(args)
+        return proc
+
+    monkeypatch.setenv("DISPLAY", "")  # restored after the test, whatever start() sets
+    monkeypatch.delenv("DISPLAY")
+    monkeypatch.setattr(BW.asyncio, "create_subprocess_exec", spawn)
+    monkeypatch.setattr(BW, "async_playwright", PW)
+    d = Webd(profiles=tmp_path, headed=True)
+    await d.start()
+    assert spawned and spawned[0][:2] == ("Xvfb", BW.XVFB_DISPLAY)
+    assert os.environ["DISPLAY"] == BW.XVFB_DISPLAY
+    await d.open("chatgpt-web", Proxy(server="http://egress:3132"))
+    await d.open("chatgpt-web", Proxy(server="http://egress:3132"), headless=True)
+    assert [k["headless"] for k in seen] == [False, True]
+    await d.stop()
+    assert proc.returncode == -15
 
 
 # A dead window's or job's Chromium lock is cleared once it is stale (20 min).
