@@ -11,9 +11,10 @@ UV_IMAGE="ghcr.io/astral-sh/uv:0.12.22-python3.12-trixie-slim"
 EXCLUDE_NEWER="${HQ_LOCK_EXCLUDE_NEWER:-2026-10-09T00:00:00Z}"
 # Security fixes younger than the cutoff, per package only (pip-audit, 2026-10-22):
 # certifi PYSEC-2026-4320 (2026.10.19), pypdf CVE-2026-113786 and four more (6.21.1),
-# pillow CVE-2026-112390 and 23 more (13.0.0; pillow-heif 1.8.0 needs pillow>=11.1).
+# pillow CVE-2026-112390 and 23 more (13.0.0; pillow-heif 1.8.0 needs pillow>=11.1);
+# (2026-10-29) pypdf CVE-2026-115572 and two more (6.21.2).
 SECURITY_NEWER=(--exclude-newer-package certifi=2026-10-21T00:00:00Z
-  --exclude-newer-package pypdf=2026-10-18T00:00:00Z
+  --exclude-newer-package pypdf=2026-10-22T00:00:00Z
   --exclude-newer-package pillow=2026-10-18T00:00:00Z)
 
 uv() {

@@ -50,15 +50,18 @@ case "${1:-}" in
       --cov-fail-under=80 && coverage report --fail-under=85 --include='$API_DOMAIN'"
     ;;
   audit)
-    "$TE" run pip-audit --progress-spinner off --require-hashes --disable-pip \
+    # Accepted findings, each with its reason and when it goes, in audit-ignore.txt.
+    IGNORE=()
+    while read -r id _; do IGNORE+=(--ignore-vuln "$id"); done < <(grep -E '^[A-Z]' "$REPO_DIR/scripts/quality/audit-ignore.txt")
+    "$TE" run pip-audit --progress-spinner off --require-hashes --disable-pip "${IGNORE[@]}" \
       -r llm-router/requirements.lock -r claude-runtime/requirements.lock -r gateway/requirements.lock \
       -r stt/requirements.lock -r egress/requirements.lock -r egress/browser.requirements.lock \
       -r provisioner/requirements.lock -r tts/requirements.lock -r media-render/requirements.lock
     api_image -v "$API_DIR:/api:ro" -w /api "$API_IMAGE" pip-audit --progress-spinner off \
-      --require-hashes --disable-pip -r requirements.lock
+      --require-hashes --disable-pip "${IGNORE[@]}" -r requirements.lock
     # Prompt 12 §14: the MCP container servers' own locks.
     api_image -v "$REPO_DIR/infra/mcp:/mcp:ro" -w /mcp "$API_IMAGE" pip-audit --progress-spinner off \
-      --require-hashes --disable-pip -r time/proxy.lock -r time/server.lock -r codecortex/server.lock
+      --require-hashes --disable-pip "${IGNORE[@]}" -r time/proxy.lock -r time/server.lock -r codecortex/server.lock
     ;;
   openapi)
     api_image -v "$API_DIR:/api" -w /api "$API_IMAGE" python -m hq_api.openapi_export
