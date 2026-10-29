@@ -417,7 +417,7 @@ AuditEntry { seq: bigint, at, actor: Actor, principal_kind, company|null,
 |---|---|---|
 | GET | `/control/state` | kill switches and deploy freezes for the holding and every company |
 | POST | `/control/kill-switch` | `{scope: "holding"\|"company:TY", state: "engaged"\|"released", reason}`. **Engage needs no step-up** (speed matters); **release is 🔏**. A CEO (agent) may engage its own company's switch (internal API). ⟨1.1⟩ **Release follows authority:** a switch the owner engaged is released only by the owner with 🔏; a CEO may release only a switch that an agent of its own company engaged. |
-| POST | `/control/deploy-freeze` | internal/owner: `{company, until, reason}` (§1.5 #5). ⟨1.1⟩ Freezes are lifted by authority too: the owner's only by the owner; the pipeline's by the pipeline or the owner; a CEO only its own. |
+| POST | `/control/deploy-freeze` | internal/owner: `{company, until, reason}` (§1.5 #5). ⟨1.1⟩ Freezes are lifted by authority too: the owner's only by the owner; the pipeline's by the pipeline or the owner; a CEO only its own. ⟨1.7.3⟩ The owner lifting (an `until` in the past) is 🔏 `deploy_freeze.lift` on `company:<CODE>`, like `kill_switch.release`; closing stays without step-up. The audit `summary` of `kill_switch.engage`, `kill_switch.release` and `deploy_freeze.set` carries the reason (`<summary>: <reason>`), so the control history (`GET /audit?company=&action=`) shows why. |
 
 Engaged holding kill switch: the router refuses every call except P0, the worker pauses every agent workflow, and the stream shows it everywhere.
 

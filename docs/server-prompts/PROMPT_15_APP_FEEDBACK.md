@@ -22,6 +22,8 @@
 5. **`GET /inbox/summary`:** فیلد `deliverables_unseen` اضافه شود.
 6. **هیچ حذفی در کار نیست.** امتیاز جداست.
 7. **تست‌ها:**
+   - step-up برای برداشتن freeze (بی آن 403، با آن 200)
+   - دلیل در `summary` ردیف‌های کنترل
    - ترتیب مسیرها (seen پیش از `{ref}`)
    - فیلترها
    - idempotency
@@ -36,6 +38,17 @@
    - باید **بی‌درنگ** `503 channel_not_configured` بدهد (صدا را نگه ندارد مگر `purpose=note`).
    - `/meta` فیلد `speech: {enabled: bool}` بگیرد.
    - اپ از این به بعد تبدیل گفتار را روی خود گوشی (fa-IR) انجام میدهد و `/transcribe` فقط پشتیبان است.
+4. **باز کردن deploy با اثر انگشت:**
+   - امروز `POST /control/deploy-freeze` با `until` گذشته (برداشتن freeze) هیچ step-up نمیخواهد.
+   - مالک خواسته باز کردنِ هر چیزی که بسته شده با passkey باشد، مثل `kill_switch.release`.
+   - اپ از قبل `X-Step-Up` را با action `deploy_freeze.lift` و target `company:<CODE>` میفرستد.
+   - سرور آن را مصرف کند (یک‌بارمصرف، طبق §۹). بستن deploy همچنان بی step-up است.
+5. **دلیل در تاریخچه‌ی کنترل:**
+   - امروز ردیف‌های Audit برای `kill_switch.engage`، `kill_switch.release` و `deploy_freeze.set` دلیل را ندارند.
+   - در نتیجه دلیلِ یک ایجنت یا ناظر فقط برای وضعیت فعلی کلید دیده میشود.
+   - `summary` این ردیف‌ها دلیل را هم داشته باشد، به شکل `<خلاصه>: <دلیل>`.
+   - اپ تاریخچه را از `GET /audit?company=&action=` میخواند.
+   - **endpoint تازه لازم نیست.** زنجیره‌ی hash برای ردیف‌های تازه طبق معمول ساخته میشود.
 
 ## §۳. دفتر Audit
 ناظر میگوید «زنجیره‌ی Audit شکسته است، از ردیف ۰».
