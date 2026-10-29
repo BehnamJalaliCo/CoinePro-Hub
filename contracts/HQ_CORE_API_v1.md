@@ -206,9 +206,10 @@ Evidence { kind: "deliverable"|"link"|"metric"|"log", ref, note }
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/work` | `?company&department&assignee&status&kind&priority&due_from&due_to&parent&q&overdue` |
-| GET | `/work/{id}` | includes `chain`: the delegation path with time, assignee and usage of each step (§D-13 of the design list) |
+| GET | `/work` | `?company&department&assignee&status&kind&priority&due_from&due_to&parent&q&overdue` ⟨1.7.4⟩ `&created_by=owner\|<code>`. |
+| GET | `/work/{id}` | includes `chain`: the delegation path with time, assignee and usage of each step (§D-13 of the design list). ⟨1.7.4⟩ Each of `children` carries `ref, title, status, assignee, updated_at, progress (0..1\|null, the latest `/progress` report), deliverable_refs`, two levels down. `Work` adds `deliverable_refs` beside `deliverable_ids`; `GET /deliverables` takes `?work=`. Stream `work.*` and `deliverable.created` payloads carry `root_id, root_ref`. |
 | GET | `/work/{id}/events` | timeline |
+| GET | `/work/{id}/tree-events` | ⟨1.7.4⟩ the work's and all its sub-works' events (depth ≤ 2), time order, `Page`; run steps as summaries only (§16). |
 | POST | `/work` | owner order: `{company, department?, assignee?, title, brief, kind, priority, due_at?, budget?, escrow?, schedule?}`. Without `assignee` it goes to the CEO, or straight to a department manager when `department` is given. |
 | PATCH | `/work/{id}` | `title, brief, priority, due_at` |
 | POST | `/work/{id}/cancel` | `{reason}` |
