@@ -35,3 +35,29 @@
 ## Contract notes
 - خطای تازه‌ی runner: `unavailable` (⟨1.7.2⟩)؛ بازیکن `status: off` با `status_reason` همان پیام.
 - مسیرهای CLI بازیکن Gemini در کد ماندند و تست میشوند (`HQ_GEMINI_CLI_GONE=0` فقط در تست)، برای اتصال API پولی §21.9.
+
+## Deploy و ادامه (۲۰۲۶-۱۰-۲۳)
+- **gateها:**
+  - `make check` پیش از deploy: OPA ۱۷۷/۱۷۷ و services ۱۱۵۴ قبول شد.
+  - shellcheck، hadolint، infra و تست bake-off اول قرمز بودند. اصلاح و دوباره قبول شدند.
+  - suite کامل api: ۸۳۰ قبول و یک شکست (`test_openapi`، سند OpenAPI). سند بازسازی شد و آن تست حالا قبول است.
+  - gate `live` از worktree، مثل ۱۳ و ۱۴، probe جعبه‌شن render را بدون `.env` زنده رد میکند. همان probe بعد از deploy از checkout زنده قبول شد.
+- **deploy:**
+  - backup اول (snapshot 6c6efaed) و migration ‏0029 → 0029_1.
+  - `make up` اول در آخرین گام افتاد. مالک `HQ_SUBSTITUTES=on` را روشن کرده بود و `up --wait` runner یک‌بارمصرف را بالا میآورد که با exit 0 تمام میشد. حالا `substitute-runner`، `tts` و `media-render` در compose ‏`scale: 0` دارند و `run` تایمر یا dispatcher مثل قبل کار میکند. `make up` اول همه‌ی ایمیج‌های profileهای روشن را build میکند.
+  - `verify-live` قبول شد. صفر فراخوانی مدل؛ کلید توقف روشن ماند.
+- **ورود مالک، بعد از گزارش‌های مالک:**
+  - **صفحه‌ی رضایت گوگل:** `gds.google.com`، `consent.google.com` و `ogs.google.com` و بعد `accounts.google.de` (گام SetSID روی دامنه‌ی کشور IP هاب) به `login_hosts` هر سه recipe اضافه شدند.
+  - **پرچم‌های کروم:** پنجره با `--disable-sync --allow-browser-signin=false` باز میشود.
+  - **صفحه‌ی مشکی DeepSeek:** قفل `Singleton*` پنجره‌ی کرش‌کرده‌ی ۱۴:۲۵ در پروفایل مانده بود. حالا قفل کهنه‌تر از ۲۰ دقیقه پیش از هر باز شدن پاک میشود، هم در پنجره و هم در jobها؛ تست هم دارد.
+  - **کپچای DeepSeek:** `hcaptcha.com`، `awswaf.com` و `fengkongcloud.com` به hosts و login_hosts رفتند، `cdn-apple.com` به login_hosts.
+- **ورودها به هاب نمیرسیدند:**
+  - **مشکل:** هیچ کدی `web_state` را `signed_in` نمیکرد. ورود CLI با `make chatgpt-login` هم به هاب نمیرسید.
+  - **route تازه:** `POST /internal/v1/substitutes/signed-in`، با توکن dispatcher و یک ردیف Audit `substitute.signed_in`.
+  - **گزارش از make:** make targetها بعد از ورود بررسی میکنند ورود واقعاً هست (کوکی‌های پروفایل که در همان پنجره نوشته شده‌اند، یا فایل auth ‏Codex) و گزارش میدهند. بازیکن فقط-وب با ورود پروفایل `ready` میشود.
+  - **ورودهای امروز:** همگام شدند. GPT: CLI و وب `signed_in`، `ready`. Gemini و DeepSeek: وب `signed_in`، `ready`.
+- **OPA:**
+  - **مشکل:** از ۲۰۲۶-۱۰-۱۷ با همان policyهای روز شروعش کار میکرد. `make up` آن را دوباره نمیساخت و `--watch` نداشت. نتیجه: claim ‏dispatcher و گزارش ورود 403 میگرفتند و push ماتریس اختیار ‏api با 401 رد میشد.
+  - **اصلاح:** OPA دوباره بالا آمد و حالا `--watch` دارد. policyهای ۸ تا ۱۴ و ماتریس اختیار حالا زنده‌اند.
+- **کارهای مالک:** همه انجام شد: ورود Gemini، ChatGPT و DeepSeek، و `make install-systemd`. تایمر `coinepro-hq-substitutes` نصب است.
+

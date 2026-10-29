@@ -14,8 +14,10 @@ HQ="$REPO_DIR/infra/compose/hq.sh"
 case "${1:-}" in
   codex)
     echo "ChatGPT (Codex CLI): a link and a one-time code follow; sign in on your phone."
-    exec "$HQ" --profile substitutes run --rm --entrypoint sh substitute-runner -c \
-      'umask 077; mkdir -p /auth/codex; CODEX_HOME=/auth/codex HOME=/work exec codex login --device-auth'
+    "$HQ" --profile substitutes run --rm --entrypoint sh substitute-runner -c \
+      'umask 077; mkdir -p /auth/codex; CODEX_HOME=/auth/codex HOME=/work exec codex login --device-auth' || true
+    # Tell the hub, once Codex's auth file is there (14.1).
+    "$REPO_DIR/infra/substitutes/report-signin.sh" cli codex || true
     ;;
   gemini)
     # Contract ⟨1.7.2⟩ (14.1 §2.2): Google ended this sign-in for individuals.

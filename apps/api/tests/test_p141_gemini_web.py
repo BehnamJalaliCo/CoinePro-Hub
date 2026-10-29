@@ -14,6 +14,8 @@ import pytest
 
 from hq_api.domain import substitutes as S
 
+from .conftest import substitutes_headers
+
 MIGRATION = Path(__file__).parents[1] / "migrations" / "versions" / "0029_1_gemini_web.py"
 
 
@@ -84,3 +86,47 @@ async def test_0029_1_moves_only_seats_the_owner_left_alone(su: Any, owner_chang
         assert moved == (0 if owner_changed else 1)
     finally:
         await tr.rollback()
+
+
+async def test_a_sign_in_from_the_owners_terminal_is_reported_by_the_dispatcher(
+    client: Any, owner: dict[str, str], su: Any
+) -> None:
+    """14.1: `make <x>-web-login` and `make chatgpt-login` report the finished
+    sign-in with the dispatcher's token; nobody else can; Gemini has no CLI."""
+    url = "/internal/v1/substitutes/signed-in"
+    before = await su.fetchrow(
+        "SELECT login_state, web_state, status FROM substitutes.players WHERE player = 'gpt'"
+    )
+    try:
+        sub = substitutes_headers()
+        bad = await client.post(url, headers=owner, json={"player": "gpt", "via": "web"})
+        assert bad.status_code in (401, 403)
+        r = await client.post(url, headers=sub, json={"player": "deepseek", "via": "web"})
+        assert r.status_code == 200 and r.json()["web"] == "signed_in", r.text
+        status = await su.fetchval(
+            "SELECT status FROM substitutes.players WHERE player = 'deepseek'"
+        )
+        assert status == "ready"
+        r = await client.post(url, headers=sub, json={"player": "gpt", "via": "cli"})
+        assert r.status_code == 200 and r.json()["login"] == "signed_in", r.text
+        r = await client.post(url, headers=sub, json={"player": "gemini", "via": "cli"})
+        assert r.status_code == 409 and r.json()["code"] == "not_ready"
+        assert (
+            await su.fetchval(
+                """SELECT count(*) FROM audit.entries
+                   WHERE action = 'substitute.signed_in' AND target_ref IN ('deepseek:web', 'gpt:cli')"""
+            )
+            >= 2
+        )
+    finally:
+        await su.execute(
+            """UPDATE substitutes.players SET login_state = $1, web_state = $2, status = $3
+               WHERE player = 'gpt'""",
+            before["login_state"],
+            before["web_state"],
+            before["status"],
+        )
+        await su.execute(
+            "UPDATE substitutes.players SET web_state = 'signed_out', status = 'off'"
+            " WHERE player = 'deepseek'"
+        )

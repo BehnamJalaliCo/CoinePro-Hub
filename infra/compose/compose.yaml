@@ -547,6 +547,9 @@ services:
       - --authorization=basic
       - --log-level=error
       - --disable-telemetry
+      # 14.1: the policies are re-read when a deploy changes them (without it
+      # OPA kept the policies of the day it started).
+      - --watch
       - /policy
     user: "1000:1000"
     read_only: true

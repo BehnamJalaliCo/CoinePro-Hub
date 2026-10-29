@@ -33,7 +33,8 @@ flags=(
   "--user-data-dir=${BROWSER_WEB_PROFILES:-/profiles}/$account"
   "--proxy-server=${BROWSER_WEB_LOGIN_PROXY:-http://egress:3133}"
   --no-first-run --no-default-browser-check --disable-dev-shm-usage
-  --disable-gpu --disable-quic --disable-sync --disable-background-networking
+  --disable-gpu --disable-quic --disable-sync --allow-browser-signin=false
+  --disable-background-networking
   --force-webrtc-ip-handling-policy=disable_non_proxied_udp
   "--js-flags=--max-old-space-size=$heap" "--window-size=1280,900"
 )
@@ -42,8 +43,13 @@ if $print_only; then
   exit 0
 fi
 [[ -n "$chrome" && -x "$chrome" ]] || { echo "error: no Chromium in this image" >&2; exit 1; }
-mkdir -p "${BROWSER_WEB_PROFILES:-/profiles}/$account"
-chmod 700 "${BROWSER_WEB_PROFILES:-/profiles}/$account"
+profile="${BROWSER_WEB_PROFILES:-/profiles}/$account"
+mkdir -p "$profile"
+chmod 700 "$profile"
+# A window or job that died leaves Chromium's profile lock behind (it names the
+# dead container), and Chromium then refuses the profile: a black window. A
+# lock older than 20 minutes is stale (a job or a window lasts at most 15).
+find "$profile" -maxdepth 1 -name 'Singleton*' -mmin +20 -exec rm -f {} + 2>/dev/null || true
 seconds="${HQ_WEB_LOGIN_SECONDS:-900}"
 if [[ ! "$seconds" =~ ^[0-9]+$ ]] || ((seconds > 900 || seconds < 60)); then seconds=900; fi
 umask 077

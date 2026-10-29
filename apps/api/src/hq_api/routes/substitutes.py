@@ -494,6 +494,27 @@ async def job_done(id: UUID, body: S.DoneIn, ctx: Ctx = Depends(internal_ctx)) -
     return {"state": row["state"]}
 
 
+@internal_router.post("/substitutes/signed-in", responses=E)
+async def signed_in(body: S.SignedInIn, ctx: Ctx = Depends(internal_ctx)) -> dict[str, Any]:
+    """The owner's sign-in from their own terminal is done (prompt 14.1): the
+    make target reports it with the dispatcher's token after checking the
+    sign-in exists (the profile's cookies, or Codex's auth file)."""
+    await _service(ctx)
+    async with ctx.tx() as tx:
+        out = await S.signed_in(tx, body)
+        holding = await ctx.hub.companies.holding()
+        await ctx.audit(
+            tx,
+            company_id=holding.id,
+            action="substitute.signed_in",
+            action_class="A1",
+            target_kind="substitute",
+            target_ref=f"{body.player}:{body.via}",
+            summary="the owner's sign-in in their own terminal",
+        )
+    return out
+
+
 @internal_router.post("/substitutes/logins/{id}/started", responses=E)
 async def login_started(
     id: UUID, body: S.LoginStarted, ctx: Ctx = Depends(internal_ctx)

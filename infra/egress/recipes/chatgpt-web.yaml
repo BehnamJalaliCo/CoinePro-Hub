@@ -22,6 +22,12 @@ hosts:
 # providers ChatGPT offers).
 login_hosts:
   - accounts.google.com
+  # Google's consent pages after sign-in (the EU consent, the account bar)
+  - gds.google.com
+  - consent.google.com
+  - ogs.google.com
+  # Google sets the sign-in cookie on the country domain of the hub's IP too (Germany)
+  - accounts.google.de
   - gstatic.com
   - appleid.apple.com
   - login.live.com

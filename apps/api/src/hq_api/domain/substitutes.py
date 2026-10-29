@@ -547,6 +547,48 @@ async def guard(tx: Tx, hub: Any, seat: str, text: str) -> str | None:
 
 
 # ------------------------------------------------------------- seat calls --
+class SignedInIn(Model):
+    """The owner finished a sign-in in their own terminal (prompt 14.1): the
+    browser profile (`make <x>-web-login`) or the CLI (`make chatgpt-login`).
+    Optimistic: the first job that meets a login page marks it `expired`."""
+
+    player: Player
+    via: Literal["cli", "web"]
+
+
+async def signed_in(tx: Tx, body: SignedInIn) -> dict[str, Any]:
+    p = await _player(tx, body.player, lock=True)
+    if body.via == "web":
+        if p["web_account"] is None:
+            raise ApiError(
+                422, "validation_failed", fields={"via": "this player has no web profile"}
+            )
+        # A player that works only on the web (DeepSeek; Gemini since ⟨1.7.2⟩) is
+        # ready once its profile is signed in; GPT's state stays its CLI's.
+        web_only = p["runner"] != "codex_cli"
+        await tx.exec(
+            """UPDATE substitutes.players SET web_state = 'signed_in', web_last_ok_at = now(),
+                   web_last_failure = NULL,
+                   status = CASE WHEN :w AND status = 'off' THEN 'ready' ELSE status END,
+                   status_reason = CASE WHEN :w AND status = 'off' THEN NULL ELSE status_reason END,
+                   updated_at = now()
+               WHERE player = :p""",
+            p=body.player,
+            w=web_only,
+        )
+    else:
+        if p["runner"] != "codex_cli":  # ⟨1.7.2⟩ the Gemini CLI is gone; DeepSeek has none
+            raise ApiError(409, "not_ready", "no CLI sign-in for this player")
+        await tx.exec(
+            """UPDATE substitutes.players SET login_state = 'signed_in', login_since = now(),
+                   login_last_ok_at = now(), status = 'ready', status_reason = NULL, updated_at = now()
+               WHERE player = :p""",
+            p=body.player,
+        )
+    row = await _player(tx, body.player)
+    return {"player": row["player"], "login": row["login_state"], "web": row["web_state"]}
+
+
 async def _player(tx: Tx, player: str, *, lock: bool = False) -> dict[str, Any]:
     row = await tx.first(
         "SELECT * FROM substitutes.players WHERE player = :p"  # noqa: S608 - constant

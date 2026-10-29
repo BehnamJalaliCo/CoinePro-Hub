@@ -10197,7 +10197,8 @@
                   "timeout",
                   "failed",
                   "no_access",
-                  "not_ready"
+                  "not_ready",
+                  "unavailable"
                 ],
                 "type": "string"
               },
@@ -32257,6 +32258,35 @@
           "state"
         ],
         "title": "ShadowReport",
+        "type": "object"
+      },
+      "SignedInIn": {
+        "additionalProperties": false,
+        "description": "The owner finished a sign-in in their own terminal (prompt 14.1): the\nbrowser profile (`make <x>-web-login`) or the CLI (`make chatgpt-login`).\nOptimistic: the first job that meets a login page marks it `expired`.",
+        "properties": {
+          "player": {
+            "enum": [
+              "gpt",
+              "gemini",
+              "deepseek"
+            ],
+            "title": "Player",
+            "type": "string"
+          },
+          "via": {
+            "enum": [
+              "cli",
+              "web"
+            ],
+            "title": "Via",
+            "type": "string"
+          }
+        },
+        "required": [
+          "player",
+          "via"
+        ],
+        "title": "SignedInIn",
         "type": "object"
       },
       "Site": {
@@ -109422,6 +109452,144 @@
           }
         },
         "summary": "Login Started",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/substitutes/signed-in": {
+      "post": {
+        "description": "The owner's sign-in from their own terminal is done (prompt 14.1): the\nmake target reports it with the dispatcher's token after checking the\nsign-in exists (the profile's cookies, or Codex's auth file).",
+        "operationId": "signed_in",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "player": "gpt",
+                "via": "cli"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/SignedInIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Signed In",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Signed In",
         "tags": [
           "internal"
         ]
