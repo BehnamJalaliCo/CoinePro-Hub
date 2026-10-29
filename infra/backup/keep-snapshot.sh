@@ -25,10 +25,20 @@ trap secrets_cleanup EXIT
 compose_facts
 load_secrets || { echo "keep-snapshot: secrets unavailable: $LOAD_ERROR" >&2; exit 1; }
 
-retag() { # retag NETWORK REPO ID -> the snapshot's new id
-  brestic "$1" -- -r "$2" tag --add "$TAG" --remove hourly "$3" --quiet >/dev/null
+kept() { # kept NETWORK REPO -> the id of the snapshot that came from $full, once tagged TAG
+  # (a re-tagged snapshot keeps the id it first came from: the local one's,
+  # in the Drive copy too)
   brestic "$1" -- -r "$2" snapshots --json --tag "$TAG" |
-    jq -r --arg o "$3" '[.[] | select(.id == $o or .original == $o)] | last | .id // empty'
+    jq -r --arg o "$full" '[.[] | select(.id == $o or .original == $o)] | last | .id // empty'
+}
+retag() { # retag NETWORK REPO ID -> the snapshot's new id (already kept: the same one)
+  local id
+  id="$(kept "$1" "$2")" || return 1
+  if [[ -z "$id" ]]; then
+    brestic "$1" -- -r "$2" tag --add "$TAG" --remove hourly "$3" --quiet >/dev/null || return 1
+    id="$(kept "$1" "$2")" || return 1
+  fi
+  printf '%s' "$id"
 }
 
 full="$(brestic none -- -r "$LOCAL_REPO" snapshots --json "$SNAP" | jq -r '.[0].id // empty')"
@@ -36,7 +46,7 @@ full="$(brestic none -- -r "$LOCAL_REPO" snapshots --json "$SNAP" | jq -r '.[0].
 remote=""
 if [[ "$GDRIVE_CONFIGURED" == true ]]; then
   # the Drive copy names the local snapshot it came from
-  remote="$(brestic bridge -- -r "$GDRIVE_REPO" snapshots --json --tag hourly |
+  remote="$(brestic bridge -- -r "$GDRIVE_REPO" snapshots --json |
     jq -r --arg o "$full" '[.[] | select(.original == $o)] | last | .id // empty')"
   [[ -n "$remote" ]] || { echo "keep-snapshot: $SNAP is not in Google Drive yet" >&2; exit 1; }
 fi
