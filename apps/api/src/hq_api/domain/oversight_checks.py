@@ -576,7 +576,8 @@ async def hub_healthy(ctx: CheckCtx) -> Checked:
         down = [s for s, v in (d.get("up") or {}).items() if float(v) < 1]
         if down:
             why.append("down: " + ", ".join(sorted(down)[:10]))
-        if float(d.get("disk_used_pct") or 0) > 85:
+        # 2026-10-29: the owner hears of a filling disk at 80% (host.rules.yml too)
+        if float(d.get("disk_used_pct") or 0) > 80:
             why.append(f"disk {d['disk_used_pct']}%")
         if float(d.get("memory_used_pct") or 0) > 90:
             why.append(f"memory {d['memory_used_pct']}%")

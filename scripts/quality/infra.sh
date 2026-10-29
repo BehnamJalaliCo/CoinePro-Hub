@@ -33,7 +33,7 @@ T="$(mktemp -d)"
 NAME="hq-infra-$$"
 # shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
-  docker rm -f "$NAME-bao" "$NAME-web" "$NAME-edge-off" "$NAME-edge-on" "$NAME-api" "$NAME-edge-api" \
+  docker rm -fv "$NAME-bao" "$NAME-web" "$NAME-edge-off" "$NAME-edge-on" "$NAME-api" "$NAME-edge-api" \
     >/dev/null 2>&1 || true
   docker network rm "$NAME-net" >/dev/null 2>&1 || true
   rm -rf "$T"

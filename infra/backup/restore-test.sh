@@ -60,7 +60,7 @@ tools_image="$(jq -r '.services["hq-tools"].image' <<<"$config")"
 name="hq-restore-test-$(date -u +%s)"
 volumes=()
 cleanup() {
-  docker rm -f "$name" >/dev/null 2>&1 || true
+  docker rm -fv "$name" >/dev/null 2>&1 || true  # -v: its anonymous data volume too
   for v in "${volumes[@]}"; do docker volume rm -f "$v" >/dev/null 2>&1 || true; done
 }
 trap cleanup EXIT
