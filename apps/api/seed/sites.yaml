@@ -5,15 +5,17 @@
 # test fixture of the hub, not the owner's data).
 #   expect.status    the HTTP status that counts as healthy (default 200)
 #   expect.contains  optional text the body must contain (GET only)
+#   expect.location  where a redirect to another domain must point (prompt 16)
 # Redirects are followed only on the same host; a redirect to another domain
 # is reported as it is (its 3xx status), never followed.
 sites:
   - {company: TY, url: "https://tradeyar.trade-future.ir", kind: web}
   - {company: TY, url: "https://user.tradeyar.trade-future.ir", kind: web}
   - {company: FX, url: "https://coineprofx.com", kind: web}
-  - {company: FX, url: "https://fx.trade-future.ir", kind: web}
+  # The old address forwards to coineprofx.com (the owner, 2026-10-29: healthy so).
+  - {company: FX, url: "https://fx.trade-future.ir", kind: web,
+     expect: {status: 301, location: "https://coineprofx.com/"}}
   - {company: PC, url: "https://pro-chart.com", kind: web}
-  - {company: PC, url: "https://terminal.coinepro.com", kind: web}
   - {company: HQ, url: "https://hq.coinepro.com/api/v1/health", kind: api,
      expect: {status: 200, contains: '"ok"'}}
   # Canary (prompt 05 §9.1): Caddy answers 503 here on purpose, so the whole

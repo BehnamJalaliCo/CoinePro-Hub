@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -352,7 +353,18 @@ def _expect_ok(expect: dict[str, Any]) -> dict[str, Any]:
         raise ApiError(422, "validation_failed", fields={"expect.status": "an HTTP status"})
     if contains is not None and (not isinstance(contains, str) or not 1 <= len(contains) <= 200):
         raise ApiError(422, "validation_failed", fields={"expect.contains": "1..200 characters"})
-    return {"status": status, **({"contains": contains} if contains else {})}
+    location = expect.get("location")
+    if location is not None and (
+        not isinstance(location, str)
+        or len(location) > 500
+        or not re.fullmatch(r"https?://[^\s/$.?#][^\s]*", location)
+    ):
+        raise ApiError(422, "validation_failed", fields={"expect.location": "an absolute URL"})
+    return {
+        "status": status,
+        **({"contains": contains} if contains else {}),
+        **({"location": location} if location else {}),
+    }
 
 
 async def _sites(tx: Any, company_id: UUID | None) -> list[Site]:

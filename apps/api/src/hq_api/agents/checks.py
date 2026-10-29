@@ -72,6 +72,12 @@ class Result:
     error_code: str | None
 
 
+def _target(resp: httpx.Response) -> str:
+    """Where a redirect points (absolute, without a trailing slash); "" for none."""
+    loc = resp.headers.get("location")
+    return urljoin(str(resp.request.url), loc).rstrip("/") if loc else ""
+
+
 class Checker:
     def __init__(
         self,
@@ -89,6 +95,7 @@ class Checker:
         expect = site["expect"] or {}
         want = int(expect.get("status", 200))
         contains = expect.get("contains")
+        location = expect.get("location")
         started = time.monotonic()
         host = urlsplit(url).hostname or ""
         if await site_seed.internal_reason(url, self._resolver):
@@ -124,6 +131,9 @@ class Checker:
             return Result(False, resp.status_code, latency, days, "unexpected_status")
         if contains and method == "GET" and contains not in resp.text[:MAX_BODY]:
             return Result(False, resp.status_code, latency, days, "missing_text")
+        if location and _target(resp) != str(location).rstrip("/"):
+            # a redirect to another domain counts only where the list says it goes
+            return Result(False, resp.status_code, latency, days, "wrong_redirect")
         return Result(True, resp.status_code, latency, days, None)
 
     async def _fetch(

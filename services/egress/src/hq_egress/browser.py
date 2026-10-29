@@ -388,6 +388,8 @@ async def _step(
                 return {**res, "ok": False, "error": "target_required"}
             facts = await _facts(page, str(target), ms)
             reason = commitment(facts, do)
+            if reason == "form_submit" and a.account and a.account.submits_on(page.url):
+                reason = None  # the owner's own chat on a signed-in profile's page
             if reason:
                 out["blocked"] = {"step": i, "code": "needs_owner", "reason": reason}
                 return {**res, "ok": False, "error": "needs_owner"}

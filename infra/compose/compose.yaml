@@ -1469,6 +1469,9 @@ services:
       BROWSER_SANDBOX: "1"
       # 14.1 §1.2: the signed-in sites' apps need more than the read tool's 192.
       BROWSER_JS_HEAP_MB: ${BROWSER_WEB_JS_HEAP_MB:-384}
+      # 2026-10-29 (the owner): jobs in a real window on the image's Xvfb;
+      # chatgpt.com's Cloudflare check turns the headless shell away.
+      BROWSER_WEB_HEADED: ${BROWSER_WEB_HEADED:-1}
       BROWSER_WEB_PROFILES: /profiles
       PORT: "8096"
     user: "10001:10001"
